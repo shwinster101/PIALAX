@@ -44,6 +44,7 @@ button{font-family:inherit;cursor:pointer;}
 #home-sel:hover{background-color:#fbbf24;}
 #home-sel:focus{border-color:#b45309;box-shadow:0 0 0 2px rgba(245,158,11,.35);}
 #home-sel option{background:#1f2937;color:#fff;}
+#home-airport-row .lbl{color:#f59e0b;}
 
 /* ── Holiday chips ── */
 #hol-row{display:flex;gap:4px;flex-wrap:wrap;}
@@ -256,8 +257,8 @@ button{font-family:inherit;cursor:pointer;}
   html,body{overflow:auto;height:auto;}
   #app{flex-direction:column;height:auto;min-height:100svh;min-height:100vh;}
 
-  /* Map on top */
-  #main{order:1;flex:none;width:100%;height:44vw;min-height:220px;position:relative;}
+  /* Map on top — enlarged for better route visibility */
+  #main{order:1;flex:none;width:100%;height:68vw;min-height:320px;max-height:55vh;position:relative;}
   #map-wrap{width:100%;height:100%;}
   #statsbar{display:none!important;}
 
@@ -1448,25 +1449,25 @@ function redrawMap() {
 
     // ── Corner price panel (bottom-left, empty ocean area on US Albers) ──
     if (routeRows.length) {
-      var fareLbl = S.tripType==='round' ? ' RT' : ' OW';
-      var panelW = 118, rowH = 16, padY = 8, headerH = 16;
-      var panelH = headerH + padY + routeRows.length*rowH + padY;
-      var px = 10, py = h - panelH - 10;
+      var fareLbl = S.tripType==='round' ? 'RT' : 'OW';
+      var panelW = 96, rowH = 12, padX = 7, padY = 5, headerH = 11, gap = 3;
+      var panelH = padY + headerH + gap + routeRows.length*rowH + padY;
+      var px = 8, py = h - panelH - 8;
       var panel = svg.append('g').attr('class','route-price-panel').attr('pointer-events','none');
       panel.append('rect').attr('x',px).attr('y',py).attr('width',panelW).attr('height',panelH)
-        .attr('rx',6).attr('fill','#0b1726').attr('stroke','#1f3350').attr('stroke-width',1).attr('opacity',0.92);
-      panel.append('text').attr('x',px+8).attr('y',py+headerH+2).attr('fill','#a0c4e8').attr('font-size',10)
-        .attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('letter-spacing','.04em').text(S.home + ' ROUTES');
+        .attr('rx',5).attr('fill','#0b1726').attr('stroke','#1f3350').attr('stroke-width',1).attr('opacity',0.9);
+      panel.append('text').attr('x',px+padX).attr('y',py+padY+headerH-1).attr('fill','#6e93bd').attr('font-size',8)
+        .attr('font-weight',700).attr('font-family','system-ui,sans-serif').attr('letter-spacing','.06em').text(S.home + ' ROUTES');
       routeRows.forEach(function(r, i){
-        var ry = py + headerH + padY + i*rowH + 10;
+        var ry = py + padY + headerH + gap + i*rowH + 8;
         var op = r.focused ? 1 : 0.35;
-        panel.append('circle').attr('cx',px+10).attr('cy',ry-3).attr('r',3).attr('fill',r.col).attr('opacity',op);
-        panel.append('text').attr('x',px+18).attr('y',ry).attr('fill','#e6edf5').attr('font-size',11)
-          .attr('font-weight',700).attr('font-family','system-ui,sans-serif').attr('opacity',op)
-          .text(S.home + ' > ' + r.code);
-        panel.append('text').attr('x',px+panelW-8).attr('y',ry).attr('text-anchor','end')
-          .attr('fill',r.col).attr('font-size',11).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('opacity',op)
-          .text(r.price ? ('$'+r.price+fareLbl) : '—');
+        panel.append('circle').attr('cx',px+padX+1).attr('cy',ry-2).attr('r',2).attr('fill',r.col).attr('opacity',op);
+        panel.append('text').attr('x',px+padX+8).attr('y',ry).attr('fill','#d6e0ec').attr('font-size',8.5)
+          .attr('font-weight',600).attr('font-family','system-ui,sans-serif').attr('opacity',op)
+          .text(S.home + '>' + r.code);
+        panel.append('text').attr('x',px+panelW-padX).attr('y',ry).attr('text-anchor','end')
+          .attr('fill',r.col).attr('font-size',8.5).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',op)
+          .text(r.price ? ('$'+r.price+' '+fareLbl) : '—');
       });
     }
 
