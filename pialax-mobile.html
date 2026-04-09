@@ -1,0 +1,1713 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>PIALAX — Family Flight Dashboard</title>
+<!-- CDN scripts via script-src work on file:// (no CORS restriction) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<style>
+:root{
+  --bg:#07101e;--surface:#0f1d2e;--surface2:#162233;
+  --border:#1c2f45;--border2:#243b55;--text:#e8f0f8;--muted:#5b7a99;
+  --accent:#2e7cf6;--a-dim:rgba(46,124,246,.12);
+  --green:#10b981;--amber:#f59e0b;--red:#ef4444;
+  --lax:#2e7cf6;--jax:#f59e0b;--pia:#a855f7;--ord:#06b6d4;
+  --cheap:#10b981;--mid:#f59e0b;--pricey:#ef4444;
+  --r:10px;--ease:cubic-bezier(.4,0,.2,1);--fast:cubic-bezier(.25,.1,.25,1);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;}
+button{font-family:inherit;cursor:pointer;}
+#app{display:flex;height:100vh;width:100vw;}
+
+/* ── Sidebar ── */
+#sb{width:300px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
+#sb-top{padding:14px 16px 11px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:flex-start;justify-content:space-between;}
+#sb-top h1{font-size:1.5rem;font-weight:900;letter-spacing:-1.5px;color:var(--text);line-height:1;}
+#sb-top .ver{font-size:.57rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;}
+.live-pill{display:flex;align-items:center;gap:5px;font-size:.63rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 9px;margin-top:2px;}
+.ld{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:blink 2.4s ease-in-out infinite;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
+#sb-body{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:8px;}
+#sb-body::-webkit-scrollbar{width:3px;}
+#sb-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+.lbl{font-size:.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:3px;}
+
+/* ── Select ── */
+.s-sel{width:100%;padding:8px 28px 8px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:var(--r);font-size:.86rem;font-weight:700;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235b7a99'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .15s;}
+.s-sel:focus{outline:none;border-color:var(--accent);}
+
+/* ── Holiday chips ── */
+#hol-row{display:flex;gap:4px;flex-wrap:wrap;}
+.hol-btn{padding:4px 8px;font-size:.64rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:20px;transition:all .15s var(--ease);white-space:nowrap;}
+.hol-btn:hover{border-color:var(--accent);color:var(--accent);}
+.hol-btn.active{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
+
+/* ── Trip type ── */
+#trip-row{display:flex;gap:4px;}
+.tt-btn{flex:1;padding:6px;font-size:.73rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);transition:all .15s var(--ease);}
+.tt-btn.on{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
+
+/* ── Dates ── */
+#date-row{display:flex;gap:4px;}
+.d-btn{flex:1;padding:7px 9px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);text-align:left;transition:border-color .15s;line-height:1.3;}
+.d-btn.active,.d-btn:hover:not(:disabled){border-color:var(--accent);}
+.d-btn:disabled{opacity:.28;cursor:default;}
+.d-lbl{display:block;font-size:.57rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
+.d-val{display:block;font-size:.82rem;font-weight:800;color:var(--text);margin-top:1px;white-space:nowrap;}
+.d-val.ph{color:var(--muted);font-weight:400;}
+
+/* ── Search button ── */
+#search-btn{width:100%;padding:9px;border:none;border-radius:var(--r);background:var(--accent);color:#fff;font-size:.82rem;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity .15s,transform .1s;}
+#search-btn:hover{opacity:.88;}
+#search-btn:active{transform:scale(.98);}
+#search-btn:disabled{opacity:.4;cursor:default;}
+.spin-sm{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none;}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Calendar popup ── */
+#cal-bd{position:fixed;inset:0;z-index:900;display:none;}
+#cal-bd.open{display:block;}
+#cal{position:fixed;z-index:1000;background:var(--surface);border:1px solid var(--border2);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.75);padding:13px 15px 11px;display:none;animation:calIn .16s var(--fast);}
+#cal.open{display:block;}
+@keyframes calIn{from{opacity:0;transform:translateY(-7px) scale(.98)}to{opacity:1;transform:none}}
+#cal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
+#cal-phase{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;}
+.cal-nav{display:flex;gap:3px;}
+.cnav{width:25px;height:25px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.82rem;display:flex;align-items:center;justify-content:center;transition:all .12s;}
+.cnav:hover{border-color:var(--accent);color:var(--accent);}
+#cal-leg{display:flex;gap:9px;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--border);}
+.cl-item{display:flex;align-items:center;gap:3px;font-size:.58rem;color:var(--muted);}
+.cl-dot{width:6px;height:6px;border-radius:50%;}
+#cal-months{display:flex;gap:16px;}
+.cal-mo-name{font-size:.78rem;font-weight:700;color:var(--text);text-align:center;margin-bottom:5px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,31px);gap:1px;}
+.cal-dh{text-align:center;font-size:.57rem;font-weight:700;color:var(--muted);padding:2px 0;}
+.cd{width:31px;height:37px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;user-select:none;transition:background .1s;}
+.cd:hover:not(.cx):not(.ce){background:rgba(46,124,246,.18);}
+.cd.ce{pointer-events:none;}.cd.cx{opacity:.25;pointer-events:none;}
+.cd.today .dn{text-decoration:underline;text-underline-offset:2px;}
+.dn{font-size:.75rem;font-weight:700;color:var(--text);line-height:1;}
+.dp{font-size:.5rem;font-weight:800;line-height:1;margin-top:1px;}
+.dp.cheap{color:var(--cheap);}.dp.mid{color:var(--mid);}.dp.pricey{color:var(--pricey);}
+.cd.s0,.cd.s1{background:var(--accent)!important;border-radius:6px;}
+.cd.s0 .dn,.cd.s1 .dn{color:#fff;}.cd.s0 .dp,.cd.s1 .dp{color:rgba(255,255,255,.7);}
+.cd.inr{background:rgba(46,124,246,.14);border-radius:0;}
+#cal-foot{display:flex;justify-content:space-between;align-items:center;margin-top:9px;padding-top:7px;border-top:1px solid var(--border);}
+#cal-foot .hint{font-size:.6rem;color:var(--muted);}
+#cal-ok{padding:5px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:.73rem;font-weight:800;}
+
+/* ── API banner ── */
+#api-banner{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;}
+#api-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;cursor:pointer;}
+#api-hdr .abt{font-size:.68rem;font-weight:800;color:var(--text);}
+.ab-badge{font-size:.57rem;font-weight:700;padding:2px 7px;border-radius:20px;color:#fff;}
+.b-mock{background:#4a6080;}.b-live{background:var(--green);}
+#api-body{padding:9px 10px;border-top:1px solid var(--border);display:none;}
+#api-body.open{display:block;}
+.api-lbl{font-size:.6rem;font-weight:700;color:var(--muted);margin-bottom:3px;text-transform:uppercase;}
+#api-key-inp{width:100%;padding:6px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border2);border-radius:7px;font-size:.73rem;font-family:monospace;margin-bottom:5px;}
+#api-key-inp:focus{outline:none;border-color:var(--accent);}
+#api-key-inp::placeholder{color:var(--muted);}
+.api-btn-row{display:flex;gap:5px;margin-bottom:5px;}
+.api-btn-row button{flex:1;padding:5px;border:none;border-radius:7px;font-size:.7rem;font-weight:800;cursor:pointer;transition:opacity .15s;}
+#api-apply{background:var(--accent);color:#fff;}
+#api-apply:hover{opacity:.85;}
+#api-clear{background:#1e3550;color:var(--muted);}
+#api-clear:hover{color:var(--text);}
+.api-note{font-size:.6rem;color:var(--muted);line-height:1.5;}
+.api-note a{color:var(--accent);text-decoration:none;}
+.solo-live-btn{width:100%;padding:5px 8px;border:1px solid var(--border2);border-radius:7px;background:transparent;color:var(--muted);font-size:.6rem;font-weight:700;cursor:pointer;margin-top:6px;transition:all .15s;text-align:center;}
+.solo-live-btn:hover{border-color:var(--accent);color:var(--accent);}
+.solo-live-btn.loading{color:var(--amber);border-color:var(--amber);cursor:wait;}
+.bar-live{opacity:1!important;}
+/* ── ORD toggle ── */
+#ord-toggle-row{margin-top:6px;}
+.ord-toggle-btn{padding:4px 10px;font-size:.63rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:20px;transition:all .15s var(--ease);}
+.ord-toggle-btn.on{background:rgba(6,182,212,.12);border-color:var(--ord);color:var(--ord);}
+.ord-toggle-btn:hover{border-color:var(--ord);color:var(--ord);}
+/* ── Route cards (meetup breakdown) ── */
+.route-card{background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 10px;margin-bottom:5px;}
+.route-card-hd{display:flex;align-items:center;gap:5px;margin-bottom:5px;}
+.route-badge{font-size:.68rem;font-weight:800;padding:2px 7px;border-radius:5px;}
+.route-arrow{font-size:.7rem;color:var(--muted);}
+.route-price{font-size:.95rem;font-weight:900;line-height:1;color:var(--text);}
+.route-fare-lbl{font-size:.55rem;font-weight:700;color:var(--muted);vertical-align:middle;}
+.route-meta{font-size:.57rem;color:var(--muted);margin-top:2px;line-height:1.4;}
+.route-drive-row{font-size:.68rem;color:var(--muted);margin-top:2px;}
+.route-est-tag{font-size:.5rem;font-weight:700;padding:1px 4px;border-radius:10px;background:var(--surface);border:1px solid var(--border2);color:var(--muted);margin-left:4px;}
+.route-copy-btn{margin-left:auto;background:transparent;border:none;cursor:pointer;font-size:.75rem;opacity:.45;padding:2px 4px;border-radius:5px;transition:opacity .15s;}
+.route-copy-btn:hover{opacity:1;background:rgba(255,255,255,.07);}
+
+
+#sb-foot{padding:7px 12px;border-top:1px solid var(--border);font-size:.58rem;color:#253548;flex-shrink:0;}
+
+/* ── Main ── */
+#main{flex:1;display:flex;flex-direction:column;min-width:0;}
+#topbar{padding:9px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
+.tb-l h2{font-size:.9rem;font-weight:800;color:var(--text);}
+.tb-l p{font-size:.67rem;color:var(--muted);margin-top:1px;}
+.tb-r{display:flex;align-items:center;gap:8px;}
+.tb-pills{display:flex;gap:5px;}
+.pill{display:flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--border);border-radius:20px;font-size:.67rem;color:var(--muted);background:var(--surface2);}
+/* ── Meetup strip (compact hero + rank) ── */
+#meetup-strip{flex-shrink:0;padding:7px 18px;border-bottom:1px solid rgba(16,185,129,.2);background:linear-gradient(90deg,rgba(16,185,129,.06) 0%,rgba(46,124,246,.03) 100%);display:flex;align-items:center;gap:10px;min-height:44px;animation:stripBorder 2.8s ease-in-out infinite;}
+#meetup-strip.no-date{background:rgba(245,158,11,.05);border-bottom-color:rgba(245,158,11,.25);}
+@keyframes stripBorder{0%,100%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.2)}50%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.55),0 1px 12px rgba(16,185,129,.07)}}
+.ms-badge{font-size:.57rem;font-weight:800;padding:2px 8px;border-radius:20px;background:var(--green);color:#fff;white-space:nowrap;flex-shrink:0;letter-spacing:.03em;}
+.ms-badge.sug{background:var(--amber);}
+.ms-best{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden;}
+.ms-headline{font-size:.82rem;font-weight:900;color:var(--text);white-space:nowrap;}
+.ms-price{font-size:.88rem;font-weight:900;color:var(--green);white-space:nowrap;}
+.ms-price.sug{color:var(--amber);}
+.ms-info{min-width:0;overflow:hidden;}
+.ms-sub{font-size:.53rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ms-ranks{display:flex;gap:5px;flex-shrink:0;flex-wrap:nowrap;align-items:center;}
+.rank-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.64rem;font-weight:700;border:1.5px solid;white-space:nowrap;cursor:pointer;transition:opacity .12s,box-shadow .12s,transform .08s;user-select:none;}
+.rank-chip:hover{opacity:.85;transform:scale(1.04);}
+.rank-chip.r1{border-color:var(--green);color:var(--green);background:rgba(16,185,129,.1);}
+.rank-chip.r2{border-color:var(--amber);color:var(--amber);background:rgba(245,158,11,.08);}
+.rank-chip.r3,.rank-chip.r4{border-color:var(--border2);color:var(--muted);background:transparent;}
+.rank-chip.active{border-width:2px;box-shadow:0 0 0 2px rgba(255,255,255,.18);color:#fff!important;background:rgba(255,255,255,.13)!important;border-color:#fff!important;}
+.ms-sep{width:1px;height:22px;background:var(--border);flex-shrink:0;}
+
+/* ── Share button ── */
+#share-btn-top{display:flex;align-items:center;gap:4px;padding:4px 11px;border-radius:8px;font-size:.65rem;font-weight:800;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);transition:all .15s;cursor:pointer;}
+#share-btn-top:hover{border-color:var(--accent);color:var(--accent);}
+
+/* ── Share toast ── */
+#share-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(50px);background:rgba(16,185,129,.97);color:#fff;font-size:.73rem;font-weight:800;padding:8px 20px;border-radius:20px;opacity:0;transition:all .28s var(--ease);z-index:2000;pointer-events:none;white-space:nowrap;}
+#share-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* ── Share card ── */
+#share-card{margin:0 18px 8px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);font-size:.72rem;color:var(--text);line-height:1.65;white-space:pre-wrap;word-break:break-all;display:none;}
+#share-card-close{float:right;cursor:pointer;color:var(--muted);font-size:.7rem;font-weight:700;margin-left:8px;}
+#share-card-close:hover{color:var(--red);}
+
+/* ── Mode Switcher ── */
+#mode-switcher{display:flex;gap:5px;padding:9px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+.mode-btn{flex:1;padding:7px 6px;font-size:.66rem;font-weight:800;color:var(--muted);background:transparent;border:1px solid var(--border2);border-radius:8px;transition:all .15s;white-space:nowrap;cursor:pointer;}
+.mode-btn.on{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
+.mode-btn:hover:not(.on){color:var(--text);border-color:var(--border);}
+
+/* ── Solo destination cards ── */
+#solo-section{display:flex;flex-direction:column;gap:8px;}
+.solo-dest-card{background:var(--surface2);border:1.5px solid var(--border2);border-radius:11px;overflow:hidden;transition:border-color .18s,box-shadow .18s;}
+.solo-dest-card.focused{box-shadow:0 4px 20px rgba(0,0,0,.4);}
+.solo-dest-hd{display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-left:3px solid transparent;}
+.solo-dest-title{font-size:.78rem;font-weight:900;}
+.solo-dest-body{padding:0 12px 10px;}
+
+.wknd-row{display:flex;align-items:flex-start;justify-content:space-between;padding:5px 6px;border-top:1px solid var(--border);border-radius:5px;cursor:pointer;transition:background .1s;}
+.wknd-row:hover{background:rgba(46,124,246,.07);}
+.wknd-dates{font-size:.65rem;color:var(--text);font-weight:700;line-height:1.2;}
+.wknd-meta{font-size:.52rem;color:var(--muted);margin-top:2px;line-height:1.3;}
+.wknd-price{font-size:.82rem;font-weight:900;line-height:1;}
+.ord-pivot-badge{font-size:.5rem;font-weight:700;padding:1px 5px;border-radius:20px;background:var(--green);color:#fff;letter-spacing:.03em;display:inline-block;margin-bottom:2px;}
+.bv-badge{font-size:.5rem;font-weight:700;padding:1px 5px;border-radius:20px;background:var(--a-dim);border:1px solid var(--accent);color:var(--accent);letter-spacing:.03em;display:inline-block;}
+
+/* ── Map ── */
+#map-wrap{flex:1;position:relative;overflow:hidden;}
+#map-svg{width:100%;height:100%;display:block;}
+#tip{position:absolute;pointer-events:none;display:none;background:rgba(8,14,26,.96);border:1px solid var(--border2);border-radius:9px;padding:7px 11px;font-size:.7rem;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:200;max-width:230px;line-height:1.55;}
+#map-leg{position:absolute;bottom:16px;right:16px;background:rgba(7,16,30,.9);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;backdrop-filter:blur(10px);}
+.ml{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:.65rem;color:var(--muted);}
+.ml:last-child{margin-bottom:0;}
+.ml-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+
+/* ── Bar chart (Solo mode) ── */
+.bar-chart-svg{display:block;width:100%;height:46px;overflow:visible;cursor:crosshair;}
+.bar-chart-row{display:flex;align-items:center;justify-content:space-between;font-size:.5rem;color:var(--muted);margin-top:2px;margin-bottom:5px;}
+
+/* ── Stats bar ── */
+#statsbar{padding:7px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
+.si{font-size:.67rem;color:var(--muted);}
+.si strong{color:#7a99b8;font-weight:700;}
+
+/* ══════════════════════════════════════════
+   MOBILE RESPONSIVE  —  iPhone 13+ (390 px)
+   ══════════════════════════════════════════ */
+/* ── Mobile sticky top bar ── */
+#mobile-sticky-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:500;background:var(--surface);border-bottom:1px solid var(--border);padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);height:auto;}
+#mobile-sticky-bar.show{display:flex;}
+#mobile-sticky-bar{flex-direction:row;align-items:center;justify-content:space-between;padding-bottom:10px;padding-top:calc(env(safe-area-inset-top) + 8px);gap:8px;}
+.mobile-chip{display:flex;align-items:center;justify-content:center;padding:6px 12px;border-radius:20px;background:var(--surface2);border:1px solid var(--border2);font-size:.7rem;font-weight:700;color:var(--muted);cursor:pointer;transition:all .15s;min-height:36px;white-space:nowrap;}
+.mobile-chip:active{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
+#mode-chip{margin-left:8px;}
+#home-chip{margin-right:8px;}
+
+/* ── Floating Share Plan button (mobile) ── */
+#share-btn-floating{display:none;position:fixed;bottom:calc(env(safe-area-inset-bottom) + 16px);right:16px;z-index:499;background:var(--green);color:#fff;border:none;border-radius:50%;width:56px;height:56px;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(16,185,129,.4);transition:all .15s;align-items:center;justify-content:center;padding:0;}
+#share-btn-floating:active{transform:scale(0.92);}
+
+@media (max-width:640px){
+#mobile-sticky-bar.show{display:flex;}
+#share-btn-floating{display:flex;}
+
+  /* Base layout — stack vertically, allow scroll */
+  html,body{overflow:auto;height:auto;}
+  #app{flex-direction:column;height:auto;min-height:100svh;min-height:100vh;}
+
+  /* Map on top */
+  #main{order:1;flex:none;width:100%;height:44vw;min-height:220px;position:relative;}
+  #map-wrap{width:100%;height:100%;}
+  #statsbar{display:none!important;}
+
+  /* Sidebar below map */
+  #sb{order:2;width:100%;height:auto;max-height:none;border-right:none;border-top:1px solid var(--border);overflow:visible;flex-direction:column;}
+  #sb-head{padding:10px 14px 6px;}
+  #sb-body{overflow:visible;height:auto;padding-bottom:80px;}
+  #sb-foot{display:none!important;}
+
+  /* Mode tabs full-width */
+  .tb-pills{display:flex;}
+  .mode-btn{flex:1;min-height:44px;font-size:.75rem;padding:9px 6px;}
+
+  /* Meetup strip wraps on mobile */
+  #meetup-strip{flex-wrap:wrap;padding:10px 14px;gap:8px;}
+  .ms-best{min-width:100%;flex:1 1 100%;}
+  .ms-sep{display:none;}
+  .ms-ranks{flex-wrap:wrap;gap:6px;}
+  .rank-chip{min-height:36px;padding:4px 12px;font-size:.72rem;}
+  .ms-headline{font-size:.78rem;}
+  .ms-price{font-size:.78rem;}
+  .ms-sub{font-size:.58rem;white-space:normal;}
+
+  /* Holiday chips — horizontal scroll */
+  #hol-row{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;}
+  #hol-row::-webkit-scrollbar{display:none;}
+  .hol-btn{min-height:36px;font-size:.7rem;padding:4px 10px;flex-shrink:0;}
+
+  /* Date row */
+  .d-btn{min-height:44px;font-size:.72rem;}
+  #search-btn{min-height:44px;font-size:.76rem;width:100%;border-radius:8px;}
+
+  /* Route cards bigger tap targets */
+  .route-card{padding:10px 12px;margin-bottom:7px;}
+  .route-badge{font-size:.76rem;padding:3px 9px;}
+  .route-price{font-size:1.05rem;}
+  .route-fare-lbl{font-size:.6rem;}
+  .route-meta{font-size:.62rem;}
+  .route-copy-btn{font-size:.85rem;opacity:.6;min-height:36px;padding:2px 8px;}
+
+  /* Share / toast */
+  #share-toast{bottom:14px;left:50%;transform:translateX(-50%);width:88vw;text-align:center;font-size:.72rem;}
+  #share-card{margin:10px 14px;}
+
+  /* Calendar as bottom sheet */
+  #cal{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;max-width:100%!important;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.7);z-index:300;}
+  .cal-months-wrap{flex-direction:column;gap:0;}
+  #cal-months{flex-direction:column;}
+  #cal-bd{z-index:299;}
+
+  /* Map legend smaller */
+  #map-leg{bottom:8px;right:8px;padding:6px 9px;}
+  .ml{font-size:.58rem;}
+
+  /* ORD toggle row */
+  #ord-toggle-row{padding:4px 0;}
+  .ord-toggle-btn{min-height:36px;font-size:.7rem;}
+
+  /* API banner */
+  #api-banner{padding:7px 12px;}
+  #api-key-input{font-size:.72rem;}
+
+  /* Share button prominent on mobile */
+  #share-btn-mob{display:flex;}
+}
+/* Desktop: hide mobile-only share button */
+#share-btn-mob{display:none;}
+</style>
+</head>
+<body>
+<!-- Mobile sticky top bar -->
+<div id="mobile-sticky-bar">
+  <button id="mode-chip" class="mobile-chip">Solo</button>
+  <button id="home-chip" class="mobile-chip">PIA</button>
+</div>
+
+<!-- Floating Share Plan button (mobile) -->
+<button id="share-btn-floating" type="button">📤</button>
+
+<!-- On-screen error overlay (mobile debug) -->
+<div id="err-overlay" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#7f1d1d;color:#fff;font:12px/1.4 -apple-system,system-ui,monospace;padding:10px 14px;max-height:40vh;overflow:auto;border-top:2px solid #fca5a5;white-space:pre-wrap;"></div>
+<script>
+(function(){
+  function show(msg){ var box=document.getElementById('err-overlay'); if(!box) return; box.style.display='block'; box.textContent=(box.textContent?box.textContent+'\n':'')+msg; }
+  window.addEventListener('error', function(e){ show('JS ERROR: '+(e.message||e.error)+' @ '+((e.filename||'').split('/').pop())+':'+e.lineno); });
+  window.addEventListener('unhandledrejection', function(e){ var r=e.reason; show('PROMISE REJECT: '+(r && (r.message||r))); });
+})();
+</script>
+
+<div id="app">
+
+<!-- ═══════ SIDEBAR ═══════ -->
+<aside id="sb">
+  <div id="sb-top">
+    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.4</div></div>
+    <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
+  </div>
+
+  <div id="mode-switcher">
+    <button class="mode-btn" data-mode="meetup">👨‍👩‍👧 Family Meetup</button>
+    <button class="mode-btn on" data-mode="solo">✈️ Solo Mode</button>
+  </div>
+
+  <div id="sb-body">
+
+    <div id="home-airport-row">
+      <div class="lbl">Your Home Airport</div>
+      <select id="home-sel" class="s-sel">
+        <option value="PIA">PIA — Peoria, IL</option>
+        <option value="ORD">ORD — Chicago, IL</option>
+        <option value="LAX">LAX — Los Angeles, CA</option>
+        <option value="JAX">JAX — Jacksonville, FL</option>
+      </select>
+    </div>
+
+    <div id="meetup-only" style="display:none">
+      <div class="lbl">Holiday Quick-Pick</div>
+      <div id="hol-row">
+        <button class="hol-btn" data-hol="memday">✈ Memorial Day</button>
+        <button class="hol-btn" data-hol="july4">🇺🇸 July 4th</button>
+        <button class="hol-btn" data-hol="laborday">⚡ Labor Day</button>
+        <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
+        <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
+      </div>
+      <div id="ord-toggle-row">
+        <button id="ord-toggle" class="ord-toggle-btn on">⬡ ORD Hub</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="lbl">Trip Type</div>
+      <div id="trip-row">
+        <button class="tt-btn on" data-v="round">Round-Trip</button>
+        <button class="tt-btn" data-v="one">One-Way</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="lbl">Travel Dates</div>
+      <div id="date-row">
+        <button class="d-btn" id="dep-btn">
+          <span class="d-lbl">Depart</span>
+          <span class="d-val ph" id="dep-val">Pick date</span>
+        </button>
+        <button class="d-btn" id="ret-btn">
+          <span class="d-lbl">Return</span>
+          <span class="d-val ph" id="ret-val">Pick date</span>
+        </button>
+      </div>
+    </div>
+
+    <button id="search-btn">
+      <span id="search-icon">⟳</span>
+      <span id="search-label">Search Flights</span>
+      <div class="spin-sm" id="search-spin"></div>
+    </button>
+
+    <!-- Calendar popup -->
+    <div id="cal-bd"></div>
+    <div id="cal">
+      <div id="cal-hdr">
+        <span id="cal-phase">Select departure</span>
+        <div class="cal-nav">
+          <button class="cnav" id="cprev">‹</button>
+          <button class="cnav" id="cnext">›</button>
+        </div>
+      </div>
+      <div id="cal-leg">
+        <div class="cl-item"><div class="cl-dot" style="background:var(--cheap)"></div>Cheapest</div>
+        <div class="cl-item"><div class="cl-dot" style="background:var(--mid)"></div>Moderate</div>
+        <div class="cl-item"><div class="cl-dot" style="background:var(--pricey)"></div>Pricier</div>
+      </div>
+      <div id="cal-months"></div>
+      <div id="cal-foot">
+        <span class="hint" id="cal-hint">Fares: sample · Google Flights</span>
+        <button id="cal-ok">Done</button>
+      </div>
+    </div>
+
+    <div id="api-banner">
+      <div id="api-hdr">
+        <span class="abt">Data Source</span>
+        <span class="ab-badge b-mock" id="data-badge">Sample Data</span>
+      </div>
+      <div id="api-body">
+        <div class="api-lbl">SerpAPI Key (Google Flights)</div>
+        <input id="api-key-inp" type="password" placeholder="Paste SerpAPI key to go live…" spellcheck="false"/>
+        <div class="api-btn-row">
+          <button id="api-apply">Activate Live Data</button>
+          <button id="api-clear" style="display:none">✕ Clear</button>
+        </div>
+        <div class="api-note">100 free searches/mo · <a href="https://serpapi.com/google-flights-api" target="_blank">serpapi.com</a></div>
+        <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
+      </div>
+    </div>
+
+    <div id="meetup-routes-section" style="display:none">
+      <div class="lbl">Flight Breakdown</div>
+      <div id="meetup-routes"></div>
+    </div>
+
+    <div id="solo-section" style="display:none">
+      <div class="lbl">Best Weekends · <span id="solo-win-lbl">Next 90 days · Thu–Sun</span></div>
+      <div id="solo-cards"></div>
+    </div>
+
+  </div>
+  <div id="sb-foot">PIALAX v2.4 · Thu–Sun windows · Bar chart · Meetup strip</div>
+</aside>
+
+<!-- ═══════ MAIN ═══════ -->
+<main id="main">
+  <div id="topbar">
+    <div class="tb-l">
+      <h2 id="tb-title">Routes from PIA</h2>
+      <p id="tb-sub">Loading map…</p>
+    </div>
+    <div class="tb-r">
+      <button id="share-btn-top">📤 Share Plan</button>
+      <div class="tb-pills">
+        <div class="pill"><span class="ld"></span>&nbsp;<span id="pill-trip">Round-Trip</span></div>
+        <div class="pill"><span id="pill-src">Sample Data</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="meetup-strip"></div>
+
+  <div id="map-wrap">
+    <svg id="map-svg"></svg>
+    <div id="tip"></div>
+    <div id="map-leg"></div>
+  </div>
+
+  <div id="share-card"><span id="share-card-close">✕ close</span><span id="share-card-text"></span></div>
+
+  <div id="statsbar">
+    <div style="display:flex;gap:16px">
+      <div class="si">Hub: <strong id="s-hub">PIA</strong></div>
+      <div class="si">Routes: <strong id="s-routes">2</strong></div>
+      <div class="si">Trip: <strong id="s-trip">Round-Trip</strong></div>
+      <div class="si">Dates: <strong id="s-dates">Next 3 months</strong></div>
+    </div>
+    <div class="si" id="s-upd">—</div>
+  </div>
+</main>
+<div id="share-toast"></div>
+<!-- Mobile floating share button (hidden on desktop) -->
+<button id="share-btn-mob" onclick="shareThePlan()" style="position:fixed;bottom:18px;right:18px;z-index:500;background:var(--green);color:#fff;border:none;border-radius:50px;padding:13px 20px;font-size:.82rem;font-weight:800;box-shadow:0 4px 18px rgba(0,0,0,.45);cursor:pointer;align-items:center;gap:8px;">✈️ Share Plan</button>
+</div>
+
+<script>
+'use strict';
+(function () {
+
+// ── CONFIG ──────────────────────────────────────────────────────
+var AIRPORTS = {
+  PIA:{ code:'PIA', name:'Peoria, IL',       full:'Peoria International Airport',       lat:40.6642, lon:-89.6933 },
+  ORD:{ code:'ORD', name:'Chicago, IL',      full:"O'Hare International Airport",       lat:41.9742, lon:-87.9073 },
+  LAX:{ code:'LAX', name:'Los Angeles, CA',  full:'Los Angeles International Airport',  lat:33.9425, lon:-118.4081 },
+  JAX:{ code:'JAX', name:'Jacksonville, FL', full:'Jacksonville International Airport', lat:30.4941, lon:-81.6879 },
+};
+var ROUTE_GRAPH = { PIA:['LAX','JAX'], ORD:['LAX','JAX'], LAX:['PIA','ORD','JAX'], JAX:['PIA','ORD','LAX'] };
+var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4' };
+var MOCK = {
+  'PIA-LAX':{ ow:218, rt:389 },
+  'LAX-PIA':{ ow:198, rt:362 },
+  'PIA-JAX':{ ow:156, rt:278 },
+  'JAX-PIA':{ ow:143, rt:261 },
+  'ORD-LAX':{ ow:128, rt:234 },
+  'LAX-ORD':{ ow:119, rt:218 },
+  'ORD-JAX':{ ow:109, rt:198 },
+  'JAX-ORD':{ ow:115, rt:209 },
+  'LAX-JAX':{ ow:187, rt:339 },
+  'JAX-LAX':{ ow:179, rt:319 },
+};
+var FAMILY = ['PIA','LAX','JAX'];
+var ORD_DRIVE_TAX = 100; // estimated gas + parking for PIA→ORD drive
+// Deterministic weekly price variation factors (Thu-Sun windows, 13 weeks cycled)
+var WKLY_FACTORS = [1.05, 0.92, 0.88, 1.12, 0.95, 1.18, 0.82, 0.91, 1.08, 0.86, 0.93, 1.15, 1.02];
+
+// ── HOLIDAYS ─────────────────────────────────────────────────────
+var YR = new Date().getFullYear();
+function nextOccurrence(m0, d) {
+  var dt = new Date(YR, m0, d);
+  if (dt < new Date()) dt = new Date(YR + 1, m0, d);
+  return dt;
+}
+function getThanksgiving(yr) {
+  var nov1 = new Date(yr, 10, 1);
+  var thu  = new Date(yr, 10, 1 + (11 - nov1.getDay()) % 7 + 21);
+  return thu;
+}
+function nextThanksgiving() {
+  var d = getThanksgiving(YR);
+  if (d < new Date()) d = getThanksgiving(YR + 1);
+  return d;
+}
+var HOLIDAYS = {
+  memday:       nextOccurrence(4,  26),
+  july4:        nextOccurrence(6,   4),
+  laborday:     nextOccurrence(8,   1),
+  thanksgiving: nextThanksgiving(),
+  christmas:    nextOccurrence(11, 25),
+};
+
+// ── STATE ────────────────────────────────────────────────────────
+var today = new Date(); today.setHours(0,0,0,0);
+var S = {
+  home:'PIA', tripType:'round',
+  depDate:null, retDate:null,
+  calMode:null, calOff:0, apiKey:'',
+  prices:{}, geoData:null, geoFallback:false,
+  proj:null,
+  mode:'solo', soloFocus:null, barFocus:null,
+  soloBarPrices:{}, apiCalls:0, includeORD:true, meetupHubOverride:null,
+};
+function dests() { return ROUTE_GRAPH[S.home] || []; }
+
+// ── HELPERS ──────────────────────────────────────────────────────
+var DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function sameDay(a,b){ return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
+function inRange(d,a,b){ if(!a||!b) return false; var lo=a<b?a:b,hi=a<b?b:a; return d>lo&&d<hi; }
+function dateFmt(d,style){
+  if(!d) return 'Pick date';
+  return d.toLocaleDateString('en-US', style==='long' ? {month:'short',day:'numeric',year:'numeric'} : {month:'short',day:'numeric'});
+}
+function fmtISO(d){ if(!d) return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function tier(d){ var dw=d.getDay(); if(dw===5||dw===6||dw===0) return 'pricey'; if(dw===2||dw===3||dw===4) return 'cheap'; return 'mid'; }
+function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:1.55)/5)*5; }
+function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
+function getMock(from,to){ var p=MOCK[from+'-'+to]; return p ? {ow:p.ow,rt:p.rt} : {ow:0,rt:0}; }
+
+// ── HOLIDAYS APPLY ───────────────────────────────────────────────
+function applyHoliday(key) {
+  var base = HOLIDAYS[key];
+  if (!base) return;
+  var dep = new Date(base);
+  dep.setDate(base.getDate() - ((base.getDay() + 3) % 7)); // Thu on or before holiday
+  if (dep < today) dep = new Date(today);
+  var ret = new Date(dep);
+  ret.setDate(dep.getDate() + 3); // Sun (Thu + 3)
+  S.depDate = dep; S.retDate = ret; S.tripType = 'round'; S.meetupHubOverride = null;
+  document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v==='round'); });
+  document.getElementById('pill-trip').textContent = 'Round-Trip';
+  document.getElementById('s-trip').textContent    = 'Round-Trip';
+  document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol===key); });
+  updateDateUI(); renderMeetupStrip();
+  if (S.apiKey) loadPrices();
+}
+
+// ── GOLDEN PATH / RANKING ENGINE ─────────────────────────────────
+function computeRanking() {
+  var isRT = (S.tripType === 'round');
+  var fareKey = isRT ? 'rt' : 'ow';
+  var candidates = FAMILY.slice();
+  if (S.includeORD && candidates.indexOf('ORD') === -1) candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
+  var results = [];
+  candidates.forEach(function(dest) {
+    var total = 0, parts = [], ok = true;
+    FAMILY.forEach(function(from) {
+      if (from === dest) return;                      // host doesn't fly
+      if (from === 'PIA' && dest === 'ORD') return;  // PIA drives to ORD — no fare
+      var key = from + '-' + dest;
+      var p = S.prices[key] || getMock(from, dest);
+      if (!p || !(p[fareKey] || p.ow)) { ok = false; return; }
+      var fare = p[fareKey] || p.ow;
+      total += fare;
+      parts.push(from + '→' + dest + ' $' + fare);
+    });
+    if (ok) results.push({ dest:dest, total:total, parts:parts, isORD:dest==='ORD' });
+  });
+  results.sort(function(a,b){ return a.total - b.total; });
+  results.forEach(function(r,i){ r.rank = i + 1; });
+  if (results.length > 1) results[0].savings = results[1].total - results[0].total;
+  return results;
+}
+
+function getActiveHub(ranking) {
+  if (S.meetupHubOverride) {
+    // verify override is still a valid candidate
+    var valid = ranking.some(function(r){ return r.dest === S.meetupHubOverride; });
+    if (valid) return S.meetupHubOverride;
+    S.meetupHubOverride = null; // stale override — reset
+  }
+  return ranking.length ? ranking[0].dest : null;
+}
+
+function setMeetupHub(code) {
+  S.meetupHubOverride = (S.meetupHubOverride === code) ? null : code; // toggle off if same
+  renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+}
+
+function getNextHoliday() {
+  var labels = { memday:'Memorial Day', july4:'July 4th', laborday:'Labor Day', thanksgiving:'Thanksgiving', christmas:'Christmas' };
+  var next = null;
+  Object.keys(HOLIDAYS).forEach(function(k) {
+    var d = HOLIDAYS[k];
+    if (d > today && (!next || d < next.date)) next = { key:k, date:d, label:labels[k] };
+  });
+  return next;
+}
+
+// ── MEETUP STRIP (compact hero + rank chips) ─────────────────────
+function renderMeetupStrip() {
+  var strip = document.getElementById('meetup-strip');
+  if (!strip) return;
+  var isRT = (S.tripType === 'round');
+  var fareLabel = isRT ? 'RT' : 'OW';
+  var ranking = computeRanking();
+  if (!ranking.length) { strip.innerHTML = ''; return; }
+  var activeHub = getActiveHub(ranking);
+  var activeR = ranking.find(function(r){ return r.dest === activeHub; }) || ranking[0];
+  var apInfo = AIRPORTS[activeR.dest];
+  var cityName = activeR.isORD ? "O'Hare" : (apInfo ? apInfo.name.split(',')[0] : activeR.dest);
+  var noDate = !S.depDate;
+  var isOverride = (S.meetupHubOverride && S.meetupHubOverride !== ranking[0].dest);
+  var dateStr = '';
+  if (S.depDate) {
+    dateStr = dateFmt(S.depDate);
+    if (S.retDate && isRT) dateStr += '–' + dateFmt(S.retDate);
+  } else {
+    var nextHol = getNextHoliday();
+    dateStr = nextHol ? nextHol.label + ' (suggested)' : 'Pick dates';
+  }
+  strip.className = noDate ? 'no-date' : '';
+  // Best plan summary — shows whichever hub is active
+  var badgeTxt = isOverride ? ('📌 #' + activeR.rank) : (noDate ? '💡' : '⭐') + ' Best';
+  var bestHtml =
+    '<div class="ms-best">' +
+      '<span class="ms-badge' + (noDate ? ' sug' : '') + '">' + badgeTxt + '</span>' +
+      '<div class="ms-info">' +
+        '<div class="ms-headline">Meet in ' + cityName + ' &nbsp;<span class="ms-price' + (noDate ? ' sug' : '') + '">$' + activeR.total + ' ' + fareLabel + '</span></div>' +
+        '<div class="ms-sub">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + (activeR.savings && !isOverride ? ' · saves $' + activeR.savings : '') + ' · ' + dateStr + '</div>' +
+      '</div>' +
+    '</div>';
+  // Separator + rank chips (clickable)
+  var chipsHtml = '<div class="ms-sep"></div><div class="ms-ranks">';
+  ranking.forEach(function(r) {
+    var isActive = (r.dest === activeHub);
+    var chipCls = 'rank-chip r' + Math.min(r.rank, 4) + (isActive ? ' active' : '');
+    var driveIcon = r.isORD ? '🚗 ' : '';
+    var tip = r.parts.length ? r.parts.join(' + ') : (r.isORD ? 'PIA drives free' : 'hosts');
+    chipsHtml += '<span class="' + chipCls + '" data-hub="' + r.dest + '" title="' + tip + '" onclick="setMeetupHub(\'' + r.dest + '\')">' + driveIcon + '#' + r.rank + ' ' + r.dest + ' $' + r.total + '</span>';
+  });
+  chipsHtml += '</div>';
+  strip.innerHTML = bestHtml + chipsHtml;
+  renderMeetupRoutes();
+}
+
+// ── MEETUP ROUTE BREAKDOWN (sidebar cards) ───────────────────────
+function renderMeetupRoutes() {
+  var container = document.getElementById('meetup-routes');
+  if (!container) return;
+  if (S.mode !== 'meetup') { container.innerHTML = ''; return; }
+  var ranking = computeRanking();
+  if (!ranking.length) { container.innerHTML = '<div style="font-size:.62rem;color:var(--muted);padding:6px 2px">Pick dates or a holiday to see fares</div>'; return; }
+  var hub = getActiveHub(ranking);
+  var isRT = (S.tripType === 'round');
+  var fareLabel = isRT ? 'RT' : 'OW';
+  var noDate = !S.depDate;
+  var dateStr = '';
+  if (S.depDate) {
+    dateStr = dateFmt(S.depDate);
+    if (S.retDate && isRT) dateStr += ' – ' + dateFmt(S.retDate);
+  }
+  var html = '';
+  FAMILY.forEach(function(from) {
+    if (from === hub) return; // hub host doesn't fly
+    var fromAp = AIRPORTS[from], hubAp = AIRPORTS[hub];
+    var fromCol = DC[from] || '#888', hubCol = DC[hub] || '#888';
+    var isPiaDriving = (from === 'PIA' && hub === 'ORD');
+    var copyDriveText = from + ' → ' + hub + ': 🚗 Drive ~$' + ORD_DRIVE_TAX + (dateStr ? ' · ' + dateStr : '');
+    if (isPiaDriving) {
+      html +=
+        '<div class="route-card">' +
+          '<div class="route-card-hd">' +
+            '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
+            '<span class="route-arrow">→</span>' +
+            '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
+            '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyDriveText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+          '</div>' +
+          '<div class="route-drive-row">🚗 Drive · ~$' + ORD_DRIVE_TAX + ' est. (gas + parking)</div>' +
+          '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
+        '</div>';
+      return;
+    }
+    var key = from + '-' + hub;
+    var p = S.prices[key] || getMock(from, hub);
+    var price = isRT ? (p.rt || p.ow) : p.ow;
+    var copyFlyText = from + ' → ' + hub + ': $' + price + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
+    html +=
+      '<div class="route-card">' +
+        '<div class="route-card-hd">' +
+          '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
+          '<span class="route-arrow">→</span>' +
+          '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
+          (noDate ? '<span class="route-est-tag">est.</span>' : '') +
+          '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+        '</div>' +
+        '<div style="display:flex;align-items:baseline;gap:5px">' +
+          '<div class="route-price">$' + price + '</div>' +
+          '<span class="route-fare-lbl">' + fareLabel + (dateStr ? ' · ' + dateStr : '') + '</span>' +
+        '</div>' +
+        '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
+      '</div>';
+  });
+  container.innerHTML = html || '<div style="font-size:.62rem;color:var(--muted);padding:4px 2px">All family members at hub</div>';
+}
+
+// ── COPY ROUTE TEXT ──────────────────────────────────────────────
+function copyRouteText(text) {
+  var doCopy = function(t) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(t).then(function(){ showShareToast('\u2713 Copied!'); })
+        .catch(function(){ showShareToast('Copy: ' + t); });
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = t; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showShareToast('\u2713 Copied!');
+      } catch(e) { showShareToast('Copy: ' + t); }
+    }
+  };
+  doCopy(text);
+}
+
+// ── SHARE THE PLAN ───────────────────────────────────────────────
+function showShareToast(msg) {
+  var t = document.getElementById('share-toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 3200);
+}
+
+function shareThePlan() {
+  var isRT = (S.tripType === 'round');
+  var fareLabel = isRT ? 'RT' : 'OW';
+  var ranking = computeRanking();
+  var best = ranking[0];
+  var apInfo = AIRPORTS[best.dest];
+  var cityName = best.isORD ? "Chicago O'Hare" : (apInfo ? apInfo.name.split(',')[0] : best.dest);
+  var dateStr = '';
+  if (S.depDate) {
+    dateStr = ' ' + dateFmt(S.depDate, 'long');
+    if (S.retDate && isRT) dateStr += ' – ' + dateFmt(S.retDate, 'long');
+  }
+  // Encode shareable state into URL query params
+  var params = new URLSearchParams();
+  params.set('hub', S.home);
+  params.set('trip', S.tripType);
+  if (S.depDate) params.set('dep', fmtISO(S.depDate));
+  if (S.retDate && isRT) params.set('ret', fmtISO(S.retDate));
+  if (S.apiKey) params.set('key', S.apiKey);
+  var base = window.location.href.split('?')[0];
+  var url = base + '?' + params.toString();
+  // Update URL in address bar without reload
+  if (history.replaceState) history.replaceState(null, '', '?' + params.toString());
+  // Build WhatsApp/iMessage-ready share text
+  var breakdown = best.parts.join(', ') + (best.isORD ? ', PIA drives free' : '');
+  var shareText = 'PIALAX \u2708\ufe0f Meet in ' + cityName + dateStr + '.\n' +
+    'Total ' + fareLabel + ' flights: $' + best.total + '\n' +
+    '(' + breakdown + ')\n' +
+    (best.savings ? 'Saves $' + best.savings + ' vs next option.\n' : '') +
+    'View dashboard: ' + url;
+  // Show share card below map
+  var cardEl = document.getElementById('share-card');
+  var textEl = document.getElementById('share-card-text');
+  if (cardEl && textEl) { textEl.textContent = shareText; cardEl.style.display = 'block'; }
+  // Copy to clipboard (with fallback)
+  var doCopy = function(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function(){
+        showShareToast('\u2713 Copied! Paste into iMessage or WhatsApp');
+      }).catch(function(){ showShareToast('Share text shown below the map'); });
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showShareToast('\u2713 Copied! Paste into iMessage or WhatsApp');
+      } catch(e) { showShareToast('Share text shown below the map'); }
+    }
+  };
+  doCopy(shareText);
+}
+
+// ── SOLO MODE ENGINE ─────────────────────────────────────────────
+function computeBestWeekends(from, to, nWeeks) {
+  nWeeks = nWeeks || 13;
+  var base = getMock(from, to);
+  var isRT = (S.tripType === 'round');
+  var bp = isRT ? (base.rt || base.ow) : base.ow;
+  var liveData = S.soloBarPrices[from + '-' + to];
+  var d = new Date(today);
+  var daysToThu = (4 - d.getDay() + 7) % 7 || 7;
+  var startThu = new Date(d);
+  startThu.setDate(d.getDate() + daysToThu);
+  var weekends = [];
+  for (var i = 0; i < nWeeks; i++) {
+    var thu = new Date(startThu);
+    thu.setDate(startThu.getDate() + i * 7);
+    var sun = new Date(thu);
+    sun.setDate(thu.getDate() + 3);
+    var liveEntry = liveData && liveData[i];
+    var price = liveEntry ? liveEntry.price : Math.round(bp * WKLY_FACTORS[i % WKLY_FACTORS.length] / 5) * 5;
+    weekends.push({ dep:thu, ret:sun, price:price, idx:i, live: !!liveEntry });
+  }
+  weekends.sort(function(a,b){ return a.price - b.price; });
+  return weekends;
+}
+
+function applyOrdPivot(dest, piaPrice) {
+  if (S.home !== 'PIA') return null;
+  var om = S.prices['ORD-' + dest] || getMock('ORD', dest);
+  if (!om) return null;
+  var isRT = (S.tripType === 'round');
+  var ordFare = isRT ? om.rt : om.ow;
+  var ordTotal = ordFare + ORD_DRIVE_TAX;
+  if (ordTotal < piaPrice) return { total:ordTotal, fare:ordFare, saving:piaPrice - ordTotal };
+  return null;
+}
+
+// Returns weekends sorted by DATE (ascending) — for bar chart display
+function computeWeekendsByDate(from, to, nWeeks) {
+  nWeeks = nWeeks || 13;
+  var base = getMock(from, to);
+  var isRT = (S.tripType === 'round');
+  var bp = isRT ? (base.rt || base.ow) : base.ow;
+  var liveData = S.soloBarPrices[from + '-' + to];
+  var d = new Date(today);
+  var daysToThu = (4 - d.getDay() + 7) % 7 || 7;
+  var startThu = new Date(d);
+  startThu.setDate(d.getDate() + daysToThu);
+  var weekends = [];
+  for (var i = 0; i < nWeeks; i++) {
+    var thu = new Date(startThu);
+    thu.setDate(startThu.getDate() + i * 7);
+    var sun = new Date(thu);
+    sun.setDate(thu.getDate() + 3);
+    var liveEntry = liveData && liveData[i];
+    var price = liveEntry ? liveEntry.price : Math.round(bp * WKLY_FACTORS[i % WKLY_FACTORS.length] / 5) * 5;
+    weekends.push({ dep:thu, ret:sun, price:price, idx:i, live: !!liveEntry });
+  }
+  weekends.sort(function(a,b){ return a.dep - b.dep; });
+  return weekends;
+}
+
+function renderBarChart(svgEl, from, to) {
+  if (!svgEl) return;
+  var weeks = computeWeekendsByDate(from, to, 13);
+  if (!weeks.length) return;
+  var W = 200, H = 46, N = weeks.length;
+  var bw = Math.floor((W - N) / N); // bar width with 1px gap
+  var prices = weeks.map(function(w){ return w.price; });
+  var minP = Math.min.apply(null, prices);
+  var maxP = Math.max.apply(null, prices);
+  var rng = maxP - minP || 1;
+  var minIdx = prices.indexOf(minP);
+  function barH(p){ return Math.max(3, Math.round(((p - minP) / rng) * (H - 8) + 4)); }
+  var svgParts = [];
+  weeks.forEach(function(w, i) {
+    var x = i * (bw + 1);
+    var bh = barH(w.price);
+    var y = H - bh;
+    var isBest = (i === minIdx);
+    var isLive = !!w.live;
+    var barColor = isBest ? 'var(--green)' : 'var(--accent)';
+    var barOp = isBest ? '0.92' : (isLive ? '0.65' : '0.38');
+    var barClass = isLive ? ' class="bar-live"' : '';
+    svgParts.push('<rect data-idx="' + i + '"' + barClass + ' x="' + x + '" y="' + y + '" width="' + bw + '" height="' + bh + '" rx="1" fill="' + barColor + '" opacity="' + barOp + '"/>');
+    // ORD ghost bar
+    var ordPivot = applyOrdPivot(to, w.price);
+    if (ordPivot) {
+      var obh = barH(ordPivot.total);
+      var oy = H - obh;
+      svgParts.push('<rect x="' + x + '" y="' + oy + '" width="' + bw + '" height="' + obh + '" rx="1" fill="none" stroke="var(--green)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/>');
+    }
+    // Best marker dot
+    if (isBest) {
+      svgParts.push('<circle cx="' + (x + bw / 2) + '" cy="' + (y - 4) + '" r="2.5" fill="var(--green)"/>');
+    }
+  });
+  svgEl.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  svgEl.setAttribute('preserveAspectRatio', 'none');
+  svgEl.innerHTML = svgParts.join('');
+  // Attach hover events to each bar rect
+  var rects = svgEl.querySelectorAll('rect[data-idx]');
+  rects.forEach(function(rect) {
+    var idx = parseInt(rect.getAttribute('data-idx'), 10);
+    var w = weeks[idx];
+    rect.style.cursor = 'pointer';
+    rect.addEventListener('mouseenter', function() { setBarFocus(to, w); });
+    rect.addEventListener('mouseleave', function() { setBarFocus(null, null); });
+    rect.addEventListener('click', function() {
+      S.depDate = new Date(w.dep); S.retDate = new Date(w.ret); updateDateUI();
+    });
+  });
+}
+
+function renderSoloCards() {
+  var container = document.getElementById('solo-cards');
+  if (!container) return;
+  container.innerHTML = '';
+  dests().forEach(function(dest) {
+    var weekends = computeBestWeekends(S.home, dest, 13);
+    var top = weekends.slice(0, 3);
+    var col = DC[dest] || '#888';
+    var apInfo = AIRPORTS[dest];
+    var bestPrice = top[0] ? top[0].price : 0;
+    var card = document.createElement('div');
+    card.className = 'solo-dest-card' + (S.soloFocus === dest ? ' focused' : '');
+    card.dataset.dest = dest;
+    var wkndsHtml = '';
+    top.forEach(function(w, i) {
+      var pivot = applyOrdPivot(dest, w.price);
+      var dispPrice, dispMeta;
+      if (pivot) {
+        dispPrice = '<div class="ord-pivot-badge">Best Value via ORD</div><div class="wknd-price" style="color:var(--green)">$' + pivot.total + '</div>';
+        dispMeta = 'ORD flight $' + pivot.fare + ' + $' + ORD_DRIVE_TAX + ' drive · saves $' + pivot.saving;
+      } else {
+        var fareLabel = S.tripType === 'round' ? 'RT' : 'OW';
+        dispPrice = '<div class="wknd-price" style="color:' + (i===0 ? 'var(--green)' : 'var(--accent)') + '">$' + w.price + '</div>';
+        dispMeta = fareLabel + (i===0 ? '' : ' · alt');
+      }
+      wkndsHtml +=
+        '<div class="wknd-row" data-dep="' + fmtISO(w.dep) + '" data-ret="' + fmtISO(w.ret) + '">' +
+          '<div>' +
+            '<div class="wknd-dates">' + dateFmt(w.dep) + ' – ' + dateFmt(w.ret) + '</div>' +
+            '<div class="wknd-meta">Thu–Sun ' + (i===0 ? '&nbsp;<span class="bv-badge">Best Value</span>' : '') + '</div>' +
+          '</div>' +
+          '<div style="text-align:right">' + dispPrice + '<div class="wknd-meta">' + dispMeta + '</div></div>' +
+        '</div>';
+    });
+    var chartId = 'chart-' + dest;
+    var hasLive = !!(S.soloBarPrices[S.home + '-' + dest]);
+    var liveTag = hasLive ? '<span style="color:var(--green);font-size:.55rem">● live</span>' : '';
+    var liveBtnHtml = S.apiKey
+      ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
+      : '';
+    card.innerHTML =
+      '<div class="solo-dest-hd" style="border-left-color:' + col + '">' +
+        '<div>' +
+          '<div class="solo-dest-title" style="color:' + col + '">' + dest + ' &mdash; ' + (apInfo ? apInfo.name.split(',')[0] : '') + ' ' + liveTag + '</div>' +
+          '<div style="font-size:.57rem;color:var(--muted);margin-top:1px">Next 90 days · Thu&ndash;Sun · hover bar to focus arc</div>' +
+        '</div>' +
+        '<div style="text-align:right;flex-shrink:0;">' +
+          '<div style="font-size:.88rem;font-weight:900;color:var(--green)">$' + bestPrice + '</div>' +
+          '<div style="font-size:.5rem;color:var(--muted)">' + (hasLive ? 'live best' : 'est. best') + '</div>' +
+        '</div>' +
+      '</div>' +
+      '<div class="solo-dest-body">' +
+        '<svg id="' + chartId + '" class="bar-chart-svg"></svg>' +
+        '<div class="bar-chart-row"><span>Now</span>' + (applyOrdPivot(dest, bestPrice) ? '<span style="color:var(--green)">— ghost = ORD route</span>' : '') + '<span>+13 wks</span></div>' +
+        wkndsHtml +
+        liveBtnHtml +
+      '</div>';
+    card.addEventListener('mouseenter', function(){ setSoloFocus(dest); });
+    card.addEventListener('mouseleave', function(){ setBarFocus(null, null); });
+    container.appendChild(card);
+    // Wire wknd-row click → set dates
+    card.querySelectorAll('.wknd-row').forEach(function(row) {
+      row.addEventListener('click', function(e) {
+        var depStr = row.getAttribute('data-dep'), retStr = row.getAttribute('data-ret');
+        if (depStr) { S.depDate = new Date(depStr + 'T12:00:00'); S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null; updateDateUI(); }
+        e.stopPropagation();
+      });
+    });
+    var svgEl = document.getElementById(chartId);
+    if (svgEl) renderBarChart(svgEl, S.home, dest);
+    // Live prices button
+    var liveBtn = card.querySelector('.solo-live-btn');
+    if (liveBtn) {
+      liveBtn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var d = liveBtn.getAttribute('data-dest');
+        liveBtn.textContent = 'Fetching 13 prices…';
+        liveBtn.classList.add('loading');
+        loadSoloWeeklyPrices(d).then(function() { renderSoloCards(); redrawMap(); });
+      });
+    }
+  });
+}
+
+function setSoloFocus(dest) {
+  S.soloFocus = dest;
+  if (!dest) S.barFocus = null;
+  document.querySelectorAll('.solo-dest-card').forEach(function(c) {
+    var on = c.dataset.dest === dest;
+    c.classList.toggle('focused', on);
+    c.style.borderColor = on ? (DC[c.dataset.dest] || '') : '';
+  });
+  if (S.mode === 'solo') redrawMap();
+}
+
+function setBarFocus(dest, weekend) {
+  S.soloFocus = dest;
+  S.barFocus = dest && weekend ? { dest:dest, weekend:weekend } : null;
+  document.querySelectorAll('.solo-dest-card').forEach(function(c) {
+    var on = c.dataset.dest === dest;
+    c.classList.toggle('focused', on);
+    c.style.borderColor = on ? (DC[c.dataset.dest] || '') : '';
+  });
+  if (S.mode === 'solo') redrawMap();
+}
+
+function setMode(mode) {
+  S.mode = mode;
+  document.querySelectorAll('.mode-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.mode === mode);
+  });
+  var isMeetup = mode === 'meetup';
+  document.getElementById('meetup-only').style.display           = isMeetup ? '' : 'none';
+  document.getElementById('home-airport-row').style.display      = isMeetup ? 'none' : '';
+  document.getElementById('solo-section').style.display          = isMeetup ? 'none' : '';
+  document.getElementById('meetup-routes-section').style.display = isMeetup ? '' : 'none';
+  document.getElementById('meetup-strip').style.display          = isMeetup ? '' : 'none';
+  var titleEl = document.getElementById('tb-title');
+  if (isMeetup) {
+    S.barFocus = null;
+    if (titleEl) titleEl.textContent = 'Family Meetup';
+    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+  } else {
+    S.soloFocus = null; S.barFocus = null;
+    if (titleEl) titleEl.textContent = 'Routes from ' + AIRPORTS[S.home].code;
+    renderSoloCards(); redrawMap();
+  }
+  rebuildLegend();
+  // Update mobile chip label
+  if (isMobileViewport()) updateMobileChips();
+}
+
+// ── API LAYER ────────────────────────────────────────────────────
+async function fetchFlights(from, to, dep, ret, key) {
+  if (!key) return getMock(from, to);
+  var p = new URLSearchParams({ engine:'google_flights', departure_id:from, arrival_id:to, outbound_date:dep||fmtISO(new Date()), currency:'USD', hl:'en', api_key:key });
+  if (ret) p.set('return_date', ret);
+  try {
+    var res  = await fetch('https://serpapi.com/search.json?'+p);
+    var json = await res.json();
+    var best = json&&json.best_flights&&json.best_flights[0];
+    if (!best) return getMock(from, to);
+    return { ow:ret?null:best.price, rt:ret?best.price:null };
+  } catch(e) { return getMock(from, to); }
+}
+
+// ── CALENDAR POPUP ───────────────────────────────────────────────
+function renderCal() {
+  var wrap = document.getElementById('cal-months');
+  wrap.innerHTML = '';
+  var base = new Date(today.getFullYear(), today.getMonth()+S.calOff, 1);
+  for (var m=0; m<2; m++) {
+    var mo=new Date(base.getFullYear(),base.getMonth()+m,1);
+    var yr=mo.getFullYear(), mn=mo.getMonth();
+    var total=new Date(yr,mn+1,0).getDate(), startDow=new Date(yr,mn,1).getDay(), bOW=baseOW();
+    var col=document.createElement('div');
+    col.innerHTML='<div class="cal-mo-name">'+MONTHS[mn]+' '+yr+'</div>';
+    var g=document.createElement('div'); g.className='cal-grid';
+    DAYS.forEach(function(d){ var h=document.createElement('div'); h.className='cal-dh'; h.textContent=d; g.appendChild(h); });
+    for (var i=0; i<startDow; i++) { var e=document.createElement('div'); e.className='cd ce'; g.appendChild(e); }
+    for (var day=1; day<=total; day++) {
+      (function(dy){
+        var dt=new Date(yr,mn,dy), past=dt<today, t=tier(dt), p=dayPrice(bOW,t);
+        var cls='cd'+(past?' cx':'')+(sameDay(dt,today)?' today':'')+
+          (sameDay(dt,S.depDate)?' s0':'')+
+          (S.tripType==='round'&&sameDay(dt,S.retDate)?' s1':'')+
+          (S.tripType==='round'&&inRange(dt,S.depDate,S.retDate)?' inr':'');
+        var el=document.createElement('div'); el.className=cls;
+        el.innerHTML='<span class="dn">'+dy+'</span><span class="dp '+t+'">$'+p+'</span>';
+        if (!past) {
+          el.addEventListener('click', function(){ onDayClick(dt); });
+          el.addEventListener('mouseenter', function(ev){
+            var tc=t==='cheap'?'#10b981':(t==='mid'?'#f59e0b':'#ef4444');
+            showTip(ev,'<strong>'+dateFmt(dt,'long')+'</strong><br/>Est. <span style="color:'+tc+'">$'+p+'</span> OW');
+          });
+          el.addEventListener('mouseleave', hideTip);
+        }
+        g.appendChild(el);
+      })(day);
+    }
+    col.appendChild(g); wrap.appendChild(col);
+  }
+  document.getElementById('cal-phase').textContent = S.calMode==='dep' ? 'Select departure' : 'Select return';
+}
+function onDayClick(dt) {
+  if (S.calMode==='dep') {
+    S.depDate=dt;
+    if (S.tripType==='round') { S.calMode='ret'; if(S.retDate&&S.retDate<=dt) S.retDate=null; }
+    else closeCal();
+  } else if (S.calMode==='ret') {
+    if (dt<S.depDate) { S.depDate=dt; renderCal(); return; }
+    S.retDate=dt; closeCal();
+  }
+  updateDateUI(); renderCal();
+}
+function openCal(mode) {
+  S.calMode=mode; renderCal();
+  var cal=document.getElementById('cal');
+  if (window.innerWidth <= 640) {
+    // Mobile: bottom-sheet — CSS handles position:fixed + bottom:0
+    cal.style.left=''; cal.style.top=''; cal.style.width='';
+  } else {
+    var sbR=document.getElementById('sb').getBoundingClientRect();
+    var dR=document.getElementById('date-row').getBoundingClientRect();
+    cal.style.left=(sbR.right+10)+'px';
+    cal.style.top=Math.max(10,dR.top-10)+'px';
+  }
+  cal.classList.add('open');
+  document.getElementById('cal-bd').classList.add('open');
+  document.getElementById('dep-btn').classList.toggle('active',mode==='dep');
+  document.getElementById('ret-btn').classList.toggle('active',mode==='ret');
+}
+function closeCal() {
+  document.getElementById('cal').classList.remove('open');
+  document.getElementById('cal-bd').classList.remove('open');
+  document.getElementById('dep-btn').classList.remove('active');
+  document.getElementById('ret-btn').classList.remove('active');
+  S.calMode=null; S.meetupHubOverride=null; updateDateUI();
+  if (S.mode === 'meetup') { renderMeetupStrip(); redrawMap(); }
+}
+function updateDateUI() {
+  var dEl=document.getElementById('dep-val'), rEl=document.getElementById('ret-val'), rBtn=document.getElementById('ret-btn');
+  dEl.textContent=S.depDate?dateFmt(S.depDate):'Pick date'; dEl.classList.toggle('ph',!S.depDate);
+  if (S.tripType==='one') { rEl.textContent='—'; rEl.classList.add('ph'); rBtn.disabled=true; }
+  else { rEl.textContent=S.retDate?dateFmt(S.retDate):'Pick date'; rEl.classList.toggle('ph',!S.retDate); rBtn.disabled=false; }
+  updateStats();
+}
+
+
+// ── PRICES ───────────────────────────────────────────────────────
+async function loadPrices() {
+  var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
+  var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
+  btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
+  var dep=fmtISO(S.depDate)||null, ret=S.tripType==='round'?fmtISO(S.retDate)||null:null;
+  var routes = [];
+  if (S.mode === 'meetup') {
+    // All family→hub routes needed for full meetup ranking
+    var hubs = ['PIA','LAX','JAX','ORD'];
+    hubs.forEach(function(dest) {
+      FAMILY.forEach(function(from) {
+        if (from === dest) return;
+        if (from === 'PIA' && dest === 'ORD') return; // PIA drives
+        routes.push({ from:from, to:dest, key:from+'-'+dest });
+      });
+    });
+  } else {
+    dests().forEach(function(dest) {
+      routes.push({ from:S.home, to:dest, key:S.home+'-'+dest });
+    });
+  }
+  var callCount = S.apiKey ? routes.length : 0;
+  await Promise.all(routes.map(function(r) {
+    return fetchFlights(r.from, r.to, dep, ret, S.apiKey)
+      .then(function(d){ S.prices[r.key]=d; })
+      .catch(function(){ S.prices[r.key]=getMock(r.from, r.to); });
+  }));
+  if (callCount) { S.apiCalls += callCount; updateApiCallCount(); }
+  renderMeetupStrip(); redrawMap(); updateStats();
+  if (S.mode === 'meetup') renderMeetupRoutes();
+  if (S.mode === 'solo') renderSoloCards();
+  btn.disabled=false; spin.style.display='none'; icon.style.display=''; lbl.textContent='Refresh Prices';
+}
+
+async function loadSoloWeeklyPrices(dest) {
+  var routeKey = S.home + '-' + dest;
+  var isRT = (S.tripType === 'round');
+  var d = new Date(today);
+  var daysToThu = (4 - d.getDay() + 7) % 7 || 7;
+  var startThu = new Date(d);
+  startThu.setDate(d.getDate() + daysToThu);
+  var entries = new Array(13);
+  var calls = 0;
+  var fetches = [];
+  for (var i = 0; i < 13; i++) {
+    (function(idx) {
+      var thu = new Date(startThu);
+      thu.setDate(startThu.getDate() + idx * 7);
+      var sun = new Date(thu);
+      sun.setDate(thu.getDate() + 3);
+      fetches.push(
+        fetchFlights(S.home, dest, fmtISO(thu), isRT ? fmtISO(sun) : null, S.apiKey)
+          .then(function(p) {
+            var price = isRT ? (p.rt || p.ow) : p.ow;
+            entries[idx] = { price: price || 0, dep: thu, ret: sun, live: true };
+            calls++;
+          })
+          .catch(function() { entries[idx] = null; })
+      );
+    })(i);
+  }
+  await Promise.all(fetches);
+  S.soloBarPrices[routeKey] = entries;
+  if (calls) { S.apiCalls += calls; updateApiCallCount(); }
+  return calls;
+}
+
+function updateApiCallCount() {
+  var el = document.getElementById('api-calls-lbl');
+  if (el) {
+    el.textContent = S.apiCalls + ' call' + (S.apiCalls !== 1 ? 's' : '') + ' this session';
+    el.style.display = S.apiCalls > 0 ? '' : 'none';
+  }
+}
+
+
+// ── MAP ──────────────────────────────────────────────────────────
+// fetch() fails on file:// (null-origin CORS). We try CDN first,
+// then fall back to a minimal bounding-box GeoJSON so that
+// geoAlbersUsa() projects correctly and airports/arcs still render.
+var GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
+var GEO_FALLBACK = {
+  type:'FeatureCollection',
+  features:[{ type:'Feature', properties:{},
+    geometry:{ type:'MultiPoint', coordinates:[
+      [-124.8,24.4],[-66.9,24.4],[-124.8,49.4],[-66.9,49.4],
+      [-160.4,18.9],[-154.8,22.2],[-179.1,51.2],[-129.9,55.9]
+    ]}
+  }]
+};
+
+var tipEl = document.getElementById('tip');
+function showTip(e,html){ tipEl.innerHTML=html; tipEl.style.display='block'; posTip(e); }
+function hideTip(){ tipEl.style.display='none'; }
+function posTip(e){
+  var r=document.getElementById('map-wrap').getBoundingClientRect();
+  var x=e.clientX-r.left+14, y=e.clientY-r.top-10;
+  if(x+240>r.width) x-=250; if(y+90>r.height) y-=90;
+  tipEl.style.left=x+'px'; tipEl.style.top=y+'px';
+}
+document.getElementById('map-wrap').addEventListener('mousemove', function(e){ if(tipEl.style.display==='block') posTip(e); });
+
+function arcPath(x1,y1,x2,y2){ var d=Math.hypot(x2-x1,y2-y1); return 'M'+x1+','+y1+' Q'+((x1+x2)/2)+','+(((y1+y2)/2)-d*.2)+' '+x2+','+y2; }
+var rTimer; window.addEventListener('resize', function(){ clearTimeout(rTimer); rTimer=setTimeout(redrawMap,100); });
+
+function rebuildLegend() {
+  var leg=document.getElementById('map-leg');
+  var html='';
+  if (S.mode === 'meetup') {
+    html += '<div class="ml"><div class="ml-dot" style="background:#ffffff"></div>★ Best Hub</div>';
+    FAMILY.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (family)</div>'; });
+  } else {
+    html='<div class="ml"><div class="ml-dot" style="background:var(--green)"></div>Home Airport</div>';
+    dests().forEach(function(d){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[d]+'"></div>→ '+d+'</div>'; });
+  }
+  leg.innerHTML=html;
+}
+
+function redrawMap() {
+  if (!S.geoData) return;
+  var wrap=document.getElementById('map-wrap'), w=wrap.clientWidth, h=wrap.clientHeight;
+  var svg=d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
+  svg.selectAll('*').remove();
+
+  S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], S.geoData);
+  var pg = d3.geoPath().projection(S.proj);
+
+  var defs=svg.append('defs');
+  defs.append('style').text('@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd 1.8s linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse 2.6s ease-in-out infinite;fill:#10b981}.sp{fill:#132134;stroke:#1e3550;stroke-width:.5;transition:fill .15s}.sp:hover{fill:#1a2f48}');
+  dests().forEach(function(code){
+    var c=DC[code]||'#888';
+    defs.append('marker').attr('id','arr-'+code).attr('markerWidth',8).attr('markerHeight',8).attr('refX',7).attr('refY',3).attr('orient','auto')
+      .append('polygon').attr('points','0 0,8 3,0 6').attr('fill',c).attr('opacity',.9);
+  });
+
+  svg.append('rect').attr('width',w).attr('height',h).attr('fill','#060e1a');
+
+  if (!S.geoFallback) {
+    svg.append('g').selectAll('path').data(S.geoData.features).enter().append('path').attr('class','sp').attr('d',pg)
+      .on('mouseenter', function(e,d){ showTip(e,'<strong>'+(d.properties&&d.properties.name||'State')+'</strong>'); })
+      .on('mouseleave', hideTip);
+    svg.append('path').datum({type:'FeatureCollection',features:S.geoData.features})
+      .attr('d',pg).attr('fill','none').attr('stroke','#2e7cf6').attr('stroke-width',1.5).attr('opacity',.18);
+  } else {
+    svg.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
+      .attr('fill','#2a4060').attr('font-size',10).attr('font-family','system-ui,sans-serif')
+      .text('State borders load from internet · airport positions and routes are accurate');
+  }
+
+  var homeXY = S.proj([AIRPORTS[S.home].lon, AIRPORTS[S.home].lat]);
+  if (!homeXY) return;
+
+  var rg = svg.append('g');
+
+  if (S.mode === 'meetup') {
+    // ── MEETUP: arcs from each family member → active hub ──
+    var ranking = computeRanking();
+    var meetupHub = getActiveHub(ranking);
+    if (meetupHub) {
+      var hubXY = S.proj([AIRPORTS[meetupHub].lon, AIRPORTS[meetupHub].lat]);
+      if (hubXY) {
+        FAMILY.forEach(function(from) {
+          if (from === meetupHub) return;
+          var fromAp = AIRPORTS[from];
+          var fromXY = S.proj([fromAp.lon, fromAp.lat]);
+          if (!fromXY) return;
+          var fromCol = DC[from] || '#888';
+          var isPiaDriving = (from === 'PIA' && meetupHub === 'ORD');
+          var key = from + '-' + meetupHub;
+          var p = S.prices[key] || getMock(from, meetupHub);
+          var price = S.tripType === 'round' ? (p.rt || p.ow) : p.ow;
+          var arcD = arcPath(fromXY[0], fromXY[1], hubXY[0], hubXY[1]);
+          rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',10).attr('opacity',0.05);
+          rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',2.2)
+            .attr('stroke-dasharray', isPiaDriving ? '4,4' : '10,6').attr('class','ra').attr('opacity',0.88);
+          var dist = Math.hypot(hubXY[0]-fromXY[0], hubXY[1]-fromXY[1]);
+          var bx = (fromXY[0]+hubXY[0])/2, by = (fromXY[1]+hubXY[1])/2 - dist*.2 - 10;
+          var lbl = isPiaDriving ? ('🚗 $'+ORD_DRIVE_TAX) : (price ? '$'+price+(S.tripType==='round'?' RT':' OW') : '…');
+          svg.append('g').call(function(bg){
+            bg.append('rect').attr('x',bx-34).attr('y',by-14).attr('width',68).attr('height',22).attr('rx',11).attr('fill',fromCol).attr('opacity',0.88);
+            bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#fff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').text(lbl);
+          });
+        });
+      }
+    }
+
+    // Airport dots — meetup mode
+    var ag = svg.append('g');
+    Object.values(AIRPORTS).forEach(function(ap){
+      var xy = S.proj([ap.lon, ap.lat]);
+      if (!xy) return;
+      var isHub    = ap.code === meetupHub;
+      var isMember = FAMILY.indexOf(ap.code) > -1;
+      var isOther  = !isHub && !isMember;
+      var col = isHub ? '#ffffff' : (isMember ? (DC[ap.code]||'#888') : '#1e3550');
+      var r   = isHub ? 10 : (isMember ? 7 : 3);
+      var g   = ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
+      if (isHub) g.append('circle').attr('class','hp');
+      g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
+        .on('mouseenter', function(e){
+          var h = '<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--muted);font-size:.63rem">'+ap.name+'</span>';
+          if (isHub) h += '<br/><span style="color:var(--green);font-size:.63rem">★ Best Meetup Hub</span>';
+          if (isMember && !isHub && meetupHub) {
+            var fkey = ap.code+'-'+meetupHub;
+            var fp = S.prices[fkey]||getMock(ap.code,meetupHub);
+            var fprice = S.tripType==='round' ? (fp.rt||fp.ow) : fp.ow;
+            if (fprice) h += '<br/>To '+meetupHub+': <strong style="color:'+(DC[ap.code]||col)+'">$'+fprice+(S.tripType==='round'?' RT':' OW')+'</strong>';
+          }
+          showTip(e,h);
+        })
+        .on('mouseleave', hideTip);
+      if (!isOther) {
+        var labelY = isHub ? -26 : -20;
+        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',col).attr('font-size',isHub?14:11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(ap.code);
+        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').attr('fill',isHub?'#a0c4e8':'#4a6a88').attr('font-size',8).attr('font-weight',isHub?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHub?'★ MEETUP':ap.name.split(',')[0]);
+      }
+    });
+
+  } else {
+    // ── SOLO: arcs from S.home to each dest ──
+    dests().forEach(function(code){
+      var ap=AIRPORTS[code], xy=S.proj([ap.lon,ap.lat]);
+      if (!xy) return;
+      var focused = !S.soloFocus || S.soloFocus === code;
+      var barHover = S.barFocus && S.barFocus.dest === code;
+      var arcAlpha = focused ? (barHover ? 1.0 : 0.9) : 0.1;
+      var glowAlpha = focused ? (barHover ? 0.1 : 0.04) : 0.01;
+      var labelAlpha = focused ? 0.9 : 0.06;
+      var col=DC[code]||'#888', d=arcPath(homeXY[0],homeXY[1],xy[0],xy[1]);
+      var pd=S.prices[S.home+'-'+code]||getMock(S.home,code);
+      var price=S.tripType==='one'?pd.ow:pd.rt;
+      if (S.barFocus && S.barFocus.dest === code) {
+        price = S.barFocus.weekend.price;
+      } else {
+        var bw = computeBestWeekends(S.home, code, 13);
+        if (bw[0]) price = bw[0].price;
+      }
+      rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',12).attr('opacity',glowAlpha);
+      rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',2.2).attr('stroke-dasharray','10,6').attr('class','ra').attr('marker-end','url(#arr-'+code+')').attr('opacity',arcAlpha);
+      var dist=Math.hypot(xy[0]-homeXY[0],xy[1]-homeXY[1]);
+      var bx=(homeXY[0]+xy[0])/2, by=(homeXY[1]+xy[1])/2-dist*.2-10;
+      var lbl=price?('$'+price+(S.tripType==='round'?' RT':' OW')):'…';
+      svg.append('g').call(function(bg){
+        bg.append('rect').attr('x',bx-32).attr('y',by-14).attr('width',64).attr('height',22).attr('rx',11).attr('fill',col).attr('opacity',labelAlpha);
+        bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#fff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',arcAlpha).text(lbl);
+      });
+    });
+
+    var ag=svg.append('g');
+    Object.values(AIRPORTS).forEach(function(ap){
+      var xy=S.proj([ap.lon,ap.lat]);
+      if (!xy) return;
+      var isHome=ap.code===S.home, isDest=dests().indexOf(ap.code)>-1, isOther=!isHome&&!isDest;
+      var col=isHome?'#10b981':(isDest?(DC[ap.code]||'#888'):'#2a4060'), r=isHome?9:(isDest?7:4);
+      var g=ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
+      if (isHome) g.append('circle').attr('class','hp');
+      g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
+        .on('mouseenter', function(e){
+          var key=isDest?S.home+'-'+ap.code:null;
+          var p=key?(S.prices[key]||getMock(S.home,ap.code)):null;
+          var h='<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--muted);font-size:.63rem">'+ap.name+'</span>';
+          if (p&&p.ow) h+='<br/>From <strong style="color:'+col+'">$'+p.ow+' OW</strong> · $'+p.rt+' RT';
+          showTip(e,h);
+        })
+        .on('mouseleave', hideTip);
+      if (!isOther) {
+        var labelY=isHome?-26:-20;
+        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',isHome?'#10b981':col).attr('font-size',isHome?14:11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(ap.code);
+        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').attr('fill',isHome?'#6ee7b7':'#4a6a88').attr('font-size',8).attr('font-weight',isHome?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHome?'⌂ HOME':ap.name.split(',')[0]);
+      }
+    });
+  }
+}
+
+// ── EVENTS ───────────────────────────────────────────────────────
+document.getElementById('cprev').addEventListener('click', function(){ S.calOff=Math.max(0,S.calOff-1); renderCal(); });
+document.getElementById('cnext').addEventListener('click', function(){ S.calOff=Math.min(12,S.calOff+1); renderCal(); });
+document.getElementById('cal-ok').addEventListener('click', closeCal);
+document.getElementById('cal-bd').addEventListener('click', closeCal);
+document.getElementById('dep-btn').addEventListener('click', function(){ openCal('dep'); });
+document.getElementById('ret-btn').addEventListener('click', function(){ if(!document.getElementById('ret-btn').disabled) openCal('ret'); });
+document.getElementById('search-btn').addEventListener('click', loadPrices);
+document.getElementById('share-btn-top').addEventListener('click', shareThePlan);
+document.querySelectorAll('.mode-btn').forEach(function(b){
+  b.addEventListener('click', function(){ setMode(b.dataset.mode); });
+});
+document.getElementById('share-card-close').addEventListener('click', function(){
+  document.getElementById('share-card').style.display = 'none';
+});
+
+document.querySelectorAll('.hol-btn').forEach(function(b){ b.addEventListener('click', function(){ applyHoliday(b.dataset.hol); }); });
+
+document.getElementById('ord-toggle').addEventListener('click', function(){
+  S.includeORD = !S.includeORD;
+  this.classList.toggle('on', S.includeORD);
+  renderMeetupStrip(); redrawMap();
+});
+
+document.querySelectorAll('.tt-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.tt-btn').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on'); S.tripType=b.dataset.v;
+    if (S.tripType==='one') S.retDate=null;
+    document.getElementById('pill-trip').textContent=S.tripType==='one'?'One-Way':'Round-Trip';
+    document.getElementById('s-trip').textContent   =S.tripType==='one'?'One-Way':'Round-Trip';
+    document.querySelectorAll('.hol-btn').forEach(function(x){ x.classList.remove('active'); });
+    updateDateUI(); renderMeetupStrip();
+    if (S.mode === 'solo') renderSoloCards();
+  });
+});
+
+document.getElementById('home-sel').addEventListener('change', function(e){
+  S.home=e.target.value;
+  document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
+  document.getElementById('s-routes').textContent=dests().length;
+  if (S.mode !== 'meetup') {
+    document.getElementById('tb-title').textContent='Routes from '+AIRPORTS[S.home].code;
+  }
+  document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
+  S.prices={}; S.soloBarPrices={};
+  rebuildLegend(); loadPrices();
+});
+
+document.getElementById('api-hdr').addEventListener('click', function(){ document.getElementById('api-body').classList.toggle('open'); });
+document.getElementById('api-apply').addEventListener('click', function(){
+  var k=document.getElementById('api-key-inp').value.trim(); S.apiKey=k;
+  var isLive=!!k;
+  document.getElementById('data-badge').textContent   = isLive?'Live Data':'Sample Data';
+  document.getElementById('data-badge').className     = 'ab-badge '+(isLive?'b-live':'b-mock');
+  document.getElementById('pill-src').textContent     = isLive?'Live Data':'Sample Data';
+  document.getElementById('data-pill-lbl').textContent= isLive?'Live':'Sample';
+  document.querySelector('.ld').style.background      = isLive?'var(--green)':'var(--amber)';
+  document.getElementById('cal-hint').textContent     = isLive?'Fares: Google Flights live':'Fares: sample · Google Flights';
+  document.getElementById('api-clear').style.display  = isLive?'':'none';
+  document.getElementById('api-body').classList.remove('open');
+  if (isLive) loadPrices();
+});
+
+document.getElementById('api-clear').addEventListener('click', function(){
+  S.apiKey=''; document.getElementById('api-key-inp').value='';
+  document.getElementById('data-badge').textContent   = 'Sample Data';
+  document.getElementById('data-badge').className     = 'ab-badge b-mock';
+  document.getElementById('pill-src').textContent     = 'Sample Data';
+  document.getElementById('data-pill-lbl').textContent= 'Sample';
+  document.querySelector('.ld').style.background      = 'var(--amber)';
+  document.getElementById('cal-hint').textContent     = 'Fares: sample · Google Flights';
+  document.getElementById('api-clear').style.display  = 'none';
+  document.getElementById('api-calls-lbl').style.display = 'none';
+  S.prices={}; S.soloBarPrices={};
+  renderMeetupStrip(); redrawMap();
+  if (S.mode==='meetup') renderMeetupRoutes();
+  if (S.mode==='solo') renderSoloCards();
+});
+
+function updateStats() {
+  var dep=S.depDate?dateFmt(S.depDate,'long'):'—', ret=S.retDate&&S.tripType==='round'?' → '+dateFmt(S.retDate,'long'):'';
+  document.getElementById('s-dates').textContent=dep==='—'?'Next 3 months':dep+ret;
+  document.getElementById('s-upd').textContent='Updated '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+
+// ── INIT ─────────────────────────────────────────────────────────
+async function boot() {
+  document.getElementById('tb-sub').textContent='Loading…';
+  // Try CDN TopoJSON; gracefully fall back for file:// (null-origin CORS blocks fetch)
+  try {
+    var r = await fetch(GEO_URL);
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    var topo = await r.json();
+    S.geoData    = topojson.feature(topo, topo.objects.states);
+    S.geoFallback = false;
+  } catch(e) {
+    console.warn('TopoJSON CDN unavailable (expected on file://). Using offline fallback.', e.message);
+    S.geoData    = GEO_FALLBACK;
+    S.geoFallback = true;
+  }
+  document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
+  document.getElementById('s-routes').textContent=dests().length;
+  document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
+  updateDateUI(); updateStats();
+  setMode(S.mode); // initialises correct tab, legend, panels
+  await loadPrices();
+  // Expose key functions to window so inline onclick="" attributes can reach them
+  // (functions are defined inside this IIFE; inline onclick resolves in global scope)
+  window.shareThePlan = shareThePlan;
+  window.setMode      = setMode;
+  // Mobile: initialize controls and ensure map renders
+  initMobileControls();
+  ensureMapRendersOnMobile();
+}
+
+// ── MOBILE CONTROLS ──────────────────────────────────────────────
+// Detect mobile viewport
+function isMobileViewport() {
+  return window.innerWidth <= 640;
+}
+
+// Initialize mobile sticky bar
+function initMobileControls() {
+  if (!isMobileViewport()) return;
+
+  var modeChip = document.getElementById('mode-chip');
+  var homeChip = document.getElementById('home-chip');
+  var stickyBar = document.getElementById('mobile-sticky-bar');
+  var floatShare = document.getElementById('share-btn-floating');
+  var dupShare   = document.getElementById('share-btn-mob');
+
+  // Show sticky bar on mobile
+  if (stickyBar) stickyBar.classList.add('show');
+
+  // Wire floating Share Plan button (addEventListener — IIFE-safe)
+  if (floatShare) floatShare.addEventListener('click', function(e){ e.preventDefault(); shareThePlan(); });
+  // Hide the legacy duplicate mobile share button so we don't show two
+  if (dupShare) dupShare.style.display = 'none';
+
+  // Mode chip cycler: Solo ↔ Meetup
+  if (modeChip) {
+    modeChip.addEventListener('click', function(e) {
+      e.preventDefault();
+      var newMode = S.mode === 'solo' ? 'meetup' : 'solo';
+      setMode(newMode);
+      updateMobileChips();
+    });
+  }
+
+  // Home chip cycler: PIA → ORD → LAX → JAX → PIA
+  if (homeChip) {
+    homeChip.addEventListener('click', function(e) {
+      e.preventDefault();
+      var airportCodes = Object.keys(AIRPORTS);
+      var currentIndex = airportCodes.indexOf(S.home);
+      var nextIndex = (currentIndex + 1) % airportCodes.length;
+      var nextHome = airportCodes[nextIndex];
+
+      // Dispatch change event on home-sel so existing handler fires
+      var homeSelEl = document.getElementById('home-sel');
+      if (homeSelEl) {
+        homeSelEl.value = nextHome;
+        var event = new Event('change', { bubbles: true });
+        homeSelEl.dispatchEvent(event);
+      }
+      updateMobileChips();
+    });
+  }
+
+  updateMobileChips();
+}
+
+// Update mobile chip labels to reflect current state
+function updateMobileChips() {
+  var modeChip = document.getElementById('mode-chip');
+  var homeChip = document.getElementById('home-chip');
+
+  if (modeChip) {
+    var modeLabel = S.mode === 'solo' ? '✈️ Solo' : '👨‍👩‍👧 Meetup';
+    modeChip.textContent = modeLabel;
+  }
+
+  if (homeChip) {
+    var apInfo = AIRPORTS[S.home];
+    var homeLabel = apInfo ? apInfo.code : S.home;
+    homeChip.textContent = homeLabel;
+  }
+}
+
+// Ensure map renders on mobile after layout settles
+function ensureMapRendersOnMobile() {
+  if (!isMobileViewport()) return;
+
+  var mapWrap = document.getElementById('map-wrap');
+  if (!mapWrap) return;
+
+  // Wait for map-wrap to have non-zero height, then redraw
+  var checkCount = 0;
+  var interval = setInterval(function() {
+    checkCount++;
+    var height = mapWrap.clientHeight;
+    if (height > 0) {
+      clearInterval(interval);
+      redrawMap();
+    } else if (checkCount > 50) {
+      clearInterval(interval);
+      redrawMap(); // Force anyway
+    }
+  }, 20);
+
+  // Also redraw 300ms after DOMContentLoaded (safe-area-inset + layout stabilization)
+  setTimeout(function() {
+    redrawMap();
+  }, 300);
+}
+
+// Re-initialize on resize/orientationchange
+window.addEventListener('resize', debounce(function() {
+  if (isMobileViewport()) {
+    redrawMap();
+  }
+}, 200));
+
+window.addEventListener('orientationchange', function() {
+  setTimeout(function() {
+    if (isMobileViewport()) {
+      redrawMap();
+    }
+  }, 100);
+});
+
+// Simple debounce helper
+function debounce(fn, delay) {
+  var timer;
+  return function() {
+    clearTimeout(timer);
+    timer = setTimeout(fn, delay);
+  };
+}
+
+boot();
+
+})(); // end IIFE
+</script>
+</body>
+</html>
