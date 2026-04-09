@@ -1423,6 +1423,8 @@ function redrawMap() {
 
   } else {
     // ── SOLO: arcs from S.home to each dest ──
+    // Collect route prices for the corner legend panel (replaces per-arc price pills to reduce map clutter)
+    var routeRows = [];
     dests().forEach(function(code){
       var ap=AIRPORTS[code], xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
@@ -1430,7 +1432,6 @@ function redrawMap() {
       var barHover = S.barFocus && S.barFocus.dest === code;
       var arcAlpha = focused ? (barHover ? 1.0 : 0.9) : 0.1;
       var glowAlpha = focused ? (barHover ? 0.1 : 0.04) : 0.01;
-      var labelAlpha = focused ? 0.9 : 0.06;
       var col=DC[code]||'#888', d=arcPath(homeXY[0],homeXY[1],xy[0],xy[1]);
       var pd=S.prices[S.home+'-'+code]||getMock(S.home,code);
       var price=S.tripType==='one'?pd.ow:pd.rt;
@@ -1442,14 +1443,32 @@ function redrawMap() {
       }
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',12).attr('opacity',glowAlpha);
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',2.2).attr('stroke-dasharray','10,6').attr('class','ra').attr('marker-end','url(#arr-'+code+')').attr('opacity',arcAlpha);
-      var dist=Math.hypot(xy[0]-homeXY[0],xy[1]-homeXY[1]);
-      var bx=(homeXY[0]+xy[0])/2, by=(homeXY[1]+xy[1])/2-dist*.2-10;
-      var lbl=price?('$'+price+(S.tripType==='round'?' RT':' OW')):'…';
-      svg.append('g').call(function(bg){
-        bg.append('rect').attr('x',bx-32).attr('y',by-14).attr('width',64).attr('height',22).attr('rx',11).attr('fill',col).attr('opacity',labelAlpha);
-        bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#fff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',arcAlpha).text(lbl);
-      });
+      routeRows.push({ code:code, price:price, col:col, focused:focused });
     });
+
+    // ── Corner price panel (bottom-left, empty ocean area on US Albers) ──
+    if (routeRows.length) {
+      var fareLbl = S.tripType==='round' ? ' RT' : ' OW';
+      var panelW = 118, rowH = 16, padY = 8, headerH = 16;
+      var panelH = headerH + padY + routeRows.length*rowH + padY;
+      var px = 10, py = h - panelH - 10;
+      var panel = svg.append('g').attr('class','route-price-panel').attr('pointer-events','none');
+      panel.append('rect').attr('x',px).attr('y',py).attr('width',panelW).attr('height',panelH)
+        .attr('rx',6).attr('fill','#0b1726').attr('stroke','#1f3350').attr('stroke-width',1).attr('opacity',0.92);
+      panel.append('text').attr('x',px+8).attr('y',py+headerH+2).attr('fill','#a0c4e8').attr('font-size',10)
+        .attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('letter-spacing','.04em').text(S.home + ' ROUTES');
+      routeRows.forEach(function(r, i){
+        var ry = py + headerH + padY + i*rowH + 10;
+        var op = r.focused ? 1 : 0.35;
+        panel.append('circle').attr('cx',px+10).attr('cy',ry-3).attr('r',3).attr('fill',r.col).attr('opacity',op);
+        panel.append('text').attr('x',px+18).attr('y',ry).attr('fill','#e6edf5').attr('font-size',11)
+          .attr('font-weight',700).attr('font-family','system-ui,sans-serif').attr('opacity',op)
+          .text(S.home + ' > ' + r.code);
+        panel.append('text').attr('x',px+panelW-8).attr('y',ry).attr('text-anchor','end')
+          .attr('fill',r.col).attr('font-size',11).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('opacity',op)
+          .text(r.price ? ('$'+r.price+fareLbl) : '—');
+      });
+    }
 
     var ag=svg.append('g');
     Object.values(AIRPORTS).forEach(function(ap){
