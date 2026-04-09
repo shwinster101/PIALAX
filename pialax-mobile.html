@@ -39,6 +39,11 @@ button{font-family:inherit;cursor:pointer;}
 /* ── Select ── */
 .s-sel{width:100%;padding:8px 28px 8px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:var(--r);font-size:.86rem;font-weight:700;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235b7a99'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .15s;}
 .s-sel:focus{outline:none;border-color:var(--accent);}
+/* Home airport dropdown — orange highlight to make it visually distinct from other selects */
+#home-sel{background-color:#f59e0b;color:#1a1a1a;border-color:#d97706;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%231a1a1a'/%3E%3C/svg%3E");}
+#home-sel:hover{background-color:#fbbf24;}
+#home-sel:focus{border-color:#b45309;box-shadow:0 0 0 2px rgba(245,158,11,.35);}
+#home-sel option{background:#1f2937;color:#fff;}
 
 /* ── Holiday chips ── */
 #hol-row{display:flex;gap:4px;flex-wrap:wrap;}
@@ -802,8 +807,10 @@ function shareThePlan() {
   var cityName = best.isORD ? "Chicago O'Hare" : (apInfo ? apInfo.name.split(',')[0] : best.dest);
   var dateStr = '';
   if (S.depDate) {
-    dateStr = ' ' + dateFmt(S.depDate, 'long');
+    dateStr = dateFmt(S.depDate, 'long');
     if (S.retDate && isRT) dateStr += ' – ' + dateFmt(S.retDate, 'long');
+  } else {
+    dateStr = 'Dates TBD';
   }
   // Encode shareable state into URL query params
   var params = new URLSearchParams();
@@ -816,12 +823,18 @@ function shareThePlan() {
   var url = base + '?' + params.toString();
   // Update URL in address bar without reload
   if (history.replaceState) history.replaceState(null, '', '?' + params.toString());
-  // Build WhatsApp/iMessage-ready share text
+  // Build WhatsApp/iMessage-ready share text.
+  // Headline (date + destination) goes first and clear; cost block sits
+  // two rows below after a blank spacer line for legibility.
   var breakdown = best.parts.join(', ') + (best.isORD ? ', PIA drives free' : '');
-  var shareText = 'PIALAX \u2708\ufe0f Meet in ' + cityName + dateStr + '.\n' +
+  var shareText =
+    '\u2708\ufe0f ' + cityName + '\n' +
+    '\uD83D\uDCC5 ' + dateStr + '\n' +
+    '\n' +
     'Total ' + fareLabel + ' flights: $' + best.total + '\n' +
     '(' + breakdown + ')\n' +
     (best.savings ? 'Saves $' + best.savings + ' vs next option.\n' : '') +
+    '\n' +
     'View dashboard: ' + url;
   // Show share card below map
   var cardEl = document.getElementById('share-card');
