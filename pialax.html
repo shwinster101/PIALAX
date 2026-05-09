@@ -228,6 +228,12 @@ button{font-family:inherit;cursor:pointer;}
 .bar-chart-svg{display:block;width:100%;height:46px;overflow:visible;cursor:crosshair;}
 .bar-chart-row{display:flex;align-items:center;justify-content:space-between;font-size:.5rem;color:var(--muted);margin-top:2px;margin-bottom:5px;}
 
+/* ── Map toggle (US / World) ── */
+#map-toggle{position:absolute;top:12px;left:12px;z-index:100;display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border2);background:var(--surface);}
+.mt-btn{padding:5px 12px;font-size:.62rem;font-weight:800;color:var(--muted);background:transparent;border:none;cursor:pointer;transition:all .12s;letter-spacing:.04em;}
+.mt-btn.on{background:var(--a-dim);color:var(--accent);}
+.mt-btn:hover:not(.on){color:var(--text);}
+
 /* ── Stats bar ── */
 #statsbar{padding:7px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
 .si{font-size:.67rem;color:var(--muted);}
@@ -347,9 +353,11 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="laborday">⚡ Labor Day</button>
         <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
         <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
+        <button class="hol-btn" data-hol="london">🇬🇧 London Jun 29</button>
       </div>
-      <div id="ord-toggle-row">
+      <div id="ord-toggle-row" style="display:flex;gap:4px;flex-wrap:wrap;">
         <button id="ord-toggle" class="ord-toggle-btn on">⬡ ORD Hub</button>
+        <button id="lhr-toggle" class="ord-toggle-btn on" style="background:rgba(225,29,72,.12);border-color:var(--red);color:var(--red);">🇬🇧 London</button>
       </div>
     </div>
 
@@ -454,6 +462,10 @@ button{font-family:inherit;cursor:pointer;}
 
   <div id="map-wrap">
     <svg id="map-svg"></svg>
+    <div id="map-toggle">
+      <button class="mt-btn on" data-view="us">🇺🇸 US</button>
+      <button class="mt-btn" data-view="world">🌍 World</button>
+    </div>
     <div id="tip"></div>
     <div id="map-leg"></div>
   </div>
@@ -485,9 +497,12 @@ var AIRPORTS = {
   ORD:{ code:'ORD', name:'Chicago, IL',      full:"O'Hare International Airport",       lat:41.9742, lon:-87.9073 },
   LAX:{ code:'LAX', name:'Los Angeles, CA',  full:'Los Angeles International Airport',  lat:33.9425, lon:-118.4081 },
   JAX:{ code:'JAX', name:'Jacksonville, FL', full:'Jacksonville International Airport', lat:30.4941, lon:-81.6879 },
+  LHR:{ code:'LHR', name:'London, UK',       full:'London Heathrow Airport',            lat:51.4700, lon:-0.4543 },
 };
 var ROUTE_GRAPH = { PIA:['LAX','JAX'], ORD:['LAX','JAX'], LAX:['PIA','ORD','JAX'], JAX:['PIA','ORD','LAX'] };
-var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4' };
+// International routes (meetup-only destinations — not in home-sel dropdown)
+var INTL_DESTS = ['LHR'];
+var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', LHR:'#e11d48' };
 var MOCK = {
   'PIA-LAX':{ ow:218, rt:389 },
   'LAX-PIA':{ ow:198, rt:362 },
@@ -499,6 +514,11 @@ var MOCK = {
   'JAX-ORD':{ ow:115, rt:209 },
   'LAX-JAX':{ ow:187, rt:339 },
   'JAX-LAX':{ ow:179, rt:319 },
+  // International — London Heathrow (summer 2026 estimates)
+  'PIA-LHR':{ ow:420, rt:780 }, 'LHR-PIA':{ ow:390, rt:740 },
+  'LAX-LHR':{ ow:380, rt:710 }, 'LHR-LAX':{ ow:350, rt:680 },
+  'JAX-LHR':{ ow:410, rt:760 }, 'LHR-JAX':{ ow:380, rt:720 },
+  'ORD-LHR':{ ow:320, rt:590 }, 'LHR-ORD':{ ow:300, rt:560 },
 };
 var FAMILY = ['PIA','LAX','JAX'];
 var ORD_DRIVE_TAX = 100; // estimated gas + parking for PIA→ORD drive
@@ -550,6 +570,7 @@ var HOLIDAYS = {
   laborday:     nextLaborDay(),
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
+  london:       new Date(2026, 5, 29), // June 29, 2026 — London family trip
 };
 
 // ── STATE ────────────────────────────────────────────────────────
@@ -561,7 +582,8 @@ var S = {
   prices:{}, geoData:null, geoFallback:false,
   proj:null,
   mode:'solo', soloFocus:null, barFocus:null,
-  soloBarPrices:{}, apiCalls:0, includeORD:true, meetupHubOverride:null,
+  soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
+  mapView:'us', worldGeo:null, worldGeoFallback:false,
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
 
@@ -584,11 +606,24 @@ function getMock(from,to){ var p=MOCK[from+'-'+to]; return p ? {ow:p.ow,rt:p.rt}
 function applyHoliday(key) {
   var base = HOLIDAYS[key];
   if (!base) return;
-  var dep = new Date(base);
-  dep.setDate(base.getDate() - ((base.getDay() + 3) % 7)); // Thu on or before holiday
-  if (dep < today) dep = new Date(today);
-  var ret = new Date(dep);
-  ret.setDate(dep.getDate() + 3); // Sun (Thu + 3)
+  var dep, ret;
+  if (key === 'london') {
+    // London trip: fixed dates Jun 29 – Jul 3, auto-switch to meetup + world map + enable LHR
+    dep = new Date(2026, 5, 29); ret = new Date(2026, 6, 3);
+    S.includeLHR = true;
+    document.getElementById('lhr-toggle').classList.add('on');
+    document.getElementById('lhr-toggle').style.background = 'rgba(225,29,72,.12)';
+    document.getElementById('lhr-toggle').style.borderColor = 'var(--red)';
+    document.getElementById('lhr-toggle').style.color = 'var(--red)';
+    if (S.mode !== 'meetup') setMode('meetup');
+    if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
+  } else {
+    dep = new Date(base);
+    dep.setDate(base.getDate() - ((base.getDay() + 3) % 7)); // Thu on or before holiday
+    if (dep < today) dep = new Date(today);
+    ret = new Date(dep);
+    ret.setDate(dep.getDate() + 3); // Sun (Thu + 3)
+  }
   S.depDate = dep; S.retDate = ret; S.tripType = 'round'; S.meetupHubOverride = null;
   document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v==='round'); });
   document.getElementById('pill-trip').textContent = 'Round-Trip';
@@ -606,6 +641,7 @@ function computeRanking() {
   var fareKey = isRT ? 'rt' : 'ow';
   var candidates = FAMILY.slice();
   if (S.includeORD && candidates.indexOf('ORD') === -1) candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
+  if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
   var results = [];
   candidates.forEach(function(dest) {
     var total = 0, parts = [], ok = true;
@@ -643,7 +679,7 @@ function setMeetupHub(code) {
 }
 
 function getNextHoliday() {
-  var labels = { memday:'Memorial Day', july4:'July 4th', laborday:'Labor Day', thanksgiving:'Thanksgiving', christmas:'Christmas' };
+  var labels = { memday:'Memorial Day', july4:'July 4th', laborday:'Labor Day', thanksgiving:'Thanksgiving', christmas:'Christmas', london:'London Trip' };
   var next = null;
   Object.keys(HOLIDAYS).forEach(function(k) {
     var d = HOLIDAYS[k];
@@ -1205,6 +1241,7 @@ async function loadPrices() {
   if (S.mode === 'meetup') {
     // All family→hub routes needed for full meetup ranking
     var hubs = ['PIA','LAX','JAX','ORD'];
+    if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (hubs.indexOf(d)===-1) hubs.push(d); });
     hubs.forEach(function(dest) {
       FAMILY.forEach(function(from) {
         if (from === dest) return;
@@ -1277,6 +1314,7 @@ function updateApiCallCount() {
 // then fall back to a minimal bounding-box GeoJSON so that
 // geoAlbersUsa() projects correctly and airports/arcs still render.
 var GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
+var WORLD_GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 var GEO_FALLBACK = {
   type:'FeatureCollection',
   features:[{ type:'Feature', properties:{},
@@ -1286,6 +1324,33 @@ var GEO_FALLBACK = {
     ]}
   }]
 };
+var WORLD_GEO_FALLBACK = {
+  type:'FeatureCollection',
+  features:[{ type:'Feature', properties:{},
+    geometry:{ type:'MultiPoint', coordinates:[[-180,-60],[180,80]] }
+  }]
+};
+
+async function loadWorldGeo() {
+  if (S.worldGeo) return;
+  try {
+    var r = await fetch(WORLD_GEO_URL);
+    if (!r.ok) throw new Error('HTTP '+r.status);
+    var topo = await r.json();
+    S.worldGeo = topojson.feature(topo, topo.objects.countries);
+    S.worldGeoFallback = false;
+  } catch(e) {
+    console.warn('World TopoJSON unavailable. Using fallback.', e.message);
+    S.worldGeo = WORLD_GEO_FALLBACK;
+    S.worldGeoFallback = true;
+  }
+}
+
+function updateMapToggle() {
+  document.querySelectorAll('.mt-btn').forEach(function(b){
+    b.classList.toggle('on', b.dataset.view === S.mapView);
+  });
+}
 
 var tipEl = document.getElementById('tip');
 function showTip(e,html){ tipEl.innerHTML=html; tipEl.style.display='block'; posTip(e); }
@@ -1307,6 +1372,7 @@ function rebuildLegend() {
   if (S.mode === 'meetup') {
     html += '<div class="ml"><div class="ml-dot" style="background:#ffffff"></div>★ Best Hub</div>';
     FAMILY.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (family)</div>'; });
+    if (S.includeLHR) INTL_DESTS.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (intl)</div>'; });
   } else {
     html='<div class="ml"><div class="ml-dot" style="background:var(--green)"></div>Home Airport</div>';
     dests().forEach(function(d){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[d]+'"></div>→ '+d+'</div>'; });
@@ -1315,13 +1381,20 @@ function rebuildLegend() {
 }
 
 function redrawMap() {
-  if (!S.geoData) return;
+  var isWorld = (S.mapView === 'world');
+  var geoSrc = isWorld ? (S.worldGeo || S.geoData) : S.geoData;
+  if (!geoSrc) return;
   var wrap=document.getElementById('map-wrap'), w=wrap.clientWidth, h=wrap.clientHeight;
   var svg=d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
   svg.selectAll('*').remove();
 
-  S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], S.geoData);
+  if (isWorld) {
+    S.proj = d3.geoNaturalEarth1().fitExtent([[20,20],[w-20,h-20]], geoSrc);
+  } else {
+    S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], geoSrc);
+  }
   var pg = d3.geoPath().projection(S.proj);
+  var geoFallback = isWorld ? S.worldGeoFallback : S.geoFallback;
 
   var defs=svg.append('defs');
   defs.append('style').text('@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd 1.8s linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse 2.6s ease-in-out infinite;fill:#10b981}.sp{fill:#132134;stroke:#1e3550;stroke-width:.5;transition:fill .15s}.sp:hover{fill:#1a2f48}');
@@ -1333,16 +1406,16 @@ function redrawMap() {
 
   svg.append('rect').attr('width',w).attr('height',h).attr('fill','#060e1a');
 
-  if (!S.geoFallback) {
-    svg.append('g').selectAll('path').data(S.geoData.features).enter().append('path').attr('class','sp').attr('d',pg)
-      .on('mouseenter', function(e,d){ showTip(e,'<strong>'+(d.properties&&d.properties.name||'State')+'</strong>'); })
+  if (!geoFallback) {
+    svg.append('g').selectAll('path').data(geoSrc.features).enter().append('path').attr('class','sp').attr('d',pg)
+      .on('mouseenter', function(e,d){ showTip(e,'<strong>'+(d.properties&&d.properties.name||'Region')+'</strong>'); })
       .on('mouseleave', hideTip);
-    svg.append('path').datum({type:'FeatureCollection',features:S.geoData.features})
-      .attr('d',pg).attr('fill','none').attr('stroke','#2e7cf6').attr('stroke-width',1.5).attr('opacity',.18);
+    svg.append('path').datum({type:'FeatureCollection',features:geoSrc.features})
+      .attr('d',pg).attr('fill','none').attr('stroke','#2e7cf6').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
   } else {
     svg.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
       .attr('fill','#2a4060').attr('font-size',10).attr('font-family','system-ui,sans-serif')
-      .text('State borders load from internet · airport positions and routes are accurate');
+      .text('Borders load from internet · airport positions and routes are accurate');
   }
 
   var homeXY = S.proj([AIRPORTS[S.home].lon, AIRPORTS[S.home].lat]);
@@ -1486,12 +1559,40 @@ document.getElementById('share-card-close').addEventListener('click', function()
   document.getElementById('share-card').style.display = 'none';
 });
 
+// Map US/World toggle
+document.querySelectorAll('.mt-btn').forEach(function(b){
+  b.addEventListener('click', function(){
+    var v = b.dataset.view;
+    if (v === S.mapView) return;
+    S.mapView = v;
+    updateMapToggle();
+    if (v === 'world' && !S.worldGeo) {
+      loadWorldGeo().then(function(){ redrawMap(); });
+    } else {
+      redrawMap();
+    }
+  });
+});
+
 document.querySelectorAll('.hol-btn').forEach(function(b){ b.addEventListener('click', function(){ applyHoliday(b.dataset.hol); }); });
 
 document.getElementById('ord-toggle').addEventListener('click', function(){
   S.includeORD = !S.includeORD;
   this.classList.toggle('on', S.includeORD);
   renderMeetupStrip(); redrawMap();
+});
+
+document.getElementById('lhr-toggle').addEventListener('click', function(){
+  S.includeLHR = !S.includeLHR;
+  var on = S.includeLHR;
+  this.classList.toggle('on', on);
+  this.style.background = on ? 'rgba(225,29,72,.12)' : '';
+  this.style.borderColor = on ? 'var(--red)' : '';
+  this.style.color = on ? 'var(--red)' : '';
+  // Auto-switch to world map when LHR enabled, back to US when disabled
+  if (on && S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
+  if (!on && S.mapView === 'world') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
+  renderMeetupStrip(); renderMeetupRoutes();
 });
 
 document.querySelectorAll('.tt-btn').forEach(function(b){
