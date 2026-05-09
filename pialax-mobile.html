@@ -368,6 +368,8 @@ button{font-family:inherit;cursor:pointer;}
     <button class="mode-btn on" data-mode="solo">✈️ Solo Mode</button>
   </div>
 
+  <div id="quota-bar" style="display:none;padding:4px 14px 2px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);"></div>
+
   <div id="sb-body">
 
     <div id="home-airport-row">
@@ -460,6 +462,12 @@ button{font-family:inherit;cursor:pointer;}
         </div>
         <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
+        <div id="api-quota-lbl" style="display:none;font-size:.62rem;margin-top:3px;line-height:1.4;"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--muted);">
+          <label for="api-budget-inp">Monthly budget</label>
+          <input id="api-budget-inp" type="number" min="1" max="10000" value="100" style="width:60px;padding:2px 4px;font-size:.62rem;background:var(--bg);color:var(--ink,var(--text));border:1px solid var(--line);border-radius:4px;"/>
+          <button id="api-quota-reset" style="font-size:.55rem;padding:2px 6px;">Reset</button>
+        </div>
       </div>
     </div>
 
@@ -1180,8 +1188,27 @@ function setMode(mode) {
 var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
 var _fetchDebounce = null;
 
+// PERF: in-memory cache + in-flight dedupe (mirror of desktop)
+var _flightCache = {};
+var _flightInflight = {};
+var FLIGHT_CACHE_TTL_MS = 30 * 60 * 1000; // 30 min — flight prices don't change minute-to-minute, saves API credits
+function _cacheKey(from, to, dep, ret) { return from+'|'+to+'|'+(dep||'')+'|'+(ret||''); }
+
 async function fetchFlights(from, to, dep, ret) {
   if (!PROXY_URL) return getMock(from, to);
+  if (isQuotaExceeded()) {
+    console.warn('SerpAPI monthly budget reached — serving mock for ' + from + '→' + to);
+    return getMock(from, to);
+  }
+
+  var key = _cacheKey(from, to, dep, ret);
+  var now = Date.now();
+  var hit = _flightCache[key];
+  if (hit && (now - hit.ts) < FLIGHT_CACHE_TTL_MS) {
+    return Object.assign({}, hit.data, { cached: true });
+  }
+  if (_flightInflight[key]) return _flightInflight[key];
+
   var flightType = ret ? 1 : 2;
   var p = new URLSearchParams({
     engine:'google_flights',
@@ -1194,24 +1221,58 @@ async function fetchFlights(from, to, dep, ret) {
   });
   if (ret) p.set('return_date', ret);
   var url = PROXY_URL + '?' + p.toString();
-  try {
-    var res = await fetch(url);
-    if (res.status === 429) { console.warn('SerpAPI rate limit hit'); return getMock(from, to); }
-    if (res.status === 403) { console.warn('SerpAPI auth error'); return getMock(from, to); }
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    var json = await res.json();
-    var best = (json && json.best_flights && json.best_flights.length > 0) ? json.best_flights[0] : null;
-    if (!best && json && json.other_flights && json.other_flights.length > 0) {
-      best = json.other_flights[0];
+  var pr = (async function(){
+    try {
+      var res = await fetch(url);
+      if (res.status === 429) { console.warn('SerpAPI rate limit hit'); markQuotaExceeded(); return getMock(from, to); }
+      if (res.status === 403) { console.warn('SerpAPI auth error'); return getMock(from, to); }
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      var json = await res.json();
+      var best = (json && json.best_flights && json.best_flights.length > 0) ? json.best_flights[0] : null;
+      if (!best && json && json.other_flights && json.other_flights.length > 0) {
+        best = json.other_flights[0];
+      }
+      if (!best || typeof best.price !== 'number') return getMock(from, to);
+      var price = best.price;
+      var data = { ow: ret ? null : price, rt: ret ? price : null, live: true };
+      _flightCache[key] = { data: data, ts: Date.now() };
+      bumpQuota(1);
+      return data;
+    } catch(e) {
+      console.warn('SerpAPI fetch failed for ' + from + '→' + to + ':', e.message);
+      return getMock(from, to);
+    } finally {
+      delete _flightInflight[key];
     }
-    if (!best || typeof best.price !== 'number') return getMock(from, to);
-    var price = best.price;
-    return { ow: ret ? null : price, rt: ret ? price : null, live: true };
-  } catch(e) {
-    console.warn('SerpAPI fetch failed for ' + from + '→' + to + ':', e.message);
-    return getMock(from, to);
-  }
+  })();
+  _flightInflight[key] = pr;
+  return pr;
 }
+
+// ── SerpAPI Monthly Quota Tracking ───────────────────────────────
+var QUOTA_STORAGE_KEY = 'pialax_serpapi_quota';
+function _quotaPeriodKey() {
+  var d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
+}
+function readQuota() {
+  try {
+    var raw = localStorage.getItem(QUOTA_STORAGE_KEY);
+    if (!raw) return { period:_quotaPeriodKey(), used:0, budget:100, exceeded:false };
+    var obj = JSON.parse(raw);
+    if (obj.period !== _quotaPeriodKey()) {
+      obj = { period:_quotaPeriodKey(), used:0, budget:obj.budget||100, exceeded:false };
+      localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
+    }
+    return obj;
+  } catch(e) { return { period:_quotaPeriodKey(), used:0, budget:100, exceeded:false }; }
+}
+function writeQuota(obj){ try{ localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj)); }catch(e){} }
+function bumpQuota(n){ var q=readQuota(); q.used+=n; writeQuota(q); updateApiCallCount(); }
+function setQuotaBudget(n){ var q=readQuota(); q.budget=Math.max(1,n|0); q.exceeded=q.used>=q.budget; writeQuota(q); updateApiCallCount(); }
+function resetQuota(){ writeQuota({ period:_quotaPeriodKey(), used:0, budget:readQuota().budget, exceeded:false }); updateApiCallCount(); }
+function markQuotaExceeded(){ var q=readQuota(); q.exceeded=true; q.used=Math.max(q.used,q.budget); writeQuota(q); updateApiCallCount(); }
+function isQuotaExceeded(){ var q=readQuota(); return q.exceeded || q.used>=q.budget; }
 
 // ── CALENDAR POPUP ───────────────────────────────────────────────
 function renderCal() {
@@ -1315,32 +1376,61 @@ async function loadPrices() {
     // All family→hub routes needed for full meetup ranking
     var hubs = ['PIA','LAX','JAX','ORD'];
     if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (hubs.indexOf(d)===-1) hubs.push(d); });
+    // Prioritize active hub routes first so prices paint faster
+    var activeHub = S.meetupHubOverride || null;
+    var priorityRoutes = [], otherRoutes = [];
     hubs.forEach(function(dest) {
       FAMILY.forEach(function(from) {
         if (from === dest) return;
         if (from === 'PIA' && dest === 'ORD') return; // PIA drives
-        routes.push({ from:from, to:dest, key:from+'-'+dest });
+        var r = { from:from, to:dest, key:from+'-'+dest };
+        if (dest === activeHub) priorityRoutes.push(r);
+        else otherRoutes.push(r);
       });
     });
+    routes = priorityRoutes.concat(otherRoutes);
   } else {
     dests().forEach(function(dest) {
       routes.push({ from:S.home, to:dest, key:S.home+'-'+dest });
     });
   }
-  var liveCount = 0, failCount = 0;
+  var liveCount = 0, failCount = 0, cachedCount = 0, doneCount = 0, total = routes.length;
+  // PERF: stream UI updates as each fetch resolves
+  var _repaintScheduled = false;
+  function scheduleRepaint() {
+    if (_repaintScheduled) return;
+    _repaintScheduled = true;
+    requestAnimationFrame(function(){
+      _repaintScheduled = false;
+      renderMeetupStrip(); redrawMap();
+      if (S.mode === 'meetup') renderMeetupRoutes();
+      if (S.mode === 'solo') renderSoloCards();
+      lbl.textContent = 'Searching… ' + doneCount + '/' + total;
+    });
+  }
   await Promise.all(routes.map(function(r) {
     return fetchFlights(r.from, r.to, dep, ret)
-      .then(function(d){ S.prices[r.key]=d; if (d && d.live) liveCount++; })
-      .catch(function(){ S.prices[r.key]=getMock(r.from, r.to); failCount++; });
+      .then(function(d){
+        S.prices[r.key]=d;
+        if (d && d.live && !d.cached) liveCount++;
+        if (d && d.cached) cachedCount++;
+      })
+      .catch(function(){ S.prices[r.key]=getMock(r.from, r.to); failCount++; })
+      .then(function(){ doneCount++; scheduleRepaint(); });
   }));
-  if (PROXY_URL && liveCount > 0) { S.apiCalls += liveCount; updateApiCallCount(); }
-  // show user-friendly status
-  var statusLbl = !PROXY_URL ? 'Sample Data' : (failCount === routes.length ? 'API Error — Using Samples' : 'Live Data');
+  if (PROXY_URL && liveCount > 0) { S.apiCalls += liveCount; }
+  updateApiCallCount();
+  var allFailed = failCount === routes.length;
+  var statusLbl;
+  if (!PROXY_URL) statusLbl = 'Sample Data';
+  else if (allFailed) statusLbl = 'API Error — Using Samples';
+  else if (liveCount === 0 && cachedCount > 0) statusLbl = 'Live (cached)';
+  else statusLbl = 'Live Data';
   document.getElementById('data-badge').textContent   = statusLbl;
-  document.getElementById('data-badge').className     = 'ab-badge ' + (!PROXY_URL||failCount===routes.length ? 'b-mock' : 'b-live');
+  document.getElementById('data-badge').className     = 'ab-badge ' + (!PROXY_URL||allFailed ? 'b-mock' : 'b-live');
   document.getElementById('pill-src').textContent     = statusLbl;
-  document.getElementById('data-pill-lbl').textContent= PROXY_URL && failCount<routes.length ? 'Live' : 'Sample';
-  document.querySelector('.ld').style.background      = PROXY_URL && failCount<routes.length ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('data-pill-lbl').textContent= PROXY_URL && !allFailed ? 'Live' : 'Sample';
+  document.querySelector('.ld').style.background      = PROXY_URL && !allFailed ? 'var(--green)' : 'var(--amber)';
   renderMeetupStrip(); redrawMap(); updateStats();
   if (S.mode === 'meetup') renderMeetupRoutes();
   if (S.mode === 'solo') renderSoloCards();
@@ -1386,6 +1476,38 @@ function updateApiCallCount() {
     el.textContent = S.apiCalls + ' call' + (S.apiCalls !== 1 ? 's' : '') + ' this session';
     el.style.display = S.apiCalls > 0 ? '' : 'none';
   }
+  // Always-visible quota bar at top of sidebar
+  var q = readQuota();
+  var qbar = document.getElementById('quota-bar');
+  if (qbar && PROXY_URL) {
+    var remaining = Math.max(0, q.budget - q.used);
+    var pct = q.budget > 0 ? remaining / q.budget : 0;
+    var color = pct > 0.20 ? 'var(--green)' : (pct > 0.05 ? 'var(--amber)' : 'var(--red)');
+    if (q.exceeded || remaining === 0) color = 'var(--red)';
+    var barW = Math.round(pct * 100);
+    qbar.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">'
+      + '<span style="color:' + color + ';font-weight:700;">SerpAPI: ' + remaining + ' / ' + q.budget + ' remaining</span>'
+      + '<span style="color:var(--muted);">' + q.used + ' used</span></div>'
+      + '<div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
+      + '<div style="height:100%;width:' + barW + '%;background:' + color + ';transition:width .3s;"></div></div>';
+    qbar.style.display = '';
+  }
+  var qel = document.getElementById('api-quota-lbl');
+  var inp = document.getElementById('api-budget-inp');
+  if (inp && document.activeElement !== inp) inp.value = q.budget;
+  if (!qel) return;
+  if (!PROXY_URL) { qel.style.display = 'none'; return; }
+  var remaining = Math.max(0, q.budget - q.used);
+  var pct = q.budget > 0 ? remaining / q.budget : 0;
+  var color = pct > 0.20 ? 'var(--green)' : (pct > 0.05 ? 'var(--amber)' : 'var(--red)');
+  if (q.exceeded || remaining === 0) color = 'var(--red)';
+  var bar = '<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
+          + '<div style="height:100%;width:' + Math.round((1-pct)*100) + '%;background:' + color + ';transition:width .3s;"></div></div>';
+  var note = q.exceeded ? ' · <strong>budget reached — falling back to mock</strong>' : '';
+  qel.innerHTML = '<span style="color:' + color + ';">SerpAPI: ' + remaining + ' / ' + q.budget
+                + ' free calls remaining this month</span> <span style="color:var(--muted);">(used ' + q.used + ')</span>'
+                + note + bar;
+  qel.style.display = '';
 }
 
 
@@ -1751,7 +1873,22 @@ document.getElementById('api-clear').addEventListener('click', function(){
   renderMeetupStrip(); redrawMap();
   if (S.mode==='meetup') renderMeetupRoutes();
   if (S.mode==='solo') renderSoloCards();
+  updateApiCallCount();
 });
+
+// Quota: budget input + manual reset (mobile)
+(function(){
+  var inp = document.getElementById('api-budget-inp');
+  var rst = document.getElementById('api-quota-reset');
+  if (inp) inp.addEventListener('change', function(){
+    var n = parseInt(inp.value, 10);
+    if (!isNaN(n) && n > 0) setQuotaBudget(n);
+  });
+  if (rst) rst.addEventListener('click', function(){
+    if (confirm('Reset SerpAPI usage counter to 0 for this month?')) resetQuota();
+  });
+  updateApiCallCount();
+})();
 
 function updateStats() {
   var dep=S.depDate?dateFmt(S.depDate,'long'):'—', ret=S.retDate&&S.tripType==='round'?' → '+dateFmt(S.retDate,'long'):'';
