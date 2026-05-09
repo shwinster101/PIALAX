@@ -703,13 +703,22 @@ function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:
 function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
 function getMock(from,to){
   var p = MOCK[from+'-'+to];
-  if (!p) return { ow:0, rt:0, airline:null, flightNo:null };
-  return { ow:p.ow, rt:p.rt, airline:p.airline||null, flightNo:p.flightNo||null };
+  if (!p) return { ow:0, rt:0, airline:null, flightNo:null, returnAirline:null, returnFlightNo:null };
+  var rev = MOCK[to+'-'+from];
+  return {
+    ow: p.ow, rt: p.rt,
+    airline: p.airline || null,
+    flightNo: p.flightNo || null,
+    returnAirline: (rev && rev.airline) || p.airline || null,
+    returnFlightNo: (rev && rev.flightNo) || null,
+  };
 }
-// Build "AA · AA 3421" label from a price obj. Returns '' when no airline data.
-function airlineLabel(p) {
+// Build label from a price obj. Pass leg='outbound' (default) or 'return'.
+function airlineLabel(p, leg) {
   if (!p) return '';
-  var a = p.airline, n = p.flightNo;
+  var a, n;
+  if (leg === 'return') { a = p.returnAirline; n = p.returnFlightNo; }
+  else { a = p.airline; n = p.flightNo; }
   if (a && n) return a + ' · ' + n;
   if (a) return a;
   if (n) return n;
@@ -993,7 +1002,8 @@ function renderMeetupRoutes() {
       if (route.viaORD) {
         var ordLegLive = S.prices['ORD-' + hub];
         var ordLeg = ordLegLive || getMock('ORD', hub);
-        var ordAirline = airlineLabel(ordLeg);
+        var ordOutAirline = airlineLabel(ordLeg, 'outbound');
+        var ordRetAirline = airlineLabel(ordLeg, 'return');
         var ordIsLive = !!(ordLegLive && ordLegLive.live);
         var ordIsCached = !!(ordLegLive && ordLegLive.cached);
         console.log('[PIALAX via-ORD]', { hub:hub, ordLegFare:route.ordLegFare, ordLegSource: ordIsLive ? (ordIsCached ? 'live (cached)' : 'live (fresh)') : 'MOCK FALLBACK', driveTax: ORD_DRIVE_TAX, totalPerTicket: route.fare, headcount: headcount, ordPriceObj: ordLegLive || 'no S.prices entry' });
@@ -1024,7 +1034,13 @@ function renderMeetupRoutes() {
               (totalSavings > 0 ? '<span style="font-size:.55rem;color:var(--green);font-weight:900;margin-left:4px;">saves $' + totalSavings + '</span>' : '') +
             '</div>' +
             '<div class="route-drive-row" style="margin-top:3px;">🚗 PIA→ORD ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' per ticket</div>' +
-            (ordAirline ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordAirline + '</div>' : '') +
+            (function(){
+              if (!isRT) return ordOutAirline ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordOutAirline + '</div>' : '';
+              var parts = [];
+              if (ordOutAirline) parts.push('✈ ' + ordOutAirline);
+              if (ordRetAirline) parts.push('↩ ' + ordRetAirline);
+              return parts.length ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>' : '';
+            })() +
             '<div class="route-meta">Peoria → Chicago O\'Hare → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
           '</div>';
         return;
@@ -1033,10 +1049,23 @@ function renderMeetupRoutes() {
     var key = from + '-' + hub;
     var p = S.prices[key] || getMock(from, hub);
     var price = isRT ? (p.rt || p.ow) : p.ow;
-    var alLbl = airlineLabel(p);
-    var stopsTxt = (p.stops && p.stops > 0) ? (' · ' + p.stops + ' stop' + (p.stops>1?'s':'')) : '';
+    var outAirlineLbl = airlineLabel(p, 'outbound');
+    var retAirlineLbl = airlineLabel(p, 'return');
+    var outStopsTxt = (p.stops && p.stops > 0) ? (' · ' + p.stops + ' stop' + (p.stops>1?'s':'')) : '';
+    var retStopsTxt = (p.returnStops && p.returnStops > 0) ? (' · ' + p.returnStops + ' stop' + (p.returnStops>1?'s':'')) : '';
     var subtotalGen = price * headcount;
-    var copyFlyText = memberLabel + ' (' + from + ' → ' + hub + '): $' + price + ' per ticket' + (headcount > 1 ? ' × ' + headcount + ' = $' + subtotalGen : '') + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '') + (alLbl ? ' · ' + alLbl : '');
+    var copyFlyText = memberLabel + ' (' + from + ' → ' + hub + '): $' + price + ' per ticket' + (headcount > 1 ? ' × ' + headcount + ' = $' + subtotalGen : '') + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
+    if (outAirlineLbl) copyFlyText += ' · Out: ' + outAirlineLbl;
+    if (isRT && retAirlineLbl) copyFlyText += ' · Ret: ' + retAirlineLbl;
+    var airlineHtml = '';
+    if (isRT && (outAirlineLbl || retAirlineLbl)) {
+      var parts = [];
+      if (outAirlineLbl) parts.push('✈ ' + outAirlineLbl + outStopsTxt);
+      if (retAirlineLbl) parts.push('↩ ' + retAirlineLbl + retStopsTxt);
+      airlineHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>';
+    } else if (outAirlineLbl) {
+      airlineHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + outAirlineLbl + outStopsTxt + '</div>';
+    }
     html +=
       '<div class="route-card">' +
         '<div class="route-card-hd">' +
@@ -1051,7 +1080,7 @@ function renderMeetupRoutes() {
           '<div class="route-price">$' + price + '</div>' +
           '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + (dateStr ? ' · ' + dateStr : '') + '</span>' +
         '</div>' +
-        (alLbl ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + alLbl + stopsTxt + '</div>' : '') +
+        airlineHtml +
         '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
       '</div>';
   });
@@ -1117,16 +1146,59 @@ function shareThePlan() {
   // Build WhatsApp/iMessage-ready share text.
   // Headline (date + destination) goes first and clear; cost block sits
   // two rows below after a blank spacer line for legibility.
-  var breakdown = best.parts.join(', ') + (best.isORD ? ', PIA drives free' : '');
+  if (S.meetupHubOverride) params.set('mhub', S.meetupHubOverride);
+  // Rich per-flier share text
+  var nights = (S.depDate && S.retDate && isRT) ? Math.round((S.retDate - S.depDate) / 86400000) : 0;
+  var effFamily = familyForDate(S.depDate);
+  var legLines = [];
+  effFamily.forEach(function(from) {
+    var label = labelFor(from);
+    if (from === best.dest) { legLines.push('  - ' + label + ' (' + from + '): hosting'); return; }
+    if (from === 'PIA' && best.dest === 'ORD') {
+      legLines.push('  - ' + label + ' (PIA->ORD): drive ~$' + ORD_DRIVE_TAX);
+      return;
+    }
+    var headcount = headcountFor(from);
+    var perTicket, viaORD = false, ordLegFare = 0;
+    var p = S.prices[from + '-' + best.dest] || getMock(from, best.dest);
+    var outAirline = '', retAirline = '';
+    if (from === 'PIA' && INTL_DESTS.indexOf(best.dest) > -1) {
+      var route = piaRouteTo(best.dest, isRT ? 'rt' : 'ow');
+      perTicket = route.fare;
+      viaORD = route.viaORD;
+      ordLegFare = route.ordLegFare || 0;
+      var ordPriceObj = S.prices['ORD-' + best.dest] || getMock('ORD', best.dest);
+      outAirline = airlineLabel(ordPriceObj, 'outbound');
+      retAirline = airlineLabel(ordPriceObj, 'return');
+    } else {
+      perTicket = isRT ? (p.rt || p.ow) : p.ow;
+      outAirline = airlineLabel(p, 'outbound');
+      retAirline = airlineLabel(p, 'return');
+    }
+    var subtotal = perTicket * headcount;
+    var routeStr = viaORD ? 'PIA->ORD->' + best.dest : (from + '->' + best.dest);
+    var line = '  - ' + label + ' (' + routeStr + '): $' + perTicket + ' ' + fareLabel
+             + (headcount > 1 ? ' x ' + headcount + ' = $' + subtotal : '');
+    if (viaORD) line += ' [drive $' + ORD_DRIVE_TAX + ' + ORD->' + best.dest + ' $' + ordLegFare + ']';
+    legLines.push(line);
+    if (outAirline || (isRT && retAirline)) {
+      var flightLine = '      ';
+      if (outAirline) flightLine += 'Out: ' + outAirline;
+      if (isRT && retAirline) flightLine += (outAirline ? '  |  ' : '') + 'Ret: ' + retAirline;
+      legLines.push(flightLine);
+    }
+  });
+  var savingsLine = (best.savings && best.savings > 0) ? '\nSaves $' + best.savings + ' vs next-best hub.' : '';
   var shareText =
-    '\u2708\ufe0f ' + cityName + '\n' +
-    '\uD83D\uDCC5 ' + dateStr + '\n' +
+    '\u2708\ufe0f Family meetup: ' + cityName + ' (' + best.dest + ')\n' +
+    '\uD83D\uDCC5 ' + dateStr + (nights > 0 ? ' \u00B7 ' + nights + ' nights' : '') + '\n' +
     '\n' +
-    'Total ' + fareLabel + ' flights: $' + best.total + '\n' +
-    '(' + breakdown + ')\n' +
-    (best.savings ? 'Saves $' + best.savings + ' vs next option.\n' : '') +
+    'TOTAL family ' + fareLabel + ' flights: $' + best.total + '\n' +
     '\n' +
-    'View dashboard: ' + url;
+    legLines.join('\n') +
+    savingsLine + '\n' +
+    '\n' +
+    'Live dashboard: ' + url;
   // Show share card below map
   var cardEl = document.getElementById('share-card');
   var textEl = document.getElementById('share-card-text');
@@ -1609,8 +1681,41 @@ async function fetchFlights(from, to, dep, ret) {
   if (ret) p.set('return_date', ret);
   var url = PROXY_URL + '?' + p.toString();
   var pr = (async function(){
+    async function fetchWithTimeoutAndRetry(targetUrl) {
+      var attempts = 0;
+      var lastErr = null;
+      while (attempts < 2) {
+        attempts++;
+        var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+        var timeoutId = ctrl ? setTimeout(function(){ ctrl.abort(); }, 15000) : null;
+        try {
+          var resp = await fetch(targetUrl, ctrl ? { signal: ctrl.signal } : undefined);
+          if (timeoutId) clearTimeout(timeoutId);
+          if (resp.status >= 500 && resp.status < 600 && attempts < 2) {
+            console.warn('SerpAPI Worker returned ' + resp.status + ', retrying once');
+            await new Promise(function(r){ setTimeout(r, 1000); });
+            continue;
+          }
+          return resp;
+        } catch (err) {
+          if (timeoutId) clearTimeout(timeoutId);
+          lastErr = err;
+          if (err && err.name === 'AbortError') {
+            console.warn('SerpAPI fetch timed out 15s for ' + from + '→' + to);
+            throw err;
+          }
+          if (attempts < 2) {
+            console.warn('SerpAPI fetch errored (' + err.message + '), retrying once');
+            await new Promise(function(r){ setTimeout(r, 1000); });
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastErr || new Error('fetch failed');
+    }
     try {
-      var res = await fetch(url);
+      var res = await fetchWithTimeoutAndRetry(url);
       if (res.status === 429) { console.warn('SerpAPI rate limit hit'); markQuotaExceeded(); return getMock(from, to); }
       if (res.status === 403) { console.warn('SerpAPI auth error'); return getMock(from, to); }
       if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1621,17 +1726,23 @@ async function fetchFlights(from, to, dep, ret) {
       }
       if (!best || typeof best.price !== 'number') return getMock(from, to);
       var price = best.price;
-      // Capture airline + flight number from outbound's first leg.
-      var legs = (best.flights && best.flights.length) ? best.flights : [];
-      var firstLeg = legs[0] || {};
+      // Outbound legs in best.flights[]; return legs in best.return_flights[] (RT only)
+      var outLegs = (best.flights && best.flights.length) ? best.flights : [];
+      var outFirst = outLegs[0] || {};
+      var retLegs = (best.return_flights && best.return_flights.length) ? best.return_flights : [];
+      var retFirst = retLegs[0] || {};
       var data = {
         ow: ret ? null : price,
         rt: ret ? price : null,
         live: true,
-        airline: firstLeg.airline || null,
-        flightNo: firstLeg.flight_number || null,
-        airlineLogo: firstLeg.airline_logo || best.airline_logo || null,
-        stops: legs.length > 1 ? (legs.length - 1) : 0,
+        airline: outFirst.airline || null,
+        flightNo: outFirst.flight_number || null,
+        airlineLogo: outFirst.airline_logo || best.airline_logo || null,
+        stops: outLegs.length > 1 ? (outLegs.length - 1) : 0,
+        returnAirline: retFirst.airline || null,
+        returnFlightNo: retFirst.flight_number || null,
+        returnAirlineLogo: retFirst.airline_logo || null,
+        returnStops: retLegs.length > 1 ? (retLegs.length - 1) : 0,
       };
       _flightCache[key] = { data: data, ts: Date.now() };
       bumpQuota(1);
@@ -1677,6 +1788,35 @@ function setQuotaBudget(n){ var q=readQuota(); q.budget=Math.max(1,n|0); q.excee
 function resetQuota(){ writeQuota({ period:_quotaPeriodKey(), used:0, budget:readQuota().budget, exceeded:false }); updateApiCallCount(); }
 function markQuotaExceeded(){ var q=readQuota(); q.exceeded=true; q.used=Math.max(q.used,q.budget); writeQuota(q); updateApiCallCount(); }
 function isQuotaExceeded(){ var q=readQuota(); return q.exceeded || q.used>=q.budget; }
+
+// Critical fix: SerpAPI /account sync (mirror of desktop). Reconciles local
+// quota counter with the real plan. Costs 0 search credits.
+var _serpApiAccountLastSync = null;
+async function syncSerpApiAccount() {
+  if (!PROXY_URL) return null;
+  try {
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var to = ctrl ? setTimeout(function(){ ctrl.abort(); }, 8000) : null;
+    var r = await fetch(PROXY_URL + '?action=account', ctrl ? { signal: ctrl.signal } : undefined);
+    if (to) clearTimeout(to);
+    if (!r.ok) return null;
+    var acct = await r.json();
+    var totalLeft = (typeof acct.total_searches_left === 'number') ? acct.total_searches_left : null;
+    var monthlyBudget = (typeof acct.searches_per_month === 'number') ? acct.searches_per_month : null;
+    var monthUsed = (typeof acct.this_month_usage === 'number') ? acct.this_month_usage : null;
+    if (totalLeft !== null && monthlyBudget !== null) {
+      var q = readQuota();
+      q.budget = monthlyBudget;
+      q.used = monthUsed !== null ? monthUsed : (monthlyBudget - totalLeft);
+      q.exceeded = (totalLeft <= 0);
+      writeQuota(q);
+      _serpApiAccountLastSync = new Date();
+      console.log('[PIALAX /account]', { budget: q.budget, used: q.used, totalLeft: totalLeft });
+      updateApiCallCount();
+    }
+    return acct;
+  } catch(e) { return null; }
+}
 
 // ── CALENDAR POPUP ───────────────────────────────────────────────
 function renderCal() {
@@ -2260,11 +2400,26 @@ document.getElementById('home-sel').addEventListener('change', function(e){
 });
 
 document.getElementById('api-hdr').addEventListener('click', function(){ document.getElementById('api-body').classList.toggle('open'); });
+// Critical fix: persist PROXY_URL to localStorage so survives reload
+var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
+(function restoreProxyURL(){
+  try {
+    var saved = localStorage.getItem(PROXY_URL_STORAGE_KEY);
+    if (saved && saved.trim()) {
+      PROXY_URL = saved.trim();
+      var inp = document.getElementById('api-key-inp');
+      if (inp) inp.value = PROXY_URL;
+      var clearBtn = document.getElementById('api-clear');
+      if (clearBtn) clearBtn.style.display = '';
+    }
+  } catch(e) {}
+})();
+
 document.getElementById('api-apply').addEventListener('click', function(){
   var url=document.getElementById('api-key-inp').value.trim();
-  // Normalize: strip trailing slash
   if (url.endsWith('/')) url = url.slice(0, -1);
   PROXY_URL = url;
+  try { if (url) localStorage.setItem(PROXY_URL_STORAGE_KEY, url); else localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}
   var isLive=!!url;
   document.getElementById('data-badge').textContent   = isLive?'Connecting…':'Sample Data';
   document.getElementById('data-badge').className     = 'ab-badge '+(isLive?'b-live':'b-mock');
@@ -2274,11 +2429,15 @@ document.getElementById('api-apply').addEventListener('click', function(){
   document.getElementById('cal-hint').textContent     = isLive?'Fares: Google Flights live':'Fares: sample · Google Flights';
   document.getElementById('api-clear').style.display  = isLive?'':'none';
   document.getElementById('api-body').classList.remove('open');
-  if (isLive) loadPrices();
+  if (isLive) {
+    if (typeof syncSerpApiAccount === 'function') syncSerpApiAccount();
+    loadPrices();
+  }
 });
 
 document.getElementById('api-clear').addEventListener('click', function(){
   PROXY_URL=''; document.getElementById('api-key-inp').value='';
+  try { localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}
   document.getElementById('data-badge').textContent   = 'Sample Data';
   document.getElementById('data-badge').className     = 'ab-badge b-mock';
   document.getElementById('pill-src').textContent     = 'Sample Data';
@@ -2452,6 +2611,7 @@ async function boot() {
   updateDateUI(); updateStats();
   setMode(S.mode); // initialises correct tab, legend, panels
   S._booting = false; // allow setMode to call loadPrices from now on
+  if (PROXY_URL) syncSerpApiAccount();
   await loadPrices();
   // Expose key functions to window so inline onclick="" attributes can reach them
   // (functions are defined inside this IIFE; inline onclick resolves in global scope)
