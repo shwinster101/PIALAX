@@ -1747,6 +1747,14 @@ function readQuota() {
     var raw = localStorage.getItem(QUOTA_STORAGE_KEY);
     if (!raw) return { period: _quotaPeriodKey(), used: 0, budget: 250, exceeded: false };
     var obj = JSON.parse(raw);
+    // Auto-migrate stale budget=100 entries (old default) → 250 (current SerpAPI plan).
+    // Also clears the 'exceeded' flag if the bumped budget now covers the used count.
+    if (obj.budget === 100) {
+      obj.budget = 250;
+      if (obj.used < obj.budget) obj.exceeded = false;
+      localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
+      console.log('[PIALAX] Auto-migrated quota budget 100 → 250 to match real SerpAPI plan');
+    }
     if (obj.period !== _quotaPeriodKey()) {
       // New month → reset
       obj = { period: _quotaPeriodKey(), used: 0, budget: obj.budget || 250, exceeded: false };

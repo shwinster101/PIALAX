@@ -1658,6 +1658,12 @@ function readQuota() {
     var raw = localStorage.getItem(QUOTA_STORAGE_KEY);
     if (!raw) return { period:_quotaPeriodKey(), used:0, budget:250, exceeded:false };
     var obj = JSON.parse(raw);
+    // Auto-migrate stale budget=100 entries (old default) → 250.
+    if (obj.budget === 100) {
+      obj.budget = 250;
+      if (obj.used < obj.budget) obj.exceeded = false;
+      localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
+    }
     if (obj.period !== _quotaPeriodKey()) {
       obj = { period:_quotaPeriodKey(), used:0, budget:obj.budget||250, exceeded:false };
       localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
