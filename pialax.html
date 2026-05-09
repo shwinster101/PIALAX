@@ -324,7 +324,7 @@ button{font-family:inherit;cursor:pointer;}
 <!-- ═══════ SIDEBAR ═══════ -->
 <aside id="sb">
   <div id="sb-top">
-    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.4</div></div>
+    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.5</div></div>
     <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
   </div>
 
@@ -450,7 +450,7 @@ button{font-family:inherit;cursor:pointer;}
     </div>
 
   </div>
-  <div id="sb-foot">PIALAX v2.4 · Thu–Sun windows · Bar chart · Meetup strip</div>
+  <div id="sb-foot">PIALAX v2.5 · Thu–Sun windows · Bar chart · Meetup strip</div>
 </aside>
 
 <!-- ═══════ MAIN ═══════ -->
@@ -558,6 +558,10 @@ var MOCK = {
 // Trip presets — one-click date fillers for solo destination cards.
 //   "Apply" sets S.depDate/S.retDate/S.tripType then calls loadPrices().
 var TRIP_PRESETS = {
+  JAX: [
+    // Visit sister before her NYC move (Sep 1, 2026)
+    { id:'jax-jun5', label:'Jun 5–8 RT', dep:'2026-06-05', ret:'2026-06-08', tripType:'round' },
+  ],
   MIA: [
     { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round' },
     // Combo: arrive in JAX one-way the weekend prior, then drive/bus ~5hr to Miami
@@ -661,8 +665,34 @@ var S = {
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
   mapView:'world', worldGeo:null, worldGeoFallback:false,
   _booting:true,
+  // Per-member flex dates: { PIA: {dep, ret}, JAX: {...} } — only members with overrides have entries.
+  // When absent for a member, the global S.depDate / S.retDate is used.
+  // Lets sister leave Jul 1 for orientation while you stay til Jul 3, etc.
+  memberDates: {},
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
+
+// Returns {dep, ret} for a given family member — per-member override if set, else global anchor.
+// Both fields are Date objects (or null when global isn't set yet).
+function effectiveDatesFor(memberCode) {
+  var override = S.memberDates && S.memberDates[memberCode];
+  if (override && override.dep) {
+    return { dep: override.dep, ret: override.ret || null, custom: true };
+  }
+  return { dep: S.depDate, ret: S.retDate, custom: false };
+}
+function setMemberDates(memberCode, dep, ret) {
+  if (!S.memberDates) S.memberDates = {};
+  if (!dep) { delete S.memberDates[memberCode]; }
+  else { S.memberDates[memberCode] = { dep: dep, ret: ret }; }
+  syncURL();
+}
+function clearMemberDates(memberCode) {
+  if (S.memberDates && S.memberDates[memberCode]) {
+    delete S.memberDates[memberCode];
+    syncURL();
+  }
+}
 
 // ── HELPERS ──────────────────────────────────────────────────────
 var DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -1093,6 +1123,26 @@ function renderMeetupRoutes() {
     } else if (outAirlineLbl) {
       airlineHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + outAirlineLbl + outStopsTxt + '</div>';
     }
+    // FLEX DATES: per-member date pills inline. Shows the dates THIS member's
+    // price was fetched for (could differ from anchor if user set custom dates).
+    var memDates = effectiveDatesFor(from);
+    var memDepStr = memDates.dep ? dateFmt(memDates.dep) : '—';
+    var memRetStr = (isRT && memDates.ret) ? dateFmt(memDates.ret) : '';
+    var customBadge = memDates.custom
+      ? '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="Custom dates set for ' + memberLabel + '">✱ custom</span>'
+      : '';
+    var resetBtn = memDates.custom
+      ? '<button onclick="clearMemberDatesAndRefresh(\'' + from + '\')" title="Reset to anchor dates" style="font-size:.55rem;background:none;border:none;color:var(--muted);cursor:pointer;padding:0 0 0 4px;text-decoration:underline;">↻ reset</button>'
+      : '';
+    var flexDatesHtml =
+      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:4px;font-size:.55rem;color:var(--muted);">' +
+        '<span style="font-weight:700;text-transform:uppercase;letter-spacing:.4px;">Dates:</span>' +
+        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink);border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memDepStr + '</button>' +
+        (isRT ? '<span>→</span>' +
+                '<button onclick="openMemberCal(\'' + from + '\',\'ret\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink);border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memRetStr + '</button>' : '') +
+        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" title="Edit ' + memberLabel + '\\\'s travel window" style="font-size:.55rem;background:none;border:none;color:var(--accent);cursor:pointer;padding:0;">✏️</button>' +
+        resetBtn +
+      '</div>';
     html +=
       '<div class="route-card">' +
         '<div class="route-card-hd">' +
@@ -1100,14 +1150,16 @@ function renderMeetupRoutes() {
           '<span class="route-arrow">→</span>' +
           '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
           '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+          customBadge +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
           '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
         '</div>' +
         '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
           '<div class="route-price">$' + price + '</div>' +
-          '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + (dateStr ? ' · ' + dateStr : '') + '</span>' +
+          '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + '</span>' +
         '</div>' +
         airlineHtml +
+        flexDatesHtml +
         '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
       '</div>';
   });
@@ -1716,8 +1768,9 @@ function setMode(mode) {
 // Deploy worker.js, then set PROXY_URL to your *.workers.dev URL.
 var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
 
-// Gap #3: debounce — prevent rapid-fire API spam
-var _fetchDebounce = null;
+// Note: rapid-fire spam is prevented via the search button being disabled
+// during in-flight loadPrices, plus the in-flight dedupe map _flightInflight.
+// (Older _fetchDebounce setTimeout pattern was never wired up — removed.)
 
 // PERF: in-memory request cache + in-flight dedupe.
 //   - Same (from,to,dep,ret) within TTL → returned from RAM, ZERO SerpAPI hit
@@ -1868,8 +1921,9 @@ async function fetchFlights(from, to, dep, ret) {
 }
 
 // ── SerpAPI Monthly Quota Tracking ────────────────────────────────
-// Free tier = 100 searches/month. We persist month-to-date count in
-// localStorage keyed by YYYY-MM so it auto-resets on the 1st.
+// Plan budget tracked in localStorage; default 250 (SerpAPI free tier as of
+// May 2026). Auto-syncs from /account on session start when proxy is set.
+// Keyed by YYYY-MM so it auto-resets on the 1st.
 var QUOTA_STORAGE_KEY = 'pialax_serpapi_quota';
 
 function _quotaPeriodKey() {
@@ -1995,6 +2049,35 @@ function renderCal() {
   document.getElementById('cal-phase').textContent = S.calMode==='dep' ? 'Select departure' : 'Select return';
 }
 function onDayClick(dt) {
+  // FLEX DATES: handle per-member calendar modes 'memberDep:CODE' and 'memberRet:CODE'.
+  // These edit S.memberDates instead of the global anchor.
+  if (S.calMode && S.calMode.indexOf('member') === 0) {
+    var parts = S.calMode.split(':');
+    var phase = parts[0]; // 'memberDep' or 'memberRet'
+    var memCode = parts[1];
+    var existing = S.memberDates[memCode] || {};
+    var anchorDep = S.depDate, anchorRet = S.retDate;
+    if (phase === 'memberDep') {
+      var newDep = dt;
+      var newRet = existing.ret || anchorRet || null;
+      if (newRet && newRet <= newDep) newRet = null; // invalidate stale return
+      S.memberDates[memCode] = { dep: newDep, ret: newRet };
+      if (S.tripType === 'round') {
+        S.calMode = 'memberRet:' + memCode;
+      } else {
+        closeCalMember(memCode);
+        return;
+      }
+    } else if (phase === 'memberRet') {
+      var depForCheck = (S.memberDates[memCode] && S.memberDates[memCode].dep) || anchorDep;
+      if (dt < depForCheck) { S.memberDates[memCode] = { dep: dt, ret: null }; renderCal(); return; }
+      S.memberDates[memCode] = { dep: depForCheck, ret: dt };
+      closeCalMember(memCode);
+      return;
+    }
+    renderCal();
+    return;
+  }
   if (S.calMode==='dep') {
     S.depDate=dt;
     if (S.tripType==='round') { S.calMode='ret'; if(S.retDate&&S.retDate<=dt) S.retDate=null; }
@@ -2004,6 +2087,95 @@ function onDayClick(dt) {
     S.retDate=dt; closeCal();
   }
   updateDateUI(); renderCal();
+}
+
+// Close calendar after per-member date selection: refetch ONLY that member's
+// routes (not all 9), repaint the breakdown card with the new dates, sync URL.
+function closeCalMember(memCode) {
+  document.getElementById('cal').classList.remove('open');
+  document.getElementById('cal-bd').classList.remove('open');
+  document.getElementById('dep-btn').classList.remove('active');
+  document.getElementById('ret-btn').classList.remove('active');
+  S.calMode = null;
+  syncURL();
+  // Targeted refetch — only routes from this member, not the full meetup fan-out
+  var memDates = effectiveDatesFor(memCode);
+  var memDep = memDates.dep ? fmtISO(memDates.dep) : null;
+  var memRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret) : null;
+  var ranking = computeRanking();
+  var hub = getActiveHub(ranking);
+  var fetchTargets = [];
+  if (hub && hub !== memCode) {
+    if (!(memCode === 'PIA' && hub === 'ORD')) {
+      fetchTargets.push({ from: memCode, to: hub, key: memCode + '-' + hub });
+    }
+    // PIA→intl uses ORD-intl too, refetch that with PIA's new dates
+    if (memCode === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
+      fetchTargets.push({ from: 'ORD', to: hub, key: 'ORD-' + hub });
+    }
+  }
+  if (!fetchTargets.length) {
+    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+    return;
+  }
+  Promise.all(fetchTargets.map(function(r){
+    return fetchFlights(r.from, r.to, memDep, memRet)
+      .then(function(d){ S.prices[r.key] = d; })
+      .catch(function(){ S.prices[r.key] = getMock(r.from, r.to); });
+  })).then(function(){
+    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+  });
+}
+
+// Open the calendar in per-member mode.
+function openMemberCal(memCode, phase) {
+  S.calMode = (phase === 'ret' ? 'memberRet:' : 'memberDep:') + memCode;
+  // Pre-position calendar to the relevant month
+  var memDates = effectiveDatesFor(memCode);
+  var target = (phase === 'ret' ? memDates.ret : memDates.dep) || memDates.dep;
+  if (target) {
+    var monthsFromToday = (target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth());
+    S.calOff = Math.max(0, Math.min(12, monthsFromToday));
+  }
+  renderCal();
+  var cal = document.getElementById('cal');
+  if (window.innerWidth <= 640) {
+    cal.style.left = ''; cal.style.top = ''; cal.style.width = '';
+  } else {
+    var sbR = document.getElementById('sb').getBoundingClientRect();
+    var dR = document.getElementById('date-row').getBoundingClientRect();
+    cal.style.left = (sbR.right + 10) + 'px';
+    cal.style.top = Math.max(10, dR.top - 10) + 'px';
+  }
+  cal.classList.add('open');
+  document.getElementById('cal-bd').classList.add('open');
+  // Mark the cal-phase label so user knows they're editing one member's dates
+  var lbl = document.getElementById('cal-phase');
+  if (lbl) lbl.textContent = 'Edit dates for ' + labelFor(memCode);
+}
+
+// Reset a member back to anchor dates and refetch their leg.
+function clearMemberDatesAndRefresh(memCode) {
+  clearMemberDates(memCode);
+  var ranking = computeRanking();
+  var hub = getActiveHub(ranking);
+  var globalDep = fmtISO(S.depDate) || null;
+  var globalRet = S.tripType === 'round' ? fmtISO(S.retDate) || null : null;
+  var fetchTargets = [];
+  if (hub && hub !== memCode && !(memCode === 'PIA' && hub === 'ORD')) {
+    fetchTargets.push({ from: memCode, to: hub, key: memCode + '-' + hub });
+    if (memCode === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
+      fetchTargets.push({ from: 'ORD', to: hub, key: 'ORD-' + hub });
+    }
+  }
+  if (!fetchTargets.length) { renderMeetupStrip(); renderMeetupRoutes(); redrawMap(); return; }
+  Promise.all(fetchTargets.map(function(r){
+    return fetchFlights(r.from, r.to, globalDep, globalRet)
+      .then(function(d){ S.prices[r.key] = d; })
+      .catch(function(){ S.prices[r.key] = getMock(r.from, r.to); });
+  })).then(function(){
+    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+  });
 }
 function openCal(mode) {
   S.calMode=mode;
@@ -2057,45 +2229,46 @@ function updateDateUI() {
 
 // ── PRICES ───────────────────────────────────────────────────────
 async function loadPrices() {
-  // Gap #3: debounce — ignore rapid-fire calls within 800ms
-  if (_fetchDebounce) clearTimeout(_fetchDebounce);
   var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
   var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
   // Gap #3: disable button during fetch to prevent spam
   if (btn.disabled) return; // already fetching
   btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
-  var dep=fmtISO(S.depDate)||null, ret=S.tripType==='round'?fmtISO(S.retDate)||null:null;
+  // Per-route dep/ret defaults (used by solo + as fallback for meetup members without overrides)
+  var globalDep=fmtISO(S.depDate)||null, globalRet=S.tripType==='round'?fmtISO(S.retDate)||null:null;
   var routes = [];
   if (S.mode === 'meetup') {
     var hubs = ['PIA','LAX','JAX','ORD'];
     if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (hubs.indexOf(d)===-1) hubs.push(d); });
-    // BUG FIX: use date-aware family (sister: JAX→JFK after Aug 31 2026)
     var meetupFamily = familyForDate(S.depDate);
-    // Add JFK as a candidate hub for post-Aug 2026 trips so people can converge at sister's new base.
     if (S.depDate && fmtISO(S.depDate) >= '2026-09-01' && hubs.indexOf('JFK') === -1) hubs.push('JFK');
-    // Prioritize active hub routes first so prices paint faster
     var activeHub = S.meetupHubOverride || null;
     var priorityRoutes = [], otherRoutes = [];
     hubs.forEach(function(dest) {
       meetupFamily.forEach(function(from) {
         if (from === dest) return;
         if (from === 'PIA' && dest === 'ORD') return;
-        var r = { from:from, to:dest, key:from+'-'+dest };
+        // FLEX DATES: each member can have per-person dates overriding the global anchor.
+        // Cache key embeds the dates so different members fetch & cache independently.
+        var memDates = effectiveDatesFor(from);
+        var memDep = memDates.dep ? fmtISO(memDates.dep) : globalDep;
+        var memRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret) : globalRet;
+        var r = { from:from, to:dest, key:from+'-'+dest, dep:memDep, ret:memRet };
         if (dest === activeHub) priorityRoutes.push(r);
         else otherRoutes.push(r);
       });
     });
-    // BUG FIX: PIA→intl uses via-ORD routing in piaRouteTo(), but loadPrices was
-    // never fetching ORD→intl as a separate route — so S.prices['ORD-LHR'] stayed
-    // null and the via-ORD calc fell back to MOCK ($590 RT static). Add an
-    // explicit ORD→intl fetch for any intl destination in the hub list.
+    // ORD→intl fetch for via-ORD routing — always uses PIA's effective dates
+    // (PIA member is the one whose itinerary passes through ORD).
     INTL_DESTS.forEach(function(intlDest) {
       if (hubs.indexOf(intlDest) > -1) {
         var ordKey = 'ORD-' + intlDest;
-        // Don't duplicate if ORD is already a from-airport in the routes
         var alreadyQueued = priorityRoutes.concat(otherRoutes).some(function(r){ return r.key === ordKey; });
         if (!alreadyQueued) {
-          var r = { from:'ORD', to:intlDest, key:ordKey };
+          var piaMemDates = effectiveDatesFor('PIA');
+          var piaDep = piaMemDates.dep ? fmtISO(piaMemDates.dep) : globalDep;
+          var piaRet = (S.tripType === 'round' && piaMemDates.ret) ? fmtISO(piaMemDates.ret) : globalRet;
+          var r = { from:'ORD', to:intlDest, key:ordKey, dep:piaDep, ret:piaRet };
           if (intlDest === activeHub) priorityRoutes.push(r); else otherRoutes.push(r);
         }
       }
@@ -2103,7 +2276,7 @@ async function loadPrices() {
     routes = priorityRoutes.concat(otherRoutes);
   } else {
     dests().forEach(function(dest) {
-      routes.push({ from:S.home, to:dest, key:S.home+'-'+dest });
+      routes.push({ from:S.home, to:dest, key:S.home+'-'+dest, dep:globalDep, ret:globalRet });
     });
   }
   var liveCount = 0, failCount = 0, cachedCount = 0, doneCount = 0, total = routes.length;
@@ -2122,7 +2295,11 @@ async function loadPrices() {
     });
   }
   await Promise.all(routes.map(function(r) {
-    return fetchFlights(r.from, r.to, dep, ret)
+    // Use the per-route dates (set by the meetup fan-out for flex-date members);
+    // fallback to global dep/ret for older callers / solo mode.
+    var rDep = r.dep || globalDep;
+    var rRet = r.ret || globalRet;
+    return fetchFlights(r.from, r.to, rDep, rRet)
       .then(function(d){
         S.prices[r.key]=d;
         if (d && d.live && !d.cached) liveCount++;
@@ -2230,9 +2407,20 @@ function updateApiCallCount() {
   var bar = '<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
           + '<div style="height:100%;width:' + Math.round((1-pct)*100) + '%;background:' + color + ';transition:width .3s;"></div></div>';
   var note = q.exceeded ? ' · <strong>budget reached — falling back to mock</strong>' : '';
+  // "Last synced 2m ago" indicator — visible confidence that /account ran successfully
+  var syncTxt = '';
+  if (_serpApiAccountLastSync) {
+    var diffSec = Math.round((Date.now() - _serpApiAccountLastSync.getTime()) / 1000);
+    var ago = diffSec < 60 ? diffSec + 's ago'
+            : diffSec < 3600 ? Math.round(diffSec / 60) + 'm ago'
+            : Math.round(diffSec / 3600) + 'h ago';
+    syncTxt = ' · <span style="color:var(--green);" title="Counter synced from SerpAPI /account endpoint">✓ synced ' + ago + '</span>';
+  } else if (PROXY_URL) {
+    syncTxt = ' · <span style="color:var(--muted);" title="Reload page to sync with SerpAPI">⚠ local count only</span>';
+  }
   qel.innerHTML = '<span style="color:' + color + ';">SerpAPI: ' + remaining + ' / ' + q.budget
                 + ' free calls remaining this month</span> <span style="color:var(--muted);">(used ' + q.used + ')</span>'
-                + note + bar;
+                + syncTxt + note + bar;
   qel.style.display = '';
 }
 
@@ -2661,20 +2849,22 @@ function restoreFromURL() {
     var lhr = sp.get('lhr');
     if (lhr === '0') S.includeLHR = false;
     else if (lhr === '1') S.includeLHR = true;
-    // Bug fix: sync ORD/LHR toggle visuals so a shared link with ord=0/lhr=0
-    // doesn't show toggles still styled as "on". Defer to next frame so the
-    // DOM elements exist (in case restoreFromURL runs before HTML parse complete).
-    requestAnimationFrame(function(){
-      var ordBtn = document.getElementById('ord-toggle');
-      if (ordBtn) ordBtn.classList.toggle('on', S.includeORD);
-      var lhrBtn = document.getElementById('lhr-toggle');
-      if (lhrBtn) {
-        lhrBtn.classList.toggle('on', S.includeLHR);
-        lhrBtn.style.background = S.includeLHR ? 'rgba(225,29,72,.12)' : '';
-        lhrBtn.style.borderColor = S.includeLHR ? 'var(--red)' : '';
-        lhrBtn.style.color = S.includeLHR ? 'var(--red)' : '';
-      }
-    });
+    // FLEX DATES: parse md=PIA:2026-06-27:2026-07-03|JAX:2026-06-25:2026-07-01
+    var mdParam = sp.get('md');
+    if (mdParam) {
+      mdParam.split('|').forEach(function(entry){
+        var bits = entry.split(':');
+        if (bits.length >= 2) {
+          var code = bits[0], dStr = bits[1], rStr = bits[2] || '';
+          if (AIRPORTS[code] && /^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+            var d = new Date(dStr + 'T12:00:00');
+            var r = (rStr && /^\d{4}-\d{2}-\d{2}$/.test(rStr)) ? new Date(rStr + 'T12:00:00') : null;
+            if (!isNaN(d.getTime())) S.memberDates[code] = { dep: d, ret: r };
+          }
+        }
+      });
+    }
+    // (ORD/LHR toggle buttons were removed — no DOM sync needed; flags are global state.)
   } catch(e) { /* URLSearchParams unsupported or parse error — ignore */ }
 }
 
@@ -2696,6 +2886,17 @@ function syncURL() {
       if (S.meetupHubOverride) sp.set('mhub', S.meetupHubOverride);
       sp.set('ord', S.includeORD ? '1' : '0');
       sp.set('lhr', S.includeLHR ? '1' : '0');
+      // FLEX DATES: encode per-member overrides as md=PIA:2026-06-27:2026-07-03|JAX:2026-06-25:2026-07-01
+      if (S.memberDates && Object.keys(S.memberDates).length) {
+        var mdParts = [];
+        Object.keys(S.memberDates).forEach(function(code){
+          var md = S.memberDates[code];
+          if (md && md.dep) {
+            mdParts.push(code + ':' + fmtISO(md.dep) + ':' + (md.ret ? fmtISO(md.ret) : ''));
+          }
+        });
+        if (mdParts.length) sp.set('md', mdParts.join('|'));
+      }
       if (history.replaceState) history.replaceState(null, '', '?' + sp.toString());
     } catch(e) { /* ignore */ }
   });
@@ -2767,6 +2968,8 @@ async function boot() {
 // Expose functions used by inline onclick attributes to global scope
 window.shareThePlan = shareThePlan;
 window.openCal = openCal;
+window.openMemberCal = openMemberCal;
+window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
 window.setMeetupHub = setMeetupHub;
 window.pickMeetupHub = pickMeetupHub;
 window.copyRouteText = copyRouteText;

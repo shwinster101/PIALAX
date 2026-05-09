@@ -359,7 +359,7 @@ button{font-family:inherit;cursor:pointer;}
 <!-- ═══════ SIDEBAR ═══════ -->
 <aside id="sb">
   <div id="sb-top">
-    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.4</div></div>
+    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.5</div></div>
     <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
   </div>
 
@@ -485,7 +485,7 @@ button{font-family:inherit;cursor:pointer;}
     </div>
 
   </div>
-  <div id="sb-foot">PIALAX v2.4 · Thu–Sun windows · Bar chart · Meetup strip</div>
+  <div id="sb-foot">PIALAX v2.5 · Thu–Sun windows · Bar chart · Meetup strip</div>
 </aside>
 
 <!-- ═══════ MAIN ═══════ -->
@@ -615,6 +615,9 @@ function headcountFor(code) { return familyInfoFor(code).headcount || 1; }
 function labelFor(code) { return familyInfoFor(code).label || code; }
 // Trip presets — one-click date fillers per destination.
 var TRIP_PRESETS = {
+  JAX: [
+    { id:'jax-jun5', label:'Jun 5–8 RT', dep:'2026-06-05', ret:'2026-06-08', tripType:'round' },
+  ],
   MIA: [
     { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round' },
     { id:'mia-via-jax', label:'JAX Jun 12 OW (drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX' },
@@ -683,10 +686,32 @@ var S = {
   proj:null,
   mode:'meetup', soloFocus:null, barFocus:null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
+  memberDates: {},
   mapView:'world', worldGeo:null, worldGeoFallback:false,
   _booting:true,
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
+
+// FLEX DATES helpers (mirror of desktop)
+function effectiveDatesFor(memberCode) {
+  var override = S.memberDates && S.memberDates[memberCode];
+  if (override && override.dep) {
+    return { dep: override.dep, ret: override.ret || null, custom: true };
+  }
+  return { dep: S.depDate, ret: S.retDate, custom: false };
+}
+function setMemberDates(memberCode, dep, ret) {
+  if (!S.memberDates) S.memberDates = {};
+  if (!dep) { delete S.memberDates[memberCode]; }
+  else { S.memberDates[memberCode] = { dep: dep, ret: ret }; }
+  syncURL();
+}
+function clearMemberDates(memberCode) {
+  if (S.memberDates && S.memberDates[memberCode]) {
+    delete S.memberDates[memberCode];
+    syncURL();
+  }
+}
 
 // ── HELPERS ──────────────────────────────────────────────────────
 var DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
@@ -1066,6 +1091,24 @@ function renderMeetupRoutes() {
     } else if (outAirlineLbl) {
       airlineHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + outAirlineLbl + outStopsTxt + '</div>';
     }
+    var memDates = effectiveDatesFor(from);
+    var memDepStr = memDates.dep ? dateFmt(memDates.dep) : '—';
+    var memRetStr = (isRT && memDates.ret) ? dateFmt(memDates.ret) : '';
+    var customBadge = memDates.custom
+      ? '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">✱ custom</span>'
+      : '';
+    var resetBtn = memDates.custom
+      ? '<button onclick="clearMemberDatesAndRefresh(\'' + from + '\')" title="Reset" style="font-size:.55rem;background:none;border:none;color:var(--muted);cursor:pointer;padding:0 0 0 4px;text-decoration:underline;">↻ reset</button>'
+      : '';
+    var flexDatesHtml =
+      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:4px;font-size:.55rem;color:var(--muted);">' +
+        '<span style="font-weight:700;text-transform:uppercase;letter-spacing:.4px;">Dates:</span>' +
+        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memDepStr + '</button>' +
+        (isRT ? '<span>→</span>' +
+                '<button onclick="openMemberCal(\'' + from + '\',\'ret\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memRetStr + '</button>' : '') +
+        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" title="Edit dates" style="font-size:.55rem;background:none;border:none;color:var(--accent);cursor:pointer;padding:0;">✏️</button>' +
+        resetBtn +
+      '</div>';
     html +=
       '<div class="route-card">' +
         '<div class="route-card-hd">' +
@@ -1073,14 +1116,16 @@ function renderMeetupRoutes() {
           '<span class="route-arrow">→</span>' +
           '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
           '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+          customBadge +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
           '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
         '</div>' +
         '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
           '<div class="route-price">$' + price + '</div>' +
-          '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + (dateStr ? ' · ' + dateStr : '') + '</span>' +
+          '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + '</span>' +
         '</div>' +
         airlineHtml +
+        flexDatesHtml +
         '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
       '</div>';
   });
@@ -1645,7 +1690,7 @@ function setMode(mode) {
 // ── API LAYER ────────────────────────────────────────────────────
 // ── SerpAPI CORS Proxy ──────────────────────────────────────────
 var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
-var _fetchDebounce = null;
+// Spam prevention via in-flight dedupe map _flightInflight; older debounce stub removed.
 
 // PERF: in-memory cache + in-flight dedupe (mirror of desktop)
 var _flightCache = {};
@@ -1857,6 +1902,29 @@ function renderCal() {
   document.getElementById('cal-phase').textContent = S.calMode==='dep' ? 'Select departure' : 'Select return';
 }
 function onDayClick(dt) {
+  // FLEX DATES: per-member modes 'memberDep:CODE' / 'memberRet:CODE'
+  if (S.calMode && S.calMode.indexOf('member') === 0) {
+    var parts = S.calMode.split(':');
+    var phase = parts[0], memCode = parts[1];
+    var existing = S.memberDates[memCode] || {};
+    var anchorDep = S.depDate, anchorRet = S.retDate;
+    if (phase === 'memberDep') {
+      var newDep = dt;
+      var newRet = existing.ret || anchorRet || null;
+      if (newRet && newRet <= newDep) newRet = null;
+      S.memberDates[memCode] = { dep: newDep, ret: newRet };
+      if (S.tripType === 'round') { S.calMode = 'memberRet:' + memCode; }
+      else { closeCalMember(memCode); return; }
+    } else if (phase === 'memberRet') {
+      var depForCheck = (S.memberDates[memCode] && S.memberDates[memCode].dep) || anchorDep;
+      if (dt < depForCheck) { S.memberDates[memCode] = { dep: dt, ret: null }; renderCal(); return; }
+      S.memberDates[memCode] = { dep: depForCheck, ret: dt };
+      closeCalMember(memCode);
+      return;
+    }
+    renderCal();
+    return;
+  }
   if (S.calMode==='dep') {
     S.depDate=dt;
     if (S.tripType==='round') { S.calMode='ret'; if(S.retDate&&S.retDate<=dt) S.retDate=null; }
@@ -1866,6 +1934,77 @@ function onDayClick(dt) {
     S.retDate=dt; closeCal();
   }
   updateDateUI(); renderCal();
+}
+
+function closeCalMember(memCode) {
+  document.getElementById('cal').classList.remove('open');
+  document.getElementById('cal-bd').classList.remove('open');
+  document.getElementById('dep-btn').classList.remove('active');
+  document.getElementById('ret-btn').classList.remove('active');
+  S.calMode = null;
+  syncURL();
+  var memDates = effectiveDatesFor(memCode);
+  var memDep = memDates.dep ? fmtISO(memDates.dep) : null;
+  var memRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret) : null;
+  var ranking = computeRanking();
+  var hub = getActiveHub(ranking);
+  var fetchTargets = [];
+  if (hub && hub !== memCode && !(memCode === 'PIA' && hub === 'ORD')) {
+    fetchTargets.push({ from: memCode, to: hub, key: memCode + '-' + hub });
+    if (memCode === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
+      fetchTargets.push({ from: 'ORD', to: hub, key: 'ORD-' + hub });
+    }
+  }
+  if (!fetchTargets.length) { renderMeetupStrip(); renderMeetupRoutes(); redrawMap(); return; }
+  Promise.all(fetchTargets.map(function(r){
+    return fetchFlights(r.from, r.to, memDep, memRet)
+      .then(function(d){ S.prices[r.key] = d; })
+      .catch(function(){ S.prices[r.key] = getMock(r.from, r.to); });
+  })).then(function(){ renderMeetupStrip(); renderMeetupRoutes(); redrawMap(); });
+}
+
+function openMemberCal(memCode, phase) {
+  S.calMode = (phase === 'ret' ? 'memberRet:' : 'memberDep:') + memCode;
+  var memDates = effectiveDatesFor(memCode);
+  var target = (phase === 'ret' ? memDates.ret : memDates.dep) || memDates.dep;
+  if (target) {
+    var monthsFromToday = (target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth());
+    S.calOff = Math.max(0, Math.min(12, monthsFromToday));
+  }
+  renderCal();
+  var cal = document.getElementById('cal');
+  if (window.innerWidth <= 640) { cal.style.left = ''; cal.style.top = ''; cal.style.width = ''; }
+  else {
+    var sbR = document.getElementById('sb').getBoundingClientRect();
+    var dR = document.getElementById('date-row').getBoundingClientRect();
+    cal.style.left = (sbR.right + 10) + 'px';
+    cal.style.top = Math.max(10, dR.top - 10) + 'px';
+  }
+  cal.classList.add('open');
+  document.getElementById('cal-bd').classList.add('open');
+  var lbl = document.getElementById('cal-phase');
+  if (lbl) lbl.textContent = 'Edit dates for ' + labelFor(memCode);
+}
+
+function clearMemberDatesAndRefresh(memCode) {
+  clearMemberDates(memCode);
+  var ranking = computeRanking();
+  var hub = getActiveHub(ranking);
+  var globalDep = fmtISO(S.depDate) || null;
+  var globalRet = S.tripType === 'round' ? fmtISO(S.retDate) || null : null;
+  var fetchTargets = [];
+  if (hub && hub !== memCode && !(memCode === 'PIA' && hub === 'ORD')) {
+    fetchTargets.push({ from: memCode, to: hub, key: memCode + '-' + hub });
+    if (memCode === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
+      fetchTargets.push({ from: 'ORD', to: hub, key: 'ORD-' + hub });
+    }
+  }
+  if (!fetchTargets.length) { renderMeetupStrip(); renderMeetupRoutes(); redrawMap(); return; }
+  Promise.all(fetchTargets.map(function(r){
+    return fetchFlights(r.from, r.to, globalDep, globalRet)
+      .then(function(d){ S.prices[r.key] = d; })
+      .catch(function(){ S.prices[r.key] = getMock(r.from, r.to); });
+  })).then(function(){ renderMeetupStrip(); renderMeetupRoutes(); redrawMap(); });
 }
 function openCal(mode) {
   S.calMode=mode;
@@ -1914,13 +2053,12 @@ function updateDateUI() {
 // ── PRICES ───────────────────────────────────────────────────────
 async function loadPrices() {
   // debounce — ignore rapid-fire calls within 800ms
-  if (_fetchDebounce) clearTimeout(_fetchDebounce);
   var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
   var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
   // disable button during fetch to prevent spam
   if (btn.disabled) return; // already fetching
   btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
-  var dep=fmtISO(S.depDate)||null, ret=S.tripType==='round'?fmtISO(S.retDate)||null:null;
+  var globalDep=fmtISO(S.depDate)||null, globalRet=S.tripType==='round'?fmtISO(S.retDate)||null:null;
   var routes = [];
   if (S.mode === 'meetup') {
     var hubs = ['PIA','LAX','JAX','ORD'];
@@ -1933,18 +2071,23 @@ async function loadPrices() {
       meetupFamily.forEach(function(from) {
         if (from === dest) return;
         if (from === 'PIA' && dest === 'ORD') return;
-        var r = { from:from, to:dest, key:from+'-'+dest };
+        var memDates = effectiveDatesFor(from);
+        var memDep = memDates.dep ? fmtISO(memDates.dep) : globalDep;
+        var memRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret) : globalRet;
+        var r = { from:from, to:dest, key:from+'-'+dest, dep:memDep, ret:memRet };
         if (dest === activeHub) priorityRoutes.push(r);
         else otherRoutes.push(r);
       });
     });
-    // BUG FIX: also fetch ORD→intl so PIA's via-ORD routing has live data, not stale mock.
     INTL_DESTS.forEach(function(intlDest) {
       if (hubs.indexOf(intlDest) > -1) {
         var ordKey = 'ORD-' + intlDest;
         var alreadyQueued = priorityRoutes.concat(otherRoutes).some(function(r){ return r.key === ordKey; });
         if (!alreadyQueued) {
-          var r = { from:'ORD', to:intlDest, key:ordKey };
+          var piaMemDates = effectiveDatesFor('PIA');
+          var piaDep = piaMemDates.dep ? fmtISO(piaMemDates.dep) : globalDep;
+          var piaRet = (S.tripType === 'round' && piaMemDates.ret) ? fmtISO(piaMemDates.ret) : globalRet;
+          var r = { from:'ORD', to:intlDest, key:ordKey, dep:piaDep, ret:piaRet };
           if (intlDest === activeHub) priorityRoutes.push(r); else otherRoutes.push(r);
         }
       }
@@ -1952,7 +2095,7 @@ async function loadPrices() {
     routes = priorityRoutes.concat(otherRoutes);
   } else {
     dests().forEach(function(dest) {
-      routes.push({ from:S.home, to:dest, key:S.home+'-'+dest });
+      routes.push({ from:S.home, to:dest, key:S.home+'-'+dest, dep:globalDep, ret:globalRet });
     });
   }
   var liveCount = 0, failCount = 0, cachedCount = 0, doneCount = 0, total = routes.length;
@@ -1970,7 +2113,9 @@ async function loadPrices() {
     });
   }
   await Promise.all(routes.map(function(r) {
-    return fetchFlights(r.from, r.to, dep, ret)
+    var rDep = r.dep || globalDep;
+    var rRet = r.ret || globalRet;
+    return fetchFlights(r.from, r.to, rDep, rRet)
       .then(function(d){
         S.prices[r.key]=d;
         if (d && d.live && !d.cached) liveCount++;
@@ -2073,9 +2218,17 @@ function updateApiCallCount() {
   var bar = '<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
           + '<div style="height:100%;width:' + Math.round((1-pct)*100) + '%;background:' + color + ';transition:width .3s;"></div></div>';
   var note = q.exceeded ? ' · <strong>budget reached — falling back to mock</strong>' : '';
+  var syncTxt = '';
+  if (_serpApiAccountLastSync) {
+    var diffSec = Math.round((Date.now() - _serpApiAccountLastSync.getTime()) / 1000);
+    var ago = diffSec < 60 ? diffSec + 's ago' : diffSec < 3600 ? Math.round(diffSec / 60) + 'm ago' : Math.round(diffSec / 3600) + 'h ago';
+    syncTxt = ' · <span style="color:var(--green);">✓ synced ' + ago + '</span>';
+  } else if (PROXY_URL) {
+    syncTxt = ' · <span style="color:var(--muted);">⚠ local count only</span>';
+  }
   qel.innerHTML = '<span style="color:' + color + ';">SerpAPI: ' + remaining + ' / ' + q.budget
                 + ' free calls remaining this month</span> <span style="color:var(--muted);">(used ' + q.used + ')</span>'
-                + note + bar;
+                + syncTxt + note + bar;
   qel.style.display = '';
 }
 
@@ -2511,18 +2664,21 @@ function restoreFromURL() {
     if (ord === '0') S.includeORD = false; else if (ord === '1') S.includeORD = true;
     var lhr = sp.get('lhr');
     if (lhr === '0') S.includeLHR = false; else if (lhr === '1') S.includeLHR = true;
-    // Bug fix: sync toggle visuals from URL state
-    requestAnimationFrame(function(){
-      var ordBtn = document.getElementById('ord-toggle');
-      if (ordBtn) ordBtn.classList.toggle('on', S.includeORD);
-      var lhrBtn = document.getElementById('lhr-toggle');
-      if (lhrBtn) {
-        lhrBtn.classList.toggle('on', S.includeLHR);
-        lhrBtn.style.background = S.includeLHR ? 'rgba(225,29,72,.12)' : '';
-        lhrBtn.style.borderColor = S.includeLHR ? 'var(--red)' : '';
-        lhrBtn.style.color = S.includeLHR ? 'var(--red)' : '';
-      }
-    });
+    var mdParam = sp.get('md');
+    if (mdParam) {
+      mdParam.split('|').forEach(function(entry){
+        var bits = entry.split(':');
+        if (bits.length >= 2) {
+          var code = bits[0], dStr = bits[1], rStr = bits[2] || '';
+          if (AIRPORTS[code] && /^\d{4}-\d{2}-\d{2}$/.test(dStr)) {
+            var d = new Date(dStr + 'T12:00:00');
+            var r = (rStr && /^\d{4}-\d{2}-\d{2}$/.test(rStr)) ? new Date(rStr + 'T12:00:00') : null;
+            if (!isNaN(d.getTime())) S.memberDates[code] = { dep: d, ret: r };
+          }
+        }
+      });
+    }
+    // (ORD/LHR toggle buttons removed — no DOM sync needed.)
   } catch(e) { /* ignore */ }
 }
 
@@ -2540,6 +2696,14 @@ function syncURL() {
       if (S.depDate) sp.set('dep', fmtISO(S.depDate));
       if (S.retDate && S.tripType === 'round') sp.set('ret', fmtISO(S.retDate));
       if (S.meetupHubOverride) sp.set('mhub', S.meetupHubOverride);
+      if (S.memberDates && Object.keys(S.memberDates).length) {
+        var mdParts = [];
+        Object.keys(S.memberDates).forEach(function(code){
+          var md = S.memberDates[code];
+          if (md && md.dep) mdParts.push(code + ':' + fmtISO(md.dep) + ':' + (md.ret ? fmtISO(md.ret) : ''));
+        });
+        if (mdParts.length) sp.set('md', mdParts.join('|'));
+      }
       sp.set('ord', S.includeORD ? '1' : '0');
       sp.set('lhr', S.includeLHR ? '1' : '0');
       if (history.replaceState) history.replaceState(null, '', '?' + sp.toString());
@@ -2595,16 +2759,7 @@ async function boot() {
     document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
     document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
   }
-  // Style the LHR toggle as active since it defaults on
-  if (S.includeLHR) {
-    var lhrBtn = document.getElementById('lhr-toggle');
-    if (lhrBtn) {
-      lhrBtn.classList.add('on');
-      lhrBtn.style.background = 'rgba(225,29,72,.12)';
-      lhrBtn.style.borderColor = 'var(--red)';
-      lhrBtn.style.color = 'var(--red)';
-    }
-  }
+  // (LHR toggle button removed; LHR permanently included via S.includeLHR=true.)
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
@@ -2617,6 +2772,8 @@ async function boot() {
   // (functions are defined inside this IIFE; inline onclick resolves in global scope)
   window.shareThePlan = shareThePlan;
   window.openCal = openCal;
+  window.openMemberCal = openMemberCal;
+  window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
   window.setMeetupHub = setMeetupHub;
   window.pickMeetupHub = pickMeetupHub;
   window.copyRouteText = copyRouteText;
