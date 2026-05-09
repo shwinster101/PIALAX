@@ -581,9 +581,9 @@ var S = {
   calMode:null, calOff:0,
   prices:{}, geoData:null, geoFallback:false,
   proj:null,
-  mode:'solo', soloFocus:null, barFocus:null,
+  mode:'meetup', soloFocus:null, barFocus:null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
-  mapView:'us', worldGeo:null, worldGeoFallback:false,
+  mapView:'world', worldGeo:null, worldGeoFallback:false,
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
 
@@ -1121,7 +1121,15 @@ function setMode(mode) {
   if (isMeetup) {
     S.barFocus = null;
     if (titleEl) titleEl.textContent = 'Family Meetup';
+    // Auto-enable LHR + world map when entering meetup mode
+    if (S.includeLHR && S.mapView !== 'world') {
+      S.mapView = 'world';
+      updateMapToggle();
+      if (!S.worldGeo) { loadWorldGeo().then(function(){ redrawMap(); }); }
+    }
     renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+    // Auto-refresh prices when switching to meetup with dates set
+    if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
   } else {
     S.soloFocus = null; S.barFocus = null;
     if (titleEl) titleEl.textContent = 'Routes from ' + AIRPORTS[S.home].code;
@@ -1757,6 +1765,27 @@ async function boot() {
     console.warn('TopoJSON CDN unavailable (expected on file://). Using offline fallback.', e.message);
     S.geoData    = GEO_FALLBACK;
     S.geoFallback = true;
+  }
+  // Load world geo early if defaulting to world map view
+  if (S.mapView === 'world') await loadWorldGeo();
+  // Default to London trip dates (Jun 29 – Jul 3 2026) when in meetup mode
+  if (S.mode === 'meetup' && !S.depDate) {
+    S.depDate = new Date(2026, 5, 29); // Jun 29
+    S.retDate = new Date(2026, 6, 3);  // Jul 3
+    S.tripType = 'round';
+    // Activate the London holiday chip
+    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
+    document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
+  }
+  // Style the LHR toggle as active since it defaults on
+  if (S.includeLHR) {
+    var lhrBtn = document.getElementById('lhr-toggle');
+    if (lhrBtn) {
+      lhrBtn.classList.add('on');
+      lhrBtn.style.background = 'rgba(225,29,72,.12)';
+      lhrBtn.style.borderColor = 'var(--red)';
+      lhrBtn.style.color = 'var(--red)';
+    }
   }
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;
