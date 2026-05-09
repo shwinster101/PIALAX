@@ -656,6 +656,18 @@ function airlineLabel(p) {
 function applyHoliday(key) {
   var base = HOLIDAYS[key];
   if (!base) return;
+  // Toggle-off: if the London chip is already active, clicking again clears
+  // the trip so the user can start over (per Ashwin's request — London only).
+  if (key === 'london') {
+    var alreadyActive = document.querySelector('.hol-btn[data-hol="london"]').classList.contains('active');
+    if (alreadyActive) {
+      S.depDate = null; S.retDate = null; S.meetupHubOverride = null;
+      document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.remove('active'); });
+      updateDateUI(); renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
+      syncURL();
+      return;
+    }
+  }
   var dep, ret;
   if (key === 'london') {
     // London trip: fixed dates Jun 25 – Jul 3, auto-switch to meetup + world map + enable LHR
@@ -692,6 +704,29 @@ function applyHoliday(key) {
 }
 
 // ── GOLDEN PATH / RANKING ENGINE ─────────────────────────────────
+// Returns the cheapest PIA→{dest} routing as {fare, viaORD, breakdown}.
+// For LHR, compares direct PIA→LHR fare vs (PIA drive→ORD + ORD→LHR fly + drive tax).
+// The cheaper option wins. Used by both computeRanking + renderMeetupRoutes
+// so totals + breakdown stay in sync.
+function piaRouteTo(dest, fareKey) {
+  var direct = S.prices['PIA-' + dest] || getMock('PIA', dest);
+  var directFare = direct ? (direct[fareKey] || direct.ow) : 0;
+  // Only LHR (and other intl) gets the via-ORD option — domestic PIA routes
+  // are short enough that the drive isn't worth it.
+  if (dest === 'LHR') {
+    var ordLeg = S.prices['ORD-' + dest] || getMock('ORD', dest);
+    var ordFare = ordLeg ? (ordLeg[fareKey] || ordLeg.ow) : 0;
+    if (ordFare) {
+      var viaTotal = ordFare + ORD_DRIVE_TAX;
+      // Prefer via-ORD when cheaper OR when direct unavailable
+      if (!directFare || viaTotal < directFare) {
+        return { fare: viaTotal, viaORD: true, ordLegFare: ordFare, breakdown: '🚗→ORD $' + ORD_DRIVE_TAX + ' + ✈ ORD→' + dest + ' $' + ordFare };
+      }
+    }
+  }
+  return { fare: directFare, viaORD: false, breakdown: 'PIA→' + dest + ' $' + directFare };
+}
+
 function computeRanking() {
   var isRT = (S.tripType === 'round');
   var fareKey = isRT ? 'rt' : 'ow';
@@ -704,12 +739,21 @@ function computeRanking() {
     FAMILY.forEach(function(from) {
       if (from === dest) return;                      // host doesn't fly
       if (from === 'PIA' && dest === 'ORD') return;  // PIA drives to ORD — no fare
-      var key = from + '-' + dest;
-      var p = S.prices[key] || getMock(from, dest);
-      if (!p || !(p[fareKey] || p.ow)) { ok = false; return; }
-      var fare = p[fareKey] || p.ow;
+      var fare;
+      if (from === 'PIA') {
+        // PIA gets routed via the cheapest path (direct vs via-ORD for LHR)
+        var route = piaRouteTo(dest, fareKey);
+        fare = route.fare;
+        if (!fare) { ok = false; return; }
+        parts.push(route.viaORD ? ('PIA→' + dest + ' via ORD $' + fare) : ('PIA→' + dest + ' $' + fare));
+      } else {
+        var key = from + '-' + dest;
+        var p = S.prices[key] || getMock(from, dest);
+        if (!p || !(p[fareKey] || p.ow)) { ok = false; return; }
+        fare = p[fareKey] || p.ow;
+        parts.push(from + '→' + dest + ' $' + fare);
+      }
       total += fare;
-      parts.push(from + '→' + dest + ' $' + fare);
     });
     if (ok) results.push({ dest:dest, total:total, parts:parts, isORD:dest==='ORD' });
   });
@@ -730,7 +774,16 @@ function getActiveHub(ranking) {
 }
 
 function setMeetupHub(code) {
-  S.meetupHubOverride = (S.meetupHubOverride === code) ? null : code; // toggle off if same
+  S.meetupHubOverride = (S.meetupHubOverride === code) ? null : code; // toggle off if same (used by chip clicks elsewhere)
+  renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+  syncURL();
+}
+
+// Dropdown handler — always SETS (never toggles), so re-selecting the current hub is a no-op
+// rather than nuking the override. Used by the meetup-strip dropdown.
+function pickMeetupHub(code) {
+  if (!code) return;
+  S.meetupHubOverride = code;
   renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
   syncURL();
 }
@@ -768,27 +821,31 @@ function renderMeetupStrip() {
     dateStr = nextHol ? nextHol.label + ' (suggested)' : 'Pick dates';
   }
   strip.className = noDate ? 'no-date' : '';
-  // Best plan summary — shows whichever hub is active
-  var badgeTxt = isOverride ? ('📌 #' + activeR.rank) : (noDate ? '💡' : '⭐') + ' Best';
+  // User-controlled hub dropdown — replaces auto-ranked "best hub" framing.
+  // The dropdown is the source of truth for meetup destination; total cost
+  // is informational, not a competition between hubs.
+  var dropdownOpts = ranking.map(function(r) {
+    var sel = (r.dest === activeHub) ? ' selected' : '';
+    var apI = AIRPORTS[r.dest];
+    var label = r.dest + ' — ' + (r.isORD ? "O'Hare" : (apI ? apI.name.split(',')[0] : r.dest)) + '  ($' + r.total + ' ' + fareLabel + ')';
+    return '<option value="' + r.dest + '"' + sel + '>' + label + '</option>';
+  }).join('');
   var bestHtml =
     '<div class="ms-best">' +
-      '<span class="ms-badge' + (noDate ? ' sug' : '') + '">' + badgeTxt + '</span>' +
+      '<span class="ms-badge' + (noDate ? ' sug' : '') + '">📍 Hub</span>' +
       '<div class="ms-info">' +
-        '<div class="ms-headline">Meet in ' + cityName + ' &nbsp;<span class="ms-price' + (noDate ? ' sug' : '') + '">$' + activeR.total + ' ' + fareLabel + '</span></div>' +
-        '<div class="ms-sub">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + (activeR.savings && !isOverride ? ' · saves $' + activeR.savings : '') + ' · ' + dateStr + '</div>' +
+        '<div class="ms-headline" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
+          '<span style="font-size:.7rem;color:var(--muted);font-weight:700;">Meeting in:</span>' +
+          '<select id="ms-hub-select" onchange="pickMeetupHub(this.value)" ' +
+            'style="padding:3px 8px;font-size:.78rem;font-weight:900;background:var(--surface2);color:var(--ink);border:1.5px solid var(--accent);border-radius:7px;cursor:pointer;font-family:inherit;">' +
+            dropdownOpts +
+          '</select>' +
+          '<span class="ms-price' + (noDate ? ' sug' : '') + '">$' + activeR.total + ' ' + fareLabel + '</span>' +
+        '</div>' +
+        '<div class="ms-sub">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + ' · ' + dateStr + '</div>' +
       '</div>' +
     '</div>';
-  // Separator + rank chips (clickable)
-  var chipsHtml = '<div class="ms-sep"></div><div class="ms-ranks">';
-  ranking.forEach(function(r) {
-    var isActive = (r.dest === activeHub);
-    var chipCls = 'rank-chip r' + Math.min(r.rank, 4) + (isActive ? ' active' : '');
-    var driveIcon = r.isORD ? '🚗 ' : '';
-    var tip = r.parts.length ? r.parts.join(' + ') : (r.isORD ? 'PIA drives free' : 'hosts');
-    chipsHtml += '<span class="' + chipCls + '" data-hub="' + r.dest + '" title="' + tip + '" onclick="setMeetupHub(\'' + r.dest + '\')">' + driveIcon + '#' + r.rank + ' ' + r.dest + ' $' + r.total + '</span>';
-  });
-  chipsHtml += '</div>';
-  strip.innerHTML = bestHtml + chipsHtml;
+  strip.innerHTML = bestHtml;
   renderMeetupRoutes();
 }
 
@@ -828,6 +885,39 @@ function renderMeetupRoutes() {
           '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
         '</div>';
       return;
+    }
+    // Special case: PIA → intl destination (LHR) — route via ORD when cheaper.
+    // Card shows the combined drive+fly breakdown so the user knows what they're booking.
+    if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
+      var route = piaRouteTo(hub, isRT ? 'rt' : 'ow');
+      if (route.viaORD) {
+        var ordLeg = S.prices['ORD-' + hub] || getMock('ORD', hub);
+        var ordAirline = airlineLabel(ordLeg);
+        var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
+        var directFare = directObj ? (isRT ? (directObj.rt || directObj.ow) : directObj.ow) : 0;
+        var savings = directFare ? (directFare - route.fare) : 0;
+        var copyViaText = 'PIA → ' + hub + ' via ORD: $' + route.fare + ' total (drive $' + ORD_DRIVE_TAX + ' + ✈ $' + route.ordLegFare + ') ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
+        html +=
+          '<div class="route-card" style="border-left:3px solid var(--green);">' +
+            '<div class="route-card-hd">' +
+              '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
+              '<span class="route-arrow">🚗</span>' +
+              '<span class="route-badge" style="background:#06b6d422;border:1px solid #06b6d4;color:#06b6d4">ORD</span>' +
+              '<span class="route-arrow">→</span>' +
+              '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
+              '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyViaText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+            '</div>' +
+            '<div style="display:flex;align-items:baseline;gap:5px">' +
+              '<div class="route-price">$' + route.fare + '</div>' +
+              '<span class="route-fare-lbl">' + fareLabel + ' total' + (dateStr ? ' · ' + dateStr : '') + '</span>' +
+              (savings > 0 ? '<span style="font-size:.55rem;color:var(--green);font-weight:900;margin-left:4px;">saves $' + savings + ' vs direct</span>' : '') +
+            '</div>' +
+            '<div class="route-drive-row" style="margin-top:3px;">🚗 PIA→ORD drive ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' ' + fareLabel + '</div>' +
+            (ordAirline ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordAirline + '</div>' : '') +
+            '<div class="route-meta">Peoria → Chicago O\'Hare → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
+          '</div>';
+        return;
+      }
     }
     var key = from + '-' + hub;
     var p = S.prices[key] || getMock(from, hub);
@@ -1637,7 +1727,11 @@ function closeCal() {
   document.getElementById('cal-bd').classList.remove('open');
   document.getElementById('dep-btn').classList.remove('active');
   document.getElementById('ret-btn').classList.remove('active');
-  S.calMode=null; S.meetupHubOverride=null; updateDateUI();
+  S.calMode=null; updateDateUI();
+  // Note: meetupHubOverride is INTENTIONALLY NOT cleared here. Closing the
+  // calendar shouldn't lose the user's chosen hub (esp. LHR for London trip).
+  // getActiveHub() defensively clears stale overrides if they point to a hub
+  // not in the current ranking, so this is safe.
   if (S.mode === 'meetup') { renderMeetupStrip(); renderMeetupFinder(); redrawMap(); }
   // Auto-refresh prices whenever the calendar closes with a valid departure.
   if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
@@ -1696,7 +1790,7 @@ async function loadPrices() {
       renderMeetupStrip(); redrawMap();
       if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
       if (S.mode === 'solo') renderSoloCards();
-      lbl.textContent = 'Searching… ' + doneCount + '/' + total;
+      lbl.textContent = 'Searching…';
     });
   }
   await Promise.all(routes.map(function(r) {
@@ -1727,6 +1821,9 @@ async function loadPrices() {
   if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
   if (S.mode === 'solo') renderSoloCards();
   btn.disabled=false; spin.style.display='none'; icon.style.display=''; lbl.textContent='Refresh Prices';
+  // Bug fix: defer the final label set past any pending streaming-repaint rAF callback
+  // that might still overwrite it with "Searching… N/N" after Promise.all resolved.
+  requestAnimationFrame(function(){ lbl.textContent = 'Refresh Prices'; });
 }
 
 async function loadSoloWeeklyPrices(dest) {
@@ -2341,6 +2438,7 @@ async function boot() {
 // Expose functions used by inline onclick attributes to global scope
 window.shareThePlan = shareThePlan;
 window.setMeetupHub = setMeetupHub;
+window.pickMeetupHub = pickMeetupHub;
 window.copyRouteText = copyRouteText;
 window.setMode = setMode;
 
