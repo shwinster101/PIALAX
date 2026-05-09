@@ -440,7 +440,10 @@ button{font-family:inherit;cursor:pointer;}
     <div id="meetup-finder-section" style="display:none"></div>
 
     <div id="meetup-routes-section" style="display:none">
-      <div class="lbl">Flight Breakdown</div>
+      <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap;">
+        <span>Flight Breakdown</span>
+        <span id="meetup-routes-dates" style="font-size:.55rem;color:var(--accent);font-weight:700;text-transform:none;letter-spacing:0;"></span>
+      </div>
       <div id="meetup-routes"></div>
     </div>
 
@@ -883,14 +886,26 @@ function renderMeetupStrip() {
     var label = r.dest + ' — ' + (r.isORD ? "O'Hare" : (apI ? apI.name.split(',')[0] : r.dest)) + '  ($' + r.total + ' ' + fareLabel + ')';
     return '<option value="' + r.dest + '"' + sel + '>' + label + '</option>';
   }).join('');
-  // Dates inline in the meetup strip — clickable to open the calendar so the user
-  // can play with pricing without scrolling to the sidebar date row.
+  // Dates inline in the meetup strip — high-contrast pills so you ALWAYS know
+  // which dates the displayed prices were fetched for. Click to edit.
   var depTxt = S.depDate ? dateFmt(S.depDate) : 'Pick depart';
   var retTxt = (isRT && S.retDate) ? dateFmt(S.retDate) : (isRT ? 'Pick return' : '');
+  var depEmpty = !S.depDate;
+  var retEmpty = isRT && !S.retDate;
+  // Empty pills get amber accent so user knows action is needed
+  var depBg = depEmpty ? 'var(--amber)' : 'var(--accent)';
+  var depFg = depEmpty ? '#000' : '#fff';
+  var retBg = retEmpty ? 'var(--amber)' : 'var(--accent)';
+  var retFg = retEmpty ? '#000' : '#fff';
   var datePillsHtml =
-    '<button onclick="openCal(\'dep\')" style="padding:3px 9px;font-size:.7rem;font-weight:800;background:var(--surface2);color:var(--ink);border:1.5px solid var(--border2);border-radius:7px;cursor:pointer;font-family:inherit;" title="Click to edit departure">📅 ' + depTxt + '</button>' +
-    (isRT ? '<span style="font-size:.7rem;color:var(--muted);">→</span>' +
-            '<button onclick="openCal(\'ret\')" style="padding:3px 9px;font-size:.7rem;font-weight:800;background:var(--surface2);color:var(--ink);border:1.5px solid var(--border2);border-radius:7px;cursor:pointer;font-family:inherit;" title="Click to edit return">📅 ' + retTxt + '</button>' : '');
+    '<span style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Searching:</span>' +
+    '<button onclick="openCal(\'dep\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + depBg + ';color:' + depFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);" title="Click to edit departure">📅 ' + depTxt + '</button>' +
+    (isRT ? '<span style="font-size:.85rem;color:var(--muted);font-weight:700;">→</span>' +
+            '<button onclick="openCal(\'ret\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + retBg + ';color:' + retFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);" title="Click to edit return">📅 ' + retTxt + '</button>' : '');
+  var nightCount = (S.depDate && S.retDate && isRT)
+    ? Math.round((S.retDate - S.depDate) / 86400000)
+    : 0;
+  var stayTxt = nightCount > 0 ? ' <span style="font-size:.55rem;color:var(--muted);font-weight:700;">· ' + nightCount + ' nights</span>' : '';
   var bestHtml =
     '<div class="ms-best">' +
       '<span class="ms-badge' + (noDate ? ' sug' : '') + '">📍 Hub</span>' +
@@ -903,8 +918,8 @@ function renderMeetupStrip() {
           '</select>' +
           '<span class="ms-price' + (noDate ? ' sug' : '') + '">$' + activeR.total + ' ' + fareLabel + '</span>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + datePillsHtml + '</div>' +
-        '<div class="ms-sub">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:5px 8px;background:rgba(46,124,246,.08);border:1px dashed var(--accent);border-radius:8px;">' + datePillsHtml + stayTxt + '</div>' +
+        '<div class="ms-sub" style="margin-top:4px;">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
       '</div>' +
     '</div>';
   strip.innerHTML = bestHtml;
@@ -926,6 +941,18 @@ function renderMeetupRoutes() {
   if (S.depDate) {
     dateStr = dateFmt(S.depDate);
     if (S.retDate && isRT) dateStr += ' – ' + dateFmt(S.retDate);
+  }
+  // Update the section header's date annotation so the user always knows which
+  // dates the cards below are pricing for. Empty when no date selected.
+  var hdrDateEl = document.getElementById('meetup-routes-dates');
+  if (hdrDateEl) {
+    if (S.depDate) {
+      var nights = (S.retDate && isRT) ? Math.round((S.retDate - S.depDate) / 86400000) : 0;
+      hdrDateEl.textContent = '🔍 ' + dateStr + (nights > 0 ? ' · ' + nights + ' nights' : '') + ' · ' + fareLabel;
+    } else {
+      hdrDateEl.textContent = '⚠ no dates selected';
+      hdrDateEl.style.color = 'var(--amber)';
+    }
   }
   var html = '';
   // Date-aware family list (sister: JAX→JFK after Aug 31 2026)
@@ -1839,17 +1866,36 @@ async function loadPrices() {
   if (S.mode === 'meetup') {
     var hubs = ['PIA','LAX','JAX','ORD'];
     if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (hubs.indexOf(d)===-1) hubs.push(d); });
+    // BUG FIX: use date-aware family (sister: JAX→JFK after Aug 31 2026)
+    var meetupFamily = familyForDate(S.depDate);
+    // Add JFK as a candidate hub for post-Aug 2026 trips so people can converge at sister's new base.
+    if (S.depDate && fmtISO(S.depDate) >= '2026-09-01' && hubs.indexOf('JFK') === -1) hubs.push('JFK');
     // Prioritize active hub routes first so prices paint faster
     var activeHub = S.meetupHubOverride || null;
     var priorityRoutes = [], otherRoutes = [];
     hubs.forEach(function(dest) {
-      FAMILY.forEach(function(from) {
+      meetupFamily.forEach(function(from) {
         if (from === dest) return;
         if (from === 'PIA' && dest === 'ORD') return;
         var r = { from:from, to:dest, key:from+'-'+dest };
         if (dest === activeHub) priorityRoutes.push(r);
         else otherRoutes.push(r);
       });
+    });
+    // BUG FIX: PIA→intl uses via-ORD routing in piaRouteTo(), but loadPrices was
+    // never fetching ORD→intl as a separate route — so S.prices['ORD-LHR'] stayed
+    // null and the via-ORD calc fell back to MOCK ($590 RT static). Add an
+    // explicit ORD→intl fetch for any intl destination in the hub list.
+    INTL_DESTS.forEach(function(intlDest) {
+      if (hubs.indexOf(intlDest) > -1) {
+        var ordKey = 'ORD-' + intlDest;
+        // Don't duplicate if ORD is already a from-airport in the routes
+        var alreadyQueued = priorityRoutes.concat(otherRoutes).some(function(r){ return r.key === ordKey; });
+        if (!alreadyQueued) {
+          var r = { from:'ORD', to:intlDest, key:ordKey };
+          if (intlDest === activeHub) priorityRoutes.push(r); else otherRoutes.push(r);
+        }
+      }
     });
     routes = priorityRoutes.concat(otherRoutes);
   } else {
