@@ -584,6 +584,7 @@ var S = {
   mode:'meetup', soloFocus:null, barFocus:null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
   mapView:'world', worldGeo:null, worldGeoFallback:false,
+  _booting:true,
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
 
@@ -624,7 +625,8 @@ function applyHoliday(key) {
     ret = new Date(dep);
     ret.setDate(dep.getDate() + 3); // Sun (Thu + 3)
   }
-  S.depDate = dep; S.retDate = ret; S.tripType = 'round'; S.meetupHubOverride = null;
+  S.depDate = dep; S.retDate = ret; S.tripType = 'round';
+  S.meetupHubOverride = (key === 'london') ? 'LHR' : null;
   document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v==='round'); });
   document.getElementById('pill-trip').textContent = 'Round-Trip';
   document.getElementById('s-trip').textContent    = 'Round-Trip';
@@ -828,7 +830,8 @@ function shareThePlan() {
   var isRT = (S.tripType === 'round');
   var fareLabel = isRT ? 'RT' : 'OW';
   var ranking = computeRanking();
-  var best = ranking[0];
+  var activeHub = getActiveHub(ranking);
+  var best = ranking.find(function(r){ return r.dest === activeHub; }) || ranking[0];
   var apInfo = AIRPORTS[best.dest];
   var cityName = best.isORD ? "Chicago O'Hare" : (apInfo ? apInfo.name.split(',')[0] : best.dest);
   var dateStr = '';
@@ -1128,8 +1131,8 @@ function setMode(mode) {
       if (!S.worldGeo) { loadWorldGeo().then(function(){ redrawMap(); }); }
     }
     renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
-    // Auto-refresh prices when switching to meetup with dates set
-    if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
+    // Auto-refresh prices when switching to meetup with dates set (skip during boot — boot() calls loadPrices itself)
+    if (!S._booting && S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
   } else {
     S.soloFocus = null; S.barFocus = null;
     if (titleEl) titleEl.textContent = 'Routes from ' + AIRPORTS[S.home].code;
@@ -1773,6 +1776,7 @@ async function boot() {
     S.depDate = new Date(2026, 5, 29); // Jun 29
     S.retDate = new Date(2026, 6, 3);  // Jul 3
     S.tripType = 'round';
+    S.meetupHubOverride = 'LHR'; // Show LHR breakdown by default for London trip
     // Activate the London holiday chip
     document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
     document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
@@ -1792,6 +1796,7 @@ async function boot() {
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
   updateDateUI(); updateStats();
   setMode(S.mode); // initialises correct tab, legend, panels
+  S._booting = false; // allow setMode to call loadPrices from now on
   await loadPrices();
 }
 
