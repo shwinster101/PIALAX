@@ -356,6 +356,7 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
         <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
         <button class="hol-btn" data-hol="london">🇬🇧 London Jun 29</button>
+        <button class="hol-btn" data-hol="jaxjun5">🏖 JAX Jun 5–8</button>
       </div>
       <div id="ord-toggle-row" style="display:flex;gap:4px;flex-wrap:wrap;">
         <button id="ord-toggle" class="ord-toggle-btn on">⬡ ORD Hub</button>
@@ -436,6 +437,8 @@ button{font-family:inherit;cursor:pointer;}
       </div>
     </div>
 
+    <div id="meetup-finder-section" style="display:none"></div>
+
     <div id="meetup-routes-section" style="display:none">
       <div class="lbl">Flight Breakdown</div>
       <div id="meetup-routes"></div>
@@ -459,6 +462,7 @@ button{font-family:inherit;cursor:pointer;}
     </div>
     <div class="tb-r">
       <button id="share-btn-top">📤 Share Plan</button>
+      <button id="copy-link-btn" title="Copy a deep-link URL that reproduces this exact dashboard view" style="display:flex;align-items:center;gap:4px;padding:4px 11px;border-radius:8px;font-size:.65rem;font-weight:800;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);transition:all .15s;cursor:pointer;margin-left:6px;">🔗 Copy Link</button>
       <div class="tb-pills">
         <div class="pill"><span class="ld"></span>&nbsp;<span id="pill-trip">Round-Trip</span></div>
         <div class="pill"><span id="pill-src">Sample Data</span></div>
@@ -505,28 +509,50 @@ var AIRPORTS = {
   ORD:{ code:'ORD', name:'Chicago, IL',      full:"O'Hare International Airport",       lat:41.9742, lon:-87.9073 },
   LAX:{ code:'LAX', name:'Los Angeles, CA',  full:'Los Angeles International Airport',  lat:33.9425, lon:-118.4081 },
   JAX:{ code:'JAX', name:'Jacksonville, FL', full:'Jacksonville International Airport', lat:30.4941, lon:-81.6879 },
+  MIA:{ code:'MIA', name:'Miami, FL',        full:'Miami International Airport',        lat:25.7959, lon:-80.2870 },
   LHR:{ code:'LHR', name:'London, UK',       full:'London Heathrow Airport',            lat:51.4700, lon:-0.4543 },
 };
-var ROUTE_GRAPH = { PIA:['LAX','JAX'], ORD:['LAX','JAX'], LAX:['PIA','ORD','JAX'], JAX:['PIA','ORD','LAX'] };
+// Solo destination MIA added to LAX (per Ashwin's Jun 18–21 trip). Kept off PIA/ORD/JAX home graphs to avoid noise — re-add if needed.
+var ROUTE_GRAPH = { PIA:['LAX','JAX'], ORD:['LAX','JAX'], LAX:['PIA','ORD','JAX','MIA'], JAX:['PIA','ORD','LAX'] };
 // International routes (meetup-only destinations — not in home-sel dropdown)
 var INTL_DESTS = ['LHR'];
-var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', LHR:'#e11d48' };
+var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', LHR:'#e11d48' };
+// Airline + sample flight number per route (realistic carriers actually flying these).
+// `flightNo` is illustrative only — SerpAPI overrides this for live data.
 var MOCK = {
-  'PIA-LAX':{ ow:218, rt:389 },
-  'LAX-PIA':{ ow:198, rt:362 },
-  'PIA-JAX':{ ow:156, rt:278 },
-  'JAX-PIA':{ ow:143, rt:261 },
-  'ORD-LAX':{ ow:128, rt:234 },
-  'LAX-ORD':{ ow:119, rt:218 },
-  'ORD-JAX':{ ow:109, rt:198 },
-  'JAX-ORD':{ ow:115, rt:209 },
-  'LAX-JAX':{ ow:187, rt:339 },
-  'JAX-LAX':{ ow:179, rt:319 },
+  'PIA-LAX':{ ow:218, rt:389, airline:'American Airlines', flightNo:'AA 3421' },
+  'LAX-PIA':{ ow:198, rt:362, airline:'American Airlines', flightNo:'AA 3422' },
+  'PIA-JAX':{ ow:156, rt:278, airline:'American Airlines', flightNo:'AA 5118' },
+  'JAX-PIA':{ ow:143, rt:261, airline:'American Airlines', flightNo:'AA 5119' },
+  'ORD-LAX':{ ow:128, rt:234, airline:'United Airlines',   flightNo:'UA 247'  },
+  'LAX-ORD':{ ow:119, rt:218, airline:'United Airlines',   flightNo:'UA 248'  },
+  'ORD-JAX':{ ow:109, rt:198, airline:'Southwest',         flightNo:'WN 1843' },
+  'JAX-ORD':{ ow:115, rt:209, airline:'Southwest',         flightNo:'WN 1844' },
+  'LAX-JAX':{ ow:187, rt:339, airline:'Delta',             flightNo:'DL 1267' },
+  'JAX-LAX':{ ow:179, rt:319, airline:'Delta',             flightNo:'DL 1268' },
+  // Miami (transcontinental, summer estimates — peak rates Jun)
+  'LAX-MIA':{ ow:289, rt:498, airline:'American Airlines', flightNo:'AA 1762' },
+  'MIA-LAX':{ ow:269, rt:472, airline:'American Airlines', flightNo:'AA 1763' },
+  'JAX-MIA':{ ow:98,  rt:178, airline:'JetBlue',           flightNo:'B6 1264' },
+  'MIA-JAX':{ ow:92,  rt:168, airline:'JetBlue',           flightNo:'B6 1265' },
   // International — London Heathrow (summer 2026 estimates)
-  'PIA-LHR':{ ow:420, rt:780 }, 'LHR-PIA':{ ow:390, rt:740 },
-  'LAX-LHR':{ ow:380, rt:710 }, 'LHR-LAX':{ ow:350, rt:680 },
-  'JAX-LHR':{ ow:410, rt:760 }, 'LHR-JAX':{ ow:380, rt:720 },
-  'ORD-LHR':{ ow:320, rt:590 }, 'LHR-ORD':{ ow:300, rt:560 },
+  'PIA-LHR':{ ow:420, rt:780, airline:'American Airlines', flightNo:'AA 736 (via ORD)' },
+  'LHR-PIA':{ ow:390, rt:740, airline:'American Airlines', flightNo:'AA 737 (via ORD)' },
+  'LAX-LHR':{ ow:380, rt:710, airline:'British Airways',   flightNo:'BA 268' },
+  'LHR-LAX':{ ow:350, rt:680, airline:'British Airways',   flightNo:'BA 269' },
+  'JAX-LHR':{ ow:410, rt:760, airline:'British Airways',   flightNo:'BA 2226 (via DFW)' },
+  'LHR-JAX':{ ow:380, rt:720, airline:'British Airways',   flightNo:'BA 2227 (via DFW)' },
+  'ORD-LHR':{ ow:320, rt:590, airline:'British Airways',   flightNo:'BA 296' },
+  'LHR-ORD':{ ow:300, rt:560, airline:'British Airways',   flightNo:'BA 297' },
+};
+// Trip presets — one-click date fillers for solo destination cards.
+//   "Apply" sets S.depDate/S.retDate/S.tripType then calls loadPrices().
+var TRIP_PRESETS = {
+  MIA: [
+    { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round' },
+    // Combo: arrive in JAX one-way the weekend prior, then drive/bus ~5hr to Miami
+    { id:'mia-via-jax', label:'JAX Jun 12 OW (then drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX' },
+  ],
 };
 var FAMILY = ['PIA','LAX','JAX'];
 var ORD_DRIVE_TAX = 100; // estimated gas + parking for PIA→ORD drive
@@ -579,6 +605,7 @@ var HOLIDAYS = {
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
   london:       new Date(2026, 5, 29), // June 29, 2026 — London family trip
+  jaxjun5:      new Date(2026, 5, 5),  // June 5, 2026 — JAX family meetup (Jun 5–8)
 };
 
 // ── STATE ────────────────────────────────────────────────────────
@@ -609,7 +636,21 @@ function fmtISO(d){ if(!d) return ''; return d.getFullYear()+'-'+String(d.getMon
 function tier(d){ var dw=d.getDay(); if(dw===5||dw===6||dw===0) return 'pricey'; if(dw===2||dw===3||dw===4) return 'cheap'; return 'mid'; }
 function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:1.55)/5)*5; }
 function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
-function getMock(from,to){ var p=MOCK[from+'-'+to]; return p ? {ow:p.ow,rt:p.rt} : {ow:0,rt:0}; }
+function getMock(from,to){
+  var p = MOCK[from+'-'+to];
+  if (!p) return { ow:0, rt:0, airline:null, flightNo:null };
+  return { ow:p.ow, rt:p.rt, airline:p.airline||null, flightNo:p.flightNo||null };
+}
+// Helper: build a "AA 3421" or "American Airlines · AA 3421" label from a price obj.
+// Returns '' when no airline data (so callers can concatenate safely).
+function airlineLabel(p) {
+  if (!p) return '';
+  var a = p.airline, n = p.flightNo;
+  if (a && n) return a + ' · ' + n;
+  if (a) return a;
+  if (n) return n;
+  return '';
+}
 
 // ── HOLIDAYS APPLY ───────────────────────────────────────────────
 function applyHoliday(key) {
@@ -626,6 +667,11 @@ function applyHoliday(key) {
     document.getElementById('lhr-toggle').style.color = 'var(--red)';
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
+  } else if (key === 'jaxjun5') {
+    // JAX family meetup: fixed dates Jun 5–8, switches to meetup mode + JAX hub
+    dep = new Date(2026, 5, 5); ret = new Date(2026, 5, 8);
+    if (S.mode !== 'meetup') setMode('meetup');
+    if (S.mapView !== 'us') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
   } else {
     dep = new Date(base);
     dep.setDate(base.getDate() - ((base.getDay() + 3) % 7)); // Thu on or before holiday
@@ -634,7 +680,7 @@ function applyHoliday(key) {
     ret.setDate(dep.getDate() + 3); // Sun (Thu + 3)
   }
   S.depDate = dep; S.retDate = ret; S.tripType = 'round';
-  S.meetupHubOverride = (key === 'london') ? 'LHR' : null;
+  S.meetupHubOverride = (key === 'london') ? 'LHR' : (key === 'jaxjun5' ? 'JAX' : null);
   document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v==='round'); });
   document.getElementById('pill-trip').textContent = 'Round-Trip';
   document.getElementById('s-trip').textContent    = 'Round-Trip';
@@ -686,6 +732,7 @@ function getActiveHub(ranking) {
 function setMeetupHub(code) {
   S.meetupHubOverride = (S.meetupHubOverride === code) ? null : code; // toggle off if same
   renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+  syncURL();
 }
 
 function getNextHoliday() {
@@ -785,7 +832,9 @@ function renderMeetupRoutes() {
     var key = from + '-' + hub;
     var p = S.prices[key] || getMock(from, hub);
     var price = isRT ? (p.rt || p.ow) : p.ow;
-    var copyFlyText = from + ' → ' + hub + ': $' + price + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
+    var alLbl = airlineLabel(p);
+    var stopsTxt = (p.stops && p.stops > 0) ? (' · ' + p.stops + ' stop' + (p.stops>1?'s':'')) : '';
+    var copyFlyText = from + ' → ' + hub + ': $' + price + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '') + (alLbl ? ' · ' + alLbl : '');
     html +=
       '<div class="route-card">' +
         '<div class="route-card-hd">' +
@@ -799,6 +848,7 @@ function renderMeetupRoutes() {
           '<div class="route-price">$' + price + '</div>' +
           '<span class="route-fare-lbl">' + fareLabel + (dateStr ? ' · ' + dateStr : '') + '</span>' +
         '</div>' +
+        (alLbl ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + alLbl + stopsTxt + '</div>' : '') +
         '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
       '</div>';
   });
@@ -923,6 +973,154 @@ function computeBestWeekends(from, to, nWeeks) {
   return weekends;
 }
 
+// ── BEST-MEETUP-WEEKEND FINDER ───────────────────────────────────
+// For each Thu–Sun weekend in the next N weeks, evaluate every candidate hub
+// (FAMILY airports + ORD if enabled + INTL_DESTS if enabled) and find the
+// cheapest one. Returns weekends sorted by score ascending (cheapest first).
+//
+// Scoring (default per Ashwin): minimize total family cost, with a PIA-hub
+// preference — when PIA is among the cheapest hubs, give it a discount in
+// scoring so it tends to win. PIA_HUB_BONUS subtracts $X from total when the
+// hub is PIA, breaking ties in PIA's favor without overriding obvious savings.
+// Set PIA_HUB_BONUS = 0 to revert to pure cheapest-hub scoring.
+var PIA_HUB_BONUS = 75; // dollars knocked off PIA-hub total when scoring
+var FINDER_NWEEKS = 12;
+
+function computeBestMeetupWeekends(nWeeks) {
+  nWeeks = nWeeks || FINDER_NWEEKS;
+  var isRT = (S.tripType === 'round');
+  var fareKey = isRT ? 'rt' : 'ow';
+  // Build candidate hub list (mirrors computeRanking)
+  var candidates = FAMILY.slice();
+  if (S.includeORD && candidates.indexOf('ORD') === -1) {
+    candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
+  }
+  if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
+
+  // Find next Thursday from today
+  var d = new Date(today);
+  var daysToThu = (4 - d.getDay() + 7) % 7 || 7;
+  var startThu = new Date(d);
+  startThu.setDate(d.getDate() + daysToThu);
+
+  var weekends = [];
+  for (var i = 0; i < nWeeks; i++) {
+    var thu = new Date(startThu);
+    thu.setDate(startThu.getDate() + i * 7);
+    var sun = new Date(thu);
+    sun.setDate(thu.getDate() + 3);
+    var wkndFactor = WKLY_FACTORS[i % WKLY_FACTORS.length];
+
+    // Score every candidate hub for this weekend
+    var hubResults = [];
+    candidates.forEach(function(hub) {
+      var total = 0, ok = true, parts = [];
+      FAMILY.forEach(function(from) {
+        if (from === hub) return;
+        if (from === 'PIA' && hub === 'ORD') return; // PIA drives, no fare
+        var p = getMock(from, hub);
+        var fare = p ? (p[fareKey] || p.ow) : 0;
+        if (!fare) { ok = false; return; }
+        // Apply per-weekend factor — same WKLY_FACTORS table used elsewhere
+        // so the finder is consistent with solo bar charts.
+        var weekendFare = Math.round(fare * wkndFactor / 5) * 5;
+        total += weekendFare;
+        parts.push(from + '→' + hub + ' $' + weekendFare);
+      });
+      if (ok) {
+        // PIA-hub bonus: subtract from score (NOT from displayed total) so
+        // PIA wins ties and surfaces more often as the meetup destination.
+        var score = total - (hub === 'PIA' ? PIA_HUB_BONUS : 0);
+        hubResults.push({ hub:hub, total:total, score:score, parts:parts, isORD:hub==='ORD' });
+      }
+    });
+    if (!hubResults.length) continue;
+    hubResults.sort(function(a,b){ return a.score - b.score; });
+    var winner = hubResults[0];
+    weekends.push({
+      dep: thu, ret: sun, idx: i,
+      bestHub: winner.hub,
+      total: winner.total,
+      score: winner.score,
+      parts: winner.parts,
+      isORD: winner.isORD,
+      hubRanking: hubResults, // full ranking for hover/expand
+    });
+  }
+  // Sort by score ascending (cheapest weighted-cost first)
+  // BUT preserve a date-ascending copy for the heatmap layout.
+  return weekends;
+}
+
+// Render the best-meetup-weekend finder as a heatmap row.
+// Visible only when in meetup mode + no dates picked yet (per Ashwin's spec).
+function renderMeetupFinder() {
+  var section = document.getElementById('meetup-finder-section');
+  if (!section) return;
+  if (S.mode !== 'meetup' || S.depDate) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = '';
+  var weekends = computeBestMeetupWeekends(FINDER_NWEEKS);
+  if (!weekends.length) { section.innerHTML = ''; return; }
+  // Pick the single best weekend by score (PIA-default tie-breaker built in).
+  var best = weekends.slice().sort(function(a,b){ return a.score - b.score; })[0];
+  var fareLabel = S.tripType === 'round' ? 'RT' : 'OW';
+  var hubCol = DC[best.bestHub] || '#888';
+  var apInfo = AIRPORTS[best.bestHub];
+  var cityName = apInfo ? apInfo.name.split(',')[0] : best.bestHub;
+  // Runner-up for context
+  var runner = weekends.slice().sort(function(a,b){ return a.score - b.score; })[1];
+  var runnerTxt = '';
+  if (runner) {
+    var runnerSave = runner.total - best.total;
+    runnerTxt = 'Next best: ' + dateFmt(runner.dep) + ' at ' + runner.bestHub + ' ($' + runner.total
+      + (runnerSave > 0 ? ', +$' + runnerSave : (runnerSave < 0 ? ', -$' + Math.abs(runnerSave) + ' total but PIA-default beat it' : ''))
+      + ')';
+  }
+  var html =
+    '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;">' +
+      '<span>Best Meetup Weekend · Next ' + FINDER_NWEEKS + ' weeks</span>' +
+      '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">PIA-default</span>' +
+    '</div>' +
+    '<button class="finder-best-card" data-dep="' + fmtISO(best.dep) + '" data-ret="' + fmtISO(best.ret) + '" data-hub="' + best.bestHub + '" ' +
+      'style="width:100%;padding:11px 13px;border:1.5px solid ' + hubCol + ';background:' + hubCol + '12;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--ink);transition:transform .12s, box-shadow .12s;">' +
+      '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">' +
+        '<span style="font-size:.85rem;">🥇</span>' +
+        '<span style="font-size:.75rem;font-weight:900;color:' + hubCol + ';">Meet in ' + cityName + ' &middot; ' + best.bestHub + (best.isORD ? ' 🚗' : '') + '</span>' +
+      '</div>' +
+      '<div style="font-size:.95rem;font-weight:900;color:var(--ink);line-height:1.1;">' + dateFmt(best.dep) + ' &ndash; ' + dateFmt(best.ret) + '</div>' +
+      '<div style="display:flex;align-items:baseline;gap:6px;margin-top:4px;">' +
+        '<span style="font-size:1.1rem;font-weight:900;color:var(--green);">$' + best.total + '</span>' +
+        '<span style="font-size:.6rem;color:var(--muted);font-weight:700;">' + fareLabel + ' total for ' + best.parts.length + ' travelers</span>' +
+      '</div>' +
+      '<div style="font-size:.55rem;color:var(--muted);margin-top:5px;line-height:1.4;">' + best.parts.join(' &middot; ') + (best.isORD ? ' &middot; 🚗 PIA drives' : '') + '</div>' +
+      (runnerTxt ? '<div style="font-size:.55rem;color:var(--muted);margin-top:4px;font-style:italic;line-height:1.4;">' + runnerTxt + '</div>' : '') +
+      '<div style="font-size:.55rem;color:var(--accent);margin-top:6px;font-weight:700;">Click to lock these dates &amp; hub →</div>' +
+    '</button>';
+  section.innerHTML = html;
+  // Wire click → set dates, set hub override, fetch live prices
+  var card = section.querySelector('.finder-best-card');
+  if (card) {
+    card.addEventListener('click', function(){
+      var depStr = card.getAttribute('data-dep');
+      var retStr = card.getAttribute('data-ret');
+      var hubCode = card.getAttribute('data-hub');
+      S.depDate = new Date(depStr + 'T12:00:00');
+      S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null;
+      if (S.tripType === 'one') S.retDate = null;
+      S.meetupHubOverride = hubCode;
+      updateDateUI();
+      renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
+      loadPrices();
+      syncURL();
+    });
+    card.addEventListener('mouseenter', function(){ card.style.transform = 'translateY(-1px)'; card.style.boxShadow = '0 4px 12px rgba(0,0,0,.25)'; });
+    card.addEventListener('mouseleave', function(){ card.style.transform = ''; card.style.boxShadow = ''; });
+  }
+}
+
 function applyOrdPivot(dest, piaPrice) {
   if (S.home !== 'PIA') return null;
   var om = S.prices['ORD-' + dest] || getMock('ORD', dest);
@@ -1024,23 +1222,34 @@ function renderSoloCards() {
     var card = document.createElement('div');
     card.className = 'solo-dest-card' + (S.soloFocus === dest ? ' focused' : '');
     card.dataset.dest = dest;
+    // Pull airline data: prefer live S.prices for current dates, else MOCK by route.
+    // Note: per-weekend live data lives in S.soloBarPrices[routeKey][i].airline if loaded.
+    var routeKey = S.home + '-' + dest;
+    var liveBars = S.soloBarPrices[routeKey] || null;
+    var defaultPriceObj = S.prices[routeKey] || getMock(S.home, dest);
+    var ordPriceObj = getMock('ORD', dest);
     var wkndsHtml = '';
     top.forEach(function(w, i) {
       var pivot = applyOrdPivot(dest, w.price);
-      var dispPrice, dispMeta;
+      var dispPrice, dispMeta, alLbl;
       if (pivot) {
         dispPrice = '<div class="ord-pivot-badge">Best Value via ORD</div><div class="wknd-price" style="color:var(--green)">$' + pivot.total + '</div>';
         dispMeta = 'ORD flight $' + pivot.fare + ' + $' + ORD_DRIVE_TAX + ' drive · saves $' + pivot.saving;
+        alLbl = airlineLabel(ordPriceObj);
       } else {
         var fareLabel = S.tripType === 'round' ? 'RT' : 'OW';
         dispPrice = '<div class="wknd-price" style="color:' + (i===0 ? 'var(--green)' : 'var(--accent)') + '">$' + w.price + '</div>';
         dispMeta = fareLabel + (i===0 ? '' : ' · alt');
+        // Prefer the live per-weekend airline if available; else fall back to MOCK
+        var liveBar = liveBars && liveBars[i];
+        alLbl = airlineLabel(liveBar) || airlineLabel(defaultPriceObj);
       }
       wkndsHtml +=
         '<div class="wknd-row" data-dep="' + fmtISO(w.dep) + '" data-ret="' + fmtISO(w.ret) + '">' +
           '<div>' +
             '<div class="wknd-dates">' + dateFmt(w.dep) + ' – ' + dateFmt(w.ret) + '</div>' +
             '<div class="wknd-meta">Thu–Sun ' + (i===0 ? '&nbsp;<span class="bv-badge">Best Value</span>' : '') + '</div>' +
+            (alLbl ? '<div class="wknd-airline" style="font-size:.55rem;color:var(--accent);font-weight:700;margin-top:1px;">✈ ' + alLbl + '</div>' : '') +
           '</div>' +
           '<div style="text-align:right">' + dispPrice + '<div class="wknd-meta">' + dispMeta + '</div></div>' +
         '</div>';
@@ -1051,6 +1260,20 @@ function renderSoloCards() {
     var liveBtnHtml = PROXY_URL
       ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
       : '';
+    // Trip presets (per-destination one-click date fillers)
+    var presets = TRIP_PRESETS[dest] || [];
+    var presetHtml = '';
+    if (presets.length) {
+      presetHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">'
+        + '<span style="font-size:.55rem;color:var(--muted);align-self:center;margin-right:2px;">Presets:</span>'
+        + presets.map(function(p){
+            var altTag = p.altDest ? ' <span style="color:var(--amber);font-size:.5rem;">(via ' + p.altDest + ')</span>' : '';
+            return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '" '
+                 + 'style="padding:3px 7px;font-size:.55rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;">'
+                 + p.label + altTag + '</button>';
+          }).join('')
+        + '</div>';
+    }
     card.innerHTML =
       '<div class="solo-dest-hd" style="border-left-color:' + col + '">' +
         '<div>' +
@@ -1066,6 +1289,7 @@ function renderSoloCards() {
         '<svg id="' + chartId + '" class="bar-chart-svg"></svg>' +
         '<div class="bar-chart-row"><span>Now</span>' + (applyOrdPivot(dest, bestPrice) ? '<span style="color:var(--green)">— ghost = ORD route</span>' : '') + '<span>+13 wks</span></div>' +
         wkndsHtml +
+        presetHtml +
         liveBtnHtml +
       '</div>';
     card.addEventListener('mouseenter', function(){ setSoloFocus(dest); });
@@ -1077,6 +1301,36 @@ function renderSoloCards() {
         var depStr = row.getAttribute('data-dep'), retStr = row.getAttribute('data-ret');
         if (depStr) { S.depDate = new Date(depStr + 'T12:00:00'); S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null; updateDateUI(); }
         e.stopPropagation();
+      });
+    });
+    // Wire preset chips → apply preset (dates, trip type, optional alt destination)
+    card.querySelectorAll('.solo-preset-btn').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var pid = btn.getAttribute('data-preset-id');
+        var pdest = btn.getAttribute('data-dest');
+        var preset = (TRIP_PRESETS[pdest] || []).find(function(p){ return p.id === pid; });
+        if (!preset) return;
+        S.depDate = new Date(preset.dep + 'T12:00:00');
+        S.retDate = preset.ret ? new Date(preset.ret + 'T12:00:00') : null;
+        S.tripType = preset.tripType || 'round';
+        if (S.tripType === 'one') S.retDate = null;
+        // If preset routes via an alt destination (e.g. JAX combo), focus that solo card
+        if (preset.altDest && dests().indexOf(preset.altDest) > -1) {
+          S.soloFocus = preset.altDest;
+        } else {
+          S.soloFocus = pdest;
+        }
+        // Sync trip-type toggle button (.tt-btn[data-v=...])
+        document.querySelectorAll('.tt-btn').forEach(function(x){
+          x.classList.toggle('on', x.dataset.v === S.tripType);
+        });
+        var pillTrip = document.getElementById('pill-trip');
+        var sTrip = document.getElementById('s-trip');
+        if (pillTrip) pillTrip.textContent = S.tripType === 'one' ? 'One-Way' : 'Round-Trip';
+        if (sTrip) sTrip.textContent = S.tripType === 'one' ? 'One-Way' : 'Round-Trip';
+        updateDateUI();
+        loadPrices();
       });
     });
     var svgEl = document.getElementById(chartId);
@@ -1138,7 +1392,7 @@ function setMode(mode) {
       updateMapToggle();
       if (!S.worldGeo) { loadWorldGeo().then(function(){ redrawMap(); }); }
     }
-    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+    renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
     // Auto-refresh prices when switching to meetup with dates set (skip during boot — boot() calls loadPrices itself)
     if (!S._booting && S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
   } else {
@@ -1147,6 +1401,7 @@ function setMode(mode) {
     renderSoloCards(); redrawMap();
   }
   rebuildLegend();
+  syncURL();
 }
 
 // ── API LAYER ────────────────────────────────────────────────────
@@ -1223,7 +1478,23 @@ async function fetchFlights(from, to, dep, ret) {
       }
       if (!best || typeof best.price !== 'number') return getMock(from, to);
       var price = best.price;
-      var data = { ow: ret ? null : price, rt: ret ? price : null, live: true };
+      // Capture airline + flight number from outbound's first leg.
+      // SerpAPI shape: best.flights = [{ airline, flight_number, airline_logo, ... }, ...]
+      var legs = (best.flights && best.flights.length) ? best.flights : [];
+      var firstLeg = legs[0] || {};
+      var airline = firstLeg.airline || null;
+      var flightNo = firstLeg.flight_number || null;
+      var airlineLogo = firstLeg.airline_logo || best.airline_logo || null;
+      var stops = legs.length > 1 ? (legs.length - 1) : 0;
+      var data = {
+        ow: ret ? null : price,
+        rt: ret ? price : null,
+        live: true,
+        airline: airline,
+        flightNo: flightNo,
+        airlineLogo: airlineLogo,
+        stops: stops,
+      };
       _flightCache[key] = { data: data, ts: Date.now() };
       // Live success → consume 1 quota unit
       bumpQuota(1);
@@ -1336,7 +1607,16 @@ function onDayClick(dt) {
   updateDateUI(); renderCal();
 }
 function openCal(mode) {
-  S.calMode=mode; renderCal();
+  S.calMode=mode;
+  // UX: jump the calendar to the month containing the date the user is editing.
+  // Without this, users editing a Jun 5 dep date saw the calendar still on May.
+  // The 2-month grid shows calOff and calOff+1, so we want the target month at calOff.
+  var target = (mode === 'ret' ? S.retDate : S.depDate) || S.depDate;
+  if (target) {
+    var monthsFromToday = (target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth());
+    S.calOff = Math.max(0, Math.min(12, monthsFromToday));
+  }
+  renderCal();
   var cal=document.getElementById('cal');
   if (window.innerWidth <= 640) {
     // Mobile: bottom-sheet — CSS handles position:fixed + bottom:0
@@ -1358,11 +1638,10 @@ function closeCal() {
   document.getElementById('dep-btn').classList.remove('active');
   document.getElementById('ret-btn').classList.remove('active');
   S.calMode=null; S.meetupHubOverride=null; updateDateUI();
-  if (S.mode === 'meetup') { renderMeetupStrip(); redrawMap(); }
+  if (S.mode === 'meetup') { renderMeetupStrip(); renderMeetupFinder(); redrawMap(); }
   // Auto-refresh prices whenever the calendar closes with a valid departure.
-  // Covers both Solo and Meetup, one-way and round-trip, and picks made via
-  // onDayClick (which ends every successful selection with closeCal()).
   if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
+  syncURL();
 }
 function updateDateUI() {
   var dEl=document.getElementById('dep-val'), rEl=document.getElementById('ret-val'), rBtn=document.getElementById('ret-btn');
@@ -1415,7 +1694,7 @@ async function loadPrices() {
     requestAnimationFrame(function(){
       _repaintScheduled = false;
       renderMeetupStrip(); redrawMap();
-      if (S.mode === 'meetup') renderMeetupRoutes();
+      if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
       if (S.mode === 'solo') renderSoloCards();
       lbl.textContent = 'Searching… ' + doneCount + '/' + total;
     });
@@ -1445,7 +1724,7 @@ async function loadPrices() {
   document.getElementById('data-pill-lbl').textContent= PROXY_URL && !allFailed ? 'Live' : 'Sample';
   document.querySelector('.ld').style.background      = PROXY_URL && !allFailed ? 'var(--green)' : 'var(--amber)';
   renderMeetupStrip(); redrawMap(); updateStats();
-  if (S.mode === 'meetup') renderMeetupRoutes();
+  if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
   if (S.mode === 'solo') renderSoloCards();
   btn.disabled=false; spin.style.display='none'; icon.style.display=''; lbl.textContent='Refresh Prices';
 }
@@ -1470,7 +1749,14 @@ async function loadSoloWeeklyPrices(dest) {
         fetchFlights(S.home, dest, fmtISO(thu), isRT ? fmtISO(sun) : null)
           .then(function(p) {
             var price = isRT ? (p.rt || p.ow) : p.ow;
-            entries[idx] = { price: price || 0, dep: thu, ret: sun, live: true };
+            // Carry airline + flightNo so per-weekend rows can show the carrier
+            entries[idx] = {
+              price: price || 0,
+              dep: thu, ret: sun, live: true,
+              airline: p && p.airline || null,
+              flightNo: p && p.flightNo || null,
+              stops: p && p.stops || 0,
+            };
             calls++;
           })
           .catch(function() { entries[idx] = null; })
@@ -1769,6 +2055,7 @@ document.getElementById('dep-btn').addEventListener('click', function(){ openCal
 document.getElementById('ret-btn').addEventListener('click', function(){ if(!document.getElementById('ret-btn').disabled) openCal('ret'); });
 document.getElementById('search-btn').addEventListener('click', loadPrices);
 document.getElementById('share-btn-top').addEventListener('click', shareThePlan);
+document.getElementById('copy-link-btn').addEventListener('click', copyShareLink);
 document.querySelectorAll('.mode-btn').forEach(function(b){
   b.addEventListener('click', function(){ setMode(b.dataset.mode); });
 });
@@ -1796,7 +2083,8 @@ document.querySelectorAll('.hol-btn').forEach(function(b){ b.addEventListener('c
 document.getElementById('ord-toggle').addEventListener('click', function(){
   S.includeORD = !S.includeORD;
   this.classList.toggle('on', S.includeORD);
-  renderMeetupStrip(); redrawMap();
+  renderMeetupStrip(); renderMeetupFinder(); redrawMap();
+  syncURL();
 });
 
 document.getElementById('lhr-toggle').addEventListener('click', function(){
@@ -1809,7 +2097,8 @@ document.getElementById('lhr-toggle').addEventListener('click', function(){
   // Auto-switch to world map when LHR enabled, back to US when disabled
   if (on && S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
   if (!on && S.mapView === 'world') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
-  renderMeetupStrip(); renderMeetupRoutes();
+  renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder();
+  syncURL();
 });
 
 document.querySelectorAll('.tt-btn').forEach(function(b){
@@ -1820,10 +2109,11 @@ document.querySelectorAll('.tt-btn').forEach(function(b){
     document.getElementById('pill-trip').textContent=S.tripType==='one'?'One-Way':'Round-Trip';
     document.getElementById('s-trip').textContent   =S.tripType==='one'?'One-Way':'Round-Trip';
     document.querySelectorAll('.hol-btn').forEach(function(x){ x.classList.remove('active'); });
-    updateDateUI(); renderMeetupStrip();
+    updateDateUI(); renderMeetupStrip(); renderMeetupFinder();
     if (S.mode === 'solo') renderSoloCards();
     // Auto-refresh when the trip type flips with dates already set.
     if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
+    syncURL();
   });
 });
 
@@ -1837,6 +2127,7 @@ document.getElementById('home-sel').addEventListener('change', function(e){
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
   S.prices={}; S.soloBarPrices={};
   rebuildLegend(); loadPrices();
+  syncURL();
 });
 
 document.getElementById('api-hdr').addEventListener('click', function(){ document.getElementById('api-body').classList.toggle('open'); });
@@ -1896,10 +2187,14 @@ function updateStats() {
 }
 
 // ── URL PARAM RESTORE (shared links) ────────────────────────────
+// Track whether a URL state was loaded — boot uses this to skip the London default
+var _urlStateLoaded = false;
+
 function restoreFromURL() {
   try {
     var sp = new URLSearchParams(window.location.search);
     if (!sp.toString()) return;
+    _urlStateLoaded = true;
     var hub = sp.get('hub');
     if (hub && AIRPORTS[hub]) {
       S.home = hub;
@@ -1925,7 +2220,77 @@ function restoreFromURL() {
     }
     var mode = sp.get('mode');
     if (mode === 'meetup' || mode === 'solo') S.mode = mode;
+    // NEW: restore meetup-specific state — these were missing previously,
+    // so a shared meetup link lost the active hub override and toggle states.
+    var mhub = sp.get('mhub');
+    if (mhub && AIRPORTS[mhub]) S.meetupHubOverride = mhub;
+    var ord = sp.get('ord');
+    if (ord === '0') S.includeORD = false;
+    else if (ord === '1') S.includeORD = true;
+    var lhr = sp.get('lhr');
+    if (lhr === '0') S.includeLHR = false;
+    else if (lhr === '1') S.includeLHR = true;
+    // Bug fix: sync ORD/LHR toggle visuals so a shared link with ord=0/lhr=0
+    // doesn't show toggles still styled as "on". Defer to next frame so the
+    // DOM elements exist (in case restoreFromURL runs before HTML parse complete).
+    requestAnimationFrame(function(){
+      var ordBtn = document.getElementById('ord-toggle');
+      if (ordBtn) ordBtn.classList.toggle('on', S.includeORD);
+      var lhrBtn = document.getElementById('lhr-toggle');
+      if (lhrBtn) {
+        lhrBtn.classList.toggle('on', S.includeLHR);
+        lhrBtn.style.background = S.includeLHR ? 'rgba(225,29,72,.12)' : '';
+        lhrBtn.style.borderColor = S.includeLHR ? 'var(--red)' : '';
+        lhrBtn.style.color = S.includeLHR ? 'var(--red)' : '';
+      }
+    });
   } catch(e) { /* URLSearchParams unsupported or parse error — ignore */ }
+}
+
+// Sync current state back to the URL bar (no reload). Debounced via rAF
+// so rapid state changes (e.g. dragging through dates) batch into one write.
+var _syncURLScheduled = false;
+function syncURL() {
+  if (_syncURLScheduled) return;
+  _syncURLScheduled = true;
+  requestAnimationFrame(function(){
+    _syncURLScheduled = false;
+    try {
+      var sp = new URLSearchParams();
+      sp.set('hub', S.home);
+      sp.set('trip', S.tripType);
+      sp.set('mode', S.mode);
+      if (S.depDate) sp.set('dep', fmtISO(S.depDate));
+      if (S.retDate && S.tripType === 'round') sp.set('ret', fmtISO(S.retDate));
+      if (S.meetupHubOverride) sp.set('mhub', S.meetupHubOverride);
+      sp.set('ord', S.includeORD ? '1' : '0');
+      sp.set('lhr', S.includeLHR ? '1' : '0');
+      if (history.replaceState) history.replaceState(null, '', '?' + sp.toString());
+    } catch(e) { /* ignore */ }
+  });
+}
+
+// Copy a clean shareable URL (used by a new "Copy Link" button)
+function copyShareLink() {
+  syncURL();
+  // syncURL is rAF-deferred; defer the copy too so URL is current when read
+  requestAnimationFrame(function(){
+    var url = window.location.href;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function(){
+        showShareToast('✓ Link copied · paste anywhere');
+      }).catch(function(){ showShareToast('Link: ' + url); });
+    } else {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = url; ta.style.cssText = 'position:fixed;opacity:0;';
+        document.body.appendChild(ta); ta.focus(); ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showShareToast('✓ Link copied · paste anywhere');
+      } catch(e) { showShareToast('Link: ' + url); }
+    }
+  });
 }
 
 // ── INIT ─────────────────────────────────────────────────────────
@@ -1946,15 +2311,13 @@ async function boot() {
   }
   // Load world geo early if defaulting to world map view
   if (S.mapView === 'world') await loadWorldGeo();
-  // Default to London trip dates (Jun 29 – Jul 3 2026) when in meetup mode
-  if (S.mode === 'meetup' && !S.depDate) {
-    S.depDate = new Date(2026, 5, 29); // Jun 29
-    S.retDate = new Date(2026, 6, 3);  // Jul 3
-    S.tripType = 'round';
-    S.meetupHubOverride = 'LHR'; // Show LHR breakdown by default for London trip
-    // Activate the London holiday chip
-    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
-    document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
+  // Default to London trip dates ONLY when no URL state was loaded —
+  // a shared link must always reproduce the sender's exact view.
+  // Also: when mode=meetup but no dates, leave dates empty so the new
+  // best-meetup-weekend finder appears (per Ashwin's spec).
+  if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
+    // Intentionally NOT pre-filling London dates anymore — let the finder
+    // surface the cheapest weekends so the differentiator is visible on first paint.
   }
   // Style the LHR toggle as active since it defaults on
   if (S.includeLHR) {
