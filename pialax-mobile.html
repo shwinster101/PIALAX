@@ -990,8 +990,15 @@ function renderMeetupRoutes() {
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
       var route = piaRouteTo(hub, isRT ? 'rt' : 'ow');
       if (route.viaORD) {
-        var ordLeg = S.prices['ORD-' + hub] || getMock('ORD', hub);
+        var ordLegLive = S.prices['ORD-' + hub];
+        var ordLeg = ordLegLive || getMock('ORD', hub);
         var ordAirline = airlineLabel(ordLeg);
+        var ordIsLive = !!(ordLegLive && ordLegLive.live);
+        var ordIsCached = !!(ordLegLive && ordLegLive.cached);
+        console.log('[PIALAX via-ORD]', { hub:hub, ordLegFare:route.ordLegFare, ordLegSource: ordIsLive ? (ordIsCached ? 'live (cached)' : 'live (fresh)') : 'MOCK FALLBACK', driveTax: ORD_DRIVE_TAX, totalPerTicket: route.fare, headcount: headcount, ordPriceObj: ordLegLive || 'no S.prices entry' });
+        var sourceBadge = ordIsLive
+          ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
+          : '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">SAMPLE</span>';
         var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
         var directFare = directObj ? (isRT ? (directObj.rt || directObj.ow) : directObj.ow) : 0;
         var perSavings = directFare ? (directFare - route.fare) : 0;
@@ -1007,6 +1014,7 @@ function renderMeetupRoutes() {
               '<span class="route-arrow">→</span>' +
               '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
               '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+              sourceBadge +
               '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyViaText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
             '</div>' +
             '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +

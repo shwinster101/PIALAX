@@ -990,13 +990,31 @@ function renderMeetupRoutes() {
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
       var route = piaRouteTo(hub, isRT ? 'rt' : 'ow');
       if (route.viaORD) {
-        var ordLeg = S.prices['ORD-' + hub] || getMock('ORD', hub);
+        // Diagnose: was the ORD-hub leg sourced from live data or mock fallback?
+        var ordLegLive = S.prices['ORD-' + hub];
+        var ordLeg = ordLegLive || getMock('ORD', hub);
         var ordAirline = airlineLabel(ordLeg);
+        var ordIsLive = !!(ordLegLive && ordLegLive.live);
+        var ordIsCached = !!(ordLegLive && ordLegLive.cached);
         var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
         var directFare = directObj ? (isRT ? (directObj.rt || directObj.ow) : directObj.ow) : 0;
         var perTicketSavings = directFare ? (directFare - route.fare) : 0;
         var totalSavings = perTicketSavings * headcount;
         var subtotal = route.fare * headcount;
+        // Console diagnostic so user can verify in DevTools why the price is what it is
+        console.log('[PIALAX via-ORD]', {
+          hub: hub,
+          ordLegFare: route.ordLegFare,
+          ordLegSource: ordIsLive ? (ordIsCached ? 'live (cached)' : 'live (fresh)') : 'MOCK FALLBACK',
+          driveTax: ORD_DRIVE_TAX,
+          totalPerTicket: route.fare,
+          headcount: headcount,
+          subtotal: subtotal,
+          ordPriceObj: ordLegLive || 'no S.prices entry — check loadPrices fan-out'
+        });
+        var sourceBadge = ordIsLive
+          ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
+          : '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="ORD-' + hub + ' fare not in S.prices — check loadPrices fan-out + browser cache">SAMPLE</span>';
         var copyViaText = memberLabel + ' (PIA via ORD → ' + hub + '): $' + route.fare + ' per ticket × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
         html +=
           '<div class="route-card" style="border-left:3px solid var(--green);">' +
@@ -1007,6 +1025,7 @@ function renderMeetupRoutes() {
               '<span class="route-arrow">→</span>' +
               '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
               '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+              sourceBadge +
               '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyViaText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
             '</div>' +
             '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
