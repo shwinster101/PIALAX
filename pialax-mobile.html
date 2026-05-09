@@ -545,12 +545,13 @@ var AIRPORTS = {
   LAX:{ code:'LAX', name:'Los Angeles, CA',  full:'Los Angeles International Airport',  lat:33.9425, lon:-118.4081 },
   JAX:{ code:'JAX', name:'Jacksonville, FL', full:'Jacksonville International Airport', lat:30.4941, lon:-81.6879 },
   MIA:{ code:'MIA', name:'Miami, FL',        full:'Miami International Airport',        lat:25.7959, lon:-80.2870 },
+  JFK:{ code:'JFK', name:'New York, NY',     full:'John F. Kennedy International Airport', lat:40.6413, lon:-73.7781 },
   LHR:{ code:'LHR', name:'London, UK',       full:'London Heathrow Airport',            lat:51.4700, lon:-0.4543 },
 };
 // MIA added to LAX solo destinations only (per Ashwin's Jun 18–21 trip)
-var ROUTE_GRAPH = { PIA:['LAX','JAX'], ORD:['LAX','JAX'], LAX:['PIA','ORD','JAX','MIA'], JAX:['PIA','ORD','LAX'] };
+var ROUTE_GRAPH = { PIA:['LAX','JAX','JFK'], ORD:['LAX','JAX','JFK'], LAX:['PIA','ORD','JAX','MIA','JFK'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'] };
 var INTL_DESTS = ['LHR'];
-var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', LHR:'#e11d48' };
+var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LHR:'#e11d48' };
 // Airline + sample flight number per route. `flightNo` overridden by SerpAPI live data.
 var MOCK = {
   'PIA-LAX':{ ow:218, rt:389, airline:'American Airlines', flightNo:'AA 3421' },
@@ -568,6 +569,15 @@ var MOCK = {
   'MIA-LAX':{ ow:269, rt:472, airline:'American Airlines', flightNo:'AA 1763' },
   'JAX-MIA':{ ow:98,  rt:178, airline:'JetBlue',           flightNo:'B6 1264' },
   'MIA-JAX':{ ow:92,  rt:168, airline:'JetBlue',           flightNo:'B6 1265' },
+  // JFK — sister's primary airport from Sep 1, 2026 onward
+  'PIA-JFK':{ ow:198, rt:362, airline:'American Airlines', flightNo:'AA 4451 (via ORD)' },
+  'JFK-PIA':{ ow:189, rt:344, airline:'American Airlines', flightNo:'AA 4452 (via ORD)' },
+  'ORD-JFK':{ ow:118, rt:218, airline:'United Airlines',   flightNo:'UA 1532' },
+  'JFK-ORD':{ ow:112, rt:208, airline:'United Airlines',   flightNo:'UA 1533' },
+  'LAX-JFK':{ ow:189, rt:348, airline:'JetBlue',           flightNo:'B6 24' },
+  'JFK-LAX':{ ow:179, rt:332, airline:'JetBlue',           flightNo:'B6 23' },
+  'JFK-LHR':{ ow:298, rt:548, airline:'British Airways',   flightNo:'BA 178' },
+  'LHR-JFK':{ ow:285, rt:528, airline:'British Airways',   flightNo:'BA 179' },
   // London
   'PIA-LHR':{ ow:420, rt:780, airline:'American Airlines', flightNo:'AA 736 (via ORD)' },
   'LHR-PIA':{ ow:390, rt:740, airline:'American Airlines', flightNo:'AA 737 (via ORD)' },
@@ -579,6 +589,30 @@ var MOCK = {
   'LHR-ORD':{ ow:300, rt:560, airline:'British Airways',   flightNo:'BA 297' },
 };
 var FAMILY = ['PIA','LAX','JAX'];
+// Per-member detail (mirror of desktop)
+var FAMILY_INFO = {
+  PIA: { headcount: 2, label: 'Mom & Dad' },
+  LAX: { headcount: 1, label: 'Me' },
+  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK' },
+};
+function familyForDate(d) {
+  if (!d) return FAMILY.slice();
+  var iso = (typeof d === 'string') ? d : fmtISO(d);
+  return FAMILY.map(function(code) {
+    var info = FAMILY_INFO[code];
+    if (info && info.moveDate && info.moveAirport && iso >= info.moveDate) return info.moveAirport;
+    return code;
+  });
+}
+function familyInfoFor(effectiveCode) {
+  if (FAMILY_INFO[effectiveCode]) return FAMILY_INFO[effectiveCode];
+  for (var k in FAMILY_INFO) {
+    if (FAMILY_INFO[k].moveAirport === effectiveCode) return FAMILY_INFO[k];
+  }
+  return { headcount: 1, label: effectiveCode };
+}
+function headcountFor(code) { return familyInfoFor(code).headcount || 1; }
+function labelFor(code) { return familyInfoFor(code).label || code; }
 // Trip presets — one-click date fillers per destination.
 var TRIP_PRESETS = {
   MIA: [
@@ -753,29 +787,40 @@ function piaRouteTo(dest, fareKey) {
 function computeRanking() {
   var isRT = (S.tripType === 'round');
   var fareKey = isRT ? 'rt' : 'ow';
-  var candidates = FAMILY.slice();
-  if (S.includeORD && candidates.indexOf('ORD') === -1) candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
+  var effFamily = familyForDate(S.depDate);
+  var candidates = effFamily.slice();
+  if (S.includeORD && candidates.indexOf('ORD') === -1) {
+    var piaIdx = candidates.indexOf('PIA');
+    if (piaIdx > -1) candidates.splice(piaIdx + 1, 0, 'ORD'); else candidates.push('ORD');
+  }
   if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
   var results = [];
   candidates.forEach(function(dest) {
     var total = 0, parts = [], ok = true;
-    FAMILY.forEach(function(from) {
-      if (from === dest) return;                      // host doesn't fly
-      if (from === 'PIA' && dest === 'ORD') return;  // PIA drives to ORD — no fare
+    effFamily.forEach(function(from) {
+      if (from === dest) return;
+      if (from === 'PIA' && dest === 'ORD') return;
       var fare;
+      var headcount = headcountFor(from);
+      var label = labelFor(from);
       if (from === 'PIA') {
         var route = piaRouteTo(dest, fareKey);
         fare = route.fare;
         if (!fare) { ok = false; return; }
-        parts.push(route.viaORD ? ('PIA→' + dest + ' via ORD $' + fare) : ('PIA→' + dest + ' $' + fare));
+        var subtotal = fare * headcount;
+        parts.push(label + ' (' + from + (route.viaORD ? '→ORD' : '') + '→' + dest + ') $' + fare
+          + (headcount > 1 ? ' × ' + headcount + ' = $' + subtotal : ''));
+        total += subtotal;
       } else {
         var key = from + '-' + dest;
         var p = S.prices[key] || getMock(from, dest);
         if (!p || !(p[fareKey] || p.ow)) { ok = false; return; }
         fare = p[fareKey] || p.ow;
-        parts.push(from + '→' + dest + ' $' + fare);
+        var sub = fare * headcount;
+        parts.push(label + ' (' + from + '→' + dest + ') $' + fare
+          + (headcount > 1 ? ' × ' + headcount + ' = $' + sub : ''));
+        total += sub;
       }
-      total += fare;
     });
     if (ok) results.push({ dest:dest, total:total, parts:parts, isORD:dest==='ORD' });
   });
@@ -848,6 +893,13 @@ function renderMeetupStrip() {
     var label = r.dest + ' — ' + (r.isORD ? "O'Hare" : (apI ? apI.name.split(',')[0] : r.dest)) + '  ($' + r.total + ' ' + fareLabel + ')';
     return '<option value="' + r.dest + '"' + sel + '>' + label + '</option>';
   }).join('');
+  // Inline editable date pills — click to open the calendar so user can play with pricing.
+  var depTxt = S.depDate ? dateFmt(S.depDate) : 'Pick depart';
+  var retTxt = (isRT && S.retDate) ? dateFmt(S.retDate) : (isRT ? 'Pick return' : '');
+  var datePillsHtml =
+    '<button onclick="openCal(\'dep\')" style="padding:3px 9px;font-size:.7rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1.5px solid var(--border2);border-radius:7px;cursor:pointer;font-family:inherit;">📅 ' + depTxt + '</button>' +
+    (isRT ? '<span style="font-size:.7rem;color:var(--muted);">→</span>' +
+            '<button onclick="openCal(\'ret\')" style="padding:3px 9px;font-size:.7rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1.5px solid var(--border2);border-radius:7px;cursor:pointer;font-family:inherit;">📅 ' + retTxt + '</button>' : '');
   var bestHtml =
     '<div class="ms-best">' +
       '<span class="ms-badge' + (noDate ? ' sug' : '') + '">📍 Hub</span>' +
@@ -860,7 +912,8 @@ function renderMeetupStrip() {
           '</select>' +
           '<span class="ms-price' + (noDate ? ' sug' : '') + '">$' + activeR.total + ' ' + fareLabel + '</span>' +
         '</div>' +
-        '<div class="ms-sub">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + ' · ' + dateStr + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + datePillsHtml + '</div>' +
+        '<div class="ms-sub">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
       '</div>' +
     '</div>';
   strip.innerHTML = bestHtml;
@@ -884,12 +937,16 @@ function renderMeetupRoutes() {
     if (S.retDate && isRT) dateStr += ' – ' + dateFmt(S.retDate);
   }
   var html = '';
-  FAMILY.forEach(function(from) {
-    if (from === hub) return; // hub host doesn't fly
+  var effFamily = familyForDate(S.depDate);
+  effFamily.forEach(function(from) {
+    if (from === hub) return;
     var fromAp = AIRPORTS[from], hubAp = AIRPORTS[hub];
     var fromCol = DC[from] || '#888', hubCol = DC[hub] || '#888';
     var isPiaDriving = (from === 'PIA' && hub === 'ORD');
-    var copyDriveText = from + ' → ' + hub + ': 🚗 Drive ~$' + ORD_DRIVE_TAX + (dateStr ? ' · ' + dateStr : '');
+    var headcount = headcountFor(from);
+    var memberLabel = labelFor(from);
+    function multTxt(perTicket) { return headcount > 1 ? ' × ' + headcount + ' = $' + (perTicket * headcount) : ''; }
+    var copyDriveText = memberLabel + ' (' + from + ' → ' + hub + '): 🚗 Drive ~$' + ORD_DRIVE_TAX + (dateStr ? ' · ' + dateStr : '');
     if (isPiaDriving) {
       html +=
         '<div class="route-card">' +
@@ -897,14 +954,14 @@ function renderMeetupRoutes() {
             '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
             '<span class="route-arrow">→</span>' +
             '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
+            '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
             '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyDriveText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
           '</div>' +
-          '<div class="route-drive-row">🚗 Drive · ~$' + ORD_DRIVE_TAX + ' est. (gas + parking)</div>' +
+          '<div class="route-drive-row">🚗 Drive · ~$' + ORD_DRIVE_TAX + ' (one car for ' + headcount + ' ' + (headcount === 1 ? 'person' : 'people') + ')</div>' +
           '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
         '</div>';
       return;
     }
-    // Special case: PIA → intl destination (LHR) — route via ORD when cheaper.
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
       var route = piaRouteTo(hub, isRT ? 'rt' : 'ow');
       if (route.viaORD) {
@@ -912,8 +969,10 @@ function renderMeetupRoutes() {
         var ordAirline = airlineLabel(ordLeg);
         var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
         var directFare = directObj ? (isRT ? (directObj.rt || directObj.ow) : directObj.ow) : 0;
-        var savings = directFare ? (directFare - route.fare) : 0;
-        var copyViaText = 'PIA → ' + hub + ' via ORD: $' + route.fare + ' total (drive $' + ORD_DRIVE_TAX + ' + ✈ $' + route.ordLegFare + ') ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
+        var perSavings = directFare ? (directFare - route.fare) : 0;
+        var totalSavings = perSavings * headcount;
+        var subtotal = route.fare * headcount;
+        var copyViaText = memberLabel + ' (PIA via ORD → ' + hub + '): $' + route.fare + ' per ticket × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
         html +=
           '<div class="route-card" style="border-left:3px solid var(--green);">' +
             '<div class="route-card-hd">' +
@@ -922,16 +981,17 @@ function renderMeetupRoutes() {
               '<span class="route-badge" style="background:#06b6d422;border:1px solid #06b6d4;color:#06b6d4">ORD</span>' +
               '<span class="route-arrow">→</span>' +
               '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
+              '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
               '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyViaText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
             '</div>' +
-            '<div style="display:flex;align-items:baseline;gap:5px">' +
+            '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
               '<div class="route-price">$' + route.fare + '</div>' +
-              '<span class="route-fare-lbl">' + fareLabel + ' total' + (dateStr ? ' · ' + dateStr : '') + '</span>' +
-              (savings > 0 ? '<span style="font-size:.55rem;color:var(--green);font-weight:900;margin-left:4px;">saves $' + savings + '</span>' : '') +
+              '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(route.fare) + '</span>' +
+              (totalSavings > 0 ? '<span style="font-size:.55rem;color:var(--green);font-weight:900;margin-left:4px;">saves $' + totalSavings + '</span>' : '') +
             '</div>' +
-            '<div class="route-drive-row" style="margin-top:3px;">🚗 PIA→ORD ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' ' + fareLabel + '</div>' +
+            '<div class="route-drive-row" style="margin-top:3px;">🚗 PIA→ORD ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' per ticket</div>' +
             (ordAirline ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordAirline + '</div>' : '') +
-            '<div class="route-meta">Peoria → Chicago O\'Hare → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
+            '<div class="route-meta">Peoria → Chicago O\'Hare → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
           '</div>';
         return;
       }
@@ -941,19 +1001,21 @@ function renderMeetupRoutes() {
     var price = isRT ? (p.rt || p.ow) : p.ow;
     var alLbl = airlineLabel(p);
     var stopsTxt = (p.stops && p.stops > 0) ? (' · ' + p.stops + ' stop' + (p.stops>1?'s':'')) : '';
-    var copyFlyText = from + ' → ' + hub + ': $' + price + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '') + (alLbl ? ' · ' + alLbl : '');
+    var subtotalGen = price * headcount;
+    var copyFlyText = memberLabel + ' (' + from + ' → ' + hub + '): $' + price + ' per ticket' + (headcount > 1 ? ' × ' + headcount + ' = $' + subtotalGen : '') + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '') + (alLbl ? ' · ' + alLbl : '');
     html +=
       '<div class="route-card">' +
         '<div class="route-card-hd">' +
           '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
           '<span class="route-arrow">→</span>' +
           '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
+          '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
           '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
         '</div>' +
-        '<div style="display:flex;align-items:baseline;gap:5px">' +
+        '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
           '<div class="route-price">$' + price + '</div>' +
-          '<span class="route-fare-lbl">' + fareLabel + (dateStr ? ' · ' + dateStr : '') + '</span>' +
+          '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + (dateStr ? ' · ' + dateStr : '') + '</span>' +
         '</div>' +
         (alLbl ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + alLbl + stopsTxt + '</div>' : '') +
         '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
@@ -2361,6 +2423,7 @@ async function boot() {
   // Expose key functions to window so inline onclick="" attributes can reach them
   // (functions are defined inside this IIFE; inline onclick resolves in global scope)
   window.shareThePlan = shareThePlan;
+  window.openCal = openCal;
   window.setMeetupHub = setMeetupHub;
   window.pickMeetupHub = pickMeetupHub;
   window.copyRouteText = copyRouteText;
