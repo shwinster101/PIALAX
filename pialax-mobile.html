@@ -452,13 +452,13 @@ button{font-family:inherit;cursor:pointer;}
         <span class="ab-badge b-mock" id="data-badge">Sample Data</span>
       </div>
       <div id="api-body">
-        <div class="api-lbl">SerpAPI Key (Google Flights)</div>
-        <input id="api-key-inp" type="password" placeholder="Paste SerpAPI key to go live…" spellcheck="false"/>
+        <div class="api-lbl">Proxy URL (Cloudflare Worker)</div>
+        <input id="api-key-inp" type="text" placeholder="https://pialax-proxy.YOUR-SUB.workers.dev" spellcheck="false"/>
         <div class="api-btn-row">
-          <button id="api-apply">Activate Live Data</button>
-          <button id="api-clear" style="display:none">✕ Clear</button>
+          <button id="api-apply">Connect Proxy</button>
+          <button id="api-clear" style="display:none">✕ Disconnect</button>
         </div>
-        <div class="api-note">100 free searches/mo · <a href="https://serpapi.com/google-flights-api" target="_blank">serpapi.com</a></div>
+        <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
       </div>
     </div>
@@ -611,7 +611,7 @@ var today = new Date(); today.setHours(0,0,0,0);
 var S = {
   home:'PIA', tripType:'round',
   depDate:null, retDate:null,
-  calMode:null, calOff:0, apiKey:'',
+  calMode:null, calOff:0,
   prices:{}, geoData:null, geoFallback:false,
   proj:null,
   mode:'solo', soloFocus:null, barFocus:null,
@@ -1069,7 +1069,7 @@ function renderSoloCards() {
     var chartId = 'chart-' + dest;
     var hasLive = !!(S.soloBarPrices[S.home + '-' + dest]);
     var liveTag = hasLive ? '<span style="color:var(--green);font-size:.55rem">● live</span>' : '';
-    var liveBtnHtml = S.apiKey
+    var liveBtnHtml = PROXY_URL
       ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
       : '';
     card.innerHTML =
@@ -1165,15 +1165,13 @@ function setMode(mode) {
 }
 
 // ── API LAYER ────────────────────────────────────────────────────
-// ── SerpAPI proxy URL ──
-// SerpAPI blocks browser CORS, so we route through a tiny Cloudflare Worker.
-// Deploy worker.js from this repo to Cloudflare Workers (free tier, 100K req/day),
-// then paste your *.workers.dev URL here.
+// ── SerpAPI CORS Proxy ──────────────────────────────────────────
 var PROXY_URL = ''; // e.g. 'https://pialax-proxy.YOUR-SUBDOMAIN.workers.dev'
+var _fetchDebounce = null;
 
-async function fetchFlights(from, to, dep, ret, key) {
-  if (!key) return getMock(from, to);
-  var flightType = ret ? 1 : 2; // 1=round-trip, 2=one-way
+async function fetchFlights(from, to, dep, ret) {
+  if (!PROXY_URL) return getMock(from, to);
+  var flightType = ret ? 1 : 2;
   var p = new URLSearchParams({
     engine:'google_flights',
     departure_id:from,
@@ -1181,29 +1179,25 @@ async function fetchFlights(from, to, dep, ret, key) {
     outbound_date:dep||fmtISO(new Date()),
     type:flightType,
     currency:'USD',
-    hl:'en',
-    api_key:key
+    hl:'en'
   });
   if (ret) p.set('return_date', ret);
-
-  var url = PROXY_URL
-    ? PROXY_URL + '?' + p.toString()
-    : 'https://serpapi.com/search.json?' + p.toString();
-
+  var url = PROXY_URL + '?' + p.toString();
   try {
     var res = await fetch(url);
+    if (res.status === 429) { console.warn('SerpAPI rate limit hit'); return getMock(from, to); }
+    if (res.status === 403) { console.warn('SerpAPI auth error'); return getMock(from, to); }
     if (!res.ok) throw new Error('HTTP ' + res.status);
     var json = await res.json();
-    var best = json && json.best_flights && json.best_flights[0];
-    if (!best && json && json.other_flights && json.other_flights[0]) {
+    var best = (json && json.best_flights && json.best_flights.length > 0) ? json.best_flights[0] : null;
+    if (!best && json && json.other_flights && json.other_flights.length > 0) {
       best = json.other_flights[0];
     }
-    if (!best) return getMock(from, to);
+    if (!best || typeof best.price !== 'number') return getMock(from, to);
     var price = best.price;
-    return { ow: ret ? null : price, rt: ret ? price : null };
+    return { ow: ret ? null : price, rt: ret ? price : null, live: true };
   } catch(e) {
-    console.warn('SerpAPI fetch failed for ' + from + '→' + to + ':', e.message,
-      PROXY_URL ? '' : '(no proxy configured — CORS blocks direct browser calls to serpapi.com)');
+    console.warn('SerpAPI fetch failed for ' + from + '→' + to + ':', e.message);
     return getMock(from, to);
   }
 }
@@ -1297,8 +1291,12 @@ function updateDateUI() {
 
 // ── PRICES ───────────────────────────────────────────────────────
 async function loadPrices() {
+  // debounce — ignore rapid-fire calls within 800ms
+  if (_fetchDebounce) clearTimeout(_fetchDebounce);
   var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
   var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
+  // disable button during fetch to prevent spam
+  if (btn.disabled) return; // already fetching
   btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
   var dep=fmtISO(S.depDate)||null, ret=S.tripType==='round'?fmtISO(S.retDate)||null:null;
   var routes = [];
@@ -1318,13 +1316,20 @@ async function loadPrices() {
       routes.push({ from:S.home, to:dest, key:S.home+'-'+dest });
     });
   }
-  var callCount = S.apiKey ? routes.length : 0;
+  var liveCount = 0, failCount = 0;
   await Promise.all(routes.map(function(r) {
-    return fetchFlights(r.from, r.to, dep, ret, S.apiKey)
-      .then(function(d){ S.prices[r.key]=d; })
-      .catch(function(){ S.prices[r.key]=getMock(r.from, r.to); });
+    return fetchFlights(r.from, r.to, dep, ret)
+      .then(function(d){ S.prices[r.key]=d; if (d && d.live) liveCount++; })
+      .catch(function(){ S.prices[r.key]=getMock(r.from, r.to); failCount++; });
   }));
-  if (callCount) { S.apiCalls += callCount; updateApiCallCount(); }
+  if (PROXY_URL && liveCount > 0) { S.apiCalls += liveCount; updateApiCallCount(); }
+  // show user-friendly status
+  var statusLbl = !PROXY_URL ? 'Sample Data' : (failCount === routes.length ? 'API Error — Using Samples' : 'Live Data');
+  document.getElementById('data-badge').textContent   = statusLbl;
+  document.getElementById('data-badge').className     = 'ab-badge ' + (!PROXY_URL||failCount===routes.length ? 'b-mock' : 'b-live');
+  document.getElementById('pill-src').textContent     = statusLbl;
+  document.getElementById('data-pill-lbl').textContent= PROXY_URL && failCount<routes.length ? 'Live' : 'Sample';
+  document.querySelector('.ld').style.background      = PROXY_URL && failCount<routes.length ? 'var(--green)' : 'var(--amber)';
   renderMeetupStrip(); redrawMap(); updateStats();
   if (S.mode === 'meetup') renderMeetupRoutes();
   if (S.mode === 'solo') renderSoloCards();
@@ -1348,7 +1353,7 @@ async function loadSoloWeeklyPrices(dest) {
       var sun = new Date(thu);
       sun.setDate(thu.getDate() + 3);
       fetches.push(
-        fetchFlights(S.home, dest, fmtISO(thu), isRT ? fmtISO(sun) : null, S.apiKey)
+        fetchFlights(S.home, dest, fmtISO(thu), isRT ? fmtISO(sun) : null)
           .then(function(p) {
             var price = isRT ? (p.rt || p.ow) : p.ow;
             entries[idx] = { price: price || 0, dep: thu, ret: sun, live: true };
@@ -1705,9 +1710,12 @@ document.getElementById('home-sel').addEventListener('change', function(e){
 
 document.getElementById('api-hdr').addEventListener('click', function(){ document.getElementById('api-body').classList.toggle('open'); });
 document.getElementById('api-apply').addEventListener('click', function(){
-  var k=document.getElementById('api-key-inp').value.trim(); S.apiKey=k;
-  var isLive=!!k;
-  document.getElementById('data-badge').textContent   = isLive?'Live Data':'Sample Data';
+  var url=document.getElementById('api-key-inp').value.trim();
+  // Normalize: strip trailing slash
+  if (url.endsWith('/')) url = url.slice(0, -1);
+  PROXY_URL = url;
+  var isLive=!!url;
+  document.getElementById('data-badge').textContent   = isLive?'Connecting…':'Sample Data';
   document.getElementById('data-badge').className     = 'ab-badge '+(isLive?'b-live':'b-mock');
   document.getElementById('pill-src').textContent     = isLive?'Live Data':'Sample Data';
   document.getElementById('data-pill-lbl').textContent= isLive?'Live':'Sample';
@@ -1719,7 +1727,7 @@ document.getElementById('api-apply').addEventListener('click', function(){
 });
 
 document.getElementById('api-clear').addEventListener('click', function(){
-  S.apiKey=''; document.getElementById('api-key-inp').value='';
+  PROXY_URL=''; document.getElementById('api-key-inp').value='';
   document.getElementById('data-badge').textContent   = 'Sample Data';
   document.getElementById('data-badge').className     = 'ab-badge b-mock';
   document.getElementById('pill-src').textContent     = 'Sample Data';
