@@ -44,7 +44,7 @@ button{font-family:inherit;cursor:pointer;}
 #home-sel:hover{background-color:#fbbf24;}
 #home-sel:focus{border-color:#b45309;box-shadow:0 0 0 2px rgba(245,158,11,.35);}
 #home-sel option{background:#1f2937;color:#fff;}
-#home-airport-row .lbl{color:#f59e0b;}
+#home-airport-row .lbl{color:#b8852b;}
 
 /* ── Holiday chips ── */
 #hol-row{display:flex;gap:4px;flex-wrap:wrap;}
@@ -522,10 +522,32 @@ function nextThanksgiving() {
   if (d < new Date()) d = getThanksgiving(YR + 1);
   return d;
 }
+function getMemorialDay(yr) {
+  // Last Monday of May
+  var may31 = new Date(yr, 4, 31);
+  var day = may31.getDay();
+  return new Date(yr, 4, 31 - ((day + 6) % 7));
+}
+function nextMemorialDay() {
+  var d = getMemorialDay(YR);
+  if (d < new Date()) d = getMemorialDay(YR + 1);
+  return d;
+}
+function getLaborDay(yr) {
+  // First Monday of September
+  var sep1 = new Date(yr, 8, 1);
+  var day = sep1.getDay();
+  return new Date(yr, 8, 1 + ((8 - day) % 7));
+}
+function nextLaborDay() {
+  var d = getLaborDay(YR);
+  if (d < new Date()) d = getLaborDay(YR + 1);
+  return d;
+}
 var HOLIDAYS = {
-  memday:       nextOccurrence(4,  26),
+  memday:       nextMemorialDay(),
   july4:        nextOccurrence(6,   4),
-  laborday:     nextOccurrence(8,   1),
+  laborday:     nextLaborDay(),
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
 };
@@ -784,9 +806,10 @@ function shareThePlan() {
   var params = new URLSearchParams();
   params.set('hub', S.home);
   params.set('trip', S.tripType);
+  params.set('mode', S.mode);
   if (S.depDate) params.set('dep', fmtISO(S.depDate));
   if (S.retDate && isRT) params.set('ret', fmtISO(S.retDate));
-  if (S.apiKey) params.set('key', S.apiKey);
+  // Never share API key in URL — it exposes credentials to recipients
   var base = window.location.href.split('?')[0];
   var url = base + '?' + params.toString();
   // Update URL in address bar without reload
@@ -1535,8 +1558,42 @@ function updateStats() {
   document.getElementById('s-upd').textContent='Updated '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
 
+// ── URL PARAM RESTORE (shared links) ────────────────────────────
+function restoreFromURL() {
+  try {
+    var sp = new URLSearchParams(window.location.search);
+    if (!sp.toString()) return;
+    var hub = sp.get('hub');
+    if (hub && AIRPORTS[hub]) {
+      S.home = hub;
+      var sel = document.getElementById('home-sel');
+      if (sel) sel.value = hub;
+    }
+    var trip = sp.get('trip');
+    if (trip === 'one' || trip === 'round') {
+      S.tripType = trip;
+      document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === trip); });
+      document.getElementById('pill-trip').textContent = trip === 'one' ? 'One-Way' : 'Round-Trip';
+      document.getElementById('s-trip').textContent    = trip === 'one' ? 'One-Way' : 'Round-Trip';
+    }
+    var dep = sp.get('dep');
+    if (dep && /^\d{4}-\d{2}-\d{2}$/.test(dep)) {
+      var dd = new Date(dep + 'T12:00:00');
+      if (!isNaN(dd.getTime())) S.depDate = dd;
+    }
+    var ret = sp.get('ret');
+    if (ret && /^\d{4}-\d{2}-\d{2}$/.test(ret) && S.tripType === 'round') {
+      var rd = new Date(ret + 'T12:00:00');
+      if (!isNaN(rd.getTime())) S.retDate = rd;
+    }
+    var mode = sp.get('mode');
+    if (mode === 'meetup' || mode === 'solo') S.mode = mode;
+  } catch(e) { /* URLSearchParams unsupported or parse error — ignore */ }
+}
+
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
+  restoreFromURL();
   document.getElementById('tb-sub').textContent='Loading…';
   // Try CDN TopoJSON; gracefully fall back for file:// (null-origin CORS blocks fetch)
   try {
@@ -1557,6 +1614,12 @@ async function boot() {
   setMode(S.mode); // initialises correct tab, legend, panels
   await loadPrices();
 }
+
+// Expose functions used by inline onclick attributes to global scope
+window.shareThePlan = shareThePlan;
+window.setMeetupHub = setMeetupHub;
+window.copyRouteText = copyRouteText;
+window.setMode = setMode;
 
 boot();
 

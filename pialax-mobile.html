@@ -44,7 +44,7 @@ button{font-family:inherit;cursor:pointer;}
 #home-sel:hover{background-color:#fbbf24;}
 #home-sel:focus{border-color:#b45309;box-shadow:0 0 0 2px rgba(245,158,11,.35);}
 #home-sel option{background:#1f2937;color:#fff;}
-#home-airport-row .lbl{color:#f59e0b;}
+#home-airport-row .lbl{color:#b8852b;}
 
 /* ── Holiday chips ── */
 #hol-row{display:flex;gap:4px;flex-wrap:wrap;}
@@ -304,7 +304,7 @@ button{font-family:inherit;cursor:pointer;}
   #share-card{margin:10px 14px;}
 
   /* Calendar as bottom sheet */
-  #cal{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;max-width:100%!important;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.7);z-index:300;}
+  #cal{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;max-width:100%!important;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.7);z-index:300;padding-bottom:env(safe-area-inset-bottom);}
   .cal-months-wrap{flex-direction:column;gap:0;}
   #cal-months{flex-direction:column;}
   #cal-bd{z-index:299;}
@@ -557,10 +557,32 @@ function nextThanksgiving() {
   if (d < new Date()) d = getThanksgiving(YR + 1);
   return d;
 }
+function getMemorialDay(yr) {
+  // Last Monday of May
+  var may31 = new Date(yr, 4, 31);
+  var day = may31.getDay();
+  return new Date(yr, 4, 31 - ((day + 6) % 7));
+}
+function nextMemorialDay() {
+  var d = getMemorialDay(YR);
+  if (d < new Date()) d = getMemorialDay(YR + 1);
+  return d;
+}
+function getLaborDay(yr) {
+  // First Monday of September
+  var sep1 = new Date(yr, 8, 1);
+  var day = sep1.getDay();
+  return new Date(yr, 8, 1 + ((8 - day) % 7));
+}
+function nextLaborDay() {
+  var d = getLaborDay(YR);
+  if (d < new Date()) d = getLaborDay(YR + 1);
+  return d;
+}
 var HOLIDAYS = {
-  memday:       nextOccurrence(4,  26),
+  memday:       nextMemorialDay(),
   july4:        nextOccurrence(6,   4),
-  laborday:     nextOccurrence(8,   1),
+  laborday:     nextLaborDay(),
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
 };
@@ -608,7 +630,9 @@ function applyHoliday(key) {
   document.getElementById('s-trip').textContent    = 'Round-Trip';
   document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol===key); });
   updateDateUI(); renderMeetupStrip();
-  if (S.apiKey) loadPrices();
+  // Auto-refresh on holiday selection (was gated on apiKey — now always refreshes
+  // so mock prices update too and meetup ranking reflects the new date pair)
+  loadPrices();
 }
 
 // ── GOLDEN PATH / RANKING ENGINE ─────────────────────────────────
@@ -817,9 +841,10 @@ function shareThePlan() {
   var params = new URLSearchParams();
   params.set('hub', S.home);
   params.set('trip', S.tripType);
+  params.set('mode', S.mode);
   if (S.depDate) params.set('dep', fmtISO(S.depDate));
   if (S.retDate && isRT) params.set('ret', fmtISO(S.retDate));
-  if (S.apiKey) params.set('key', S.apiKey);
+  // Never share API key in URL — it exposes credentials to recipients
   var base = window.location.href.split('?')[0];
   var url = base + '?' + params.toString();
   // Update URL in address bar without reload
@@ -1193,6 +1218,10 @@ function closeCal() {
   document.getElementById('ret-btn').classList.remove('active');
   S.calMode=null; S.meetupHubOverride=null; updateDateUI();
   if (S.mode === 'meetup') { renderMeetupStrip(); redrawMap(); }
+  // Auto-refresh prices whenever the calendar closes with a valid departure.
+  // Covers both Solo and Meetup, one-way and round-trip, and picks made via
+  // onDayClick (which ends every successful selection with closeCal()).
+  if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
 }
 function updateDateUI() {
   var dEl=document.getElementById('dep-val'), rEl=document.getElementById('ret-val'), rBtn=document.getElementById('ret-btn');
@@ -1531,6 +1560,8 @@ document.querySelectorAll('.tt-btn').forEach(function(b){
     document.querySelectorAll('.hol-btn').forEach(function(x){ x.classList.remove('active'); });
     updateDateUI(); renderMeetupStrip();
     if (S.mode === 'solo') renderSoloCards();
+    // Auto-refresh when the trip type flips with dates already set.
+    if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
   });
 });
 
@@ -1583,8 +1614,42 @@ function updateStats() {
   document.getElementById('s-upd').textContent='Updated '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
 
+// ── URL PARAM RESTORE (shared links) ────────────────────────────
+function restoreFromURL() {
+  try {
+    var sp = new URLSearchParams(window.location.search);
+    if (!sp.toString()) return;
+    var hub = sp.get('hub');
+    if (hub && AIRPORTS[hub]) {
+      S.home = hub;
+      var sel = document.getElementById('home-sel');
+      if (sel) sel.value = hub;
+    }
+    var trip = sp.get('trip');
+    if (trip === 'one' || trip === 'round') {
+      S.tripType = trip;
+      document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === trip); });
+      document.getElementById('pill-trip').textContent = trip === 'one' ? 'One-Way' : 'Round-Trip';
+      document.getElementById('s-trip').textContent    = trip === 'one' ? 'One-Way' : 'Round-Trip';
+    }
+    var dep = sp.get('dep');
+    if (dep && /^\d{4}-\d{2}-\d{2}$/.test(dep)) {
+      var dd = new Date(dep + 'T12:00:00');
+      if (!isNaN(dd.getTime())) S.depDate = dd;
+    }
+    var ret = sp.get('ret');
+    if (ret && /^\d{4}-\d{2}-\d{2}$/.test(ret) && S.tripType === 'round') {
+      var rd = new Date(ret + 'T12:00:00');
+      if (!isNaN(rd.getTime())) S.retDate = rd;
+    }
+    var mode = sp.get('mode');
+    if (mode === 'meetup' || mode === 'solo') S.mode = mode;
+  } catch(e) { /* URLSearchParams unsupported or parse error — ignore */ }
+}
+
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
+  restoreFromURL();
   document.getElementById('tb-sub').textContent='Loading…';
   // Try CDN TopoJSON; gracefully fall back for file:// (null-origin CORS blocks fetch)
   try {
@@ -1607,6 +1672,8 @@ async function boot() {
   // Expose key functions to window so inline onclick="" attributes can reach them
   // (functions are defined inside this IIFE; inline onclick resolves in global scope)
   window.shareThePlan = shareThePlan;
+  window.setMeetupHub = setMeetupHub;
+  window.copyRouteText = copyRouteText;
   window.setMode      = setMode;
   // Mobile: initialize controls and ensure map renders
   initMobileControls();
@@ -1714,12 +1781,7 @@ function ensureMapRendersOnMobile() {
   }, 300);
 }
 
-// Re-initialize on resize/orientationchange
-window.addEventListener('resize', debounce(function() {
-  if (isMobileViewport()) {
-    redrawMap();
-  }
-}, 200));
+// Re-initialize on orientationchange (resize is already handled above via rTimer)
 
 window.addEventListener('orientationchange', function() {
   setTimeout(function() {
@@ -1728,15 +1790,6 @@ window.addEventListener('orientationchange', function() {
     }
   }, 100);
 });
-
-// Simple debounce helper
-function debounce(fn, delay) {
-  var timer;
-  return function() {
-    clearTimeout(timer);
-    timer = setTimeout(fn, delay);
-  };
-}
 
 boot();
 
