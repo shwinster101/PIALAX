@@ -355,7 +355,7 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="laborday">⚡ Labor Day</button>
         <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
         <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
-        <button class="hol-btn" data-hol="london">🇬🇧 London Jun 29</button>
+        <button class="hol-btn" data-hol="london">🇬🇧 London Jun 25–Jul 3</button>
         <button class="hol-btn" data-hol="jaxjun5">🏖 JAX Jun 5–8</button>
       </div>
       <div id="ord-toggle-row" style="display:flex;gap:4px;flex-wrap:wrap;">
@@ -604,7 +604,7 @@ var HOLIDAYS = {
   laborday:     nextLaborDay(),
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
-  london:       new Date(2026, 5, 29), // June 29, 2026 — London family trip
+  london:       new Date(2026, 5, 25), // June 25, 2026 — London family trip (Jun 25 – Jul 3)
   jaxjun5:      new Date(2026, 5, 5),  // June 5, 2026 — JAX family meetup (Jun 5–8)
 };
 
@@ -658,8 +658,8 @@ function applyHoliday(key) {
   if (!base) return;
   var dep, ret;
   if (key === 'london') {
-    // London trip: fixed dates Jun 29 – Jul 3, auto-switch to meetup + world map + enable LHR
-    dep = new Date(2026, 5, 29); ret = new Date(2026, 6, 3);
+    // London trip: fixed dates Jun 25 – Jul 3, auto-switch to meetup + world map + enable LHR
+    dep = new Date(2026, 5, 25); ret = new Date(2026, 6, 3);
     S.includeLHR = true;
     document.getElementById('lhr-toggle').classList.add('on');
     document.getElementById('lhr-toggle').style.background = 'rgba(225,29,72,.12)';
