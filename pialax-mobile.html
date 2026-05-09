@@ -393,10 +393,7 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="london">🇬🇧 London Jun 25–Jul 3</button>
         <button class="hol-btn" data-hol="jaxjun5">🏖 JAX Jun 5–8</button>
       </div>
-      <div id="ord-toggle-row" style="display:flex;gap:4px;flex-wrap:wrap;">
-        <button id="ord-toggle" class="ord-toggle-btn on">⬡ ORD Hub</button>
-        <button id="lhr-toggle" class="ord-toggle-btn on" style="background:rgba(225,29,72,.12);border-color:var(--red);color:var(--red);">🇬🇧 London</button>
-      </div>
+      <!-- ORD/LHR toggles removed — both always available as meetup hubs via the dropdown. -->
     </div>
 
     <div>
@@ -466,7 +463,7 @@ button{font-family:inherit;cursor:pointer;}
         <div id="api-quota-lbl" style="display:none;font-size:.62rem;margin-top:3px;line-height:1.4;"></div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--muted);">
           <label for="api-budget-inp">Monthly budget</label>
-          <input id="api-budget-inp" type="number" min="1" max="10000" value="100" style="width:60px;padding:2px 4px;font-size:.62rem;background:var(--bg);color:var(--ink,var(--text));border:1px solid var(--line);border-radius:4px;"/>
+          <input id="api-budget-inp" type="number" min="1" max="10000" value="250" style="width:60px;padding:2px 4px;font-size:.62rem;background:var(--bg);color:var(--ink,var(--text));border:1px solid var(--line);border-radius:4px;"/>
           <button id="api-quota-reset" style="font-size:.55rem;padding:2px 6px;">Reset</button>
         </div>
       </div>
@@ -738,10 +735,7 @@ function applyHoliday(key) {
   if (key === 'london') {
     dep = new Date(2026, 5, 25); ret = new Date(2026, 6, 3);
     S.includeLHR = true;
-    document.getElementById('lhr-toggle').classList.add('on');
-    document.getElementById('lhr-toggle').style.background = 'rgba(225,29,72,.12)';
-    document.getElementById('lhr-toggle').style.borderColor = 'var(--red)';
-    document.getElementById('lhr-toggle').style.color = 'var(--red)';
+    // LHR toggle removed — LHR permanently in meetup hub list. Force the flag.
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
   } else if (key === 'jaxjun5') {
@@ -890,11 +884,18 @@ function renderMeetupStrip() {
   }
   strip.className = noDate ? 'no-date' : '';
   // User-controlled hub dropdown — single source of truth for meetup destination.
-  var dropdownOpts = ranking.map(function(r) {
+  var hubOrder = ['PIA', 'LAX', 'JAX', 'JFK', 'ORD', 'LHR'];
+  var sortedRanking = ranking.slice().sort(function(a, b) {
+    var ai = hubOrder.indexOf(a.dest), bi = hubOrder.indexOf(b.dest);
+    if (ai === -1) ai = 99;
+    if (bi === -1) bi = 99;
+    return ai - bi;
+  });
+  var dropdownOpts = sortedRanking.map(function(r) {
     var sel = (r.dest === activeHub) ? ' selected' : '';
     var apI = AIRPORTS[r.dest];
-    var label = r.dest + ' — ' + (r.isORD ? "O'Hare" : (apI ? apI.name.split(',')[0] : r.dest)) + '  ($' + r.total + ' ' + fareLabel + ')';
-    return '<option value="' + r.dest + '"' + sel + '>' + label + '</option>';
+    var city = r.isORD ? "Chicago" : (apI ? apI.name.split(',')[0] : r.dest);
+    return '<option value="' + r.dest + '"' + sel + '>' + r.dest + ' · ' + city + ' · $' + r.total + ' ' + fareLabel + '</option>';
   }).join('');
   // High-contrast date pills — always show what we're searching for.
   var depTxt = S.depDate ? dateFmt(S.depDate) : 'Pick depart';
@@ -914,17 +915,17 @@ function renderMeetupStrip() {
     ? Math.round((S.retDate - S.depDate) / 86400000)
     : 0;
   var stayTxt = nightCount > 0 ? ' <span style="font-size:.55rem;color:var(--muted);font-weight:700;">· ' + nightCount + ' nights</span>' : '';
+  var hubColForBorder = DC[activeR.dest] || 'var(--accent)';
   var bestHtml =
     '<div class="ms-best">' +
       '<span class="ms-badge' + (noDate ? ' sug' : '') + '">📍 Hub</span>' +
       '<div class="ms-info">' +
         '<div class="ms-headline" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-          '<span style="font-size:.7rem;color:var(--muted);font-weight:700;">Meeting in:</span>' +
+          '<span style="font-size:.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Meeting in</span>' +
           '<select id="ms-hub-select" onchange="pickMeetupHub(this.value)" ' +
-            'style="padding:3px 8px;font-size:.78rem;font-weight:900;background:var(--surface2);color:var(--ink,var(--text));border:1.5px solid var(--accent);border-radius:7px;cursor:pointer;font-family:inherit;">' +
+            'style="padding:5px 28px 5px 10px;font-size:.78rem;font-weight:900;background:var(--surface2);color:var(--ink,var(--text));border:1.5px solid ' + hubColForBorder + ';border-radius:8px;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22none%22 stroke=%22%23999%22 stroke-width=%221.5%22 d=%22M2 4l4 4 4-4%22/></svg>\');background-repeat:no-repeat;background-position:right 8px center;">' +
             dropdownOpts +
           '</select>' +
-          '<span class="ms-price' + (noDate ? ' sug' : '') + '">$' + activeR.total + ' ' + fareLabel + '</span>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:5px 8px;background:rgba(46,124,246,.08);border:1px dashed var(--accent);border-radius:8px;">' + datePillsHtml + stayTxt + '</div>' +
         '<div class="ms-sub" style="margin-top:4px;">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
@@ -1655,14 +1656,14 @@ function _quotaPeriodKey() {
 function readQuota() {
   try {
     var raw = localStorage.getItem(QUOTA_STORAGE_KEY);
-    if (!raw) return { period:_quotaPeriodKey(), used:0, budget:100, exceeded:false };
+    if (!raw) return { period:_quotaPeriodKey(), used:0, budget:250, exceeded:false };
     var obj = JSON.parse(raw);
     if (obj.period !== _quotaPeriodKey()) {
-      obj = { period:_quotaPeriodKey(), used:0, budget:obj.budget||100, exceeded:false };
+      obj = { period:_quotaPeriodKey(), used:0, budget:obj.budget||250, exceeded:false };
       localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
     }
     return obj;
-  } catch(e) { return { period:_quotaPeriodKey(), used:0, budget:100, exceeded:false }; }
+  } catch(e) { return { period:_quotaPeriodKey(), used:0, budget:250, exceeded:false }; }
 }
 function writeQuota(obj){ try{ localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj)); }catch(e){} }
 function bumpQuota(n){ var q=readQuota(); q.used+=n; writeQuota(q); updateApiCallCount(); }
@@ -2220,25 +2221,9 @@ document.querySelectorAll('.mt-btn').forEach(function(b){
 
 document.querySelectorAll('.hol-btn').forEach(function(b){ b.addEventListener('click', function(){ applyHoliday(b.dataset.hol); }); });
 
-document.getElementById('ord-toggle').addEventListener('click', function(){
-  S.includeORD = !S.includeORD;
-  this.classList.toggle('on', S.includeORD);
-  renderMeetupStrip(); renderMeetupFinder(); redrawMap();
-  syncURL();
-});
-
-document.getElementById('lhr-toggle').addEventListener('click', function(){
-  S.includeLHR = !S.includeLHR;
-  var on = S.includeLHR;
-  this.classList.toggle('on', on);
-  this.style.background = on ? 'rgba(225,29,72,.12)' : '';
-  this.style.borderColor = on ? 'var(--red)' : '';
-  this.style.color = on ? 'var(--red)' : '';
-  if (on && S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
-  if (!on && S.mapView === 'world') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
-  renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder();
-  syncURL();
-});
+// ORD + LHR toggles removed — both permanently in meetup hub list. Users change destination via the dropdown.
+S.includeORD = true;
+S.includeLHR = true;
 
 document.querySelectorAll('.tt-btn').forEach(function(b){
   b.addEventListener('click', function(){
@@ -2436,14 +2421,12 @@ async function boot() {
   }
   // Load world geo early if defaulting to world map view
   if (S.mapView === 'world') await loadWorldGeo();
-  // London auto-default removed — let the new best-meetup-weekend finder
-  // surface the cheapest weekends on first paint instead.
-  if (!_urlStateLoaded && false && S.mode === 'meetup' && !S.depDate) {
-    S.depDate = new Date(2026, 5, 25); // Jun 25
-    S.retDate = new Date(2026, 6, 3);  // Jul 3
+  // Default to London Jun 25 – Jul 3 on boot when no URL state.
+  if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
+    S.depDate = new Date(2026, 5, 25);
+    S.retDate = new Date(2026, 6, 3);
     S.tripType = 'round';
-    S.meetupHubOverride = 'LHR'; // Show LHR breakdown by default for London trip
-    // Activate the London holiday chip
+    S.meetupHubOverride = 'LHR';
     document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
     document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
   }
