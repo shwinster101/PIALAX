@@ -1165,17 +1165,39 @@ function setMode(mode) {
 }
 
 // ── API LAYER ────────────────────────────────────────────────────
+var _serpCbId = 0;
 async function fetchFlights(from, to, dep, ret, key) {
   if (!key) return getMock(from, to);
-  var p = new URLSearchParams({ engine:'google_flights', departure_id:from, arrival_id:to, outbound_date:dep||fmtISO(new Date()), currency:'USD', hl:'en', api_key:key });
+  var flightType = ret ? 1 : 2; // 1=round-trip, 2=one-way
+  var p = new URLSearchParams({ engine:'google_flights', departure_id:from, arrival_id:to, outbound_date:dep||fmtISO(new Date()), type:flightType, currency:'USD', hl:'en', api_key:key });
   if (ret) p.set('return_date', ret);
-  try {
-    var res  = await fetch('https://serpapi.com/search.json?'+p);
-    var json = await res.json();
-    var best = json&&json.best_flights&&json.best_flights[0];
-    if (!best) return getMock(from, to);
-    return { ow:ret?null:best.price, rt:ret?best.price:null };
-  } catch(e) { return getMock(from, to); }
+
+  // Use JSONP to bypass CORS (SerpAPI doesn't set Access-Control-Allow-Origin)
+  return new Promise(function(resolve) {
+    var cbName = '_serpCb' + (++_serpCbId) + '_' + Date.now();
+    var timeout = setTimeout(function(){
+      cleanup(); resolve(getMock(from, to));
+    }, 15000);
+    function cleanup() {
+      clearTimeout(timeout);
+      delete window[cbName];
+      var el = document.getElementById(cbName);
+      if (el) el.remove();
+    }
+    window[cbName] = function(json) {
+      cleanup();
+      var best = json && json.best_flights && json.best_flights[0];
+      if (!best && json && json.other_flights && json.other_flights[0]) best = json.other_flights[0];
+      if (!best) { resolve(getMock(from, to)); return; }
+      var price = best.price;
+      resolve({ ow: ret ? null : price, rt: ret ? price : null });
+    };
+    var script = document.createElement('script');
+    script.id = cbName;
+    script.src = 'https://serpapi.com/search.json?' + p + '&callback=' + cbName;
+    script.onerror = function(){ cleanup(); resolve(getMock(from, to)); };
+    document.head.appendChild(script);
+  });
 }
 
 // ── CALENDAR POPUP ───────────────────────────────────────────────
@@ -1814,10 +1836,11 @@ function initMobileControls() {
   if (homeChip) {
     homeChip.addEventListener('click', function(e) {
       e.preventDefault();
-      var airportCodes = Object.keys(AIRPORTS);
-      var currentIndex = airportCodes.indexOf(S.home);
-      var nextIndex = (currentIndex + 1) % airportCodes.length;
-      var nextHome = airportCodes[nextIndex];
+      var homeAirports = Object.keys(ROUTE_GRAPH); // Only valid home airports (excludes LHR)
+      var currentIndex = homeAirports.indexOf(S.home);
+      if (currentIndex === -1) currentIndex = 0; // fallback if current home is somehow invalid
+      var nextIndex = (currentIndex + 1) % homeAirports.length;
+      var nextHome = homeAirports[nextIndex];
 
       // Dispatch change event on home-sel so existing handler fires
       var homeSelEl = document.getElementById('home-sel');
