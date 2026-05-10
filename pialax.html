@@ -1575,8 +1575,32 @@ function renderSoloCards() {
     var col = DC[dest] || '#888';
     var apInfo = AIRPORTS[dest];
     var bestPrice = top[0] ? top[0].price : 0;
+    // Detect active preset: any TRIP_PRESETS[dest] entry whose dep+ret match
+    // the global S.depDate/S.retDate. When set, the card flips to "preset mode"
+    // — a clear banner shows the preset is active, the rolling-window stuff
+    // mutes to "other options to consider".
+    var activePreset = null;
+    var presets = TRIP_PRESETS[dest] || [];
+    if (S.depDate) {
+      var depISO = fmtISO(S.depDate);
+      var retISO = S.retDate ? fmtISO(S.retDate) : '';
+      activePreset = presets.find(function(p){
+        return p.dep === depISO && (p.ret || '') === retISO;
+      }) || null;
+    }
+    // Live price for the preset (if loaded). Use the live S.prices entry if
+    // its dep/ret match the active preset, else null → show "Click to fetch".
+    var presetLivePrice = null, presetIsLive = false;
+    if (activePreset) {
+      var routeKey = S.home + '-' + dest;
+      var liveObj = S.prices[routeKey];
+      if (liveObj && (liveObj.live || liveObj.cached)) {
+        presetLivePrice = (S.tripType === 'round') ? (liveObj.rt || liveObj.ow) : liveObj.ow;
+        presetIsLive = true;
+      }
+    }
     var card = document.createElement('div');
-    card.className = 'solo-dest-card' + (S.soloFocus === dest ? ' focused' : '');
+    card.className = 'solo-dest-card' + (S.soloFocus === dest ? ' focused' : '') + (activePreset ? ' preset-active' : '');
     card.dataset.dest = dest;
     // Pull airline data: prefer live S.prices for current dates, else MOCK by route.
     // Note: per-weekend live data lives in S.soloBarPrices[routeKey][i].airline if loaded.
@@ -1585,27 +1609,40 @@ function renderSoloCards() {
     var defaultPriceObj = S.prices[routeKey] || getMock(S.home, dest);
     var ordPriceObj = getMock('ORD', dest);
     var wkndsHtml = '';
+    var isRTSolo = (S.tripType === 'round');
     top.forEach(function(w, i) {
       var pivot = applyOrdPivot(dest, w.price);
-      var dispPrice, dispMeta, alLbl;
+      var dispPrice, dispMeta, outLbl, retLbl;
       if (pivot) {
         dispPrice = '<div class="ord-pivot-badge">Best Value via ORD</div><div class="wknd-price" style="color:var(--green)">$' + pivot.total + '</div>';
         dispMeta = 'ORD flight $' + pivot.fare + ' + $' + ORD_DRIVE_TAX + ' drive · saves $' + pivot.saving;
-        alLbl = airlineLabel(ordPriceObj);
+        outLbl = airlineLabel(ordPriceObj, 'outbound');
+        retLbl = airlineLabel(ordPriceObj, 'return');
       } else {
-        var fareLabel = S.tripType === 'round' ? 'RT' : 'OW';
+        var fareLabel = isRTSolo ? 'RT' : 'OW';
         dispPrice = '<div class="wknd-price" style="color:' + (i===0 ? 'var(--green)' : 'var(--accent)') + '">$' + w.price + '</div>';
         dispMeta = fareLabel + (i===0 ? '' : ' · alt');
         // Prefer the live per-weekend airline if available; else fall back to MOCK
         var liveBar = liveBars && liveBars[i];
-        alLbl = airlineLabel(liveBar) || airlineLabel(defaultPriceObj);
+        outLbl = airlineLabel(liveBar, 'outbound') || airlineLabel(defaultPriceObj, 'outbound');
+        retLbl = airlineLabel(liveBar, 'return')   || airlineLabel(defaultPriceObj, 'return');
+      }
+      // Single-line out/return display (matching meetup mode style)
+      var airlineLine = '';
+      if (isRTSolo && (outLbl || retLbl)) {
+        var aParts = [];
+        if (outLbl) aParts.push('✈ ' + outLbl);
+        if (retLbl) aParts.push('↩ ' + retLbl);
+        airlineLine = '<div class="wknd-airline" style="font-size:.55rem;color:var(--accent);font-weight:700;margin-top:1px;">' + aParts.join(' &nbsp;·&nbsp; ') + '</div>';
+      } else if (outLbl) {
+        airlineLine = '<div class="wknd-airline" style="font-size:.55rem;color:var(--accent);font-weight:700;margin-top:1px;">✈ ' + outLbl + '</div>';
       }
       wkndsHtml +=
         '<div class="wknd-row" data-dep="' + fmtISO(w.dep) + '" data-ret="' + fmtISO(w.ret) + '">' +
           '<div>' +
             '<div class="wknd-dates">' + dateFmt(w.dep) + ' – ' + dateFmt(w.ret) + '</div>' +
             '<div class="wknd-meta">Thu–Sun ' + (i===0 ? '&nbsp;<span class="bv-badge">Best Value</span>' : '') + '</div>' +
-            (alLbl ? '<div class="wknd-airline" style="font-size:.55rem;color:var(--accent);font-weight:700;margin-top:1px;">✈ ' + alLbl + '</div>' : '') +
+            airlineLine +
           '</div>' +
           '<div style="text-align:right">' + dispPrice + '<div class="wknd-meta">' + dispMeta + '</div></div>' +
         '</div>';
@@ -1616,35 +1653,75 @@ function renderSoloCards() {
     var liveBtnHtml = PROXY_URL
       ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
       : '';
-    // Trip presets (per-destination one-click date fillers)
-    var presets = TRIP_PRESETS[dest] || [];
+    // Trip presets — one-click date fillers. Active preset shows as filled chip.
     var presetHtml = '';
     if (presets.length) {
-      presetHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;">'
-        + '<span style="font-size:.55rem;color:var(--muted);align-self:center;margin-right:2px;">Presets:</span>'
+      presetHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center;">'
+        + '<span style="font-size:.55rem;color:var(--muted);margin-right:2px;">Presets:</span>'
         + presets.map(function(p){
             var altTag = p.altDest ? ' <span style="color:var(--amber);font-size:.5rem;">(via ' + p.altDest + ')</span>' : '';
-            return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '" '
-                 + 'style="padding:3px 7px;font-size:.55rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;">'
-                 + p.label + altTag + '</button>';
+            var isActive = activePreset && activePreset.id === p.id;
+            var btnStyle = isActive
+              ? 'padding:3px 7px;font-size:.55rem;font-weight:900;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(46,124,246,.4);'
+              : 'padding:3px 7px;font-size:.55rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;';
+            return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '" style="' + btnStyle + '">'
+                 + (isActive ? '✓ ' : '') + p.label + altTag + '</button>';
           }).join('')
         + '</div>';
+    }
+    // Active preset banner — top of card body, makes it unmistakable which dates
+    // the headline price reflects. Displays loading state until live data arrives.
+    var presetBannerHtml = '';
+    if (activePreset) {
+      var bannerPriceTxt;
+      if (presetLivePrice) {
+        bannerPriceTxt = '$' + presetLivePrice + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') +
+          ' <span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (S.prices[S.home + '-' + dest] && S.prices[S.home + '-' + dest].cached ? ' (cache)' : '') + '</span>';
+      } else {
+        bannerPriceTxt = '<span style="color:var(--muted);font-size:.6rem;">fetching live price…</span>';
+      }
+      presetBannerHtml =
+        '<div class="preset-active-banner" style="padding:8px 10px;margin-bottom:6px;background:rgba(46,124,246,.10);border:1.5px solid var(--accent);border-radius:8px;">' +
+          '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;">' +
+            '<div>' +
+              '<div style="font-size:.55rem;color:var(--accent);font-weight:900;text-transform:uppercase;letter-spacing:.5px;">📌 Preset selected</div>' +
+              '<div style="font-size:.78rem;font-weight:900;color:var(--ink);margin-top:2px;">' + activePreset.label + '</div>' +
+              '<div style="font-size:.85rem;font-weight:900;color:var(--green);margin-top:3px;">' + bannerPriceTxt + '</div>' +
+            '</div>' +
+            '<button class="solo-preset-clear" data-dest="' + dest + '" title="Clear selection" ' +
+              'style="font-size:.7rem;background:none;border:none;color:var(--muted);cursor:pointer;padding:4px 8px;">✕ clear</button>' +
+          '</div>' +
+        '</div>';
     }
     card.innerHTML =
       '<div class="solo-dest-hd" style="border-left-color:' + col + '">' +
         '<div>' +
           '<div class="solo-dest-title" style="color:' + col + '">' + dest + ' &mdash; ' + (apInfo ? apInfo.name.split(',')[0] : '') + ' ' + liveTag + '</div>' +
-          '<div style="font-size:.57rem;color:var(--muted);margin-top:1px">Next 90 days · Thu&ndash;Sun · hover bar to focus arc</div>' +
+          '<div style="font-size:.57rem;color:var(--muted);margin-top:1px">' +
+            (activePreset ? '📌 Preset: ' + activePreset.label + ' · or browse alts below' : 'Next 90 days · Thu&ndash;Sun · hover bar to focus arc') +
+          '</div>' +
         '</div>' +
         '<div style="text-align:right;flex-shrink:0;">' +
-          '<div style="font-size:.88rem;font-weight:900;color:var(--green)">$' + bestPrice + '</div>' +
-          '<div style="font-size:.5rem;color:var(--muted)">' + (hasLive ? 'live best' : 'est. best') + '</div>' +
+          // Headline: when preset active, show preset price (live if loaded, mock-derived otherwise)
+          '<div style="font-size:.88rem;font-weight:900;color:var(--green)">$' + (activePreset ? (presetLivePrice || bestPrice) : bestPrice) + '</div>' +
+          '<div style="font-size:.5rem;color:var(--muted)">' +
+            (activePreset
+              ? (presetLivePrice ? 'preset · live' : 'preset · est.')
+              : (hasLive ? 'live best' : 'est. best')) +
+          '</div>' +
         '</div>' +
       '</div>' +
       '<div class="solo-dest-body">' +
-        '<svg id="' + chartId + '" class="bar-chart-svg"></svg>' +
+        presetBannerHtml +
+        // Section header above the rolling-window stuff. When a preset is active,
+        // these are now "alternative dates" — explicitly labeled so the user knows
+        // the bar chart and Best Weekends rows are NOT the headline price anymore.
+        (activePreset
+          ? '<div style="font-size:.55rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 4px;">— or pick a different weekend below —</div>'
+          : '') +
+        '<svg id="' + chartId + '" class="bar-chart-svg" style="' + (activePreset ? 'opacity:.7;' : '') + '"></svg>' +
         '<div class="bar-chart-row"><span>Now</span>' + (applyOrdPivot(dest, bestPrice) ? '<span style="color:var(--green)">— ghost = ORD route</span>' : '') + '<span>+13 wks</span></div>' +
-        wkndsHtml +
+        '<div style="' + (activePreset ? 'opacity:.85;' : '') + '">' + wkndsHtml + '</div>' +
         presetHtml +
         liveBtnHtml +
       '</div>';
@@ -1657,6 +1734,15 @@ function renderSoloCards() {
         var depStr = row.getAttribute('data-dep'), retStr = row.getAttribute('data-ret');
         if (depStr) { S.depDate = new Date(depStr + 'T12:00:00'); S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null; updateDateUI(); }
         e.stopPropagation();
+      });
+    });
+    // Wire "✕ clear" button on the active preset banner — clears global dates and re-renders
+    card.querySelectorAll('.solo-preset-clear').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        S.depDate = null; S.retDate = null;
+        updateDateUI(); renderSoloCards(); redrawMap();
+        syncURL();
       });
     });
     // Wire preset chips → apply preset (dates, trip type, optional alt destination)
