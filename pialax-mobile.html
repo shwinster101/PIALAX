@@ -362,6 +362,7 @@ button{font-family:inherit;cursor:pointer;}
     <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.5</div></div>
     <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
   </div>
+  <div id="quota-warning-banner" style="display:none;padding:8px 12px;background:rgba(245,158,11,.14);border:1.5px solid var(--amber);border-radius:8px;margin:6px 14px 0;font-size:.62rem;line-height:1.4;color:var(--ink,var(--text));"></div>
 
   <div id="mode-switcher">
     <button class="mode-btn" data-mode="meetup">👨‍👩‍👧 Family Meetup</button>
@@ -685,6 +686,7 @@ var S = {
   prices:{}, geoData:null, geoFallback:false,
   proj:null,
   mode:'meetup', soloFocus:null, barFocus:null,
+  soloPreview: null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
   memberDates: {},
   mapView:'world', worldGeo:null, worldGeoFallback:false,
@@ -1560,15 +1562,31 @@ function renderSoloCards() {
       } else if (outLbl) {
         airlineLine = '<div class="wknd-airline" style="font-size:.55rem;color:var(--accent);font-weight:700;margin-top:1px;">✈ ' + outLbl + '</div>';
       }
+      var depISO = fmtISO(w.dep), retISO = fmtISO(w.ret);
+      var isPreview = S.soloPreview && S.soloPreview.dest === dest && S.soloPreview.dep === depISO && S.soloPreview.ret === retISO;
+      var rowStyle = isPreview ? 'border:1.5px solid var(--accent);background:rgba(46,124,246,.08);border-radius:6px;' : '';
       wkndsHtml +=
-        '<div class="wknd-row" data-dep="' + fmtISO(w.dep) + '" data-ret="' + fmtISO(w.ret) + '">' +
+        '<div class="wknd-row" data-dep="' + depISO + '" data-ret="' + retISO + '" data-dest="' + dest + '" data-est-price="' + w.price + '" style="' + rowStyle + '">' +
           '<div>' +
             '<div class="wknd-dates">' + dateFmt(w.dep) + ' – ' + dateFmt(w.ret) + '</div>' +
             '<div class="wknd-meta">Thu–Sun ' + (i===0 ? '&nbsp;<span class="bv-badge">Best Value</span>' : '') + '</div>' +
             airlineLine +
           '</div>' +
           '<div style="text-align:right">' + dispPrice + '<div class="wknd-meta">' + dispMeta + '</div></div>' +
-        '</div>';
+        '</div>' +
+        (isPreview
+          ? '<div class="wknd-preview" style="padding:7px 10px;margin:-2px 0 6px;background:rgba(46,124,246,.06);border:1px dashed var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+              '<div style="font-size:.6rem;color:var(--muted);line-height:1.3;">' +
+                '<strong style="color:var(--accent);">📌 Preview</strong> · ' + dateFmt(w.dep) + '–' + dateFmt(w.ret) + ' · est. <strong style="color:var(--green);">$' + w.price + '</strong> ' + (S.tripType === 'round' ? 'RT' : 'OW') +
+                '<br/><span style="font-size:.55rem;">Tap "Lock" to fetch live price</span>' +
+              '</div>' +
+              '<div style="display:flex;gap:4px;">' +
+                '<button class="solo-preview-lock" data-dep="' + depISO + '" data-ret="' + retISO + '" data-dest="' + dest + '" ' +
+                  'style="padding:4px 10px;font-size:.6rem;font-weight:900;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;">Lock 🔒</button>' +
+                '<button class="solo-preview-cancel" style="padding:4px 8px;font-size:.6rem;font-weight:700;background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:5px;cursor:pointer;">Cancel</button>' +
+              '</div>' +
+            '</div>'
+          : '');
     });
     var chartId = 'chart-' + dest;
     var hasLive = !!(S.soloBarPrices[S.home + '-' + dest]);
@@ -1644,12 +1662,36 @@ function renderSoloCards() {
     card.addEventListener('mouseenter', function(){ setSoloFocus(dest); });
     card.addEventListener('mouseleave', function(){ setBarFocus(null, null); });
     container.appendChild(card);
-    // Wire wknd-row click → set dates
+    // Wire wknd-row click → SHOW PREVIEW (no fetch). Lock button commits.
     card.querySelectorAll('.wknd-row').forEach(function(row) {
       row.addEventListener('click', function(e) {
-        var depStr = row.getAttribute('data-dep'), retStr = row.getAttribute('data-ret');
-        if (depStr) { S.depDate = new Date(depStr + 'T12:00:00'); S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null; updateDateUI(); }
         e.stopPropagation();
+        var depStr = row.getAttribute('data-dep');
+        var retStr = row.getAttribute('data-ret');
+        var rowDest = row.getAttribute('data-dest');
+        if (S.soloPreview && S.soloPreview.dest === rowDest && S.soloPreview.dep === depStr && S.soloPreview.ret === retStr) return;
+        S.soloPreview = { dest: rowDest, dep: depStr, ret: retStr || null, price: parseInt(row.getAttribute('data-est-price'), 10) || 0 };
+        renderSoloCards();
+      });
+    });
+    card.querySelectorAll('.solo-preview-lock').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var depStr = btn.getAttribute('data-dep');
+        var retStr = btn.getAttribute('data-ret');
+        S.depDate = new Date(depStr + 'T12:00:00');
+        S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null;
+        S.soloPreview = null;
+        updateDateUI();
+        loadPrices();
+        syncURL();
+      });
+    });
+    card.querySelectorAll('.solo-preview-cancel').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        S.soloPreview = null;
+        renderSoloCards();
       });
     });
     // Wire "✕ clear" preset button
@@ -1904,6 +1946,32 @@ function setQuotaBudget(n){ var q=readQuota(); q.budget=Math.max(1,n|0); q.excee
 function resetQuota(){ writeQuota({ period:_quotaPeriodKey(), used:0, budget:readQuota().budget, exceeded:false }); updateApiCallCount(); }
 function markQuotaExceeded(){ var q=readQuota(); q.exceeded=true; q.used=Math.max(q.used,q.budget); writeQuota(q); updateApiCallCount(); }
 function isQuotaExceeded(){ var q=readQuota(); return q.exceeded || q.used>=q.budget; }
+
+// Quota-exhaustion banner — surfaces unmissable warning when live data unavailable.
+function updateQuotaWarningBanner() {
+  var bn = document.getElementById('quota-warning-banner');
+  if (!bn) return;
+  var q = readQuota();
+  var nextReset = new Date();
+  nextReset.setMonth(nextReset.getMonth() + 1);
+  nextReset.setDate(1);
+  var resetTxt = nextReset.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  if (!PROXY_URL) {
+    bn.innerHTML = '<strong style="color:var(--amber);">📡 Sample data mode</strong><br/>'
+      + '<span style="color:var(--muted);">Connect a SerpAPI proxy in the sidebar to see live Google Flights pricing. Current numbers are estimates.</span>';
+    bn.style.display = '';
+    bn.style.borderColor = 'var(--amber)';
+    bn.style.background = 'rgba(245,158,11,.14)';
+  } else if (q.exceeded || q.used >= q.budget) {
+    bn.innerHTML = '<strong style="color:var(--red);">⚠ Live prices unavailable</strong><br/>'
+      + '<span style="color:var(--muted);">SerpAPI quota exhausted (' + q.used + ' / ' + q.budget + ' used). Showing last cached data; new searches will use sample estimates. Plan resets ' + resetTxt + '.</span>';
+    bn.style.display = '';
+    bn.style.borderColor = 'var(--red)';
+    bn.style.background = 'rgba(239,68,68,.12)';
+  } else {
+    bn.style.display = 'none';
+  }
+}
 
 // Critical fix: SerpAPI /account sync (mirror of desktop). Reconciles local
 // quota counter with the real plan. Costs 0 search credits.
@@ -2261,6 +2329,7 @@ function updateApiCallCount() {
     el.textContent = S.apiCalls + ' call' + (S.apiCalls !== 1 ? 's' : '') + ' this session';
     el.style.display = S.apiCalls > 0 ? '' : 'none';
   }
+  updateQuotaWarningBanner();
   // Always-visible quota bar at top of sidebar
   var q = readQuota();
   var qbar = document.getElementById('quota-bar');

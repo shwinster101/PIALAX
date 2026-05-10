@@ -83,8 +83,11 @@ export default {
 
     // ── Edge cache (perf + quota saver) ──
     // Build a cache key WITHOUT the api_key so the same flight query from
-    // any browser hits one cached response. TTL = 5 min — flight prices
-    // don't move minute-to-minute and SerpAPI's free tier is 100/month.
+    // any browser hits one cached response. TTL = 24 hr — flight prices
+    // for non-imminent dates don't move meaningfully day-to-day, and the
+    // family-collab use case means multiple people will load the same query.
+    // SerpAPI free tier = 250/month; this cache lets all 4 family members
+    // share a single fetch per (route + dates) pair per day.
     const cacheParams = new URLSearchParams(params);
     cacheParams.delete('api_key');
     const cacheKey = new Request(SERPAPI_BASE + '?' + cacheParams.toString(), { method: 'GET' });
@@ -127,7 +130,7 @@ export default {
 
       const response = new Response(body, { status: serpRes.status, headers: responseHeaders });
 
-      // Only cache successful 200s for 5 min
+      // Only cache successful 200s for 24 hr (was 5 min) — see comment above.
       if (serpRes.status === 200) {
         const cacheable = new Response(body, {
           status: 200,
@@ -135,7 +138,7 @@ export default {
             'Content-Type': 'application/json',
             'X-SerpAPI-Status': '200',
             ...(remaining ? { 'X-SerpAPI-Searches-Left': remaining } : {}),
-            'Cache-Control': 'public, max-age=300',
+            'Cache-Control': 'public, max-age=86400',
           },
         });
         // ctx.waitUntil isn't required; cache.put returns a promise but it's safe to await
