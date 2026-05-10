@@ -676,6 +676,8 @@ var S = {
   // When absent for a member, the global S.depDate / S.retDate is used.
   // Lets sister leave Jul 1 for orientation while you stay til Jul 3, etc.
   memberDates: {},
+  // PIA → intl routing override per destination: 'direct' | 'via-ord' | null (auto)
+  piaRouteOverride: {},
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
 
@@ -699,6 +701,18 @@ function clearMemberDates(memberCode) {
     delete S.memberDates[memberCode];
     syncURL();
   }
+}
+
+// PIA route override: user toggles between 'direct' and 'via-ord' on the card.
+// Pass null to revert to auto (cheaper-of-the-two pick).
+function setPiaRoute(dest, mode) {
+  if (!S.piaRouteOverride) S.piaRouteOverride = {};
+  if (!mode) delete S.piaRouteOverride[dest];
+  else S.piaRouteOverride[dest] = mode;
+  syncURL();
+  // Re-render meetup so the card reflects the new selection. No new SerpAPI call —
+  // both prices are already in S.prices since loadPrices fetches both legs.
+  renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
 }
 
 // ── HELPERS ──────────────────────────────────────────────────────
@@ -800,23 +814,46 @@ function applyHoliday(key) {
 // For LHR, compares direct PIA→LHR fare vs (PIA drive→ORD + ORD→LHR fly + drive tax).
 // The cheaper option wins. Used by both computeRanking + renderMeetupRoutes
 // so totals + breakdown stay in sync.
+// piaRouteTo returns BOTH route options' costs so the card can render a
+// toggle showing both prices side-by-side. Caller decides which to "use" by
+// reading either result.fare (the chosen option) or the explicit fields.
+//
+// Decision: defaults to cheaper, but respects S.piaRouteOverride[dest] when set.
+//   S.piaRouteOverride[dest] = 'direct' → force PIA→dest direct
+//   S.piaRouteOverride[dest] = 'via-ord' → force PIA drive→ORD + ORD→dest fly
+//   S.piaRouteOverride[dest] = null/undefined → auto-pick cheaper
 function piaRouteTo(dest, fareKey) {
   var direct = S.prices['PIA-' + dest] || getMock('PIA', dest);
   var directFare = direct ? (direct[fareKey] || direct.ow) : 0;
-  // Only LHR (and other intl) gets the via-ORD option — domestic PIA routes
-  // are short enough that the drive isn't worth it.
-  if (dest === 'LHR') {
-    var ordLeg = S.prices['ORD-' + dest] || getMock('ORD', dest);
-    var ordFare = ordLeg ? (ordLeg[fareKey] || ordLeg.ow) : 0;
-    if (ordFare) {
-      var viaTotal = ordFare + ORD_DRIVE_TAX;
-      // Prefer via-ORD when cheaper OR when direct unavailable
-      if (!directFare || viaTotal < directFare) {
-        return { fare: viaTotal, viaORD: true, ordLegFare: ordFare, breakdown: '🚗→ORD $' + ORD_DRIVE_TAX + ' + ✈ ORD→' + dest + ' $' + ordFare };
-      }
-    }
+  var ordLeg = S.prices['ORD-' + dest] || getMock('ORD', dest);
+  var ordLegFare = ordLeg ? (ordLeg[fareKey] || ordLeg.ow) : 0;
+  // Via-ORD only makes sense for intl destinations; domestic PIA→X routes
+  // are too short for the drive to ORD to be worth $100 + parking.
+  var viaOrdAvailable = (INTL_DESTS.indexOf(dest) > -1) && ordLegFare > 0;
+  var viaOrdTotal = viaOrdAvailable ? (ordLegFare + ORD_DRIVE_TAX) : 0;
+  // Determine selected option
+  var override = (S.piaRouteOverride && S.piaRouteOverride[dest]) || null;
+  var useViaOrd;
+  if (override === 'via-ord' && viaOrdAvailable) useViaOrd = true;
+  else if (override === 'direct') useViaOrd = false;
+  else {
+    // Auto: pick cheaper, prefer via-ORD when direct unavailable
+    if (!directFare && viaOrdAvailable) useViaOrd = true;
+    else if (viaOrdAvailable && viaOrdTotal < directFare) useViaOrd = true;
+    else useViaOrd = false;
   }
-  return { fare: directFare, viaORD: false, breakdown: 'PIA→' + dest + ' $' + directFare };
+  return {
+    fare: useViaOrd ? viaOrdTotal : directFare,
+    viaORD: useViaOrd,
+    ordLegFare: ordLegFare,
+    directFare: directFare,
+    viaOrdTotal: viaOrdTotal,
+    viaOrdAvailable: viaOrdAvailable,
+    overridden: !!override,
+    breakdown: useViaOrd
+      ? '🚗→ORD $' + ORD_DRIVE_TAX + ' + ✈ ORD→' + dest + ' $' + ordLegFare
+      : 'PIA→' + dest + ' $' + directFare
+  };
 }
 
 function computeRanking() {
@@ -1047,66 +1084,121 @@ function renderMeetupRoutes() {
         '</div>';
       return;
     }
-    // Special case: PIA → intl destination (LHR) — route via ORD when cheaper.
+    // PIA → intl destination (LHR) — always show toggle between Direct vs Via-ORD,
+    // default to whichever is cheaper for the selected dates, with savings callout.
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
       var route = piaRouteTo(hub, isRT ? 'rt' : 'ow');
-      if (route.viaORD) {
-        // Diagnose: was the ORD-hub leg sourced from live data or mock fallback?
-        var ordLegLive = S.prices['ORD-' + hub];
-        var ordLeg = ordLegLive || getMock('ORD', hub);
-        var ordOutAirline = airlineLabel(ordLeg, 'outbound');
-        var ordRetAirline = airlineLabel(ordLeg, 'return');
-        var ordIsLive = !!(ordLegLive && ordLegLive.live);
-        var ordIsCached = !!(ordLegLive && ordLegLive.cached);
-        var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
-        var directFare = directObj ? (isRT ? (directObj.rt || directObj.ow) : directObj.ow) : 0;
-        var perTicketSavings = directFare ? (directFare - route.fare) : 0;
-        var totalSavings = perTicketSavings * headcount;
-        var subtotal = route.fare * headcount;
-        // Console diagnostic so user can verify in DevTools why the price is what it is
-        console.log('[PIALAX via-ORD]', {
-          hub: hub,
-          ordLegFare: route.ordLegFare,
-          ordLegSource: ordIsLive ? (ordIsCached ? 'live (cached)' : 'live (fresh)') : 'MOCK FALLBACK',
-          driveTax: ORD_DRIVE_TAX,
-          totalPerTicket: route.fare,
-          headcount: headcount,
-          subtotal: subtotal,
-          ordPriceObj: ordLegLive || 'no S.prices entry — check loadPrices fan-out'
-        });
-        var sourceBadge = ordIsLive
-          ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
-          : '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="ORD-' + hub + ' fare not in S.prices — check loadPrices fan-out + browser cache">SAMPLE</span>';
-        var copyViaText = memberLabel + ' (PIA via ORD → ' + hub + '): $' + route.fare + ' per ticket × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
-        html +=
-          '<div class="route-card" style="border-left:3px solid var(--green);">' +
-            '<div class="route-card-hd">' +
-              '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
-              '<span class="route-arrow">🚗</span>' +
-              '<span class="route-badge" style="background:#06b6d422;border:1px solid #06b6d4;color:#06b6d4">ORD</span>' +
-              '<span class="route-arrow">→</span>' +
-              '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
-              '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
-              sourceBadge +
-              '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyViaText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
-            '</div>' +
-            '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
-              '<div class="route-price">$' + route.fare + '</div>' +
-              '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(route.fare) + '</span>' +
-              (totalSavings > 0 ? '<span style="font-size:.55rem;color:var(--green);font-weight:900;margin-left:4px;">saves $' + totalSavings + ' vs direct</span>' : '') +
-            '</div>' +
-            '<div class="route-drive-row" style="margin-top:3px;">🚗 PIA→ORD drive ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' ' + fareLabel + ' per ticket</div>' +
-            (function(){
-              if (!isRT) return ordOutAirline ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordOutAirline + '</div>' : '';
-              var parts = [];
-              if (ordOutAirline) parts.push('✈ ' + ordOutAirline);
-              if (ordRetAirline) parts.push('↩ ' + ordRetAirline);
-              return parts.length ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>' : '';
-            })() +
-            '<div class="route-meta">Peoria → Chicago O\'Hare → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
-          '</div>';
-        return;
+      var ordLegLive = S.prices['ORD-' + hub];
+      var ordLeg = ordLegLive || getMock('ORD', hub);
+      var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
+      var ordOutAirline = airlineLabel(ordLeg, 'outbound');
+      var ordRetAirline = airlineLabel(ordLeg, 'return');
+      var directOutAirline = airlineLabel(directObj, 'outbound');
+      var directRetAirline = airlineLabel(directObj, 'return');
+      var ordIsLive = !!(ordLegLive && ordLegLive.live);
+      var ordIsCached = !!(ordLegLive && ordLegLive.cached);
+      // Both totals — for showing comparison + savings
+      var directTotalPer = route.directFare;
+      var viaTotalPer    = route.viaOrdTotal;
+      var activeTotalPer = route.fare;
+      var inactiveTotalPer = route.viaORD ? directTotalPer : viaTotalPer;
+      var perTicketSavings = (directTotalPer && viaTotalPer)
+        ? Math.abs(directTotalPer - viaTotalPer)
+        : 0;
+      var totalSavings = perTicketSavings * headcount;
+      var subtotal = activeTotalPer * headcount;
+      console.log('[PIALAX PIA→intl toggle]', {
+        hub: hub,
+        direct: directTotalPer,
+        viaOrdTotal: viaTotalPer,
+        active: route.viaORD ? 'via-ord' : 'direct',
+        overridden: route.overridden,
+        ordLegSource: ordIsLive ? (ordIsCached ? 'live (cached)' : 'live (fresh)') : 'MOCK FALLBACK'
+      });
+      var sourceBadge = ordIsLive
+        ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
+        : '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">SAMPLE</span>';
+      // Toggle button styles — active is filled, inactive is outline + click to switch
+      function toggleBtn(mode, label, totalPer) {
+        var isActive = (mode === 'via-ord') ? route.viaORD : !route.viaORD;
+        var disabled = (mode === 'via-ord' && !route.viaOrdAvailable) || (mode === 'direct' && !directTotalPer);
+        var bg = isActive ? 'var(--accent)' : 'transparent';
+        var fg = isActive ? '#fff' : (disabled ? 'var(--muted)' : 'var(--accent)');
+        var br = isActive ? 'var(--accent)' : 'var(--border2)';
+        var cursor = disabled ? 'not-allowed' : 'pointer';
+        var click = disabled ? '' : ' onclick="setPiaRoute(\'' + hub + '\',\'' + mode + '\')"';
+        return '<button' + click + ' style="flex:1;min-width:0;padding:5px 8px;font-size:.6rem;font-weight:900;background:' + bg + ';color:' + fg + ';border:1.5px solid ' + br + ';border-radius:6px;cursor:' + cursor + ';font-family:inherit;text-align:left;">' +
+                 (isActive ? '✓ ' : '') + label +
+                 '<div style="font-size:.7rem;font-weight:900;margin-top:2px;">' + (disabled ? '—' : '$' + totalPer) + '</div>' +
+               '</button>';
       }
+      var togglesHtml =
+        '<div style="display:flex;gap:5px;margin-top:5px;">' +
+          toggleBtn('direct', '✈ PIA direct', directTotalPer) +
+          toggleBtn('via-ord', '🚗 Drive→ORD ✈', viaTotalPer) +
+        '</div>';
+      var savingsLine = (totalSavings > 0)
+        ? '<div style="font-size:.55rem;color:var(--green);font-weight:900;margin-top:4px;">' +
+            (route.viaORD ? '🚗 Via ORD' : '✈ Direct') + ' saves $' + totalSavings + (headcount > 1 ? ' total ($' + perTicketSavings + ' × ' + headcount + ')' : ' vs alternative') +
+          '</div>'
+        : '';
+      // Resetting auto-pick when overridden — small inline ↻ link
+      var resetLink = route.overridden
+        ? ' <button onclick="setPiaRoute(\'' + hub + '\', null)" style="font-size:.5rem;background:none;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;padding:0;">↻ auto</button>'
+        : '';
+      // Active option's airline + breakdown
+      var activeBreakdown, activeAirlinesHtml;
+      if (route.viaORD) {
+        activeBreakdown = '🚗 PIA→ORD drive ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' ' + fareLabel + ' per ticket';
+        if (isRT && (ordOutAirline || ordRetAirline)) {
+          var p1 = [];
+          if (ordOutAirline) p1.push('✈ ' + ordOutAirline);
+          if (ordRetAirline) p1.push('↩ ' + ordRetAirline);
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + p1.join(' &nbsp;·&nbsp; ') + '</div>';
+        } else if (ordOutAirline) {
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordOutAirline + '</div>';
+        } else activeAirlinesHtml = '';
+      } else {
+        activeBreakdown = '✈ PIA→' + hub + ' direct $' + directTotalPer + ' ' + fareLabel + ' per ticket';
+        if (isRT && (directOutAirline || directRetAirline)) {
+          var p2 = [];
+          if (directOutAirline) p2.push('✈ ' + directOutAirline);
+          if (directRetAirline) p2.push('↩ ' + directRetAirline);
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + p2.join(' &nbsp;·&nbsp; ') + '</div>';
+        } else if (directOutAirline) {
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + directOutAirline + '</div>';
+        } else activeAirlinesHtml = '';
+      }
+      var copyText = memberLabel + ' (PIA' + (route.viaORD ? '→ORD' : '') + '→' + hub + '): $' + activeTotalPer + ' per ticket × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
+      var routeBadgesHtml = route.viaORD
+        ? '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
+          '<span class="route-arrow">🚗</span>' +
+          '<span class="route-badge" style="background:#06b6d422;border:1px solid #06b6d4;color:#06b6d4">ORD</span>' +
+          '<span class="route-arrow">→</span>' +
+          '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>'
+        : '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
+          '<span class="route-arrow">→</span>' +
+          '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>';
+      html +=
+        '<div class="route-card" style="border-left:3px solid var(--green);">' +
+          '<div class="route-card-hd">' +
+            routeBadgesHtml +
+            '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+            sourceBadge +
+            resetLink +
+            '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+          '</div>' +
+          '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
+            '<div class="route-price">$' + activeTotalPer + '</div>' +
+            '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(activeTotalPer) + '</span>' +
+          '</div>' +
+          togglesHtml +
+          savingsLine +
+          '<div class="route-drive-row" style="margin-top:5px;">' + activeBreakdown + '</div>' +
+          activeAirlinesHtml +
+          '<div class="route-meta">' + (route.viaORD ? "Peoria → Chicago O'Hare → " : 'Peoria → ') + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
+        '</div>';
+      return;
     }
     var key = from + '-' + hub;
     var p = S.prices[key] || getMock(from, hub);
@@ -3037,6 +3129,15 @@ function restoreFromURL() {
         }
       });
     }
+    var piaParam = sp.get('pia');
+    if (piaParam) {
+      piaParam.split('|').forEach(function(entry){
+        var bits = entry.split(':');
+        if (bits.length === 2 && AIRPORTS[bits[0]] && (bits[1] === 'direct' || bits[1] === 'via-ord')) {
+          S.piaRouteOverride[bits[0]] = bits[1];
+        }
+      });
+    }
     // (ORD/LHR toggle buttons were removed — no DOM sync needed; flags are global state.)
   } catch(e) { /* URLSearchParams unsupported or parse error — ignore */ }
 }
@@ -3069,6 +3170,14 @@ function syncURL() {
           }
         });
         if (mdParts.length) sp.set('md', mdParts.join('|'));
+      }
+      // PIA route overrides: pia=LHR:via-ord|JFK:direct
+      if (S.piaRouteOverride && Object.keys(S.piaRouteOverride).length) {
+        var prParts = [];
+        Object.keys(S.piaRouteOverride).forEach(function(d){
+          if (S.piaRouteOverride[d]) prParts.push(d + ':' + S.piaRouteOverride[d]);
+        });
+        if (prParts.length) sp.set('pia', prParts.join('|'));
       }
       if (history.replaceState) history.replaceState(null, '', '?' + sp.toString());
     } catch(e) { /* ignore */ }
@@ -3143,6 +3252,7 @@ window.shareThePlan = shareThePlan;
 window.openCal = openCal;
 window.openMemberCal = openMemberCal;
 window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
+window.setPiaRoute = setPiaRoute;
 window.setMeetupHub = setMeetupHub;
 window.pickMeetupHub = pickMeetupHub;
 window.copyRouteText = copyRouteText;

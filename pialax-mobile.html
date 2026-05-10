@@ -689,6 +689,7 @@ var S = {
   soloPreview: null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
   memberDates: {},
+  piaRouteOverride: {},
   mapView:'world', worldGeo:null, worldGeoFallback:false,
   _booting:true,
 };
@@ -804,17 +805,36 @@ function applyHoliday(key) {
 function piaRouteTo(dest, fareKey) {
   var direct = S.prices['PIA-' + dest] || getMock('PIA', dest);
   var directFare = direct ? (direct[fareKey] || direct.ow) : 0;
-  if (dest === 'LHR') {
-    var ordLeg = S.prices['ORD-' + dest] || getMock('ORD', dest);
-    var ordFare = ordLeg ? (ordLeg[fareKey] || ordLeg.ow) : 0;
-    if (ordFare) {
-      var viaTotal = ordFare + ORD_DRIVE_TAX;
-      if (!directFare || viaTotal < directFare) {
-        return { fare: viaTotal, viaORD: true, ordLegFare: ordFare };
-      }
-    }
+  var ordLeg = S.prices['ORD-' + dest] || getMock('ORD', dest);
+  var ordLegFare = ordLeg ? (ordLeg[fareKey] || ordLeg.ow) : 0;
+  var viaOrdAvailable = (INTL_DESTS.indexOf(dest) > -1) && ordLegFare > 0;
+  var viaOrdTotal = viaOrdAvailable ? (ordLegFare + ORD_DRIVE_TAX) : 0;
+  var override = (S.piaRouteOverride && S.piaRouteOverride[dest]) || null;
+  var useViaOrd;
+  if (override === 'via-ord' && viaOrdAvailable) useViaOrd = true;
+  else if (override === 'direct') useViaOrd = false;
+  else {
+    if (!directFare && viaOrdAvailable) useViaOrd = true;
+    else if (viaOrdAvailable && viaOrdTotal < directFare) useViaOrd = true;
+    else useViaOrd = false;
   }
-  return { fare: directFare, viaORD: false };
+  return {
+    fare: useViaOrd ? viaOrdTotal : directFare,
+    viaORD: useViaOrd,
+    ordLegFare: ordLegFare,
+    directFare: directFare,
+    viaOrdTotal: viaOrdTotal,
+    viaOrdAvailable: viaOrdAvailable,
+    overridden: !!override
+  };
+}
+
+function setPiaRoute(dest, mode) {
+  if (!S.piaRouteOverride) S.piaRouteOverride = {};
+  if (!mode) delete S.piaRouteOverride[dest];
+  else S.piaRouteOverride[dest] = mode;
+  syncURL();
+  renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
 }
 
 function computeRanking() {
@@ -1026,52 +1046,102 @@ function renderMeetupRoutes() {
     }
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
       var route = piaRouteTo(hub, isRT ? 'rt' : 'ow');
-      if (route.viaORD) {
-        var ordLegLive = S.prices['ORD-' + hub];
-        var ordLeg = ordLegLive || getMock('ORD', hub);
-        var ordOutAirline = airlineLabel(ordLeg, 'outbound');
-        var ordRetAirline = airlineLabel(ordLeg, 'return');
-        var ordIsLive = !!(ordLegLive && ordLegLive.live);
-        var ordIsCached = !!(ordLegLive && ordLegLive.cached);
-        console.log('[PIALAX via-ORD]', { hub:hub, ordLegFare:route.ordLegFare, ordLegSource: ordIsLive ? (ordIsCached ? 'live (cached)' : 'live (fresh)') : 'MOCK FALLBACK', driveTax: ORD_DRIVE_TAX, totalPerTicket: route.fare, headcount: headcount, ordPriceObj: ordLegLive || 'no S.prices entry' });
-        var sourceBadge = ordIsLive
-          ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
-          : '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">SAMPLE</span>';
-        var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
-        var directFare = directObj ? (isRT ? (directObj.rt || directObj.ow) : directObj.ow) : 0;
-        var perSavings = directFare ? (directFare - route.fare) : 0;
-        var totalSavings = perSavings * headcount;
-        var subtotal = route.fare * headcount;
-        var copyViaText = memberLabel + ' (PIA via ORD → ' + hub + '): $' + route.fare + ' per ticket × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
-        html +=
-          '<div class="route-card" style="border-left:3px solid var(--green);">' +
-            '<div class="route-card-hd">' +
-              '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
-              '<span class="route-arrow">🚗</span>' +
-              '<span class="route-badge" style="background:#06b6d422;border:1px solid #06b6d4;color:#06b6d4">ORD</span>' +
-              '<span class="route-arrow">→</span>' +
-              '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
-              '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
-              sourceBadge +
-              '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyViaText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
-            '</div>' +
-            '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
-              '<div class="route-price">$' + route.fare + '</div>' +
-              '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(route.fare) + '</span>' +
-              (totalSavings > 0 ? '<span style="font-size:.55rem;color:var(--green);font-weight:900;margin-left:4px;">saves $' + totalSavings + '</span>' : '') +
-            '</div>' +
-            '<div class="route-drive-row" style="margin-top:3px;">🚗 PIA→ORD ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' per ticket</div>' +
-            (function(){
-              if (!isRT) return ordOutAirline ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordOutAirline + '</div>' : '';
-              var parts = [];
-              if (ordOutAirline) parts.push('✈ ' + ordOutAirline);
-              if (ordRetAirline) parts.push('↩ ' + ordRetAirline);
-              return parts.length ? '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>' : '';
-            })() +
-            '<div class="route-meta">Peoria → Chicago O\'Hare → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
-          '</div>';
-        return;
+      var ordLegLive = S.prices['ORD-' + hub];
+      var ordLeg = ordLegLive || getMock('ORD', hub);
+      var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
+      var ordOutAirline = airlineLabel(ordLeg, 'outbound');
+      var ordRetAirline = airlineLabel(ordLeg, 'return');
+      var directOutAirline = airlineLabel(directObj, 'outbound');
+      var directRetAirline = airlineLabel(directObj, 'return');
+      var ordIsLive = !!(ordLegLive && ordLegLive.live);
+      var ordIsCached = !!(ordLegLive && ordLegLive.cached);
+      var directTotalPer = route.directFare;
+      var viaTotalPer = route.viaOrdTotal;
+      var activeTotalPer = route.fare;
+      var perSavings = (directTotalPer && viaTotalPer) ? Math.abs(directTotalPer - viaTotalPer) : 0;
+      var totalSavings = perSavings * headcount;
+      var subtotal = activeTotalPer * headcount;
+      var sourceBadge = ordIsLive
+        ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
+        : '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">SAMPLE</span>';
+      function toggleBtn(mode, label, totalPer) {
+        var isActive = (mode === 'via-ord') ? route.viaORD : !route.viaORD;
+        var disabled = (mode === 'via-ord' && !route.viaOrdAvailable) || (mode === 'direct' && !directTotalPer);
+        var bg = isActive ? 'var(--accent)' : 'transparent';
+        var fg = isActive ? '#fff' : (disabled ? 'var(--muted)' : 'var(--accent)');
+        var br = isActive ? 'var(--accent)' : 'var(--border2)';
+        var cursor = disabled ? 'not-allowed' : 'pointer';
+        var click = disabled ? '' : ' onclick="setPiaRoute(\'' + hub + '\',\'' + mode + '\')"';
+        return '<button' + click + ' style="flex:1;min-width:0;padding:5px 8px;font-size:.6rem;font-weight:900;background:' + bg + ';color:' + fg + ';border:1.5px solid ' + br + ';border-radius:6px;cursor:' + cursor + ';font-family:inherit;text-align:left;">' +
+                 (isActive ? '✓ ' : '') + label +
+                 '<div style="font-size:.7rem;font-weight:900;margin-top:2px;">' + (disabled ? '—' : '$' + totalPer) + '</div>' +
+               '</button>';
       }
+      var togglesHtml =
+        '<div style="display:flex;gap:5px;margin-top:5px;">' +
+          toggleBtn('direct', '✈ PIA direct', directTotalPer) +
+          toggleBtn('via-ord', '🚗 Drive→ORD ✈', viaTotalPer) +
+        '</div>';
+      var savingsLine = (totalSavings > 0)
+        ? '<div style="font-size:.55rem;color:var(--green);font-weight:900;margin-top:4px;">' +
+            (route.viaORD ? '🚗 Via ORD' : '✈ Direct') + ' saves $' + totalSavings + (headcount > 1 ? ' ($' + perSavings + ' × ' + headcount + ')' : '') +
+          '</div>'
+        : '';
+      var resetLink = route.overridden
+        ? ' <button onclick="setPiaRoute(\'' + hub + '\', null)" style="font-size:.5rem;background:none;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;padding:0;">↻ auto</button>'
+        : '';
+      var activeBreakdown, activeAirlinesHtml;
+      if (route.viaORD) {
+        activeBreakdown = '🚗 PIA→ORD drive ~$' + ORD_DRIVE_TAX + ' &nbsp;+&nbsp; ✈ ORD→' + hub + ' $' + route.ordLegFare + ' per ticket';
+        if (isRT && (ordOutAirline || ordRetAirline)) {
+          var p1 = [];
+          if (ordOutAirline) p1.push('✈ ' + ordOutAirline);
+          if (ordRetAirline) p1.push('↩ ' + ordRetAirline);
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + p1.join(' &nbsp;·&nbsp; ') + '</div>';
+        } else if (ordOutAirline) {
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + ordOutAirline + '</div>';
+        } else activeAirlinesHtml = '';
+      } else {
+        activeBreakdown = '✈ PIA→' + hub + ' direct $' + directTotalPer + ' per ticket';
+        if (isRT && (directOutAirline || directRetAirline)) {
+          var p2 = [];
+          if (directOutAirline) p2.push('✈ ' + directOutAirline);
+          if (directRetAirline) p2.push('↩ ' + directRetAirline);
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + p2.join(' &nbsp;·&nbsp; ') + '</div>';
+        } else if (directOutAirline) {
+          activeAirlinesHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + directOutAirline + '</div>';
+        } else activeAirlinesHtml = '';
+      }
+      var copyText = memberLabel + ' (PIA' + (route.viaORD ? '→ORD' : '') + '→' + hub + '): $' + activeTotalPer + ' per ticket × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
+      var routeBadgesHtml = route.viaORD
+        ? '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
+          '<span class="route-arrow">🚗</span>' +
+          '<span class="route-badge" style="background:#06b6d422;border:1px solid #06b6d4;color:#06b6d4">ORD</span>' +
+          '<span class="route-arrow">→</span>' +
+          '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>'
+        : '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
+          '<span class="route-arrow">→</span>' +
+          '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>';
+      html +=
+        '<div class="route-card" style="border-left:3px solid var(--green);">' +
+          '<div class="route-card-hd">' +
+            routeBadgesHtml +
+            '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+            sourceBadge +
+            resetLink +
+            '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+          '</div>' +
+          '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
+            '<div class="route-price">$' + activeTotalPer + '</div>' +
+            '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(activeTotalPer) + '</span>' +
+          '</div>' +
+          togglesHtml +
+          savingsLine +
+          '<div class="route-drive-row" style="margin-top:5px;">' + activeBreakdown + '</div>' +
+          activeAirlinesHtml +
+          '<div class="route-meta">' + (route.viaORD ? "Peoria → Chicago O'Hare → " : 'Peoria → ') + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
+        '</div>';
+      return;
     }
     var key = from + '-' + hub;
     var p = S.prices[key] || getMock(from, hub);
@@ -2818,6 +2888,15 @@ function restoreFromURL() {
         }
       });
     }
+    var piaParam = sp.get('pia');
+    if (piaParam) {
+      piaParam.split('|').forEach(function(entry){
+        var bits = entry.split(':');
+        if (bits.length === 2 && AIRPORTS[bits[0]] && (bits[1] === 'direct' || bits[1] === 'via-ord')) {
+          S.piaRouteOverride[bits[0]] = bits[1];
+        }
+      });
+    }
     // (ORD/LHR toggle buttons removed — no DOM sync needed.)
   } catch(e) { /* ignore */ }
 }
@@ -2843,6 +2922,13 @@ function syncURL() {
           if (md && md.dep) mdParts.push(code + ':' + fmtISO(md.dep) + ':' + (md.ret ? fmtISO(md.ret) : ''));
         });
         if (mdParts.length) sp.set('md', mdParts.join('|'));
+      }
+      if (S.piaRouteOverride && Object.keys(S.piaRouteOverride).length) {
+        var prParts = [];
+        Object.keys(S.piaRouteOverride).forEach(function(d){
+          if (S.piaRouteOverride[d]) prParts.push(d + ':' + S.piaRouteOverride[d]);
+        });
+        if (prParts.length) sp.set('pia', prParts.join('|'));
       }
       sp.set('ord', S.includeORD ? '1' : '0');
       sp.set('lhr', S.includeLHR ? '1' : '0');
@@ -2914,6 +3000,7 @@ async function boot() {
   window.openCal = openCal;
   window.openMemberCal = openMemberCal;
   window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
+  window.setPiaRoute = setPiaRoute;
   window.setMeetupHub = setMeetupHub;
   window.pickMeetupHub = pickMeetupHub;
   window.copyRouteText = copyRouteText;
