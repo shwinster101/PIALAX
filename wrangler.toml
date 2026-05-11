@@ -1,0 +1,13 @@
+name = "pialax-proxy"
+main = "worker.js"
+compatibility_date = "2026-05-09"
+
+# One-time setup (only need to do once on a fresh Mac):
+#   1. brew install cloudflare-wrangler  (or npm install -g wrangler)
+#   2. wrangler login                    (browser opens, sign into Cloudflare)
+#   3. wrangler secret put SERPAPI_KEY   (paste your SerpAPI key when prompted)
+#
+# After setup, every redeploy is one command from this folder:
+#   wrangler deploy
+#
+# That's it — no more Cloudflare dashboard clicking.

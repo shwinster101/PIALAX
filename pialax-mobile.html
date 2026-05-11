@@ -3,359 +3,896 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>PIALAX — Family Flight Dashboard</title>
-<!-- CDN scripts via script-src work on file:// (no CORS restriction) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
-:root{
-  --bg:#07101e;--surface:#0f1d2e;--surface2:#162233;
-  --border:#1c2f45;--border2:#243b55;--text:#e8f0f8;--muted:#5b7a99;
-  --accent:#2e7cf6;--a-dim:rgba(46,124,246,.12);
-  --green:#10b981;--amber:#f59e0b;--red:#ef4444;
-  --lax:#2e7cf6;--jax:#f59e0b;--pia:#a855f7;--ord:#06b6d4;
-  --cheap:#10b981;--mid:#f59e0b;--pricey:#ef4444;
-  --r:10px;--ease:cubic-bezier(.4,0,.2,1);--fast:cubic-bezier(.25,.1,.25,1);
+/* ═══════════════════════════════════════════════════════
+   PIALAX Mobile — UX Overhaul v3.0
+   Target: iPhone 16 Pro Max (430×932) iOS 26 Chrome
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Design Tokens ── */
+:root {
+  --space-xs: 6px;
+  --space-sm: 10px;
+  --space-md: 16px;
+  --space-lg: 24px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --text-main: #e6edf6;
+  --text-muted: #7a99b8;
+  --bg: #07101e;
+  --card: #0f1d2e;
+  --border: #1a2d44;
+  --primary: #2e7cf6;
+  --green: #00c853;
+  /* Legacy compat aliases */
+  --surface: #0f1d2e;
+  --surface2: #162233;
+  --border2: #243b55;
+  --text: var(--text-main);
+  --muted: var(--text-muted);
+  --accent: var(--primary);
+  --a-dim: rgba(46,124,246,.12);
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --lax: #2e7cf6;
+  --jax: #f59e0b;
+  --pia: #a855f7;
+  --ord: #06b6d4;
+  --cheap: #10b981;
+  --mid: #f59e0b;
+  --pricey: #ef4444;
+  --r: var(--radius-md);
+  --ease: cubic-bezier(.4,0,.2,1);
+  --fast: cubic-bezier(.25,.1,.25,1);
 }
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;}
-button{font-family:inherit;cursor:pointer;}
-#app{display:flex;height:100vh;width:100vw;}
 
-/* ── Sidebar ── */
-#sb{width:300px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
-#sb-top{padding:14px 16px 11px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:flex-start;justify-content:space-between;}
-#sb-top h1{font-size:1.5rem;font-weight:900;letter-spacing:-1.5px;color:var(--text);line-height:1;}
-#sb-top .ver{font-size:.57rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;}
-.live-pill{display:flex;align-items:center;gap:5px;font-size:.63rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 9px;margin-top:2px;}
-.ld{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:blink 2.4s ease-in-out infinite;}
-@keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
-#sb-body{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:8px;}
-#sb-body::-webkit-scrollbar{width:3px;}
-#sb-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
-.lbl{font-size:.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:3px;}
+/* ── Reset ── */
+*,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
+html {
+  background: var(--bg);
+  color: var(--text-main);
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
+  font-size: 15px;
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  background: var(--bg);
+  min-height: 100svh;
+  min-height: 100vh;
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 72px); /* room for sticky CTA */
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+  overflow-x: hidden;
+}
+button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
-/* ── Select ── */
-.s-sel{width:100%;padding:8px 28px 8px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:var(--r);font-size:.86rem;font-weight:700;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235b7a99'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .15s;}
-.s-sel:focus{outline:none;border-color:var(--accent);}
-/* Home airport dropdown — orange highlight to make it visually distinct from other selects */
-#home-sel{background-color:#f59e0b;color:#1a1a1a;border-color:#d97706;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%231a1a1a'/%3E%3C/svg%3E");}
-#home-sel:hover{background-color:#fbbf24;}
-#home-sel:focus{border-color:#b45309;box-shadow:0 0 0 2px rgba(245,158,11,.35);}
-#home-sel option{background:#1f2937;color:#fff;}
-#home-airport-row .lbl{color:#b8852b;}
+/* ── App Shell ── */
+#app {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 430px;
+  margin: 0 auto;
+}
 
-/* ── Holiday chips ── */
-#hol-row{display:flex;gap:4px;flex-wrap:wrap;}
-.hol-btn{padding:4px 8px;font-size:.64rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:20px;transition:all .15s var(--ease);white-space:nowrap;}
-.hol-btn:hover{border-color:var(--accent);color:var(--accent);}
-.hol-btn.active{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
+/* ── Card Wrapper ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-md);
+  margin: 0 var(--space-md) var(--space-sm);
+}
 
-/* ── Trip type ── */
-#trip-row{display:flex;gap:4px;}
-.tt-btn{flex:1;padding:6px;font-size:.73rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);transition:all .15s var(--ease);}
-.tt-btn.on{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
+/* ── Step Labels ── */
+.step-label {
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: var(--space-xs);
+}
 
-/* ── Dates ── */
-#date-row{display:flex;gap:4px;}
-.d-btn{flex:1;padding:7px 9px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);text-align:left;transition:border-color .15s;line-height:1.3;}
-.d-btn.active,.d-btn:hover:not(:disabled){border-color:var(--accent);}
-.d-btn:disabled{opacity:.28;cursor:default;}
-.d-lbl{display:block;font-size:.57rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;}
-.d-val{display:block;font-size:.82rem;font-weight:800;color:var(--text);margin-top:1px;white-space:nowrap;}
-.d-val.ph{color:var(--muted);font-weight:400;}
+/* ── Header ── */
+.app-header {
+  padding: var(--space-md) var(--space-md) var(--space-sm);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.app-header h1 {
+  font-size: 1.6rem;
+  font-weight: 900;
+  letter-spacing: -1.5px;
+  color: var(--text-main);
+  line-height: 1;
+}
+.app-header .ver {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+.live-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 10px;
+}
+.ld {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--amber);
+  animation: blink 2.4s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
 
-/* ── Search button ── */
-#search-btn{width:100%;padding:9px;border:none;border-radius:var(--r);background:var(--accent);color:#fff;font-size:.82rem;font-weight:800;letter-spacing:.02em;display:flex;align-items:center;justify-content:center;gap:7px;transition:opacity .15s,transform .1s;}
-#search-btn:hover{opacity:.88;}
-#search-btn:active{transform:scale(.98);}
-#search-btn:disabled{opacity:.4;cursor:default;}
-.spin-sm{width:14px;height:14px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite;display:none;}
-@keyframes spin{to{transform:rotate(360deg)}}
+/* ── Status Bar ── */
+#status {
+  margin: 0 var(--space-md) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-md);
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-align: center;
+  display: none;
+}
+#status.idle {
+  display: block;
+  background: rgba(122,153,184,.08);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+}
+#status.loading {
+  display: block;
+  background: rgba(46,124,246,.1);
+  border: 1px solid var(--primary);
+  color: var(--primary);
+}
+#status.success {
+  display: block;
+  background: rgba(0,200,83,.08);
+  border: 1px solid var(--green);
+  color: var(--green);
+}
+#status.error {
+  display: block;
+  background: rgba(239,68,68,.08);
+  border: 1px solid var(--red);
+  color: var(--red);
+}
 
-/* ── Calendar popup ── */
-#cal-bd{position:fixed;inset:0;z-index:900;display:none;}
-#cal-bd.open{display:block;}
-#cal{position:fixed;z-index:1000;background:var(--surface);border:1px solid var(--border2);border-radius:14px;box-shadow:0 24px 64px rgba(0,0,0,.75);padding:13px 15px 11px;display:none;animation:calIn .16s var(--fast);}
-#cal.open{display:block;}
-@keyframes calIn{from{opacity:0;transform:translateY(-7px) scale(.98)}to{opacity:1;transform:none}}
-#cal-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;}
-#cal-phase{font-size:.68rem;font-weight:700;color:var(--accent);text-transform:uppercase;letter-spacing:.08em;}
-.cal-nav{display:flex;gap:3px;}
-.cnav{width:25px;height:25px;background:var(--surface2);border:1px solid var(--border2);border-radius:6px;color:var(--muted);font-size:.82rem;display:flex;align-items:center;justify-content:center;transition:all .12s;}
-.cnav:hover{border-color:var(--accent);color:var(--accent);}
-#cal-leg{display:flex;gap:9px;margin-bottom:7px;padding-bottom:7px;border-bottom:1px solid var(--border);}
-.cl-item{display:flex;align-items:center;gap:3px;font-size:.58rem;color:var(--muted);}
-.cl-dot{width:6px;height:6px;border-radius:50%;}
-#cal-months{display:flex;gap:16px;}
-.cal-mo-name{font-size:.78rem;font-weight:700;color:var(--text);text-align:center;margin-bottom:5px;}
-.cal-grid{display:grid;grid-template-columns:repeat(7,31px);gap:1px;}
-.cal-dh{text-align:center;font-size:.57rem;font-weight:700;color:var(--muted);padding:2px 0;}
-.cd{width:31px;height:37px;display:flex;flex-direction:column;align-items:center;justify-content:center;border-radius:6px;cursor:pointer;user-select:none;transition:background .1s;}
-.cd:hover:not(.cx):not(.ce){background:rgba(46,124,246,.18);}
-.cd.ce{pointer-events:none;}.cd.cx{opacity:.25;pointer-events:none;}
-.cd.today .dn{text-decoration:underline;text-underline-offset:2px;}
-.dn{font-size:.75rem;font-weight:700;color:var(--text);line-height:1;}
-.dp{font-size:.5rem;font-weight:800;line-height:1;margin-top:1px;}
-.dp.cheap{color:var(--cheap);}.dp.mid{color:var(--mid);}.dp.pricey{color:var(--pricey);}
-.cd.s0,.cd.s1{background:var(--accent)!important;border-radius:6px;}
-.cd.s0 .dn,.cd.s1 .dn{color:#fff;}.cd.s0 .dp,.cd.s1 .dp{color:rgba(255,255,255,.7);}
-.cd.inr{background:rgba(46,124,246,.14);border-radius:0;}
-#cal-foot{display:flex;justify-content:space-between;align-items:center;margin-top:9px;padding-top:7px;border-top:1px solid var(--border);}
-#cal-foot .hint{font-size:.6rem;color:var(--muted);}
-#cal-ok{padding:5px 14px;border:none;border-radius:6px;background:var(--accent);color:#fff;font-size:.73rem;font-weight:800;}
+/* ── Quota warning banner ── */
+#quota-warning-banner {
+  display: none;
+  margin: 0 var(--space-md) var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  background: rgba(245,158,11,.14);
+  border: 1.5px solid var(--amber);
+  border-radius: var(--radius-md);
+  font-size: 0.65rem;
+  line-height: 1.4;
+  color: var(--text-main);
+}
+#quota-bar {
+  display: none;
+  margin: 0 var(--space-md) var(--space-sm);
+  padding: 4px var(--space-md) 2px;
+  font-size: 0.6rem;
+  line-height: 1.4;
+}
 
-/* ── API banner ── */
-#api-banner{background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);overflow:hidden;}
-#api-hdr{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;cursor:pointer;}
-#api-hdr .abt{font-size:.68rem;font-weight:800;color:var(--text);}
-.ab-badge{font-size:.57rem;font-weight:700;padding:2px 7px;border-radius:20px;color:#fff;}
-.b-mock{background:#4a6080;}.b-live{background:var(--green);}
-#api-body{padding:9px 10px;border-top:1px solid var(--border);display:none;}
-#api-body.open{display:block;}
-.api-lbl{font-size:.6rem;font-weight:700;color:var(--muted);margin-bottom:3px;text-transform:uppercase;}
-#api-key-inp{width:100%;padding:6px 9px;background:var(--bg);color:var(--text);border:1px solid var(--border2);border-radius:7px;font-size:.73rem;font-family:monospace;margin-bottom:5px;}
-#api-key-inp:focus{outline:none;border-color:var(--accent);}
-#api-key-inp::placeholder{color:var(--muted);}
-.api-btn-row{display:flex;gap:5px;margin-bottom:5px;}
-.api-btn-row button{flex:1;padding:5px;border:none;border-radius:7px;font-size:.7rem;font-weight:800;cursor:pointer;transition:opacity .15s;}
-#api-apply{background:var(--accent);color:#fff;}
-#api-apply:hover{opacity:.85;}
-#api-clear{background:#1e3550;color:var(--muted);}
-#api-clear:hover{color:var(--text);}
-.api-note{font-size:.6rem;color:var(--muted);line-height:1.5;}
-.api-note a{color:var(--accent);text-decoration:none;}
-.solo-live-btn{width:100%;padding:5px 8px;border:1px solid var(--border2);border-radius:7px;background:transparent;color:var(--muted);font-size:.6rem;font-weight:700;cursor:pointer;margin-top:6px;transition:all .15s;text-align:center;}
-.solo-live-btn:hover{border-color:var(--accent);color:var(--accent);}
-.solo-live-btn.loading{color:var(--amber);border-color:var(--amber);cursor:wait;}
-.bar-live{opacity:1!important;}
-/* ── ORD toggle ── */
-#ord-toggle-row{margin-top:6px;}
-.ord-toggle-btn{padding:4px 10px;font-size:.63rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:20px;transition:all .15s var(--ease);}
-.ord-toggle-btn.on{background:rgba(6,182,212,.12);border-color:var(--ord);color:var(--ord);}
-.ord-toggle-btn:hover{border-color:var(--ord);color:var(--ord);}
-/* ── Route cards (meetup breakdown) ── */
-.route-card{background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 10px;margin-bottom:5px;}
-.route-card-hd{display:flex;align-items:center;gap:5px;margin-bottom:5px;}
-.route-badge{font-size:.68rem;font-weight:800;padding:2px 7px;border-radius:5px;}
-.route-arrow{font-size:.7rem;color:var(--muted);}
-.route-price{font-size:.95rem;font-weight:900;line-height:1;color:var(--text);}
-.route-fare-lbl{font-size:.55rem;font-weight:700;color:var(--muted);vertical-align:middle;}
-.route-meta{font-size:.57rem;color:var(--muted);margin-top:2px;line-height:1.4;}
-.route-drive-row{font-size:.68rem;color:var(--muted);margin-top:2px;}
-.route-est-tag{font-size:.5rem;font-weight:700;padding:1px 4px;border-radius:10px;background:var(--surface);border:1px solid var(--border2);color:var(--muted);margin-left:4px;}
-.route-copy-btn{margin-left:auto;background:transparent;border:none;cursor:pointer;font-size:.75rem;opacity:.45;padding:2px 4px;border-radius:5px;transition:opacity .15s;}
-.pia-toggle-row{display:flex;gap:4px;align-items:center;margin-top:5px;font-size:.55rem;flex-wrap:wrap;}
-.pia-toggle{padding:3px 7px;font-size:.55rem;font-weight:800;border:1px solid var(--border2);border-radius:5px;cursor:pointer;font-family:inherit;transition:all .12s;}
-.pia-toggle:not(.on):not(.dis):hover{border-color:var(--accent);}
-.pia-toggle.dis{cursor:not-allowed;opacity:.55;}
-.pia-toggle.on{border-color:var(--accent);}
-.pia-reset{font-size:.5rem;background:none;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;padding:0 0 0 2px;}
-.member-tag{font-size:.55rem;color:var(--muted);margin-left:4px;}
-.src-badge{font-size:.5rem;color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;}
-.src-badge.live{background:var(--green);}
-.src-badge.sample{background:var(--amber);}
-.route-copy-btn:hover{opacity:1;background:rgba(255,255,255,.07);}
+/* ═══ BLOCK 1: Plan Trip ═══ */
 
+/* Mode Switcher */
+#mode-switcher {
+  display: flex;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-sm);
+}
+.mode-btn {
+  flex: 1;
+  padding: 10px 6px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: transparent;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all .15s;
+  white-space: nowrap;
+  min-height: 48px;
+}
+.mode-btn.on {
+  background: var(--a-dim);
+  border-color: var(--primary);
+  color: var(--primary);
+}
 
-#sb-foot{padding:7px 12px;border-top:1px solid var(--border);font-size:.58rem;color:#253548;flex-shrink:0;}
+/* Home Airport Chips */
+.lbl {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  margin-bottom: var(--space-xs);
+}
 
-/* ── Main ── */
-#main{flex:1;display:flex;flex-direction:column;min-width:0;}
-#topbar{padding:9px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
-.tb-l h2{font-size:.9rem;font-weight:800;color:var(--text);}
-.tb-l p{font-size:.67rem;color:var(--muted);margin-top:1px;}
-.tb-r{display:flex;align-items:center;gap:8px;}
-.tb-pills{display:flex;gap:5px;}
-.pill{display:flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--border);border-radius:20px;font-size:.67rem;color:var(--muted);background:var(--surface2);}
-/* ── Meetup strip (compact hero + rank) ── */
-#meetup-strip{flex-shrink:0;padding:7px 18px;border-bottom:1px solid rgba(16,185,129,.2);background:linear-gradient(90deg,rgba(16,185,129,.06) 0%,rgba(46,124,246,.03) 100%);display:flex;align-items:center;gap:10px;min-height:44px;animation:stripBorder 2.8s ease-in-out infinite;}
-#meetup-strip.no-date{background:rgba(245,158,11,.05);border-bottom-color:rgba(245,158,11,.25);}
-@keyframes stripBorder{0%,100%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.2)}50%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.55),0 1px 12px rgba(16,185,129,.07)}}
-.ms-badge{font-size:.57rem;font-weight:800;padding:2px 8px;border-radius:20px;background:var(--green);color:#fff;white-space:nowrap;flex-shrink:0;letter-spacing:.03em;}
-.ms-badge.sug{background:var(--amber);}
-.ms-best{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden;}
-.ms-headline{font-size:.82rem;font-weight:900;color:var(--text);white-space:nowrap;}
-.ms-price{font-size:.88rem;font-weight:900;color:var(--green);white-space:nowrap;}
-.ms-price.sug{color:var(--amber);}
-.ms-info{min-width:0;overflow:hidden;}
-.ms-sub{font-size:.53rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.ms-ranks{display:flex;gap:5px;flex-shrink:0;flex-wrap:nowrap;align-items:center;}
-.rank-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.64rem;font-weight:700;border:1.5px solid;white-space:nowrap;cursor:pointer;transition:opacity .12s,box-shadow .12s,transform .08s;user-select:none;}
-.rank-chip:hover{opacity:.85;transform:scale(1.04);}
-.rank-chip.r1{border-color:var(--green);color:var(--green);background:rgba(16,185,129,.1);}
-.rank-chip.r2{border-color:var(--amber);color:var(--amber);background:rgba(245,158,11,.08);}
-.rank-chip.r3,.rank-chip.r4{border-color:var(--border2);color:var(--muted);background:transparent;}
-.rank-chip.active{border-width:2px;box-shadow:0 0 0 2px rgba(255,255,255,.18);color:#fff!important;background:rgba(255,255,255,.13)!important;border-color:#fff!important;}
-.ms-sep{width:1px;height:22px;background:var(--border);flex-shrink:0;}
+/* Select styling */
+.s-sel {
+  width: 100%;
+  padding: 10px 28px 10px 12px;
+  background: var(--surface2);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.9rem;
+  font-weight: 700;
+  appearance: none;
+  min-height: 48px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%237a99b8'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  transition: border-color .15s;
+}
+.s-sel:focus { outline: none; border-color: var(--primary); }
 
-/* ── Share button ── */
-#share-btn-top{display:flex;align-items:center;gap:4px;padding:4px 11px;border-radius:8px;font-size:.65rem;font-weight:800;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);transition:all .15s;cursor:pointer;}
-#share-btn-top:hover{border-color:var(--accent);color:var(--accent);}
+/* Home airport orange highlight */
+#home-sel {
+  background-color: #f59e0b;
+  color: #1a1a1a;
+  border-color: #d97706;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%231a1a1a'/%3E%3C/svg%3E");
+}
+#home-sel:hover { background-color: #fbbf24; }
+#home-sel:focus { border-color: #b45309; box-shadow: 0 0 0 2px rgba(245,158,11,.35); }
+#home-sel option { background: #1f2937; color: #fff; }
+#home-airport-row .lbl { color: #b8852b; }
+
+/* Holiday chips */
+#hol-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 4px;
+}
+#hol-row::-webkit-scrollbar { display: none; }
+.hol-btn {
+  padding: 6px 12px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  transition: all .15s var(--ease);
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.hol-btn:hover { border-color: var(--primary); color: var(--primary); }
+.hol-btn.active { background: var(--a-dim); border-color: var(--primary); color: var(--primary); }
+
+/* ═══ BLOCK 2: Choose Dates ═══ */
+
+/* Trip type pills */
+#trip-row { display: flex; gap: 6px; margin-bottom: var(--space-sm); }
+.tt-btn {
+  flex: 1;
+  padding: 10px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  transition: all .15s var(--ease);
+  min-height: 48px;
+}
+.tt-btn.on { background: var(--a-dim); border-color: var(--primary); color: var(--primary); }
+
+/* Date pickers */
+#date-row { display: flex; gap: 6px; }
+.d-btn {
+  flex: 1;
+  padding: 10px 12px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  text-align: left;
+  transition: border-color .15s;
+  line-height: 1.3;
+  min-height: 52px;
+}
+.d-btn.active, .d-btn:hover:not(:disabled) { border-color: var(--primary); }
+.d-btn:disabled { opacity: .28; cursor: default; }
+.d-lbl {
+  display: block;
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+}
+.d-val {
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin-top: 2px;
+  white-space: nowrap;
+}
+.d-val.ph { color: var(--text-muted); font-weight: 400; }
+
+/* ═══ BLOCK 3: Search Results ═══ */
+
+/* Meetup strip */
+#meetup-strip {
+  padding: var(--space-sm) 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  min-height: 44px;
+  animation: stripBorder 2.8s ease-in-out infinite;
+}
+#meetup-strip.no-date { background: rgba(245,158,11,.05); }
+@keyframes stripBorder {
+  0%,100% { box-shadow: inset 0 -1px 0 0 rgba(16,185,129,.2) }
+  50% { box-shadow: inset 0 -1px 0 0 rgba(16,185,129,.55), 0 1px 12px rgba(16,185,129,.07) }
+}
+.ms-badge {
+  font-size: 0.6rem;
+  font-weight: 800;
+  padding: 3px 9px;
+  border-radius: 20px;
+  background: var(--green);
+  color: #fff;
+  white-space: nowrap;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+}
+.ms-badge.sug { background: var(--amber); }
+.ms-best { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 100%; overflow: hidden; }
+.ms-headline { font-size: 0.82rem; font-weight: 900; color: var(--text-main); white-space: nowrap; }
+.ms-price { font-size: 0.88rem; font-weight: 900; color: var(--green); white-space: nowrap; }
+.ms-price.sug { color: var(--amber); }
+.ms-info { min-width: 0; overflow: hidden; }
+.ms-sub { font-size: 0.58rem; color: var(--text-muted); white-space: normal; overflow: hidden; text-overflow: ellipsis; }
+.ms-ranks { display: flex; gap: 6px; flex-shrink: 0; flex-wrap: wrap; align-items: center; }
+.rank-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1.5px solid;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: opacity .12s, box-shadow .12s, transform .08s;
+  user-select: none;
+  min-height: 36px;
+}
+.rank-chip:hover { opacity: .85; transform: scale(1.04); }
+.rank-chip.r1 { border-color: var(--green); color: var(--green); background: rgba(16,185,129,.1); }
+.rank-chip.r2 { border-color: var(--amber); color: var(--amber); background: rgba(245,158,11,.08); }
+.rank-chip.r3, .rank-chip.r4 { border-color: var(--border); color: var(--text-muted); background: transparent; }
+.rank-chip.active { border-width: 2px; box-shadow: 0 0 0 2px rgba(255,255,255,.18); color: #fff !important; background: rgba(255,255,255,.13) !important; border-color: #fff !important; }
+.ms-sep { display: none; }
+
+/* Route cards */
+.route-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: var(--space-sm) 12px;
+  margin-bottom: var(--space-xs);
+}
+.route-card-hd { display: flex; align-items: center; gap: 5px; margin-bottom: 5px; flex-wrap: wrap; }
+.route-badge { font-size: 0.76rem; font-weight: 800; padding: 3px 9px; border-radius: 6px; }
+.route-arrow { font-size: 0.7rem; color: var(--text-muted); }
+.route-price { font-size: 1.05rem; font-weight: 900; line-height: 1; color: var(--text-main); }
+.route-fare-lbl { font-size: 0.6rem; font-weight: 700; color: var(--text-muted); vertical-align: middle; }
+.route-meta { font-size: 0.62rem; color: var(--text-muted); margin-top: 2px; line-height: 1.4; }
+.route-drive-row { font-size: 0.68rem; color: var(--text-muted); margin-top: 2px; }
+.route-est-tag { font-size: 0.5rem; font-weight: 700; padding: 1px 4px; border-radius: 10px; background: var(--card); border: 1px solid var(--border); color: var(--text-muted); margin-left: 4px; }
+.route-copy-btn { margin-left: auto; background: transparent; border: none; cursor: pointer; font-size: 0.85rem; opacity: .6; padding: 2px 8px; border-radius: 5px; transition: opacity .15s; min-height: 36px; }
+.route-copy-btn:hover { opacity: 1; background: rgba(255,255,255,.07); }
+.pia-toggle-row { display: flex; gap: 4px; align-items: center; margin-top: 5px; font-size: 0.55rem; flex-wrap: wrap; }
+.pia-toggle { padding: 3px 7px; font-size: 0.55rem; font-weight: 800; border: 1px solid var(--border); border-radius: 5px; cursor: pointer; font-family: inherit; transition: all .12s; }
+.pia-toggle:not(.on):not(.dis):hover { border-color: var(--primary); }
+.pia-toggle.dis { cursor: not-allowed; opacity: .55; }
+.pia-toggle.on { border-color: var(--primary); }
+.pia-reset { font-size: 0.5rem; background: none; border: none; color: var(--text-muted); cursor: pointer; text-decoration: underline; padding: 0 0 0 2px; }
+.member-tag { font-size: 0.55rem; color: var(--text-muted); margin-left: 4px; }
+.src-badge { font-size: 0.5rem; color: #000; padding: 1px 5px; border-radius: 3px; font-weight: 900; margin-left: 4px; }
+.src-badge.live { background: var(--green); }
+.src-badge.sample { background: var(--amber); }
+
+/* Solo section */
+#solo-section { display: flex; flex-direction: column; gap: 8px; }
+.solo-dest-card {
+  background: var(--surface2);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  transition: border-color .18s, box-shadow .18s;
+}
+.solo-dest-card.focused { box-shadow: 0 4px 20px rgba(0,0,0,.4); }
+.solo-dest-hd { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px 8px; border-left: 3px solid transparent; }
+.solo-dest-title { font-size: 0.82rem; font-weight: 900; }
+.solo-dest-body { padding: 0 12px 10px; }
+.wknd-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 8px 6px;
+  border-top: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background .1s;
+  min-height: 48px;
+}
+.wknd-row:hover { background: rgba(46,124,246,.07); }
+.wknd-dates { font-size: 0.72rem; color: var(--text-main); font-weight: 700; line-height: 1.2; }
+.wknd-meta { font-size: 0.58rem; color: var(--text-muted); margin-top: 2px; line-height: 1.3; }
+.wknd-price { font-size: 0.88rem; font-weight: 900; line-height: 1; }
+.ord-pivot-badge { font-size: 0.5rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; background: var(--green); color: #fff; letter-spacing: 0.03em; display: inline-block; margin-bottom: 2px; }
+.bv-badge { font-size: 0.5rem; font-weight: 700; padding: 1px 5px; border-radius: 20px; background: var(--a-dim); border: 1px solid var(--primary); color: var(--primary); letter-spacing: 0.03em; display: inline-block; }
+
+/* Bar chart */
+.bar-chart-svg { display: block; width: 100%; height: 46px; overflow: visible; cursor: crosshair; }
+.bar-chart-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.5rem; color: var(--text-muted); margin-top: 2px; margin-bottom: 5px; }
+.bar-live { opacity: 1 !important; }
+.solo-live-btn {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: all .15s;
+  text-align: center;
+  min-height: 44px;
+}
+.solo-live-btn:hover { border-color: var(--primary); color: var(--primary); }
+.solo-live-btn.loading { color: var(--amber); border-color: var(--amber); cursor: wait; }
+
+/* ═══ BLOCK 4: Share Plan ═══ */
+#share-card {
+  padding: var(--space-sm) var(--space-md);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.72rem;
+  color: var(--text-main);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-all;
+  display: none;
+}
+#share-card-close { float: right; cursor: pointer; color: var(--text-muted); font-size: 0.7rem; font-weight: 700; margin-left: 8px; }
+#share-card-close:hover { color: var(--red); }
 
 /* ── Share toast ── */
-#share-toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(50px);background:rgba(16,185,129,.97);color:#fff;font-size:.73rem;font-weight:800;padding:8px 20px;border-radius:20px;opacity:0;transition:all .28s var(--ease);z-index:2000;pointer-events:none;white-space:nowrap;}
-#share-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
-
-/* ── Share card ── */
-#share-card{margin:0 18px 8px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);font-size:.72rem;color:var(--text);line-height:1.65;white-space:pre-wrap;word-break:break-all;display:none;}
-#share-card-close{float:right;cursor:pointer;color:var(--muted);font-size:.7rem;font-weight:700;margin-left:8px;}
-#share-card-close:hover{color:var(--red);}
-
-/* ── Mode Switcher ── */
-#mode-switcher{display:flex;gap:5px;padding:9px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;}
-.mode-btn{flex:1;padding:7px 6px;font-size:.66rem;font-weight:800;color:var(--muted);background:transparent;border:1px solid var(--border2);border-radius:8px;transition:all .15s;white-space:nowrap;cursor:pointer;}
-.mode-btn.on{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
-.mode-btn:hover:not(.on){color:var(--text);border-color:var(--border);}
-
-/* ── Solo destination cards ── */
-#solo-section{display:flex;flex-direction:column;gap:8px;}
-.solo-dest-card{background:var(--surface2);border:1.5px solid var(--border2);border-radius:11px;overflow:hidden;transition:border-color .18s,box-shadow .18s;}
-.solo-dest-card.focused{box-shadow:0 4px 20px rgba(0,0,0,.4);}
-.solo-dest-hd{display:flex;align-items:center;justify-content:space-between;padding:9px 12px 7px;border-left:3px solid transparent;}
-.solo-dest-title{font-size:.78rem;font-weight:900;}
-.solo-dest-body{padding:0 12px 10px;}
-
-.wknd-row{display:flex;align-items:flex-start;justify-content:space-between;padding:5px 6px;border-top:1px solid var(--border);border-radius:5px;cursor:pointer;transition:background .1s;}
-.wknd-row:hover{background:rgba(46,124,246,.07);}
-.wknd-dates{font-size:.65rem;color:var(--text);font-weight:700;line-height:1.2;}
-.wknd-meta{font-size:.52rem;color:var(--muted);margin-top:2px;line-height:1.3;}
-.wknd-price{font-size:.82rem;font-weight:900;line-height:1;}
-.ord-pivot-badge{font-size:.5rem;font-weight:700;padding:1px 5px;border-radius:20px;background:var(--green);color:#fff;letter-spacing:.03em;display:inline-block;margin-bottom:2px;}
-.bv-badge{font-size:.5rem;font-weight:700;padding:1px 5px;border-radius:20px;background:var(--a-dim);border:1px solid var(--accent);color:var(--accent);letter-spacing:.03em;display:inline-block;}
-
-/* ── Map ── */
-#map-wrap{flex:1;position:relative;overflow:hidden;}
-#map-svg{width:100%;height:100%;display:block;}
-#tip{position:absolute;pointer-events:none;display:none;background:rgba(8,14,26,.96);border:1px solid var(--border2);border-radius:9px;padding:7px 11px;font-size:.7rem;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:200;max-width:230px;line-height:1.55;}
-#map-leg{position:absolute;bottom:16px;right:16px;background:rgba(7,16,30,.9);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;backdrop-filter:blur(10px);}
-.ml{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:.65rem;color:var(--muted);}
-.ml:last-child{margin-bottom:0;}
-.ml-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
-
-/* ── Bar chart (Solo mode) ── */
-.bar-chart-svg{display:block;width:100%;height:46px;overflow:visible;cursor:crosshair;}
-.bar-chart-row{display:flex;align-items:center;justify-content:space-between;font-size:.5rem;color:var(--muted);margin-top:2px;margin-bottom:5px;}
-
-/* ── Map toggle (US / World) ── */
-#map-toggle{position:absolute;top:12px;left:12px;z-index:100;display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border2);background:var(--surface);}
-.mt-btn{padding:5px 12px;font-size:.62rem;font-weight:800;color:var(--muted);background:transparent;border:none;cursor:pointer;transition:all .12s;letter-spacing:.04em;}
-.mt-btn.on{background:var(--a-dim);color:var(--accent);}
-.mt-btn:hover:not(.on){color:var(--text);}
-
-/* ── Stats bar ── */
-#statsbar{padding:7px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
-.si{font-size:.67rem;color:var(--muted);}
-.si strong{color:#7a99b8;font-weight:700;}
-
-/* ══════════════════════════════════════════
-   MOBILE RESPONSIVE  —  iPhone 13+ (390 px)
-   ══════════════════════════════════════════ */
-/* ── Mobile sticky top bar ── */
-#mobile-sticky-bar{display:none;position:fixed;top:0;left:0;right:0;z-index:500;background:var(--surface);border-bottom:1px solid var(--border);padding-top:env(safe-area-inset-top);padding-left:env(safe-area-inset-left);padding-right:env(safe-area-inset-right);height:auto;}
-#mobile-sticky-bar.show{display:flex;}
-#mobile-sticky-bar{flex-direction:row;align-items:center;justify-content:space-between;padding-bottom:10px;padding-top:calc(env(safe-area-inset-top) + 8px);gap:8px;}
-.mobile-chip{display:flex;align-items:center;justify-content:center;padding:6px 12px;border-radius:20px;background:var(--surface2);border:1px solid var(--border2);font-size:.7rem;font-weight:700;color:var(--muted);cursor:pointer;transition:all .15s;min-height:36px;white-space:nowrap;}
-.mobile-chip:active{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
-#mode-chip{margin-left:8px;}
-#home-chip{margin-right:8px;}
-
-/* ── Floating Share Plan button (mobile) ── */
-#share-btn-floating{display:none;position:fixed;bottom:calc(env(safe-area-inset-bottom) + 16px);right:16px;z-index:499;background:var(--green);color:#fff;border:none;border-radius:50%;width:56px;height:56px;font-size:24px;cursor:pointer;box-shadow:0 4px 16px rgba(16,185,129,.4);transition:all .15s;align-items:center;justify-content:center;padding:0;}
-#share-btn-floating:active{transform:scale(0.92);}
-
-@media (max-width:640px){
-#mobile-sticky-bar.show{display:flex;}
-#share-btn-floating{display:flex;}
-
-  /* Base layout — stack vertically, allow scroll */
-  html,body{overflow:auto;height:auto;}
-  #app{flex-direction:column;height:auto;min-height:100svh;min-height:100vh;}
-
-  /* Map on top — enlarged for better route visibility */
-  #main{order:1;flex:none;width:100%;height:68vw;min-height:320px;max-height:55vh;position:relative;}
-  #map-wrap{width:100%;height:100%;}
-  #statsbar{display:none!important;}
-
-  /* Sidebar below map */
-  #sb{order:2;width:100%;height:auto;max-height:none;border-right:none;border-top:1px solid var(--border);overflow:visible;flex-direction:column;}
-  #sb-head{padding:10px 14px 6px;}
-  #sb-body{overflow:visible;height:auto;padding-bottom:80px;}
-  #sb-foot{display:none!important;}
-
-  /* Mode tabs full-width */
-  .tb-pills{display:flex;}
-  .mode-btn{flex:1;min-height:44px;font-size:.75rem;padding:9px 6px;}
-
-  /* Meetup strip wraps on mobile */
-  #meetup-strip{flex-wrap:wrap;padding:10px 14px;gap:8px;}
-  .ms-best{min-width:100%;flex:1 1 100%;}
-  .ms-sep{display:none;}
-  .ms-ranks{flex-wrap:wrap;gap:6px;}
-  .rank-chip{min-height:36px;padding:4px 12px;font-size:.72rem;}
-  .ms-headline{font-size:.78rem;}
-  .ms-price{font-size:.78rem;}
-  .ms-sub{font-size:.58rem;white-space:normal;}
-
-  /* Holiday chips — horizontal scroll */
-  #hol-row{flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:4px;}
-  #hol-row::-webkit-scrollbar{display:none;}
-  .hol-btn{min-height:36px;font-size:.7rem;padding:4px 10px;flex-shrink:0;}
-
-  /* Date row */
-  .d-btn{min-height:44px;font-size:.72rem;}
-  #search-btn{min-height:44px;font-size:.76rem;width:100%;border-radius:8px;}
-
-  /* Route cards bigger tap targets */
-  .route-card{padding:10px 12px;margin-bottom:7px;}
-  .route-badge{font-size:.76rem;padding:3px 9px;}
-  .route-price{font-size:1.05rem;}
-  .route-fare-lbl{font-size:.6rem;}
-  .route-meta{font-size:.62rem;}
-  .route-copy-btn{font-size:.85rem;opacity:.6;min-height:36px;padding:2px 8px;}
-
-  /* Share / toast */
-  #share-toast{bottom:14px;left:50%;transform:translateX(-50%);width:88vw;text-align:center;font-size:.72rem;}
-  #share-card{margin:10px 14px;}
-
-  /* Calendar as bottom sheet */
-  #cal{position:fixed!important;left:0!important;right:0!important;bottom:0!important;top:auto!important;width:100%!important;max-width:100%!important;border-radius:18px 18px 0 0;box-shadow:0 -8px 40px rgba(0,0,0,.7);z-index:300;padding-bottom:env(safe-area-inset-bottom);}
-  .cal-months-wrap{flex-direction:column;gap:0;}
-  #cal-months{flex-direction:column;}
-  #cal-bd{z-index:299;}
-
-  /* Map legend smaller */
-  #map-leg{bottom:8px;right:8px;padding:6px 9px;}
-  .ml{font-size:.58rem;}
-
-  /* ORD toggle row */
-  #ord-toggle-row{padding:4px 0;}
-  .ord-toggle-btn{min-height:36px;font-size:.7rem;}
-
-  /* API banner */
-  #api-banner{padding:7px 12px;}
-  #api-key-input{font-size:.72rem;}
-
-  /* Share button prominent on mobile */
-  #share-btn-mob{display:flex;}
+#share-toast {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + 80px);
+  left: 50%;
+  transform: translateX(-50%) translateY(50px);
+  background: rgba(0,200,83,.97);
+  color: #fff;
+  font-size: 0.73rem;
+  font-weight: 800;
+  padding: 10px 24px;
+  border-radius: 20px;
+  opacity: 0;
+  transition: all .28s var(--ease);
+  z-index: 2000;
+  pointer-events: none;
+  white-space: nowrap;
+  width: 88vw;
+  max-width: 400px;
+  text-align: center;
 }
-/* Desktop: hide mobile-only share button */
-#share-btn-mob{display:none;}
+#share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── Sticky CTA ── */
+.sticky-cta {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 500;
+  padding: var(--space-sm) var(--space-md) calc(env(safe-area-inset-bottom) + var(--space-sm));
+  background: linear-gradient(to top, var(--bg) 60%, transparent);
+}
+#search-btn {
+  width: 100%;
+  padding: 14px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity .15s, transform .1s;
+  min-height: 52px;
+  box-shadow: 0 4px 20px rgba(46,124,246,.35);
+}
+#search-btn:hover { opacity: .88; }
+#search-btn:active { transform: scale(.98); }
+#search-btn:disabled { opacity: .4; cursor: default; }
+.spin-sm {
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+  display: none;
+}
+@keyframes spin { to { transform: rotate(360deg) } }
+
+/* ── Floating Share FAB ── */
+#share-btn-floating {
+  position: fixed;
+  bottom: calc(env(safe-area-inset-bottom) + 72px);
+  right: var(--space-md);
+  z-index: 499;
+  background: var(--green);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  font-size: 24px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(0,200,83,.4);
+  transition: all .15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+#share-btn-floating:active { transform: scale(0.92); }
+
+/* ── Map (collapsed by default) ── */
+#map-wrap {
+  position: relative;
+  overflow: hidden;
+  width: 100%;
+  height: 0;
+  transition: height .3s var(--ease);
+}
+#map-wrap.open {
+  height: 60vw;
+  min-height: 260px;
+  max-height: 50vh;
+}
+#map-svg { width: 100%; height: 100%; display: block; }
+#tip {
+  position: absolute;
+  pointer-events: none;
+  display: none;
+  background: rgba(8,14,26,.96);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 11px;
+  font-size: 0.7rem;
+  color: var(--text-main);
+  box-shadow: 0 6px 24px rgba(0,0,0,.6);
+  z-index: 200;
+  max-width: 230px;
+  line-height: 1.55;
+}
+#map-leg {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(7,16,30,.9);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px 9px;
+  backdrop-filter: blur(10px);
+}
+.ml { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 0.58rem; color: var(--text-muted); }
+.ml:last-child { margin-bottom: 0; }
+.ml-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+#map-toggle {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 100;
+  display: flex;
+  gap: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--card);
+}
+.mt-btn {
+  padding: 5px 12px;
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all .12s;
+  letter-spacing: 0.04em;
+  min-height: 36px;
+}
+.mt-btn.on { background: var(--a-dim); color: var(--primary); }
+.map-toggle-btn {
+  width: 100%;
+  padding: 10px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .15s;
+  min-height: 48px;
+  text-align: center;
+}
+.map-toggle-btn:hover { border-color: var(--primary); color: var(--primary); }
+.map-toggle-btn.open { color: var(--primary); border-color: var(--primary); }
+
+/* ── Calendar popup (bottom sheet on mobile) ── */
+#cal-bd { position: fixed; inset: 0; z-index: 900; display: none; }
+#cal-bd.open { display: block; }
+#cal {
+  position: fixed;
+  z-index: 1000;
+  left: 0; right: 0; bottom: 0;
+  width: 100%;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 18px 18px 0 0;
+  box-shadow: 0 -8px 40px rgba(0,0,0,.7);
+  padding: 13px 15px calc(env(safe-area-inset-bottom) + 11px);
+  display: none;
+  animation: calIn .16s var(--fast);
+}
+#cal.open { display: block; }
+@keyframes calIn { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: none } }
+#cal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
+#cal-phase { font-size: 0.72rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.08em; }
+.cal-nav { display: flex; gap: 3px; }
+.cnav {
+  width: 36px; height: 36px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all .12s;
+}
+.cnav:hover { border-color: var(--primary); color: var(--primary); }
+#cal-leg { display: flex; gap: 9px; margin-bottom: 7px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
+.cl-item { display: flex; align-items: center; gap: 3px; font-size: 0.6rem; color: var(--text-muted); }
+.cl-dot { width: 6px; height: 6px; border-radius: 50%; }
+#cal-months { display: flex; flex-direction: column; gap: 16px; }
+.cal-mo-name { font-size: 0.82rem; font-weight: 700; color: var(--text-main); text-align: center; margin-bottom: 5px; }
+.cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
+.cal-dh { text-align: center; font-size: 0.6rem; font-weight: 700; color: var(--text-muted); padding: 2px 0; }
+.cd {
+  width: 100%;
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  cursor: pointer;
+  user-select: none;
+  transition: background .1s;
+  min-height: 40px;
+}
+.cd:hover:not(.cx):not(.ce) { background: rgba(46,124,246,.18); }
+.cd.ce { pointer-events: none; }
+.cd.cx { opacity: .25; pointer-events: none; }
+.cd.today .dn { text-decoration: underline; text-underline-offset: 2px; }
+.dn { font-size: 0.8rem; font-weight: 700; color: var(--text-main); line-height: 1; }
+.dp { font-size: 0.52rem; font-weight: 800; line-height: 1; margin-top: 1px; }
+.dp.cheap { color: var(--cheap); }
+.dp.mid { color: var(--mid); }
+.dp.pricey { color: var(--pricey); }
+.cd.s0, .cd.s1 { background: var(--primary) !important; border-radius: 8px; }
+.cd.s0 .dn, .cd.s1 .dn { color: #fff; }
+.cd.s0 .dp, .cd.s1 .dp { color: rgba(255,255,255,.7); }
+.cd.inr { background: rgba(46,124,246,.14); border-radius: 0; }
+#cal-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--border); }
+#cal-foot .hint { font-size: 0.62rem; color: var(--text-muted); }
+#cal-ok {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 8px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 800;
+  min-height: 44px;
+}
+
+/* ── Advanced Settings ── */
+.advanced {
+  margin: 0 var(--space-md) var(--space-sm);
+}
+.advanced summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: var(--space-sm) var(--space-md);
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: pointer;
+  list-style: none;
+  min-height: 44px;
+  transition: all .15s;
+}
+.advanced summary::-webkit-details-marker { display: none; }
+.advanced summary::before {
+  content: '⚙️';
+  font-size: 0.9rem;
+}
+.advanced summary::after {
+  content: '▸';
+  margin-left: auto;
+  transition: transform .2s;
+}
+.advanced[open] summary::after {
+  transform: rotate(90deg);
+}
+.advanced[open] summary {
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  border-bottom: none;
+}
+.advanced .adv-body {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--radius-md) var(--radius-md);
+  padding: var(--space-md);
+}
+
+/* API banner inside advanced */
+#api-banner { background: transparent; border: none; overflow: hidden; }
+#api-hdr { display: flex; align-items: center; justify-content: space-between; padding: 0 0 7px; cursor: pointer; }
+#api-hdr .abt { font-size: 0.72rem; font-weight: 800; color: var(--text-main); }
+.ab-badge { font-size: 0.6rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; color: #fff; }
+.b-mock { background: #4a6080; }
+.b-live { background: var(--green); }
+#api-body { padding: 9px 0 0; border-top: 1px solid var(--border); display: none; }
+#api-body.open { display: block; }
+.api-lbl { font-size: 0.62rem; font-weight: 700; color: var(--text-muted); margin-bottom: 3px; text-transform: uppercase; }
+#api-key-inp {
+  width: 100%;
+  padding: 10px 12px;
+  background: var(--bg);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-family: monospace;
+  margin-bottom: 5px;
+  min-height: 44px;
+}
+#api-key-inp:focus { outline: none; border-color: var(--primary); }
+#api-key-inp::placeholder { color: var(--text-muted); }
+.api-btn-row { display: flex; gap: 5px; margin-bottom: 5px; }
+.api-btn-row button {
+  flex: 1;
+  padding: 8px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity .15s;
+  min-height: 44px;
+}
+#api-apply { background: var(--primary); color: #fff; }
+#api-apply:hover { opacity: .85; }
+#api-clear { background: #1e3550; color: var(--text-muted); }
+#api-clear:hover { color: var(--text-main); }
+.api-note { font-size: 0.62rem; color: var(--text-muted); line-height: 1.5; }
+.api-note a { color: var(--primary); text-decoration: none; }
+
+/* ── ORD toggle (kept but hidden behind advanced) ── */
+#ord-toggle-row { margin-top: 6px; }
+.ord-toggle-btn {
+  padding: 6px 12px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  transition: all .15s var(--ease);
+  min-height: 44px;
+}
+.ord-toggle-btn.on { background: rgba(6,182,212,.12); border-color: var(--ord); color: var(--ord); }
+
+/* ── Topbar (collapsed for mobile — pills preserved for JS) ── */
+#topbar { display: none; }
+.tb-l h2 { font-size: 0.9rem; font-weight: 800; color: var(--text-main); }
+.tb-l p { font-size: 0.67rem; color: var(--text-muted); margin-top: 1px; }
+.tb-r { display: flex; align-items: center; gap: 8px; }
+.tb-pills { display: flex; gap: 5px; }
+.pill { display: flex; align-items: center; gap: 4px; padding: 3px 9px; border: 1px solid var(--border); border-radius: 20px; font-size: 0.67rem; color: var(--text-muted); background: var(--surface2); }
+#share-btn-top { display: none; }
+
+/* ── Statsbar (hidden on mobile — used by JS) ── */
+#statsbar { display: none; }
+.si { font-size: 0.67rem; color: var(--text-muted); }
+.si strong { color: #7a99b8; font-weight: 700; }
+
+/* ── Hidden: sidebar chrome the JS expects ── */
+#sb { display: contents; }
+#sb-top { display: none; }
+#sb-foot { display: none; }
+
+/* ── Error overlay ── */
+#err-overlay {
+  display: none;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 9999;
+  background: #7f1d1d;
+  color: #fff;
+  font: 12px/1.4 -apple-system, system-ui, monospace;
+  padding: 10px 14px;
+  max-height: 40vh;
+  overflow: auto;
+  border-top: 2px solid #fca5a5;
+  white-space: pre-wrap;
+}
 </style>
 </head>
 <body>
-<!-- Mobile sticky top bar -->
-<div id="mobile-sticky-bar">
-  <button id="mode-chip" class="mobile-chip">Solo</button>
-  <button id="home-chip" class="mobile-chip">PIA</button>
-</div>
 
-<!-- Floating Share Plan button (mobile) -->
-<button id="share-btn-floating" type="button">📤</button>
-
-<!-- On-screen error overlay (mobile debug) -->
-<div id="err-overlay" style="display:none;position:fixed;left:0;right:0;bottom:0;z-index:9999;background:#7f1d1d;color:#fff;font:12px/1.4 -apple-system,system-ui,monospace;padding:10px 14px;max-height:40vh;overflow:auto;border-top:2px solid #fca5a5;white-space:pre-wrap;"></div>
+<!-- On-screen error overlay (debug) -->
+<div id="err-overlay"></div>
 <script>
 (function(){
   function show(msg){ var box=document.getElementById('err-overlay'); if(!box) return; box.style.display='block'; box.textContent=(box.textContent?box.textContent+'\n':'')+msg; }
@@ -366,74 +903,94 @@ button{font-family:inherit;cursor:pointer;}
 
 <div id="app">
 
-<!-- ═══════ SIDEBAR ═══════ -->
-<aside id="sb">
-  <div id="sb-top">
-    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.5</div></div>
-    <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
+<!-- ═══ HEADER ═══ -->
+<header class="app-header">
+  <div>
+    <h1>PIALAX</h1>
+    <div class="ver">Family Flight Dashboard · v3.0</div>
   </div>
-  <div id="quota-warning-banner" style="display:none;padding:8px 12px;background:rgba(245,158,11,.14);border:1.5px solid var(--amber);border-radius:8px;margin:6px 14px 0;font-size:.62rem;line-height:1.4;color:var(--ink,var(--text));"></div>
+  <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
+</header>
 
-  <div id="mode-switcher">
-    <button class="mode-btn" data-mode="meetup">👨‍👩‍👧 Family Meetup</button>
-    <button class="mode-btn on" data-mode="solo">✈️ Solo Mode</button>
+<!-- Status bar -->
+<div id="status" class="idle">Choose dates to start</div>
+<div id="quota-warning-banner"></div>
+<div id="quota-bar"></div>
+
+<!-- ═══════════════════════════════════
+     The #sb wrapper + #sb-body provide
+     IDs the JS expects. display:contents
+     makes them invisible to layout.
+     ═══════════════════════════════════ -->
+<div id="sb">
+  <div id="sb-top" style="display:none">
+    <div><h1>PIALAX</h1><div class="ver">v3.0</div></div>
   </div>
-
-  <div id="quota-bar" style="display:none;padding:4px 14px 2px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);"></div>
 
   <div id="sb-body">
 
-    <div id="home-airport-row">
-      <div class="lbl">Your Home Airport</div>
-      <select id="home-sel" class="s-sel">
-        <option value="PIA">PIA — Peoria, IL</option>
-        <option value="ORD">ORD — Chicago, IL</option>
-        <option value="LAX">LAX — Los Angeles, CA</option>
-        <option value="JAX">JAX — Jacksonville, FL</option>
-      </select>
-    </div>
+    <!-- ═══ BLOCK 1: Plan Trip ═══ -->
+    <div class="card">
+      <div class="step-label">Step 1 · Plan Trip</div>
 
-    <div id="meetup-only" style="display:none">
-      <div class="lbl">Holiday Quick-Pick</div>
-      <div id="hol-row">
-        <button class="hol-btn" data-hol="memday">✈ Memorial Day</button>
-        <button class="hol-btn" data-hol="july4">🇺🇸 July 4th</button>
-        <button class="hol-btn" data-hol="laborday">⚡ Labor Day</button>
-        <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
-        <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
-        <button class="hol-btn" data-hol="london">🇬🇧 London Jun 25–Jul 3</button>
-        <button class="hol-btn" data-hol="jaxjun5">🏖 JAX Jun 5–8</button>
+      <!-- Mode switcher -->
+      <div id="mode-switcher">
+        <button class="mode-btn" data-mode="meetup">👨‍👩‍👧 Family Meetup</button>
+        <button class="mode-btn on" data-mode="solo">✈️ Solo Weekend</button>
       </div>
-      <!-- ORD/LHR toggles removed — both always available as meetup hubs via the dropdown. -->
-    </div>
 
-    <div>
-      <div class="lbl">Trip Type</div>
-      <div id="trip-row">
-        <button class="tt-btn on" data-v="round">Round-Trip</button>
-        <button class="tt-btn" data-v="one">One-Way</button>
+      <!-- Home airport (solo mode) -->
+      <div id="home-airport-row">
+        <div class="lbl">Your Home Airport</div>
+        <select id="home-sel" class="s-sel">
+          <option value="PIA">PIA — Peoria, IL</option>
+          <option value="ORD">ORD — Chicago, IL</option>
+          <option value="LAX">LAX — Los Angeles, CA</option>
+          <option value="JAX">JAX — Jacksonville, FL</option>
+        </select>
       </div>
-    </div>
 
-    <div>
-      <div class="lbl">Travel Dates</div>
-      <div id="date-row">
-        <button class="d-btn" id="dep-btn">
-          <span class="d-lbl">Depart</span>
-          <span class="d-val ph" id="dep-val">Pick date</span>
-        </button>
-        <button class="d-btn" id="ret-btn">
-          <span class="d-lbl">Return</span>
-          <span class="d-val ph" id="ret-val">Pick date</span>
-        </button>
+      <!-- Holiday quick-picks (meetup mode) -->
+      <div id="meetup-only" style="display:none">
+        <div class="lbl">Holiday Quick-Pick</div>
+        <div id="hol-row">
+          <button class="hol-btn" data-hol="memday">✈ Memorial Day</button>
+          <button class="hol-btn" data-hol="july4">🇺🇸 July 4th</button>
+          <button class="hol-btn" data-hol="laborday">⚡ Labor Day</button>
+          <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
+          <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
+          <button class="hol-btn" data-hol="london">🇬🇧 London Jun 25–Jul 3</button>
+          <button class="hol-btn" data-hol="jaxjun5">🏖 JAX Jun 5–8</button>
+        </div>
       </div>
     </div>
 
-    <button id="search-btn">
-      <span id="search-icon">⟳</span>
-      <span id="search-label">Search Flights</span>
-      <div class="spin-sm" id="search-spin"></div>
-    </button>
+    <!-- ═══ BLOCK 2: Choose Dates ═══ -->
+    <div class="card">
+      <div class="step-label">Step 2 · Choose Dates</div>
+
+      <div>
+        <div class="lbl">Trip Type</div>
+        <div id="trip-row">
+          <button class="tt-btn on" data-v="round">Round-Trip</button>
+          <button class="tt-btn" data-v="one">One-Way</button>
+        </div>
+      </div>
+
+      <div style="margin-top:var(--space-sm)">
+        <div class="lbl">Travel Dates</div>
+        <div id="date-row">
+          <button class="d-btn" id="dep-btn">
+            <span class="d-lbl">Depart</span>
+            <span class="d-val ph" id="dep-val">Pick date</span>
+          </button>
+          <button class="d-btn" id="ret-btn">
+            <span class="d-lbl">Return</span>
+            <span class="d-val ph" id="ret-val">Pick date</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- Calendar popup -->
     <div id="cal-bd"></div>
@@ -457,6 +1014,93 @@ button{font-family:inherit;cursor:pointer;}
       </div>
     </div>
 
+    <!-- ═══ BLOCK 3: Search Results ═══ -->
+    <div class="card" id="results-card">
+      <div class="step-label">Step 3 · Results</div>
+
+      <!-- Meetup strip -->
+      <div id="meetup-strip"></div>
+
+      <!-- Meetup route breakdown -->
+      <div id="meetup-routes-section" style="display:none">
+        <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap;">
+          <span>Flight Breakdown</span>
+          <span id="meetup-routes-dates" style="font-size:.55rem;color:var(--primary);font-weight:700;text-transform:none;letter-spacing:0;"></span>
+        </div>
+        <div id="meetup-routes"></div>
+      </div>
+
+      <!-- Meetup finder (no-date suggestion) -->
+      <div id="meetup-finder-section" style="display:none"></div>
+
+      <!-- Solo section -->
+      <div id="solo-section" style="display:none">
+        <div class="lbl">Best Weekends · <span id="solo-win-lbl">Next 90 days · Thu–Sun</span></div>
+        <div id="solo-cards"></div>
+      </div>
+
+      <!-- Map toggle -->
+      <div style="margin-top:var(--space-sm)">
+        <button class="map-toggle-btn" id="map-toggle-btn" type="button">🗺 Show Route Map</button>
+      </div>
+    </div>
+
+    <!-- Map (collapsed) -->
+    <div style="margin:0 var(--space-md) var(--space-sm);">
+      <div id="map-wrap">
+        <svg id="map-svg"></svg>
+        <div id="map-toggle">
+          <button class="mt-btn on" data-view="us">🇺🇸 US</button>
+          <button class="mt-btn" data-view="world">🌍 World</button>
+        </div>
+        <div id="tip"></div>
+        <div id="map-leg"></div>
+      </div>
+    </div>
+
+    <!-- ═══ BLOCK 4: Share Plan ═══ -->
+    <div class="card">
+      <div class="step-label">Step 4 · Share Plan</div>
+      <div id="share-card"><span id="share-card-close">✕ close</span><span id="share-card-text"></span></div>
+    </div>
+
+  </div><!-- /sb-body -->
+  <div id="sb-foot" style="display:none">PIALAX v3.0</div>
+</div><!-- /sb -->
+
+<!-- Hidden topbar + main wrapper (keeps IDs for JS) -->
+<div id="main" style="display:none;">
+  <div id="topbar">
+    <div class="tb-l">
+      <h2 id="tb-title">Routes from PIA</h2>
+      <p id="tb-sub">Loading map…</p>
+    </div>
+    <div class="tb-r">
+      <button id="share-btn-top">📤 Share Plan</button>
+      <button id="copy-link-btn" title="Copy deep-link URL" style="display:none;">🔗 Link</button>
+      <div class="tb-pills">
+        <div class="pill"><span class="ld"></span>&nbsp;<span id="pill-trip">Round-Trip</span></div>
+        <div class="pill"><span id="pill-src">Sample Data</span></div>
+      </div>
+    </div>
+  </div>
+  <div id="statsbar">
+    <div style="display:flex;gap:16px">
+      <div class="si">Hub: <strong id="s-hub">PIA</strong></div>
+      <div class="si">Routes: <strong id="s-routes">2</strong></div>
+      <div class="si">Trip: <strong id="s-trip">Round-Trip</strong></div>
+      <div class="si">Dates: <strong id="s-dates">Next 3 months</strong></div>
+    </div>
+    <div class="si" id="s-upd">—</div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<!-- Advanced Settings (outside #app card flow) -->
+<details class="advanced">
+  <summary>Advanced Settings</summary>
+  <div class="adv-body">
     <div id="api-banner">
       <div id="api-hdr">
         <span class="abt">Data Source</span>
@@ -469,80 +1113,41 @@ button{font-family:inherit;cursor:pointer;}
           <button id="api-apply">Connect Proxy</button>
           <button id="api-clear" style="display:none">✕ Disconnect</button>
         </div>
-        <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank">Setup guide in worker.js</a></div>
+        <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank" rel="noopener noreferrer">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
         <div id="api-quota-lbl" style="display:none;font-size:.62rem;margin-top:3px;line-height:1.4;"></div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--muted);">
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--text-muted);">
           <label for="api-budget-inp">Monthly budget</label>
-          <input id="api-budget-inp" type="number" min="1" max="10000" value="250" style="width:60px;padding:2px 4px;font-size:.62rem;background:var(--bg);color:var(--ink,var(--text));border:1px solid var(--line);border-radius:4px;"/>
-          <button id="api-quota-reset" style="font-size:.55rem;padding:2px 6px;">Reset</button>
+          <input id="api-budget-inp" type="number" min="1" max="10000" value="250" style="width:60px;padding:4px 6px;font-size:.65rem;background:var(--bg);color:var(--text-main);border:1px solid var(--border);border-radius:6px;min-height:36px;"/>
+          <button id="api-quota-reset" style="font-size:.58rem;padding:4px 8px;min-height:36px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);cursor:pointer;">Reset</button>
         </div>
       </div>
     </div>
-
-    <div id="meetup-finder-section" style="display:none"></div>
-
-    <div id="meetup-routes-section" style="display:none">
-      <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap;">
-        <span>Flight Breakdown</span>
-        <span id="meetup-routes-dates" style="font-size:.55rem;color:var(--accent);font-weight:700;text-transform:none;letter-spacing:0;"></span>
-      </div>
-      <div id="meetup-routes"></div>
-    </div>
-
-    <div id="solo-section" style="display:none">
-      <div class="lbl">Best Weekends · <span id="solo-win-lbl">Next 90 days · Thu–Sun</span></div>
-      <div id="solo-cards"></div>
-    </div>
-
   </div>
-  <div id="sb-foot">PIALAX v2.5 · Thu–Sun windows · Bar chart · Meetup strip</div>
-</aside>
+</details>
 
-<!-- ═══════ MAIN ═══════ -->
-<main id="main">
-  <div id="topbar">
-    <div class="tb-l">
-      <h2 id="tb-title">Routes from PIA</h2>
-      <p id="tb-sub">Loading map…</p>
-    </div>
-    <div class="tb-r">
-      <button id="share-btn-top">📤 Share Plan</button>
-      <button id="copy-link-btn" title="Copy a deep-link URL that reproduces this exact dashboard view" style="display:flex;align-items:center;gap:4px;padding:4px 11px;border-radius:8px;font-size:.65rem;font-weight:800;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);transition:all .15s;cursor:pointer;margin-left:6px;">🔗 Link</button>
-      <div class="tb-pills">
-        <div class="pill"><span class="ld"></span>&nbsp;<span id="pill-trip">Round-Trip</span></div>
-        <div class="pill"><span id="pill-src">Sample Data</span></div>
-      </div>
-    </div>
-  </div>
+<!-- Sticky CTA -->
+<div class="sticky-cta">
+  <button id="search-btn">
+    <span id="search-icon">⟳</span>
+    <span id="search-label">Find Best Flights</span>
+    <div class="spin-sm" id="search-spin"></div>
+  </button>
+</div>
 
-  <div id="meetup-strip"></div>
+<!-- Floating Share FAB (direct child of body) -->
+<button id="share-btn-floating" type="button">📤</button>
 
-  <div id="map-wrap">
-    <svg id="map-svg"></svg>
-    <div id="map-toggle">
-      <button class="mt-btn on" data-view="us">🇺🇸 US</button>
-      <button class="mt-btn" data-view="world">🌍 World</button>
-    </div>
-    <div id="tip"></div>
-    <div id="map-leg"></div>
-  </div>
-
-  <div id="share-card"><span id="share-card-close">✕ close</span><span id="share-card-text"></span></div>
-
-  <div id="statsbar">
-    <div style="display:flex;gap:16px">
-      <div class="si">Hub: <strong id="s-hub">PIA</strong></div>
-      <div class="si">Routes: <strong id="s-routes">2</strong></div>
-      <div class="si">Trip: <strong id="s-trip">Round-Trip</strong></div>
-      <div class="si">Dates: <strong id="s-dates">Next 3 months</strong></div>
-    </div>
-    <div class="si" id="s-upd">—</div>
-  </div>
-</main>
+<!-- Share toast -->
 <div id="share-toast"></div>
-<!-- Mobile floating share button (hidden on desktop) -->
-<button id="share-btn-mob" onclick="shareThePlan()" style="position:fixed;bottom:18px;right:18px;z-index:500;background:var(--green);color:#fff;border:none;border-radius:50px;padding:13px 20px;font-size:.82rem;font-weight:800;box-shadow:0 4px 18px rgba(0,0,0,.45);cursor:pointer;align-items:center;gap:8px;">✈️ Share Plan</button>
+
+<!-- Legacy mobile share button (hidden, ID preserved) -->
+<button id="share-btn-mob" style="display:none;" onclick="shareThePlan()">✈️ Share Plan</button>
+
+<!-- Legacy mobile sticky bar (hidden, IDs preserved) -->
+<div id="mobile-sticky-bar" style="display:none;">
+  <button id="mode-chip" class="mobile-chip">Solo</button>
+  <button id="home-chip" class="mobile-chip">PIA</button>
 </div>
 
 <script>
@@ -656,7 +1261,6 @@ function nextThanksgiving() {
   return d;
 }
 function getMemorialDay(yr) {
-  // Last Monday of May
   var may31 = new Date(yr, 4, 31);
   var day = may31.getDay();
   return new Date(yr, 4, 31 - ((day + 6) % 7));
@@ -667,7 +1271,6 @@ function nextMemorialDay() {
   return d;
 }
 function getLaborDay(yr) {
-  // First Monday of September
   var sep1 = new Date(yr, 8, 1);
   var day = sep1.getDay();
   return new Date(yr, 8, 1 + ((8 - day) % 7));
@@ -683,8 +1286,8 @@ var HOLIDAYS = {
   laborday:     nextLaborDay(),
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
-  london:       new Date(2026, 5, 25), // June 25, 2026 — London family trip (Jun 25 – Jul 3)
-  jaxjun5:      new Date(2026, 5, 5),  // June 5, 2026 — JAX family meetup (Jun 5–8)
+  london:       new Date(2026, 5, 25),
+  jaxjun5:      new Date(2026, 5, 5),
 };
 
 // ── STATE ────────────────────────────────────────────────────────
@@ -751,7 +1354,6 @@ function getMock(from,to){
     returnFlightNo: (rev && rev.flightNo) || null,
   };
 }
-// Build label from a price obj. Pass leg='outbound' (default) or 'return'.
 function airlineLabel(p, leg) {
   if (!p) return '';
   var a, n;
@@ -762,16 +1364,21 @@ function airlineLabel(p, leg) {
   if (n) return n;
   return '';
 }
+function stopsTag(n) {
+  if (n == null || n === 0) return ' (Non-stop)';
+  return ' (' + n + ' stop' + (n > 1 ? 's' : '') + ')';
+}
 function airlineRowHtml(priceObj, isRT) {
+  if (!priceObj) return '';
   var out = airlineLabel(priceObj, 'outbound');
   var ret = airlineLabel(priceObj, 'return');
   if (isRT && (out || ret)) {
     var parts = [];
-    if (out) parts.push('✈ ' + out);
-    if (ret) parts.push('↩ ' + ret);
+    if (out) parts.push('✈ ' + out + stopsTag(priceObj.stops));
+    if (ret) parts.push('↩ ' + ret + stopsTag(priceObj.returnStops));
     return '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>';
   }
-  if (out) return '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + out + '</div>';
+  if (out) return '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + out + stopsTag(priceObj.stops) + '</div>';
   return '';
 }
 
@@ -779,7 +1386,6 @@ function airlineRowHtml(priceObj, isRT) {
 function applyHoliday(key) {
   var base = HOLIDAYS[key];
   if (!base) return;
-  // Toggle-off: clicking active London chip again clears the trip.
   if (key === 'london') {
     var alreadyActive = document.querySelector('.hol-btn[data-hol="london"]').classList.contains('active');
     if (alreadyActive) {
@@ -794,11 +1400,9 @@ function applyHoliday(key) {
   if (key === 'london') {
     dep = new Date(2026, 5, 25); ret = new Date(2026, 6, 3);
     S.includeLHR = true;
-    // LHR toggle removed — LHR permanently in meetup hub list. Force the flag.
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
   } else if (key === 'jaxjun5') {
-    // JAX family meetup: fixed dates Jun 5–8, switches to meetup mode + JAX hub
     dep = new Date(2026, 5, 5); ret = new Date(2026, 5, 8);
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'us') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
@@ -816,21 +1420,16 @@ function applyHoliday(key) {
   document.getElementById('s-trip').textContent    = 'Round-Trip';
   document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol===key); });
   updateDateUI(); renderMeetupStrip();
-  // Auto-refresh on holiday selection (was gated on apiKey — now always refreshes
-  // so mock prices update too and meetup ranking reflects the new date pair)
   loadPrices();
 }
 
 // ── GOLDEN PATH / RANKING ENGINE ─────────────────────────────────
-// Returns the cheapest PIA→{dest} routing as {fare, viaORD}.
-// For LHR (intl), compares direct PIA→LHR vs (drive PIA→ORD + fly ORD→LHR).
 function piaRouteTo(dest, fareKey) {
   var direct = S.prices['PIA-' + dest] || getMock('PIA', dest);
   var directFare = direct ? (direct[fareKey] || direct.ow) : 0;
   var ordLeg = S.prices['ORD-' + dest] || getMock('ORD', dest);
   var ordLegFare = ordLeg ? (ordLeg[fareKey] || ordLeg.ow) : 0;
   var viaOrdAvailable = (INTL_DESTS.indexOf(dest) > -1) && ordLegFare > 0;
-  // Flight-only price (no drive fee). Drive cost is informational only.
   var viaOrdTotal = viaOrdAvailable ? ordLegFare : 0;
   var override = (S.piaRouteOverride && S.piaRouteOverride[dest]) || null;
   var useViaOrd;
@@ -908,20 +1507,18 @@ function computeRanking() {
 
 function getActiveHub(ranking) {
   if (S.meetupHubOverride) {
-    // verify override is still a valid candidate
     var valid = ranking.some(function(r){ return r.dest === S.meetupHubOverride; });
     if (valid) return S.meetupHubOverride;
-    S.meetupHubOverride = null; // stale override — reset
+    S.meetupHubOverride = null;
   }
   return ranking.length ? ranking[0].dest : null;
 }
 
 function setMeetupHub(code) {
-  S.meetupHubOverride = (S.meetupHubOverride === code) ? null : code; // toggle off if same (used by chip clicks elsewhere)
+  S.meetupHubOverride = (S.meetupHubOverride === code) ? null : code;
   renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
   syncURL();
 }
-// Dropdown handler — always SETS, never toggles. Re-selecting current hub is a no-op.
 function pickMeetupHub(code) {
   if (!code) return;
   S.meetupHubOverride = code;
@@ -962,7 +1559,6 @@ function renderMeetupStrip() {
     dateStr = nextHol ? nextHol.label + ' (suggested)' : 'Pick dates';
   }
   strip.className = noDate ? 'no-date' : '';
-  // User-controlled hub dropdown — single source of truth for meetup destination.
   var hubOrder = ['PIA', 'LAX', 'JAX', 'JFK', 'ORD', 'LHR'];
   var sortedRanking = ranking.slice().sort(function(a, b) {
     var ai = hubOrder.indexOf(a.dest), bi = hubOrder.indexOf(b.dest);
@@ -976,7 +1572,6 @@ function renderMeetupStrip() {
     var city = r.isORD ? "Chicago" : (apI ? apI.name.split(',')[0] : r.dest);
     return '<option value="' + r.dest + '"' + sel + '>' + r.dest + ' · ' + city + ' · $' + r.total + ' ' + fareLabel + '</option>';
   }).join('');
-  // High-contrast date pills — always show what we're searching for.
   var depTxt = S.depDate ? dateFmt(S.depDate) : 'Pick depart';
   var retTxt = (isRT && S.retDate) ? dateFmt(S.retDate) : (isRT ? 'Pick return' : '');
   var depEmpty = !S.depDate;
@@ -987,9 +1582,9 @@ function renderMeetupStrip() {
   var retFg = retEmpty ? '#000' : '#fff';
   var datePillsHtml =
     '<span style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Searching:</span>' +
-    '<button onclick="openCal(\'dep\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + depBg + ';color:' + depFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);">📅 ' + depTxt + '</button>' +
+    '<button onclick="openCal(\'dep\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + depBg + ';color:' + depFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);min-height:36px;">📅 ' + depTxt + '</button>' +
     (isRT ? '<span style="font-size:.85rem;color:var(--muted);font-weight:700;">→</span>' +
-            '<button onclick="openCal(\'ret\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + retBg + ';color:' + retFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);">📅 ' + retTxt + '</button>' : '');
+            '<button onclick="openCal(\'ret\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + retBg + ';color:' + retFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);min-height:36px;">📅 ' + retTxt + '</button>' : '');
   var nightCount = (S.depDate && S.retDate && isRT)
     ? Math.round((S.retDate - S.depDate) / 86400000)
     : 0;
@@ -1002,7 +1597,7 @@ function renderMeetupStrip() {
         '<div class="ms-headline" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
           '<span style="font-size:.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Meeting in</span>' +
           '<select id="ms-hub-select" onchange="pickMeetupHub(this.value)" ' +
-            'style="padding:5px 28px 5px 10px;font-size:.78rem;font-weight:900;background:var(--surface2);color:var(--ink,var(--text));border:1.5px solid ' + hubColForBorder + ';border-radius:8px;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22none%22 stroke=%22%23999%22 stroke-width=%221.5%22 d=%22M2 4l4 4 4-4%22/></svg>\');background-repeat:no-repeat;background-position:right 8px center;">' +
+            'style="padding:5px 28px 5px 10px;font-size:.78rem;font-weight:900;background:var(--surface2);color:var(--ink,var(--text));border:1.5px solid ' + hubColForBorder + ';border-radius:8px;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;min-height:44px;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22none%22 stroke=%22%23999%22 stroke-width=%221.5%22 d=%22M2 4l4 4 4-4%22/></svg>\');background-repeat:no-repeat;background-position:right 8px center;">' +
             dropdownOpts +
           '</select>' +
         '</div>' +
@@ -1012,6 +1607,33 @@ function renderMeetupStrip() {
     '</div>';
   strip.innerHTML = bestHtml;
   renderMeetupRoutes();
+  updateStatus();
+}
+
+// ── STATUS BAR ───────────────────────────────────────────────────
+function updateStatus() {
+  var el = document.getElementById('status');
+  if (!el) return;
+  if (!S.depDate && S.mode === 'meetup') {
+    el.className = 'idle';
+    el.textContent = 'Choose dates or a holiday to start';
+    el.style.display = 'block';
+  } else if (!S.depDate && S.mode === 'solo') {
+    el.className = 'idle';
+    el.textContent = 'Pick a weekend from the cards below';
+    el.style.display = 'block';
+  } else {
+    // Check if we have results
+    var hasResults = Object.keys(S.prices).length > 0;
+    if (hasResults) {
+      var count = Object.keys(S.prices).length;
+      el.className = 'success';
+      el.textContent = 'Showing ' + count + ' fare' + (count !== 1 ? 's' : '');
+      el.style.display = 'block';
+    } else {
+      el.style.display = 'none';
+    }
+  }
 }
 
 // ── MEETUP ROUTE BREAKDOWN (sidebar cards) ───────────────────────
@@ -1030,7 +1652,6 @@ function renderMeetupRoutes() {
     dateStr = dateFmt(S.depDate);
     if (S.retDate && isRT) dateStr += ' – ' + dateFmt(S.retDate);
   }
-  // Section header date annotation
   var hdrDateEl = document.getElementById('meetup-routes-dates');
   if (hdrDateEl) {
     if (S.depDate) {
@@ -1059,15 +1680,13 @@ function renderMeetupRoutes() {
             '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
             '<span class="route-arrow">→</span>' +
             '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
-            '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+            '<span class="member-tag">' + memberLabel + '</span>' +
             '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyDriveText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
           '</div>' +
-          '<div class="route-drive-row">🚗 Drive · ~$' + ORD_DRIVE_TAX + ' (one car for ' + headcount + ' ' + (headcount === 1 ? 'person' : 'people') + ')</div>' +
-          '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
+          '<div class="route-drive-row">🚗 ~2.5hr drive (one car)</div>' +
         '</div>';
       return;
     }
-    // PIA → intl (LHR) — compact toggle. Flight-only price; drive is informational.
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
       var route = piaRouteTo(hub, isRT ? 'rt' : 'ow');
       var ordLeg = S.prices['ORD-' + hub] || getMock('ORD', hub);
@@ -1088,14 +1707,23 @@ function renderMeetupRoutes() {
         return '<button' + click + ' class="pia-toggle' + (on ? ' on' : '') + (dis ? ' dis' : '') + '"' +
                ' style="background:' + bg + ';color:' + fg + ';">' + label + ' ' + (dis ? '—' : '$' + total) + '</button>';
       }
-      var savingsTxt = (totalSavings > 0)
-        ? ' <span style="color:var(--green);font-weight:900;">saves $' + totalSavings + '</span>'
-        : '';
+      var savingsTxt = '';
+      if (totalSavings > 0) {
+        var cheaperIsViaOrd = route.viaOrdTotal < route.directFare;
+        var cheaperIsActive = (route.viaORD && cheaperIsViaOrd) || (!route.viaORD && !cheaperIsViaOrd);
+        if (cheaperIsActive) {
+          var cheaperLbl = route.viaORD ? 'ORD' : 'Direct';
+          savingsTxt = ' <span style="color:var(--green);font-weight:900;">' + cheaperLbl + ' saves $' + totalSavings + '</span>';
+        } else {
+          var altLbl = route.viaORD ? 'Direct' : 'ORD';
+          savingsTxt = ' <span style="color:var(--amber);font-weight:900;">+$' + totalSavings + ' vs ' + altLbl + '</span>';
+        }
+      }
       var resetLink = route.overridden
         ? ' <button onclick="setPiaRoute(\'' + hub + '\', null)" class="pia-reset" title="Reset to cheaper">↻</button>'
         : '';
       var driveNote = route.viaORD
-        ? '<div class="route-drive-row">🚗 also drive PIA→ORD (~$' + ORD_DRIVE_TAX + ', not in price)</div>'
+        ? '<div class="route-drive-row">🚗 +2.5hr drive to ORD</div>'
         : '';
       var copyText = memberLabel + ' (PIA' + (route.viaORD ? '→ORD' : '') + '→' + hub + '): $' + activePer + ' × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
       var hdrBadges = route.viaORD
@@ -1110,10 +1738,13 @@ function renderMeetupRoutes() {
       var sourceBadge = ordIsLive
         ? '<span class="src-badge live">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
         : '<span class="src-badge sample">SAMPLE</span>';
+      var subtotalLine = (headcount > 1)
+        ? '<div class="route-fare-lbl" style="margin-top:3px;">$' + activePer + ' × ' + headcount + ' = <strong>$' + subtotal + '</strong> ' + fareLabel + '</div>'
+        : '';
       html +=
         '<div class="route-card" style="border-left:3px solid var(--green);">' +
           '<div class="route-card-hd">' + hdrBadges +
-            '<span class="member-tag">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+            '<span class="member-tag">' + memberLabel + '</span>' +
             sourceBadge + resetLink +
             '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
           '</div>' +
@@ -1122,12 +1753,9 @@ function renderMeetupRoutes() {
             pill('via-ord', '🚗 ORD', route.viaOrdTotal) +
             savingsTxt +
           '</div>' +
-          '<div class="route-fare-lbl" style="margin-top:3px;">' +
-            '$' + activePer + ' ' + fareLabel + ' per ticket' + multTxt(activePer) +
-          '</div>' +
+          subtotalLine +
           airlineRowHtml(activePriceObj, isRT) +
           driveNote +
-          '<div class="route-meta">' + (route.viaORD ? "Peoria → Chicago O'Hare → " : 'Peoria → ') + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
         '</div>';
       return;
     }
@@ -1136,8 +1764,8 @@ function renderMeetupRoutes() {
     var price = isRT ? (p.rt || p.ow) : p.ow;
     var outAirlineLbl = airlineLabel(p, 'outbound');
     var retAirlineLbl = airlineLabel(p, 'return');
-    var outStopsTxt = (p.stops && p.stops > 0) ? (' · ' + p.stops + ' stop' + (p.stops>1?'s':'')) : '';
-    var retStopsTxt = (p.returnStops && p.returnStops > 0) ? (' · ' + p.returnStops + ' stop' + (p.returnStops>1?'s':'')) : '';
+    var outStopsTxt = stopsTag(p.stops);
+    var retStopsTxt = stopsTag(p.returnStops);
     var subtotalGen = price * headcount;
     var copyFlyText = memberLabel + ' (' + from + ' → ' + hub + '): $' + price + ' per ticket' + (headcount > 1 ? ' × ' + headcount + ' = $' + subtotalGen : '') + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
     if (outAirlineLbl) copyFlyText += ' · Out: ' + outAirlineLbl;
@@ -1163,30 +1791,33 @@ function renderMeetupRoutes() {
     var flexDatesHtml =
       '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:4px;font-size:.55rem;color:var(--muted);">' +
         '<span style="font-weight:700;text-transform:uppercase;letter-spacing:.4px;">Dates:</span>' +
-        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memDepStr + '</button>' +
+        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;min-height:32px;">' + memDepStr + '</button>' +
         (isRT ? '<span>→</span>' +
-                '<button onclick="openMemberCal(\'' + from + '\',\'ret\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memRetStr + '</button>' : '') +
+                '<button onclick="openMemberCal(\'' + from + '\',\'ret\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink,var(--text));border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;min-height:32px;">' + memRetStr + '</button>' : '') +
         '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" title="Edit dates" style="font-size:.55rem;background:none;border:none;color:var(--accent);cursor:pointer;padding:0;">✏️</button>' +
         resetBtn +
       '</div>';
+    var genSubtotalLine = (headcount > 1)
+      ? '<div class="route-fare-lbl" style="margin-top:2px;">$' + price + ' × ' + headcount + ' = <strong>$' + subtotalGen + '</strong> ' + fareLabel + '</div>'
+      : '';
     html +=
       '<div class="route-card">' +
         '<div class="route-card-hd">' +
           '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
           '<span class="route-arrow">→</span>' +
           '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
-          '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+          '<span class="member-tag">' + memberLabel + '</span>' +
           customBadge +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
           '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
         '</div>' +
         '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
           '<div class="route-price">$' + price + '</div>' +
-          '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + '</span>' +
+          '<span class="route-fare-lbl">' + fareLabel + '</span>' +
         '</div>' +
+        genSubtotalLine +
         airlineHtml +
         flexDatesHtml +
-        '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
       '</div>';
   });
   container.innerHTML = html || '<div style="font-size:.62rem;color:var(--muted);padding:4px 2px">All family members at hub</div>';
@@ -1196,7 +1827,7 @@ function renderMeetupRoutes() {
 function copyRouteText(text) {
   var doCopy = function(t) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(t).then(function(){ showShareToast('\u2713 Copied!'); })
+      navigator.clipboard.writeText(t).then(function(){ showShareToast('✓ Copied!'); })
         .catch(function(){ showShareToast('Copy: ' + t); });
     } else {
       try {
@@ -1205,7 +1836,7 @@ function copyRouteText(text) {
         document.body.appendChild(ta); ta.focus(); ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        showShareToast('\u2713 Copied!');
+        showShareToast('✓ Copied!');
       } catch(e) { showShareToast('Copy: ' + t); }
     }
   };
@@ -1236,23 +1867,16 @@ function shareThePlan() {
   } else {
     dateStr = 'Dates TBD';
   }
-  // Encode shareable state into URL query params
   var params = new URLSearchParams();
   params.set('hub', S.home);
   params.set('trip', S.tripType);
   params.set('mode', S.mode);
   if (S.depDate) params.set('dep', fmtISO(S.depDate));
   if (S.retDate && isRT) params.set('ret', fmtISO(S.retDate));
-  // Never share API key in URL — it exposes credentials to recipients
   var base = window.location.href.split('?')[0];
   var url = base + '?' + params.toString();
-  // Update URL in address bar without reload
   if (history.replaceState) history.replaceState(null, '', '?' + params.toString());
-  // Build WhatsApp/iMessage-ready share text.
-  // Headline (date + destination) goes first and clear; cost block sits
-  // two rows below after a blank spacer line for legibility.
   if (S.meetupHubOverride) params.set('mhub', S.meetupHubOverride);
-  // Rich per-flier share text
   var nights = (S.depDate && S.retDate && isRT) ? Math.round((S.retDate - S.depDate) / 86400000) : 0;
   var effFamily = familyForDate(S.depDate);
   var legLines = [];
@@ -1295,8 +1919,8 @@ function shareThePlan() {
   });
   var savingsLine = (best.savings && best.savings > 0) ? '\nSaves $' + best.savings + ' vs next-best hub.' : '';
   var shareText =
-    '\u2708\ufe0f Family meetup: ' + cityName + ' (' + best.dest + ')\n' +
-    '\uD83D\uDCC5 ' + dateStr + (nights > 0 ? ' \u00B7 ' + nights + ' nights' : '') + '\n' +
+    '✈️ Family meetup: ' + cityName + ' (' + best.dest + ')\n' +
+    '📅 ' + dateStr + (nights > 0 ? ' · ' + nights + ' nights' : '') + '\n' +
     '\n' +
     'TOTAL family ' + fareLabel + ' flights: $' + best.total + '\n' +
     '\n' +
@@ -1304,16 +1928,14 @@ function shareThePlan() {
     savingsLine + '\n' +
     '\n' +
     'Live dashboard: ' + url;
-  // Show share card below map
   var cardEl = document.getElementById('share-card');
   var textEl = document.getElementById('share-card-text');
   if (cardEl && textEl) { textEl.textContent = shareText; cardEl.style.display = 'block'; }
-  // Copy to clipboard (with fallback)
   var doCopy = function(text) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text).then(function(){
-        showShareToast('\u2713 Copied! Paste into iMessage or WhatsApp');
-      }).catch(function(){ showShareToast('Share text shown below the map'); });
+        showShareToast('✓ Copied! Paste into iMessage or WhatsApp');
+      }).catch(function(){ showShareToast('Share text shown below'); });
     } else {
       try {
         var ta = document.createElement('textarea');
@@ -1321,8 +1943,8 @@ function shareThePlan() {
         document.body.appendChild(ta); ta.focus(); ta.select();
         document.execCommand('copy');
         document.body.removeChild(ta);
-        showShareToast('\u2713 Copied! Paste into iMessage or WhatsApp');
-      } catch(e) { showShareToast('Share text shown below the map'); }
+        showShareToast('✓ Copied! Paste into iMessage or WhatsApp');
+      } catch(e) { showShareToast('Share text shown below'); }
     }
   };
   doCopy(shareText);
@@ -1354,7 +1976,7 @@ function computeBestWeekends(from, to, nWeeks) {
 }
 
 // ── BEST-MEETUP-WEEKEND FINDER ───────────────────────────────────
-var PIA_HUB_BONUS = 75; // dollars knocked off PIA-hub total when scoring (PIA-default)
+var PIA_HUB_BONUS = 75;
 var FINDER_NWEEKS = 12;
 
 function computeBestMeetupWeekends(nWeeks) {
@@ -1437,7 +2059,7 @@ function renderMeetupFinder() {
       '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">PIA-default</span>' +
     '</div>' +
     '<button class="finder-best-card" data-dep="' + fmtISO(best.dep) + '" data-ret="' + fmtISO(best.ret) + '" data-hub="' + best.bestHub + '" ' +
-      'style="width:100%;padding:11px 13px;border:1.5px solid ' + hubCol + ';background:' + hubCol + '12;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--ink,var(--text));transition:transform .12s, box-shadow .12s;">' +
+      'style="width:100%;padding:11px 13px;border:1.5px solid ' + hubCol + ';background:' + hubCol + '12;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--ink,var(--text));transition:transform .12s, box-shadow .12s;min-height:48px;">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">' +
         '<span style="font-size:.85rem;">🥇</span>' +
         '<span style="font-size:.75rem;font-weight:900;color:' + hubCol + ';">Meet in ' + cityName + ' &middot; ' + best.bestHub + (best.isORD ? ' 🚗' : '') + '</span>' +
@@ -1481,7 +2103,6 @@ function applyOrdPivot(dest, piaPrice) {
   return null;
 }
 
-// Returns weekends sorted by DATE (ascending) — for bar chart display
 function computeWeekendsByDate(from, to, nWeeks) {
   nWeeks = nWeeks || 13;
   var base = getMock(from, to);
@@ -1511,7 +2132,7 @@ function renderBarChart(svgEl, from, to) {
   var weeks = computeWeekendsByDate(from, to, 13);
   if (!weeks.length) return;
   var W = 200, H = 46, N = weeks.length;
-  var bw = Math.floor((W - N) / N); // bar width with 1px gap
+  var bw = Math.floor((W - N) / N);
   var prices = weeks.map(function(w){ return w.price; });
   var minP = Math.min.apply(null, prices);
   var maxP = Math.max.apply(null, prices);
@@ -1529,14 +2150,12 @@ function renderBarChart(svgEl, from, to) {
     var barOp = isBest ? '0.92' : (isLive ? '0.65' : '0.38');
     var barClass = isLive ? ' class="bar-live"' : '';
     svgParts.push('<rect data-idx="' + i + '"' + barClass + ' x="' + x + '" y="' + y + '" width="' + bw + '" height="' + bh + '" rx="1" fill="' + barColor + '" opacity="' + barOp + '"/>');
-    // ORD ghost bar
     var ordPivot = applyOrdPivot(to, w.price);
     if (ordPivot) {
       var obh = barH(ordPivot.total);
       var oy = H - obh;
       svgParts.push('<rect x="' + x + '" y="' + oy + '" width="' + bw + '" height="' + obh + '" rx="1" fill="none" stroke="var(--green)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/>');
     }
-    // Best marker dot
     if (isBest) {
       svgParts.push('<circle cx="' + (x + bw / 2) + '" cy="' + (y - 4) + '" r="2.5" fill="var(--green)"/>');
     }
@@ -1544,7 +2163,6 @@ function renderBarChart(svgEl, from, to) {
   svgEl.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
   svgEl.setAttribute('preserveAspectRatio', 'none');
   svgEl.innerHTML = svgParts.join('');
-  // Attach hover events to each bar rect
   var rects = svgEl.querySelectorAll('rect[data-idx]');
   rects.forEach(function(rect) {
     var idx = parseInt(rect.getAttribute('data-idx'), 10);
@@ -1568,7 +2186,6 @@ function renderSoloCards() {
     var col = DC[dest] || '#888';
     var apInfo = AIRPORTS[dest];
     var bestPrice = top[0] ? top[0].price : 0;
-    // Detect active preset to flip card into "preset selected" state
     var activePreset = null;
     var presets = TRIP_PRESETS[dest] || [];
     if (S.depDate) {
@@ -1588,7 +2205,6 @@ function renderSoloCards() {
     var card = document.createElement('div');
     card.className = 'solo-dest-card' + (S.soloFocus === dest ? ' focused' : '') + (activePreset ? ' preset-active' : '');
     card.dataset.dest = dest;
-    // Pull airline metadata: prefer per-weekend live data, then current S.prices, then MOCK.
     var routeKey = S.home + '-' + dest;
     var liveBars = S.soloBarPrices[routeKey] || null;
     var defaultPriceObj = S.prices[routeKey] || getMock(S.home, dest);
@@ -1640,8 +2256,8 @@ function renderSoloCards() {
               '</div>' +
               '<div style="display:flex;gap:4px;">' +
                 '<button class="solo-preview-lock" data-dep="' + depISO + '" data-ret="' + retISO + '" data-dest="' + dest + '" ' +
-                  'style="padding:4px 10px;font-size:.6rem;font-weight:900;background:var(--accent);color:#fff;border:none;border-radius:5px;cursor:pointer;">Lock 🔒</button>' +
-                '<button class="solo-preview-cancel" style="padding:4px 8px;font-size:.6rem;font-weight:700;background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:5px;cursor:pointer;">Cancel</button>' +
+                  'style="padding:6px 12px;font-size:.65rem;font-weight:900;background:var(--accent);color:#fff;border:none;border-radius:6px;cursor:pointer;min-height:36px;">Lock 🔒</button>' +
+                '<button class="solo-preview-cancel" style="padding:6px 10px;font-size:.65rem;font-weight:700;background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:6px;cursor:pointer;min-height:36px;">Cancel</button>' +
               '</div>' +
             '</div>'
           : '');
@@ -1652,7 +2268,6 @@ function renderSoloCards() {
     var liveBtnHtml = PROXY_URL
       ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
       : '';
-    // Trip presets — per-destination one-click date fillers (active highlights)
     var presetHtml = '';
     if (presets.length) {
       presetHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center;">'
@@ -1661,8 +2276,8 @@ function renderSoloCards() {
             var altTag = p.altDest ? ' <span style="color:var(--amber);font-size:.5rem;">(via ' + p.altDest + ')</span>' : '';
             var isActive = activePreset && activePreset.id === p.id;
             var btnStyle = isActive
-              ? 'padding:3px 7px;font-size:.55rem;font-weight:900;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(46,124,246,.4);'
-              : 'padding:3px 7px;font-size:.55rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;';
+              ? 'padding:4px 8px;font-size:.6rem;font-weight:900;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(46,124,246,.4);min-height:36px;'
+              : 'padding:4px 8px;font-size:.6rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;min-height:36px;';
             return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '" style="' + btnStyle + '">'
                  + (isActive ? '✓ ' : '') + p.label + altTag + '</button>';
           }).join('')
@@ -1720,7 +2335,6 @@ function renderSoloCards() {
     card.addEventListener('mouseenter', function(){ setSoloFocus(dest); });
     card.addEventListener('mouseleave', function(){ setBarFocus(null, null); });
     container.appendChild(card);
-    // Wire wknd-row click → SHOW PREVIEW (no fetch). Lock button commits.
     card.querySelectorAll('.wknd-row').forEach(function(row) {
       row.addEventListener('click', function(e) {
         e.stopPropagation();
@@ -1752,7 +2366,6 @@ function renderSoloCards() {
         renderSoloCards();
       });
     });
-    // Wire "✕ clear" preset button
     card.querySelectorAll('.solo-preset-clear').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
@@ -1761,7 +2374,6 @@ function renderSoloCards() {
         syncURL();
       });
     });
-    // Wire preset chips
     card.querySelectorAll('.solo-preset-btn').forEach(function(btn){
       btn.addEventListener('click', function(e){
         e.stopPropagation();
@@ -1788,7 +2400,6 @@ function renderSoloCards() {
     });
     var svgEl = document.getElementById(chartId);
     if (svgEl) renderBarChart(svgEl, S.home, dest);
-    // Live prices button
     var liveBtn = card.querySelector('.solo-live-btn');
     if (liveBtn) {
       liveBtn.addEventListener('click', function(e) {
@@ -1800,6 +2411,7 @@ function renderSoloCards() {
       });
     }
   });
+  updateStatus();
 }
 
 function setSoloFocus(dest) {
@@ -1839,14 +2451,12 @@ function setMode(mode) {
   if (isMeetup) {
     S.barFocus = null;
     if (titleEl) titleEl.textContent = 'Family Meetup';
-    // Auto-enable LHR + world map when entering meetup mode
     if (S.includeLHR && S.mapView !== 'world') {
       S.mapView = 'world';
       updateMapToggle();
       if (!S.worldGeo) { loadWorldGeo().then(function(){ redrawMap(); }); }
     }
     renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
-    // Auto-refresh prices when switching to meetup with dates set (skip during boot — boot() calls loadPrices itself)
     if (!S._booting && S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
   } else {
     S.soloFocus = null; S.barFocus = null;
@@ -1854,19 +2464,16 @@ function setMode(mode) {
     renderSoloCards(); redrawMap();
   }
   rebuildLegend();
-  // Update mobile chip label
+  updateStatus();
   if (isMobileViewport()) updateMobileChips();
 }
 
 // ── API LAYER ────────────────────────────────────────────────────
-// ── SerpAPI CORS Proxy ──────────────────────────────────────────
 var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
-// Spam prevention via in-flight dedupe map _flightInflight; older debounce stub removed.
 
-// PERF: in-memory cache + in-flight dedupe (mirror of desktop)
 var _flightCache = {};
 var _flightInflight = {};
-var FLIGHT_CACHE_TTL_MS = 30 * 60 * 1000; // 30 min — flight prices don't change minute-to-minute, saves API credits
+var FLIGHT_CACHE_TTL_MS = 30 * 60 * 1000;
 function _cacheKey(from, to, dep, ret) { return from+'|'+to+'|'+(dep||'')+'|'+(ret||''); }
 
 async function fetchFlights(from, to, dep, ret) {
@@ -1875,7 +2482,6 @@ async function fetchFlights(from, to, dep, ret) {
     console.warn('SerpAPI monthly budget reached — serving mock for ' + from + '→' + to);
     return getMock(from, to);
   }
-
   var key = _cacheKey(from, to, dep, ret);
   var now = Date.now();
   var hit = _flightCache[key];
@@ -1883,7 +2489,6 @@ async function fetchFlights(from, to, dep, ret) {
     return Object.assign({}, hit.data, { cached: true });
   }
   if (_flightInflight[key]) return _flightInflight[key];
-
   var flightType = ret ? 1 : 2;
   var p = new URLSearchParams({
     engine:'google_flights',
@@ -1942,7 +2547,6 @@ async function fetchFlights(from, to, dep, ret) {
       }
       if (!best || typeof best.price !== 'number') return getMock(from, to);
       var price = best.price;
-      // Outbound legs in best.flights[]; return legs in best.return_flights[] (RT only)
       var outLegs = (best.flights && best.flights.length) ? best.flights : [];
       var outFirst = outLegs[0] || {};
       var retLegs = (best.return_flights && best.return_flights.length) ? best.return_flights : [];
@@ -1985,7 +2589,6 @@ function readQuota() {
     var raw = localStorage.getItem(QUOTA_STORAGE_KEY);
     if (!raw) return { period:_quotaPeriodKey(), used:0, budget:250, exceeded:false };
     var obj = JSON.parse(raw);
-    // Auto-migrate stale budget=100 entries (old default) → 250.
     if (obj.budget === 100) {
       obj.budget = 250;
       if (obj.used < obj.budget) obj.exceeded = false;
@@ -2005,7 +2608,6 @@ function resetQuota(){ writeQuota({ period:_quotaPeriodKey(), used:0, budget:rea
 function markQuotaExceeded(){ var q=readQuota(); q.exceeded=true; q.used=Math.max(q.used,q.budget); writeQuota(q); updateApiCallCount(); }
 function isQuotaExceeded(){ var q=readQuota(); return q.exceeded || q.used>=q.budget; }
 
-// Quota-exhaustion banner — surfaces unmissable warning when live data unavailable.
 function updateQuotaWarningBanner() {
   var bn = document.getElementById('quota-warning-banner');
   if (!bn) return;
@@ -2016,13 +2618,13 @@ function updateQuotaWarningBanner() {
   var resetTxt = nextReset.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   if (!PROXY_URL) {
     bn.innerHTML = '<strong style="color:var(--amber);">📡 Sample data mode</strong><br/>'
-      + '<span style="color:var(--muted);">Connect a SerpAPI proxy in the sidebar to see live Google Flights pricing. Current numbers are estimates.</span>';
+      + '<span style="color:var(--muted);">Connect a SerpAPI proxy in Advanced Settings to see live Google Flights pricing.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--amber)';
     bn.style.background = 'rgba(245,158,11,.14)';
   } else if (q.exceeded || q.used >= q.budget) {
     bn.innerHTML = '<strong style="color:var(--red);">⚠ Live prices unavailable</strong><br/>'
-      + '<span style="color:var(--muted);">SerpAPI quota exhausted (' + q.used + ' / ' + q.budget + ' used). Showing last cached data; new searches will use sample estimates. Plan resets ' + resetTxt + '.</span>';
+      + '<span style="color:var(--muted);">SerpAPI quota exhausted (' + q.used + ' / ' + q.budget + ' used). Resets ' + resetTxt + '.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--red)';
     bn.style.background = 'rgba(239,68,68,.12)';
@@ -2031,8 +2633,6 @@ function updateQuotaWarningBanner() {
   }
 }
 
-// Critical fix: SerpAPI /account sync (mirror of desktop). Reconciles local
-// quota counter with the real plan. Costs 0 search credits.
 var _serpApiAccountLastSync = null;
 async function syncSerpApiAccount() {
   if (!PROXY_URL) return null;
@@ -2099,7 +2699,6 @@ function renderCal() {
   document.getElementById('cal-phase').textContent = S.calMode==='dep' ? 'Select departure' : 'Select return';
 }
 function onDayClick(dt) {
-  // FLEX DATES: per-member modes 'memberDep:CODE' / 'memberRet:CODE'
   if (S.calMode && S.calMode.indexOf('member') === 0) {
     var parts = S.calMode.split(':');
     var phase = parts[0], memCode = parts[1];
@@ -2170,13 +2769,7 @@ function openMemberCal(memCode, phase) {
   }
   renderCal();
   var cal = document.getElementById('cal');
-  if (window.innerWidth <= 640) { cal.style.left = ''; cal.style.top = ''; cal.style.width = ''; }
-  else {
-    var sbR = document.getElementById('sb').getBoundingClientRect();
-    var dR = document.getElementById('date-row').getBoundingClientRect();
-    cal.style.left = (sbR.right + 10) + 'px';
-    cal.style.top = Math.max(10, dR.top - 10) + 'px';
-  }
+  cal.style.left=''; cal.style.top=''; cal.style.width='';
   cal.classList.add('open');
   document.getElementById('cal-bd').classList.add('open');
   var lbl = document.getElementById('cal-phase');
@@ -2205,7 +2798,6 @@ function clearMemberDatesAndRefresh(memCode) {
 }
 function openCal(mode) {
   S.calMode=mode;
-  // UX: jump the calendar to the month containing the date being edited.
   var target = (mode === 'ret' ? S.retDate : S.depDate) || S.depDate;
   if (target) {
     var monthsFromToday = (target.getFullYear() - today.getFullYear()) * 12 + (target.getMonth() - today.getMonth());
@@ -2213,15 +2805,7 @@ function openCal(mode) {
   }
   renderCal();
   var cal=document.getElementById('cal');
-  if (window.innerWidth <= 640) {
-    // Mobile: bottom-sheet — CSS handles position:fixed + bottom:0
-    cal.style.left=''; cal.style.top=''; cal.style.width='';
-  } else {
-    var sbR=document.getElementById('sb').getBoundingClientRect();
-    var dR=document.getElementById('date-row').getBoundingClientRect();
-    cal.style.left=(sbR.right+10)+'px';
-    cal.style.top=Math.max(10,dR.top-10)+'px';
-  }
+  cal.style.left=''; cal.style.top=''; cal.style.width='';
   cal.classList.add('open');
   document.getElementById('cal-bd').classList.add('open');
   document.getElementById('dep-btn').classList.toggle('active',mode==='dep');
@@ -2233,7 +2817,6 @@ function closeCal() {
   document.getElementById('dep-btn').classList.remove('active');
   document.getElementById('ret-btn').classList.remove('active');
   S.calMode=null; updateDateUI();
-  // meetupHubOverride INTENTIONALLY preserved — closing calendar shouldn't lose hub choice.
   if (S.mode === 'meetup') { renderMeetupStrip(); renderMeetupFinder(); redrawMap(); }
   if (S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
   syncURL();
@@ -2244,17 +2827,19 @@ function updateDateUI() {
   if (S.tripType==='one') { rEl.textContent='—'; rEl.classList.add('ph'); rBtn.disabled=true; }
   else { rEl.textContent=S.retDate?dateFmt(S.retDate):'Pick date'; rEl.classList.toggle('ph',!S.retDate); rBtn.disabled=false; }
   updateStats();
+  updateStatus();
 }
 
 
 // ── PRICES ───────────────────────────────────────────────────────
 async function loadPrices() {
-  // debounce — ignore rapid-fire calls within 800ms
   var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
   var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
-  // disable button during fetch to prevent spam
-  if (btn.disabled) return; // already fetching
+  if (btn.disabled) return;
   btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
+  // Update status bar
+  var statusEl = document.getElementById('status');
+  if (statusEl) { statusEl.className = 'loading'; statusEl.textContent = 'Searching live fares…'; statusEl.style.display = 'block'; }
   var globalDep=fmtISO(S.depDate)||null, globalRet=S.tripType==='round'?fmtISO(S.retDate)||null:null;
   var routes = [];
   if (S.mode === 'meetup') {
@@ -2296,7 +2881,6 @@ async function loadPrices() {
     });
   }
   var liveCount = 0, failCount = 0, cachedCount = 0, doneCount = 0, total = routes.length;
-  // PERF: stream UI updates as each fetch resolves
   var _repaintScheduled = false;
   function scheduleRepaint() {
     if (_repaintScheduled) return;
@@ -2337,9 +2921,15 @@ async function loadPrices() {
   renderMeetupStrip(); redrawMap(); updateStats();
   if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
   if (S.mode === 'solo') renderSoloCards();
-  btn.disabled=false; spin.style.display='none'; icon.style.display=''; lbl.textContent='Refresh Prices';
-  // Bug fix: defer past pending streaming-repaint rAF to prevent stuck "Searching… N/N" label.
-  requestAnimationFrame(function(){ lbl.textContent = 'Refresh Prices'; });
+  btn.disabled=false; spin.style.display='none'; icon.style.display=''; lbl.textContent='Find Best Flights';
+  requestAnimationFrame(function(){ lbl.textContent = 'Find Best Flights'; });
+  // Update status
+  if (statusEl) {
+    var fareCount = Object.keys(S.prices).length;
+    if (allFailed) { statusEl.className = 'error'; statusEl.textContent = "Couldn't load fares — showing estimates"; }
+    else { statusEl.className = 'success'; statusEl.textContent = 'Showing ' + fareCount + ' fare' + (fareCount !== 1 ? 's' : '') + (liveCount > 0 ? ' (live)' : ''); }
+    statusEl.style.display = 'block';
+  }
 }
 
 async function loadSoloWeeklyPrices(dest) {
@@ -2388,7 +2978,6 @@ function updateApiCallCount() {
     el.style.display = S.apiCalls > 0 ? '' : 'none';
   }
   updateQuotaWarningBanner();
-  // Always-visible quota bar at top of sidebar
   var q = readQuota();
   var qbar = document.getElementById('quota-bar');
   if (qbar && PROXY_URL) {
@@ -2432,9 +3021,6 @@ function updateApiCallCount() {
 
 
 // ── MAP ──────────────────────────────────────────────────────────
-// fetch() fails on file:// (null-origin CORS). We try CDN first,
-// then fall back to a minimal bounding-box GeoJSON so that
-// geoAlbersUsa() projects correctly and airports/arcs still render.
 var GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
 var WORLD_GEO_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json';
 var GEO_FALLBACK = {
@@ -2507,6 +3093,7 @@ function redrawMap() {
   var geoSrc = isWorld ? (S.worldGeo || S.geoData) : S.geoData;
   if (!geoSrc) return;
   var wrap=document.getElementById('map-wrap'), w=wrap.clientWidth, h=wrap.clientHeight;
+  if (!w || !h) return;
   var svg=d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
   svg.selectAll('*').remove();
 
@@ -2546,7 +3133,6 @@ function redrawMap() {
   var rg = svg.append('g');
 
   if (S.mode === 'meetup') {
-    // ── MEETUP: arcs from each family member → active hub ──
     var ranking = computeRanking();
     var meetupHub = getActiveHub(ranking);
     if (meetupHub) {
@@ -2577,7 +3163,6 @@ function redrawMap() {
       }
     }
 
-    // Airport dots — meetup mode
     var ag = svg.append('g');
     Object.values(AIRPORTS).forEach(function(ap){
       var xy = S.proj([ap.lon, ap.lat]);
@@ -2610,8 +3195,6 @@ function redrawMap() {
     });
 
   } else {
-    // ── SOLO: arcs from S.home to each dest ──
-    // Collect route prices for the corner legend panel (replaces per-arc price pills to reduce map clutter)
     var routeRows = [];
     dests().forEach(function(code){
       var ap=AIRPORTS[code], xy=S.proj([ap.lon,ap.lat]);
@@ -2634,7 +3217,6 @@ function redrawMap() {
       routeRows.push({ code:code, price:price, col:col, focused:focused });
     });
 
-    // ── Corner price panel (bottom-left, empty ocean area on US Albers) ──
     if (routeRows.length) {
       var fareLbl = S.tripType==='round' ? 'RT' : 'OW';
       var panelW = 96, rowH = 12, padX = 7, padY = 5, headerH = 11, gap = 3;
@@ -2718,7 +3300,6 @@ document.querySelectorAll('.mt-btn').forEach(function(b){
 
 document.querySelectorAll('.hol-btn').forEach(function(b){ b.addEventListener('click', function(){ applyHoliday(b.dataset.hol); }); });
 
-// ORD + LHR toggles removed — both permanently in meetup hub list. Users change destination via the dropdown.
 S.includeORD = true;
 S.includeLHR = true;
 
@@ -2751,7 +3332,6 @@ document.getElementById('home-sel').addEventListener('change', function(e){
 });
 
 document.getElementById('api-hdr').addEventListener('click', function(){ document.getElementById('api-body').classList.toggle('open'); });
-// Critical fix: persist PROXY_URL to localStorage so survives reload
 var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
 (function restoreProxyURL(){
   try {
@@ -2804,7 +3384,6 @@ document.getElementById('api-clear').addEventListener('click', function(){
   updateApiCallCount();
 });
 
-// Quota: budget input + manual reset (mobile)
 (function(){
   var inp = document.getElementById('api-budget-inp');
   var rst = document.getElementById('api-quota-reset');
@@ -2885,7 +3464,6 @@ function restoreFromURL() {
         }
       });
     }
-    // (ORD/LHR toggle buttons removed — no DOM sync needed.)
   } catch(e) { /* ignore */ }
 }
 
@@ -2946,11 +3524,23 @@ function copyShareLink() {
   });
 }
 
+// ── MAP TOGGLE BUTTON ───────────────────────────────────────────
+document.getElementById('map-toggle-btn').addEventListener('click', function() {
+  var wrap = document.getElementById('map-wrap');
+  var btn = document.getElementById('map-toggle-btn');
+  var isOpen = wrap.classList.toggle('open');
+  btn.textContent = isOpen ? '🗺 Hide Route Map' : '🗺 Show Route Map';
+  btn.classList.toggle('open', isOpen);
+  if (isOpen) {
+    setTimeout(function() { redrawMap(); }, 50);
+    setTimeout(function() { redrawMap(); }, 350);
+  }
+});
+
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
   restoreFromURL();
   document.getElementById('tb-sub').textContent='Loading…';
-  // Try CDN TopoJSON; gracefully fall back for file:// (null-origin CORS blocks fetch)
   try {
     var r = await fetch(GEO_URL);
     if (!r.ok) throw new Error('HTTP '+r.status);
@@ -2962,9 +3552,7 @@ async function boot() {
     S.geoData    = GEO_FALLBACK;
     S.geoFallback = true;
   }
-  // Load world geo early if defaulting to world map view
   if (S.mapView === 'world') await loadWorldGeo();
-  // Default to London Jun 25 – Jul 3 on boot when no URL state.
   if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
     S.depDate = new Date(2026, 5, 25);
     S.retDate = new Date(2026, 6, 3);
@@ -2973,17 +3561,14 @@ async function boot() {
     document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
     document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
   }
-  // (LHR toggle button removed; LHR permanently included via S.includeLHR=true.)
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
   updateDateUI(); updateStats();
-  setMode(S.mode); // initialises correct tab, legend, panels
-  S._booting = false; // allow setMode to call loadPrices from now on
+  setMode(S.mode);
+  S._booting = false;
   if (PROXY_URL) syncSerpApiAccount();
   await loadPrices();
-  // Expose key functions to window so inline onclick="" attributes can reach them
-  // (functions are defined inside this IIFE; inline onclick resolves in global scope)
   window.shareThePlan = shareThePlan;
   window.openCal = openCal;
   window.openMemberCal = openMemberCal;
@@ -2993,79 +3578,28 @@ async function boot() {
   window.pickMeetupHub = pickMeetupHub;
   window.copyRouteText = copyRouteText;
   window.setMode      = setMode;
-  // Mobile: initialize controls and ensure map renders
   initMobileControls();
   ensureMapRendersOnMobile();
 }
 
 // ── MOBILE CONTROLS ──────────────────────────────────────────────
-// Detect mobile viewport
 function isMobileViewport() {
   return window.innerWidth <= 640;
 }
 
-// Initialize mobile sticky bar
 function initMobileControls() {
-  if (!isMobileViewport()) return;
-
-  var modeChip = document.getElementById('mode-chip');
-  var homeChip = document.getElementById('home-chip');
-  var stickyBar = document.getElementById('mobile-sticky-bar');
   var floatShare = document.getElementById('share-btn-floating');
-  var dupShare   = document.getElementById('share-btn-mob');
-
-  // Show sticky bar on mobile
-  if (stickyBar) stickyBar.classList.add('show');
-
-  // Wire floating Share Plan button (addEventListener — IIFE-safe)
   if (floatShare) floatShare.addEventListener('click', function(e){ e.preventDefault(); shareThePlan(); });
-  // Hide the legacy duplicate mobile share button so we don't show two
-  if (dupShare) dupShare.style.display = 'none';
-
-  // Mode chip cycler: Solo ↔ Meetup
-  if (modeChip) {
-    modeChip.addEventListener('click', function(e) {
-      e.preventDefault();
-      var newMode = S.mode === 'solo' ? 'meetup' : 'solo';
-      setMode(newMode);
-      updateMobileChips();
-    });
-  }
-
-  // Home chip cycler: PIA → ORD → LAX → JAX → PIA
-  if (homeChip) {
-    homeChip.addEventListener('click', function(e) {
-      e.preventDefault();
-      var homeAirports = Object.keys(ROUTE_GRAPH); // Only valid home airports (excludes LHR)
-      var currentIndex = homeAirports.indexOf(S.home);
-      if (currentIndex === -1) currentIndex = 0; // fallback if current home is somehow invalid
-      var nextIndex = (currentIndex + 1) % homeAirports.length;
-      var nextHome = homeAirports[nextIndex];
-
-      // Dispatch change event on home-sel so existing handler fires
-      var homeSelEl = document.getElementById('home-sel');
-      if (homeSelEl) {
-        homeSelEl.value = nextHome;
-        var event = new Event('change', { bubbles: true });
-        homeSelEl.dispatchEvent(event);
-      }
-      updateMobileChips();
-    });
-  }
-
   updateMobileChips();
 }
 
-// Update mobile chip labels to reflect current state
 function updateMobileChips() {
   var modeChip = document.getElementById('mode-chip');
   var homeChip = document.getElementById('home-chip');
-
   if (modeChip) {
     var modeLabel = S.mode === 'solo' ? '✈️ Solo' : '👨‍👩‍👧 Meetup';
     modeChip.textContent = modeLabel;
   }
-
   if (homeChip) {
     var apInfo = AIRPORTS[S.home];
     var homeLabel = apInfo ? apInfo.code : S.home;
@@ -3073,38 +3607,14 @@ function updateMobileChips() {
   }
 }
 
-// Ensure map renders on mobile after layout settles
 function ensureMapRendersOnMobile() {
-  if (!isMobileViewport()) return;
-
-  var mapWrap = document.getElementById('map-wrap');
-  if (!mapWrap) return;
-
-  // Wait for map-wrap to have non-zero height, then redraw
-  var checkCount = 0;
-  var interval = setInterval(function() {
-    checkCount++;
-    var height = mapWrap.clientHeight;
-    if (height > 0) {
-      clearInterval(interval);
-      redrawMap();
-    } else if (checkCount > 50) {
-      clearInterval(interval);
-      redrawMap(); // Force anyway
-    }
-  }, 20);
-
-  // Also redraw 300ms after DOMContentLoaded (safe-area-inset + layout stabilization)
-  setTimeout(function() {
-    redrawMap();
-  }, 300);
+  // Map starts collapsed; no need to force render
 }
-
-// Re-initialize on orientationchange (resize is already handled above via rTimer)
 
 window.addEventListener('orientationchange', function() {
   setTimeout(function() {
-    if (isMobileViewport()) {
+    var wrap = document.getElementById('map-wrap');
+    if (wrap && wrap.classList.contains('open')) {
       redrawMap();
     }
   }, 100);

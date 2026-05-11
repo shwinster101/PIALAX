@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
+<meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>PIALAX — Family Flight Dashboard</title>
-<!-- CDN scripts via script-src work on file:// (no CORS restriction) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+<!-- CDN scripts. TODO(security): add SRI integrity= hashes. Verify hash from https://cdnjs.com/libraries/d3/7.9.0 then paste into integrity attribute. Do not paste an unverified hash — wrong hash blocks the script. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
 :root{
   --bg:#07101e;--surface:#0f1d2e;--surface2:#162233;
@@ -334,7 +336,7 @@ button{font-family:inherit;cursor:pointer;}
 <!-- ═══════ SIDEBAR ═══════ -->
 <aside id="sb">
   <div id="sb-top">
-    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v2.5</div></div>
+    <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v3.0</div></div>
     <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
   </div>
   <!-- Quota-exhaustion banner — surfaces at top of sidebar when live data unavailable.
@@ -436,7 +438,7 @@ button{font-family:inherit;cursor:pointer;}
           <button id="api-apply">Connect Proxy</button>
           <button id="api-clear" style="display:none">✕ Disconnect</button>
         </div>
-        <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank">Setup guide in worker.js</a></div>
+        <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank" rel="noopener noreferrer">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
         <div id="api-quota-lbl" style="display:none;font-size:.62rem;margin-top:3px;line-height:1.4;"></div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--muted);">
@@ -463,7 +465,7 @@ button{font-family:inherit;cursor:pointer;}
     </div>
 
   </div>
-  <div id="sb-foot">PIALAX v2.5 · Thu–Sun windows · Bar chart · Meetup strip</div>
+  <div id="sb-foot">PIALAX v3.0 · Thu–Sun windows · Bar chart · Meetup strip</div>
 </aside>
 
 <!-- ═══════ MAIN ═══════ -->
@@ -771,17 +773,22 @@ function airlineLabel(p, leg) {
   return '';
 }
 // Build the compact "✈ Out · ↩ Ret" airline display row from a price object.
-// One line on RT (with both legs), one line on OW (outbound only). '' when no data.
+// Includes stops count per leg (Non-stop / 1 stop / 2 stops). '' when no data.
+function stopsTag(n) {
+  if (n == null || n === 0) return ' (Non-stop)';
+  return ' (' + n + ' stop' + (n > 1 ? 's' : '') + ')';
+}
 function airlineRowHtml(priceObj, isRT) {
+  if (!priceObj) return '';
   var out = airlineLabel(priceObj, 'outbound');
   var ret = airlineLabel(priceObj, 'return');
   if (isRT && (out || ret)) {
     var parts = [];
-    if (out) parts.push('✈ ' + out);
-    if (ret) parts.push('↩ ' + ret);
+    if (out) parts.push('✈ ' + out + stopsTag(priceObj.stops));
+    if (ret) parts.push('↩ ' + ret + stopsTag(priceObj.returnStops));
     return '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>';
   }
-  if (out) return '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + out + '</div>';
+  if (out) return '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + out + stopsTag(priceObj.stops) + '</div>';
   return '';
 }
 
@@ -1094,18 +1101,16 @@ function renderMeetupRoutes() {
     }
     var copyDriveText = memberLabel + ' (' + from + ' → ' + hub + '): 🚗 Drive ~$' + ORD_DRIVE_TAX + (dateStr ? ' · ' + dateStr : '');
     if (isPiaDriving) {
-      var driveCost = ORD_DRIVE_TAX; // same drive regardless of headcount (one car)
       html +=
         '<div class="route-card">' +
           '<div class="route-card-hd">' +
             '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
             '<span class="route-arrow">→</span>' +
             '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
-            '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+            '<span class="member-tag">' + memberLabel + '</span>' +
             '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyDriveText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
           '</div>' +
-          '<div class="route-drive-row">🚗 Drive · ~$' + driveCost + ' (one car for ' + headcount + ' ' + (headcount === 1 ? 'person' : 'people') + ')</div>' +
-          '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
+          '<div class="route-drive-row">🚗 ~2.5hr drive (one car)</div>' +
         '</div>';
       return;
     }
@@ -1123,7 +1128,7 @@ function renderMeetupRoutes() {
       var totalSavings = perSavings * headcount;
       var ordIsLive = !!(ordLeg && ordLeg.live);
       var ordIsCached = !!(ordLeg && ordLeg.cached);
-      // Compact pill-style toggle: two segments side-by-side, ~50% smaller than v1.
+      // Toggle pill — pure per-ticket, no embedded subtotal (subtotal lives below).
       function pill(mode, label, total) {
         var on = (mode === 'via-ord') ? route.viaORD : !route.viaORD;
         var dis = (mode === 'via-ord' && !route.viaOrdAvailable) || (mode === 'direct' && !route.directFare);
@@ -1133,14 +1138,25 @@ function renderMeetupRoutes() {
         return '<button' + click + ' class="pia-toggle' + (on ? ' on' : '') + (dis ? ' dis' : '') + '"' +
                ' style="background:' + bg + ';color:' + fg + ';">' + label + ' ' + (dis ? '—' : '$' + total) + '</button>';
       }
-      var savingsTxt = (totalSavings > 0)
-        ? ' <span style="color:var(--green);font-weight:900;">saves $' + totalSavings + '</span>'
-        : '';
+      // Savings text — direction-aware. If active option IS the cheaper one, show "saves $X".
+      // If user has overridden to the more expensive option, show "↑ $X more" so the math reads honestly.
+      var savingsTxt = '';
+      if (totalSavings > 0) {
+        var cheaperIsViaOrd = route.viaOrdTotal < route.directFare;
+        var cheaperIsActive = (route.viaORD && cheaperIsViaOrd) || (!route.viaORD && !cheaperIsViaOrd);
+        if (cheaperIsActive) {
+          var cheaperLbl = route.viaORD ? 'ORD' : 'Direct';
+          savingsTxt = ' <span style="color:var(--green);font-weight:900;">' + cheaperLbl + ' saves $' + totalSavings + '</span>';
+        } else {
+          var altLbl = route.viaORD ? 'Direct' : 'ORD';
+          savingsTxt = ' <span style="color:var(--amber);font-weight:900;">+$' + totalSavings + ' vs ' + altLbl + '</span>';
+        }
+      }
       var resetLink = route.overridden
         ? ' <button onclick="setPiaRoute(\'' + hub + '\', null)" class="pia-reset" title="Reset to cheaper">↻</button>'
         : '';
       var driveNote = route.viaORD
-        ? '<div class="route-drive-row">🚗 also drive PIA→ORD (~$' + ORD_DRIVE_TAX + ', not in price)</div>'
+        ? '<div class="route-drive-row">🚗 +2.5hr drive to ORD</div>'
         : '';
       var copyText = memberLabel + ' (PIA' + (route.viaORD ? '→ORD' : '') + '→' + hub + '): $' + activePer + ' × ' + headcount + ' = $' + subtotal + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
       var hdrBadges = route.viaORD
@@ -1155,10 +1171,14 @@ function renderMeetupRoutes() {
       var sourceBadge = ordIsLive
         ? '<span class="src-badge live">LIVE' + (ordIsCached ? ' (cache)' : '') + '</span>'
         : '<span class="src-badge sample">SAMPLE</span>';
+      // Subtotal line — only render when headcount > 1 (otherwise toggle shows enough).
+      var subtotalLine = (headcount > 1)
+        ? '<div class="route-fare-lbl" style="margin-top:3px;">$' + activePer + ' × ' + headcount + ' = <strong>$' + subtotal + '</strong> ' + fareLabel + '</div>'
+        : '';
       html +=
         '<div class="route-card" style="border-left:3px solid var(--green);">' +
           '<div class="route-card-hd">' + hdrBadges +
-            '<span class="member-tag">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+            '<span class="member-tag">' + memberLabel + '</span>' +
             sourceBadge + resetLink +
             '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
           '</div>' +
@@ -1167,12 +1187,9 @@ function renderMeetupRoutes() {
             pill('via-ord', '🚗 ORD', route.viaOrdTotal) +
             savingsTxt +
           '</div>' +
-          '<div class="route-fare-lbl" style="margin-top:3px;">' +
-            '$' + activePer + ' ' + fareLabel + ' per ticket' + multTxt(activePer) +
-          '</div>' +
+          subtotalLine +
           airlineRowHtml(activePriceObj, isRT) +
           driveNote +
-          '<div class="route-meta">' + (route.viaORD ? "Peoria → Chicago O'Hare → " : 'Peoria → ') + (hubAp ? hubAp.name.split(',')[0] : hub) + (dateStr ? ' · ' + dateStr : '') + '</div>' +
         '</div>';
       return;
     }
@@ -1181,8 +1198,8 @@ function renderMeetupRoutes() {
     var price = isRT ? (p.rt || p.ow) : p.ow;
     var outAirlineLbl = airlineLabel(p, 'outbound');
     var retAirlineLbl = airlineLabel(p, 'return');
-    var outStopsTxt = (p.stops && p.stops > 0) ? (' · ' + p.stops + ' stop' + (p.stops>1?'s':'')) : '';
-    var retStopsTxt = (p.returnStops && p.returnStops > 0) ? (' · ' + p.returnStops + ' stop' + (p.returnStops>1?'s':'')) : '';
+    var outStopsTxt = stopsTag(p.stops);
+    var retStopsTxt = stopsTag(p.returnStops);
     var subtotalGen = price * headcount;
     // Copy text: include both legs on RT
     var copyFlyText = memberLabel + ' (' + from + ' → ' + hub + '): $' + price + ' per ticket' + (headcount > 1 ? ' × ' + headcount + ' = $' + subtotalGen : '') + ' ' + fareLabel + (dateStr ? ' · ' + dateStr : '');
@@ -1218,24 +1235,28 @@ function renderMeetupRoutes() {
         '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" title="Edit ' + memberLabel + '\\\'s travel window" style="font-size:.55rem;background:none;border:none;color:var(--accent);cursor:pointer;padding:0;">✏️</button>' +
         resetBtn +
       '</div>';
+    // Subtotal line — only when headcount > 1 (else price already shown above).
+    var genSubtotalLine = (headcount > 1)
+      ? '<div class="route-fare-lbl" style="margin-top:2px;">$' + price + ' × ' + headcount + ' = <strong>$' + subtotalGen + '</strong> ' + fareLabel + '</div>'
+      : '';
     html +=
       '<div class="route-card">' +
         '<div class="route-card-hd">' +
           '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
           '<span class="route-arrow">→</span>' +
           '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
-          '<span style="font-size:.55rem;color:var(--muted);margin-left:4px;">' + memberLabel + (headcount > 1 ? ' (×' + headcount + ')' : '') + '</span>' +
+          '<span class="member-tag">' + memberLabel + '</span>' +
           customBadge +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
           '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
         '</div>' +
         '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
           '<div class="route-price">$' + price + '</div>' +
-          '<span class="route-fare-lbl">' + fareLabel + ' per ticket' + multTxt(price) + '</span>' +
+          '<span class="route-fare-lbl">' + fareLabel + '</span>' +
         '</div>' +
+        genSubtotalLine +
         airlineHtml +
         flexDatesHtml +
-        '<div class="route-meta">' + (fromAp ? fromAp.name.split(',')[0] : from) + ' → ' + (hubAp ? hubAp.name.split(',')[0] : hub) + '</div>' +
       '</div>';
   });
   container.innerHTML = html || '<div style="font-size:.62rem;color:var(--muted);padding:4px 2px">All family members at hub</div>';
