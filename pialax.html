@@ -3,10 +3,13 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://pialax-proxy.ashwinyedavalli.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>PIALAX — Family Flight Dashboard</title>
 <!-- CDN scripts. TODO(security): add SRI integrity= hashes. Verify hash from https://cdnjs.com/libraries/d3/7.9.0 then paste into integrity attribute. Do not paste an unverified hash — wrong hash blocks the script. -->
+<!-- TODO(security): add SRI integrity hashes for these CDN scripts. Copy from
+     cdnjs (each script's "Copy SRI Hash" button) and add as integrity="sha384-…"
+     so a compromised cdnjs cannot inject malware that runs under our CSP. -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
@@ -361,6 +364,9 @@ button{font-family:inherit;cursor:pointer;}
         <option value="JAX">JAX — Jacksonville, FL</option>
       </select>
     </div>
+    <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
+      ✈️ <strong style="color:#38bdf8">Sister departs JFK (NYC)</strong> for these dates — she moved from JAX in Sep 2026.
+    </div>
 
     <div id="meetup-only" style="display:none">
       <div class="lbl">Holiday Quick-Pick</div>
@@ -436,7 +442,7 @@ button{font-family:inherit;cursor:pointer;}
         <input id="api-key-inp" type="text" placeholder="https://pialax-proxy.YOUR-SUB.workers.dev" spellcheck="false"/>
         <div class="api-btn-row">
           <button id="api-apply">Connect Proxy</button>
-          <button id="api-clear" style="display:none">✕ Disconnect</button>
+          <button id="api-clear" style="display:none" aria-label="Disconnect proxy">✕ Disconnect</button>
         </div>
         <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank" rel="noopener noreferrer">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
@@ -497,7 +503,7 @@ button{font-family:inherit;cursor:pointer;}
     <div id="map-leg"></div>
   </div>
 
-  <div id="share-card"><span id="share-card-close">✕ close</span><span id="share-card-text"></span></div>
+  <div id="share-card"><button id="share-card-close" aria-label="Close share card">✕ close</button><span id="share-card-text"></span></div>
 
   <div id="statsbar">
     <div style="display:flex;gap:16px">
@@ -509,7 +515,7 @@ button{font-family:inherit;cursor:pointer;}
     <div class="si" id="s-upd">—</div>
   </div>
 </main>
-<div id="share-toast"></div>
+<div id="share-toast" aria-live="polite"></div>
 <!-- Mobile floating share button (hidden on desktop) -->
 <button id="share-btn-mob" onclick="shareThePlan()" style="position:fixed;bottom:18px;right:18px;z-index:500;background:var(--green);color:#fff;border:none;border-radius:50px;padding:13px 20px;font-size:.82rem;font-weight:800;box-shadow:0 4px 18px rgba(0,0,0,.45);cursor:pointer;align-items:center;gap:8px;">✈️ Share Plan</button>
 </div>
@@ -728,6 +734,8 @@ function setPiaRoute(dest, mode) {
 }
 
 // ── HELPERS ──────────────────────────────────────────────────────
+// XSS-safe HTML escaper — wrap any dynamic string before inserting into innerHTML
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 var DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function sameDay(a,b){ return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
@@ -767,9 +775,9 @@ function airlineLabel(p, leg) {
   } else {
     a = p.airline; n = p.flightNo;
   }
-  if (a && n) return a + ' · ' + n;
-  if (a) return a;
-  if (n) return n;
+  if (a && n) return esc(a) + ' · ' + esc(n);
+  if (a) return esc(a);
+  if (n) return esc(n);
   return '';
 }
 // Build the compact "✈ Out · ↩ Ret" airline display row from a price object.
@@ -1108,7 +1116,7 @@ function renderMeetupRoutes() {
             '<span class="route-arrow">→</span>' +
             '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
             '<span class="member-tag">' + memberLabel + '</span>' +
-            '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyDriveText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+            '<button class="route-copy-btn" data-copy="' + esc(copyDriveText) + '" title="Copy" aria-label="Copy route">📋</button>' +
           '</div>' +
           '<div class="route-drive-row">🚗 ~2.5hr drive (one car)</div>' +
         '</div>';
@@ -1180,7 +1188,7 @@ function renderMeetupRoutes() {
           '<div class="route-card-hd">' + hdrBadges +
             '<span class="member-tag">' + memberLabel + '</span>' +
             sourceBadge + resetLink +
-            '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+            '<button class="route-copy-btn" data-copy="' + esc(copyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
           '</div>' +
           '<div class="pia-toggle-row">' +
             pill('direct', '✈ Direct', route.directFare) +
@@ -1248,7 +1256,7 @@ function renderMeetupRoutes() {
           '<span class="member-tag">' + memberLabel + '</span>' +
           customBadge +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
-          '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+          '<button class="route-copy-btn" data-copy="' + esc(copyFlyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
         '</div>' +
         '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
           '<div class="route-price">$' + price + '</div>' +
@@ -1441,7 +1449,16 @@ function computeBestMeetupWeekends(nWeeks) {
   var isRT = (S.tripType === 'round');
   var fareKey = isRT ? 'rt' : 'ow';
   // Build candidate hub list (mirrors computeRanking)
+  // JFK transition fix: include both JAX and JFK in the candidate set so a single
+  // finder pass covers weekends on both sides of sister's 2026-09-01 NYC move.
+  // weekendFamily (per-weekend) still selects the correct origin for fare math.
   var candidates = FAMILY.slice();
+  FAMILY.forEach(function(code){
+    var info = FAMILY_INFO[code];
+    if (info && info.moveAirport && candidates.indexOf(info.moveAirport) === -1) {
+      candidates.push(info.moveAirport);
+    }
+  });
   if (S.includeORD && candidates.indexOf('ORD') === -1) {
     candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
   }
@@ -2171,7 +2188,7 @@ function readQuota() {
       obj.budget = 250;
       if (obj.used < obj.budget) obj.exceeded = false;
       localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
-      console.log('[PIALAX] Auto-migrated quota budget 100 → 250 to match real SerpAPI plan');
+      console.info('[PIALAX] Auto-migrated quota budget 100 → 250 to match real SerpAPI plan');
     }
     if (obj.period !== _quotaPeriodKey()) {
       // New month → reset
@@ -2259,7 +2276,6 @@ async function syncSerpApiAccount() {
       q.exceeded = (totalLeft <= 0);
       writeQuota(q);
       _serpApiAccountLastSync = new Date();
-      console.log('[PIALAX /account]', { budget: q.budget, used: q.used, totalLeft: totalLeft });
       updateApiCallCount();
     }
     return acct;
@@ -2482,6 +2498,13 @@ function updateDateUI() {
   dEl.textContent=S.depDate?dateFmt(S.depDate):'Pick date'; dEl.classList.toggle('ph',!S.depDate);
   if (S.tripType==='one') { rEl.textContent='—'; rEl.classList.add('ph'); rBtn.disabled=true; }
   else { rEl.textContent=S.retDate?dateFmt(S.retDate):'Pick date'; rEl.classList.toggle('ph',!S.retDate); rBtn.disabled=false; }
+  // JFK transition banner: show when trip dates fall on/after sister's NYC move
+  var jfkBanner = document.getElementById('jfk-banner');
+  if (jfkBanner) {
+    var tripDate = S.depDate ? fmtISO(S.depDate) : null;
+    var moveDate = FAMILY_INFO.JAX && FAMILY_INFO.JAX.moveDate;
+    jfkBanner.style.display = (tripDate && moveDate && tripDate >= moveDate) ? '' : 'none';
+  }
   updateStats();
 }
 
@@ -2749,7 +2772,9 @@ function rebuildLegend() {
   var html='';
   if (S.mode === 'meetup') {
     html += '<div class="ml"><div class="ml-dot" style="background:#ffffff"></div>★ Best Hub</div>';
-    FAMILY.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (family)</div>'; });
+    // JFK transition fix: use date-aware family so post-Sep-1 trips show JFK, not JAX.
+    var legendFamily = familyForDate(S.depDate || today);
+    legendFamily.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+(DC[c]||'#888')+'"></div>'+c+' (family)</div>'; });
     if (S.includeLHR) INTL_DESTS.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (intl)</div>'; });
   } else {
     html='<div class="ml"><div class="ml-dot" style="background:var(--green)"></div>Home Airport</div>';
@@ -2808,7 +2833,10 @@ function redrawMap() {
     if (meetupHub) {
       var hubXY = S.proj([AIRPORTS[meetupHub].lon, AIRPORTS[meetupHub].lat]);
       if (hubXY) {
-        FAMILY.forEach(function(from) {
+        // JFK transition fix: draw arcs from date-effective origins so the sister's
+        // arc lands at JFK (not JAX) for trips on/after 2026-09-01.
+        var arcFamily = familyForDate(S.depDate || today);
+        arcFamily.forEach(function(from) {
           if (from === meetupHub) return;
           var fromAp = AIRPORTS[from];
           var fromXY = S.proj([fromAp.lon, fromAp.lat]);
@@ -2839,7 +2867,9 @@ function redrawMap() {
       var xy = S.proj([ap.lon, ap.lat]);
       if (!xy) return;
       var isHub    = ap.code === meetupHub;
-      var isMember = FAMILY.indexOf(ap.code) > -1;
+      // JFK transition fix: a "family" dot reflects who lives there for this trip date
+      var effectiveFamily = familyForDate(S.depDate || today);
+      var isMember = effectiveFamily.indexOf(ap.code) > -1;
       var isOther  = !isHub && !isMember;
       var col = isHub ? '#ffffff' : (isMember ? (DC[ap.code]||'#888') : '#1e3550');
       var r   = isHub ? 10 : (isMember ? 7 : 3);
@@ -2922,6 +2952,11 @@ function redrawMap() {
 }
 
 // ── EVENTS ───────────────────────────────────────────────────────
+// Delegated copy handler — replaces inline onclick="copyRouteText(...)" for XSS safety
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-copy]');
+  if (btn) copyRouteText(btn.dataset.copy);
+});
 document.getElementById('cprev').addEventListener('click', function(){ S.calOff=Math.max(0,S.calOff-1); renderCal(); });
 document.getElementById('cnext').addEventListener('click', function(){ S.calOff=Math.min(12,S.calOff+1); renderCal(); });
 document.getElementById('cal-ok').addEventListener('click', closeCal);
@@ -2997,7 +3032,13 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
   try {
     var saved = localStorage.getItem(PROXY_URL_STORAGE_KEY);
     if (saved && saved.trim()) {
-      PROXY_URL = saved.trim();
+      var trimmed = saved.trim();
+      // Security: validate saved proxy URL before trusting it
+      if (!/^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(trimmed)) {
+        localStorage.removeItem(PROXY_URL_STORAGE_KEY);
+        return;
+      }
+      PROXY_URL = trimmed;
       var inp = document.getElementById('api-key-inp');
       if (inp) inp.value = PROXY_URL;
       var clearBtn = document.getElementById('api-clear');
@@ -3009,6 +3050,16 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
 document.getElementById('api-apply').addEventListener('click', function(){
   var url=document.getElementById('api-key-inp').value.trim();
   if (url.endsWith('/')) url = url.slice(0, -1);
+  // Security hardening: validate the proxy URL is https + Cloudflare workers.dev
+  // before accepting. CSP connect-src already restricts this, but a friendly
+  // input check avoids silent CSP blocks and prevents accidental mis-types.
+  if (url) {
+    var validProxy = /^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(url);
+    if (!validProxy) {
+      alert('Proxy URL must look like https://your-name.workers.dev (no path).');
+      return;
+    }
+  }
   PROXY_URL = url;
   // Persist so the user doesn't have to re-enter on next session
   try { if (url) localStorage.setItem(PROXY_URL_STORAGE_KEY, url); else localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}

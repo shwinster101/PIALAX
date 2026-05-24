@@ -3,9 +3,11 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://pialax-proxy.ashwinyedavalli.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>PIALAX — Family Flight Dashboard</title>
+<!-- TODO(security): add SRI integrity hashes for these CDN scripts. Copy from
+     cdnjs (each script's "Copy SRI Hash" button) and add as integrity="sha384-…" -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <style>
@@ -949,6 +951,9 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <option value="JAX">JAX — Jacksonville, FL</option>
         </select>
       </div>
+      <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
+        ✈️ <strong style="color:#38bdf8">Sister departs JFK (NYC)</strong> for these dates — she moved from JAX in Sep 2026.
+      </div>
 
       <!-- Holiday quick-picks (meetup mode) -->
       <div id="meetup-only" style="display:none">
@@ -1061,7 +1066,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
     <!-- ═══ BLOCK 4: Share Plan ═══ -->
     <div class="card">
       <div class="step-label">Step 4 · Share Plan</div>
-      <div id="share-card"><span id="share-card-close">✕ close</span><span id="share-card-text"></span></div>
+      <div id="share-card"><button id="share-card-close" aria-label="Close share card">✕ close</button><span id="share-card-text"></span></div>
     </div>
 
   </div><!-- /sb-body -->
@@ -1111,7 +1116,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
         <input id="api-key-inp" type="text" placeholder="https://pialax-proxy.YOUR-SUB.workers.dev" spellcheck="false"/>
         <div class="api-btn-row">
           <button id="api-apply">Connect Proxy</button>
-          <button id="api-clear" style="display:none">✕ Disconnect</button>
+          <button id="api-clear" style="display:none" aria-label="Disconnect proxy">✕ Disconnect</button>
         </div>
         <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank" rel="noopener noreferrer">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
@@ -1139,7 +1144,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 <button id="share-btn-floating" type="button">📤</button>
 
 <!-- Share toast -->
-<div id="share-toast"></div>
+<div id="share-toast" aria-live="polite"></div>
 
 <!-- Legacy mobile share button (hidden, ID preserved) -->
 <button id="share-btn-mob" style="display:none;" onclick="shareThePlan()">✈️ Share Plan</button>
@@ -1330,6 +1335,8 @@ function clearMemberDates(memberCode) {
 }
 
 // ── HELPERS ──────────────────────────────────────────────────────
+// XSS-safe HTML escaper — wrap any dynamic string before inserting into innerHTML
+function esc(s) { if (!s) return ''; return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 var DAYS   = ['Su','Mo','Tu','We','Th','Fr','Sa'];
 var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function sameDay(a,b){ return a&&b&&a.getFullYear()===b.getFullYear()&&a.getMonth()===b.getMonth()&&a.getDate()===b.getDate(); }
@@ -1359,9 +1366,9 @@ function airlineLabel(p, leg) {
   var a, n;
   if (leg === 'return') { a = p.returnAirline; n = p.returnFlightNo; }
   else { a = p.airline; n = p.flightNo; }
-  if (a && n) return a + ' · ' + n;
-  if (a) return a;
-  if (n) return n;
+  if (a && n) return esc(a) + ' · ' + esc(n);
+  if (a) return esc(a);
+  if (n) return esc(n);
   return '';
 }
 function stopsTag(n) {
@@ -1681,7 +1688,7 @@ function renderMeetupRoutes() {
             '<span class="route-arrow">→</span>' +
             '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
             '<span class="member-tag">' + memberLabel + '</span>' +
-            '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyDriveText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+            '<button class="route-copy-btn" data-copy="' + esc(copyDriveText) + '" title="Copy" aria-label="Copy route">📋</button>' +
           '</div>' +
           '<div class="route-drive-row">🚗 ~2.5hr drive (one car)</div>' +
         '</div>';
@@ -1746,7 +1753,7 @@ function renderMeetupRoutes() {
           '<div class="route-card-hd">' + hdrBadges +
             '<span class="member-tag">' + memberLabel + '</span>' +
             sourceBadge + resetLink +
-            '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+            '<button class="route-copy-btn" data-copy="' + esc(copyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
           '</div>' +
           '<div class="pia-toggle-row">' +
             pill('direct', '✈ Direct', route.directFare) +
@@ -1809,7 +1816,7 @@ function renderMeetupRoutes() {
           '<span class="member-tag">' + memberLabel + '</span>' +
           customBadge +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
-          '<button class="route-copy-btn" onclick="copyRouteText(\'' + copyFlyText.replace(/'/g,"&#39;") + '\')" title="Copy">📋</button>' +
+          '<button class="route-copy-btn" data-copy="' + esc(copyFlyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
         '</div>' +
         '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
           '<div class="route-price">$' + price + '</div>' +
@@ -1983,7 +1990,15 @@ function computeBestMeetupWeekends(nWeeks) {
   nWeeks = nWeeks || FINDER_NWEEKS;
   var isRT = (S.tripType === 'round');
   var fareKey = isRT ? 'rt' : 'ow';
+  // JFK transition fix: include planned future airports (JFK) alongside FAMILY
+  // so the finder evaluates both pre- and post-move weekends in one pass.
   var candidates = FAMILY.slice();
+  FAMILY.forEach(function(code){
+    var info = FAMILY_INFO[code];
+    if (info && info.moveAirport && candidates.indexOf(info.moveAirport) === -1) {
+      candidates.push(info.moveAirport);
+    }
+  });
   if (S.includeORD && candidates.indexOf('ORD') === -1) {
     candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
   }
@@ -1999,18 +2014,22 @@ function computeBestMeetupWeekends(nWeeks) {
     var sun = new Date(thu);
     sun.setDate(thu.getDate() + 3);
     var wkndFactor = WKLY_FACTORS[i % WKLY_FACTORS.length];
+    // JFK transition fix: use date-aware family for each weekend
+    var weekendFamily = familyForDate(thu);
     var hubResults = [];
     candidates.forEach(function(hub) {
       var total = 0, ok = true, parts = [];
-      FAMILY.forEach(function(from) {
+      weekendFamily.forEach(function(from) {
         if (from === hub) return;
         if (from === 'PIA' && hub === 'ORD') return;
         var p = getMock(from, hub);
         var fare = p ? (p[fareKey] || p.ow) : 0;
         if (!fare) { ok = false; return; }
         var weekendFare = Math.round(fare * wkndFactor / 5) * 5;
-        total += weekendFare;
-        parts.push(from + '→' + hub + ' $' + weekendFare);
+        var headcount = headcountFor(from);
+        var subtotal = weekendFare * headcount;
+        total += subtotal;
+        parts.push(from + '→' + hub + ' $' + weekendFare + (headcount > 1 ? ' ×' + headcount : ''));
       });
       if (ok) {
         var score = total - (hub === 'PIA' ? PIA_HUB_BONUS : 0);
@@ -2653,7 +2672,6 @@ async function syncSerpApiAccount() {
       q.exceeded = (totalLeft <= 0);
       writeQuota(q);
       _serpApiAccountLastSync = new Date();
-      console.log('[PIALAX /account]', { budget: q.budget, used: q.used, totalLeft: totalLeft });
       updateApiCallCount();
     }
     return acct;
@@ -2826,6 +2844,13 @@ function updateDateUI() {
   dEl.textContent=S.depDate?dateFmt(S.depDate):'Pick date'; dEl.classList.toggle('ph',!S.depDate);
   if (S.tripType==='one') { rEl.textContent='—'; rEl.classList.add('ph'); rBtn.disabled=true; }
   else { rEl.textContent=S.retDate?dateFmt(S.retDate):'Pick date'; rEl.classList.toggle('ph',!S.retDate); rBtn.disabled=false; }
+  // JFK transition banner: show when trip dates fall on/after sister's NYC move
+  var jfkBanner = document.getElementById('jfk-banner');
+  if (jfkBanner) {
+    var tripDate = S.depDate ? fmtISO(S.depDate) : null;
+    var moveDate = FAMILY_INFO.JAX && FAMILY_INFO.JAX.moveDate;
+    jfkBanner.style.display = (tripDate && moveDate && tripDate >= moveDate) ? '' : 'none';
+  }
   updateStats();
   updateStatus();
 }
@@ -3079,7 +3104,9 @@ function rebuildLegend() {
   var html='';
   if (S.mode === 'meetup') {
     html += '<div class="ml"><div class="ml-dot" style="background:#ffffff"></div>★ Best Hub</div>';
-    FAMILY.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (family)</div>'; });
+    // JFK transition fix: legend uses date-effective family
+    var legendFamily = familyForDate(S.depDate || today);
+    legendFamily.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+(DC[c]||'#888')+'"></div>'+c+' (family)</div>'; });
     if (S.includeLHR) INTL_DESTS.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (intl)</div>'; });
   } else {
     html='<div class="ml"><div class="ml-dot" style="background:var(--green)"></div>Home Airport</div>';
@@ -3138,7 +3165,9 @@ function redrawMap() {
     if (meetupHub) {
       var hubXY = S.proj([AIRPORTS[meetupHub].lon, AIRPORTS[meetupHub].lat]);
       if (hubXY) {
-        FAMILY.forEach(function(from) {
+        // JFK transition fix: date-aware origins for arcs
+        var arcFamily = familyForDate(S.depDate || today);
+        arcFamily.forEach(function(from) {
           if (from === meetupHub) return;
           var fromAp = AIRPORTS[from];
           var fromXY = S.proj([fromAp.lon, fromAp.lat]);
@@ -3168,7 +3197,9 @@ function redrawMap() {
       var xy = S.proj([ap.lon, ap.lat]);
       if (!xy) return;
       var isHub    = ap.code === meetupHub;
-      var isMember = FAMILY.indexOf(ap.code) > -1;
+      // JFK transition fix: family-dot uses date-effective list
+      var effectiveFamily = familyForDate(S.depDate || today);
+      var isMember = effectiveFamily.indexOf(ap.code) > -1;
       var isOther  = !isHub && !isMember;
       var col = isHub ? '#ffffff' : (isMember ? (DC[ap.code]||'#888') : '#1e3550');
       var r   = isHub ? 10 : (isMember ? 7 : 3);
@@ -3267,6 +3298,11 @@ function redrawMap() {
 }
 
 // ── EVENTS ───────────────────────────────────────────────────────
+// Delegated copy handler — replaces inline onclick="copyRouteText(...)" for XSS safety
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-copy]');
+  if (btn) copyRouteText(btn.dataset.copy);
+});
 document.getElementById('cprev').addEventListener('click', function(){ S.calOff=Math.max(0,S.calOff-1); renderCal(); });
 document.getElementById('cnext').addEventListener('click', function(){ S.calOff=Math.min(12,S.calOff+1); renderCal(); });
 document.getElementById('cal-ok').addEventListener('click', closeCal);
@@ -3337,7 +3373,13 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
   try {
     var saved = localStorage.getItem(PROXY_URL_STORAGE_KEY);
     if (saved && saved.trim()) {
-      PROXY_URL = saved.trim();
+      var trimmed = saved.trim();
+      // Security: validate saved proxy URL before trusting it
+      if (!/^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(trimmed)) {
+        localStorage.removeItem(PROXY_URL_STORAGE_KEY);
+        return;
+      }
+      PROXY_URL = trimmed;
       var inp = document.getElementById('api-key-inp');
       if (inp) inp.value = PROXY_URL;
       var clearBtn = document.getElementById('api-clear');
@@ -3349,6 +3391,14 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
 document.getElementById('api-apply').addEventListener('click', function(){
   var url=document.getElementById('api-key-inp').value.trim();
   if (url.endsWith('/')) url = url.slice(0, -1);
+  // Security hardening: only accept https *.workers.dev proxy URLs
+  if (url) {
+    var validProxy = /^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(url);
+    if (!validProxy) {
+      alert('Proxy URL must look like https://your-name.workers.dev (no path).');
+      return;
+    }
+  }
   PROXY_URL = url;
   try { if (url) localStorage.setItem(PROXY_URL_STORAGE_KEY, url); else localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}
   var isLive=!!url;
