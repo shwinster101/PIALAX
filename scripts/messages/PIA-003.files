@@ -1,0 +1,5 @@
+# PIA-003 ship manifest — gives T5 a "what's already fixed" surface.
+MITIGATED.md
+PIALAX_HQ.md
+scripts/messages/PIA-003.msg
+scripts/messages/PIA-003.files
