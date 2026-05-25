@@ -1,0 +1,5 @@
+# PIA-002 ship manifest — operationalizes the T4 ship workflow itself.
+scripts/ship.sh
+PIALAX_HQ.md
+scripts/messages/PIA-002.msg
+scripts/messages/PIA-002.files
