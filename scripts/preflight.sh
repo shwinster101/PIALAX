@@ -16,9 +16,18 @@ fail=0
 step() { printf "\n▶ %s\n" "$1"; }
 pass() { printf "  OK  %s\n" "$1"; }
 warn() { printf "  XX  %s\n" "$1"; fail=1; }
+note() { printf "  ··  %s\n" "$1"; }
+
+# environment banner — shows up at the top so a misrooted run is obvious.
+printf "PIALAX preflight · HERE=%s · scripts/=" "$HERE"
+if [ -d "$HERE/scripts" ]; then
+  printf "%s files\n" "$(ls -1 "$HERE/scripts" 2>/dev/null | wc -l | tr -d ' ')"
+else
+  printf "MISSING DIR\n"
+fi
 
 # 1 — files present
-step "1/6  file presence"
+step "1/7  file presence"
 for f in "${FILES[@]}"; do
   if [ -f "$f" ]; then pass "$(basename "$f") found"
   else warn "$(basename "$f") MISSING"
@@ -26,14 +35,14 @@ for f in "${FILES[@]}"; do
 done
 
 # 2 — no console.log in shipping files
-step "2/6  no console.log"
+step "2/7  no console.log"
 hits=$(grep -nE 'console\.log' "${FILES[@]}" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$hits" = "0" ]; then pass "0 console.log calls"
 else warn "$hits console.log call(s) — listing:"; grep -nE 'console\.log' "${FILES[@]}"
 fi
 
 # 3 — hardcoded-secret scan (common prefixes + generic key/secret/token tokens)
-step "3/6  hardcoded secret scan"
+step "3/7  hardcoded secret scan"
 pat='(sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|(api[_-]?key|secret|bearer|password)["'\''=: ]+[A-Za-z0-9_\-]{20,})'
 hits=$(grep -inE "$pat" "${FILES[@]}" 2>/dev/null \
   | grep -viE 'placeholder|example|TODO|comment|<!--|//' \
@@ -43,7 +52,7 @@ else warn "$hits possible secret(s) — REVIEW MANUALLY:"; grep -inE "$pat" "${F
 fi
 
 # 4 — HTML structural smoke (balanced <script>...</script>)
-step "4/6  HTML <script> tag balance"
+step "4/7  HTML <script> tag balance"
 for f in "${FILES[@]}"; do
   opens=$(grep -cE '<script[ >]' "$f")
   closes=$(grep -cE '</script>' "$f")
@@ -54,7 +63,7 @@ done
 
 # 5 — live SRI hash check (delegates to verify-sri.sh)
 # Invoked via `bash` so a stripped exec bit doesn't break the gate (PIA-002 fix).
-step "5/6  SRI hash freshness (live cdnjs)"
+step "5/7  SRI hash freshness (live cdnjs)"
 if [ -f "$HERE/scripts/verify-sri.sh" ]; then
   if bash "$HERE/scripts/verify-sri.sh" > /tmp/pialax-sri.log 2>&1; then
     pass "SRI hashes match cdnjs"
@@ -63,18 +72,18 @@ if [ -f "$HERE/scripts/verify-sri.sh" ]; then
     sed 's/^/      /' /tmp/pialax-sri.log
   fi
 else
-  warn "scripts/verify-sri.sh MISSING — restore from origin/main"
+  warn "scripts/verify-sri.sh MISSING at $HERE/scripts/verify-sri.sh — restore from origin/main"
 fi
 
 # 6 — bash -n syntax check on every shipping shell script (PIA-002).
 # Catches a broken helper that no one ran by hand before it lands on main.
 # Pre-push hook + scheduled runs both rely on these scripts parsing.
-step "6/6  shell-script syntax check"
+step "6/7  shell-script syntax check"
 shopt -s nullglob
 shfiles=("$HERE"/scripts/*.sh)
 shopt -u nullglob
 if [ "${#shfiles[@]}" -eq 0 ]; then
-  warn "no scripts/*.sh found — unexpected"
+  warn "no *.sh found at $HERE/scripts/ — wrong cwd? missing dir? check the environment banner above"
 else
   for f in "${shfiles[@]}"; do
     if bash -n "$f" 2>/tmp/pialax-shn.log; then
@@ -84,6 +93,32 @@ else
       sed 's/^/      /' /tmp/pialax-shn.log
     fi
   done
+fi
+
+# 7 — optional shellcheck pass (advisory: skips if not installed, surfaces
+# findings as notes without blocking the gate). Install: `brew install shellcheck`.
+# Set STRICT=1 in the env to escalate shellcheck warnings to gate failures.
+step "7/7  shellcheck (advisory)"
+if ! command -v shellcheck >/dev/null 2>&1; then
+  note "shellcheck not installed — skipping (brew install shellcheck for full linting)"
+elif [ "${#shfiles[@]}" -eq 0 ]; then
+  note "no *.sh to lint — see step 6 warning"
+else
+  strict="${STRICT:-0}"
+  for f in "${shfiles[@]}"; do
+    if shellcheck -S warning "$f" > /tmp/pialax-sc.log 2>&1; then
+      pass "$(basename "$f"): shellcheck clean"
+    else
+      msg="$(basename "$f"): shellcheck findings:"
+      if [ "$strict" = "1" ]; then
+        warn "$msg"
+      else
+        note "$msg"
+      fi
+      sed 's/^/      /' /tmp/pialax-sc.log
+    fi
+  done
+  [ "$strict" = "1" ] || note "advisory mode — set STRICT=1 to block ship on shellcheck warnings"
 fi
 
 # verdict
