@@ -1,0 +1,7 @@
+# PIA-001 ship manifest — exact paths to stage. Order doesn't matter.
+pialax.html
+pialax-mobile.html
+scripts/verify-sri.sh
+scripts/preflight.sh
+scripts/messages/PIA-001.msg
+scripts/messages/PIA-001.files

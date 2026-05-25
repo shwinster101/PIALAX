@@ -6,10 +6,26 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://pialax-proxy.ashwinyedavalli.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>PIALAX — Family Flight Dashboard</title>
-<!-- TODO(security): add SRI integrity hashes for these CDN scripts. Copy from
-     cdnjs (each script's "Copy SRI Hash" button) and add as integrity="sha384-…" -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- SRI integrity= is the primary tamper-guard (PIA-001). Keep in sync with pialax.html.
+     Hashes from cdnjs "Copy SRI Hash" 2026-05-25. Verify via: scripts/verify-sri.sh -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+        integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"
+        integrity="sha512-4UKI/XKm3xrvJ6pZS5oTRvIQGIzZFoXR71rRBb1y2N+PbwAsKa5tPl2J6WvbEvwN3TxQCm8hMzsl/pO+82iRlg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+/* Defense-in-depth: detect CDN tamper / failed load. SRI integrity= is the real fix (TODO above). */
+(function(){
+  try {
+    var ok = (typeof d3 !== 'undefined') && typeof d3.select === 'function'
+          && (typeof topojson !== 'undefined') && typeof topojson.feature === 'function';
+    if (!ok) {
+      console.error('[PIALAX] CDN load check failed: d3 or topojson missing expected API. Possible CDN issue or tampering.');
+    }
+  } catch(e) { console.error('[PIALAX] CDN load check error', e); }
+})();
+</script>
 <style>
 /* ═══════════════════════════════════════════════════════
    PIALAX Mobile — UX Overhaul v3.0
@@ -2000,7 +2016,9 @@ function computeBestMeetupWeekends(nWeeks) {
     }
   });
   if (S.includeORD && candidates.indexOf('ORD') === -1) {
-    candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
+    // Defensive: if PIA missing (filtered/edge case), append ORD instead of inserting at idx 0
+    var piaIdx2 = candidates.indexOf('PIA');
+    if (piaIdx2 > -1) candidates.splice(piaIdx2 + 1, 0, 'ORD'); else candidates.push('ORD');
   }
   if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
   var d = new Date(today);
@@ -3395,7 +3413,14 @@ document.getElementById('api-apply').addEventListener('click', function(){
   if (url) {
     var validProxy = /^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(url);
     if (!validProxy) {
-      alert('Proxy URL must look like https://your-name.workers.dev (no path).');
+      // Non-blocking inline error (replaces blocking alert() — avoids modal on mobile)
+      var inp = document.getElementById('api-key-inp');
+      if (inp) {
+        inp.style.borderColor = 'var(--red, #ef4444)';
+        inp.setAttribute('title', 'Proxy URL must look like https://your-name.workers.dev (no path).');
+        setTimeout(function(){ inp.style.borderColor = ''; }, 3500);
+      }
+      try { console.warn('Invalid proxy URL — expected https://<name>.workers.dev (no path).'); } catch(e){}
       return;
     }
   }

@@ -6,12 +6,30 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://pialax-proxy.ashwinyedavalli.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <title>PIALAX — Family Flight Dashboard</title>
-<!-- CDN scripts. TODO(security): add SRI integrity= hashes. Verify hash from https://cdnjs.com/libraries/d3/7.9.0 then paste into integrity attribute. Do not paste an unverified hash — wrong hash blocks the script. -->
-<!-- TODO(security): add SRI integrity hashes for these CDN scripts. Copy from
-     cdnjs (each script's "Copy SRI Hash" button) and add as integrity="sha384-…"
-     so a compromised cdnjs cannot inject malware that runs under our CSP. -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<!-- CDN scripts. SRI integrity= is the primary tamper-guard (PIA-001). Hashes sourced
+     from cdnjs "Copy SRI Hash" 2026-05-25. If cdnjs republishes the file, integrity
+     check blocks load — re-copy hash from cdnjs.com and update both HTML files.
+     Verify via: scripts/verify-sri.sh -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"
+        integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"
+        integrity="sha512-4UKI/XKm3xrvJ6pZS5oTRvIQGIzZFoXR71rRBb1y2N+PbwAsKa5tPl2J6WvbEvwN3TxQCm8hMzsl/pO+82iRlg=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+/* Defense-in-depth: detect CDN tamper / failed load.
+   Real fix is SRI integrity= attributes (see TODO above). Until then, verify
+   the expected library surface exists; warn loudly if not. */
+(function(){
+  try {
+    var ok = (typeof d3 !== 'undefined') && typeof d3.select === 'function'
+          && (typeof topojson !== 'undefined') && typeof topojson.feature === 'function';
+    if (!ok) {
+      console.error('[PIALAX] CDN load check failed: d3 or topojson missing expected API. Possible CDN issue or tampering.');
+    }
+  } catch(e) { console.error('[PIALAX] CDN load check error', e); }
+})();
+</script>
 <style>
 :root{
   --bg:#07101e;--surface:#0f1d2e;--surface2:#162233;
@@ -1460,7 +1478,9 @@ function computeBestMeetupWeekends(nWeeks) {
     }
   });
   if (S.includeORD && candidates.indexOf('ORD') === -1) {
-    candidates.splice(candidates.indexOf('PIA') + 1, 0, 'ORD');
+    // Defensive: if PIA missing (filtered/edge case), append ORD instead of inserting at idx 0
+    var piaIdx2 = candidates.indexOf('PIA');
+    if (piaIdx2 > -1) candidates.splice(piaIdx2 + 1, 0, 'ORD'); else candidates.push('ORD');
   }
   if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
 
@@ -2787,7 +2807,11 @@ function redrawMap() {
   var isWorld = (S.mapView === 'world');
   var geoSrc = isWorld ? (S.worldGeo || S.geoData) : S.geoData;
   if (!geoSrc) return;
-  var wrap=document.getElementById('map-wrap'), w=wrap.clientWidth, h=wrap.clientHeight;
+  var wrap=document.getElementById('map-wrap');
+  if (!wrap) return;
+  var w=wrap.clientWidth, h=wrap.clientHeight;
+  // Guard: container not laid out / hidden — bail rather than render broken SVG
+  if (!w || !h) return;
   var svg=d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
   svg.selectAll('*').remove();
 
@@ -2796,6 +2820,8 @@ function redrawMap() {
   } else {
     S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], geoSrc);
   }
+  // Guard: if fitExtent fails (empty features), S.proj is null and downstream proj([lon,lat]) calls crash
+  if (!S.proj) { try { console.warn('redrawMap: projection failed; skipping render'); } catch(e){} return; }
   var pg = d3.geoPath().projection(S.proj);
   var geoFallback = isWorld ? S.worldGeoFallback : S.geoFallback;
 
@@ -3056,7 +3082,21 @@ document.getElementById('api-apply').addEventListener('click', function(){
   if (url) {
     var validProxy = /^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(url);
     if (!validProxy) {
-      alert('Proxy URL must look like https://your-name.workers.dev (no path).');
+      // Non-blocking inline error (replaces blocking alert() — better UX, no main-thread freeze)
+      var inp = document.getElementById('api-key-inp');
+      if (inp) {
+        inp.style.borderColor = 'var(--red)';
+        inp.setAttribute('title', 'Proxy URL must look like https://your-name.workers.dev (no path).');
+        setTimeout(function(){ inp.style.borderColor = ''; }, 3500);
+      }
+      var badge = document.getElementById('data-badge');
+      if (badge) {
+        var prev = badge.textContent;
+        badge.textContent = 'Invalid URL';
+        badge.className = 'ab-badge b-mock';
+        setTimeout(function(){ badge.textContent = prev || 'Sample Data'; }, 3500);
+      }
+      try { console.warn('Invalid proxy URL — expected https://<name>.workers.dev (no path).'); } catch(e){}
       return;
     }
   }
