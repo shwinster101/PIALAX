@@ -1,8 +1,10 @@
 # PIALAX HQ — Operating Playbook
 
-_Last updated: 2026-05-24 · Owner: Ashwin · Repo: shwinster101/PIALAX_
+_Last updated: 2026-05-25 · Owner: Ashwin · Repo: shwinster101/PIALAX_
 
 This file is the single source of truth for how the PIALAX project is run as a multi-team Cowork operation. It defines thread topology, per-team prompts, Cowork feature usage, and the scheduled autonomous run.
+
+> **Most recent amendments (2026-05-25):** §1 thread merge allowance · §2.4 D1 ENVELOPE READY stamp · §2.4 D4 live-site verification · §2.5 A1 lessons-learned coda · §2.5 A4 standing lessons-learned prompt · §4 patch fast-path · §6 intent-level AC rule · §8 known sandbox limits. Derived from the post-mortem on the PIA-001 → PIA-003 ship cycle (see `LESSONS_LEARNED_2026-05-25.md`).
 
 ---
 
@@ -17,6 +19,8 @@ One team per thread keeps each context window clean. Memory (`MEMORY.md`) is the
 - **T5 — Auditor** (scheduled, ephemeral): spawned by the daily run, reads code fresh, emits one proposal artifact, exits.
 
 Rule: do not mix teams in one thread. Bleed-over corrupts file-path and recommendation accuracy.
+
+**Allowed merge (solo-run efficiency, 2026-05-25):** T5 → T1 may run in a single thread when the same human is reviewing both outputs back-to-back. Auditor proposes → Requirements team ingests into `backlog.md` in the same context. T1's R1 prompt is run inline after the T5 A1 artifact saves. Do NOT merge any other pair — T2/T3/T4 stay isolated because of the secrets boundary and the diff-review handoff.
 
 ---
 
@@ -58,7 +62,9 @@ Rule: do not mix teams in one thread. Bleed-over corrupts file-path and recommen
 ### 2.4 Deployment team (T4)
 
 **D1 — Ship (standardized flow, PIA-002 onward)**
-> User said 'push to github' or 'ship it'. (1) Run D2 preflight — block on failure. (2) Write the ticket's ship envelope to the working tree: `scripts/messages/<id>.msg` (conventional-commit subject, blank line, body — `git commit -F` format) and `scripts/messages/<id>.files` (one path per line; **must include both envelope files themselves** so the audit trail commits with the change). (3) Confirm "ship it" from user. (4) User runs `bash scripts/ship.sh <id>` on their Mac. The script re-runs preflight, resets the index, stages exactly the manifest, commits with the `.msg`, pushes to `shwinster101/PIALAX` main, and re-installs the pre-push hook. (5) User pastes back the SHA — T4 verifies against `origin/main` and closes the ticket.
+> User said 'push to github' or 'ship it'. (1) Run D2 preflight — block on failure. (2) Write the ticket's ship envelope to the working tree: `scripts/messages/<id>.msg` (conventional-commit subject, blank line, body — `git commit -F` format) and `scripts/messages/<id>.files` (one path per line; **must include both envelope files themselves** so the audit trail commits with the change). (3) **Emit the exact stamp `ENVELOPE READY: bash scripts/ship.sh <id>` on its own line** — user greps/scans for this token to know the working tree is staged and it is safe to run the ship command. Do not emit the stamp until both envelope files are confirmed on disk. (4) Confirm "ship it" from user. (5) User runs `bash scripts/ship.sh <id>` on their Mac. The script re-runs preflight, resets the index, stages exactly the manifest, commits with the `.msg`, pushes to `shwinster101/PIALAX` main, and re-installs the pre-push hook. (6) User pastes back the SHA — T4 verifies against `origin/main` and closes the ticket. (7) Run D4 to verify GitHub Pages is serving the new SHA before declaring the ticket fully closed.
+>
+> **Why the stamp matters:** prevents the ship-before-envelope race that hit PIA-003 (user ran `ship.sh` before T4 finished writing envelope; preflight died on `missing ship envelope`). Stamp is a single grep-able token; do not paraphrase it.
 >
 > **Why the user runs it, not T4:** the Cowork sandbox can write the working tree but not `.git/` (mount-level perms), so commits and pushes must originate from the user's Mac. T4 never executes the push directly.
 
@@ -67,6 +73,9 @@ Rule: do not mix teams in one thread. Bleed-over corrupts file-path and recommen
 
 **D3 — Rollback drill**
 > Identify the last 3 green SHAs on main. Write the one-line revert command for each. Save to PIALAX/rollback.md.
+
+**D4 — Live-site verification (post-push, 2026-05-25)**
+> After every push, before closing the ticket, verify GitHub Pages is actually serving the new code. User opens `https://shwinster101.github.io/PIALAX/`, `Cmd+Option+U` to view source, `Cmd+F` for a string from the diff (e.g., `integrity="sha512-vc58qv` for PIA-001, or the new function name for a feature). If found → Pages is current, close ticket. If not → wait 2 minutes, hard-refresh (`Cmd+Shift+R`), retry. After 5 minutes without success → Pages is misconfigured or building; check repo Settings → Pages source branch. Code on `origin/main` is necessary but not sufficient — only "served bytes match committed bytes" closes the loop.
 
 **Ship envelope contract**
 > Every shipped ticket carries its own envelope under `scripts/messages/`:
@@ -77,7 +86,10 @@ Rule: do not mix teams in one thread. Bleed-over corrupts file-path and recommen
 ### 2.5 Auditor team (T5)
 
 **A1 — Headline 5-system audit (primary)**
-> You are the PIALAX Auditor. **First, read `MITIGATED.md` at the repo root** — items listed there are already closed and must NOT count against your 5 leverage slots; if you see evidence of regression on a closed item, flag it as a separate finding citing the ticket ID. Then read pialax.html and pialax-mobile.html in full. Identify exactly 5 systems with the highest leverage to fix, where leverage = (severity × blast radius × user-visibility) ÷ effort. For each system, output: (1) what it is, (2) potential hazard (PHA: what could go wrong, likelihood, severity), (3) Fishbone RCCA across 6Ms — Method, Machine, Material, Measurement, Manpower, Mother-nature/Env, (4) sprint tag — exactly one of patch / minor / major, (5) proposed fix in one paragraph. End with a single proposal artifact in markdown titled `AUDIT_PROPOSAL_<YYYY-MM-DD>.md` saved to the PIALAX folder, formatted for the Requirements team to ingest directly. Do NOT write code. Do NOT touch the two HTML files. Output only the proposal.
+> You are the PIALAX Auditor. **First, read `MITIGATED.md` at the repo root** — items listed there are already closed and must NOT count against your 5 leverage slots; if you see evidence of regression on a closed item, flag it as a separate finding citing the ticket ID. Then read pialax.html and pialax-mobile.html in full. Identify exactly 5 systems with the highest leverage to fix, where leverage = (severity × blast radius × user-visibility) ÷ effort. For each system, output: (1) what it is, (2) potential hazard (PHA: what could go wrong, likelihood, severity), (3) Fishbone RCCA across 6Ms — Method, Machine, Material, Measurement, Manpower, Mother-nature/Env, (4) sprint tag — exactly one of patch / minor / major, (5) proposed fix in one paragraph. **After the 5 systems, append a "Lessons Learned" section** following the template in `LESSONS_LEARNED_2026-05-25.md` — three sub-blocks: (a) what shipped since last audit (cross-ref MITIGATED.md latest entries + `git log` delta), (b) what got re-flagged this run that shouldn't have been (regression signal), (c) one process note about the audit itself. End with a single proposal artifact in markdown titled `AUDIT_PROPOSAL_<YYYY-MM-DD>.md` saved to the PIALAX folder, formatted for the Requirements team to ingest directly. Do NOT write code. Do NOT touch the two HTML files. Output only the proposal.
+
+**A4 — Standing lessons-learned & action items (2026-05-25)**
+> Read `MITIGATED.md`, the four most recent `AUDIT_PROPOSAL_*.md` artifacts (if present), and the four most recent team-thread transcripts (T1, T2, T3, T4) via `mcp__session_info__read_transcript`. Synthesize the friction patterns that slowed the previous T1→T5 loop (ship-before-envelope, sandbox egress gaps, AC drift, live-site delay, comment punch-lists, etc.). Output `LESSONS_LEARNED_<YYYY-MM-DD>.md` with: (1) Process patterns observed (with thread + line evidence), (2) Standing risks not yet ticketed, (3) Action items as a table — each row has `owner team | sprint tag | description | acceptance signal`. Do NOT modify `pialax.html` or `pialax-mobile.html`. May edit `PIALAX_HQ.md` only to integrate confirmed action items into the playbook (with the user's explicit go-ahead).
 
 **A2 — Targeted PHA on JFK transition**
 > Run Potential Hazard Analysis on just the JFK transition logic (FAMILY array swap on 2026-09-01). Table: hazard | trigger | likelihood (L/M/H) | severity (L/M/H) | detectability | mitigation.
@@ -114,6 +126,11 @@ Guardrails:
 - Test (T3) runs only on patch-tagged items.
 - Major/minor items stay queued for human triage.
 
+**Patch fast-path (2026-05-25):**
+- For tickets explicitly tagged `patch` (severity × blast small, effort trivial), the manual flow may compress to `T1 R1 → T2 C1 → T4 D2 → T4 D1 → T4 D4`. T3 acceptance step is skipped because patch-tag ACs are usually one-step and code-verifiable in the C1 diff itself. Anything tagged `minor` or `major` runs the full T3 pass.
+- Patch tickets touching the security surface (SRI hashes, CSP, secrets) are an exception: T3 stays required even at patch tag, because browser-verifiable ACs (DevTools "Integrity: ok", tamper test) cannot be code-only.
+- Scheduled autonomous run already follows this — extending it to manual runs eliminates a context-switch tax.
+
 ---
 
 ## 5. PHA + Fishbone RCCA templates
@@ -135,11 +152,13 @@ Guardrails:
 
 ## 6. Constraints (locked, do not violate)
 
-- Edits live in `pialax.html` + `pialax-mobile.html` only.
+- Code edits live in `pialax.html` + `pialax-mobile.html` only. (Tooling-only files like `scripts/*.sh`, `MITIGATED.md`, `LESSONS_LEARNED_*.md`, and `PIALAX_HQ.md` itself are infra/docs and editable when their owning prompt authorizes — they are NOT code.)
 - "git push" / "push to github" → commit + push to `shwinster101/PIALAX`.
 - FAMILY array is date-aware: JFK after 2026-09-01.
 - Family composition: 4 people total — PIA=2 (Mom & Dad), LAX=1 (Ashwin), JAX/JFK=1 (Sister). Not 1 per airport.
 - Auditor outputs 5 systems segmented patch / minor / major, ending in a proposal artifact.
+- **Acceptance criteria are written at intent-level, not implementation-level (2026-05-25).** Example: "modern SRI integrity hash present on each CDN script" — NOT "sha384-…". This avoids the sha384→sha512 amendment ping-pong observed on PIA-001 (T2 shipped sha512 because it was cdnjs's default and strictly stronger; T3 flagged the ticket text as the bug, not the impl). When intent and implementation diverge in a non-regressive direction, T3 returns GO and T1 amends the ticket; do NOT re-implement.
+- **Single-purpose tickets (2026-05-25, PIA-004).** Each ticket envelope should land as **one commit**. If mid-ship a bug surfaces that requires changes beyond the manifest, prefer (a) abandoning the in-flight ship + opening a new ticket over (b) silent scope expansion. Lesson source: PIA-002 landed as 4 successive commits (`c79ff1d → 652210d → a4ad386 → 37a562a`) because exec-bit, cwd-diagnostic, step-7 add-on, and `$0`-symlink-resolution were bundled — each fix only surfaced the next-deeper entry-point bug. Narrow scope is faster to debug; bundled scope compounds failure surfaces.
 
 ---
 
@@ -150,7 +169,47 @@ Guardrails:
 | File a new ask | T1 Requirements | R1 or R3 |
 | Build a feature | T2 Coder bay | C1 |
 | Validate a diff | T3 Test & Eval | T1 then T2 |
-| Ship to prod | T4 Deployment | D2 then D1 |
+| Ship to prod | T4 Deployment | D2 → D1 → D4 |
+| Verify live site | T4 Deployment | D4 |
 | Hunt for issues | T5 Auditor | A1 |
+| Run process post-mortem | T5 Auditor | A4 |
 | Stress JFK swap | T5 Auditor | A2 |
 | Security spot-check | T5 Auditor | A3 |
+
+---
+
+## 8. Known sandbox limits + recovery protocols (2026-05-25)
+
+These are the friction patterns that hit the PIA-001 → PIA-003 ship cycle. Every team thread should expect them and handle them up-front rather than crashing into them mid-task.
+
+**Egress allowlist gaps**
+- `cdnjs.cloudflare.com` and `api.cdnjs.com` are NOT reachable from the Cowork sandbox (T2 and T3 both confirmed 403 / network failure).
+- `github.com` page-source fetch is allowed via `mcp__workspace__web_fetch` for known public URLs, but not for the live Pages site without paste-first provenance.
+- **Fallback protocol:** when a verification step requires a blocked domain, the agent emits *"Sandbox cannot reach `<domain>`. Please paste `<exact thing needed>` and I'll continue."* Do not silently guess or fall back to npm-derived approximations of CDN bytes — wrong-hash failure = dark dashboard.
+
+**Sandbox disk-full / fork failure**
+- Observed on T2 PIA-001 (useradd: fork: retry: Resource temporarily unavailable). Recovery: re-issue the same tool call after a 30-second wait; if it fails twice, save partial output to disk under `/Users/ashwinyedavalli/Documents/Claude/Projects/PIALAX/.recovery/<id>-<timestamp>.md` and hand the rest to the user with explicit instructions.
+
+**Working tree vs `.git/` mount**
+- The sandbox can write the working tree but not `.git/` (mount-level perms). All commits and pushes originate from the user's Mac via `bash scripts/ship.sh <id>`. T4 never executes the push directly.
+
+**Sandbox cwd vs user-visible paths**
+- `mcp__workspace__bash` cwd uses `/sessions/<name>/mnt/PIALAX/`. User-visible paths are `/Users/ashwinyedavalli/Documents/Claude/Projects/PIALAX/`. When telling the user to run a command, use the user-visible `~/Documents/Claude/Projects/PIALAX` form, never the sandbox mount path.
+
+**Live-site vs origin/main lag**
+- GitHub Pages auto-deploy lags origin push by 30s – 2min. D4 (live-site verification) closes the gap. Audits running on `pialax.html` from local disk reflect the next-deployed bytes, not the currently-served bytes — relevant only if a recent push hasn't been D4-verified yet.
+
+---
+
+## 9. Lessons-learned log (2026-05-25, PIA-004)
+
+After each substantial ship cycle (≥3 tickets or any cross-team friction worth recording), T5 produces a `LESSONS_LEARNED_<YYYY-MM-DD>.md` at the repo root via the A4 prompt (HQ §2.5). The file follows a fixed 3-block structure so it is mechanically parseable by the next R2 prioritization pass:
+
+1. **Process patterns observed** — pattern ID, evidence (thread/commit/line), generalization, where codified (or "not yet codified" with proposed home).
+2. **Standing risks not yet ticketed** — risk ID, plain description; promoted into tickets at the next T1 R2.
+3. **Action items table** — `owner team | sprint tag | description | acceptance signal`. Mechanically convertible into backlog rows.
+
+**Ingestion path:** T1 ingests open action items into `backlog.md` at the next R2 prioritization pass. T4 references the latest file when amending this playbook (HQ amendments themselves close action items, recursively).
+
+**Existing files:**
+- [`LESSONS_LEARNED_2026-05-25.md`](LESSONS_LEARNED_2026-05-25.md) — PIA-001..003 cycle retrospective. 7 patterns, 5 standing risks, 6 action items distributed across T1/T4/T5.
