@@ -63,7 +63,7 @@ Rule: do not mix teams in one thread. Bleed-over corrupts file-path and recommen
 > **Why the user runs it, not T4:** the Cowork sandbox can write the working tree but not `.git/` (mount-level perms), so commits and pushes must originate from the user's Mac. T4 never executes the push directly.
 
 **D2 — Pre-flight**
-> Before any push: run `./scripts/preflight.sh`. It bundles (1) file presence, (2) no `console.log` in shipping HTML, (3) hardcoded-secret scan, (4) `<script>` tag balance, (5) live SRI freshness via `scripts/verify-sri.sh` (re-hashes pinned cdnjs URLs vs the integrity= attribute). Exit 0 = GO. Any failure = NO-GO, do not push. The same script is wired as `.git/hooks/pre-push` so regressions are blocked locally; `scripts/ship.sh` re-installs the symlink on every run.
+> Before any push: run `bash scripts/preflight.sh`. It bundles (1) file presence, (2) no `console.log` in shipping HTML, (3) hardcoded-secret scan, (4) `<script>` tag balance, (5) live SRI freshness via `scripts/verify-sri.sh` (re-hashes pinned cdnjs URLs vs the integrity= attribute), (6) `bash -n` syntax check on every `scripts/*.sh` so a broken helper can never reach main — even if it's not the one being shipped this round. Exit 0 = GO. Any failure = NO-GO, do not push. The same script is wired as `.git/hooks/pre-push` so regressions are blocked locally; `scripts/ship.sh` re-installs the symlink on every run. Nested scripts are invoked via `bash` (not `./`) so a stripped executable bit doesn't break the chain.
 
 **D3 — Rollback drill**
 > Identify the last 3 green SHAs on main. Write the one-line revert command for each. Save to PIALAX/rollback.md.

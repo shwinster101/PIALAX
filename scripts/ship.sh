@@ -36,7 +36,8 @@ FILES="scripts/messages/${TICKET}.files"
 step() { printf "\n▶ %s\n" "$1"; }
 
 step "1/6  preflight gate"
-./scripts/preflight.sh
+# Invoke via `bash` so a stripped exec bit doesn't break the chain (PIA-002 fix).
+bash ./scripts/preflight.sh
 
 step "2/6  clear stale lock + reset index for atomic ship"
 rm -f .git/index.lock || true
