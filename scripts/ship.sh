@@ -25,7 +25,15 @@
 set -euo pipefail
 
 TICKET="${1:?usage: bash scripts/ship.sh <ticket-id> (e.g., PIA-002)}"
-cd "$(dirname "$0")/.."
+
+# Resolve $0 through any symlinks (defense-in-depth, mirrors preflight.sh).
+SOURCE="${BASH_SOURCE[0]:-$0}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+cd "$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 
 MSG="scripts/messages/${TICKET}.msg"
 FILES="scripts/messages/${TICKET}.files"

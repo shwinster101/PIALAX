@@ -27,6 +27,11 @@ chore(ops): standardize T4 ship workflow (PIA-002)
   scripts/=<n files> at the top so a misrooted invocation is obvious
   before any check runs (caught a Mac vs sandbox cwd discrepancy
   during PIA-002 dry-run).
+- Resolve $0 through symlinks in both preflight.sh and ship.sh. Without
+  this, the pre-push hook (which is a symlink at .git/hooks/pre-push)
+  resolved HERE to .git/, so the gate ran against an empty .git/scripts/
+  and failed every push. Now uses BASH_SOURCE + readlink loop to land
+  at the real script directory regardless of invocation path.
 - Update PIALAX_HQ.md §2.4 D2 to enumerate the now-7-step gate
   including the banner and STRICT mode escape hatch.
 

@@ -9,7 +9,16 @@
 
 set -uo pipefail
 
-HERE="$(cd "$(dirname "$0")/.." && pwd)"
+# Resolve $0 through any symlinks — critical when invoked as .git/hooks/pre-push,
+# which is a symlink to this script. Without this, $HERE resolves to .git/ and the
+# gate looks for the working tree under .git/scripts (PIA-002 fix).
+SOURCE="${BASH_SOURCE[0]:-$0}"
+while [ -L "$SOURCE" ]; do
+  DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
+done
+HERE="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 FILES=("$HERE/pialax.html" "$HERE/pialax-mobile.html")
 fail=0
 
