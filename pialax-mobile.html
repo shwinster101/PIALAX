@@ -1225,6 +1225,39 @@ var MOCK = {
   'ORD-LHR':{ ow:320, rt:590, airline:'British Airways',   flightNo:'BA 296' },
   'LHR-ORD':{ ow:300, rt:560, airline:'British Airways',   flightNo:'BA 297' },
 };
+// LOCKED_TRIPS (PIA-009) — booked tickets that must NEVER hit SerpAPI.
+// Mirrors desktop pialax.html. ±2-day match window catches any anchor variant
+// the London preset emits. Saves ~2 SerpAPI calls per London-preset refresh.
+var LOCKED_TRIPS = [
+  { from:'PIA', to:'LHR',
+    bookedDep:'2026-06-24', bookedRet:'2026-07-03',
+    via:'ORD',
+    outboundFlights:'AA 3740 → AA 98', airline:'American Airlines',
+    arrivalNote:'Landing LHR 12:30pm Jun 25',
+    matchWindow:{ dep:['2026-06-22','2026-06-26'], ret:['2026-07-01','2026-07-05'] } },
+  { from:'ORD', to:'LHR',
+    bookedDep:'2026-06-24', bookedRet:'2026-07-03',
+    outboundFlights:'AA 98', airline:'American Airlines',
+    arrivalNote:'Landing LHR 12:30pm Jun 25',
+    matchWindow:{ dep:['2026-06-22','2026-06-26'], ret:['2026-07-01','2026-07-05'] } }
+];
+// PIA-009 AC3 — per-member default windows applied when London chip is tapped.
+var LONDON_PRESET_MEMBER_DATES = {
+  JAX: { dep:'2026-06-24', ret:'2026-06-30' },
+  LAX: { dep:'2026-06-24', ret:'2026-07-04' }
+};
+function findLockedTrip(from, to, dep, ret) {
+  if (!from || !to || !dep) return null;
+  for (var i = 0; i < LOCKED_TRIPS.length; i++) {
+    var t = LOCKED_TRIPS[i];
+    if (t.from !== from || t.to !== to) continue;
+    var w = t.matchWindow;
+    if (dep < w.dep[0] || dep > w.dep[1]) continue;
+    if (ret) { if (ret < w.ret[0] || ret > w.ret[1]) continue; }
+    return t;
+  }
+  return null;
+}
 var FAMILY = ['PIA','LAX','JAX'];
 // Per-member detail (mirror of desktop)
 var FAMILY_INFO = {
@@ -1413,6 +1446,17 @@ function applyHoliday(key) {
     var alreadyActive = document.querySelector('.hol-btn[data-hol="london"]').classList.contains('active');
     if (alreadyActive) {
       S.depDate = null; S.retDate = null; S.meetupHubOverride = null;
+      // PIA-009 AC5 — drop only the London-preset values; user-set overrides survive.
+      if (S.memberDates) {
+        var lp = LONDON_PRESET_MEMBER_DATES;
+        ['JAX','LAX'].forEach(function(code){
+          var md = S.memberDates[code];
+          if (md && md.dep && md.ret &&
+              fmtISO(md.dep) === lp[code].dep && fmtISO(md.ret) === lp[code].ret) {
+            delete S.memberDates[code];
+          }
+        });
+      }
       document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.remove('active'); });
       updateDateUI(); renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
       syncURL();
@@ -1423,6 +1467,11 @@ function applyHoliday(key) {
   if (key === 'london') {
     dep = new Date(2026, 5, 25); ret = new Date(2026, 6, 3);
     S.includeLHR = true;
+    // PIA-009 AC3 — seed per-member defaults.
+    if (!S.memberDates) S.memberDates = {};
+    var lp = LONDON_PRESET_MEMBER_DATES;
+    S.memberDates.JAX = { dep: new Date(lp.JAX.dep + 'T00:00:00'), ret: new Date(lp.JAX.ret + 'T00:00:00') };
+    S.memberDates.LAX = { dep: new Date(lp.LAX.dep + 'T00:00:00'), ret: new Date(lp.LAX.ret + 'T00:00:00') };
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
   } else if (key === 'jaxjun5') {
@@ -1443,6 +1492,8 @@ function applyHoliday(key) {
   document.getElementById('s-trip').textContent    = 'Round-Trip';
   document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol===key); });
   updateDateUI(); renderMeetupStrip();
+  // PIA-009 AC3 — flush per-member overrides into the URL (md=…).
+  syncURL();
   loadPrices();
 }
 
@@ -1735,6 +1786,42 @@ function renderMeetupRoutes() {
       var ordLeg = S.prices['ORD-' + hub] || getMock('ORD', hub);
       var directObj = S.prices['PIA-' + hub] || getMock('PIA', hub);
       var activePriceObj = route.viaORD ? ordLeg : directObj;
+      // PIA-009 AC4 (mobile mirror) — locked-trip card.
+      var isLocked = !!(activePriceObj && activePriceObj.locked);
+      if (isLocked) {
+        var lockedHdr = route.viaORD
+          ? '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
+            '<span class="route-arrow">🚗</span>' +
+            '<span class="route-badge" style="background:#06b6d422;border:1px solid #06b6d4;color:#06b6d4">ORD</span>' +
+            '<span class="route-arrow">→</span>' +
+            '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>'
+          : '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
+            '<span class="route-arrow">→</span>' +
+            '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>';
+        var lockedCopyText = memberLabel + ' (PIA' + (route.viaORD ? '→ORD' : '') + '→' + hub + '): (booked) ' +
+          (activePriceObj.flightNo || '') +
+          (activePriceObj.arrivalNote ? ' · ' + activePriceObj.arrivalNote : '') +
+          (activePriceObj.bookedDep ? ' · ' + activePriceObj.bookedDep + (activePriceObj.bookedRet ? '→' + activePriceObj.bookedRet : '') : '');
+        html +=
+          '<div class="route-card" style="border-left:3px solid var(--accent);background:rgba(46,124,246,.06);">' +
+            '<div class="route-card-hd">' + lockedHdr +
+              '<span class="member-tag">' + memberLabel + '</span>' +
+              '<span class="src-badge live" style="background:rgba(46,124,246,.2);border:1px solid var(--accent);color:var(--accent);">🔒 LOCKED</span>' +
+              '<button class="route-copy-btn" data-copy="' + esc(lockedCopyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
+            '</div>' +
+            '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:4px;">' +
+              '<div style="font-size:.78rem;font-weight:900;color:var(--green);">🔒 Locked · ' + esc(activePriceObj.arrivalNote || 'booked') + '</div>' +
+            '</div>' +
+            '<div class="route-airline" style="font-size:.62rem;color:var(--accent);font-weight:700;margin-top:3px;">✈ ' +
+              esc(activePriceObj.airline || '') + ' · ' + esc(activePriceObj.flightNo || '') +
+            '</div>' +
+            (activePriceObj.bookedDep
+              ? '<div style="font-size:.55rem;color:var(--muted);font-weight:700;margin-top:3px;">📅 ' + esc(activePriceObj.bookedDep) +
+                (activePriceObj.bookedRet ? ' → ' + esc(activePriceObj.bookedRet) : '') + ' · no fetch (saves quota)</div>'
+              : '') +
+          '</div>';
+        return;
+      }
       var activePer = route.fare;
       var subtotal = activePer * headcount;
       var perSavings = (route.directFare && route.viaOrdTotal) ? Math.abs(route.directFare - route.viaOrdTotal) : 0;
@@ -2569,6 +2656,21 @@ function rehydrateFlightCache() {
 }
 
 async function fetchFlights(from, to, dep, ret) {
+  // LOCKED_TRIPS short-circuit (PIA-009 AC2) — booked tickets bypass network.
+  var locked = findLockedTrip(from, to, dep, ret);
+  if (locked) {
+    var mockSeed = getMock(from, to) || {};
+    return {
+      live: true, locked: true,
+      ow: mockSeed.ow || 0, rt: mockSeed.rt || 0,
+      airline: locked.airline,
+      flightNo: locked.outboundFlights,
+      bookedDep: locked.bookedDep,
+      bookedRet: locked.bookedRet,
+      arrivalNote: locked.arrivalNote,
+      ts: Date.now()
+    };
+  }
   if (!PROXY_URL) return getMock(from, to);
   if (isQuotaExceeded()) {
     console.warn('SerpAPI monthly budget reached — serving mock for ' + from + '→' + to);

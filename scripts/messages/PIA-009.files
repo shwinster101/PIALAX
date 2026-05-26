@@ -1,0 +1,7 @@
+# PIA-009 ship manifest — LHR family meetup lock + per-member London defaults.
+# Solo patch per HQ §6 single-purpose. backlog.md close-row ships separately.
+# Envelope self-includes per HQ §2.4.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-009.msg
+scripts/messages/PIA-009.files
