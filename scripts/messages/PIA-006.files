@@ -1,0 +1,5 @@
+# PIA-006 ship manifest — trace-only docs commit (code already in 283872d).
+# Single file scope: MITIGATED.md provenance entry + this envelope itself.
+MITIGATED.md
+scripts/messages/PIA-006.msg
+scripts/messages/PIA-006.files
