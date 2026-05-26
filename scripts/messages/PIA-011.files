@@ -1,0 +1,5 @@
+# PIA-011 ship manifest — close-rows for PIA-006 + PIA-010 in backlog.md.
+# Pure ops / bookkeeping. Zero code impact.
+backlog.md
+scripts/messages/PIA-011.msg
+scripts/messages/PIA-011.files
