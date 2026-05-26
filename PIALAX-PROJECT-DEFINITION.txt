@@ -1,0 +1,162 @@
+═══════════════════════════════════════════════════════════════════════════════
+PIALAX — Family Flight Dashboard
+Project Definition v2.1
+═══════════════════════════════════════════════════════════════════════════════
+
+MISSION STATEMENT
+───────────────────────────────────────────────────────────────────────────────
+Enable distributed families to coordinate multi-city meetups by visualizing
+flight routes, comparing fares across all family members in real time, and
+identifying the cheapest collaborative hub and travel windows.
+
+Problem: Family members scattered across 3+ US cities spend hours researching
+flights separately and can't easily see who pays what to meet up. Meetings are
+often missed or postponed because no single tool shows the full picture of costs
+and logistics across the entire family unit.
+
+
+VALUE PROPOSITION
+───────────────────────────────────────────────────────────────────────────────
+• One-stop family flight dashboard — all routes, all fares, one view
+• Real-time collaborative pricing — see total family cost to meet at any hub
+• Smart hub selection — automatically surface the cheapest meetup city and
+  ORD drive-to option for Peoria-based families
+• Holiday quick-pick — one-click trip preset (Wed departure, Sun return) for
+  major US holidays
+• Family sync calendar — see which weeks all family members can fly cheaply
+  at the same time (overlap score 0–6)
+• Flexible home airport — switch between PIA, ORD, LAX, JAX instantly to model
+  scenarios (e.g., "what if we all lived in Chicago?")
+
+
+DIFFERENTIATOR
+───────────────────────────────────────────────────────────────────────────────
+Traditional tools (Google Flights, Kayak, etc.) optimize for single travelers.
+PIALAX is built for group economics — it shows the TOTAL family cost to
+congregate at a given hub, not just individual one-way fares.
+
+Key differentiators:
+• Family-first UX: family cost bar replaces individual price cards as primary
+  metric
+• Reciprocal routing logic: understands that a meetup requires round-trip fares
+  from each person to the hub (host stays home)
+• Multi-metric view: single map overlay shows route network, price ranges, and
+  best travel days at a glance
+• No login, no ads, no tracking — purely a tool for families to plan together
+  (zero data collection)
+
+
+POSSIBLE BUSINESS MODELS
+───────────────────────────────────────────────────────────────────────────────
+1. WHITE-LABEL / FAMILY REUNION PLANNERS
+   Package PIALAX as a branded tool for wedding planners, family reunion
+   coordinators, and event platforms. Revenue: SaaS licensing or per-use fee.
+
+2. AFFILIATE COMMISSIONS
+   Deep-link to Google Flights or Skyscanner with booking affiliates. Revenue:
+   2–3% commission on ticket sales routed through PIALAX.
+
+3. FREEMIUM + PREMIUM FEATURES
+   Free: sample fares & basic overlap calendar
+   Premium: live SerpAPI integration, email alerts on price drops, family group
+   sharing & permissions, saved trip templates
+   Revenue: $2–5/mo per family (conversion target 5–10% of free users)
+
+4. CORPORATE / TRAVEL MANAGEMENT
+   Extend to corporate travel teams (offsite coordination, team offsites) and
+   travel agencies. Revenue: $99–499/mo per org depending on team size.
+
+5. DONATION / SPONSORSHIP MODEL
+   Freemium ad-free tool, optional "tip jar" on landing. Revenue: ~$5–20 per
+   engaged family (low baseline, high goodwill).
+
+
+FEATURE SUMMARY
+───────────────────────────────────────────────────────────────────────────────
+
+Core Navigation & Setup
+  • Home airport selector (PIA, ORD, LAX, JAX) with route restrictions
+    (PIA ↔ ORD excluded; all others connected)
+  • Live pill indicator (Sample vs. Live data)
+  • SerpAPI key input with toggle between mock & live fares
+
+Flight Search & Dates
+  • Calendar picker (departure + return for round-trip, dep only for one-way)
+  • Visual price tier indicators (cheap/mid/pricey color-coded)
+  • Trip type toggle (Round-Trip ↔ One-Way)
+  • Holiday quick-pick chips (Memorial Day, July 4, Labor Day, Thanksgiving,
+    Christmas) — auto-set dep Wed before, ret Sun after
+
+Family Cost Summary Bar
+  • Shows total round-trip/one-way fares required for all family members to
+    meet at chosen hub
+  • Four cards: one per family airport (PIA, LAX, JAX) + ORD option for
+    drive-to meeting
+  • Cheapest hub highlighted in green with ✓ badge
+  • Breakdown shows each member's leg: "LAX→PIA $362 + JAX→PIA $261 · RT"
+  • Date context line shows selected trip window
+  • Updates live on trip-type toggle or holiday selection (no refresh needed)
+
+Price Cards (Sidebar)
+  • One card per outbound destination from selected hub
+  • Shows OW price, RT price, airline, best date, live/sample badge
+  • Drive-to-ORD row (PIA home only): shows ORD alternative fare and 2.5-hour
+    drive as time/cost tradeoff; highlights savings in green
+
+US Route Map (Main View)
+  • Animated dashed route arcs from home to each destination
+  • Airport markers (home = large green pulse, destinations = medium colored
+    circles, others = small gray)
+  • Price labels on route arcs ($OW or $RT depending on trip type)
+  • Hover tooltips for each airport (name, city, distance, best fares)
+  • State borders (if CDN available) with airline color-coded route strokes
+  • Graceful fallback: state borders skip, inline fallback text if CDN unavailable
+  • Legend shows home & destination color codes
+
+Family Sync Calendar (Toggle View)
+  • Two-month overlap calendar showing cheapest travel days across all family
+    members
+  • Per-airport "cheap day" tiers: e.g., PIA cheapest Tue–Thu, LAX cheapest
+    Tue–Wed, JAX cheapest Tue–Thu
+  • Overlap score 0–6 per day (6 = all 3 airports cheap same day)
+  • Color-coded cells (dark blue → red → orange → green)
+  • Click any day to set departure; auto-sets 5-day return for round-trip
+  • Shows selected date outline; disables past dates
+
+Data Source Control
+  • Expandable API banner in sidebar
+  • Copy/paste SerpAPI key to switch from mock to live Google Flights pricing
+  • Data badge updates (Sample → Live) with green indicator
+  • Calendar legend shows "Google Flights live" vs "Sample" attribution
+
+Stats Bar (Footer)
+  • Hub code, route count, trip type (OW vs RT), selected dates or "Next 3 months"
+  • Last updated timestamp
+
+
+TECHNICAL ARCHITECTURE
+───────────────────────────────────────────────────────────────────────────────
+• Single-file vanilla HTML/JS/CSS (no build, no framework)
+• d3.js v7 (geoAlbersUsa projection, fitExtent scaling, animated arcs)
+• Inline GEO_FALLBACK bounding-box for CORS-safe file:// rendering
+• topojson.js for state borders (CDN, graceful fallback)
+• SerpAPI integration for live Google Flights data (fetch, JSON parsing)
+• IIFE pattern with strict mode for scope isolation
+• CSS custom properties (CSS variables) for theme/color management
+• localStorage optional (NOT used; state is in-memory only)
+• Mobile responsive (sidebar flex, map SVG scales to viewport)
+
+
+METRICS & SUCCESS CRITERIA
+───────────────────────────────────────────────────────────────────────────────
+• Reduce family flight-booking time from 3–4 hours (separate research) to
+  <15 minutes (one dashboard view)
+• Increase family meetup frequency: baseline ~2–3x/year → target 4–6x/year
+• User satisfaction: >4.2/5 NPS among families using PIALAX
+• Conversion to paid (if freemium): >5% of free users
+• Average trip value (affiliate model): $1,200–2,000 per family booking
+
+
+═══════════════════════════════════════════════════════════════════════════════
+End of Document
+═══════════════════════════════════════════════════════════════════════════════

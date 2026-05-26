@@ -1,0 +1,205 @@
+PIALAX — SETUP & HOSTING GUIDE
+================================
+
+==========================================================
+CHANGELOG (latest fix)
+==========================================================
+The current pialax-mobile.html includes these fixes vs. the first build:
+  - Share button: rewired via addEventListener (the inline onclick was
+    silently failing because shareThePlan lives inside an IIFE and inline
+    onclick attributes can't see IIFE-scoped functions).
+  - Window-scoped helpers: shareThePlan + setMode are now exposed on
+    window so any leftover inline onclick="..." attributes also work.
+  - Duplicate share button: the legacy #share-btn-mob is now hidden on
+    mobile so you only see one floating Share Plan FAB.
+  - On-screen error overlay: any JS error or unhandled promise rejection
+    now appears as a red strip pinned to the bottom of the page. This is
+    your debugging lifeline on the phone — see "If something still
+    breaks" below.
+
+==========================================================
+
+WHY YOUR PHONE WAS BROKEN
+-------------------------
+You were opening pialax-mobile.html through the iPhone Files app, which loads it
+as file://… . Three things break in that mode:
+  1. The US map data is fetched from a CDN (cdn.jsdelivr.net). Browsers block
+     fetch() from a file:// origin (null-origin CORS). Map never draws.
+  2. When that fetch rejects during init, downstream handlers can fail to
+     attach. That's why buttons, mode switching, and Share Plan all went dead.
+  3. Even if the JS survived, future SerpAPI calls would also be blocked by
+     CORS from file://.
+Fix: serve the HTML over http(s)://, never open it as a local file on the phone.
+
+You only need ONE working HTML file at a time on the phone. Desktop and mobile
+both work from the same URL — the mobile layout kicks in automatically below
+640px viewport width via CSS media queries. So host pialax-mobile.html and use
+that URL on both Mac and iPhone.
+
+==========================================================
+OPTION A — QUICK LOCAL SERVER (same Wi-Fi only)
+==========================================================
+Best for: fast iteration while you're at home / on the same network as your Mac.
+
+1. Open Terminal on your Mac.
+2. cd ~/Documents/Claude/Projects/LAXJAX
+3. python3 -m http.server 8000
+   (leave the terminal window running — closing it stops the server)
+4. On the Mac, open: http://localhost:8000/pialax-mobile.html
+5. Find your Mac's LAN IP:
+     System Settings → Wi-Fi → Details → IP Address
+     (looks like 192.168.x.x or 10.0.x.x)
+6. On the iPhone (same Wi-Fi), open Chrome and go to:
+     http://<your-mac-ip>:8000/pialax-mobile.html
+   Example: http://192.168.1.42:8000/pialax-mobile.html
+7. Add to Home Screen for a one-tap launcher:
+     Chrome share button → Add to Home Screen.
+
+Caveats:
+  - Only works while the Mac is awake AND on the same Wi-Fi as the phone.
+  - IP can change when you join new networks; re-check step 5 if it stops working.
+  - This is HTTP, not HTTPS. SerpAPI calls from the browser still work over plain
+    HTTP because SerpAPI itself is HTTPS — the mixed-content rule does NOT block
+    HTTPS calls made from an HTTP page. You're fine.
+
+==========================================================
+OPTION B — ALWAYS-ON HOSTING (works anywhere, recommended)
+==========================================================
+Best for: using PIALAX on the phone when you're not home, no Mac required.
+
+Pick ONE of these. All are free.
+
+  B1. NETLIFY DROP (zero config, 60 seconds)
+  ------------------------------------------
+  1. Go to https://app.netlify.com/drop in any browser.
+  2. Drag pialax-mobile.html (or the whole LAXJAX folder) into the page.
+  3. Netlify gives you a URL like https://whimsical-otter-12345.netlify.app
+  4. Append /pialax-mobile.html to that URL and open it on the phone.
+  5. To update: drag the new file onto the same site (sign up for a free
+     account first so the site sticks to your login; otherwise each drop
+     creates a new URL).
+  Pros: instant, HTTPS by default, works from anywhere.
+  Cons: anonymous drops eventually expire — sign up to keep them.
+
+  B2. GITHUB PAGES (best long-term)
+  ---------------------------------
+  1. Create a free GitHub account if you don't have one.
+  2. Create a new public repo, e.g. "pialax".
+  3. Upload pialax.html and pialax-mobile.html via the web UI
+     (Add file → Upload files).
+  4. Repo → Settings → Pages → Source: "Deploy from a branch", Branch: main, /root.
+  5. Wait ~1 minute. Your site appears at:
+     https://<your-username>.github.io/pialax/pialax-mobile.html
+  6. Updates: re-upload the file (or use git push) and the site refreshes
+     within a minute.
+  Pros: free forever, version-controlled, real URL you can bookmark.
+  Cons: 5 minutes of one-time setup.
+
+  B3. CLOUDFLARE PAGES
+  --------------------
+  Similar to Netlify; connect a GitHub repo and it auto-deploys on every push.
+  Use this if you outgrow GitHub Pages or want a custom domain.
+
+==========================================================
+DESKTOP USAGE
+==========================================================
+Two options, same idea:
+
+  - Easiest: open pialax.html directly from Finder. Desktop tolerates file://
+    better than mobile because the map fetch uses a CDN-mirror fallback path
+    that often succeeds, but you may still see CORS warnings in the console.
+  - Recommended: use the SAME hosted URL from Option A or B. Just open
+    http://localhost:8000/pialax.html or your Netlify/GitHub Pages URL in
+    desktop Chrome. Identical behavior, no CORS nags.
+
+Bookmark both:
+  - Desktop URL → /pialax.html
+  - Mobile URL  → /pialax-mobile.html
+You can open the mobile version on desktop too — the layout will look narrow
+but everything works.
+
+==========================================================
+ADDING SERPAPI (LIVE FLIGHT DATA) LATER
+==========================================================
+PIALAX runs fine without a key — it falls back to mock prices. When you're
+ready to wire in real Google Flights data:
+
+1. Sign up at https://serpapi.com  (free tier = 100 searches / month).
+2. Dashboard → copy your API key.
+3. Open the hosted PIALAX URL on whichever device you want.
+4. In the app, find the "API" banner in the sidebar (it has a SerpAPI
+    label and a key input).
+5. Paste your key into the input and click "Activate Live Data".
+6. The key is stored in the page state for that session. The "calls this
+    session" counter appears once you start querying.
+
+Things to know:
+  - The app calls SerpAPI directly from the browser (no backend). That means
+    your key is visible in DevTools network tab on whatever device you used
+    to enter it. Don't paste it on a shared computer.
+  - SerpAPI is HTTPS, so the call works whether the page is served over HTTP
+    (local server) or HTTPS (Netlify / GitHub Pages).
+  - Each route (origin → destination) for a date pair = 1 call. The app
+    batches sensibly but watch the counter; 100/month goes fast if you click
+    around a lot.
+  - If you ever want to bake the key in instead of pasting it each session,
+    edit pialax.html (or pialax-mobile.html) and set:
+        S.apiKey = 'your_key_here';
+    inside the S = { … } object near the top of the <script>. Don't commit
+    that version to a public GitHub repo.
+
+==========================================================
+IF SOMETHING STILL BREAKS ON THE PHONE
+==========================================================
+The mobile build now has a red error overlay pinned to the bottom of the
+screen. If anything throws a JS error during init (or while you're
+tapping things), the overlay will pop up with the error message and
+file:line. Take a screenshot of that red strip and send it to me — I can
+fix the underlying bug surgically from one screenshot, instead of
+guessing.
+
+If the page loads cleanly with no red overlay but something still feels
+broken, that's a logic bug, not a JS error. Tell me which button +
+expected vs actual and I'll dig in.
+
+==========================================================
+TROUBLESHOOTING CHECKLIST
+==========================================================
+Map doesn't render:
+  - Confirm the URL bar starts with http:// or https://, NOT file://.
+  - Open Chrome DevTools (or Safari Web Inspector) → Console. Look for a
+    failed request to cdn.jsdelivr.net/npm/us-atlas. If blocked, you're on
+    file:// or offline.
+  - Check Network tab: d3.min.js and topojson.min.js should both be 200 OK.
+
+Buttons dead / mode won't switch:
+  - Almost always a JS error early in init. Open the console — first red
+    line is the culprit. Common cause: opened via file:// (see above).
+
+No flights showing:
+  - Without a SerpAPI key, you should see mock prices. If you see nothing
+    at all, JS halted — fix the console error first.
+  - With a key: check the API call counter. If it's not incrementing,
+    the key wasn't activated. Re-paste and click Activate.
+
+Mobile layout looks like desktop on phone:
+  - Viewport meta tag is in the file already. If it still looks zoomed-out,
+    force-reload the tab (long-press refresh in Chrome iOS → "Reload
+    without cache").
+
+iPhone forgets the site:
+  - Add to Home Screen from the share sheet. That gives you an icon and
+    keeps the URL one tap away.
+
+==========================================================
+RECOMMENDED PATH FOR YOU
+==========================================================
+1. Right now: Option A (python3 http.server) on the Mac. Open the LAN URL
+   on the phone, confirm map + buttons + mode switch + Share Plan all work.
+2. This week: Option B1 (Netlify Drop) so you can use it away from home.
+3. Once it's stable: Option B2 (GitHub Pages) for permanent hosting.
+4. Then: paste your SerpAPI key and start hitting live flight data.
+
+If anything in step 1 still misbehaves once you're on http://, that's a real
+bug in the mobile build (not a hosting issue) and I should debug it directly
+in Chrome MCP — tell me and I'll dig in.

@@ -1,0 +1,14 @@
+# PIALAX .gitignore — added in PIA-010 bookkeeping commit.
+# Keep this short and explicit. If you start adding wildcards, add a comment.
+
+# Stray dev iterations (kept locally for reference, never shipped).
+pialax-dashboard.jsx
+pialax-mobile-original.html
+pialax-mobile-v2.html
+
+# Sandbox / tooling artifacts.
+.git/index.lock
+.DS_Store
+
+# Recovery dumps (per HQ §8 sandbox fork-failure protocol).
+.recovery/

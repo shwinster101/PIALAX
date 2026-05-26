@@ -1,0 +1,15 @@
+# PIA-010 ship manifest — track operating docs + .gitignore for stray dev files.
+# All files newly tracked (first git add) EXCEPT .gitignore which is brand new.
+.gitignore
+backlog.md
+AUDIT_PROPOSAL_2026-05-24.md
+PIALAX-Daily-Review-2026-04-09.docx
+PIALAX-Daily-Review-2026-05-01.docx
+PIALAX-Daily-Review-2026-05-03.docx
+PIALAX-Daily-Review-2026-05-06.docx
+PIALAX-Daily-Review-2026-05-09.md
+PIALAX-Daily-Review-2026-05-10.docx
+PIALAX-PROJECT-DEFINITION.txt
+PIALAX-SETUP-GUIDE.txt
+scripts/messages/PIA-010.msg
+scripts/messages/PIA-010.files
