@@ -467,7 +467,7 @@ button{font-family:inherit;cursor:pointer;}
         <div id="api-quota-lbl" style="display:none;font-size:.62rem;margin-top:3px;line-height:1.4;"></div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--muted);">
           <label for="api-budget-inp">Monthly budget</label>
-          <input id="api-budget-inp" type="number" min="1" max="10000" value="250" style="width:60px;padding:2px 4px;font-size:.62rem;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;"/>
+          <input id="api-budget-inp" type="number" min="1" max="10000" value="1000" style="width:60px;padding:2px 4px;font-size:.62rem;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:4px;"/>
           <button id="api-quota-reset" style="font-size:.55rem;padding:2px 6px;">Reset</button>
         </div>
       </div>
@@ -741,13 +741,40 @@ function clearMemberDates(memberCode) {
 
 // PIA route override: user toggles between 'direct' and 'via-ord' on the card.
 // Pass null to revert to auto (cheaper-of-the-two pick).
+// PIA-005 AC5: cache-first quota guard. If the newly-active leg is missing or stale
+// > FLIGHT_CACHE_TTL_MS AND we have quota headroom (>20 calls) AND not locked, kick
+// off a background fetch; otherwise stamp the active leg as SAMPLE so future PIA-004
+// badge logic surfaces the staleness.
 function setPiaRoute(dest, mode) {
   if (!S.piaRouteOverride) S.piaRouteOverride = {};
   if (!mode) delete S.piaRouteOverride[dest];
   else S.piaRouteOverride[dest] = mode;
   syncURL();
-  // Re-render meetup so the card reflects the new selection. No new SerpAPI call —
-  // both prices are already in S.prices since loadPrices fetches both legs.
+  // Identify the newly-active leg. 'via-ord' = ORD→dest; anything else = PIA→dest.
+  var activeFrom = (mode === 'via-ord') ? 'ORD' : 'PIA';
+  var routeKey = activeFrom + '-' + dest;
+  // Use PIA's effective dates for both legs (PIA is the member whose itinerary
+  // chooses direct vs via-ORD; flex dates anchor on the PIA member).
+  var memDates = (typeof effectiveDatesFor === 'function') ? effectiveDatesFor('PIA') : {};
+  var rDep = memDates.dep ? fmtISO(memDates.dep) : (S.depDate ? fmtISO(S.depDate) : null);
+  var rRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret)
+           : (S.tripType === 'round' && S.retDate ? fmtISO(S.retDate) : null);
+  var ck = _cacheKey(activeFrom, dest, rDep, rRet);
+  var hit = _flightCache[ck];
+  var fresh = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
+  var q = readQuota();
+  var headroom = q.budget - q.used;
+  if (!fresh && PROXY_URL && !isFetchLocked() && headroom > 20) {
+    // Background fetch — render now from current state, refresh when it lands.
+    fetchFlights(activeFrom, dest, rDep, rRet).then(function(d){
+      S.prices[routeKey] = d;
+      renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+    }).catch(function(){ /* keep existing data on failure */ });
+  } else if (!fresh && S.prices[routeKey]) {
+    // No quota headroom or locked → mark the active leg as SAMPLE for the badge.
+    S.prices[routeKey].sampleStamp = true;
+  }
+  // Re-render meetup so the card reflects the new selection.
   renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
 }
 
@@ -2045,10 +2072,45 @@ var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
 //     where two cells happen to map to the same param signature)
 var _flightCache = {};      // key → { data, ts }
 var _flightInflight = {};   // key → Promise
-var FLIGHT_CACHE_TTL_MS = 30 * 60 * 1000; // 30 min — flight prices don't change minute-to-minute, saves API credits
+// PIA-005 AC4: TTL raised from 30 min → 24 h. Combined with localStorage persistence
+// below, this means a reload within 24 h of a successful fetch spends 0 SerpAPI calls.
+var FLIGHT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 function _cacheKey(from, to, dep, ret) {
   return from + '|' + to + '|' + (dep || '') + '|' + (ret || '');
+}
+
+// PIA-005 AC4: persist _flightCache to localStorage so a reload reuses prior fetches.
+// Storage key is route+depDate+retDate (same shape as in-memory _flightCache key).
+// Stale entries (> TTL) are dropped on every persist to keep storage bounded.
+var PRICES_CACHE_STORAGE_KEY = 'pialax_prices_v1';
+function persistFlightCache() {
+  try {
+    var now = Date.now();
+    var out = {};
+    Object.keys(_flightCache).forEach(function(k){
+      var e = _flightCache[k];
+      if (e && (now - e.ts) < FLIGHT_CACHE_TTL_MS) out[k] = e;
+    });
+    localStorage.setItem(PRICES_CACHE_STORAGE_KEY, JSON.stringify(out));
+  } catch(e) { /* quota or disabled storage — non-fatal */ }
+}
+function rehydrateFlightCache() {
+  try {
+    var raw = localStorage.getItem(PRICES_CACHE_STORAGE_KEY);
+    if (!raw) return 0;
+    var obj = JSON.parse(raw);
+    var now = Date.now(), restored = 0;
+    Object.keys(obj).forEach(function(k){
+      var e = obj[k];
+      if (e && e.data && (now - e.ts) < FLIGHT_CACHE_TTL_MS) {
+        _flightCache[k] = e;
+        restored++;
+      }
+    });
+    if (restored > 0) console.info('[PIALAX] Rehydrated ' + restored + ' cached flight prices from localStorage (PIA-005 AC4)');
+    return restored;
+  } catch(e) { return 0; }
 }
 
 async function fetchFlights(from, to, dep, ret) {
@@ -2172,6 +2234,7 @@ async function fetchFlights(from, to, dep, ret) {
         returnStops: returnStops,
       };
       _flightCache[key] = { data: data, ts: Date.now() };
+      persistFlightCache(); // PIA-005 AC4: write through to localStorage
       // Live success → consume 1 quota unit
       bumpQuota(1);
       return data;
@@ -2188,10 +2251,43 @@ async function fetchFlights(from, to, dep, ret) {
 }
 
 // ── SerpAPI Monthly Quota Tracking ────────────────────────────────
-// Plan budget tracked in localStorage; default 250 (SerpAPI free tier as of
-// May 2026). Auto-syncs from /account on session start when proxy is set.
+// Plan budget tracked in localStorage; default 1000 (SerpAPI paid plan as of
+// 2026-05-25, PIA-005). Auto-syncs from /account on session start when proxy is set.
 // Keyed by YYYY-MM so it auto-resets on the 1st.
+// `used` counters are preserved across budget migrations — PIA-005 explicitly
+// requires existing usage to carry over (only `budget` changes).
 var QUOTA_STORAGE_KEY = 'pialax_serpapi_quota';
+
+// PIA-005: session counter (in-memory, resets on tab reload). Hard caps land in AC4.
+var SESSION_CALLS = 0;
+
+// PIA-005 threshold gates (absolute, not percent — fixed at 1000 plan):
+//   used >= 990  → fetch button locked (safety cutoff, leaves headroom for /account sync etc.)
+//   used >= 950  → red warning banner
+//   used >= 800  → amber warning banner
+var QUOTA_LOCK_AT = 990;
+var QUOTA_RED_AT  = 950;
+var QUOTA_AMBER_AT = 800;
+
+// PIA-005 AC3 + AC4 hard caps on fan-out:
+//   MAX_CALLS_PER_REFRESH — live SerpAPI calls allowed per loadPrices() invocation.
+//     Excess routes serve cache-or-mock. Cache hits do NOT count against this.
+//   MAX_CALLS_PER_SESSION — live SerpAPI calls allowed per tab session (in-memory).
+//     Lands fully in AC4; declared here so AC3 can reference it without re-edit.
+//
+// AC3 DOWNGRADE NOTE (2026-05-25):
+//   Original AC3 spec was "broad-search-then-filter — one SerpAPI call per hub via
+//   multi-day window OR multi-destination axis." Discovery (worker.js read +
+//   serpapi.com docs) found: (1) worker.js is a pass-through and rejects any
+//   engine != google_flights; (2) google_flights engine has no multi-day window
+//   param; (3) multi-destination via comma-separated arrival_id is plausible per
+//   SerpAPI docs but NOT verified by a live response in this repo. Per HQ §8
+//   "do not guess" protocol, AC3 is downgraded to "fan-out gated by
+//   MAX_CALLS_PER_REFRESH + cache reuse only." Headline goal of ≤3 live calls
+//   per refresh is still met; per-call efficiency improvement is deferred to a
+//   future ticket once a live multi-destination response is captured.
+var MAX_CALLS_PER_REFRESH = 3;
+var MAX_CALLS_PER_SESSION = 8;
 
 function _quotaPeriodKey() {
   var d = new Date();
@@ -2200,31 +2296,49 @@ function _quotaPeriodKey() {
 function readQuota() {
   try {
     var raw = localStorage.getItem(QUOTA_STORAGE_KEY);
-    if (!raw) return { period: _quotaPeriodKey(), used: 0, budget: 250, exceeded: false };
+    if (!raw) return { period: _quotaPeriodKey(), used: 0, budget: 1000, exceeded: false };
     var obj = JSON.parse(raw);
-    // Auto-migrate stale budget=100 entries (old default) → 250 (current SerpAPI plan).
-    // Also clears the 'exceeded' flag if the bumped budget now covers the used count.
+    // Auto-migrate stale defaults. Chains in one read so a legacy 100-budget entry → 1000.
+    //   100 → 250   (original migration, PIA-001 era)
+    //   250 → 1000  (SerpAPI plan upgrade 2026-05-25, PIA-005)
+    // `used` is preserved; `exceeded` is cleared if the new ceiling covers it.
+    var migrated = false;
     if (obj.budget === 100) {
-      obj.budget = 250;
+      obj.budget = 250; migrated = true;
+      console.info('[PIALAX] Auto-migrated quota budget 100 → 250');
+    }
+    if (obj.budget === 250) {
+      obj.budget = 1000; migrated = true;
+      console.info('[PIALAX] Auto-migrated quota budget 250 → 1000 (SerpAPI plan upgrade 2026-05-25)');
+    }
+    if (migrated) {
       if (obj.used < obj.budget) obj.exceeded = false;
       localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
-      console.info('[PIALAX] Auto-migrated quota budget 100 → 250 to match real SerpAPI plan');
     }
     if (obj.period !== _quotaPeriodKey()) {
-      // New month → reset
-      obj = { period: _quotaPeriodKey(), used: 0, budget: obj.budget || 250, exceeded: false };
+      // New month → reset usage, keep budget
+      obj = { period: _quotaPeriodKey(), used: 0, budget: obj.budget || 1000, exceeded: false };
       localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
     }
     return obj;
   } catch(e) {
-    return { period: _quotaPeriodKey(), used: 0, budget: 250, exceeded: false };
+    return { period: _quotaPeriodKey(), used: 0, budget: 1000, exceeded: false };
   }
 }
 function writeQuota(obj) {
   try { localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj)); } catch(e) {}
 }
 function bumpQuota(n) {
-  var q = readQuota(); q.used += n; writeQuota(q); updateApiCallCount();
+  var q = readQuota(); q.used += n; writeQuota(q);
+  SESSION_CALLS += n;  // PIA-005: mirror to session counter for banner display + AC4 hard cap
+  updateApiCallCount();
+}
+// PIA-005 AC2 + AC4: safety cutoff. Locks fetch when either:
+//   - monthly counter >= QUOTA_LOCK_AT (990) or `exceeded`
+//   - session counter >= MAX_CALLS_PER_SESSION (8) — protects against a single tab burning a day's headroom
+function isFetchLocked() {
+  var q = readQuota();
+  return q.exceeded || q.used >= QUOTA_LOCK_AT || SESSION_CALLS >= MAX_CALLS_PER_SESSION;
 }
 function setQuotaBudget(n) {
   var q = readQuota(); q.budget = Math.max(1, n|0); q.exceeded = q.used >= q.budget; writeQuota(q); updateApiCallCount();
@@ -2245,27 +2359,51 @@ function isQuotaExceeded() {
 // Quota-exhaustion banner: surfaces an unmissable amber/red notice at the top
 // of the sidebar when live prices aren't actually available (no proxy OR
 // quota hit). Tells the user explicitly what they're seeing AND what to do.
+// PIA-005 AC2: tiered thresholds — amber at 800, red at 950, locked at 990 / exhausted.
+// Body string: "<used>/<budget> this month · <session> this session · <remaining> until reset".
 function updateQuotaWarningBanner() {
   var bn = document.getElementById('quota-warning-banner');
   if (!bn) return;
   var q = readQuota();
-  // Compute reset date (1st of next month) for the user-facing message
   var nextReset = new Date();
   nextReset.setMonth(nextReset.getMonth() + 1);
   nextReset.setDate(1);
   var resetTxt = nextReset.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  var remaining = Math.max(0, q.budget - q.used);
+
   if (!PROXY_URL) {
     bn.innerHTML = '<strong style="color:var(--amber);">📡 Sample data mode</strong><br/>'
       + '<span style="color:var(--muted);">Connect a SerpAPI proxy in the sidebar to see live Google Flights pricing. Current numbers are illustrative estimates.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--amber)';
     bn.style.background = 'rgba(245,158,11,.14)';
-  } else if (q.exceeded || q.used >= q.budget) {
-    bn.innerHTML = '<strong style="color:var(--red);">⚠ Live prices unavailable</strong><br/>'
-      + '<span style="color:var(--muted);">SerpAPI quota exhausted (' + q.used + ' / ' + q.budget + ' used this month). Showing last cached data; new searches will use sample estimates. Plan resets ' + resetTxt + '.</span>';
+    return;
+  }
+
+  // PIA-005 AC2: shared body line across non-OK tiers.
+  var bodyTxt = q.used + '/' + q.budget + ' this month · '
+              + SESSION_CALLS + ' this session · '
+              + remaining + ' until reset (' + resetTxt + ')';
+
+  if (q.exceeded || q.used >= QUOTA_LOCK_AT) {
+    // 990+ used OR exceeded → fetch is locked at the button. Banner says so.
+    bn.innerHTML = '<strong style="color:var(--red);">⛔ Fetch locked — quota safety cutoff</strong><br/>'
+      + '<span style="color:var(--muted);">' + bodyTxt + '. Search disabled until plan resets.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--red)';
-    bn.style.background = 'rgba(239,68,68,.12)';
+    bn.style.background = 'rgba(239,68,68,.14)';
+  } else if (q.used >= QUOTA_RED_AT) {
+    bn.innerHTML = '<strong style="color:var(--red);">⚠ Approaching cap — under 50 calls left</strong><br/>'
+      + '<span style="color:var(--muted);">' + bodyTxt + '.</span>';
+    bn.style.display = '';
+    bn.style.borderColor = 'var(--red)';
+    bn.style.background = 'rgba(239,68,68,.10)';
+  } else if (q.used >= QUOTA_AMBER_AT) {
+    bn.innerHTML = '<strong style="color:var(--amber);">🟡 SerpAPI usage warning</strong><br/>'
+      + '<span style="color:var(--muted);">' + bodyTxt + '.</span>';
+    bn.style.display = '';
+    bn.style.borderColor = 'var(--amber)';
+    bn.style.background = 'rgba(245,158,11,.10)';
   } else {
     bn.style.display = 'none';
   }
@@ -2533,6 +2671,13 @@ function updateDateUI() {
 async function loadPrices() {
   var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
   var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
+  // PIA-005 AC2: short-circuit if quota safety cutoff is hit (used >= 990) — even
+  // programmatic callers (URL-restore, finder card click) must respect the lock.
+  if (PROXY_URL && isFetchLocked()) {
+    console.warn('[PIALAX] loadPrices: short-circuited — quota safety cutoff reached. Plan resets on the 1st.');
+    updateApiCallCount(); // re-render so banner + bar show the lock state
+    return;
+  }
   // Gap #3: disable button during fetch to prevent spam
   if (btn.disabled) return; // already fetching
   btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
@@ -2596,11 +2741,27 @@ async function loadPrices() {
       lbl.textContent = 'Searching…';
     });
   }
+  // PIA-005 AC3 (downgrade): cap live fan-out at MAX_CALLS_PER_REFRESH.
+  // routes[] is already in priority order (active hub first via priorityRoutes,
+  // then otherRoutes). Per-route: cache hit (within TTL) = free; cache miss with
+  // budget = live call (decrement budget); cache miss without budget = mock.
+  // This is the synchronous map callback, so the decrement is race-free.
+  var liveBudget = MAX_CALLS_PER_REFRESH;
   await Promise.all(routes.map(function(r) {
-    // Use the per-route dates (set by the meetup fan-out for flex-date members);
-    // fallback to global dep/ret for older callers / solo mode.
     var rDep = r.dep || globalDep;
     var rRet = r.ret || globalRet;
+    var ck = _cacheKey(r.from, r.to, rDep, rRet);
+    var hit = _flightCache[ck];
+    var isCacheHit = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
+    if (!isCacheHit && liveBudget <= 0) {
+      // Per-refresh cap reached → mock fallback for this route. Mark rateLimited
+      // so downstream renderers can show a "skimmed (cap reached)" badge once
+      // PIA-006's per-pill badges land.
+      S.prices[r.key] = Object.assign({}, getMock(r.from, r.to), { rateLimited: true });
+      failCount++; doneCount++; scheduleRepaint();
+      return Promise.resolve();
+    }
+    if (!isCacheHit) liveBudget--;
     return fetchFlights(r.from, r.to, rDep, rRet)
       .then(function(d){
         S.prices[r.key]=d;
@@ -2682,21 +2843,40 @@ function updateApiCallCount() {
   // Quota-exhaustion banner — high-visibility warning when live data unavailable.
   // Three states: NO PROXY, QUOTA EXHAUSTED, ALL OK (banner hidden).
   updateQuotaWarningBanner();
-  // Always-visible quota bar at top of sidebar
+  // Always-visible quota bar at top of sidebar.
+  // PIA-005 AC2: absolute thresholds (amber 800 / red 950 / locked 990) replace the old %-tiers.
   var q = readQuota();
   var qbar = document.getElementById('quota-bar');
   if (qbar && PROXY_URL) {
     var remaining = Math.max(0, q.budget - q.used);
     var pct = q.budget > 0 ? remaining / q.budget : 0;
-    var color = pct > 0.20 ? 'var(--green)' : (pct > 0.05 ? 'var(--amber)' : 'var(--red)');
-    if (q.exceeded || remaining === 0) color = 'var(--red)';
+    var locked = q.exceeded || q.used >= QUOTA_LOCK_AT;
+    var color = locked || q.used >= QUOTA_RED_AT ? 'var(--red)'
+              : q.used >= QUOTA_AMBER_AT ? 'var(--amber)'
+              : 'var(--green)';
     var barW = Math.round(pct * 100);
+    var lockTag = locked ? ' · <span style="color:var(--red);">⛔ locked</span>' : '';
     qbar.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">'
-      + '<span style="color:' + color + ';font-weight:700;">SerpAPI: ' + remaining + ' / ' + q.budget + ' remaining</span>'
-      + '<span style="color:var(--muted);">' + q.used + ' used</span></div>'
+      + '<span style="color:' + color + ';font-weight:700;">SerpAPI: ' + remaining + ' / ' + q.budget + ' remaining' + lockTag + '</span>'
+      + '<span style="color:var(--muted);">' + q.used + ' used · ' + SESSION_CALLS + ' session</span></div>'
       + '<div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
       + '<div style="height:100%;width:' + barW + '%;background:' + color + ';transition:width .3s;"></div></div>';
     qbar.style.display = '';
+  }
+  // PIA-005 AC2: lock the search button at the 990 safety cutoff.
+  var sbtn = document.getElementById('search-btn');
+  if (sbtn) {
+    var lockNow = PROXY_URL && (q.exceeded || q.used >= QUOTA_LOCK_AT);
+    if (lockNow && !sbtn.disabled) {
+      sbtn.disabled = true;
+      sbtn.setAttribute('data-quota-locked', '1');
+      sbtn.title = 'Search disabled — SerpAPI quota at safety cutoff (' + q.used + '/' + q.budget + '). Plan resets on the 1st.';
+    } else if (!lockNow && sbtn.getAttribute('data-quota-locked') === '1') {
+      // Only unlock the button if WE locked it (don't fight in-flight loadPrices toggling)
+      sbtn.disabled = false;
+      sbtn.removeAttribute('data-quota-locked');
+      sbtn.title = '';
+    }
   }
   // Monthly quota pill in settings — visible whenever a proxy is configured
   var qel = document.getElementById('api-quota-lbl');
@@ -3060,7 +3240,10 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
     if (saved && saved.trim()) {
       var trimmed = saved.trim();
       // Security: validate saved proxy URL before trusting it
-      if (!/^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(trimmed)) {
+      // PIA-006: Cloudflare Workers URLs are `<worker>.<account>.workers.dev` (two
+      // labels before workers.dev). Older single-label regex rejected the project's
+      // own default and silently nuked the saved value on every boot. Allow ≥1 label.
+      if (!/^https:\/\/[a-z0-9\-]+(\.[a-z0-9\-]+)*\.workers\.dev$/i.test(trimmed)) {
         localStorage.removeItem(PROXY_URL_STORAGE_KEY);
         return;
       }
@@ -3080,7 +3263,8 @@ document.getElementById('api-apply').addEventListener('click', function(){
   // before accepting. CSP connect-src already restricts this, but a friendly
   // input check avoids silent CSP blocks and prevents accidental mis-types.
   if (url) {
-    var validProxy = /^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(url);
+    // PIA-006: allow multi-label subdomains (e.g. `pialax-proxy.ashwinyedavalli.workers.dev`)
+    var validProxy = /^https:\/\/[a-z0-9\-]+(\.[a-z0-9\-]+)*\.workers\.dev$/i.test(url);
     if (!validProxy) {
       // Non-blocking inline error (replaces blocking alert() — better UX, no main-thread freeze)
       var inp = document.getElementById('api-key-inp');
@@ -3298,6 +3482,7 @@ function copyShareLink() {
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
   restoreFromURL();
+  rehydrateFlightCache(); // PIA-005 AC4: restore prior session's cached prices before any render
   document.getElementById('tb-sub').textContent='Loading…';
   // Try CDN TopoJSON; gracefully fall back for file:// (null-origin CORS blocks fetch)
   try {

@@ -1139,7 +1139,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
         <div id="api-quota-lbl" style="display:none;font-size:.62rem;margin-top:3px;line-height:1.4;"></div>
         <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--text-muted);">
           <label for="api-budget-inp">Monthly budget</label>
-          <input id="api-budget-inp" type="number" min="1" max="10000" value="250" style="width:60px;padding:4px 6px;font-size:.65rem;background:var(--bg);color:var(--text-main);border:1px solid var(--border);border-radius:6px;min-height:36px;"/>
+          <input id="api-budget-inp" type="number" min="1" max="10000" value="1000" style="width:60px;padding:4px 6px;font-size:.65rem;background:var(--bg);color:var(--text-main);border:1px solid var(--border);border-radius:6px;min-height:36px;"/>
           <button id="api-quota-reset" style="font-size:.58rem;padding:4px 8px;min-height:36px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);cursor:pointer;">Reset</button>
         </div>
       </div>
@@ -1474,11 +1474,31 @@ function piaRouteTo(dest, fareKey) {
   };
 }
 
+// PIA-005 AC5 (mobile mirror): cache-first quota guard on hub toggle.
 function setPiaRoute(dest, mode) {
   if (!S.piaRouteOverride) S.piaRouteOverride = {};
   if (!mode) delete S.piaRouteOverride[dest];
   else S.piaRouteOverride[dest] = mode;
   syncURL();
+  var activeFrom = (mode === 'via-ord') ? 'ORD' : 'PIA';
+  var routeKey = activeFrom + '-' + dest;
+  var memDates = (typeof effectiveDatesFor === 'function') ? effectiveDatesFor('PIA') : {};
+  var rDep = memDates.dep ? fmtISO(memDates.dep) : (S.depDate ? fmtISO(S.depDate) : null);
+  var rRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret)
+           : (S.tripType === 'round' && S.retDate ? fmtISO(S.retDate) : null);
+  var ck = _cacheKey(activeFrom, dest, rDep, rRet);
+  var hit = _flightCache[ck];
+  var fresh = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
+  var q = readQuota();
+  var headroom = q.budget - q.used;
+  if (!fresh && PROXY_URL && !isFetchLocked() && headroom > 20) {
+    fetchFlights(activeFrom, dest, rDep, rRet).then(function(d){
+      S.prices[routeKey] = d;
+      renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+    }).catch(function(){});
+  } else if (!fresh && S.prices[routeKey]) {
+    S.prices[routeKey].sampleStamp = true;
+  }
   renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
 }
 
@@ -2510,8 +2530,43 @@ var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
 
 var _flightCache = {};
 var _flightInflight = {};
-var FLIGHT_CACHE_TTL_MS = 30 * 60 * 1000;
+// PIA-005 AC4 (mobile mirror): TTL 30 min → 24 h + localStorage persistence below.
+var FLIGHT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 function _cacheKey(from, to, dep, ret) { return from+'|'+to+'|'+(dep||'')+'|'+(ret||''); }
+
+// PIA-005 AC4 (mobile mirror): persist _flightCache to localStorage. Storage key
+// is route+depDate+retDate (same as in-memory _flightCache key). Reload within
+// TTL spends 0 SerpAPI calls. Shared key with desktop (intentional — same plan,
+// same family, cross-device cache reuse).
+var PRICES_CACHE_STORAGE_KEY = 'pialax_prices_v1';
+function persistFlightCache() {
+  try {
+    var now = Date.now();
+    var out = {};
+    Object.keys(_flightCache).forEach(function(k){
+      var e = _flightCache[k];
+      if (e && (now - e.ts) < FLIGHT_CACHE_TTL_MS) out[k] = e;
+    });
+    localStorage.setItem(PRICES_CACHE_STORAGE_KEY, JSON.stringify(out));
+  } catch(e) { /* non-fatal */ }
+}
+function rehydrateFlightCache() {
+  try {
+    var raw = localStorage.getItem(PRICES_CACHE_STORAGE_KEY);
+    if (!raw) return 0;
+    var obj = JSON.parse(raw);
+    var now = Date.now(), restored = 0;
+    Object.keys(obj).forEach(function(k){
+      var e = obj[k];
+      if (e && e.data && (now - e.ts) < FLIGHT_CACHE_TTL_MS) {
+        _flightCache[k] = e;
+        restored++;
+      }
+    });
+    if (restored > 0) console.info('[PIALAX-mobile] Rehydrated ' + restored + ' cached prices (PIA-005 AC4)');
+    return restored;
+  } catch(e) { return 0; }
+}
 
 async function fetchFlights(from, to, dep, ret) {
   if (!PROXY_URL) return getMock(from, to);
@@ -2602,6 +2657,7 @@ async function fetchFlights(from, to, dep, ret) {
         returnStops: retLegs.length > 1 ? (retLegs.length - 1) : 0,
       };
       _flightCache[key] = { data: data, ts: Date.now() };
+      persistFlightCache(); // PIA-005 AC4: write through to localStorage
       bumpQuota(1);
       return data;
     } catch(e) {
@@ -2616,7 +2672,22 @@ async function fetchFlights(from, to, dep, ret) {
 }
 
 // ── SerpAPI Monthly Quota Tracking ───────────────────────────────
+// PIA-005 desktop-parity: shared key, chained migration, tiered thresholds, session counter.
 var QUOTA_STORAGE_KEY = 'pialax_serpapi_quota';
+
+// PIA-005 AC2 (mobile mirror): session counter (in-memory, resets on tab reload).
+var SESSION_CALLS = 0;
+// PIA-005 threshold gates (absolute, plan = 1000):
+//   used >= 990 → fetch locked; >= 950 → red; >= 800 → amber.
+var QUOTA_LOCK_AT  = 990;
+var QUOTA_RED_AT   = 950;
+var QUOTA_AMBER_AT = 800;
+// PIA-005 AC3 (downgrade) + AC4 hard caps. See pialax.html for the cover note —
+// worker.js is pass-through, google_flights has no multi-day window, multi-dest
+// via comma-arrival_id unverified → fan-out gated by MAX_CALLS_PER_REFRESH + cache only.
+var MAX_CALLS_PER_REFRESH = 3;
+var MAX_CALLS_PER_SESSION = 8;
+
 function _quotaPeriodKey() {
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0');
@@ -2624,27 +2695,44 @@ function _quotaPeriodKey() {
 function readQuota() {
   try {
     var raw = localStorage.getItem(QUOTA_STORAGE_KEY);
-    if (!raw) return { period:_quotaPeriodKey(), used:0, budget:250, exceeded:false };
+    if (!raw) return { period:_quotaPeriodKey(), used:0, budget:1000, exceeded:false };
     var obj = JSON.parse(raw);
-    if (obj.budget === 100) {
-      obj.budget = 250;
+    // Chained auto-migration. Preserves `used` across budget bumps.
+    //   100 → 250  (PIA-001 era)
+    //   250 → 1000 (PIA-005, SerpAPI plan upgrade 2026-05-25)
+    var migrated = false;
+    if (obj.budget === 100) { obj.budget = 250;  migrated = true; }
+    if (obj.budget === 250) { obj.budget = 1000; migrated = true; }
+    if (migrated) {
       if (obj.used < obj.budget) obj.exceeded = false;
       localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
     }
     if (obj.period !== _quotaPeriodKey()) {
-      obj = { period:_quotaPeriodKey(), used:0, budget:obj.budget||250, exceeded:false };
+      obj = { period:_quotaPeriodKey(), used:0, budget:obj.budget||1000, exceeded:false };
       localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj));
     }
     return obj;
-  } catch(e) { return { period:_quotaPeriodKey(), used:0, budget:250, exceeded:false }; }
+  } catch(e) { return { period:_quotaPeriodKey(), used:0, budget:1000, exceeded:false }; }
 }
 function writeQuota(obj){ try{ localStorage.setItem(QUOTA_STORAGE_KEY, JSON.stringify(obj)); }catch(e){} }
-function bumpQuota(n){ var q=readQuota(); q.used+=n; writeQuota(q); updateApiCallCount(); }
+function bumpQuota(n){
+  var q=readQuota(); q.used+=n; writeQuota(q);
+  SESSION_CALLS += n;  // PIA-005 AC2: mirror to session counter for banner + AC4 hard cap
+  updateApiCallCount();
+}
 function setQuotaBudget(n){ var q=readQuota(); q.budget=Math.max(1,n|0); q.exceeded=q.used>=q.budget; writeQuota(q); updateApiCallCount(); }
 function resetQuota(){ writeQuota({ period:_quotaPeriodKey(), used:0, budget:readQuota().budget, exceeded:false }); updateApiCallCount(); }
 function markQuotaExceeded(){ var q=readQuota(); q.exceeded=true; q.used=Math.max(q.used,q.budget); writeQuota(q); updateApiCallCount(); }
 function isQuotaExceeded(){ var q=readQuota(); return q.exceeded || q.used>=q.budget; }
+// PIA-005 AC2 + AC4 (mobile mirror): safety cutoff. Locks when monthly counter,
+// session counter, or `exceeded` flag would push past safe headroom.
+function isFetchLocked(){
+  var q = readQuota();
+  return q.exceeded || q.used >= QUOTA_LOCK_AT || SESSION_CALLS >= MAX_CALLS_PER_SESSION;
+}
 
+// PIA-005 AC2 (mobile mirror): tiered banner — amber 800 / red 950 / locked 990+exhausted.
+// Body string: "<used>/<budget> this month · <session> this session · <remaining> until reset".
 function updateQuotaWarningBanner() {
   var bn = document.getElementById('quota-warning-banner');
   if (!bn) return;
@@ -2653,18 +2741,39 @@ function updateQuotaWarningBanner() {
   nextReset.setMonth(nextReset.getMonth() + 1);
   nextReset.setDate(1);
   var resetTxt = nextReset.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  var remaining = Math.max(0, q.budget - q.used);
+
   if (!PROXY_URL) {
     bn.innerHTML = '<strong style="color:var(--amber);">📡 Sample data mode</strong><br/>'
       + '<span style="color:var(--muted);">Connect a SerpAPI proxy in Advanced Settings to see live Google Flights pricing.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--amber)';
     bn.style.background = 'rgba(245,158,11,.14)';
-  } else if (q.exceeded || q.used >= q.budget) {
-    bn.innerHTML = '<strong style="color:var(--red);">⚠ Live prices unavailable</strong><br/>'
-      + '<span style="color:var(--muted);">SerpAPI quota exhausted (' + q.used + ' / ' + q.budget + ' used). Resets ' + resetTxt + '.</span>';
+    return;
+  }
+
+  var bodyTxt = q.used + '/' + q.budget + ' this month · '
+              + SESSION_CALLS + ' this session · '
+              + remaining + ' until reset (' + resetTxt + ')';
+
+  if (q.exceeded || q.used >= QUOTA_LOCK_AT) {
+    bn.innerHTML = '<strong style="color:var(--red);">⛔ Fetch locked — quota safety cutoff</strong><br/>'
+      + '<span style="color:var(--muted);">' + bodyTxt + '. Search disabled until plan resets.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--red)';
-    bn.style.background = 'rgba(239,68,68,.12)';
+    bn.style.background = 'rgba(239,68,68,.14)';
+  } else if (q.used >= QUOTA_RED_AT) {
+    bn.innerHTML = '<strong style="color:var(--red);">⚠ Approaching cap — under 50 calls left</strong><br/>'
+      + '<span style="color:var(--muted);">' + bodyTxt + '.</span>';
+    bn.style.display = '';
+    bn.style.borderColor = 'var(--red)';
+    bn.style.background = 'rgba(239,68,68,.10)';
+  } else if (q.used >= QUOTA_AMBER_AT) {
+    bn.innerHTML = '<strong style="color:var(--amber);">🟡 SerpAPI usage warning</strong><br/>'
+      + '<span style="color:var(--muted);">' + bodyTxt + '.</span>';
+    bn.style.display = '';
+    bn.style.borderColor = 'var(--amber)';
+    bn.style.background = 'rgba(245,158,11,.10)';
   } else {
     bn.style.display = 'none';
   }
@@ -2878,6 +2987,12 @@ function updateDateUI() {
 async function loadPrices() {
   var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
   var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
+  // PIA-005 AC2 (mobile mirror): short-circuit if quota safety cutoff is hit.
+  if (PROXY_URL && isFetchLocked()) {
+    console.warn('[PIALAX-mobile] loadPrices: short-circuited — quota safety cutoff reached.');
+    updateApiCallCount();
+    return;
+  }
   if (btn.disabled) return;
   btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
   // Update status bar
@@ -2936,9 +3051,21 @@ async function loadPrices() {
       lbl.textContent = 'Searching…';
     });
   }
+  // PIA-005 AC3 (mobile mirror, downgrade): live fan-out capped at MAX_CALLS_PER_REFRESH.
+  // Cache hits free; cache miss with no budget → mock fallback with rateLimited flag.
+  var liveBudget = MAX_CALLS_PER_REFRESH;
   await Promise.all(routes.map(function(r) {
     var rDep = r.dep || globalDep;
     var rRet = r.ret || globalRet;
+    var ck = _cacheKey(r.from, r.to, rDep, rRet);
+    var hit = _flightCache[ck];
+    var isCacheHit = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
+    if (!isCacheHit && liveBudget <= 0) {
+      S.prices[r.key] = Object.assign({}, getMock(r.from, r.to), { rateLimited: true });
+      failCount++; doneCount++; scheduleRepaint();
+      return Promise.resolve();
+    }
+    if (!isCacheHit) liveBudget--;
     return fetchFlights(r.from, r.to, rDep, rRet)
       .then(function(d){
         S.prices[r.key]=d;
@@ -3021,20 +3148,38 @@ function updateApiCallCount() {
     el.style.display = S.apiCalls > 0 ? '' : 'none';
   }
   updateQuotaWarningBanner();
+  // PIA-005 AC2 (mobile mirror): absolute thresholds replace %-tiers + search-btn lock.
   var q = readQuota();
   var qbar = document.getElementById('quota-bar');
   if (qbar && PROXY_URL) {
     var remaining = Math.max(0, q.budget - q.used);
     var pct = q.budget > 0 ? remaining / q.budget : 0;
-    var color = pct > 0.20 ? 'var(--green)' : (pct > 0.05 ? 'var(--amber)' : 'var(--red)');
-    if (q.exceeded || remaining === 0) color = 'var(--red)';
+    var locked = q.exceeded || q.used >= QUOTA_LOCK_AT;
+    var color = locked || q.used >= QUOTA_RED_AT ? 'var(--red)'
+              : q.used >= QUOTA_AMBER_AT ? 'var(--amber)'
+              : 'var(--green)';
     var barW = Math.round(pct * 100);
+    var lockTag = locked ? ' · <span style="color:var(--red);">⛔ locked</span>' : '';
     qbar.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">'
-      + '<span style="color:' + color + ';font-weight:700;">SerpAPI: ' + remaining + ' / ' + q.budget + ' remaining</span>'
-      + '<span style="color:var(--muted);">' + q.used + ' used</span></div>'
+      + '<span style="color:' + color + ';font-weight:700;">SerpAPI: ' + remaining + ' / ' + q.budget + ' remaining' + lockTag + '</span>'
+      + '<span style="color:var(--muted);">' + q.used + ' used · ' + SESSION_CALLS + ' session</span></div>'
       + '<div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
       + '<div style="height:100%;width:' + barW + '%;background:' + color + ';transition:width .3s;"></div></div>';
     qbar.style.display = '';
+  }
+  // PIA-005 AC2: lock the search button at the 990 safety cutoff.
+  var sbtn = document.getElementById('search-btn');
+  if (sbtn) {
+    var lockNow = PROXY_URL && (q.exceeded || q.used >= QUOTA_LOCK_AT);
+    if (lockNow && !sbtn.disabled) {
+      sbtn.disabled = true;
+      sbtn.setAttribute('data-quota-locked', '1');
+      sbtn.title = 'Search disabled — SerpAPI quota at safety cutoff (' + q.used + '/' + q.budget + '). Plan resets on the 1st.';
+    } else if (!lockNow && sbtn.getAttribute('data-quota-locked') === '1') {
+      sbtn.disabled = false;
+      sbtn.removeAttribute('data-quota-locked');
+      sbtn.title = '';
+    }
   }
   var qel = document.getElementById('api-quota-lbl');
   var inp = document.getElementById('api-budget-inp');
@@ -3392,8 +3537,10 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
     var saved = localStorage.getItem(PROXY_URL_STORAGE_KEY);
     if (saved && saved.trim()) {
       var trimmed = saved.trim();
-      // Security: validate saved proxy URL before trusting it
-      if (!/^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(trimmed)) {
+      // PIA-006: Cloudflare Workers URLs are `<worker>.<account>.workers.dev` (two
+      // labels before workers.dev). Older single-label regex rejected the project's
+      // own default and silently nuked the saved value on every boot. Allow ≥1 label.
+      if (!/^https:\/\/[a-z0-9\-]+(\.[a-z0-9\-]+)*\.workers\.dev$/i.test(trimmed)) {
         localStorage.removeItem(PROXY_URL_STORAGE_KEY);
         return;
       }
@@ -3411,7 +3558,8 @@ document.getElementById('api-apply').addEventListener('click', function(){
   if (url.endsWith('/')) url = url.slice(0, -1);
   // Security hardening: only accept https *.workers.dev proxy URLs
   if (url) {
-    var validProxy = /^https:\/\/[a-z0-9\-]+\.workers\.dev$/i.test(url);
+    // PIA-006: allow multi-label subdomains (e.g. `pialax-proxy.ashwinyedavalli.workers.dev`)
+    var validProxy = /^https:\/\/[a-z0-9\-]+(\.[a-z0-9\-]+)*\.workers\.dev$/i.test(url);
     if (!validProxy) {
       // Non-blocking inline error (replaces blocking alert() — avoids modal on mobile)
       var inp = document.getElementById('api-key-inp');
@@ -3615,6 +3763,7 @@ document.getElementById('map-toggle-btn').addEventListener('click', function() {
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
   restoreFromURL();
+  rehydrateFlightCache(); // PIA-005 AC4: restore prior session's cached prices before any render
   document.getElementById('tb-sub').textContent='Loading…';
   try {
     var r = await fetch(GEO_URL);

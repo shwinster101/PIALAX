@@ -1,0 +1,6 @@
+# PIA-005 ship manifest — SerpAPI plan-aware quota gates + fan-out caps + price cache.
+# T3 verdict: 6/6 PASS (AC3 spec-permitted downgrade). See PIA-005.msg body.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-005.msg
+scripts/messages/PIA-005.files
