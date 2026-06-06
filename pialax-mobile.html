@@ -15,7 +15,8 @@
         integrity="sha512-4UKI/XKm3xrvJ6pZS5oTRvIQGIzZFoXR71rRBb1y2N+PbwAsKa5tPl2J6WvbEvwN3TxQCm8hMzsl/pO+82iRlg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
-/* Defense-in-depth: detect CDN tamper / failed load. SRI integrity= is the real fix (TODO above). */
+/* Defense-in-depth: SRI integrity= on the CDN tags above is the primary tamper-guard (PIA-001).
+   This is a secondary runtime check for CDN-outage / non-tamper load failures SRI can't catch. */
 (function(){
   try {
     var ok = (typeof d3 !== 'undefined') && typeof d3.select === 'function'
@@ -934,6 +935,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 <div id="status" class="idle">Choose dates to start</div>
 <div id="quota-warning-banner"></div>
 <div id="quota-bar"></div>
+<!-- PIA-013 AC3 (mobile mirror): fares-as-of freshness header. -->
+<div id="freshness-header" style="display:none;padding:4px 14px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);color:var(--muted);"></div>
 
 <!-- ═══════════════════════════════════
      The #sb wrapper + #sb-body provide
@@ -1260,10 +1263,13 @@ function findLockedTrip(from, to, dep, ret) {
 }
 var FAMILY = ['PIA','LAX','JAX'];
 // Per-member detail (mirror of desktop)
+// PIA-013 AC4 (mobile mirror): `booked` marks fully-ticketed round-trip family legs.
+// PIA + JAX fully booked. LAX asymmetric (outbound BOOKED, return OPEN) → stays unbooked.
 var FAMILY_INFO = {
-  PIA: { headcount: 2, label: 'Mom & Dad' },
-  LAX: { headcount: 1, label: 'Me' },
-  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK' },
+  PIA: { headcount: 2, label: 'Mom & Dad', booked: true,  bookedDep: '2026-06-24', bookedRet: '2026-07-03' },
+  LAX: { headcount: 1, label: 'Me',        booked: false },
+  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK',
+         booked: true, bookedDep: '2026-06-24', bookedRet: '2026-07-01' },
 };
 function familyForDate(d) {
   if (!d) return FAMILY.slice();
@@ -1284,15 +1290,21 @@ function familyInfoFor(effectiveCode) {
 function headcountFor(code) { return familyInfoFor(code).headcount || 1; }
 function labelFor(code) { return familyInfoFor(code).label || code; }
 // Trip presets — one-click date fillers per destination.
+// PIA-013 AC5 (mobile mirror): `validUntil` = last clickable day (chip greys on day AFTER).
 var TRIP_PRESETS = {
   JAX: [
-    { id:'jax-jun5', label:'Jun 5–8 RT', dep:'2026-06-05', ret:'2026-06-08', tripType:'round' },
+    { id:'jax-jun5', label:'Jun 5–8 RT', dep:'2026-06-05', ret:'2026-06-08', tripType:'round', validUntil:'2026-06-08' },
   ],
   MIA: [
-    { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round' },
-    { id:'mia-via-jax', label:'JAX Jun 12 OW (drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX' },
+    { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round', validUntil:'2026-06-21' },
+    { id:'mia-via-jax', label:'JAX Jun 12 OW (drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX', validUntil:'2026-06-12' },
   ],
 };
+function isPresetStale(preset) {
+  if (!preset || !preset.validUntil) return false;
+  var todayISO = fmtISO(today);
+  return preset.validUntil < todayISO;
+}
 var ORD_DRIVE_TAX = 100; // estimated gas + parking for PIA→ORD drive
 // Deterministic weekly price variation factors (Thu-Sun windows, 13 weeks cycled)
 var WKLY_FACTORS = [1.05, 0.92, 0.88, 1.12, 0.95, 1.18, 0.82, 0.91, 1.08, 0.86, 0.93, 1.15, 1.02];
@@ -1400,7 +1412,8 @@ function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:
 function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
 function getMock(from,to){
   var p = MOCK[from+'-'+to];
-  if (!p) return { ow:0, rt:0, airline:null, flightNo:null, returnAirline:null, returnFlightNo:null };
+  // PIA-013 AC1 (mobile mirror): every mock entry carries `lastVerified: null` for SAMPLE branch.
+  if (!p) return { ow:0, rt:0, airline:null, flightNo:null, returnAirline:null, returnFlightNo:null, lastVerified:null };
   var rev = MOCK[to+'-'+from];
   return {
     ow: p.ow, rt: p.rt,
@@ -1408,6 +1421,7 @@ function getMock(from,to){
     flightNo: p.flightNo || null,
     returnAirline: (rev && rev.airline) || p.airline || null,
     returnFlightNo: (rev && rev.flightNo) || null,
+    lastVerified: null,
   };
 }
 function airlineLabel(p, leg) {
@@ -2408,7 +2422,8 @@ function renderSoloCards() {
     });
     var chartId = 'chart-' + dest;
     var hasLive = !!(S.soloBarPrices[S.home + '-' + dest]);
-    var liveTag = hasLive ? '<span style="color:var(--green);font-size:.55rem">● live</span>' : '';
+    // PIA-013 AC2+AC4 (mobile mirror): centralized freshness pill, family-booked-aware.
+    var liveTag = freshnessLabel(S.prices[S.home + '-' + dest] || getMock(S.home, dest), S.home).pillHtml;
     var liveBtnHtml = PROXY_URL
       ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
       : '';
@@ -2419,11 +2434,20 @@ function renderSoloCards() {
         + presets.map(function(p){
             var altTag = p.altDest ? ' <span style="color:var(--amber);font-size:.5rem;">(via ' + p.altDest + ')</span>' : '';
             var isActive = activePreset && activePreset.id === p.id;
-            var btnStyle = isActive
-              ? 'padding:4px 8px;font-size:.6rem;font-weight:900;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(46,124,246,.4);min-height:36px;'
-              : 'padding:4px 8px;font-size:.6rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;min-height:36px;';
-            return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '" style="' + btnStyle + '">'
-                 + (isActive ? '✓ ' : '') + p.label + altTag + '</button>';
+            // PIA-013 AC5 (mobile mirror): stale chip → greyed, disabled, "trip passed" suffix.
+            var stale = isPresetStale(p);
+            var btnStyle;
+            if (stale) {
+              btnStyle = 'padding:4px 8px;font-size:.6rem;font-weight:700;border:1px dashed var(--border2);border-radius:6px;background:transparent;color:var(--muted);cursor:not-allowed;opacity:.55;min-height:36px;';
+            } else if (isActive) {
+              btnStyle = 'padding:4px 8px;font-size:.6rem;font-weight:900;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(46,124,246,.4);min-height:36px;';
+            } else {
+              btnStyle = 'padding:4px 8px;font-size:.6rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;min-height:36px;';
+            }
+            var disabledAttr = stale ? ' disabled aria-disabled="true" title="Trip dates have passed (' + p.validUntil + ')"' : '';
+            var stalePostfix = stale ? ' <span style="font-size:.5rem;color:var(--muted);">· trip passed</span>' : '';
+            return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '"' + disabledAttr + ' style="' + btnStyle + '">'
+                 + (isActive ? '✓ ' : '') + p.label + altTag + stalePostfix + '</button>';
           }).join('')
         + '</div>';
     }
@@ -2431,8 +2455,9 @@ function renderSoloCards() {
     if (activePreset) {
       var bannerPriceTxt;
       if (presetLivePrice) {
-        bannerPriceTxt = '$' + presetLivePrice + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') +
-          ' <span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE</span>';
+        // PIA-013 AC2+AC4 (mobile mirror): centralized freshness pill on preset banner.
+        bannerPriceTxt = '$' + presetLivePrice + ' ' + (S.tripType === 'round' ? 'RT' : 'OW')
+          + ' ' + freshnessLabel(S.prices[S.home + '-' + dest], S.home).pillHtml;
       } else {
         bannerPriceTxt = '<span style="color:var(--muted);font-size:.6rem;">fetching live price…</span>';
       }
@@ -2668,7 +2693,9 @@ async function fetchFlights(from, to, dep, ret) {
       bookedDep: locked.bookedDep,
       bookedRet: locked.bookedRet,
       arrivalNote: locked.arrivalNote,
-      ts: Date.now()
+      ts: Date.now(),
+      // PIA-013 AC1+AC4 (mobile mirror): lastVerified = booking date.
+      lastVerified: locked.bookedDep ? locked.bookedDep + 'T00:00:00.000Z' : null,
     };
   }
   if (!PROXY_URL) return getMock(from, to);
@@ -2758,6 +2785,8 @@ async function fetchFlights(from, to, dep, ret) {
         returnAirlineLogo: retFirst.airline_logo || null,
         returnStops: retLegs.length > 1 ? (retLegs.length - 1) : 0,
       };
+      // PIA-013 AC1 (mobile mirror): stamp lastVerified before caching.
+      data.lastVerified = new Date().toISOString();
       _flightCache[key] = { data: data, ts: Date.now() };
       persistFlightCache(); // PIA-005 AC4: write through to localStorage
       bumpQuota(1);
@@ -2771,6 +2800,69 @@ async function fetchFlights(from, to, dep, ret) {
   })();
   _flightInflight[key] = pr;
   return pr;
+}
+
+// ── PIA-013 AC3 (mobile mirror): Fares-as-of header ──────────────
+function updateFreshnessHeader() {
+  var el = document.getElementById('freshness-header');
+  if (!el) return;
+  var keys = Object.keys(S.prices || {});
+  if (!keys.length) { el.style.display = 'none'; return; }
+  var maxTs = 0, liveCount = 0, sampleCount = 0;
+  var DAY = 24*60*60*1000;
+  var now = Date.now();
+  keys.forEach(function(k){
+    var e = S.prices[k];
+    if (!e) return;
+    if (e.locked || e.booked) return;
+    var fromCode = k.split('-')[0];
+    if (typeof FAMILY_INFO !== 'undefined' && FAMILY_INFO[fromCode] && FAMILY_INFO[fromCode].booked) return;
+    if (e.lastVerified == null) { sampleCount++; return; }
+    var t = new Date(e.lastVerified).getTime();
+    if (isNaN(t)) { sampleCount++; return; }
+    if (t > maxTs) maxTs = t;
+    var age = now - t;
+    if (age <= DAY) liveCount++;
+    else if (age <= 7*DAY) liveCount++;
+    else sampleCount++;
+  });
+  if (liveCount + sampleCount === 0) { el.style.display = 'none'; return; }
+  var asOfTxt = maxTs > 0 ? new Date(maxTs).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
+  el.innerHTML = '<span>Fares as of <strong style="color:var(--ink);">' + asOfTxt + '</strong></span>'
+              + ' · <span style="color:#10b981;">' + liveCount + ' live</span>'
+              + ' · <span style="color:#94a3b8;">' + sampleCount + ' sample</span>';
+  el.style.display = '';
+}
+
+// ── PIA-013 AC2 (mobile mirror): freshness label helper ──────────
+function freshnessLabel(entry, familyCode) {
+  if (familyCode && typeof FAMILY_INFO !== 'undefined' && FAMILY_INFO[familyCode] && FAMILY_INFO[familyCode].booked) {
+    var fbd = FAMILY_INFO[familyCode].bookedDep || '';
+    var ftxt = '🔒 BOOKED' + (fbd ? ' ' + fbd : '');
+    return { tier:'BOOKED', label:ftxt, short:'BOOKED', pillHtml:_freshPill('BOOKED', ftxt) };
+  }
+  if (!entry || entry.locked || entry.booked) {
+    var bd = entry && (entry.bookedDep || (entry.lastVerified && entry.lastVerified.slice(0,10))) || '';
+    var bookedTxt = '🔒 BOOKED' + (bd ? ' ' + bd : '');
+    return { tier:'BOOKED', label:bookedTxt, short:'BOOKED', pillHtml:_freshPill('BOOKED', bookedTxt) };
+  }
+  if (entry.lastVerified == null) {
+    return { tier:'SAMPLE', label:'⚪ SAMPLE', short:'SAMPLE', pillHtml:_freshPill('SAMPLE','⚪ SAMPLE') };
+  }
+  var ageMs = Date.now() - new Date(entry.lastVerified).getTime();
+  if (isNaN(ageMs) || ageMs < 0) ageMs = 0;
+  var DAY = 24*60*60*1000;
+  if (ageMs > 7*DAY) return { tier:'SAMPLE', label:'⚪ SAMPLE', short:'SAMPLE', pillHtml:_freshPill('SAMPLE','⚪ SAMPLE') };
+  var ago;
+  if (ageMs < 60*60*1000) ago = Math.max(1, Math.round(ageMs/60000)) + 'm ago';
+  else if (ageMs <= DAY)  ago = Math.round(ageMs/(60*60*1000)) + 'h ago';
+  else                    ago = Math.round(ageMs/DAY) + 'd ago';
+  if (ageMs <= DAY) return { tier:'LIVE', label:'🟢 LIVE ' + ago, short:'LIVE', pillHtml:_freshPill('LIVE', '🟢 LIVE ' + ago) };
+  return { tier:'CACHED', label:'🟡 CACHED ' + ago, short:'CACHED', pillHtml:_freshPill('CACHED', '🟡 CACHED ' + ago) };
+}
+function _freshPill(tier, txt) {
+  var color = tier==='LIVE' ? '#10b981' : tier==='CACHED' ? '#f59e0b' : tier==='BOOKED' ? '#3b82f6' : '#94a3b8';
+  return '<span class="fresh-pill" data-tier="' + tier + '" style="display:inline-block;font-size:.55rem;font-weight:800;letter-spacing:.02em;padding:1px 6px;border-radius:9px;background:rgba(255,255,255,.04);color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;">' + txt + '</span>';
 }
 
 // ── SerpAPI Monthly Quota Tracking ───────────────────────────────
@@ -3250,6 +3342,7 @@ function updateApiCallCount() {
     el.style.display = S.apiCalls > 0 ? '' : 'none';
   }
   updateQuotaWarningBanner();
+  updateFreshnessHeader(); // PIA-013 AC3
   // PIA-005 AC2 (mobile mirror): absolute thresholds replace %-tiers + search-btn lock.
   var q = readQuota();
   var qbar = document.getElementById('quota-bar');

@@ -1,0 +1,10 @@
+# PIA-013 ship manifest — fare provenance pills + stale-preset guard.
+# Solo patch per HQ §6 single-purpose. PIA-012 comment polish does NOT
+# ride this envelope (per 2026-06-05 daily-review note that a "safe
+# comment fix" may have already landed at 06-05 04:09; T4 to verify SHA
+# before deciding whether to file PIA-012 as MITIGATED or ship separately).
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-013.msg
+scripts/messages/PIA-013.files

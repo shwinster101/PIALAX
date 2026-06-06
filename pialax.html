@@ -17,9 +17,9 @@
         integrity="sha512-4UKI/XKm3xrvJ6pZS5oTRvIQGIzZFoXR71rRBb1y2N+PbwAsKa5tPl2J6WvbEvwN3TxQCm8hMzsl/pO+82iRlg=="
         crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script>
-/* Defense-in-depth: detect CDN tamper / failed load.
-   Real fix is SRI integrity= attributes (see TODO above). Until then, verify
-   the expected library surface exists; warn loudly if not. */
+/* Defense-in-depth: SRI integrity= on the CDN tags above is the primary tamper-guard (PIA-001).
+   This is a secondary runtime check — verify the expected library surface exists after load
+   (covers CDN outage / non-tamper failures SRI can't catch); warn loudly if not. */
 (function(){
   try {
     var ok = (typeof d3 !== 'undefined') && typeof d3.select === 'function'
@@ -370,6 +370,9 @@ button{font-family:inherit;cursor:pointer;}
   </div>
 
   <div id="quota-bar" style="display:none;padding:4px 14px 2px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);"></div>
+  <!-- PIA-013 AC3: Fares-as-of freshness header. Populated by updateFreshnessHeader();
+       hidden when S.prices is empty. Excludes locked/booked entries from counts. -->
+  <div id="freshness-header" style="display:none;padding:4px 14px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);color:var(--muted);"></div>
 
   <div id="sb-body">
 
@@ -639,25 +642,39 @@ function findLockedTrip(from, to, dep, ret) {
 }
 // Trip presets — one-click date fillers for solo destination cards.
 //   "Apply" sets S.depDate/S.retDate/S.tripType then calls loadPrices().
+// PIA-013 AC5: `validUntil` = last day the chip stays clickable (chip greys on the day AFTER).
+// Defaults to ret date for round-trips; dep date for one-way.
 var TRIP_PRESETS = {
   JAX: [
     // Visit sister before her NYC move (Sep 1, 2026)
-    { id:'jax-jun5', label:'Jun 5–8 RT', dep:'2026-06-05', ret:'2026-06-08', tripType:'round' },
+    { id:'jax-jun5', label:'Jun 5–8 RT', dep:'2026-06-05', ret:'2026-06-08', tripType:'round', validUntil:'2026-06-08' },
   ],
   MIA: [
-    { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round' },
+    { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round', validUntil:'2026-06-21' },
     // Combo: arrive in JAX one-way the weekend prior, then drive/bus ~5hr to Miami
-    { id:'mia-via-jax', label:'JAX Jun 12 OW (then drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX' },
+    { id:'mia-via-jax', label:'JAX Jun 12 OW (then drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX', validUntil:'2026-06-12' },
   ],
 };
+// PIA-013 AC5: returns true when today (ISO) > preset.validUntil — chip should grey out.
+function isPresetStale(preset) {
+  if (!preset || !preset.validUntil) return false;
+  var todayISO = fmtISO(today);
+  return preset.validUntil < todayISO;
+}
 var FAMILY = ['PIA','LAX','JAX'];
 // Per-member detail: headcount per origin + display label + planned moves.
 // Keeps FAMILY as a flat list of airport codes (preserves all .indexOf/.forEach callsites)
 // while letting cost calculations multiply per-ticket fares by the right headcount.
+// PIA-013 AC4: `booked` field marks family members whose round-trip is fully ticketed.
+// Renderer skips the freshness pill and shows 🔒 BOOKED instead. PIA + JAX are
+// fully booked (Mom&Dad RT, Sister RT FLCSTZ). LAX is asymmetric — outbound BOOKED
+// via PIA-009 LOCKED_TRIPS, return OPEN — so LAX stays unbooked at the family-info
+// level (return shopping must remain available).
 var FAMILY_INFO = {
-  PIA: { headcount: 2, label: 'Mom & Dad' },
-  LAX: { headcount: 1, label: 'Me' },
-  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK' },
+  PIA: { headcount: 2, label: 'Mom & Dad', booked: true,  bookedDep: '2026-06-24', bookedRet: '2026-07-03' },
+  LAX: { headcount: 1, label: 'Me',        booked: false },
+  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK',
+         booked: true, bookedDep: '2026-06-24', bookedRet: '2026-07-01' },
 };
 // Returns the effective FAMILY array for a given trip date — handles planned moves.
 // Sister moves JAX→JFK on 2026-09-01 (grad school in NYC). Trips on/after that date
@@ -838,7 +855,8 @@ function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:
 function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
 function getMock(from,to){
   var p = MOCK[from+'-'+to];
-  if (!p) return { ow:0, rt:0, airline:null, flightNo:null, returnAirline:null, returnFlightNo:null };
+  // PIA-013 AC1: every mock entry carries `lastVerified: null` so the renderer can branch SAMPLE.
+  if (!p) return { ow:0, rt:0, airline:null, flightNo:null, returnAirline:null, returnFlightNo:null, lastVerified:null };
   // Return leg defaults to same carrier as outbound (typical for round-trips)
   // unless MOCK explicitly defines a different return airline. Look up the
   // reverse route to surface the actual carrier on that leg.
@@ -851,6 +869,7 @@ function getMock(from,to){
     flightNo: p.flightNo || null,
     returnAirline: returnAirline,
     returnFlightNo: returnFlightNo,
+    lastVerified: null,  // PIA-013 AC1: explicit null = SAMPLE tier in freshnessLabel()
   };
 }
 // Build "American Airlines · AA 3421" label from a price obj. Pass which leg
@@ -1932,7 +1951,9 @@ function renderSoloCards() {
     });
     var chartId = 'chart-' + dest;
     var hasLive = !!(S.soloBarPrices[S.home + '-' + dest]);
-    var liveTag = hasLive ? '<span style="color:var(--green);font-size:.55rem">● live</span>' : '';
+    // PIA-013 AC2: replace bespoke ● live span with centralized freshness pill.
+    // AC4: pass S.home so PIA/JAX booked routes render 🔒 BOOKED instead of SAMPLE.
+    var liveTag = freshnessLabel(defaultPriceObj, S.home).pillHtml;
     var liveBtnHtml = PROXY_URL
       ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
       : '';
@@ -1944,11 +1965,20 @@ function renderSoloCards() {
         + presets.map(function(p){
             var altTag = p.altDest ? ' <span style="color:var(--amber);font-size:.5rem;">(via ' + p.altDest + ')</span>' : '';
             var isActive = activePreset && activePreset.id === p.id;
-            var btnStyle = isActive
-              ? 'padding:3px 7px;font-size:.55rem;font-weight:900;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(46,124,246,.4);'
-              : 'padding:3px 7px;font-size:.55rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;';
-            return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '" style="' + btnStyle + '">'
-                 + (isActive ? '✓ ' : '') + p.label + altTag + '</button>';
+            // PIA-013 AC5: stale chip — greyed, disabled, "trip passed" suffix.
+            var stale = isPresetStale(p);
+            var btnStyle;
+            if (stale) {
+              btnStyle = 'padding:3px 7px;font-size:.55rem;font-weight:700;border:1px dashed var(--border2);border-radius:6px;background:transparent;color:var(--muted);cursor:not-allowed;opacity:.55;';
+            } else if (isActive) {
+              btnStyle = 'padding:3px 7px;font-size:.55rem;font-weight:900;border:1.5px solid var(--accent);border-radius:6px;background:var(--accent);color:#fff;cursor:pointer;box-shadow:0 1px 4px rgba(46,124,246,.4);';
+            } else {
+              btnStyle = 'padding:3px 7px;font-size:.55rem;font-weight:700;border:1px solid var(--border2);border-radius:6px;background:transparent;color:var(--accent);cursor:pointer;';
+            }
+            var disabledAttr = stale ? ' disabled aria-disabled="true" title="Trip dates have passed (' + p.validUntil + ')"' : '';
+            var stalePostfix = stale ? ' <span style="font-size:.5rem;color:var(--muted);">· trip passed</span>' : '';
+            return '<button class="solo-preset-btn" data-preset-id="' + p.id + '" data-dest="' + dest + '"' + disabledAttr + ' style="' + btnStyle + '">'
+                 + (isActive ? '✓ ' : '') + p.label + altTag + stalePostfix + '</button>';
           }).join('')
         + '</div>';
     }
@@ -1958,8 +1988,10 @@ function renderSoloCards() {
     if (activePreset) {
       var bannerPriceTxt;
       if (presetLivePrice) {
-        bannerPriceTxt = '$' + presetLivePrice + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') +
-          ' <span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;">LIVE' + (S.prices[S.home + '-' + dest] && S.prices[S.home + '-' + dest].cached ? ' (cache)' : '') + '</span>';
+        // PIA-013 AC2: replace inline LIVE badge with centralized freshness pill.
+        // AC4: pass S.home to honor FAMILY_INFO[code].booked.
+        bannerPriceTxt = '$' + presetLivePrice + ' ' + (S.tripType === 'round' ? 'RT' : 'OW')
+          + ' ' + freshnessLabel(S.prices[S.home + '-' + dest], S.home).pillHtml;
       } else {
         bannerPriceTxt = '<span style="color:var(--muted);font-size:.6rem;">fetching live price…</span>';
       }
@@ -2233,7 +2265,9 @@ async function fetchFlights(from, to, dep, ret) {
       bookedDep: locked.bookedDep,
       bookedRet: locked.bookedRet,
       arrivalNote: locked.arrivalNote,
-      ts: Date.now()
+      ts: Date.now(),
+      // PIA-013 AC1+AC4: lastVerified = booking date (renderer shows 🔒 BOOKED instead of pill).
+      lastVerified: locked.bookedDep ? locked.bookedDep + 'T00:00:00.000Z' : null,
     };
   }
 
@@ -2356,6 +2390,9 @@ async function fetchFlights(from, to, dep, ret) {
         returnAirlineLogo: returnAirlineLogo,
         returnStops: returnStops,
       };
+      // PIA-013 AC1: stamp every live entry with an ISO `lastVerified` timestamp before caching,
+      // so the renderer (AC2) and persisted localStorage cache (PIA-005 AC4) both carry it.
+      data.lastVerified = new Date().toISOString();
       _flightCache[key] = { data: data, ts: Date.now() };
       persistFlightCache(); // PIA-005 AC4: write through to localStorage
       // Live success → consume 1 quota unit
@@ -2371,6 +2408,102 @@ async function fetchFlights(from, to, dep, ret) {
 
   _flightInflight[key] = pr;
   return pr;
+}
+
+// ── PIA-013 AC3: Fares-as-of header ──────────────────────────────
+// Renders `#freshness-header` with "Fares as of <max ts in local TZ> · <n> live · <n> sample".
+// Booked/locked entries are EXCLUDED from the counts (their "freshness" is the booking itself,
+// not a fetch — they get a separate 🔒 BOOKED pill via freshnessLabel()).
+// Hidden when S.prices is empty.
+function updateFreshnessHeader() {
+  var el = document.getElementById('freshness-header');
+  if (!el) return;
+  var keys = Object.keys(S.prices || {});
+  if (!keys.length) { el.style.display = 'none'; return; }
+  var maxTs = 0, liveCount = 0, sampleCount = 0;
+  var DAY = 24*60*60*1000;
+  var now = Date.now();
+  keys.forEach(function(k){
+    var e = S.prices[k];
+    if (!e) return;
+    if (e.locked || e.booked) return; // excluded per AC4 (entry-level)
+    // PIA-013 AC4: also exclude FAMILY_INFO[fromCode].booked routes (PIA/JAX legs).
+    var fromCode = k.split('-')[0];
+    if (typeof FAMILY_INFO !== 'undefined' && FAMILY_INFO[fromCode] && FAMILY_INFO[fromCode].booked) return;
+    if (e.lastVerified == null) { sampleCount++; return; }
+    var t = new Date(e.lastVerified).getTime();
+    if (isNaN(t)) { sampleCount++; return; }
+    if (t > maxTs) maxTs = t;
+    var age = now - t;
+    if (age <= DAY) liveCount++;
+    else if (age <= 7*DAY) { /* CACHED — counted as live-source for header */ liveCount++; }
+    else sampleCount++;
+  });
+  if (liveCount + sampleCount === 0) { el.style.display = 'none'; return; }
+  var asOfTxt;
+  if (maxTs > 0) {
+    var d = new Date(maxTs);
+    asOfTxt = d.toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' });
+  } else {
+    asOfTxt = '—';
+  }
+  el.innerHTML = '<span>Fares as of <strong style="color:var(--ink);">' + asOfTxt + '</strong></span>'
+              + ' · <span style="color:#10b981;">' + liveCount + ' live</span>'
+              + ' · <span style="color:#94a3b8;">' + sampleCount + ' sample</span>';
+  el.style.display = '';
+}
+
+// ── PIA-013 AC2: Freshness label helper ──────────────────────────
+// Central source of truth for the 3-tier trust signal (+1 BOOKED branch for AC4).
+// Boundaries DECOUPLED from FLIGHT_CACHE_TTL_MS (which governs refetch policy, not
+// trust): cache TTL is a cost trade-off; the pill is a provenance signal.
+//   🟢 LIVE   — entry.lastVerified within 24h
+//   🟡 CACHED — entry.lastVerified within 24h–7d (data still real, just less fresh)
+//   ⚪ SAMPLE — entry.lastVerified null OR older than 7d (effectively invented)
+//   🔒 BOOKED — entry.locked OR (AC4) FAMILY_INFO[code].booked === true
+// Returns { tier, label, short, pillHtml }. pillHtml is renderer-ready.
+// Pass `familyCode` (optional, 2nd arg) to consult FAMILY_INFO[code].booked — when true,
+// returns BOOKED with the family-info booking date even if `entry` itself lacks `locked`/`booked`.
+function freshnessLabel(entry, familyCode) {
+  // PIA-013 AC4: family-level booked check. Synthesize a booked label from FAMILY_INFO.
+  if (familyCode && typeof FAMILY_INFO !== 'undefined' && FAMILY_INFO[familyCode] && FAMILY_INFO[familyCode].booked) {
+    var fbd = FAMILY_INFO[familyCode].bookedDep || '';
+    var ftxt = '🔒 BOOKED' + (fbd ? ' ' + fbd : '');
+    return { tier:'BOOKED', label:ftxt, short:'BOOKED', pillHtml:_freshPill('BOOKED', ftxt) };
+  }
+  if (!entry || entry.locked || entry.booked) {
+    var bd = entry && (entry.bookedDep || (entry.lastVerified && entry.lastVerified.slice(0,10))) || '';
+    var bookedTxt = '🔒 BOOKED' + (bd ? ' ' + bd : '');
+    return { tier:'BOOKED', label:bookedTxt, short:'BOOKED', pillHtml:_freshPill('BOOKED', bookedTxt) };
+  }
+  if (entry.lastVerified == null) {
+    return { tier:'SAMPLE', label:'⚪ SAMPLE', short:'SAMPLE', pillHtml:_freshPill('SAMPLE','⚪ SAMPLE') };
+  }
+  var ageMs = Date.now() - new Date(entry.lastVerified).getTime();
+  if (isNaN(ageMs) || ageMs < 0) ageMs = 0;
+  var DAY = 24*60*60*1000;
+  if (ageMs > 7*DAY) {
+    return { tier:'SAMPLE', label:'⚪ SAMPLE', short:'SAMPLE', pillHtml:_freshPill('SAMPLE','⚪ SAMPLE') };
+  }
+  var ago;
+  if (ageMs < 60*60*1000) ago = Math.max(1, Math.round(ageMs/60000)) + 'm ago';
+  else if (ageMs <= DAY)  ago = Math.round(ageMs/(60*60*1000)) + 'h ago';
+  else                    ago = Math.round(ageMs/DAY) + 'd ago';
+  if (ageMs <= DAY) {
+    return { tier:'LIVE',   label:'🟢 LIVE ' + ago,   short:'LIVE',   pillHtml:_freshPill('LIVE',   '🟢 LIVE '   + ago) };
+  }
+  return   { tier:'CACHED', label:'🟡 CACHED ' + ago, short:'CACHED', pillHtml:_freshPill('CACHED', '🟡 CACHED ' + ago) };
+}
+function _freshPill(tier, txt) {
+  var color = tier==='LIVE'   ? '#10b981'
+            : tier==='CACHED' ? '#f59e0b'
+            : tier==='BOOKED' ? '#3b82f6'
+            :                   '#94a3b8'; // SAMPLE
+  return '<span class="fresh-pill" data-tier="' + tier + '" '
+       + 'style="display:inline-block;font-size:.52rem;font-weight:800;letter-spacing:.02em;'
+       + 'padding:1px 6px;border-radius:9px;background:rgba(255,255,255,.04);'
+       + 'color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;">'
+       + txt + '</span>';
 }
 
 // ── SerpAPI Monthly Quota Tracking ────────────────────────────────
@@ -2966,6 +3099,7 @@ function updateApiCallCount() {
   // Quota-exhaustion banner — high-visibility warning when live data unavailable.
   // Three states: NO PROXY, QUOTA EXHAUSTED, ALL OK (banner hidden).
   updateQuotaWarningBanner();
+  updateFreshnessHeader(); // PIA-013 AC3
   // Always-visible quota bar at top of sidebar.
   // PIA-005 AC2: absolute thresholds (amber 800 / red 950 / locked 990) replace the old %-tiers.
   var q = readQuota();
