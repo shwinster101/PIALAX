@@ -1,0 +1,8 @@
+# PIA-018 ship manifest — dynamic booked-pill date + JFK lookup + LAX outbound.
+# Patch tag per HQ §4 fast-path: no security surface touched (SRI/CSP/secrets
+# untouched), code-verifiable in diff. T3 acceptance optional.
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-018.msg
+scripts/messages/PIA-018.files

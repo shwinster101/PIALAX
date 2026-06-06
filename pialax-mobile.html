@@ -1263,14 +1263,37 @@ function findLockedTrip(from, to, dep, ret) {
 }
 var FAMILY = ['PIA','LAX','JAX'];
 // Per-member detail (mirror of desktop)
-// PIA-013 AC4 (mobile mirror): `booked` marks fully-ticketed round-trip family legs.
-// PIA + JAX fully booked. LAX asymmetric (outbound BOOKED, return OPEN) → stays unbooked.
+// PIA-013 AC4 + PIA-018 (mobile mirror): `booked` = full RT, `bookedOutbound` = leg only.
+// Each member carries 4 dates so the pill shows the NEXT relevant date dynamically.
 var FAMILY_INFO = {
-  PIA: { headcount: 2, label: 'Mom & Dad', booked: true,  bookedDep: '2026-06-24', bookedRet: '2026-07-03' },
-  LAX: { headcount: 1, label: 'Me',        booked: false },
+  PIA: { headcount: 2, label: 'Mom & Dad', booked: true,
+         bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
+         bookedRetDep: '2026-07-03', bookedRetArr: null,
+         bookedDep: '2026-06-24', bookedRet: '2026-07-03' },
+  LAX: { headcount: 1, label: 'Me', booked: false, bookedOutbound: true,
+         bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
+         bookedRetDep: null, bookedRetArr: null,
+         bookedDep: '2026-06-24', bookedRet: null },
   JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK',
-         booked: true, bookedDep: '2026-06-24', bookedRet: '2026-07-01' },
+         booked: true,
+         bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
+         bookedRetDep: '2026-07-01', bookedRetArr: '2026-07-01',
+         bookedDep: '2026-06-24', bookedRet: '2026-07-01' },
 };
+// PIA-018 (mobile mirror): dynamic booking date for the pill.
+function bookedDateForToday(famInfo) {
+  if (!famInfo) return null;
+  var todayISO = fmtISO(today);
+  var outDep = famInfo.bookedOutDep || famInfo.bookedDep || null;
+  var outArr = famInfo.bookedOutArr || null;
+  var retDep = famInfo.bookedRetDep || famInfo.bookedRet || null;
+  var retArr = famInfo.bookedRetArr || null;
+  if (outDep && todayISO < outDep) return outDep;
+  if (outArr && todayISO < outArr) return outArr;
+  if (retDep && todayISO < retDep) return retDep;
+  if (retArr && todayISO < retArr) return retArr;
+  return retArr || retDep || outArr || outDep || null;
+}
 function familyForDate(d) {
   if (!d) return FAMILY.slice();
   var iso = (typeof d === 'string') ? d : fmtISO(d);
@@ -2836,9 +2859,12 @@ function updateFreshnessHeader() {
 
 // ── PIA-013 AC2 (mobile mirror): freshness label helper ──────────
 function freshnessLabel(entry, familyCode) {
-  if (familyCode && typeof FAMILY_INFO !== 'undefined' && FAMILY_INFO[familyCode] && FAMILY_INFO[familyCode].booked) {
-    var fbd = FAMILY_INFO[familyCode].bookedDep || '';
-    var ftxt = '🔒 BOOKED' + (fbd ? ' ' + fbd : '');
+  // PIA-013 AC4 + PIA-018 (mobile mirror): family-level booked via familyInfoFor + dynamic date.
+  var fi = (familyCode && typeof familyInfoFor === 'function') ? familyInfoFor(familyCode) : null;
+  if (fi && (fi.booked === true || fi.bookedOutbound === true)) {
+    var fdate = (typeof bookedDateForToday === 'function') ? bookedDateForToday(fi) : (fi.bookedDep || '');
+    var fdateTxt = fdate || '';
+    var ftxt = '🔒 BOOKED' + (fdateTxt ? ' ' + fdateTxt : '');
     return { tier:'BOOKED', label:ftxt, short:'BOOKED', pillHtml:_freshPill('BOOKED', ftxt) };
   }
   if (!entry || entry.locked || entry.booked) {

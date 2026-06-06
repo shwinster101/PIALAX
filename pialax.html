@@ -665,17 +665,47 @@ var FAMILY = ['PIA','LAX','JAX'];
 // Per-member detail: headcount per origin + display label + planned moves.
 // Keeps FAMILY as a flat list of airport codes (preserves all .indexOf/.forEach callsites)
 // while letting cost calculations multiply per-ticket fares by the right headcount.
-// PIA-013 AC4: `booked` field marks family members whose round-trip is fully ticketed.
-// Renderer skips the freshness pill and shows 🔒 BOOKED instead. PIA + JAX are
-// fully booked (Mom&Dad RT, Sister RT FLCSTZ). LAX is asymmetric — outbound BOOKED
-// via PIA-009 LOCKED_TRIPS, return OPEN — so LAX stays unbooked at the family-info
-// level (return shopping must remain available).
+// PIA-013 AC4 + PIA-018 schema: `booked` = full RT ticketed; `bookedOutbound` = only
+// the outbound leg booked (LAX case — return is open shopping). Either flag triggers
+// the 🔒 BOOKED pill via freshnessLabel(). Each member carries 4 booking dates so the
+// pill shows the NEXT relevant date dynamically — outDep before departure, outArr
+// after, retDep at destination, retArr post-return.
+//
+// `bookedDep` / `bookedRet` kept as legacy aliases (PIA-013 readers); new code reads
+// the explicit out/ret pair via bookedDateForToday().
 var FAMILY_INFO = {
-  PIA: { headcount: 2, label: 'Mom & Dad', booked: true,  bookedDep: '2026-06-24', bookedRet: '2026-07-03' },
-  LAX: { headcount: 1, label: 'Me',        booked: false },
+  PIA: { headcount: 2, label: 'Mom & Dad', booked: true,
+         bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
+         bookedRetDep: '2026-07-03', bookedRetArr: null,
+         bookedDep: '2026-06-24', bookedRet: '2026-07-03' }, // legacy aliases
+  LAX: { headcount: 1, label: 'Me', booked: false, bookedOutbound: true,
+         bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
+         bookedRetDep: null, bookedRetArr: null,
+         bookedDep: '2026-06-24', bookedRet: null }, // outbound only; return TBD
   JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK',
-         booked: true, bookedDep: '2026-06-24', bookedRet: '2026-07-01' },
+         booked: true,
+         bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
+         bookedRetDep: '2026-07-01', bookedRetArr: '2026-07-01',
+         bookedDep: '2026-06-24', bookedRet: '2026-07-01' }, // legacy aliases
 };
+// PIA-018: dynamic booking date for the pill — shows the NEXT relevant date in the
+// traveler's itinerary based on today's ISO. Falls back to the most recent known
+// date post-trip, then to null if no booking data exists.
+function bookedDateForToday(famInfo) {
+  if (!famInfo) return null;
+  var todayISO = fmtISO(today);
+  var outDep = famInfo.bookedOutDep || famInfo.bookedDep || null;
+  var outArr = famInfo.bookedOutArr || null;
+  var retDep = famInfo.bookedRetDep || famInfo.bookedRet || null;
+  var retArr = famInfo.bookedRetArr || null;
+  // Walk forward through trip phases.
+  if (outDep && todayISO < outDep) return outDep;
+  if (outArr && todayISO < outArr) return outArr;
+  if (retDep && todayISO < retDep) return retDep;
+  if (retArr && todayISO < retArr) return retArr;
+  // Post-trip — show the latest known date as the "completed on" marker.
+  return retArr || retDep || outArr || outDep || null;
+}
 // Returns the effective FAMILY array for a given trip date — handles planned moves.
 // Sister moves JAX→JFK on 2026-09-01 (grad school in NYC). Trips on/after that date
 // model her as departing from JFK, not JAX.
@@ -2465,10 +2495,15 @@ function updateFreshnessHeader() {
 // Pass `familyCode` (optional, 2nd arg) to consult FAMILY_INFO[code].booked — when true,
 // returns BOOKED with the family-info booking date even if `entry` itself lacks `locked`/`booked`.
 function freshnessLabel(entry, familyCode) {
-  // PIA-013 AC4: family-level booked check. Synthesize a booked label from FAMILY_INFO.
-  if (familyCode && typeof FAMILY_INFO !== 'undefined' && FAMILY_INFO[familyCode] && FAMILY_INFO[familyCode].booked) {
-    var fbd = FAMILY_INFO[familyCode].bookedDep || '';
-    var ftxt = '🔒 BOOKED' + (fbd ? ' ' + fbd : '');
+  // PIA-013 AC4 + PIA-018: family-level booked check via familyInfoFor() so JFK routes
+  // resolve to the JAX entry post-2026-09-01 transition. Honors either booked === true
+  // (full RT) or bookedOutbound === true (LAX outbound). Date is dynamic — shows the
+  // traveler's NEXT relevant itinerary date via bookedDateForToday().
+  var fi = (familyCode && typeof familyInfoFor === 'function') ? familyInfoFor(familyCode) : null;
+  if (fi && (fi.booked === true || fi.bookedOutbound === true)) {
+    var fdate = (typeof bookedDateForToday === 'function') ? bookedDateForToday(fi) : (fi.bookedDep || '');
+    var fdateTxt = fdate || '';
+    var ftxt = '🔒 BOOKED' + (fdateTxt ? ' ' + fdateTxt : '');
     return { tier:'BOOKED', label:ftxt, short:'BOOKED', pillHtml:_freshPill('BOOKED', ftxt) };
   }
   if (!entry || entry.locked || entry.booked) {
