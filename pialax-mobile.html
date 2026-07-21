@@ -1443,6 +1443,13 @@ function dateFmt(d,style){
   return d.toLocaleDateString('en-US', style==='long' ? {month:'short',day:'numeric',year:'numeric'} : {month:'short',day:'numeric'});
 }
 function fmtISO(d){ if(!d) return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Deep link to Google Flights (mobile mirror), prefilled for route + dates.
+function gflightsUrl(from, to, depISO, retISO, isRT){
+  if(!from || !to || !depISO) return '';
+  var q = 'Flights from ' + from + ' to ' + to + ' on ' + depISO;
+  if(isRT && retISO) q += ' through ' + retISO;
+  return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+}
 function tier(d){ var dw=d.getDay(); if(dw===5||dw===6||dw===0) return 'pricey'; if(dw===2||dw===3||dw===4) return 'cheap'; return 'mid'; }
 function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:1.55)/5)*5; }
 function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
@@ -2029,6 +2036,14 @@ function renderMeetupRoutes() {
     var cardStyle = isFocus
       ? ' style="border-left:3px solid var(--green);background:rgba(16,185,129,.06);"'
       : (isTentative ? ' style="border-left:3px dashed var(--border2);opacity:.68;"' : '');
+    // Direct link to Google Flights for this member's route + dates (mobile mirror).
+    var gfUrl = gflightsUrl(from, hub, fmtISO(memDates.dep), (isRT && memDates.ret) ? fmtISO(memDates.ret) : '', isRT);
+    var bookLinkHtml = gfUrl
+      ? '<a href="' + gfUrl + '" target="_blank" rel="noopener noreferrer" ' +
+        'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:.62rem;font-weight:800;' +
+        'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:5px 10px;min-height:32px;" ' +
+        'title="Open this route in Google Flights">🔗 Book on Google Flights ↗</a>'
+      : '';
     html +=
       '<div class="route-card"' + cardStyle + '>' +
         '<div class="route-card-hd">' +
@@ -2049,6 +2064,7 @@ function renderMeetupRoutes() {
         airlineHtml +
         tentativeNote +
         flexDatesHtml +
+        bookLinkHtml +
       '</div>';
   });
   container.innerHTML = html || '<div style="font-size:.62rem;color:var(--muted);padding:4px 2px">All family members at hub</div>';
@@ -4064,12 +4080,17 @@ async function boot() {
     S.geoFallback = true;
   }
   if (S.mapView === 'world') await loadWorldGeo();
+  // Default to JAX weekend Fri Aug 7 – Sun Aug 9, 2026 when no URL state (mobile
+  // mirror). London is history; JAX is the active trip. URL state always wins.
   if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
-    S.depDate = new Date(2026, 5, 25);
-    S.retDate = new Date(2026, 6, 3);
+    S.depDate = new Date(2026, 7, 7); // Aug 7 (Fri)
+    S.retDate = new Date(2026, 7, 9); // Aug 9 (Sun)
     S.tripType = 'round';
-    S.meetupHubOverride = 'LHR';
-    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
+    S.meetupHubOverride = 'JAX';
+    S.focusMember = 'LAX';
+    S.tentativeMembers = ['PIA'];
+    S.mapView = 'us';
+    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'jaxaug'); });
     document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
   }
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;

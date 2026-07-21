@@ -898,6 +898,16 @@ function dateFmt(d,style){
   return d.toLocaleDateString('en-US', style==='long' ? {month:'short',day:'numeric',year:'numeric'} : {month:'short',day:'numeric'});
 }
 function fmtISO(d){ if(!d) return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+// Deep link to Google Flights, prefilled for the given route + dates. Uses the
+// natural-language `q=` form ("Flights from LAX to JAX on <dep> through <ret>"),
+// which Google parses into a round-trip (or one-way when no ret) search. depISO/
+// retISO are 'YYYY-MM-DD'. Opens in a new tab from the route cards.
+function gflightsUrl(from, to, depISO, retISO, isRT){
+  if(!from || !to || !depISO) return '';
+  var q = 'Flights from ' + from + ' to ' + to + ' on ' + depISO;
+  if(isRT && retISO) q += ' through ' + retISO;
+  return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+}
 function tier(d){ var dw=d.getDay(); if(dw===5||dw===6||dw===0) return 'pricey'; if(dw===2||dw===3||dw===4) return 'cheap'; return 'mid'; }
 function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:1.55)/5)*5; }
 function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
@@ -1521,6 +1531,14 @@ function renderMeetupRoutes() {
     var cardStyle = isFocus
       ? ' style="border-left:3px solid var(--green);background:rgba(16,185,129,.06);"'
       : (isTentative ? ' style="border-left:3px dashed var(--border2);opacity:.68;"' : '');
+    // Direct link to Google Flights for this member's route + dates (booking hop).
+    var gfUrl = gflightsUrl(from, hub, fmtISO(memDates.dep), (isRT && memDates.ret) ? fmtISO(memDates.ret) : '', isRT);
+    var bookLinkHtml = gfUrl
+      ? '<a href="' + gfUrl + '" target="_blank" rel="noopener noreferrer" ' +
+        'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:.6rem;font-weight:800;' +
+        'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:3px 8px;" ' +
+        'title="Open this route in Google Flights">🔗 Book on Google Flights ↗</a>'
+      : '';
     html +=
       '<div class="route-card"' + cardStyle + '>' +
         '<div class="route-card-hd">' +
@@ -1541,6 +1559,7 @@ function renderMeetupRoutes() {
         airlineHtml +
         tentativeNote +
         flexDatesHtml +
+        bookLinkHtml +
       '</div>';
   });
   container.innerHTML = html || '<div style="font-size:.62rem;color:var(--muted);padding:4px 2px">All family members at hub</div>';
@@ -3869,14 +3888,20 @@ async function boot() {
   }
   // Load world geo early if defaulting to world map view
   if (S.mapView === 'world') await loadWorldGeo();
-  // Default to London trip Jun 25 – Jul 3 ONLY when no URL state was loaded.
-  // A shared link must always reproduce the sender's exact view, so URL state wins.
+  // Default to the JAX weekend Fri Aug 7 – Sun Aug 9, 2026 ONLY when no URL state
+  // was loaded. (London is now history — see FAMILY_INFO tripCompleted.) This is
+  // the active trip: hub JAX (sister hosts pre-Sep-1 move), Ashwin LAX→JAX focus,
+  // Mom & Dad PIA→JAX tentative, US map. A shared link must reproduce the sender's
+  // exact view, so URL state always wins over this default.
   if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
-    S.depDate = new Date(2026, 5, 25); // Jun 25
-    S.retDate = new Date(2026, 6, 3);  // Jul 3
+    S.depDate = new Date(2026, 7, 7); // Aug 7 (Fri)
+    S.retDate = new Date(2026, 7, 9); // Aug 9 (Sun)
     S.tripType = 'round';
-    S.meetupHubOverride = 'LHR';
-    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'london'); });
+    S.meetupHubOverride = 'JAX';
+    S.focusMember = 'LAX';
+    S.tentativeMembers = ['PIA'];
+    S.mapView = 'us';
+    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'jaxaug'); });
     document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
   }
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
