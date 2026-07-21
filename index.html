@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>PIALAX — Family Flight Dashboard</title>
+  <meta name="description" content="PIALAX family flight dashboard — redirecting to the right view for your device."/>
+  <style>
+    :root { color-scheme: dark; }
+    html,body { height:100%; margin:0; }
+    body {
+      background:#0b1220; color:#e2e8f0;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      display:flex; align-items:center; justify-content:center; text-align:center;
+    }
+    .box { padding:24px; max-width:420px; }
+    .spin {
+      width:34px; height:34px; margin:0 auto 18px; border-radius:50%;
+      border:3px solid #1e293b; border-top-color:#2e7cf6; animation:sp .8s linear infinite;
+    }
+    @keyframes sp { to { transform:rotate(360deg); } }
+    h1 { font-size:1rem; font-weight:800; margin:0 0 6px; letter-spacing:.3px; }
+    p  { font-size:.8rem; color:#94a3b8; margin:0 0 14px; }
+    a  { color:#2e7cf6; font-weight:700; text-decoration:none; margin:0 8px; }
+    a:hover { text-decoration:underline; }
+    @media (prefers-color-scheme:light) {
+      :root { color-scheme:light; }
+      body { background:#f8fafc; color:#0f172a; }
+      p { color:#475569; }
+      .spin { border-color:#e2e8f0; border-top-color:#2e7cf6; }
+    }
+  </style>
+
+  <script>
+    // PIALAX entry redirect. Picks desktop vs mobile by device, then forwards to
+    // the matching dashboard file — carrying the full query string AND hash so
+    // share links (e.g. ?dep=…&ret=…&md=… or #hash state) survive the hop.
+    // Uses location.replace() so this shim never lands in the back-button history.
+    (function () {
+      try {
+        var qs = window.location.search || '';
+        var hash = window.location.hash || '';
+        var ua = navigator.userAgent || '';
+        // Mobile if a phone/tablet UA OR a coarse pointer on a narrow viewport.
+        var uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile|Silk/i.test(ua);
+        var coarseNarrow = false;
+        try {
+          coarseNarrow = window.matchMedia('(pointer:coarse)').matches &&
+                         window.matchMedia('(max-width:820px)').matches;
+        } catch (e) { /* matchMedia unsupported — fall back to UA only */ }
+        var narrow = (window.innerWidth || document.documentElement.clientWidth || 0) <= 820;
+        var isMobile = uaMobile || coarseNarrow || (narrow && 'ontouchstart' in window);
+        var target = (isMobile ? 'pialax-mobile.html' : 'pialax.html') + qs + hash;
+        window.location.replace(target);
+      } catch (e) {
+        // If anything above throws, the <noscript>/manual links below still work.
+        window.location.href = 'pialax.html';
+      }
+    })();
+  </script>
+
+  <!-- No-JS fallback: forward to the desktop dashboard after a beat. -->
+  <noscript>
+    <meta http-equiv="refresh" content="0; url=pialax.html"/>
+  </noscript>
+</head>
+<body>
+  <div class="box">
+    <div class="spin" aria-hidden="true"></div>
+    <h1>PIALAX</h1>
+    <p>Opening your flight dashboard…</p>
+    <p>If you're not redirected automatically, choose a view:</p>
+    <div>
+      <a href="pialax.html">Desktop</a>·<a href="pialax-mobile.html">Mobile</a>
+    </div>
+  </div>
+</body>
+</html>
