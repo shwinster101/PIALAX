@@ -213,3 +213,22 @@ After each substantial ship cycle (≥3 tickets or any cross-team friction worth
 
 **Existing files:**
 - [`LESSONS_LEARNED_2026-05-25.md`](LESSONS_LEARNED_2026-05-25.md) — PIA-001..003 cycle retrospective. 7 patterns, 5 standing risks, 6 action items distributed across T1/T4/T5.
+
+---
+
+## 10. Positioning & integration principle — "own the phase, hand off the rest" (PIA-026, 2026-07-21)
+
+**PIALAX owns exactly one phase of the trip lifecycle and integrates with incumbents for the rest. Do not reinvent what Google Flights or Flighty already do well.**
+
+**The phase we own — the pre-purchase / consideration phase:**
+> _"I'm down to add this trip to my watchlist and start searching and setting alerts — but I'm not quite ready to buy the ticket yet."_
+
+That phase has no home today. Google Flights tracks **one trip's price at a time**; Flighty covers trips **already booked or completed**. The gap between "idea" and "purchased" — a **watchlist of trips under consideration**, across solo + family, with notes, reminders, group cost, and the cheapest-week-to-gather signal — is PIALAX's high-leverage territory. Everything we build must make PIALAX the best possible home for that phase.
+
+**Hand off, don't rebuild:**
+- **Google Flights** — expanded flight options, live pricing, booking, and **price alerts**. Every watched trip deep-links to a GF search prefilled with its route + dates. We do NOT try to out-search or out-track GF on a single itinerary.
+- **Flighty** — passport wallet, day-of tracking, and **past/booked flight stats**. Once a trip is booked/flown, we point to Flighty rather than duplicating tracking.
+
+**Test for every new ticket:** it must either (a) deepen the watchlist/consideration phase (group economics, cheapest-week, notes/reminders, coordination), or (b) improve a hand-off to GF/Flighty. If it merely re-implements single-trip search (GF) or post-booking tracking (Flighty), it is out of scope — link out instead.
+
+_Codified from the 2026-07-21 sprint. Source: `SPRINT_PROPOSAL_2026-07-21.md` §4a (Watchlist reframe) + Ashwin's positioning steer._

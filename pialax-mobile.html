@@ -970,6 +970,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <option value="JAX">JAX — Jacksonville, FL</option>
         </select>
       </div>
+      <!-- PIA-027: Trip Watchlist (mobile) — sibling of home-row so it shows in both modes. -->
+      <div id="watchlist-section" style="margin:10px 0;"></div>
       <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
         ✈️ <strong style="color:#38bdf8">Sister departs JFK (NYC)</strong> for these dates — she moved from JAX in Sep 2026.
       </div>
@@ -4284,9 +4286,154 @@ document.getElementById('map-toggle-btn').addEventListener('click', function() {
   }
 });
 
+// ══ PIA-027 · TRIP WATCHLIST (mobile mirror) ═════════════════════
+// Owns the "considering, not yet booked" phase (HQ §10); hands off to Google
+// Flights (options + alerts) and Flighty (passport + past flights).
+var WATCHLIST_STORAGE_KEY = 'pialax_watchlist_v1';
+var WATCHLIST_STAGES = {
+  watching:  { lbl:'Watching',  emoji:'👀', color:'#38bdf8', order:0 },
+  planning:  { lbl:'Planning',  emoji:'📝', color:'#f59e0b', order:1 },
+  booked:    { lbl:'Booked',    emoji:'✅', color:'#10b981', order:2 },
+  completed: { lbl:'Completed', emoji:'🏁', color:'#94a3b8', order:3 },
+};
+var WATCHLIST_SEED = [
+  { id:'jax', key:'jaxaug', mode:'family', title:'JAX — Family meetup',
+    routeTxt:'LAX + PIA → JAX', hub:'JAX', dep:'2026-08-07', ret:'2026-08-09', stage:'watching',
+    notes:'See sister before her Sep 1 NYC move. LAX (me) is the focus; Mom & Dad tentative.',
+    reminders:['Sister hosts — no hotel needed','Lock before JAX fares climb'],
+    gf:{from:'LAX',to:'JAX'} },
+  { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
+    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-03', ret:'2026-09-13', stage:'booked',
+    notes:'Trek BOOKED (Salkantay & Inca Trail, BK-035216, $1,200). Flights still watching — RT vs two one-ways, may end in Lima with friend.',
+    reminders:['Trek briefing 17:00 day before · Triunfo St 392, Ofc 212','Passport valid 6+ months from entry','Send passport photo to Eduardo'],
+    gf:{from:'LAX',to:'CUZ',openjaw:true} },
+  { id:'london', key:'london', mode:'family', title:'London — Family trip',
+    routeTxt:'PIA + LAX + JAX → LHR', hub:'LHR', dep:'2026-06-25', ret:'2026-07-03', stage:'completed',
+    notes:'Completed — flew Jun 25, returned Jul 3.',
+    reminders:[], gf:{from:'LAX',to:'LHR'} },
+];
+var WATCHLIST = [];
+var _watchlistCollapsed = false;
+function loadWatchlist() {
+  WATCHLIST = WATCHLIST_SEED.map(function(t){ return Object.assign({}, t, { reminders:(t.reminders||[]).slice() }); });
+  try {
+    var raw = localStorage.getItem(WATCHLIST_STORAGE_KEY);
+    if (raw) {
+      var stored = JSON.parse(raw);
+      if (stored && stored.overrides) {
+        WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; } });
+      }
+      if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ if (a && a.id) WATCHLIST.push(a); });
+    }
+  } catch(e){}
+}
+function saveWatchlist() {
+  try {
+    var overrides = {}, added = [];
+    WATCHLIST.forEach(function(t){ if (t._added) added.push(t); else overrides[t.id] = { stage:t.stage, notes:t.notes }; });
+    localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify({ overrides:overrides, added:added }));
+  } catch(e){}
+}
+function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id === id; })[0] || null; }
+function watchlistGFUrl(t){
+  if (!t.gf) return '';
+  if (t.gf.openjaw) return bookingUrlFor(t.gf.from, t.gf.to, t.dep, t.ret, true);
+  return gflightsUrl(t.gf.from, t.gf.to, t.dep, t.ret, true);
+}
+function watchlistEst(t){
+  if (t.stage === 'completed') return null;
+  try {
+    if (t.mode === 'family' && t.hub) return estimateMeetupTotalFor(new Date(t.dep + 'T12:00:00'), t.hub);
+    if (t.mode === 'solo' && t.origin && t.dest) { var m = getMock(t.origin, t.dest); return m ? (m.rt || m.ow) : null; }
+  } catch(e){}
+  return null;
+}
+function setWatchlistStage(id, stage){ var t=watchlistItem(id); if (t && WATCHLIST_STAGES[stage]) { t.stage=stage; saveWatchlist(); renderWatchlist(); } }
+function setWatchlistNotes(id, notes){ var t=watchlistItem(id); if (t) { t.notes=notes; saveWatchlist(); } }
+function removeWatchlistItem(id){ var t=watchlistItem(id); if (t && t._added) { WATCHLIST=WATCHLIST.filter(function(x){return x.id!==id;}); saveWatchlist(); renderWatchlist(); } }
+function openWatchlistTrip(id){
+  var t = watchlistItem(id); if (!t) return;
+  if (t.key) { applyHoliday(t.key); return; }
+  if (t.mode === 'solo') {
+    S.home = t.origin || S.home; var hs=document.getElementById('home-sel'); if (hs) hs.value=S.home;
+    S.soloFocus = t.dest || null; if (S.mode !== 'solo') setMode('solo');
+  } else {
+    if (t.hub) S.meetupHubOverride = t.hub; if (S.mode !== 'meetup') setMode('meetup');
+  }
+  if (t.dep) S.depDate = new Date(t.dep + 'T12:00:00');
+  S.retDate = t.ret ? new Date(t.ret + 'T12:00:00') : null;
+  S.tripType = t.ret ? 'round' : 'one';
+  updateDateUI(); renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap(); loadPrices(); syncURL();
+}
+function addCurrentToWatchlist(){
+  var dep = S.depDate, ret = S.retDate;
+  if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
+  var isFam = (S.mode === 'meetup');
+  var hub = isFam ? getActiveHub(computeRanking()) : null;
+  var dest = !isFam ? (S.soloFocus || (dests()[0]||null)) : null;
+  var routeTxt = isFam ? ('Family → ' + (hub||'?')) : (S.home + ' → ' + (dest||'?'));
+  var item = {
+    id:'w'+Date.now(), _added:true, key:null, mode:isFam?'family':'solo', title:routeTxt,
+    routeTxt:routeTxt, hub:hub, origin:S.home, dest:dest,
+    dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching', notes:'', reminders:[],
+    gf:{ from:(isFam?'LAX':S.home), to:(hub||dest||'') }
+  };
+  WATCHLIST.push(item); saveWatchlist(); renderWatchlist();
+}
+function renderWatchlist(){
+  var sec = document.getElementById('watchlist-section');
+  if (!sec) return;
+  var counts = { watching:0, planning:0, booked:0, completed:0 };
+  WATCHLIST.forEach(function(t){ if (counts[t.stage]!=null) counts[t.stage]++; });
+  var header =
+    '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" id="wl-hdr">' +
+      '<span>📋 Trip Watchlist</span>' +
+      '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') + '</span>' +
+    '</div>';
+  if (_watchlistCollapsed) { sec.innerHTML = header; wireWatchlist(sec); return; }
+  var order = WATCHLIST.slice().sort(function(a,b){ return (WATCHLIST_STAGES[a.stage].order)-(WATCHLIST_STAGES[b.stage].order); });
+  var cards = order.map(function(t){
+    var st = WATCHLIST_STAGES[t.stage] || WATCHLIST_STAGES.watching;
+    var col = st.color;
+    var est = watchlistEst(t);
+    var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
+    var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:'+col+';border:1px solid '+col+';border-radius:5px;padding:3px 5px;font-family:inherit;min-height:32px;">' +
+      Object.keys(WATCHLIST_STAGES).map(function(k){ var s=WATCHLIST_STAGES[k]; return '<option value="'+k+'"'+(k===t.stage?' selected':'')+'>'+s.emoji+' '+s.lbl+'</option>'; }).join('') + '</select>';
+    var modeChip = '<span style="font-size:.48rem;font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:3px;">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
+    var remind = (t.reminders && t.reminders.length) ? '<div style="margin-top:5px;font-size:.53rem;color:var(--muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
+    var gfUrl = watchlistGFUrl(t);
+    var actStyle = 'font-size:.6rem;font-weight:800;text-decoration:none;border-radius:6px;padding:6px 10px;display:inline-block;min-height:32px;';
+    var actions =
+      '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
+        '<button class="wl-open" data-id="'+t.id+'" style="'+actStyle+'background:'+col+';color:#000;border:none;cursor:pointer;font-family:inherit;">Open ↗</button>' +
+        (gfUrl ? '<a class="wl-gf" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--accent);border:1px solid var(--accent);" title="Expanded options + price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
+        '<a class="wl-flighty" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--muted);border:1px solid var(--border2);" title="Passport + past/booked flights in Flighty">🛂 Flighty ↗</a>' +
+        (t._added ? '<button class="wl-del" data-id="'+t.id+'" title="Remove" style="'+actStyle+'background:none;border:none;color:var(--muted);cursor:pointer;">✕</button>' : '') +
+      '</div>';
+    return '<div style="border:1px solid '+col+'55;border-left:3px solid '+col+';border-radius:9px;padding:9px 11px;margin-bottom:8px;background:'+col+'0f;">' +
+      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' + stageSel + '<span style="font-size:.72rem;font-weight:900;color:var(--ink,var(--text));">'+esc(t.title)+'</span>' + modeChip + '</div>' +
+      '<div style="font-size:.55rem;color:var(--muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+' · <strong style="color:var(--green);">'+estTxt+'</strong></div>' +
+      '<textarea class="wl-notes" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.62rem;font-family:inherit;color:var(--ink,var(--text));background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
+      remind + actions +
+    '</div>';
+  }).join('');
+  var addBtn = '<button id="wl-add" style="width:100%;font-size:.62rem;font-weight:800;background:transparent;color:var(--accent);border:1px dashed var(--accent);border-radius:8px;padding:9px;cursor:pointer;font-family:inherit;min-height:38px;">＋ Add current view to watchlist</button>';
+  sec.innerHTML = header + '<div style="margin-top:6px;">' + cards + addBtn + '</div>';
+  wireWatchlist(sec);
+}
+function wireWatchlist(sec){
+  var hdr = sec.querySelector('#wl-hdr'); if (hdr) hdr.addEventListener('click', function(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); });
+  sec.querySelectorAll('.wl-stage').forEach(function(el){ el.addEventListener('change', function(){ setWatchlistStage(el.getAttribute('data-id'), el.value); }); });
+  sec.querySelectorAll('.wl-notes').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNotes(el.getAttribute('data-id'), el.value); }); });
+  sec.querySelectorAll('.wl-open').forEach(function(el){ el.addEventListener('click', function(){ openWatchlistTrip(el.getAttribute('data-id')); }); });
+  sec.querySelectorAll('.wl-del').forEach(function(el){ el.addEventListener('click', function(){ removeWatchlistItem(el.getAttribute('data-id')); }); });
+  var add = sec.querySelector('#wl-add'); if (add) add.addEventListener('click', addCurrentToWatchlist);
+}
+
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
   restoreFromURL();
+  loadWatchlist(); // PIA-027: hydrate the trip watchlist
   rehydrateFlightCache(); // PIA-005 AC4: restore prior session's cached prices before any render
   document.getElementById('tb-sub').textContent='Loading…';
   try {
@@ -4319,6 +4466,7 @@ async function boot() {
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
   updateDateUI(); updateStats();
   setMode(S.mode);
+  renderWatchlist(); // PIA-027: paint the watchlist home
   S._booting = false;
   if (PROXY_URL) syncSerpApiAccount();
   await loadPrices();
