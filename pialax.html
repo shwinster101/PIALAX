@@ -1927,19 +1927,120 @@ function computeBestMeetupWeekends(nWeeks) {
   // BUT preserve a date-ascending copy for the heatmap layout.
   return weekends;
 }
+// PIA-020: estimate a meetup's total family cost for a given weekend + hub using the
+// SAME mock × weekly-factor × headcount basis as computeBestMeetupWeekends, so the
+// "your pick vs cheapest window" comparison is apples-to-apples. Returns null if any
+// required leg has no fare. depDate = Date; hub = airport code.
+function estimateMeetupTotalFor(depDate, hub) {
+  if (!depDate || !hub) return null;
+  var isRT = (S.tripType === 'round');
+  var fareKey = isRT ? 'rt' : 'ow';
+  var d = new Date(today);
+  var daysToThu = (4 - d.getDay() + 7) % 7 || 7;
+  var startThu = new Date(d); startThu.setDate(d.getDate() + daysToThu);
+  var offset = Math.round((depDate - startThu) / (7 * 86400000));
+  var n = WKLY_FACTORS.length;
+  var wf = WKLY_FACTORS[((offset % n) + n) % n];
+  var fam = familyForDate(depDate);
+  var total = 0, ok = true;
+  fam.forEach(function(from){
+    if (from === hub) return;
+    if (from === 'PIA' && hub === 'ORD') return;
+    var p = getMock(from, hub);
+    var fare = p ? (p[fareKey] || p.ow) : 0;
+    if (!fare) { ok = false; return; }
+    total += Math.round(fare * wf / 5) * 5 * headcountFor(from);
+  });
+  return ok ? total : null;
+}
+// PIA-020: shared apply handler for the finder / recommender pick buttons.
+function applyFinderPick(el) {
+  var depStr = el.getAttribute('data-dep');
+  var retStr = el.getAttribute('data-ret');
+  var hubCode = el.getAttribute('data-hub');
+  S.depDate = new Date(depStr + 'T12:00:00');
+  S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null;
+  if (S.tripType === 'one') S.retDate = null;
+  if (hubCode) S.meetupHubOverride = hubCode;
+  updateDateUI();
+  renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
+  loadPrices(); // cache-only per quota gate — no query spent
+  syncURL();
+}
 
 // Render the best-meetup-weekend finder as a heatmap row.
 // Visible only when in meetup mode + no dates picked yet (per Ashwin's spec).
 function renderMeetupFinder() {
   var section = document.getElementById('meetup-finder-section');
   if (!section) return;
-  if (S.mode !== 'meetup' || S.depDate) {
+  // PIA-020: the finder is now ALWAYS visible in meetup mode (was hidden once dates
+  // were picked, which buried the core "cheapest week to gather" value). With no
+  // dates → the rich pick card; with dates → a compact recommender that compares
+  // the current pick to the cheapest window at the same hub + the cheapest anywhere.
+  if (S.mode !== 'meetup') {
     section.style.display = 'none';
     return;
   }
   section.style.display = '';
   var weekends = computeBestMeetupWeekends(FINDER_NWEEKS);
   if (!weekends.length) { section.innerHTML = ''; return; }
+
+  if (S.depDate) {
+    var recFareLbl = S.tripType === 'round' ? 'RT' : 'OW';
+    var ranking = computeRanking();
+    var activeHub = getActiveHub(ranking);
+    var actCity = AIRPORTS[activeHub] ? AIRPORTS[activeHub].name.split(',')[0] : activeHub;
+    var actCol = DC[activeHub] || '#888';
+    // Cheapest weekend AT the active hub (respects the user's chosen destination).
+    var bestAtHub = null;
+    weekends.forEach(function(w){
+      var hr = w.hubRanking && w.hubRanking.filter(function(h){ return h.hub === activeHub; })[0];
+      if (hr && (!bestAtHub || hr.total < bestAtHub.total)) bestAtHub = { dep:w.dep, ret:w.ret, total:hr.total };
+    });
+    var curEst = estimateMeetupTotalFor(S.depDate, activeHub);
+    // Absolute cheapest weekend anywhere (any hub) — the "flexible on city" nudge.
+    var absBest = weekends.slice().sort(function(a,b){ return a.score - b.score; })[0];
+    var onCheapest = bestAtHub && curEst != null && curEst <= bestAtHub.total + 5;
+    var save = (bestAtHub && curEst != null) ? (curEst - bestAtHub.total) : 0;
+    var curDatesTxt = dateFmt(S.depDate) + (S.retDate && S.tripType==='round' ? '–' + dateFmt(S.retDate) : '');
+    var html2 =
+      '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span>💡 Cheapest week to gather · next ' + FINDER_NWEEKS + ' wks</span>' +
+        '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">estimate</span>' +
+      '</div>' +
+      '<div style="border:1.5px solid ' + actCol + ';background:' + actCol + '12;border-radius:10px;padding:10px 12px;">' +
+        '<div style="font-size:.72rem;font-weight:900;color:' + actCol + ';margin-bottom:4px;">Meet in ' + actCity + ' · ' + activeHub + '</div>';
+    if (onCheapest) {
+      html2 += '<div style="font-size:.68rem;font-weight:800;color:var(--green);">✓ You’re on the cheapest week for this trip</div>' +
+               '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">Your ' + curDatesTxt + ' ≈ $' + (curEst != null ? curEst : '—') + ' ' + recFareLbl + ' total</div>';
+    } else if (bestAtHub) {
+      html2 += '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">' +
+                 '<span style="font-size:.55rem;color:var(--muted);">Your ' + curDatesTxt + ' ≈ <strong style="color:var(--ink);">$' + (curEst != null ? curEst : '—') + '</strong></span>' +
+               '</div>' +
+               '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px;flex-wrap:wrap;">' +
+                 '<div style="font-size:.62rem;font-weight:800;color:var(--ink);">' + dateFmt(bestAtHub.dep) + '–' + dateFmt(bestAtHub.ret) + ' ≈ <span style="color:var(--green);font-weight:900;">$' + bestAtHub.total + '</span></div>' +
+                 '<button class="finder-apply-btn" data-dep="' + fmtISO(bestAtHub.dep) + '" data-ret="' + fmtISO(bestAtHub.ret) + '" data-hub="' + activeHub + '" ' +
+                   'style="font-size:.58rem;font-weight:900;background:var(--green);color:#000;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:inherit;">' +
+                   (save > 0 ? 'Move & save ~$' + save + ' →' : 'Use this week →') + '</button>' +
+               '</div>';
+    }
+    // Flexible-on-city nudge — only when a different hub/week is the absolute cheapest.
+    if (absBest && (absBest.bestHub !== activeHub || fmtISO(absBest.dep) !== (bestAtHub ? fmtISO(bestAtHub.dep) : ''))) {
+      var absCity = AIRPORTS[absBest.bestHub] ? AIRPORTS[absBest.bestHub].name.split(',')[0] : absBest.bestHub;
+      html2 += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+                 '<div style="font-size:.55rem;color:var(--muted);">Flexible on city? Cheapest anywhere: <strong style="color:var(--ink);">' + absCity + '</strong> ' + dateFmt(absBest.dep) + ' ≈ <strong style="color:var(--green);">$' + absBest.total + '</strong></div>' +
+                 '<button class="finder-apply-btn" data-dep="' + fmtISO(absBest.dep) + '" data-ret="' + fmtISO(absBest.ret) + '" data-hub="' + absBest.bestHub + '" ' +
+                   'style="font-size:.55rem;font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;cursor:pointer;font-family:inherit;white-space:nowrap;">Switch →</button>' +
+               '</div>';
+    }
+    html2 += '</div>';
+    section.innerHTML = html2;
+    section.querySelectorAll('.finder-apply-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){ applyFinderPick(btn); });
+    });
+    return;
+  }
+
   // Pick the single best weekend by score (PIA-default tie-breaker built in).
   var best = weekends.slice().sort(function(a,b){ return a.score - b.score; })[0];
   var fareLabel = S.tripType === 'round' ? 'RT' : 'OW';

@@ -2386,17 +2386,106 @@ function computeBestMeetupWeekends(nWeeks) {
   }
   return weekends;
 }
+// PIA-020 (mobile mirror): estimate meetup total for a weekend + hub, same basis.
+function estimateMeetupTotalFor(depDate, hub) {
+  if (!depDate || !hub) return null;
+  var isRT = (S.tripType === 'round');
+  var fareKey = isRT ? 'rt' : 'ow';
+  var d = new Date(today);
+  var daysToThu = (4 - d.getDay() + 7) % 7 || 7;
+  var startThu = new Date(d); startThu.setDate(d.getDate() + daysToThu);
+  var offset = Math.round((depDate - startThu) / (7 * 86400000));
+  var n = WKLY_FACTORS.length;
+  var wf = WKLY_FACTORS[((offset % n) + n) % n];
+  var fam = familyForDate(depDate);
+  var total = 0, ok = true;
+  fam.forEach(function(from){
+    if (from === hub) return;
+    if (from === 'PIA' && hub === 'ORD') return;
+    var p = getMock(from, hub);
+    var fare = p ? (p[fareKey] || p.ow) : 0;
+    if (!fare) { ok = false; return; }
+    total += Math.round(fare * wf / 5) * 5 * headcountFor(from);
+  });
+  return ok ? total : null;
+}
+function applyFinderPick(el) {
+  var depStr = el.getAttribute('data-dep');
+  var retStr = el.getAttribute('data-ret');
+  var hubCode = el.getAttribute('data-hub');
+  S.depDate = new Date(depStr + 'T12:00:00');
+  S.retDate = retStr ? new Date(retStr + 'T12:00:00') : null;
+  if (S.tripType === 'one') S.retDate = null;
+  if (hubCode) S.meetupHubOverride = hubCode;
+  updateDateUI();
+  renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
+  loadPrices();
+  syncURL();
+}
 
 function renderMeetupFinder() {
   var section = document.getElementById('meetup-finder-section');
   if (!section) return;
-  if (S.mode !== 'meetup' || S.depDate) {
+  // PIA-020 (mobile mirror): finder always visible in meetup mode.
+  if (S.mode !== 'meetup') {
     section.style.display = 'none';
     return;
   }
   section.style.display = '';
   var weekends = computeBestMeetupWeekends(FINDER_NWEEKS);
   if (!weekends.length) { section.innerHTML = ''; return; }
+
+  if (S.depDate) {
+    var recFareLbl = S.tripType === 'round' ? 'RT' : 'OW';
+    var ranking = computeRanking();
+    var activeHub = getActiveHub(ranking);
+    var actCity = AIRPORTS[activeHub] ? AIRPORTS[activeHub].name.split(',')[0] : activeHub;
+    var actCol = DC[activeHub] || '#888';
+    var bestAtHub = null;
+    weekends.forEach(function(w){
+      var hr = w.hubRanking && w.hubRanking.filter(function(h){ return h.hub === activeHub; })[0];
+      if (hr && (!bestAtHub || hr.total < bestAtHub.total)) bestAtHub = { dep:w.dep, ret:w.ret, total:hr.total };
+    });
+    var curEst = estimateMeetupTotalFor(S.depDate, activeHub);
+    var absBest = weekends.slice().sort(function(a,b){ return a.score - b.score; })[0];
+    var onCheapest = bestAtHub && curEst != null && curEst <= bestAtHub.total + 5;
+    var save = (bestAtHub && curEst != null) ? (curEst - bestAtHub.total) : 0;
+    var curDatesTxt = dateFmt(S.depDate) + (S.retDate && S.tripType==='round' ? '–' + dateFmt(S.retDate) : '');
+    var html2 =
+      '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;">' +
+        '<span>💡 Cheapest week to gather · next ' + FINDER_NWEEKS + ' wks</span>' +
+        '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">estimate</span>' +
+      '</div>' +
+      '<div style="border:1.5px solid ' + actCol + ';background:' + actCol + '12;border-radius:10px;padding:10px 12px;">' +
+        '<div style="font-size:.72rem;font-weight:900;color:' + actCol + ';margin-bottom:4px;">Meet in ' + actCity + ' · ' + activeHub + '</div>';
+    if (onCheapest) {
+      html2 += '<div style="font-size:.68rem;font-weight:800;color:var(--green);">✓ You’re on the cheapest week for this trip</div>' +
+               '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">Your ' + curDatesTxt + ' ≈ $' + (curEst != null ? curEst : '—') + ' ' + recFareLbl + ' total</div>';
+    } else if (bestAtHub) {
+      html2 += '<div style="font-size:.55rem;color:var(--muted);">Your ' + curDatesTxt + ' ≈ <strong style="color:var(--ink,var(--text));">$' + (curEst != null ? curEst : '—') + '</strong></div>' +
+               '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px;flex-wrap:wrap;">' +
+                 '<div style="font-size:.62rem;font-weight:800;color:var(--ink,var(--text));">' + dateFmt(bestAtHub.dep) + '–' + dateFmt(bestAtHub.ret) + ' ≈ <span style="color:var(--green);font-weight:900;">$' + bestAtHub.total + '</span></div>' +
+                 '<button class="finder-apply-btn" data-dep="' + fmtISO(bestAtHub.dep) + '" data-ret="' + fmtISO(bestAtHub.ret) + '" data-hub="' + activeHub + '" ' +
+                   'style="font-size:.58rem;font-weight:900;background:var(--green);color:#000;border:none;border-radius:6px;padding:6px 11px;cursor:pointer;font-family:inherit;min-height:34px;">' +
+                   (save > 0 ? 'Save ~$' + save + ' →' : 'Use →') + '</button>' +
+               '</div>';
+    }
+    if (absBest && (absBest.bestHub !== activeHub || fmtISO(absBest.dep) !== (bestAtHub ? fmtISO(bestAtHub.dep) : ''))) {
+      var absCity = AIRPORTS[absBest.bestHub] ? AIRPORTS[absBest.bestHub].name.split(',')[0] : absBest.bestHub;
+      html2 += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+                 '<div style="font-size:.55rem;color:var(--muted);">Flexible on city? ' + absCity + ' ' + dateFmt(absBest.dep) + ' ≈ <strong style="color:var(--green);">$' + absBest.total + '</strong></div>' +
+                 '<button class="finder-apply-btn" data-dep="' + fmtISO(absBest.dep) + '" data-ret="' + fmtISO(absBest.ret) + '" data-hub="' + absBest.bestHub + '" ' +
+                   'style="font-size:.55rem;font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:5px 9px;cursor:pointer;font-family:inherit;white-space:nowrap;min-height:32px;">Switch →</button>' +
+               '</div>';
+    }
+    html2 += '</div>';
+    section.innerHTML = html2;
+    section.querySelectorAll('.finder-apply-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){ applyFinderPick(btn); });
+    });
+    return;
+  }
+
   var byScore = weekends.slice().sort(function(a,b){ return a.score - b.score; });
   var best = byScore[0];
   var runner = byScore[1];
