@@ -70,6 +70,36 @@ Ranked by leverage (do top-down):
 
 ---
 
+## 4a. AMENDMENT (2026-07-21) — the Watchlist reframe ⭐ (Ashwin)
+
+**Insight (Ashwin):** Google Flights tracks *one trip's price at a time*. Flighty shows trips *already booked or completed*. **Nobody owns the _pre-booking_ stage — a watchlist of trips you're still deciding on, all in one place.** That's the gap, and it's exactly where PIALAX already lives (London=done, JAX=watching, Peru=trek booked + flights watching).
+
+**Reframe:** PIALAX is a **trip watchlist / portfolio** — like a stock watchlist, but for trips — spanning **both solo and family** trips. Each trip is a card with a lifecycle **stage** and its own **notes + reminders**:
+
+> 👀 **Watching** → 📝 **Planning** → ✅ **Booked** → 🏁 **Completed**
+
+This isn't a 7th ticket bolted on — it's the **home screen** that the others become features of:
+- PIA-021 (Trip Binder) → the **detail view** of a watchlist item.
+- PIA-023 (RSVP) → a **field** on a family-trip card.
+- PIA-025 (price-watch) → the **priceHistory** shown on a card.
+
+### PIA-027 — Trip Watchlist (new north-star, major)
+
+| Field | Spec |
+|---|---|
+| **User story** | As someone juggling several possible trips (JAX, Peru, next reunion) I want them all as cards on one watchlist — solo and family — each with a stage, dates, an estimate, notes, and reminders, so I keep the whole pipeline in one place instead of re-searching Google Flights every time. |
+| **Data model** | `WATCHLIST = [{ id, mode:'solo'|'family', origin, dests[], stage, dep, ret, notes[], reminders[], priceHistory[] }]`. London / JAX / Peru seed it as the first three items. |
+| **Default dates** | New watched trip defaults to **Thursday-night out → Sunday-night return** unless a date range is specified (formalizes the existing Thu–Sun weekend logic). |
+| **View** | A watchlist tab/home: portfolio header ("👀 2 watching · ✅ 1 booked · 🏁 1 done"), cards grouped by stage, each card opens into the existing solo/family detail view. |
+| **Notes & reminders** | Free-text notes + structured reminders per card (passport expiry, booking #, briefing, "check price again") — generalizes the Peru trek card. |
+| **Persistence / share** | localStorage + URL, read-tolerant. |
+| **Why GF/Flighty can't** | GF = single-trip price tracker (no cross-trip list, no notes, no group). Flighty = post-booking only. PIALAX owns the **pre-booking, multi-trip, noted, group-aware** stage. |
+| **Tag** | **major** — becomes the product's home screen. |
+
+**Revised sequencing:** PIA-020 ✅ shipped → **PIA-027 (Watchlist shell + stages + Thu→Sun default + seed the 3 trips)** is now the top priority (it reframes the app), with PIA-021/023/025 folding in as watchlist-card features, and PIA-022/024 after.
+
+---
+
 ## 5. Success signal
 
 A user who has Google Flights **and** Flighty on their phone still opens PIALAX because it's the only place that tells them **"here's the cheapest week for all four of us to be in the same city, here's who's in, here's the whole trip including the trek, and here's the link to send the family."** None of that exists in the other two apps. If a proposed feature doesn't move toward that sentence, it's out of scope.
