@@ -984,6 +984,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
           <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
           <button class="hol-btn" data-hol="jaxaug">🏖 JAX Aug 7–9</button>
+          <button class="hol-btn" data-hol="peru">🏔 Peru Sep 3–13</button>
           <button class="hol-btn" data-hol="london">✅ London ✓ (done)</button>
         </div>
       </div>
@@ -1187,11 +1188,15 @@ var AIRPORTS = {
   MIA:{ code:'MIA', name:'Miami, FL',        full:'Miami International Airport',        lat:25.7959, lon:-80.2870 },
   JFK:{ code:'JFK', name:'New York, NY',     full:'John F. Kennedy International Airport', lat:40.6413, lon:-73.7781 },
   LHR:{ code:'LHR', name:'London, UK',       full:'London Heathrow Airport',            lat:51.4700, lon:-0.4543 },
+  // Peru — Machu Picchu (2026-07-21, mobile mirror). CUZ = Cusco (in), LIM = Lima (out).
+  CUZ:{ code:'CUZ', name:'Cusco, Peru',      full:'Alejandro Velasco Astete Intl (Cusco)', lat:-13.5358, lon:-71.9389 },
+  LIM:{ code:'LIM', name:'Lima, Peru',       full:'Jorge Chávez International (Lima)',   lat:-12.0219, lon:-77.1143 },
 };
 // MIA added to LAX solo destinations only (per Ashwin's Jun 18–21 trip)
-var ROUTE_GRAPH = { PIA:['LAX','JAX','JFK'], ORD:['LAX','JAX','JFK'], LAX:['PIA','ORD','JAX','MIA','JFK'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'] };
+// CUZ (Cusco/Peru) added to LAX only — Ashwin's solo Machu Picchu trip, not a meetup hub.
+var ROUTE_GRAPH = { PIA:['LAX','JAX','JFK'], ORD:['LAX','JAX','JFK'], LAX:['PIA','ORD','JAX','MIA','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'] };
 var INTL_DESTS = ['LHR'];
-var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LHR:'#e11d48' };
+var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LHR:'#e11d48', CUZ:'#22c55e', LIM:'#eab308' };
 // Airline + sample flight number per route. `flightNo` overridden by SerpAPI live data.
 var MOCK = {
   'PIA-LAX':{ ow:218, rt:389, airline:'American Airlines', flightNo:'AA 3421' },
@@ -1227,6 +1232,11 @@ var MOCK = {
   'LHR-JAX':{ ow:380, rt:720, airline:'British Airways',   flightNo:'BA 2227 (via DFW)' },
   'ORD-LHR':{ ow:320, rt:590, airline:'British Airways',   flightNo:'BA 296' },
   'LHR-ORD':{ ow:300, rt:560, airline:'British Airways',   flightNo:'BA 297' },
+  // Peru — Machu Picchu (LAX solo, open-jaw CUZ in / LIM out). Mirrors friend's routing.
+  'LAX-CUZ':{ ow:530, rt:895, airline:'Avianca',           flightNo:'AV 105 (via BOG)' },
+  'CUZ-LAX':{ ow:545, rt:905, airline:'Avianca',           flightNo:'AV 106 (via BOG)' },
+  'LAX-LIM':{ ow:410, rt:720, airline:'LATAM',             flightNo:'LA 2479' },
+  'LIM-LAX':{ ow:395, rt:700, airline:'Copa Airlines',     flightNo:'CM 228 (via PTY)' },
 };
 // LOCKED_TRIPS (PIA-009) — booked tickets that must NEVER hit SerpAPI.
 // Mirrors desktop pialax.html. ±2-day match window catches any anchor variant
@@ -1330,6 +1340,10 @@ var TRIP_PRESETS = {
     { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round', validUntil:'2026-06-21' },
     { id:'mia-via-jax', label:'JAX Jun 12 OW (drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX', validUntil:'2026-06-12' },
   ],
+  // Peru — Machu Picchu, Sep 3–13 2026 (open-jaw CUZ in / LIM out).
+  CUZ: [
+    { id:'cuz-sep3', label:'Sep 3–13 RT', dep:'2026-09-03', ret:'2026-09-13', tripType:'round', validUntil:'2026-09-13' },
+  ],
 };
 function isPresetStale(preset) {
   if (!preset || !preset.validUntil) return false;
@@ -1385,6 +1399,7 @@ var HOLIDAYS = {
   christmas:    nextOccurrence(11, 25),
   london:       new Date(2026, 5, 25), // COMPLETED (flew Jun 25, returned Jul 3)
   jaxaug:       new Date(2026, 7, 7),  // Aug 7, 2026 — JAX weekend (Fri Aug 7 – Sun Aug 9)
+  peru:         new Date(2026, 8, 3),  // Sep 3, 2026 — LAX solo Machu Picchu (open-jaw CUZ/LIM)
 };
 
 // ── STATE ────────────────────────────────────────────────────────
@@ -1449,6 +1464,14 @@ function gflightsUrl(from, to, depISO, retISO, isRT){
   var q = 'Flights from ' + from + ' to ' + to + ' on ' + depISO;
   if(isRT && retISO) q += ' through ' + retISO;
   return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+}
+// Route-aware booking link (mobile mirror). Peru (CUZ) is an open-jaw → multi-city.
+function bookingUrlFor(from, dest, depISO, retISO, isRT){
+  if(dest === 'CUZ' && from && depISO && retISO){
+    var q = 'Flights from ' + from + ' to CUZ on ' + depISO + ', from LIM to ' + from + ' on ' + retISO;
+    return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+  }
+  return gflightsUrl(from, dest, depISO, retISO, isRT);
 }
 function tier(d){ var dw=d.getDay(); if(dw===5||dw===6||dw===0) return 'pricey'; if(dw===2||dw===3||dw===4) return 'cheap'; return 'mid'; }
 function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:1.55)/5)*5; }
@@ -1542,6 +1565,20 @@ function applyHoliday(key) {
     if (S.memberDates) { delete S.memberDates.JAX; delete S.memberDates.LAX; delete S.memberDates.PIA; }
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'us') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
+  } else if (key === 'peru') {
+    // Machu Picchu — Ashwin SOLO from LAX, Sep 3–13 2026, open-jaw CUZ in / LIM out
+    // (mobile mirror). Friend departs Chicago/ORD — ignored. home→LAX, solo, world map.
+    dep = new Date(2026, 8, 3); ret = new Date(2026, 8, 13);
+    S.home = 'LAX';
+    var hsel = document.getElementById('home-sel'); if (hsel) hsel.value = 'LAX';
+    S.prices = {}; S.soloBarPrices = {};
+    S.soloFocus = 'CUZ';
+    document.getElementById('s-hub').textContent    = AIRPORTS.LAX.code;
+    document.getElementById('s-routes').textContent = (ROUTE_GRAPH.LAX || []).length;
+    document.getElementById('tb-sub').textContent   = AIRPORTS.LAX.full + ' → ' + (ROUTE_GRAPH.LAX || []).join(', ');
+    if (S.mode !== 'solo') setMode('solo');
+    if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
+    rebuildLegend();
   } else {
     dep = new Date(base);
     dep.setDate(base.getDate() - ((base.getDay() + 3) % 7));
@@ -2530,6 +2567,16 @@ function renderSoloCards() {
     var liveBtnHtml = PROXY_URL
       ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
       : '';
+    // Google Flights booking link (mobile mirror). Peru (CUZ) → open-jaw multi-city.
+    var soloDepISO = S.depDate ? fmtISO(S.depDate) : '';
+    var soloRetISO = (isRTSolo && S.retDate) ? fmtISO(S.retDate) : '';
+    var soloBookUrl = bookingUrlFor(S.home, dest, soloDepISO, soloRetISO, isRTSolo);
+    var soloBookHtml = soloBookUrl
+      ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" ' +
+        'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:.62rem;font-weight:800;' +
+        'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:5px 10px;min-height:32px;" ' +
+        'title="Open this trip in Google Flights' + (dest === 'CUZ' ? ' (open-jaw: into Cusco, out of Lima)' : '') + '">🔗 Book on Google Flights ↗</a>'
+      : '';
     var presetHtml = '';
     if (presets.length) {
       presetHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;align-items:center;">'
@@ -2603,6 +2650,7 @@ function renderSoloCards() {
         '<div style="' + (activePreset ? 'opacity:.85;' : '') + '">' + wkndsHtml + '</div>' +
         presetHtml +
         liveBtnHtml +
+        soloBookHtml +
       '</div>';
     card.addEventListener('mouseenter', function(){ setSoloFocus(dest); });
     card.addEventListener('mouseleave', function(){ setBarFocus(null, null); });
