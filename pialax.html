@@ -960,6 +960,48 @@ function trekInfoCardHtml() {
     '<div style="font-size:.53rem;color:var(--green);font-weight:700;margin-top:4px;">✈ Fits your flights: in CUZ Sep 3 → acclimatize → trek Sep 6–12 → out LIM Sep 13</div>' +
   '</div>';
 }
+// Peru flight-option comparison for the Cusco card. Two ways to fly the trip:
+//   A) LAX ⇄ CUZ round trip (return to Cusco to fly home)
+//   B) two one-ways ending in Lima: LAX→CUZ + LIM→LAX (visit Lima w/ friend first)
+// Shows both estimates side-by-side, flags the cheaper one, and links each to live
+// Google Flights. Real winner is decided live — the links are the source of truth.
+function peruFlightOptionsHtml(depISO, retISO) {
+  depISO = depISO || '2026-09-03';
+  retISO = retISO || '2026-09-13';
+  var cuzRT = getMock('LAX','CUZ').rt || 0;   // Option A: round trip into/out of Cusco
+  var cuzOW = getMock('LAX','CUZ').ow || 0;   // Option B leg 1: LAX→CUZ one-way
+  var limOW = getMock('LIM','LAX').ow || 0;   // Option B leg 2: LIM→LAX one-way
+  var twoOW = cuzOW + limOW;
+  var aWins = cuzRT <= twoOW;
+  var win = ' <span style="font-size:.48rem;font-weight:900;background:var(--green);color:#000;padding:1px 4px;border-radius:3px;">✓ cheaper est.</span>';
+  var rtLink  = gflightsUrl('LAX','CUZ', depISO, retISO, true);   // A: round trip
+  var owInLink  = gflightsUrl('LAX','CUZ', depISO, '', false);    // B leg 1: one-way in
+  var owOutLink = gflightsUrl('LIM','LAX', retISO, '', false);    // B leg 2: one-way out of Lima
+  var linkStyle = 'font-size:.55rem;font-weight:800;color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:5px;padding:2px 6px;display:inline-block;margin-top:3px;';
+  return '<div style="margin:2px 0 8px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;">' +
+    '<div style="font-size:.6rem;font-weight:900;color:var(--accent);text-transform:uppercase;letter-spacing:.5px;margin-bottom:5px;">✈ Flight options · compare</div>' +
+    // Option A — Cusco round trip
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0;border-bottom:1px solid var(--border2);">' +
+      '<div style="min-width:0;">' +
+        '<div style="font-size:.62rem;font-weight:800;color:var(--accent);">A · Cusco round trip' + (aWins ? win : '') + '</div>' +
+        '<div style="font-size:.52rem;color:var(--muted);">LAX ⇄ CUZ · return to Cusco to fly home</div>' +
+        '<a href="' + rtLink + '" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">🔗 Google Flights ↗</a>' +
+      '</div>' +
+      '<div style="font-size:.78rem;font-weight:900;color:' + (aWins ? 'var(--green)' : 'var(--ink)') + ';white-space:nowrap;">~$' + cuzRT + '</div>' +
+    '</div>' +
+    // Option B — two one-ways ending in Lima
+    '<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px;padding:5px 0;">' +
+      '<div style="min-width:0;">' +
+        '<div style="font-size:.62rem;font-weight:800;color:var(--accent);">B · Two one-ways, end in Lima' + (aWins ? '' : win) + '</div>' +
+        '<div style="font-size:.52rem;color:var(--muted);">LAX→CUZ $' + cuzOW + ' + LIM→LAX $' + limOW + ' · visit Lima w/ friend</div>' +
+        '<a href="' + owInLink + '" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">LAX→CUZ ↗</a> ' +
+        '<a href="' + owOutLink + '" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">LIM→LAX ↗</a>' +
+      '</div>' +
+      '<div style="font-size:.78rem;font-weight:900;color:' + (aWins ? 'var(--ink)' : 'var(--green)') + ';white-space:nowrap;">~$' + twoOW + '</div>' +
+    '</div>' +
+    '<div style="font-size:.5rem;color:var(--muted);margin-top:5px;">Estimates — tap a link for live Google Flights pricing (the real winner is decided live). Option B lets you end in Lima with your friend.</div>' +
+  '</div>';
+}
 function tier(d){ var dw=d.getDay(); if(dw===5||dw===6||dw===0) return 'pricey'; if(dw===2||dw===3||dw===4) return 'cheap'; return 'mid'; }
 function dayPrice(base,t){ return Math.round(base*(t==='cheap'?1:t==='mid'?1.22:1.55)/5)*5; }
 function baseOW(){ var d=dests()[0]; return d?(MOCK[S.home+'-'+d]||{ow:150}).ow:150; }
@@ -2156,11 +2198,13 @@ function renderSoloCards() {
     var soloDepISO = S.depDate ? fmtISO(S.depDate) : '';
     var soloRetISO = (isRTSolo && S.retDate) ? fmtISO(S.retDate) : '';
     var soloBookUrl = bookingUrlFor(S.home, dest, soloDepISO, soloRetISO, isRTSolo);
-    var soloBookHtml = soloBookUrl
+    // CUZ uses the richer A-vs-B comparison block (rendered in the card body), so
+    // the generic single book link is suppressed there to avoid duplicate links.
+    var soloBookHtml = (soloBookUrl && dest !== 'CUZ')
       ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" ' +
         'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:.6rem;font-weight:800;' +
         'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:4px 9px;" ' +
-        'title="Open this trip in Google Flights' + (dest === 'CUZ' ? ' (open-jaw: into Cusco, out of Lima)' : '') + '">🔗 Book on Google Flights ↗</a>'
+        'title="Open this trip in Google Flights">🔗 Book on Google Flights ↗</a>'
       : '';
     // Trip presets — one-click date fillers. Active preset shows as filled chip.
     var presetHtml = '';
@@ -2232,7 +2276,7 @@ function renderSoloCards() {
         '</div>' +
       '</div>' +
       '<div class="solo-dest-body">' +
-        (dest === 'CUZ' ? trekInfoCardHtml() : '') +
+        (dest === 'CUZ' ? trekInfoCardHtml() + peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
         presetBannerHtml +
         // Section header above the rolling-window stuff. When a preset is active,
         // these are now "alternative dates" — explicitly labeled so the user knows
