@@ -1059,6 +1059,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 
       <!-- Meetup finder (no-date suggestion) -->
       <div id="meetup-finder-section" style="display:none"></div>
+      <!-- PIA-022 + PIA-025: cost split, host fairness, group price-watch. -->
+      <div id="group-cost-panel" style="display:none;margin-bottom:10px;"></div>
 
       <!-- Solo section -->
       <div id="solo-section" style="display:none">
@@ -2167,6 +2169,7 @@ function renderMeetupRoutes() {
       '</div>';
   });
   container.innerHTML = html || '<div style="font-size:.62rem;color:var(--muted);padding:4px 2px">All family members at hub</div>';
+  if (typeof renderGroupCost === 'function') renderGroupCost(); // PIA-022/025 panel
 }
 
 // ── COPY ROUTE TEXT ──────────────────────────────────────────────
@@ -3610,6 +3613,11 @@ async function loadPrices(allowLive) {
   document.getElementById('data-pill-lbl').textContent= isLiveish ? 'Live' : 'Sample';
   document.querySelector('.ld').style.background      = isLiveish ? 'var(--green)' : 'var(--amber)';
   renderMeetupStrip(); redrawMap(); updateStats();
+  // PIA-025: record the whole-family total on a real live fetch (mobile mirror).
+  if (live && S.mode === 'meetup') {
+    try { var _r = computeRanking(), _h = getActiveHub(_r), _row = _r.filter(function(x){ return x.dest === _h; })[0];
+      if (_row && _row.total > 0) recordGroupPrice(_h, _row.total); } catch(e){}
+  }
   if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
   if (S.mode === 'solo') renderSoloCards();
   var nextLbl = (!live && PROXY_URL && cachedCount < total) ? 'Get Live Fares' : 'Refresh Fares';
@@ -4286,6 +4294,118 @@ document.getElementById('map-toggle-btn').addEventListener('click', function() {
   }
 });
 
+// ══ PIA-022 · COST SPLIT + HOST FAIRNESS · PIA-025 · GROUP PRICE-WATCH (mobile) ══
+var HOST_LEDGER_KEY = 'pialax_host_ledger_v1';
+var GROUP_PRICE_KEY = 'pialax_group_price_v1';
+function memberCostsFor(hub) {
+  var isRT = (S.tripType === 'round');
+  var fareKey = isRT ? 'rt' : 'ow';
+  var fam = familyForDate(S.depDate);
+  var rows = [], total = 0;
+  fam.forEach(function(from){
+    var headcount = headcountFor(from), label = labelFor(from);
+    if (from === hub) { rows.push({ code:from, label:label, headcount:headcount, per:0, subtotal:0, host:true }); return; }
+    if (from === 'PIA' && hub === 'ORD') { rows.push({ code:from, label:label, headcount:headcount, per:0, subtotal:0, drives:true }); return; }
+    var per = 0, viaORD = false;
+    if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) { var route = piaRouteTo(hub, fareKey); per = route.fare || 0; viaORD = route.viaORD; }
+    else { var p = S.prices[from + '-' + hub] || getMock(from, hub); per = p ? (p[fareKey] || p.ow) : 0; }
+    var sub = per * headcount; total += sub;
+    rows.push({ code:from, label:label, headcount:headcount, per:per, subtotal:sub, viaORD:viaORD });
+  });
+  return { rows:rows, total:total };
+}
+function readLedger(){ try { return JSON.parse(localStorage.getItem(HOST_LEDGER_KEY)) || {}; } catch(e){ return {}; } }
+function writeLedger(l){ try { localStorage.setItem(HOST_LEDGER_KEY, JSON.stringify(l)); } catch(e){} }
+function logMeetupToLedger(hub, costs){
+  var l = readLedger();
+  costs.rows.forEach(function(r){
+    if (!l[r.code]) l[r.code] = { hosted:0, spend:0 };
+    if (r.host) l[r.code].hosted += 1;
+    else if (r.subtotal > 0) l[r.code].spend += r.subtotal;
+  });
+  writeLedger(l);
+}
+function fairestNextHost(){
+  var fam = familyForDate(today).filter(function(c){ return c !== 'ORD'; });
+  var l = readLedger(); var best = null;
+  fam.forEach(function(c){
+    var e = l[c] || { hosted:0, spend:0 };
+    if (!best) { best = { code:c, e:e }; return; }
+    if (e.hosted < best.e.hosted || (e.hosted === best.e.hosted && e.spend > best.e.spend)) best = { code:c, e:e };
+  });
+  return best ? best.code : null;
+}
+function priceSig(hub){ return hub + '|' + (S.depDate?fmtISO(S.depDate):'') + '|' + (S.retDate?fmtISO(S.retDate):'') + '|' + S.tripType; }
+function readGroupPrices(){ try { return JSON.parse(localStorage.getItem(GROUP_PRICE_KEY)) || {}; } catch(e){ return {}; } }
+function recordGroupPrice(hub, total){
+  if (!total || total <= 0) return;
+  var all = readGroupPrices(); var sig = priceSig(hub); var h = all[sig] || [];
+  var last = h[h.length-1]; var todayISO = fmtISO(today);
+  if (last && (last.ts||'').slice(0,10) === todayISO) last.total = total;
+  else h.push({ ts:new Date().toISOString(), total:total });
+  if (h.length > 24) h = h.slice(h.length-24);
+  all[sig] = h; try { localStorage.setItem(GROUP_PRICE_KEY, JSON.stringify(all)); } catch(e){}
+}
+function sparklineSVG(vals, w, hgt){
+  if (!vals || vals.length < 2) return '';
+  var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+  var span = (max - min) || 1;
+  var pts = vals.map(function(v,i){ var x=(i/(vals.length-1))*(w-2)+1; var y=hgt-1-((v-min)/span)*(hgt-2); return x.toFixed(1)+','+y.toFixed(1); }).join(' ');
+  var col = vals[vals.length-1] > vals[0] ? '#ef4444' : '#10b981';
+  return '<svg width="'+w+'" height="'+hgt+'" style="vertical-align:middle;"><polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5"/></svg>';
+}
+function renderGroupCost(){
+  var panel = document.getElementById('group-cost-panel');
+  if (!panel) return;
+  if (S.mode !== 'meetup' || !S.depDate) { panel.style.display = 'none'; return; }
+  var ranking = computeRanking(); var hub = getActiveHub(ranking);
+  if (!hub) { panel.style.display = 'none'; return; }
+  var costs = memberCostsFor(hub);
+  var fareLbl = S.tripType === 'round' ? 'RT' : 'OW';
+  var hubCol = DC[hub] || 'var(--accent)';
+  var flyerCount = costs.rows.filter(function(r){ return !r.host && !r.drives; }).length;
+  var splitRows = costs.rows.map(function(r){
+    if (r.host) return '<div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--muted);"><span>🏠 ' + esc(r.label) + ' <span style="font-size:.5rem;">hosts</span></span><span style="font-weight:800;color:var(--green);">$0</span></div>';
+    if (r.drives) return '<div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--muted);"><span>🚗 ' + esc(r.label) + ' <span style="font-size:.5rem;">drives</span></span><span style="font-weight:800;">~$' + ORD_DRIVE_TAX + '</span></div>';
+    var pct = costs.total > 0 ? Math.round(r.subtotal / costs.total * 100) : 0;
+    return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;">' +
+      '<span style="color:var(--ink,var(--text));">' + esc(r.label) + ' <span style="color:var(--muted);font-size:.5rem;">' + r.code + (r.headcount>1?' ×'+r.headcount:'') + '</span></span>' +
+      '<span><span style="color:var(--muted);font-size:.5rem;">' + pct + '% · </span><strong style="color:var(--ink,var(--text));">$' + r.subtotal + '</strong></span></div>';
+  }).join('');
+  var hist = (readGroupPrices()[priceSig(hub)]) || [];
+  var watchHtml;
+  if (hist.length >= 1) {
+    var totals = hist.map(function(e){ return e.total; });
+    var first = totals[0], last = totals[totals.length-1], delta = last - first;
+    var since = (hist[0].ts||'').slice(5,10);
+    var deltaTxt = delta === 0 ? 'no change' : (delta < 0 ? '↓ $' + Math.abs(delta) : '↑ $' + delta);
+    var deltaCol = delta === 0 ? 'var(--muted)' : (delta < 0 ? 'var(--green)' : 'var(--red)');
+    watchHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);">' +
+      '<span style="font-size:.53rem;color:var(--muted);">📈 Last live $' + last + ' · <span style="color:' + deltaCol + ';font-weight:800;">' + deltaTxt + '</span> since ' + since + '</span>' + sparklineSVG(totals, 74, 18) + '</div>';
+  } else {
+    watchHtml = '<div style="font-size:.5rem;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);">📈 Tap <strong>Get Live Fares</strong> to start watching this trip’s total over time.</div>';
+  }
+  var l = readLedger();
+  var famCodes = familyForDate(today).filter(function(c){ return c !== 'ORD'; });
+  var ledgerTxt = famCodes.map(function(c){ var e = l[c] || {hosted:0,spend:0}; return labelFor(c) + ' ' + (e.hosted||0) + '×'; }).join(' · ');
+  var nextHost = fairestNextHost();
+  var fairHtml = '<div style="margin-top:7px;padding-top:6px;border-top:1px solid var(--border2);">' +
+    '<div style="font-size:.53rem;color:var(--muted);">⚖ Hosted so far: ' + esc(ledgerTxt || '—') + '</div>' +
+    (nextHost ? '<div style="font-size:.55rem;color:var(--ink,var(--text));margin-top:2px;">Fairest next host: <strong style="color:' + (DC[nextHost]||'var(--accent)') + ';">' + esc(labelFor(nextHost)) + '</strong></div>' : '') +
+    '<button id="gc-log" style="margin-top:5px;font-size:.55rem;font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:6px 10px;cursor:pointer;font-family:inherit;min-height:32px;">＋ Log this meetup to fairness</button></div>';
+  panel.innerHTML =
+    '<div class="lbl">💰 Family cost split · ' + hub + '</div>' +
+    '<div style="border:1px solid ' + hubCol + '55;border-left:3px solid ' + hubCol + ';border-radius:9px;padding:9px 11px;background:' + hubCol + '0f;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">' +
+        '<span style="font-size:.6rem;font-weight:900;color:var(--ink,var(--text));">Total · ' + flyerCount + ' flying</span>' +
+        '<span style="font-size:.9rem;font-weight:900;color:var(--green);">$' + costs.total + ' <span style="font-size:.5rem;color:var(--muted);">' + fareLbl + '</span></span>' +
+      '</div>' + splitRows + watchHtml + fairHtml +
+    '</div>';
+  panel.style.display = '';
+  var logBtn = panel.querySelector('#gc-log');
+  if (logBtn) logBtn.addEventListener('click', function(){ logMeetupToLedger(hub, costs); renderGroupCost(); if (typeof showShareToast==='function') showShareToast('✓ Logged to fairness ledger'); });
+}
+
 // ══ PIA-027 · TRIP WATCHLIST (mobile mirror) ═════════════════════
 // Owns the "considering, not yet booked" phase (HQ §10); hands off to Google
 // Flights (options + alerts) and Flighty (passport + past flights).
@@ -4326,6 +4446,29 @@ function loadWatchlist() {
       if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ if (a && a.id) WATCHLIST.push(a); });
     }
   } catch(e){}
+  // PIA-024 (mobile mirror): a shared plan link (?wl=…) reproduces the whole watchlist.
+  try {
+    var wlp = new URLSearchParams(window.location.search).get('wl');
+    if (wlp) {
+      var s = JSON.parse(decodeURIComponent(atob(wlp)));
+      if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; } });
+      if (s && Array.isArray(s.added)) s.added.forEach(function(a){ if (a && a.id && !WATCHLIST.some(function(x){ return x.id===a.id; })) WATCHLIST.push(a); });
+    }
+  } catch(e){}
+}
+function sharePlan(){
+  var payload = { overrides:{}, added:[] };
+  WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes }; });
+  var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e){}
+  var sp = new URLSearchParams(window.location.search); sp.set('wl', enc);
+  var url = window.location.origin + window.location.pathname + '?' + sp.toString();
+  var lines = WATCHLIST.slice().sort(function(a,b){ return WATCHLIST_STAGES[a.stage].order - WATCHLIST_STAGES[b.stage].order; }).map(function(t){
+    var st = WATCHLIST_STAGES[t.stage] || {}; var est = watchlistEst(t);
+    return (st.emoji||'') + ' ' + t.title + ' · ' + t.dep + (t.ret?'→'+t.ret:'') + (est!=null?' ≈ $'+est:'') + ' · ' + (st.lbl||t.stage);
+  });
+  var summary = '📋 Our trip plan (PIALAX):\n' + lines.join('\n') + '\n\n' + url;
+  if (typeof copyRouteText === 'function') copyRouteText(summary);
+  else if (typeof showShareToast === 'function') showShareToast('Copy: ' + url);
 }
 function saveWatchlist() {
   try {
@@ -4417,7 +4560,10 @@ function renderWatchlist(){
       remind + actions +
     '</div>';
   }).join('');
-  var addBtn = '<button id="wl-add" style="width:100%;font-size:.62rem;font-weight:800;background:transparent;color:var(--accent);border:1px dashed var(--accent);border-radius:8px;padding:9px;cursor:pointer;font-family:inherit;min-height:38px;">＋ Add current view to watchlist</button>';
+  var addBtn = '<div style="display:flex;gap:6px;">' +
+    '<button id="wl-add" style="flex:1;font-size:.62rem;font-weight:800;background:transparent;color:var(--accent);border:1px dashed var(--accent);border-radius:8px;padding:9px;cursor:pointer;font-family:inherit;min-height:38px;">＋ Add current view</button>' +
+    '<button id="wl-share" title="Copy a shareable summary + link of the whole plan" style="font-size:.62rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;font-family:inherit;white-space:nowrap;min-height:38px;">🔗 Share</button>' +
+  '</div>';
   sec.innerHTML = header + '<div style="margin-top:6px;">' + cards + addBtn + '</div>';
   wireWatchlist(sec);
 }
@@ -4428,6 +4574,7 @@ function wireWatchlist(sec){
   sec.querySelectorAll('.wl-open').forEach(function(el){ el.addEventListener('click', function(){ openWatchlistTrip(el.getAttribute('data-id')); }); });
   sec.querySelectorAll('.wl-del').forEach(function(el){ el.addEventListener('click', function(){ removeWatchlistItem(el.getAttribute('data-id')); }); });
   var add = sec.querySelector('#wl-add'); if (add) add.addEventListener('click', addCurrentToWatchlist);
+  var shr = sec.querySelector('#wl-share'); if (shr) shr.addEventListener('click', sharePlan);
 }
 
 // ── INIT ─────────────────────────────────────────────────────────
