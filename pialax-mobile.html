@@ -1152,9 +1152,9 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 
 <!-- Sticky CTA -->
 <div class="sticky-cta">
-  <button id="search-btn">
+  <button id="search-btn" title="Fetches live Google Flights fares via SerpAPI — uses 1+ of your monthly queries. Loading the page never spends a query.">
     <span id="search-icon">⟳</span>
-    <span id="search-label">Find Best Flights</span>
+    <span id="search-label">Get Live Fares</span>
     <div class="spin-sm" id="search-spin"></div>
   </button>
 </div>
@@ -3286,17 +3286,23 @@ function updateDateUI() {
 
 
 // ── PRICES ───────────────────────────────────────────────────────
-async function loadPrices() {
+async function loadPrices(allowLive) {
+  // QUOTA GUARD (2026-07-21, mobile mirror): allowLive===true is passed ONLY by the
+  // search button. Every other caller renders from the 24h cache / sample data and
+  // spends ZERO SerpAPI queries. A query is only ever spent on an explicit tap.
+  var live = (allowLive === true);
   var btn=document.getElementById('search-btn'), spin=document.getElementById('search-spin');
   var icon=document.getElementById('search-icon'), lbl=document.getElementById('search-label');
   // PIA-005 AC2 (mobile mirror): short-circuit if quota safety cutoff is hit.
-  if (PROXY_URL && isFetchLocked()) {
+  if (live && PROXY_URL && isFetchLocked()) {
     console.warn('[PIALAX-mobile] loadPrices: short-circuited — quota safety cutoff reached.');
     updateApiCallCount();
     return;
   }
-  if (btn.disabled) return;
-  btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
+  if (live) {
+    if (btn.disabled) return;
+    btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
+  }
   // Update status bar
   var statusEl = document.getElementById('status');
   if (statusEl) { statusEl.className = 'loading'; statusEl.textContent = 'Searching live fares…'; statusEl.style.display = 'block'; }
@@ -3355,13 +3361,21 @@ async function loadPrices() {
   }
   // PIA-005 AC3 (mobile mirror, downgrade): live fan-out capped at MAX_CALLS_PER_REFRESH.
   // Cache hits free; cache miss with no budget → mock fallback with rateLimited flag.
-  var liveBudget = MAX_CALLS_PER_REFRESH;
+  var liveBudget = live ? MAX_CALLS_PER_REFRESH : 0;
   await Promise.all(routes.map(function(r) {
     var rDep = r.dep || globalDep;
     var rRet = r.ret || globalRet;
     var ck = _cacheKey(r.from, r.to, rDep, rRet);
     var hit = _flightCache[ck];
     var isCacheHit = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
+    // Cache-only path (no button press): cached fares if fresh, else sample.
+    // Never calls fetchFlights → zero SerpAPI spend.
+    if (!live) {
+      if (isCacheHit) { S.prices[r.key] = Object.assign({}, hit.data, { cached: true }); cachedCount++; }
+      else { S.prices[r.key] = getMock(r.from, r.to); }
+      doneCount++; scheduleRepaint();
+      return Promise.resolve();
+    }
     if (!isCacheHit && liveBudget <= 0) {
       S.prices[r.key] = Object.assign({}, getMock(r.from, r.to), { rateLimited: true });
       failCount++; doneCount++; scheduleRepaint();
@@ -3380,21 +3394,27 @@ async function loadPrices() {
   if (PROXY_URL && liveCount > 0) { S.apiCalls += liveCount; }
   updateApiCallCount();
   var allFailed = failCount === routes.length;
+  var total = routes.length;
+  var isLiveish = PROXY_URL && !allFailed && (live || (cachedCount === total && total > 0));
   var statusLbl;
   if (!PROXY_URL) statusLbl = 'Sample Data';
+  else if (!live) statusLbl = (cachedCount === 0 ? 'Sample · tap Get Live Fares'
+                     : cachedCount === total ? 'Cached fares' : 'Cached + sample');
   else if (allFailed) statusLbl = 'API Error — Using Samples';
   else if (liveCount === 0 && cachedCount > 0) statusLbl = 'Live (cached)';
   else statusLbl = 'Live Data';
   document.getElementById('data-badge').textContent   = statusLbl;
-  document.getElementById('data-badge').className     = 'ab-badge ' + (!PROXY_URL||allFailed ? 'b-mock' : 'b-live');
+  document.getElementById('data-badge').className     = 'ab-badge ' + (isLiveish ? 'b-live' : 'b-mock');
   document.getElementById('pill-src').textContent     = statusLbl;
-  document.getElementById('data-pill-lbl').textContent= PROXY_URL && !allFailed ? 'Live' : 'Sample';
-  document.querySelector('.ld').style.background      = PROXY_URL && !allFailed ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('data-pill-lbl').textContent= isLiveish ? 'Live' : 'Sample';
+  document.querySelector('.ld').style.background      = isLiveish ? 'var(--green)' : 'var(--amber)';
   renderMeetupStrip(); redrawMap(); updateStats();
   if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
   if (S.mode === 'solo') renderSoloCards();
-  btn.disabled=false; spin.style.display='none'; icon.style.display=''; lbl.textContent='Find Best Flights';
-  requestAnimationFrame(function(){ lbl.textContent = 'Find Best Flights'; });
+  var nextLbl = (!live && PROXY_URL && cachedCount < total) ? 'Get Live Fares' : 'Refresh Fares';
+  if (live) { btn.disabled=false; spin.style.display='none'; icon.style.display=''; }
+  lbl.textContent = nextLbl;
+  requestAnimationFrame(function(){ lbl.textContent = nextLbl; });
   // Update status
   if (statusEl) {
     var fareCount = Object.keys(S.prices).length;
@@ -3775,7 +3795,9 @@ document.getElementById('cal-ok').addEventListener('click', closeCal);
 document.getElementById('cal-bd').addEventListener('click', closeCal);
 document.getElementById('dep-btn').addEventListener('click', function(){ openCal('dep'); });
 document.getElementById('ret-btn').addEventListener('click', function(){ if(!document.getElementById('ret-btn').disabled) openCal('ret'); });
-document.getElementById('search-btn').addEventListener('click', loadPrices);
+// The search button is the ONLY caller that passes allowLive=true — the only path
+// that spends a SerpAPI query. Everything else renders from cache/sample.
+document.getElementById('search-btn').addEventListener('click', function(){ loadPrices(true); });
 document.getElementById('share-btn-top').addEventListener('click', shareThePlan);
 var _copyLinkBtnMobile = document.getElementById('copy-link-btn');
 if (_copyLinkBtnMobile) _copyLinkBtnMobile.addEventListener('click', copyShareLink);
