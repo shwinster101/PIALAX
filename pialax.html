@@ -397,8 +397,8 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="laborday">⚡ Labor Day</button>
         <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
         <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
-        <button class="hol-btn" data-hol="london">🇬🇧 London Jun 25–Jul 3</button>
-        <button class="hol-btn" data-hol="jaxjun5">🏖 JAX Jun 5–8</button>
+        <button class="hol-btn" data-hol="jaxaug">🏖 JAX Aug 7–9</button>
+        <button class="hol-btn" data-hol="london">✅ London ✓ (done)</button>
       </div>
       <!-- ORD Hub toggle removed — ORD always available as a meetup hub via the dropdown. -->
     </div>
@@ -605,11 +605,14 @@ var MOCK = {
 // changing the lookup contract. Saves ~2 SerpAPI calls per London-preset refresh.
 var LOCKED_TRIPS = [
   // Mom & Dad — PIA→LHR via ORD, booked Jun 24 2026 (AA3740 PIA-ORD → AA98 ORD-LHR overnight, lands LHR 12:30pm Jun 25).
+  // 2026-07-21: trip COMPLETED (flew Jun 25, returned Jul 3). `completed:true`
+  // swaps the card's 🔒 Locked badge for a green ✅ "Trip complete" marker.
   { from:'PIA', to:'LHR',
     bookedDep:'2026-06-24', bookedRet:'2026-07-03',
     via:'ORD',
     outboundFlights:'AA 3740 → AA 98', airline:'American Airlines',
     arrivalNote:'Landing LHR 12:30pm Jun 25',
+    completed:true, completedNote:'Flew Jun 25 · returned Jul 3 · trip complete',
     matchWindow:{ dep:['2026-06-22','2026-06-26'], ret:['2026-07-01','2026-07-05'] } },
   // Same booking, second leg — covers the via-ORD fetch path in piaRouteTo so
   // ORD-LHR price lookups for the same window also return locked.
@@ -617,6 +620,7 @@ var LOCKED_TRIPS = [
     bookedDep:'2026-06-24', bookedRet:'2026-07-03',
     outboundFlights:'AA 98', airline:'American Airlines',
     arrivalNote:'Landing LHR 12:30pm Jun 25',
+    completed:true, completedNote:'Flew Jun 25 · returned Jul 3 · trip complete',
     matchWindow:{ dep:['2026-06-22','2026-06-26'], ret:['2026-07-01','2026-07-05'] } }
 ];
 // PIA-009 AC3 — per-member default windows applied when London chip is tapped.
@@ -646,8 +650,8 @@ function findLockedTrip(from, to, dep, ret) {
 // Defaults to ret date for round-trips; dep date for one-way.
 var TRIP_PRESETS = {
   JAX: [
-    // Visit sister before her NYC move (Sep 1, 2026)
-    { id:'jax-jun5', label:'Jun 5–8 RT', dep:'2026-06-05', ret:'2026-06-08', tripType:'round', validUntil:'2026-06-08' },
+    // Visit sister at JAX before her NYC move (Sep 1, 2026). Fri Aug 7 – Sun Aug 9.
+    { id:'jax-aug7', label:'Aug 7–9 RT', dep:'2026-08-07', ret:'2026-08-09', tripType:'round', validUntil:'2026-08-09' },
   ],
   MIA: [
     { id:'mia-jun18', label:'Jun 18–21 RT', dep:'2026-06-18', ret:'2026-06-21', tripType:'round', validUntil:'2026-06-21' },
@@ -673,20 +677,28 @@ var FAMILY = ['PIA','LAX','JAX'];
 //
 // `bookedDep` / `bookedRet` kept as legacy aliases (PIA-013 readers); new code reads
 // the explicit out/ret pair via bookedDateForToday().
+// 2026-07-21: London trip is now HISTORY — flew Jun 24/25, returned Jul 1–4. Marked
+// `tripCompleted:true` and the active booking flags cleared (booked/bookedOutbound
+// → false) so members are free to shop the next trip (JAX Aug 7–9) with live/sample
+// fare pills instead of a stale 🔒 BOOKED lock. The Jun/Jul dates are retained as a
+// historical record and drive the "✅ Last trip: London · complete" strip marker.
 var FAMILY_INFO = {
-  PIA: { headcount: 2, label: 'Mom & Dad', booked: true,
+  PIA: { headcount: 2, label: 'Mom & Dad', booked: false,
+         tripCompleted: true, completedTrip: 'London · Jun 25–Jul 3, 2026',
          bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
          bookedRetDep: '2026-07-03', bookedRetArr: null,
-         bookedDep: '2026-06-24', bookedRet: '2026-07-03' }, // legacy aliases
-  LAX: { headcount: 1, label: 'Me', booked: false, bookedOutbound: true,
+         bookedDep: '2026-06-24', bookedRet: '2026-07-03' }, // historical record (London)
+  LAX: { headcount: 1, label: 'Me', booked: false, bookedOutbound: false,
+         tripCompleted: true, completedTrip: 'London · Jun 24–Jul 4, 2026',
          bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
-         bookedRetDep: null, bookedRetArr: null,
-         bookedDep: '2026-06-24', bookedRet: null }, // outbound only; return TBD
+         bookedRetDep: '2026-07-04', bookedRetArr: null,
+         bookedDep: '2026-06-24', bookedRet: '2026-07-04' }, // historical record (London)
   JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK',
-         booked: true,
+         booked: false,
+         tripCompleted: true, completedTrip: 'London · Jun 24–Jul 1, 2026',
          bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
          bookedRetDep: '2026-07-01', bookedRetArr: '2026-07-01',
-         bookedDep: '2026-06-24', bookedRet: '2026-07-01' }, // legacy aliases
+         bookedDep: '2026-06-24', bookedRet: '2026-07-01' }, // historical record (London)
 };
 // PIA-018: dynamic booking date for the pill — shows the NEXT relevant date in the
 // traveler's itinerary based on today's ISO. Falls back to the most recent known
@@ -778,8 +790,8 @@ var HOLIDAYS = {
   laborday:     nextLaborDay(),
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
-  london:       new Date(2026, 5, 25), // June 25, 2026 — London family trip (Jun 25 – Jul 3)
-  jaxjun5:      new Date(2026, 5, 5),  // June 5, 2026 — JAX family meetup (Jun 5–8)
+  london:       new Date(2026, 5, 25), // June 25, 2026 — London family trip (Jun 25 – Jul 3) · COMPLETED (flew, returned Jul 3)
+  jaxaug:       new Date(2026, 7, 7),  // Aug 7, 2026 — JAX weekend (Fri Aug 7 – Sun Aug 9); visit sister before her Sep 1 NYC move
 };
 
 // ── STATE ────────────────────────────────────────────────────────
@@ -804,6 +816,12 @@ var S = {
   memberDates: {},
   // PIA → intl routing override per destination: 'direct' | 'via-ord' | null (auto)
   piaRouteOverride: {},
+  // Trip-focus emphasis (2026-07-21, JAX-Aug planning): highlight one member's
+  // route as the active plan (focusMember) and mute others kept "in the loop but
+  // not planning to go" (tentativeMembers). Derived from the preset chip on tap;
+  // NOT URL-persisted — re-derived when the chip is clicked. Empty = neutral.
+  focusMember: null,
+  tentativeMembers: [],
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
 
@@ -941,6 +959,8 @@ function airlineRowHtml(priceObj, isRT) {
 function applyHoliday(key) {
   var base = HOLIDAYS[key];
   if (!base) return;
+  // Clear any prior trip-focus emphasis; the selected preset re-seeds it below.
+  S.focusMember = null; S.tentativeMembers = [];
   // Toggle-off: if the London chip is already active, clicking again clears
   // the trip so the user can start over (per Ashwin's request — London only).
   if (key === 'london') {
@@ -981,9 +1001,16 @@ function applyHoliday(key) {
     S.memberDates.LAX = { dep: new Date(lp.LAX.dep + 'T00:00:00'), ret: new Date(lp.LAX.ret + 'T00:00:00') };
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
-  } else if (key === 'jaxjun5') {
-    // JAX family meetup: fixed dates Jun 5–8, switches to meetup mode + JAX hub
-    dep = new Date(2026, 5, 5); ret = new Date(2026, 5, 8);
+  } else if (key === 'jaxaug') {
+    // JAX weekend Fri Aug 7 – Sun Aug 9, 2026 — visit sister at JAX before her
+    // Sep 1 move to NYC (JFK). Meetup hub = JAX (sister hosts). Focus is Ashwin's
+    // LAX→JAX leg ("really going"); Mom & Dad's PIA→JAX is kept in the loop but
+    // flagged tentative ("not really planning on going"). US map.
+    dep = new Date(2026, 7, 7); ret = new Date(2026, 7, 9);
+    S.focusMember = 'LAX';
+    S.tentativeMembers = ['PIA'];
+    // Clear any leftover per-member overrides so everyone prices the Aug 7–9 window.
+    if (S.memberDates) { delete S.memberDates.JAX; delete S.memberDates.LAX; delete S.memberDates.PIA; }
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'us') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
   } else {
@@ -994,7 +1021,7 @@ function applyHoliday(key) {
     ret.setDate(dep.getDate() + 3); // Sun (Thu + 3)
   }
   S.depDate = dep; S.retDate = ret; S.tripType = 'round';
-  S.meetupHubOverride = (key === 'london') ? 'LHR' : (key === 'jaxjun5' ? 'JAX' : null);
+  S.meetupHubOverride = (key === 'london') ? 'LHR' : (key === 'jaxaug' ? 'JAX' : null);
   document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v==='round'); });
   document.getElementById('pill-trip').textContent = 'Round-Trip';
   document.getElementById('s-trip').textContent    = 'Round-Trip';
@@ -1220,8 +1247,29 @@ function renderMeetupStrip() {
         '<div class="ms-sub" style="margin-top:4px;">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
       '</div>' +
     '</div>';
-  strip.innerHTML = bestHtml;
+  strip.innerHTML = bestHtml + completedTripMarker();
   renderMeetupRoutes();
+}
+
+// Standing "✅ Last trip complete" marker — surfaces the most recent completed
+// family trip (London Jun 2026) as a successful history record under the meetup
+// strip. Reads FAMILY_INFO[*].tripCompleted; shows only when today is past the
+// trip's return date. Returns '' when there is no completed trip to report.
+function completedTripMarker() {
+  var best = null, bestRet = '';
+  for (var k in FAMILY_INFO) {
+    var fi = FAMILY_INFO[k];
+    if (!fi || fi.tripCompleted !== true) continue;
+    var ret = fi.bookedRetDep || fi.bookedRet || fi.bookedOutArr || '';
+    if (ret && fmtISO(today) <= ret) continue; // trip not yet in the past
+    if (!best || ret > bestRet) { best = fi; bestRet = ret; }
+  }
+  if (!best) return '';
+  var label = best.completedTrip || 'Previous trip';
+  return '<div style="margin-top:8px;padding:5px 9px;background:rgba(16,185,129,.08);' +
+         'border:1px solid var(--green);border-radius:8px;font-size:.6rem;font-weight:800;' +
+         'color:var(--green);display:flex;align-items:center;gap:6px;">' +
+         '<span>✅ Last trip: ' + esc(label) + ' · complete</span></div>';
 }
 
 // ── MEETUP ROUTE BREAKDOWN (sidebar cards) ───────────────────────
@@ -1262,6 +1310,19 @@ function renderMeetupRoutes() {
     var isPiaDriving = (from === 'PIA' && hub === 'ORD');
     var headcount = headcountFor(from);
     var memberLabel = labelFor(from);
+    // Trip-focus emphasis (2026-07-21): the focus member's card gets a ★ tag +
+    // green accent ("this is the plan"); tentative members are muted with an
+    // "in the loop · not planning" note ("kept in view, not booking").
+    var isFocus = (S.focusMember && from === S.focusMember);
+    var isTentative = (S.tentativeMembers && S.tentativeMembers.indexOf(from) > -1);
+    var focusTag = isFocus
+      ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="Primary plan for this trip">★ FOCUS</span>'
+      : (isTentative
+          ? '<span style="font-size:.5rem;background:var(--surface2);color:var(--muted);border:1px solid var(--border2);padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="Kept in view — not planning to go">🤔 tentative</span>'
+          : '');
+    var tentativeNote = isTentative
+      ? '<div style="font-size:.55rem;color:var(--muted);font-weight:700;margin-top:3px;font-style:italic;">🤔 In the loop · not really planning on going</div>'
+      : '';
     // Per-ticket × headcount → subtotal helper for display
     function multTxt(perTicket) {
       if (headcount <= 1) return '';
@@ -1305,19 +1366,29 @@ function renderMeetupRoutes() {
           : '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">PIA</span>' +
             '<span class="route-arrow">→</span>' +
             '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>';
-        var lockedCopyText = memberLabel + ' (PIA' + (route.viaORD ? '→ORD' : '') + '→' + hub + '): (booked) ' +
+        // 2026-07-21: a completed trip flips the lock badge to a green ✅ "flew"
+        // marker so a past trip reads as history, not a still-pending booking.
+        var isDone = !!activePriceObj.completed;
+        var doneAccent = isDone ? 'var(--green)' : 'var(--accent)';
+        var doneBg = isDone ? 'rgba(16,185,129,.07)' : 'rgba(46,124,246,.06)';
+        var doneBadge = isDone ? '✅ FLEW' : '🔒 LOCKED';
+        var doneHeadline = isDone
+          ? '✅ ' + esc(activePriceObj.completedNote || 'Trip complete')
+          : '🔒 Locked · ' + esc(activePriceObj.arrivalNote || 'booked');
+        var lockedCopyText = memberLabel + ' (PIA' + (route.viaORD ? '→ORD' : '') + '→' + hub + '): ' +
+          (isDone ? '(flew · complete) ' : '(booked) ') +
           (activePriceObj.flightNo || '') +
           (activePriceObj.arrivalNote ? ' · ' + activePriceObj.arrivalNote : '') +
           (activePriceObj.bookedDep ? ' · ' + activePriceObj.bookedDep + (activePriceObj.bookedRet ? '→' + activePriceObj.bookedRet : '') : '');
         html +=
-          '<div class="route-card" style="border-left:3px solid var(--accent);background:rgba(46,124,246,.06);">' +
+          '<div class="route-card" style="border-left:3px solid ' + doneAccent + ';background:' + doneBg + ';">' +
             '<div class="route-card-hd">' + lockedHdr +
               '<span class="member-tag">' + memberLabel + '</span>' +
-              '<span class="src-badge live" style="background:rgba(46,124,246,.2);border:1px solid var(--accent);color:var(--accent);">🔒 LOCKED</span>' +
+              '<span class="src-badge live" style="background:rgba(16,185,129,.18);border:1px solid ' + doneAccent + ';color:' + doneAccent + ';">' + doneBadge + '</span>' +
               '<button class="route-copy-btn" data-copy="' + esc(lockedCopyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
             '</div>' +
             '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:4px;">' +
-              '<div style="font-size:.78rem;font-weight:900;color:var(--green);">🔒 Locked · ' + esc(activePriceObj.arrivalNote || 'booked') + '</div>' +
+              '<div style="font-size:.78rem;font-weight:900;color:var(--green);">' + doneHeadline + '</div>' +
             '</div>' +
             '<div class="route-airline" style="font-size:.62rem;color:var(--accent);font-weight:700;margin-top:3px;">✈ ' +
               esc(activePriceObj.airline || '') + ' · ' + esc(activePriceObj.flightNo || '') +
@@ -1446,13 +1517,18 @@ function renderMeetupRoutes() {
     var genSubtotalLine = (headcount > 1)
       ? '<div class="route-fare-lbl" style="margin-top:2px;">$' + price + ' × ' + headcount + ' = <strong>$' + subtotalGen + '</strong> ' + fareLabel + '</div>'
       : '';
+    // Focus → green left-accent; tentative → dashed muted border + dimmed.
+    var cardStyle = isFocus
+      ? ' style="border-left:3px solid var(--green);background:rgba(16,185,129,.06);"'
+      : (isTentative ? ' style="border-left:3px dashed var(--border2);opacity:.68;"' : '');
     html +=
-      '<div class="route-card">' +
+      '<div class="route-card"' + cardStyle + '>' +
         '<div class="route-card-hd">' +
           '<span class="route-badge" style="background:' + fromCol + '22;border:1px solid ' + fromCol + ';color:' + fromCol + '">' + from + '</span>' +
           '<span class="route-arrow">→</span>' +
           '<span class="route-badge" style="background:' + hubCol + '22;border:1px solid ' + hubCol + ';color:' + hubCol + '">' + hub + '</span>' +
           '<span class="member-tag">' + memberLabel + '</span>' +
+          focusTag +
           customBadge +
           (noDate ? '<span class="route-est-tag">est.</span>' : '') +
           '<button class="route-copy-btn" data-copy="' + esc(copyFlyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
@@ -1463,6 +1539,7 @@ function renderMeetupRoutes() {
         '</div>' +
         genSubtotalLine +
         airlineHtml +
+        tentativeNote +
         flexDatesHtml +
       '</div>';
   });
@@ -2295,6 +2372,8 @@ async function fetchFlights(from, to, dep, ret) {
       bookedDep: locked.bookedDep,
       bookedRet: locked.bookedRet,
       arrivalNote: locked.arrivalNote,
+      completed: !!locked.completed,
+      completedNote: locked.completedNote || null,
       ts: Date.now(),
       // PIA-013 AC1+AC4: lastVerified = booking date (renderer shows 🔒 BOOKED instead of pill).
       lastVerified: locked.bookedDep ? locked.bookedDep + 'T00:00:00.000Z' : null,
