@@ -845,7 +845,24 @@ var S = {
   // NOT URL-persisted — re-derived when the chip is clicked. Empty = neutral.
   focusMember: null,
   tentativeMembers: [],
+  // PIA-023: per-member RSVP status (code → 'in' | 'tentative' | 'out'). The hub
+  // resident is 'hosting' (derived, not stored). 'out' members are excluded from the
+  // meetup total; 'tentative' still count but are flagged. Default (absent) = 'in'.
+  memberStatus: {},
 };
+// PIA-023: resolve a member's RSVP status for a given hub (hub resident hosts).
+function memberStatusFor(code, hub){
+  if (hub && code === hub) return 'hosting';
+  return (S.memberStatus && S.memberStatus[code]) || 'in';
+}
+function setMemberStatus(code, status){
+  if (!S.memberStatus) S.memberStatus = {};
+  if (status === 'in') delete S.memberStatus[code]; else S.memberStatus[code] = status;
+  // keep the legacy tentative array in sync so route-card styling stays correct
+  S.tentativeMembers = Object.keys(S.memberStatus).filter(function(k){ return S.memberStatus[k]==='tentative'; });
+  syncURL();
+  renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
+}
 function dests() { return ROUTE_GRAPH[S.home] || []; }
 
 // Returns {dep, ret} for a given family member — per-member override if set, else global anchor.
@@ -1069,7 +1086,7 @@ function applyHoliday(key) {
   var base = HOLIDAYS[key];
   if (!base) return;
   // Clear any prior trip-focus emphasis; the selected preset re-seeds it below.
-  S.focusMember = null; S.tentativeMembers = [];
+  S.focusMember = null; S.tentativeMembers = []; S.memberStatus = {};
   // Toggle-off: if the London chip is already active, clicking again clears
   // the trip so the user can start over (per Ashwin's request — London only).
   if (key === 'london') {
@@ -1118,6 +1135,7 @@ function applyHoliday(key) {
     dep = new Date(2026, 7, 7); ret = new Date(2026, 7, 9);
     S.focusMember = 'LAX';
     S.tentativeMembers = ['PIA'];
+    S.memberStatus = { PIA:'tentative' }; // PIA-023: parents tentative, me in, sister hosts
     // Clear any leftover per-member overrides so everyone prices the Aug 7–9 window.
     if (S.memberDates) { delete S.memberDates.JAX; delete S.memberDates.LAX; delete S.memberDates.PIA; }
     if (S.mode !== 'meetup') setMode('meetup');
@@ -1224,6 +1242,7 @@ function computeRanking() {
     var total = 0, parts = [], ok = true;
     effFamily.forEach(function(from) {
       if (from === dest) return;                      // host doesn't fly
+      if ((S.memberStatus && S.memberStatus[from]) === 'out') return; // PIA-023: not going
       if (from === 'PIA' && dest === 'ORD') return;  // PIA drives to ORD — no fare
       var fare;
       var headcount = headcountFor(from);
@@ -1430,6 +1449,7 @@ function renderMeetupRoutes() {
   var effFamily = familyForDate(S.depDate);
   effFamily.forEach(function(from) {
     if (from === hub) return; // hub host doesn't fly
+    if ((S.memberStatus && S.memberStatus[from]) === 'out') return; // PIA-023: not going — no card
     var fromAp = AIRPORTS[from], hubAp = AIRPORTS[hub];
     var fromCol = DC[from] || '#888', hubCol = DC[hub] || '#888';
     var isPiaDriving = (from === 'PIA' && hub === 'ORD');
@@ -2383,7 +2403,7 @@ function renderSoloCards() {
         '</div>' +
       '</div>' +
       '<div class="solo-dest-body">' +
-        (dest === 'CUZ' ? trekInfoCardHtml() + peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
+        (dest === 'CUZ' ? renderTripBinder('peru') + peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
         presetBannerHtml +
         // Section header above the rolling-window stuff. When a preset is active,
         // these are now "alternative dates" — explicitly labeled so the user knows
@@ -4066,6 +4086,16 @@ function restoreFromURL() {
         }
       });
     }
+    // PIA-023: restore RSVP status (ms=PIA:tentative|LAX:out)
+    var msParam = sp.get('ms');
+    if (msParam) {
+      if (!S.memberStatus) S.memberStatus = {};
+      msParam.split('|').forEach(function(entry){
+        var bits = entry.split(':');
+        if (bits.length === 2 && (bits[1] === 'tentative' || bits[1] === 'out')) S.memberStatus[bits[0]] = bits[1];
+      });
+      S.tentativeMembers = Object.keys(S.memberStatus).filter(function(k){ return S.memberStatus[k]==='tentative'; });
+    }
     // (ORD/LHR toggle buttons were removed — no DOM sync needed; flags are global state.)
   } catch(e) { /* URLSearchParams unsupported or parse error — ignore */ }
 }
@@ -4107,6 +4137,12 @@ function syncURL() {
         });
         if (prParts.length) sp.set('pia', prParts.join('|'));
       }
+      // PIA-023: RSVP status ms=PIA:tentative|LAX:out (only non-default 'in' members)
+      if (S.memberStatus && Object.keys(S.memberStatus).length) {
+        var msParts = [];
+        Object.keys(S.memberStatus).forEach(function(c){ if (S.memberStatus[c] && S.memberStatus[c] !== 'in') msParts.push(c + ':' + S.memberStatus[c]); });
+        if (msParts.length) sp.set('ms', msParts.join('|'));
+      }
       if (history.replaceState) history.replaceState(null, '', '?' + sp.toString());
     } catch(e) { /* ignore */ }
   });
@@ -4135,6 +4171,85 @@ function copyShareLink() {
   });
 }
 
+// ══ PIA-021 · TRIP BINDER ════════════════════════════════════════
+// Flights + ground bookings (trek, lodging, transfers) on one chronological timeline
+// with gap + conflict detection — the whole trip in one view. GF holds no ground
+// bookings; Flighty tracks flights only. Generalizes the Peru trek card.
+var BOOKINGS_KEY = 'pialax_bookings_v1';
+var TB_ICON = { flight:'✈', trek:'🎒', lodging:'🏨', tour:'🗺', transfer:'🚐', other:'📌' };
+var TB_COL  = { flight:'#2e7cf6', trek:'#10b981', lodging:'#f59e0b', tour:'#a855f7', transfer:'#06b6d4', other:'#94a3b8' };
+var TRIP_BOOKINGS_SEED = {
+  peru: [
+    { type:'flight', title:'LAX → Cusco', start:'2026-09-03', end:'2026-09-03', location:'Cusco', notes:'Avianca via BOG (open-jaw in)' },
+    { type:'trek', title:'Salkantay & Inca Trail', start:'2026-09-06', end:'2026-09-12', location:'Cusco region', cost:1200, conf:'BK-035216', notes:'Both trails · briefing 17:00 day before · Triunfo St 392' },
+    { type:'flight', title:'Lima → LAX', start:'2026-09-13', end:'2026-09-13', location:'LAX', notes:'Copa via PTY (open-jaw out)' }
+  ]
+};
+function readBookings(){ try { return JSON.parse(localStorage.getItem(BOOKINGS_KEY)) || {}; } catch(e){ return {}; } }
+function writeBookings(b){ try { localStorage.setItem(BOOKINGS_KEY, JSON.stringify(b)); } catch(e){} }
+function tripBookings(key){
+  var seed = (TRIP_BOOKINGS_SEED[key] || []).map(function(s){ return Object.assign({}, s); });
+  var added = (readBookings()[key] || []).map(function(s){ return Object.assign({}, s, { _added:true }); });
+  return seed.concat(added);
+}
+function tbDays(a,b){ return Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00')) / 86400000); }
+function tbFmt(iso){ try { return dateFmt(new Date(iso + 'T12:00:00')); } catch(e){ return iso; } }
+function addTripBooking(key){
+  var t=document.getElementById('tb-type'), ti=document.getElementById('tb-title'), s=document.getElementById('tb-start'), e=document.getElementById('tb-end');
+  if (!ti || !s || !ti.value || !s.value) { if (typeof showShareToast==='function') showShareToast('Add needs a title + start date'); return; }
+  var seg = { type:(t?t.value:'lodging'), title:ti.value, start:s.value, end:(e&&e.value)||s.value };
+  var store = readBookings(); if (!store[key]) store[key] = []; store[key].push(seg); writeBookings(store);
+  renderSoloCards();
+}
+function removeTripBooking(key, idx){
+  var store = readBookings(); if (store[key] && store[key][idx] != null) { store[key].splice(idx,1); writeBookings(store); renderSoloCards(); }
+}
+window.addTripBooking = addTripBooking; window.removeTripBooking = removeTripBooking;
+function renderTripBinder(key){
+  var segs = tripBookings(key);
+  if (!segs.length) return '';
+  segs = segs.slice().sort(function(a,b){ return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0); });
+  var flights = segs.filter(function(s){ return s.type === 'flight'; });
+  var winStart = flights.length ? flights[0].start : segs[0].start;
+  var winEnd = flights.length ? flights[flights.length-1].end : segs[segs.length-1].end;
+  var addedIdx = -1; // track index into the added array for remove
+  var rows = '';
+  segs.forEach(function(s, i){
+    if (i > 0){
+      var gap = tbDays(segs[i-1].end, s.start);
+      if (gap > 0) rows += '<div style="font-size:.52rem;color:var(--muted);padding:2px 0 2px 10px;border-left:2px dotted var(--border2);margin-left:6px;">▫ ' + gap + ' day' + (gap>1?'s':'') + ' free' + (segs[i-1].location ? ' in ' + esc(segs[i-1].location) : '') + '</div>';
+      else if (gap < 0) rows += '<div style="font-size:.52rem;color:var(--red);font-weight:800;padding:2px 0 2px 10px;margin-left:6px;">⚠ overlaps previous by ' + Math.abs(gap) + ' day' + (Math.abs(gap)>1?'s':'') + '</div>';
+    }
+    var col = TB_COL[s.type] || TB_COL.other;
+    var outside = (s.type !== 'flight' && (s.start < winStart || s.end > winEnd));
+    var dates = tbFmt(s.start) + (s.end && s.end !== s.start ? ' – ' + tbFmt(s.end) : '');
+    var meta = [];
+    if (s.location) meta.push('📍 ' + esc(s.location));
+    if (s.cost) meta.push('$' + s.cost);
+    if (s.conf) meta.push('🎟 ' + esc(s.conf));
+    var rm = '';
+    if (s._added) { addedIdx++; rm = '<button onclick="removeTripBooking(\'' + key + '\',' + addedIdx + ')" title="Remove" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.6rem;">✕</button>'; }
+    rows += '<div style="border-left:3px solid ' + col + ';padding:5px 8px;margin:4px 0;background:' + col + '10;border-radius:0 6px 6px 0;">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
+        '<span style="font-size:.62rem;font-weight:800;color:var(--ink);">' + (TB_ICON[s.type]||TB_ICON.other) + ' ' + esc(s.title) + '</span>' +
+        '<span style="font-size:.55rem;color:var(--muted);white-space:nowrap;">' + dates + ' ' + rm + '</span>' +
+      '</div>' +
+      (meta.length ? '<div style="font-size:.52rem;color:var(--muted);margin-top:1px;">' + meta.join(' · ') + '</div>' : '') +
+      (outside ? '<div style="font-size:.52rem;color:var(--red);font-weight:800;margin-top:1px;">⚠ outside your flight window (' + tbFmt(winStart) + '–' + tbFmt(winEnd) + ')</div>' : '') +
+    '</div>';
+  });
+  var addForm = '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);display:flex;gap:3px;flex-wrap:wrap;align-items:center;">' +
+    '<select id="tb-type" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;">' +
+      ['lodging','tour','transfer','trek','flight','other'].map(function(t){ return '<option value="' + t + '">' + (TB_ICON[t]||'📌') + ' ' + t + '</option>'; }).join('') + '</select>' +
+    '<input id="tb-title" placeholder="title" style="flex:1;min-width:70px;font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:3px 5px;font-family:inherit;"/>' +
+    '<input id="tb-start" type="date" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;"/>' +
+    '<input id="tb-end" type="date" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;"/>' +
+    '<button onclick="addTripBooking(\'' + key + '\')" style="font-size:.52rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-family:inherit;">＋</button>' +
+  '</div>';
+  return '<div class="lbl" style="margin-top:2px;">🧳 Trip binder · timeline</div>' +
+    '<div style="border:1px solid var(--border2);border-radius:9px;padding:8px 10px;margin-bottom:8px;background:var(--surface2);">' + rows + addForm + '</div>';
+}
+
 // ══ PIA-022 · COST SPLIT + HOST FAIRNESS · PIA-025 · GROUP PRICE-WATCH ══
 // Group economics GF/Flighty can't do: who pays what to gather, whether the host
 // burden is spread fairly over time, and how the WHOLE-family total moves between
@@ -4148,13 +4263,15 @@ function memberCostsFor(hub) {
   var rows = [], total = 0;
   fam.forEach(function(from){
     var headcount = headcountFor(from), label = labelFor(from);
-    if (from === hub) { rows.push({ code:from, label:label, headcount:headcount, per:0, subtotal:0, host:true }); return; }
-    if (from === 'PIA' && hub === 'ORD') { rows.push({ code:from, label:label, headcount:headcount, per:0, subtotal:0, drives:true }); return; }
+    var status = memberStatusFor(from, hub); // PIA-023
+    if (from === hub) { rows.push({ code:from, label:label, headcount:headcount, per:0, subtotal:0, host:true, status:'hosting' }); return; }
+    if (from === 'PIA' && hub === 'ORD') { rows.push({ code:from, label:label, headcount:headcount, per:0, subtotal:0, drives:true, status:status }); return; }
     var per = 0, viaORD = false;
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) { var route = piaRouteTo(hub, fareKey); per = route.fare || 0; viaORD = route.viaORD; }
     else { var p = S.prices[from + '-' + hub] || getMock(from, hub); per = p ? (p[fareKey] || p.ow) : 0; }
-    var sub = per * headcount; total += sub;
-    rows.push({ code:from, label:label, headcount:headcount, per:per, subtotal:sub, viaORD:viaORD });
+    var sub = per * headcount;
+    if (status !== 'out') total += sub; // PIA-023: 'out' members don't count toward the total
+    rows.push({ code:from, label:label, headcount:headcount, per:per, subtotal:sub, viaORD:viaORD, status:status });
   });
   return { rows:rows, total:total };
 }
@@ -4209,15 +4326,31 @@ function renderGroupCost(){
   var costs = memberCostsFor(hub);
   var fareLbl = S.tripType === 'round' ? 'RT' : 'OW';
   var hubCol = DC[hub] || 'var(--accent)';
-  var flyerCount = costs.rows.filter(function(r){ return !r.host && !r.drives; }).length;
+  var flyerCount = costs.rows.filter(function(r){ return !r.host && !r.drives && r.status !== 'out'; }).length;
+  // PIA-023: inline RSVP status selector for a flyer.
+  function statusSel(code, status){
+    var opts = { in:'✅ in', tentative:'🤔 maybe', out:'✖ out' };
+    return '<select class="gc-status" data-code="' + code + '" style="font-size:.5rem;font-weight:800;background:var(--surface2);color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:1px 2px;font-family:inherit;margin-left:4px;">' +
+      ['in','tentative','out'].map(function(s){ return '<option value="' + s + '"' + (s===status?' selected':'') + '>' + opts[s] + '</option>'; }).join('') + '</select>';
+  }
   var splitRows = costs.rows.map(function(r){
-    if (r.host) return '<div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--muted);"><span>🏠 ' + esc(r.label) + ' <span style="font-size:.5rem;">hosts</span></span><span style="font-weight:800;color:var(--green);">$0</span></div>';
-    if (r.drives) return '<div style="display:flex;justify-content:space-between;font-size:.58rem;color:var(--muted);"><span>🚗 ' + esc(r.label) + ' <span style="font-size:.5rem;">drives</span></span><span style="font-weight:800;">~$' + ORD_DRIVE_TAX + '</span></div>';
-    var pct = costs.total > 0 ? Math.round(r.subtotal / costs.total * 100) : 0;
-    return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;">' +
-      '<span style="color:var(--ink);">' + esc(r.label) + ' <span style="color:var(--muted);font-size:.5rem;">' + r.code + (r.headcount>1?' ×'+r.headcount:'') + '</span></span>' +
-      '<span><span style="color:var(--muted);font-size:.5rem;">' + pct + '% · </span><strong style="color:var(--ink);">$' + r.subtotal + '</strong></span></div>';
+    if (r.host) return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;color:var(--muted);"><span>🏠 ' + esc(r.label) + ' <span style="font-size:.5rem;">hosts</span></span><span style="font-weight:800;color:var(--green);">$0</span></div>';
+    var isOut = r.status === 'out', isTent = r.status === 'tentative';
+    var lblCol = isOut ? 'var(--muted)' : 'var(--ink)';
+    var amt = isOut ? '<s style="color:var(--muted);">$' + r.subtotal + '</s>' : '<strong style="color:var(--ink);">$' + r.subtotal + '</strong>';
+    if (r.drives) return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;color:var(--muted);"><span>🚗 ' + esc(r.label) + statusSel(r.code, r.status) + '</span><span style="font-weight:800;">~$' + ORD_DRIVE_TAX + '</span></div>';
+    var pct = (!isOut && costs.total > 0) ? Math.round(r.subtotal / costs.total * 100) : 0;
+    return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;' + (isOut?'opacity:.6;':'') + '">' +
+      '<span style="color:' + lblCol + ';">' + (isTent?'🤔 ':'') + esc(r.label) + statusSel(r.code, r.status) + '</span>' +
+      '<span>' + (!isOut ? '<span style="color:var(--muted);font-size:.5rem;">' + pct + '% · </span>' : '') + amt + '</span></div>';
   }).join('');
+  // PIA-023 RSVP headline
+  var goingN = costs.rows.filter(function(r){ return r.status === 'in' || r.status === 'hosting'; }).length;
+  var tentN = costs.rows.filter(function(r){ return r.status === 'tentative'; }).length;
+  var outN = costs.rows.filter(function(r){ return r.status === 'out'; }).length;
+  var rsvpHtml = '<div style="display:flex;align-items:center;gap:6px;font-size:.55rem;color:var(--muted);margin-bottom:5px;">' +
+    '<span style="font-weight:800;color:var(--ink);">👥 ' + goingN + ' of ' + costs.rows.length + ' in</span>' +
+    (tentN ? '<span>· ' + tentN + ' maybe</span>' : '') + (outN ? '<span>· ' + outN + ' out</span>' : '') + '</div>';
   var hist = (readGroupPrices()[priceSig(hub)]) || [];
   var watchHtml;
   if (hist.length >= 1) {
@@ -4242,6 +4375,7 @@ function renderGroupCost(){
   panel.innerHTML =
     '<div class="lbl">💰 Family cost split · ' + hub + '</div>' +
     '<div style="border:1px solid ' + hubCol + '55;border-left:3px solid ' + hubCol + ';border-radius:9px;padding:9px 11px;background:' + hubCol + '0f;">' +
+      rsvpHtml +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">' +
         '<span style="font-size:.6rem;font-weight:900;color:var(--ink);">Total · ' + flyerCount + ' flying</span>' +
         '<span style="font-size:.9rem;font-weight:900;color:var(--green);">$' + costs.total + ' <span style="font-size:.5rem;color:var(--muted);">' + fareLbl + '</span></span>' +
@@ -4250,6 +4384,7 @@ function renderGroupCost(){
   panel.style.display = '';
   var logBtn = panel.querySelector('#gc-log');
   if (logBtn) logBtn.addEventListener('click', function(){ logMeetupToLedger(hub, costs); renderGroupCost(); if (typeof showShareToast==='function') showShareToast('✓ Logged to fairness ledger'); });
+  panel.querySelectorAll('.gc-status').forEach(function(el){ el.addEventListener('change', function(){ setMemberStatus(el.getAttribute('data-code'), el.value); }); }); // PIA-023
 }
 
 // ══ PIA-027 · TRIP WATCHLIST ═════════════════════════════════════
@@ -4472,6 +4607,7 @@ async function boot() {
     S.meetupHubOverride = 'JAX';
     S.focusMember = 'LAX';
     S.tentativeMembers = ['PIA'];
+    S.memberStatus = { PIA:'tentative' }; // PIA-023: parents tentative, me in, sister hosts
     S.mapView = 'us';
     document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'jaxaug'); });
     document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
