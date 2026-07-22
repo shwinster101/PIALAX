@@ -2212,6 +2212,14 @@ function renderBarChart(svgEl, from, to) {
   });
 }
 
+// PIA-0xx solo-mode repositioning: solo cards become a planning + hand-off
+// surface (cheap-week signal + Trip Binder + notes + GF/Flighty links) rather
+// than an in-app fare grid. _soloLiveConfirm holds the dest awaiting a second
+// confirm click before the 13-call live fetch fires (mirrors the existing
+// .wknd-row → .solo-preview-lock two-step below). _soloChartOpen tracks which
+// dests have expanded the demoted price-trend disclosure (default collapsed).
+var _soloLiveConfirm = null;
+var _soloChartOpen = {};
 function renderSoloCards() {
   var container = document.getElementById('solo-cards');
   if (!container) return;
@@ -2317,22 +2325,67 @@ function renderSoloCards() {
     // PIA-013 AC2: replace bespoke ● live span with centralized freshness pill.
     // AC4: pass S.home so PIA/JAX booked routes render 🔒 BOOKED instead of SAMPLE.
     var liveTag = freshnessLabel(defaultPriceObj, S.home).pillHtml;
-    var liveBtnHtml = PROXY_URL
-      ? '<button class="solo-live-btn" data-dest="' + dest + '">' + (hasLive ? '🔄 Refresh live prices (13 calls)' : '📡 Load live prices (13 calls)') + '</button>'
-      : '';
+    // Gate the 13-call live fetch: disable when quota-locked; require a two-step
+    // in-card confirm (mirrors .wknd-row → .solo-preview-lock below) that shows
+    // remaining quota before spending it.
+    var quotaLocked = isFetchLocked();
+    var liveBtnLabel = hasLive ? '🔄 Refresh 13 live weeks (~13 queries)' : '📡 Load 13 live weeks (~13 queries)';
+    var liveBtnHtml = '';
+    if (PROXY_URL) {
+      if (_soloLiveConfirm === dest) {
+        var _q = readQuota();
+        var _remaining = Math.max(0, _q.budget - _q.used);
+        liveBtnHtml = '<div class="solo-live-confirm-row" data-dest="' + dest + '" style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:6px 8px;background:rgba(245,158,11,.08);border:1px solid var(--amber);border-radius:7px;">' +
+          '<span style="font-size:.58rem;color:var(--ink);font-weight:700;">Spend ~13 of ' + _remaining + ' left?</span>' +
+          '<button class="solo-live-confirm-yes" data-dest="' + dest + '" style="font-size:.58rem;font-weight:900;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:3px 9px;cursor:pointer;">Confirm</button>' +
+          '<button class="solo-live-confirm-no" data-dest="' + dest + '" style="font-size:.58rem;font-weight:700;background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:5px;padding:3px 9px;cursor:pointer;">Cancel</button>' +
+        '</div>';
+      } else {
+        var _lockAttr = quotaLocked ? ' disabled aria-disabled="true" title="Monthly SerpAPI quota is locked — resets the 1st" style="opacity:.5;cursor:not-allowed;"' : '';
+        liveBtnHtml = '<button class="solo-live-btn" data-dest="' + dest + '"' + _lockAttr + '>' + liveBtnLabel + '</button>';
+      }
+    }
     // Google Flights booking link for the active dates. Peru (CUZ) resolves to an
     // open-jaw multi-city query (LAX→CUZ / LIM→LAX) via bookingUrlFor().
     var soloDepISO = S.depDate ? fmtISO(S.depDate) : '';
     var soloRetISO = (isRTSolo && S.retDate) ? fmtISO(S.retDate) : '';
     var soloBookUrl = bookingUrlFor(S.home, dest, soloDepISO, soloRetISO, isRTSolo);
+    // Cheap-week signal (free, no API spend) — the new primary surface, replacing
+    // the bar chart as the headline. Reuses top[0] (computeBestWeekends), already
+    // computed above, plus a prominent Google Flights hand-off for real prices.
+    var cheapWeekTop = top[0];
+    var cheapWeekHtml = cheapWeekTop
+      ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:7px 9px;margin-bottom:6px;background:rgba(16,185,129,.08);border:1px solid var(--green);border-radius:8px;">' +
+          '<div style="font-size:.62rem;font-weight:800;color:var(--ink);">📅 Cheapest week ≈ <span style="color:var(--green);font-weight:900;">$' + cheapWeekTop.price + '</span> <span style="color:var(--muted);font-weight:600;">(est.)</span> · ' + dateFmt(cheapWeekTop.dep) + '–' + dateFmt(cheapWeekTop.ret) + '</div>' +
+          (soloBookUrl ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:900;color:#fff;background:var(--accent);text-decoration:none;border-radius:6px;padding:5px 10px;" title="Search real prices + set fare alerts on Google Flights">🔎 See real prices on Google Flights ↗</a>' : '') +
+        '</div>'
+      : '';
     // CUZ uses the richer A-vs-B comparison block (rendered in the card body), so
-    // the generic single book link is suppressed there to avoid duplicate links.
+    // the generic single book link is suppressed there to avoid duplicate links —
+    // the A/B compare already carries its own Google Flights links.
     var soloBookHtml = (soloBookUrl && dest !== 'CUZ')
       ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" ' +
-        'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:.6rem;font-weight:800;' +
+        'style="display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:800;' +
         'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:4px 9px;" ' +
         'title="Open this trip in Google Flights">🔗 Book on Google Flights ↗</a>'
       : '';
+    // Flighty hand-off — passport wallet + past/booked flight stats. Shown on
+    // every solo card (reuses the exact watchlist Flighty markup/link).
+    var soloFlightyHtml = '<a href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" ' +
+      'style="display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:800;' +
+      'color:var(--muted);text-decoration:none;border:1px solid var(--border2);border-radius:6px;padding:4px 9px;" ' +
+      'title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>';
+    var soloActionsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + soloBookHtml + soloFlightyHtml + '</div>';
+    // Per-card notes, synced to the watchlist (lazy-creates a minimal watched item
+    // on first blur so every solo dest gets a persistent notes field, not just CUZ).
+    var soloNotesMatch = watchlistSoloItem(dest);
+    var soloNotesVal = soloNotesMatch ? (soloNotesMatch.notes || '') : '';
+    var soloNotesHtml = '<textarea class="solo-notes" data-dest="' + dest + '" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;resize:vertical;">' + esc(soloNotesVal) + '</textarea>';
+    // Demoted 13-week bar chart — collapsed disclosure, default closed. The SVG
+    // stays in the DOM even when collapsed so renderBarChart() (wired below) can
+    // still find + fill it.
+    var chartOpen = !!_soloChartOpen[dest];
+    var chartToggleHtml = '<div class="solo-chart-toggle" data-dest="' + dest + '" style="cursor:pointer;font-size:.55rem;color:var(--muted);font-weight:700;margin:6px 0 2px;user-select:none;">' + (chartOpen ? '▾' : '▸') + ' price trend (est., 13 wks)</div>';
     // Trip presets — one-click date fillers. Active preset shows as filled chip.
     var presetHtml = '';
     if (presets.length) {
@@ -2403,7 +2456,8 @@ function renderSoloCards() {
         '</div>' +
       '</div>' +
       '<div class="solo-dest-body">' +
-        (dest === 'CUZ' ? renderTripBinder('peru') + peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
+        cheapWeekHtml +
+        renderTripBinder(binderKeyFor(dest)) + (dest === 'CUZ' ? peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
         presetBannerHtml +
         // Section header above the rolling-window stuff. When a preset is active,
         // these are now "alternative dates" — explicitly labeled so the user knows
@@ -2411,12 +2465,17 @@ function renderSoloCards() {
         (activePreset
           ? '<div style="font-size:.55rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 4px;">— or pick a different weekend below —</div>'
           : '') +
-        '<svg id="' + chartId + '" class="bar-chart-svg" style="' + (activePreset ? 'opacity:.7;' : '') + '"></svg>' +
-        '<div class="bar-chart-row"><span>Now</span>' + (applyOrdPivot(dest, bestPrice) ? '<span style="color:var(--green)">— ghost = ORD route</span>' : '') + '<span>+13 wks</span></div>' +
         '<div style="' + (activePreset ? 'opacity:.85;' : '') + '">' + wkndsHtml + '</div>' +
         presetHtml +
+        // Demoted price-trend chart — collapsed disclosure, default closed.
+        chartToggleHtml +
+        '<div class="solo-chart-wrap" data-dest="' + dest + '" style="' + (chartOpen ? '' : 'max-height:0;overflow:hidden;') + '">' +
+          '<svg id="' + chartId + '" class="bar-chart-svg" style="' + (activePreset ? 'opacity:.7;' : '') + '"></svg>' +
+          '<div class="bar-chart-row"><span>Now</span>' + (applyOrdPivot(dest, bestPrice) ? '<span style="color:var(--green)">— ghost = ORD route</span>' : '') + '<span>+13 wks</span></div>' +
+        '</div>' +
         liveBtnHtml +
-        soloBookHtml +
+        soloActionsHtml +
+        soloNotesHtml +
       '</div>';
     card.addEventListener('mouseenter', function(){ setSoloFocus(dest); });
     card.addEventListener('mouseleave', function(){ setBarFocus(null, null); });
@@ -2500,17 +2559,63 @@ function renderSoloCards() {
     });
     var svgEl = document.getElementById(chartId);
     if (svgEl) renderBarChart(svgEl, S.home, dest);
-    // Live prices button
+    // Demoted chart disclosure toggle
+    card.querySelectorAll('.solo-chart-toggle').forEach(function(el){
+      el.addEventListener('click', function(e){
+        e.stopPropagation();
+        var d = el.getAttribute('data-dest');
+        _soloChartOpen[d] = !_soloChartOpen[d];
+        renderSoloCards();
+      });
+    });
+    // Live prices button — first click sets a two-step confirm (shows remaining quota)
     var liveBtn = card.querySelector('.solo-live-btn');
     if (liveBtn) {
       liveBtn.addEventListener('click', function(e) {
         e.stopPropagation();
+        if (liveBtn.disabled) return;
         var d = liveBtn.getAttribute('data-dest');
-        liveBtn.textContent = 'Fetching 13 prices…';
-        liveBtn.classList.add('loading');
+        _soloLiveConfirm = d;
+        renderSoloCards();
+      });
+    }
+    var liveConfirmYes = card.querySelector('.solo-live-confirm-yes');
+    if (liveConfirmYes) {
+      liveConfirmYes.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var d = liveConfirmYes.getAttribute('data-dest');
+        _soloLiveConfirm = null;
+        var row = liveConfirmYes.closest('.solo-live-confirm-row');
+        if (row) row.innerHTML = '<span style="font-size:.58rem;color:var(--amber);font-weight:800;">Fetching 13 prices…</span>';
         loadSoloWeeklyPrices(d).then(function() { renderSoloCards(); redrawMap(); });
       });
     }
+    var liveConfirmNo = card.querySelector('.solo-live-confirm-no');
+    if (liveConfirmNo) {
+      liveConfirmNo.addEventListener('click', function(e) {
+        e.stopPropagation();
+        _soloLiveConfirm = null;
+        renderSoloCards();
+      });
+    }
+    // Per-card notes — sync to the watchlist (or lazy-create a minimal solo item)
+    card.querySelectorAll('.solo-notes').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var d = el.getAttribute('data-dest');
+        var val = el.value;
+        var item = watchlistSoloItem(d);
+        if (item) {
+          setWatchlistNotes(item.id, val);
+        } else {
+          WATCHLIST.push({
+            id: 'solo-' + d, _added: true, mode: 'solo', origin: S.home, dest: d,
+            dep: soloDepISO, ret: soloRetISO, stage: 'watching', notes: val,
+            reminders: [], gf: { from: S.home, to: d }
+          });
+          saveWatchlist();
+        }
+      });
+    });
   });
 }
 
@@ -4194,8 +4299,12 @@ function tripBookings(key){
 }
 function tbDays(a,b){ return Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00')) / 86400000); }
 function tbFmt(iso){ try { return dateFmt(new Date(iso + 'T12:00:00')); } catch(e){ return iso; } }
+// Every solo dest gets its own binder key (Peru keeps its historical 'peru' key
+// so the seeded flights/trek bookings still resolve; every other dest keys by
+// its own airport code).
+function binderKeyFor(dest){ return dest === 'CUZ' ? 'peru' : dest; }
 function addTripBooking(key){
-  var t=document.getElementById('tb-type'), ti=document.getElementById('tb-title'), s=document.getElementById('tb-start'), e=document.getElementById('tb-end');
+  var t=document.getElementById('tb-type-'+key), ti=document.getElementById('tb-title-'+key), s=document.getElementById('tb-start-'+key), e=document.getElementById('tb-end-'+key);
   if (!ti || !s || !ti.value || !s.value) { if (typeof showShareToast==='function') showShareToast('Add needs a title + start date'); return; }
   var seg = { type:(t?t.value:'lodging'), title:ti.value, start:s.value, end:(e&&e.value)||s.value };
   var store = readBookings(); if (!store[key]) store[key] = []; store[key].push(seg); writeBookings(store);
@@ -4207,43 +4316,48 @@ function removeTripBooking(key, idx){
 window.addTripBooking = addTripBooking; window.removeTripBooking = removeTripBooking;
 function renderTripBinder(key){
   var segs = tripBookings(key);
-  if (!segs.length) return '';
-  segs = segs.slice().sort(function(a,b){ return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0); });
-  var flights = segs.filter(function(s){ return s.type === 'flight'; });
-  var winStart = flights.length ? flights[0].start : segs[0].start;
-  var winEnd = flights.length ? flights[flights.length-1].end : segs[segs.length-1].end;
-  var addedIdx = -1; // track index into the added array for remove
   var rows = '';
-  segs.forEach(function(s, i){
-    if (i > 0){
-      var gap = tbDays(segs[i-1].end, s.start);
-      if (gap > 0) rows += '<div style="font-size:.52rem;color:var(--muted);padding:2px 0 2px 10px;border-left:2px dotted var(--border2);margin-left:6px;">▫ ' + gap + ' day' + (gap>1?'s':'') + ' free' + (segs[i-1].location ? ' in ' + esc(segs[i-1].location) : '') + '</div>';
-      else if (gap < 0) rows += '<div style="font-size:.52rem;color:var(--red);font-weight:800;padding:2px 0 2px 10px;margin-left:6px;">⚠ overlaps previous by ' + Math.abs(gap) + ' day' + (Math.abs(gap)>1?'s':'') + '</div>';
-    }
-    var col = TB_COL[s.type] || TB_COL.other;
-    var outside = (s.type !== 'flight' && (s.start < winStart || s.end > winEnd));
-    var dates = tbFmt(s.start) + (s.end && s.end !== s.start ? ' – ' + tbFmt(s.end) : '');
-    var meta = [];
-    if (s.location) meta.push('📍 ' + esc(s.location));
-    if (s.cost) meta.push('$' + s.cost);
-    if (s.conf) meta.push('🎟 ' + esc(s.conf));
-    var rm = '';
-    if (s._added) { addedIdx++; rm = '<button onclick="removeTripBooking(\'' + key + '\',' + addedIdx + ')" title="Remove" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.6rem;">✕</button>'; }
-    rows += '<div style="border-left:3px solid ' + col + ';padding:5px 8px;margin:4px 0;background:' + col + '10;border-radius:0 6px 6px 0;">' +
-      '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
-        '<span style="font-size:.62rem;font-weight:800;color:var(--ink);">' + (TB_ICON[s.type]||TB_ICON.other) + ' ' + esc(s.title) + '</span>' +
-        '<span style="font-size:.55rem;color:var(--muted);white-space:nowrap;">' + dates + ' ' + rm + '</span>' +
-      '</div>' +
-      (meta.length ? '<div style="font-size:.52rem;color:var(--muted);margin-top:1px;">' + meta.join(' · ') + '</div>' : '') +
-      (outside ? '<div style="font-size:.52rem;color:var(--red);font-weight:800;margin-top:1px;">⚠ outside your flight window (' + tbFmt(winStart) + '–' + tbFmt(winEnd) + ')</div>' : '') +
-    '</div>';
-  });
+  if (segs.length) {
+    segs = segs.slice().sort(function(a,b){ return a.start < b.start ? -1 : (a.start > b.start ? 1 : 0); });
+    var flights = segs.filter(function(s){ return s.type === 'flight'; });
+    var winStart = flights.length ? flights[0].start : segs[0].start;
+    var winEnd = flights.length ? flights[flights.length-1].end : segs[segs.length-1].end;
+    var addedIdx = -1; // track index into the added array for remove
+    segs.forEach(function(s, i){
+      if (i > 0){
+        var gap = tbDays(segs[i-1].end, s.start);
+        if (gap > 0) rows += '<div style="font-size:.52rem;color:var(--muted);padding:2px 0 2px 10px;border-left:2px dotted var(--border2);margin-left:6px;">▫ ' + gap + ' day' + (gap>1?'s':'') + ' free' + (segs[i-1].location ? ' in ' + esc(segs[i-1].location) : '') + '</div>';
+        else if (gap < 0) rows += '<div style="font-size:.52rem;color:var(--red);font-weight:800;padding:2px 0 2px 10px;margin-left:6px;">⚠ overlaps previous by ' + Math.abs(gap) + ' day' + (Math.abs(gap)>1?'s':'') + '</div>';
+      }
+      var col = TB_COL[s.type] || TB_COL.other;
+      var outside = (s.type !== 'flight' && (s.start < winStart || s.end > winEnd));
+      var dates = tbFmt(s.start) + (s.end && s.end !== s.start ? ' – ' + tbFmt(s.end) : '');
+      var meta = [];
+      if (s.location) meta.push('📍 ' + esc(s.location));
+      if (s.cost) meta.push('$' + s.cost);
+      if (s.conf) meta.push('🎟 ' + esc(s.conf));
+      var rm = '';
+      if (s._added) { addedIdx++; rm = '<button onclick="removeTripBooking(\'' + key + '\',' + addedIdx + ')" title="Remove" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.6rem;">✕</button>'; }
+      rows += '<div style="border-left:3px solid ' + col + ';padding:5px 8px;margin:4px 0;background:' + col + '10;border-radius:0 6px 6px 0;">' +
+        '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
+          '<span style="font-size:.62rem;font-weight:800;color:var(--ink);">' + (TB_ICON[s.type]||TB_ICON.other) + ' ' + esc(s.title) + '</span>' +
+          '<span style="font-size:.55rem;color:var(--muted);white-space:nowrap;">' + dates + ' ' + rm + '</span>' +
+        '</div>' +
+        (meta.length ? '<div style="font-size:.52rem;color:var(--muted);margin-top:1px;">' + meta.join(' · ') + '</div>' : '') +
+        (outside ? '<div style="font-size:.52rem;color:var(--red);font-weight:800;margin-top:1px;">⚠ outside your flight window (' + tbFmt(winStart) + '–' + tbFmt(winEnd) + ')</div>' : '') +
+      '</div>';
+    });
+  } else {
+    rows = '<div style="font-size:.55rem;color:var(--muted);padding:4px 0;">No bookings yet — add flights, lodging, treks…</div>';
+  }
+  // Ids are suffixed by key (tb-type-<key>, etc.) so multiple binders on the
+  // page (one per solo dest) don't clobber each other's add-forms.
   var addForm = '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);display:flex;gap:3px;flex-wrap:wrap;align-items:center;">' +
-    '<select id="tb-type" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;">' +
+    '<select id="tb-type-' + key + '" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;">' +
       ['lodging','tour','transfer','trek','flight','other'].map(function(t){ return '<option value="' + t + '">' + (TB_ICON[t]||'📌') + ' ' + t + '</option>'; }).join('') + '</select>' +
-    '<input id="tb-title" placeholder="title" style="flex:1;min-width:70px;font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:3px 5px;font-family:inherit;"/>' +
-    '<input id="tb-start" type="date" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;"/>' +
-    '<input id="tb-end" type="date" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;"/>' +
+    '<input id="tb-title-' + key + '" placeholder="title" style="flex:1;min-width:70px;font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:3px 5px;font-family:inherit;"/>' +
+    '<input id="tb-start-' + key + '" type="date" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;"/>' +
+    '<input id="tb-end-' + key + '" type="date" style="font-size:.52rem;background:var(--surface2);color:var(--ink);border:1px solid var(--border2);border-radius:4px;padding:2px;font-family:inherit;"/>' +
     '<button onclick="addTripBooking(\'' + key + '\')" style="font-size:.52rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:3px 8px;cursor:pointer;font-family:inherit;">＋</button>' +
   '</div>';
   return '<div class="lbl" style="margin-top:2px;">🧳 Trip binder · timeline</div>' +
@@ -4468,6 +4582,9 @@ function saveWatchlist() {
   } catch(e){}
 }
 function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id === id; })[0] || null; }
+// Matches a solo dest to its watchlist entry (if any) — used to sync the
+// per-solo-card notes textarea with the watchlist's own notes field.
+function watchlistSoloItem(dest){ return WATCHLIST.find(function(t){ return t.mode === 'solo' && t.dest === dest; }) || null; }
 function watchlistGFUrl(t){
   if (!t.gf) return '';
   if (t.gf.openjaw) return bookingUrlFor(t.gf.from, t.gf.to, t.dep, t.ret, true);
