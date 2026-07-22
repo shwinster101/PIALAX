@@ -57,7 +57,7 @@ button{font-family:inherit;cursor:pointer;}
 #sb-body{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:8px;}
 #sb-body::-webkit-scrollbar{width:3px;}
 #sb-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
-.lbl{font-size:.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:3px;}
+.lbl{font-size:.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:2px;}
 
 /* ── Select ── */
 .s-sel{width:100%;padding:8px 28px 8px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:var(--r);font-size:.86rem;font-weight:700;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235b7a99'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .15s;}
@@ -343,12 +343,7 @@ button{font-family:inherit;cursor:pointer;}
   /* API banner */
   #api-banner{padding:7px 12px;}
   #api-key-input{font-size:.72rem;}
-
-  /* Share button prominent on mobile */
-  #share-btn-mob{display:flex;}
 }
-/* Desktop: hide mobile-only share button */
-#share-btn-mob{display:none;}
 </style>
 </head>
 <body>
@@ -543,8 +538,6 @@ button{font-family:inherit;cursor:pointer;}
   </div>
 </main>
 <div id="share-toast" aria-live="polite"></div>
-<!-- Mobile floating share button (hidden on desktop) -->
-<button id="share-btn-mob" onclick="shareThePlan()" style="position:fixed;bottom:18px;right:18px;z-index:500;background:var(--green);color:#fff;border:none;border-radius:50px;padding:13px 20px;font-size:.82rem;font-weight:800;box-shadow:0 4px 18px rgba(0,0,0,.45);cursor:pointer;align-items:center;gap:8px;">✈️ Share Plan</button>
 </div>
 
 <script>
@@ -2932,7 +2925,9 @@ function updateFreshnessHeader() {
   } else {
     asOfTxt = '—';
   }
-  el.innerHTML = '<span>Fares as of <strong style="color:var(--ink);">' + asOfTxt + '</strong></span>'
+  // PIA-declutter: fold the fare count into this single status line (mirrors mobile).
+  el.innerHTML = '<strong style="color:var(--ink);">' + keys.length + ' fare' + (keys.length!==1?'s':'') + '</strong>'
+              + ' · Fares as of <strong style="color:var(--ink);">' + asOfTxt + '</strong>'
               + ' · <span style="color:#10b981;">' + liveCount + ' live</span>'
               + ' · <span style="color:#94a3b8;">' + sampleCount + ' sample</span>';
   el.style.display = '';
@@ -4522,8 +4517,8 @@ var WATCHLIST_SEED = [
     reminders:['Sister hosts — no hotel needed','Lock before JAX fares climb'],
     gf:{from:'LAX',to:'JAX'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
-    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-03', ret:'2026-09-13', stage:'booked',
-    notes:'Trek BOOKED (Salkantay & Inca Trail, BK-035216, $1,200). Flights still watching — RT vs two one-ways, may end in Lima with friend.',
+    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-03', ret:'2026-09-13', stage:'watching',
+    notes:'Trek BOOKED (Salkantay & Inca Trail, BK-035216, $1,200). Flights NOT booked yet — watching RT vs two one-ways, may end in Lima with friend.',
     reminders:['Trek briefing 17:00 day before · Triunfo St 392, Ofc 212','Passport valid 6+ months from entry','Send passport photo to Eduardo'],
     gf:{from:'LAX',to:'CUZ',openjaw:true} },
   { id:'london', key:'london', mode:'family', title:'London — Family trip',
@@ -4533,6 +4528,7 @@ var WATCHLIST_SEED = [
 ];
 var WATCHLIST = [];
 var _watchlistCollapsed = false;
+var _watchlistOpen = {};
 function loadWatchlist() {
   WATCHLIST = WATCHLIST_SEED.map(function(t){ return Object.assign({}, t, { reminders:(t.reminders||[]).slice() }); });
   try {
@@ -4653,26 +4649,39 @@ function renderWatchlist(){
     var col = st.color;
     var est = watchlistEst(t);
     var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
-    var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:.55rem;font-weight:800;background:var(--surface2);color:'+col+';border:1px solid '+col+';border-radius:5px;padding:2px 4px;font-family:inherit;">' +
-      Object.keys(WATCHLIST_STAGES).map(function(k){ var s=WATCHLIST_STAGES[k]; return '<option value="'+k+'"'+(k===t.stage?' selected':'')+'>'+s.emoji+' '+s.lbl+'</option>'; }).join('') +
-      '</select>';
-    var modeChip = '<span style="font-size:.48rem;font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:3px;">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
-    var remind = (t.reminders && t.reminders.length)
-      ? '<div style="margin-top:5px;font-size:.53rem;color:var(--muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
-    var gfUrl = watchlistGFUrl(t);
-    var actStyle = 'font-size:.55rem;font-weight:800;text-decoration:none;border-radius:6px;padding:4px 8px;display:inline-block;';
-    var actions =
-      '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
-        '<button class="wl-open" data-id="'+t.id+'" style="'+actStyle+'background:'+col+';color:#000;border:none;cursor:pointer;font-family:inherit;">Open ↗</button>' +
-        (gfUrl ? '<a class="wl-gf" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
-        '<a class="wl-flighty" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--muted);border:1px solid var(--border2);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' +
-        (t._added ? '<button class="wl-del" data-id="'+t.id+'" title="Remove" style="'+actStyle+'background:none;border:none;color:var(--muted);cursor:pointer;">✕</button>' : '') +
+    var open = !!_watchlistOpen[t.id];
+    var row = '<div class="wl-row" data-wl-id="'+t.id+'" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:3px 0;">' +
+      '<span style="font-size:.62rem;background:'+col+'22;color:'+col+';border-radius:50%;width:16px;height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
+      '<span style="font-size:.72rem;font-weight:900;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(t.title)+'</span>' +
+      '<span style="font-size:.58rem;font-weight:800;color:var(--green);white-space:nowrap;">'+estTxt+'</span>' +
+      '<span style="font-size:.6rem;color:var(--muted);">'+(open?'▾':'▸')+'</span>' +
+    '</div>';
+    var body = '';
+    if (open) {
+      var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:.55rem;font-weight:800;background:var(--surface2);color:'+col+';border:1px solid '+col+';border-radius:5px;padding:2px 4px;font-family:inherit;">' +
+        Object.keys(WATCHLIST_STAGES).map(function(k){ var s=WATCHLIST_STAGES[k]; return '<option value="'+k+'"'+(k===t.stage?' selected':'')+'>'+s.emoji+' '+s.lbl+'</option>'; }).join('') +
+        '</select>';
+      var modeChip = '<span style="font-size:.48rem;font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:3px;">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
+      var remind = (t.reminders && t.reminders.length)
+        ? '<div style="margin-top:5px;font-size:.53rem;color:var(--muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
+      var gfUrl = watchlistGFUrl(t);
+      var actStyle = 'font-size:.55rem;font-weight:800;text-decoration:none;border-radius:6px;padding:4px 8px;display:inline-block;';
+      var actions =
+        '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
+          '<button class="wl-open" data-id="'+t.id+'" style="'+actStyle+'background:'+col+';color:#000;border:none;cursor:pointer;font-family:inherit;">Open ↗</button>' +
+          (gfUrl ? '<a class="wl-gf" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
+          '<a class="wl-flighty" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--muted);border:1px solid var(--border2);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' +
+          (t._added ? '<button class="wl-del" data-id="'+t.id+'" title="Remove" style="'+actStyle+'background:none;border:none;color:var(--muted);cursor:pointer;">✕</button>' : '') +
+        '</div>';
+      body = '<div>' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
+        '<div style="font-size:.55rem;color:var(--muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
+        '<textarea class="wl-notes" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
+        remind + actions +
       '</div>';
-    return '<div style="border:1px solid '+col+'55;border-left:3px solid '+col+';border-radius:9px;padding:9px 11px;margin-bottom:8px;background:'+col+'0f;">' +
-      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' + stageSel + '<span style="font-size:.72rem;font-weight:900;color:var(--ink);">'+esc(t.title)+'</span>' + modeChip + '</div>' +
-      '<div style="font-size:.55rem;color:var(--muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+' · <strong style="color:var(--green);">'+estTxt+'</strong></div>' +
-      '<textarea class="wl-notes" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
-      remind + actions +
+    }
+    return '<div style="border:1px solid '+col+'55;border-left:3px solid '+col+';border-radius:9px;padding:7px 10px;margin-bottom:6px;background:'+col+'0f;">' +
+      row + body +
     '</div>';
   }).join('');
   var addBtn = '<div style="display:flex;gap:6px;">' +
@@ -4684,6 +4693,7 @@ function renderWatchlist(){
 }
 function wireWatchlist(sec){
   var hdr = sec.querySelector('#wl-hdr'); if (hdr) hdr.addEventListener('click', function(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); });
+  sec.querySelectorAll('.wl-row').forEach(function(el){ el.addEventListener('click', function(){ var id=el.getAttribute('data-wl-id'); _watchlistOpen[id]=!_watchlistOpen[id]; renderWatchlist(); }); });
   sec.querySelectorAll('.wl-stage').forEach(function(el){ el.addEventListener('change', function(){ setWatchlistStage(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-notes').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNotes(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-open').forEach(function(el){ el.addEventListener('click', function(){ openWatchlistTrip(el.getAttribute('data-id')); }); });
@@ -4712,22 +4722,13 @@ async function boot() {
   }
   // Load world geo early if defaulting to world map view
   if (S.mapView === 'world') await loadWorldGeo();
-  // Default to the JAX weekend Fri Aug 7 – Sun Aug 9, 2026 ONLY when no URL state
-  // was loaded. (London is now history — see FAMILY_INFO tripCompleted.) This is
-  // the active trip: hub JAX (sister hosts pre-Sep-1 move), Ashwin LAX→JAX focus,
-  // Mom & Dad PIA→JAX tentative, US map. A shared link must reproduce the sender's
-  // exact view, so URL state always wins over this default.
+  // Family meetup defaults to just the FAMILY HOME AIRPORTS (neutral) when no URL
+  // state was loaded — no specific trip is preloaded. The cheapest-week finder
+  // surfaces the best weekend to gather across the home airports; a specific trip
+  // (JAX Aug, etc.) is opened on demand from its chip or the Trip Watchlist. US map
+  // (family airports are domestic). URL state always wins over this default.
   if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
-    S.depDate = new Date(2026, 7, 7); // Aug 7 (Fri)
-    S.retDate = new Date(2026, 7, 9); // Aug 9 (Sun)
-    S.tripType = 'round';
-    S.meetupHubOverride = 'JAX';
-    S.focusMember = 'LAX';
-    S.tentativeMembers = ['PIA'];
-    S.memberStatus = { PIA:'tentative' }; // PIA-023: parents tentative, me in, sister hosts
     S.mapView = 'us';
-    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'jaxaug'); });
-    document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
   }
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;

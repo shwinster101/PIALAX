@@ -249,7 +249,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  margin-bottom: var(--space-xs);
+  margin-bottom: 4px;
 }
 
 /* Select styling */
@@ -581,29 +581,6 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   display: none;
 }
 @keyframes spin { to { transform: rotate(360deg) } }
-
-/* ── Floating Share FAB ── */
-#share-btn-floating {
-  position: fixed;
-  bottom: calc(env(safe-area-inset-bottom) + 72px);
-  right: var(--space-md);
-  z-index: 499;
-  background: var(--green);
-  color: #fff;
-  border: none;
-  border-radius: 50%;
-  width: 56px;
-  height: 56px;
-  font-size: 24px;
-  cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0,200,83,.4);
-  transition: all .15s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-}
-#share-btn-floating:active { transform: scale(0.92); }
 
 /* ── Map (collapsed by default) ── */
 #map-wrap {
@@ -1164,14 +1141,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   </button>
 </div>
 
-<!-- Floating Share FAB (direct child of body) -->
-<button id="share-btn-floating" type="button">📤</button>
-
 <!-- Share toast -->
 <div id="share-toast" aria-live="polite"></div>
-
-<!-- Legacy mobile share button (hidden, ID preserved) -->
-<button id="share-btn-mob" style="display:none;" onclick="shareThePlan()">✈️ Share Plan</button>
 
 <!-- Legacy mobile sticky bar (hidden, IDs preserved) -->
 <div id="mobile-sticky-bar" style="display:none;">
@@ -1916,16 +1887,10 @@ function updateStatus() {
     el.textContent = 'Pick a weekend from the cards below';
     el.style.display = 'block';
   } else {
-    // Check if we have results
+    // Check if we have results — PIA-declutter: the count now lives in the single
+    // #freshness-header line, so don't show a duplicate "Showing N fares" pill here.
     var hasResults = Object.keys(S.prices).length > 0;
-    if (hasResults) {
-      var count = Object.keys(S.prices).length;
-      el.className = 'success';
-      el.textContent = 'Showing ' + count + ' fare' + (count !== 1 ? 's' : '');
-      el.style.display = 'block';
-    } else {
-      el.style.display = 'none';
-    }
+    el.style.display = 'none';
   }
 }
 
@@ -3261,7 +3226,9 @@ function updateFreshnessHeader() {
   });
   if (liveCount + sampleCount === 0) { el.style.display = 'none'; return; }
   var asOfTxt = maxTs > 0 ? new Date(maxTs).toLocaleString(undefined, { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '—';
-  el.innerHTML = '<span>Fares as of <strong style="color:var(--ink);">' + asOfTxt + '</strong></span>'
+  // PIA-declutter: fold the old #status "Showing N fares" pill's count into this single line.
+  el.innerHTML = '<strong style="color:var(--ink);">' + keys.length + ' fare' + (keys.length!==1?'s':'') + '</strong>'
+              + ' · Fares as of <strong style="color:var(--ink);">' + asOfTxt + '</strong>'
               + ' · <span style="color:#10b981;">' + liveCount + ' live</span>'
               + ' · <span style="color:#94a3b8;">' + sampleCount + ' sample</span>';
   el.style.display = '';
@@ -3750,10 +3717,10 @@ async function loadPrices(allowLive) {
   requestAnimationFrame(function(){ lbl.textContent = nextLbl; });
   // Update status
   if (statusEl) {
-    var fareCount = Object.keys(S.prices).length;
-    if (allFailed) { statusEl.className = 'error'; statusEl.textContent = "Couldn't load fares — showing estimates"; }
-    else { statusEl.className = 'success'; statusEl.textContent = 'Showing ' + fareCount + ' fare' + (fareCount !== 1 ? 's' : '') + (liveCount > 0 ? ' (live)' : ''); }
-    statusEl.style.display = 'block';
+    // PIA-declutter: keep the error message (not duplicated elsewhere), but the
+    // success count now lives in the single #freshness-header line — don't show it twice.
+    if (allFailed) { statusEl.className = 'error'; statusEl.textContent = "Couldn't load fares — showing estimates"; statusEl.style.display = 'block'; }
+    else { statusEl.style.display = 'none'; }
   }
 }
 
@@ -4666,8 +4633,8 @@ var WATCHLIST_SEED = [
     reminders:['Sister hosts — no hotel needed','Lock before JAX fares climb'],
     gf:{from:'LAX',to:'JAX'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
-    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-03', ret:'2026-09-13', stage:'booked',
-    notes:'Trek BOOKED (Salkantay & Inca Trail, BK-035216, $1,200). Flights still watching — RT vs two one-ways, may end in Lima with friend.',
+    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-03', ret:'2026-09-13', stage:'watching',
+    notes:'Trek BOOKED (Salkantay & Inca Trail, BK-035216, $1,200). Flights NOT booked yet — watching RT vs two one-ways, may end in Lima with friend.',
     reminders:['Trek briefing 17:00 day before · Triunfo St 392, Ofc 212','Passport valid 6+ months from entry','Send passport photo to Eduardo'],
     gf:{from:'LAX',to:'CUZ',openjaw:true} },
   { id:'london', key:'london', mode:'family', title:'London — Family trip',
@@ -4677,6 +4644,7 @@ var WATCHLIST_SEED = [
 ];
 var WATCHLIST = [];
 var _watchlistCollapsed = false;
+var _watchlistOpen = {};
 function loadWatchlist() {
   WATCHLIST = WATCHLIST_SEED.map(function(t){ return Object.assign({}, t, { reminders:(t.reminders||[]).slice() }); });
   try {
@@ -4786,24 +4754,37 @@ function renderWatchlist(){
     var col = st.color;
     var est = watchlistEst(t);
     var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
-    var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:'+col+';border:1px solid '+col+';border-radius:5px;padding:3px 5px;font-family:inherit;min-height:32px;">' +
-      Object.keys(WATCHLIST_STAGES).map(function(k){ var s=WATCHLIST_STAGES[k]; return '<option value="'+k+'"'+(k===t.stage?' selected':'')+'>'+s.emoji+' '+s.lbl+'</option>'; }).join('') + '</select>';
-    var modeChip = '<span style="font-size:.48rem;font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:3px;">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
-    var remind = (t.reminders && t.reminders.length) ? '<div style="margin-top:5px;font-size:.53rem;color:var(--muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
-    var gfUrl = watchlistGFUrl(t);
-    var actStyle = 'font-size:.6rem;font-weight:800;text-decoration:none;border-radius:6px;padding:6px 10px;display:inline-block;min-height:32px;';
-    var actions =
-      '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
-        '<button class="wl-open" data-id="'+t.id+'" style="'+actStyle+'background:'+col+';color:#000;border:none;cursor:pointer;font-family:inherit;">Open ↗</button>' +
-        (gfUrl ? '<a class="wl-gf" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--accent);border:1px solid var(--accent);" title="Expanded options + price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
-        '<a class="wl-flighty" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--muted);border:1px solid var(--border2);" title="Passport + past/booked flights in Flighty">🛂 Flighty ↗</a>' +
-        (t._added ? '<button class="wl-del" data-id="'+t.id+'" title="Remove" style="'+actStyle+'background:none;border:none;color:var(--muted);cursor:pointer;">✕</button>' : '') +
+    var open = !!_watchlistOpen[t.id];
+    var row = '<div class="wl-row" data-wl-id="'+t.id+'" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:5px 0;min-height:32px;">' +
+      '<span style="font-size:.68rem;background:'+col+'22;color:'+col+';border-radius:50%;width:20px;height:20px;min-width:20px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
+      '<span style="font-size:.72rem;font-weight:900;color:var(--ink,var(--text));flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(t.title)+'</span>' +
+      '<span style="font-size:.6rem;font-weight:800;color:var(--green);white-space:nowrap;">'+estTxt+'</span>' +
+      '<span style="font-size:.62rem;color:var(--muted);">'+(open?'▾':'▸')+'</span>' +
+    '</div>';
+    var body = '';
+    if (open) {
+      var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:'+col+';border:1px solid '+col+';border-radius:5px;padding:3px 5px;font-family:inherit;min-height:32px;">' +
+        Object.keys(WATCHLIST_STAGES).map(function(k){ var s=WATCHLIST_STAGES[k]; return '<option value="'+k+'"'+(k===t.stage?' selected':'')+'>'+s.emoji+' '+s.lbl+'</option>'; }).join('') + '</select>';
+      var modeChip = '<span style="font-size:.48rem;font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:3px;">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
+      var remind = (t.reminders && t.reminders.length) ? '<div style="margin-top:5px;font-size:.53rem;color:var(--muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
+      var gfUrl = watchlistGFUrl(t);
+      var actStyle = 'font-size:.6rem;font-weight:800;text-decoration:none;border-radius:6px;padding:6px 10px;display:inline-block;min-height:32px;';
+      var actions =
+        '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
+          '<button class="wl-open" data-id="'+t.id+'" style="'+actStyle+'background:'+col+';color:#000;border:none;cursor:pointer;font-family:inherit;">Open ↗</button>' +
+          (gfUrl ? '<a class="wl-gf" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--accent);border:1px solid var(--accent);" title="Expanded options + price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
+          '<a class="wl-flighty" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--muted);border:1px solid var(--border2);" title="Passport + past/booked flights in Flighty">🛂 Flighty ↗</a>' +
+          (t._added ? '<button class="wl-del" data-id="'+t.id+'" title="Remove" style="'+actStyle+'background:none;border:none;color:var(--muted);cursor:pointer;">✕</button>' : '') +
+        '</div>';
+      body = '<div>' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
+        '<div style="font-size:.55rem;color:var(--muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
+        '<textarea class="wl-notes" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.62rem;font-family:inherit;color:var(--ink,var(--text));background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
+        remind + actions +
       '</div>';
-    return '<div style="border:1px solid '+col+'55;border-left:3px solid '+col+';border-radius:9px;padding:9px 11px;margin-bottom:8px;background:'+col+'0f;">' +
-      '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">' + stageSel + '<span style="font-size:.72rem;font-weight:900;color:var(--ink,var(--text));">'+esc(t.title)+'</span>' + modeChip + '</div>' +
-      '<div style="font-size:.55rem;color:var(--muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+' · <strong style="color:var(--green);">'+estTxt+'</strong></div>' +
-      '<textarea class="wl-notes" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.62rem;font-family:inherit;color:var(--ink,var(--text));background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 8px;resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
-      remind + actions +
+    }
+    return '<div style="border:1px solid '+col+'55;border-left:3px solid '+col+';border-radius:9px;padding:7px 10px;margin-bottom:6px;background:'+col+'0f;">' +
+      row + body +
     '</div>';
   }).join('');
   var addBtn = '<div style="display:flex;gap:6px;">' +
@@ -4815,6 +4796,7 @@ function renderWatchlist(){
 }
 function wireWatchlist(sec){
   var hdr = sec.querySelector('#wl-hdr'); if (hdr) hdr.addEventListener('click', function(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); });
+  sec.querySelectorAll('.wl-row').forEach(function(el){ el.addEventListener('click', function(){ var id=el.getAttribute('data-wl-id'); _watchlistOpen[id]=!_watchlistOpen[id]; renderWatchlist(); }); });
   sec.querySelectorAll('.wl-stage').forEach(function(el){ el.addEventListener('change', function(){ setWatchlistStage(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-notes').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNotes(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-open').forEach(function(el){ el.addEventListener('click', function(){ openWatchlistTrip(el.getAttribute('data-id')); }); });
@@ -4841,19 +4823,12 @@ async function boot() {
     S.geoFallback = true;
   }
   if (S.mapView === 'world') await loadWorldGeo();
-  // Default to JAX weekend Fri Aug 7 – Sun Aug 9, 2026 when no URL state (mobile
-  // mirror). London is history; JAX is the active trip. URL state always wins.
+  // Family meetup defaults to just the FAMILY HOME AIRPORTS (neutral, mobile mirror)
+  // when no URL state — no specific trip preloaded. Cheapest-week finder surfaces
+  // the best weekend to gather; a specific trip is opened from its chip / the
+  // watchlist. US map. URL state always wins.
   if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
-    S.depDate = new Date(2026, 7, 7); // Aug 7 (Fri)
-    S.retDate = new Date(2026, 7, 9); // Aug 9 (Sun)
-    S.tripType = 'round';
-    S.meetupHubOverride = 'JAX';
-    S.focusMember = 'LAX';
-    S.tentativeMembers = ['PIA'];
-    S.memberStatus = { PIA:'tentative' }; // PIA-023
     S.mapView = 'us';
-    document.querySelectorAll('.hol-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.hol === 'jaxaug'); });
-    document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === 'round'); });
   }
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;
@@ -4883,8 +4858,6 @@ function isMobileViewport() {
 }
 
 function initMobileControls() {
-  var floatShare = document.getElementById('share-btn-floating');
-  if (floatShare) floatShare.addEventListener('click', function(e){ e.preventDefault(); shareThePlan(); });
   updateMobileChips();
 }
 
