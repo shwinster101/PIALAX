@@ -33,50 +33,375 @@
    Target: iPhone 16 Pro Max (430×932) iOS 26 Chrome
    ═══════════════════════════════════════════════════════ */
 
-/* ── Design Tokens ── */
-:root {
-  --space-xs: 6px;
-  --space-sm: 10px;
-  --space-md: 16px;
-  --space-lg: 24px;
-  --radius-md: 14px;
-  --radius-lg: 20px;
-  --text-main: #e6edf6;
-  --text-muted: #7a99b8;
-  --bg: #07101e;
-  --card: #0f1d2e;
-  --border: #1a2d44;
-  --primary: #2e7cf6;
-  --green: #00c853;
-  /* Legacy compat aliases */
-  --surface: #0f1d2e;
-  --surface2: #162233;
-  --border2: #243b55;
-  --text: var(--text-main);
-  --muted: var(--text-muted);
-  --accent: var(--primary);
-  --a-dim: rgba(46,124,246,.12);
-  --amber: #f59e0b;
-  --red: #ef4444;
-  --lax: #2e7cf6;
-  --jax: #f59e0b;
-  --pia: #a855f7;
-  --ord: #06b6d4;
-  --cheap: #10b981;
-  --mid: #f59e0b;
-  --pricey: #ef4444;
-  --r: var(--radius-md);
-  --ease: cubic-bezier(.4,0,.2,1);
-  --fast: cubic-bezier(.25,.1,.25,1);
+/* ═══════════════════════════════════════════════════════════════════
+   PIALAX UI DESIGN TOKENS — PIA-031 (A2, Phase 1)
+   Canonical token layer for BOTH pialax.html and pialax-mobile.html.
+   Paste this block at the TOP of each file's <style> element, replacing
+   the existing :root block. Spec: UI_DESIGN_SYSTEM.md.
+   Pure CSS custom properties + shared utility classes.
+   No markup, no JS, no @import, no external url().
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* ── Color · surfaces (dark-first) ─────────────────────────────── */
+  --bg:#07101e;                 /* page background */
+  --surface:#0f1d2e;            /* sidebar / cards level 1 */
+  --surface-2:#162233;          /* nested cards, inputs, chips */
+  --surface-3:#1e3550;          /* pressed / tertiary fills (e.g. secondary btn) */
+  --backdrop:rgba(0,0,0,.55);   /* modal / sheet backdrop */
+  --tooltip-bg:rgba(8,14,26,.96);
+  --overlay-bg:rgba(7,16,30,.9);/* map legend / floating panels */
+
+  /* ── Color · ink (text) ────────────────────────────────────────── */
+  --ink:#e8f0f8;                /* primary text — was undefined; now canonical */
+  --ink-muted:#7a99b8;          /* secondary text (canonical: mobile side wins) */
+  --ink-faint:#5b7a99;          /* tertiary text, disabled labels */
+  --ink-ghost:#253548;          /* near-invisible footer text */
+  --ink-on-accent:#ffffff;      /* text on accent/success/danger fills */
+  --ink-on-warn:#07101e;        /* text on amber fills (contrast) */
+
+  /* ── Color · lines (borders/dividers) ──────────────────────────── */
+  --line:#1c2f45;               /* default border — was undefined; now canonical */
+  --line-strong:#243b55;        /* emphasized border (inputs, chips) */
+
+  /* ── Color · brand accent ──────────────────────────────────────── */
+  --accent:#2e7cf6;             /* PIALAX blue */
+  --accent-dim:rgba(46,124,246,.12);   /* selected-state tint */
+  --accent-soft:rgba(46,124,246,.07);  /* row hover tint */
+
+  /* ── Color · status ────────────────────────────────────────────── */
+  --success:#10b981;            /* canonical green (desktop wins; replaces mobile #00c853) */
+  --success-dim:rgba(16,185,129,.1);
+  --warn:#f59e0b;
+  --warn-dim:rgba(245,158,11,.12);
+  --danger:#ef4444;
+  --danger-dim:rgba(239,68,68,.1);
+  --info:#38bdf8;               /* informational highlight (JFK banner, watching stage) */
+
+  /* ── Color · data-freshness (pill system) ──────────────────────── */
+  --live:var(--success);        /* 🟢 LIVE ≤24h */
+  --cached:var(--warn);         /* 🟡 CACHED 24h–7d */
+  --sample:#94a3b8;             /* ⚪ SAMPLE / estimates */
+  --booked:#3b82f6;             /* 🔒 BOOKED */
+
+  /* ── Color · quota states ──────────────────────────────────────── */
+  --quota-ok:var(--success);
+  --quota-amber:var(--warn);    /* ≥800 used */
+  --quota-red:var(--danger);    /* ≥950 used */
+  --quota-locked:var(--danger); /* ⛔ safety cutoff */
+
+  /* ── Color · watchlist lifecycle stages ────────────────────────── */
+  --stage-watching:#38bdf8;     /* 👀 */
+  --stage-planning:#f59e0b;     /* 📝 */
+  --stage-booked:#10b981;       /* ✅ */
+  --stage-completed:#94a3b8;    /* 🏁 */
+
+  /* ── Color · trip-mode chips ───────────────────────────────────── */
+  --mode-family:#a855f7;
+  --mode-solo:#2e7cf6;
+
+  /* ── Color · airport / d3 series (DC palette + arcs/markers) ───── */
+  --co-lax:#2e7cf6; --co-jax:#f59e0b; --co-pia:#a855f7; --co-ord:#06b6d4;
+  --co-mia:#14b8a6; --co-jfk:#ec4899; --co-lhr:#e11d48; --co-cuz:#22c55e;
+  --co-lim:#eab308; --co-fallback:#888;
+
+  /* ── Color · map internals (SVG) ───────────────────────────────── */
+  --map-bg:#060e1a;
+  --map-land:#132134;
+  --map-land-hover:#1a2f48;
+  --map-outline:var(--accent);
+  --map-label:#a0c4e8;          /* hub / emphasized labels */
+  --map-label-dim:#4a6a88;      /* other-airport labels */
+  --map-label-home:#6ee7b7;     /* ⌂ HOME label */
+  --map-hub-dot:#ffffff;
+  --map-home-dot:var(--success);
+
+  /* ── Color · calendar fare tiers ───────────────────────────────── */
+  --tier-cheap:#10b981;
+  --tier-mid:#f59e0b;
+  --tier-pricey:#ef4444;
+
+  /* ── Color · trip-binder segment types (TB_COL) ────────────────── */
+  --tb-flight:var(--accent);
+  --tb-trek:var(--success);
+  --tb-lodging:var(--warn);
+  --tb-tour:#a855f7;
+  --tb-transfer:#06b6d4;
+  --tb-other:#94a3b8;
+
+  /* ── Color · warm accent (home-airport selector block) ─────────── */
+  --warm:#f59e0b;
+  --warm-hover:#fbbf24;
+  --warm-border:#d97706;
+  --warm-deep:#b45309;
+  --warm-label:#b8852b;
+  --warm-ink:#1a1a1a;
+  --warm-option-bg:#1f2937;
+
+  /* ── Type ──────────────────────────────────────────────────────── */
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',system-ui,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --fs-base:15px;               /* CANONICAL base — mobile wins; desktop moves 14→15px */
+  --fs-micro:.55rem;            /* badges, est-tags, sub-metadata */
+  --fs-tiny:.6rem;              /* labels, notes, hints */
+  --fs-caption:.66rem;          /* pills, chips, legend, stats */
+  --fs-body-s:.73rem;           /* buttons, banner body, toast */
+  --fs-body:.82rem;             /* card headlines, date values */
+  --fs-title:.95rem;            /* route price, section titles */
+  --fs-price:1.1rem;            /* finder / hero prices */
+  --fs-display:1.5rem;          /* app h1 */
+  --lh-tight:1.2;
+  --lh-normal:1.4;
+  --lh-loose:1.65;
+
+  /* ── Spacing (4px-ish scale) ───────────────────────────────────── */
+  --sp-1:4px; --sp-2:6px; --sp-3:10px; --sp-4:14px; --sp-5:16px;
+  --sp-6:24px; --sp-7:32px;
+
+  /* ── Radius ────────────────────────────────────────────────────── */
+  --rad-xs:4px;                 /* micro inputs, src badges */
+  --rad-sm:6px;                 /* calendar cells, small buttons, textareas */
+  --rad-md:10px;                /* default control/card radius */
+  --rad-lg:14px;                /* popovers, calendar panel */
+  --rad-xl:20px;                /* mobile hero cards */
+  --rad-sheet:18px;             /* bottom-sheet top corners */
+  --rad-pill:999px;             /* pills, chips, progress */
+
+  /* ── Elevation ─────────────────────────────────────────────────── */
+  --shadow-1:0 4px 20px rgba(0,0,0,.4);      /* card focus/hover */
+  --shadow-2:0 6px 24px rgba(0,0,0,.6);      /* tooltip / popover */
+  --shadow-3:0 24px 64px rgba(0,0,0,.75);    /* modal / calendar */
+  --shadow-sheet:0 -8px 40px rgba(0,0,0,.7); /* bottom sheet */
+  --focus-ring:0 0 0 2px rgba(46,124,246,.4);
+
+  /* ── Motion ────────────────────────────────────────────────────── */
+  --ease:cubic-bezier(.4,0,.2,1);
+  --fast:cubic-bezier(.25,.1,.25,1);
+  --t-fast:.12s;                /* micro feedback (hover, toggle) */
+  --t-quick:.15s;               /* default control transitions */
+  --t-med:.18s;                 /* card border/shadow */
+  --t-slow:.28s;                /* toast slide */
+  --dur-pop:.16s;               /* calendar/sheet entrance */
+  --dur-spin:.6s;
+  --dur-arc:1.8s;               /* map route dash */
+  --dur-blink:2.4s;             /* live-pill dot */
+  --dur-pulse:2.6s;             /* home-hub pulse */
+  --dur-strip:2.8s;             /* meetup-strip shimmer */
+
+  /* ═══ Backward-compat aliases (both files' existing names) ══════ */
+  --surface2:var(--surface-2);
+  --border:var(--line);
+  --border2:var(--line-strong);
+  --text:var(--ink);
+  --muted:var(--ink-muted);
+  --a-dim:var(--accent-dim);
+  --green:var(--success);       /* closes the #00c853 vs #10b981 drift */
+  --amber:var(--warn);
+  --red:var(--danger);
+  --lax:var(--co-lax); --jax:var(--co-jax); --pia:var(--co-pia); --ord:var(--co-ord);
+  --cheap:var(--tier-cheap); --mid:var(--tier-mid); --pricey:var(--tier-pricey);
+  --r:var(--rad-md);
+  /* mobile-file legacy names */
+  --text-main:var(--ink);
+  --text-muted:var(--ink-muted);
+  --card:var(--surface);
+  --primary:var(--accent);
+  --space-xs:var(--sp-2);
+  --space-sm:var(--sp-3);
+  --space-md:var(--sp-5);
+  --space-lg:var(--sp-6);
+  --radius-md:var(--rad-lg);    /* mobile cards stay 14px */
+  --radius-lg:var(--rad-xl);    /* mobile hero cards stay 20px */
 }
+
+/* ═══ Light mode — same custom properties, overridden ═════════════ */
+@media (prefers-color-scheme:light){
+  :root{
+    --bg:#f2f5f9;
+    --surface:#ffffff;
+    --surface-2:#e9eef5;
+    --surface-3:#dde5ee;
+    --backdrop:rgba(15,29,46,.35);
+    --tooltip-bg:rgba(255,255,255,.97);
+    --overlay-bg:rgba(255,255,255,.92);
+
+    --ink:#0f1d2e;
+    --ink-muted:#4a6480;
+    --ink-faint:#7a92ab;
+    --ink-ghost:#c3cfdc;
+    --ink-on-accent:#ffffff;
+    --ink-on-warn:#3a2500;
+
+    --line:#d7e0ea;
+    --line-strong:#c2cfdd;
+
+    --accent:#1f66d6;
+    --accent-dim:rgba(31,102,214,.1);
+    --accent-soft:rgba(31,102,214,.06);
+
+    --success:#0b9668;
+    --success-dim:rgba(11,150,104,.1);
+    --warn:#b45309;
+    --warn-dim:rgba(180,83,9,.1);
+    --danger:#dc2626;
+    --danger-dim:rgba(220,38,38,.08);
+    --info:#0284c7;
+
+    --sample:#64748b;
+    --booked:#2563eb;
+
+    --stage-watching:#0284c7;
+    --stage-planning:#b45309;
+    --stage-booked:#0b9668;
+    --stage-completed:#64748b;
+
+    --mode-family:#9333ea;
+    --mode-solo:#1f66d6;
+
+    --map-bg:#e4ebf3;
+    --map-land:#ffffff;
+    --map-land-hover:#dde8f2;
+    --map-label:#33506e;
+    --map-label-dim:#8aa0b8;
+    --map-label-home:#0b9668;
+    --map-hub-dot:#0f1d2e;
+
+    --tier-cheap:#0b9668;
+    --tier-mid:#b45309;
+    --tier-pricey:#dc2626;
+
+    --tb-tour:#9333ea; --tb-transfer:#0e7490; --tb-other:#64748b;
+
+    --warm:#f59e0b;
+    --warm-hover:#fbbf24;
+    --warm-border:#d97706;
+    --warm-deep:#b45309;
+    --warm-label:#92610a;
+    --warm-ink:#1a1a1a;
+    --warm-option-bg:#ffffff;
+
+    --shadow-1:0 4px 20px rgba(15,29,46,.12);
+    --shadow-2:0 6px 24px rgba(15,29,46,.16);
+    --shadow-3:0 24px 64px rgba(15,29,46,.22);
+    --shadow-sheet:0 -8px 40px rgba(15,29,46,.2);
+    --focus-ring:0 0 0 2px rgba(31,102,214,.35);
+  }
+}
+
+/* ═══ Reduced motion — kill ambient/decorative animation ══════════ */
+@media (prefers-reduced-motion:reduce){
+  :root{
+    --t-fast:0s; --t-quick:0s; --t-med:0s; --t-slow:0s; --dur-pop:0s;
+    --dur-arc:0s; --dur-blink:0s; --dur-pulse:0s; --dur-strip:0s;
+  }
+  *,*::before,*::after{
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+  }
+}
+
+/* ═══ Shared utility classes (component-recipe primitives) ════════ */
+
+/* Card — level-1 container */
+.u-card{background:var(--surface-2);border:1px solid var(--line-strong);
+  border-radius:var(--rad-md);padding:var(--sp-3) var(--sp-4);}
+.u-card--raised{background:var(--surface);box-shadow:var(--shadow-1);}
+
+/* Pill — rounded status/label lozenge */
+.u-pill{display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:var(--rad-pill);font-size:var(--fs-caption);
+  font-weight:700;color:var(--ink-muted);background:var(--surface-2);
+  border:1px solid var(--line);white-space:nowrap;}
+.u-pill--success{color:var(--ink-on-accent);background:var(--success);border-color:var(--success);}
+.u-pill--warn{color:var(--ink-on-warn);background:var(--warn);border-color:var(--warn);}
+.u-pill--accent{color:var(--accent);background:var(--accent-dim);border-color:var(--accent);}
+
+/* Chip — selectable filter/toggle */
+.u-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+  font-size:var(--fs-caption);font-weight:700;color:var(--ink-muted);
+  background:var(--surface-2);border:1px solid var(--line-strong);
+  border-radius:var(--rad-pill);cursor:pointer;white-space:nowrap;
+  transition:all var(--t-quick) var(--ease);font-family:inherit;}
+.u-chip:hover{border-color:var(--accent);color:var(--accent);}
+.u-chip.on,.u-chip.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+.u-chip:disabled{opacity:.45;cursor:default;border-style:dashed;}
+
+/* Buttons */
+.u-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:7px 12px;border-radius:var(--rad-md);font-size:var(--fs-body-s);
+  font-weight:800;font-family:inherit;cursor:pointer;border:1px solid transparent;
+  transition:opacity var(--t-quick),transform var(--t-fast),border-color var(--t-quick),color var(--t-quick);}
+.u-btn:active{transform:scale(.98);}
+.u-btn:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+.u-btn--primary{background:var(--accent);color:var(--ink-on-accent);}
+.u-btn--primary:hover{opacity:.88;}
+.u-btn--secondary{background:var(--surface-3);color:var(--ink-muted);border-color:var(--line-strong);}
+.u-btn--secondary:hover{color:var(--ink);border-color:var(--accent);}
+.u-btn--danger{background:var(--danger);color:var(--ink-on-accent);}
+.u-btn--danger:hover{opacity:.88;}
+.u-btn--ghost{background:transparent;color:var(--ink-muted);border-color:var(--line-strong);}
+.u-btn--ghost:hover{color:var(--accent);border-color:var(--accent);}
+.u-btn:disabled{opacity:.4;cursor:default;transform:none;}
+
+/* Banner — full-width message strip */
+.u-banner{padding:var(--sp-2) var(--sp-3);border-radius:var(--rad-md);
+  border:1.5px solid var(--line-strong);background:var(--surface-2);
+  font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink);}
+.u-banner--warn{background:var(--warn-dim);border-color:var(--warn);}
+.u-banner--danger{background:var(--danger-dim);border-color:var(--danger);}
+.u-banner--success{background:var(--success-dim);border-color:var(--success);}
+.u-banner--info{background:var(--accent-dim);border-color:var(--info);}
+
+/* Sheet / modal panel */
+.u-sheet{background:var(--surface);border:1px solid var(--line-strong);
+  border-radius:var(--rad-lg);box-shadow:var(--shadow-3);
+  animation:u-pop var(--dur-pop) var(--fast);}
+.u-sheet--bottom{border-radius:var(--rad-sheet) var(--rad-sheet) 0 0;
+  box-shadow:var(--shadow-sheet);}
+.u-backdrop{position:fixed;inset:0;background:var(--backdrop);}
+@keyframes u-pop{from{opacity:0;transform:translateY(-7px) scale(.98)}to{opacity:1;transform:none}}
+
+/* Table / ledger row */
+.u-row{display:flex;align-items:center;justify-content:space-between;
+  gap:var(--sp-2);padding:var(--sp-2) var(--sp-2);border-top:1px solid var(--line);
+  font-size:var(--fs-caption);color:var(--ink);transition:background var(--t-fast);}
+.u-row:hover{background:var(--accent-soft);}
+.u-row--muted{color:var(--ink-muted);}
+
+/* Toast */
+.u-toast{position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(50px);
+  background:var(--success);color:var(--ink-on-accent);
+  font-size:var(--fs-body-s);font-weight:800;padding:8px 20px;
+  border-radius:var(--rad-pill);opacity:0;z-index:2000;pointer-events:none;
+  white-space:nowrap;transition:all var(--t-slow) var(--ease);}
+.u-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* Progress bar (quota) */
+.u-progress{height:5px;background:var(--surface-3);border-radius:var(--rad-pill);overflow:hidden;}
+.u-progress__fill{height:100%;border-radius:var(--rad-pill);
+  background:var(--quota-ok);transition:width var(--t-slow) var(--ease);}
+.u-progress__fill--amber{background:var(--quota-amber);}
+.u-progress__fill--red{background:var(--quota-red);}
+
+/* Stat tile */
+.u-stat{display:flex;flex-direction:column;gap:2px;}
+.u-stat__label{font-size:var(--fs-micro);font-weight:700;color:var(--ink-muted);
+  text-transform:uppercase;letter-spacing:.08em;}
+.u-stat__value{font-size:var(--fs-body);font-weight:900;color:var(--ink);line-height:var(--lh-tight);}
+
+/* Micro label (form/section captions) */
+.u-lbl{font-size:var(--fs-tiny);font-weight:700;color:var(--ink-muted);
+  text-transform:uppercase;letter-spacing:.09em;}
 
 /* ── Reset ── */
 *,*::before,*::after { box-sizing: border-box; margin: 0; padding: 0; }
 html {
   background: var(--bg);
   color: var(--text-main);
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Segoe UI', system-ui, sans-serif;
-  font-size: 15px;
+  font-family: var(--font);
+  font-size: var(--fs-base);
   -webkit-font-smoothing: antialiased;
   -webkit-text-size-adjust: 100%;
 }
@@ -84,8 +409,9 @@ body {
   background: var(--bg);
   min-height: 100svh;
   min-height: 100vh;
-  padding-top: env(safe-area-inset-top);
-  padding-bottom: calc(env(safe-area-inset-bottom) + 72px); /* room for sticky CTA */
+  /* PIA-033: safe-area top now lives on the sticky #shell-header; bottom
+     reserve covers sticky CTA (72px) + tab bar (56px) + safe-area inset. */
+  padding-bottom: calc(env(safe-area-inset-bottom) + 132px);
   padding-left: env(safe-area-inset-left);
   padding-right: env(safe-area-inset-right);
   overflow-x: hidden;
@@ -101,42 +427,51 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   margin: 0 auto;
 }
 
-/* ── Card Wrapper ── */
+/* ── Card Wrapper (PIA-033: shell chrome → tokens; same computed look,
+      border reconciled #1a2d44 → --line per UI_DESIGN_SYSTEM §3) ── */
 .card {
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-md);
-  margin: 0 var(--space-md) var(--space-sm);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--rad-xl);
+  padding: var(--sp-5);
+  margin: 0 var(--sp-5) var(--sp-3);
 }
 
 /* ── Step Labels ── */
 .step-label {
-  font-size: 0.65rem;
+  font-size: var(--fs-caption);
   font-weight: 800;
-  color: var(--text-muted);
+  color: var(--ink-muted);
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  margin-bottom: var(--space-xs);
+  margin-bottom: var(--sp-2);
 }
 
-/* ── Header ── */
+/* ── Header (PIA-033: sticky compact shell header carrying freshness + quota) ── */
+#shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 400;
+  background: var(--bg);
+  padding-top: env(safe-area-inset-top);
+  border-bottom: 1px solid var(--line);
+}
 .app-header {
-  padding: var(--space-md) var(--space-md) var(--space-sm);
+  padding: var(--sp-3) var(--sp-5);
   display: flex;
   align-items: center;
   justify-content: space-between;
 }
 .app-header h1 {
-  font-size: 1.6rem;
+  font-size: var(--fs-display);
   font-weight: 900;
   letter-spacing: -1.5px;
-  color: var(--text-main);
+  color: var(--ink);
   line-height: 1;
 }
 .app-header .ver {
-  font-size: 0.6rem;
-  color: var(--text-muted);
+  font-size: var(--fs-tiny);
+  color: var(--ink-muted);
   margin-top: 2px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -145,75 +480,78 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   display: flex;
   align-items: center;
   gap: 5px;
-  font-size: 0.65rem;
-  color: var(--text-muted);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
+  font-size: var(--fs-caption);
+  color: var(--ink-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: var(--rad-pill);
   padding: 4px 10px;
 }
 .ld {
   width: 7px; height: 7px;
   border-radius: 50%;
-  background: var(--amber);
-  animation: blink 2.4s ease-in-out infinite;
+  background: var(--warn);
+  animation: blink var(--dur-blink) ease-in-out infinite;
 }
 @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.2} }
 
-/* ── Status Bar ── */
+/* ── Status Bar (PIA-033: shell restyle → tokens) ── */
 #status {
-  margin: 0 var(--space-md) var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-md);
-  font-size: 0.73rem;
+  margin: var(--sp-3) var(--sp-5) var(--sp-2);
+  padding: var(--sp-3) var(--sp-5);
+  border-radius: var(--rad-lg);
+  font-size: var(--fs-body-s);
   font-weight: 700;
   text-align: center;
   display: none;
 }
 #status.idle {
   display: block;
-  background: rgba(122,153,184,.08);
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink-muted);
 }
 #status.loading {
   display: block;
-  background: rgba(46,124,246,.1);
-  border: 1px solid var(--primary);
-  color: var(--primary);
+  background: var(--accent-dim);
+  border: 1px solid var(--accent);
+  color: var(--accent);
 }
 #status.success {
   display: block;
-  background: rgba(0,200,83,.08);
-  border: 1px solid var(--green);
-  color: var(--green);
+  background: var(--success-dim);
+  border: 1px solid var(--success);
+  color: var(--success);
 }
 #status.error {
   display: block;
-  background: rgba(239,68,68,.08);
-  border: 1px solid var(--red);
-  color: var(--red);
+  background: var(--danger-dim);
+  border: 1px solid var(--danger);
+  color: var(--danger);
 }
 
 /* ── Quota warning banner ── */
 #quota-warning-banner {
   display: none;
-  margin: 0 var(--space-md) var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: rgba(245,158,11,.14);
-  border: 1.5px solid var(--amber);
-  border-radius: var(--radius-md);
-  font-size: 0.65rem;
+  margin: var(--sp-3) var(--sp-5) var(--sp-2);
+  padding: var(--sp-3) var(--sp-5);
+  background: var(--warn-dim);
+  border: 1.5px solid var(--warn);
+  border-radius: var(--rad-lg);
+  font-size: var(--fs-caption);
   line-height: 1.4;
-  color: var(--text-main);
+  color: var(--ink);
 }
+/* PIA-033: quota bar lives inside the sticky #shell-header */
 #quota-bar {
   display: none;
-  margin: 0 var(--space-md) var(--space-sm);
-  padding: 4px var(--space-md) 2px;
-  font-size: 0.6rem;
+  margin: 0;
+  padding: 2px var(--sp-5) 6px;
+  font-size: var(--fs-tiny);
   line-height: 1.4;
 }
+/* PIA-033: content breathing room under the sticky header */
+#sb-body { padding-top: var(--sp-3); }
 
 /* ═══ BLOCK 1: Plan Trip ═══ */
 
@@ -539,7 +877,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 /* ── Share toast ── */
 #share-toast {
   position: fixed;
-  bottom: calc(env(safe-area-inset-bottom) + 80px);
+  bottom: calc(env(safe-area-inset-bottom) + 136px); /* PIA-033: clears CTA + tab bar */
   left: 50%;
   transform: translateX(-50%) translateY(50px);
   background: rgba(0,200,83,.97);
@@ -559,16 +897,52 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 }
 #share-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-/* ── Sticky CTA ── */
+/* ── Sticky CTA (PIA-033: stacked directly ABOVE the bottom tab bar; the tab
+      bar owns the safe-area inset, so the CTA no longer needs its own) ── */
 .sticky-cta {
   position: fixed;
-  bottom: 0;
+  bottom: calc(56px + env(safe-area-inset-bottom));
   left: 0;
   right: 0;
   z-index: 500;
-  padding: var(--space-sm) var(--space-md) calc(env(safe-area-inset-bottom) + var(--space-sm));
+  padding: var(--sp-3) var(--sp-5) var(--sp-2);
   background: linear-gradient(to top, var(--bg) 60%, transparent);
 }
+
+/* ── PIA-033: bottom tab bar (app-shell navigation) ── */
+#tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 600;
+  display: flex;
+  background: var(--surface);
+  border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tabbar-btn {
+  flex: 1;
+  min-height: 56px; /* ≥44px touch target */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  background: transparent;
+  border: none;
+  color: var(--ink-muted);
+  font-size: var(--fs-caption);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  transition: color var(--t-quick);
+}
+.tabbar-btn .tb-ico { font-size: 1.15rem; line-height: 1; }
+.tabbar-btn.on { color: var(--accent); }
+
+/* ── PIA-033: tab pages — nav controller toggles .active (show/hide only) ── */
+.nav-tab-page { display: none; }
+.nav-tab-page.active { display: block; }
 #search-btn {
   width: 100%;
   padding: 14px;
@@ -684,21 +1058,21 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 .map-toggle-btn:hover { border-color: var(--primary); color: var(--primary); }
 .map-toggle-btn.open { color: var(--primary); border-color: var(--primary); }
 
-/* ── Calendar popup (bottom sheet on mobile) ── */
-#cal-bd { position: fixed; inset: 0; z-index: 900; display: none; }
+/* ── Calendar popup (bottom sheet on mobile — PIA-033: sheet chrome → tokens) ── */
+#cal-bd { position: fixed; inset: 0; z-index: 900; display: none; background: var(--backdrop); }
 #cal-bd.open { display: block; }
 #cal {
   position: fixed;
   z-index: 1000;
   left: 0; right: 0; bottom: 0;
   width: 100%;
-  background: var(--card);
-  border: 1px solid var(--border);
-  border-radius: 18px 18px 0 0;
-  box-shadow: 0 -8px 40px rgba(0,0,0,.7);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--rad-sheet) var(--rad-sheet) 0 0;
+  box-shadow: var(--shadow-sheet);
   padding: 13px 15px calc(env(safe-area-inset-bottom) + 11px);
   display: none;
-  animation: calIn .16s var(--fast);
+  animation: calIn var(--dur-pop) var(--fast);
 }
 #cal.open { display: block; }
 @keyframes calIn { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: none } }
@@ -917,21 +1291,23 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 
 <div id="app">
 
-<!-- ═══ HEADER ═══ -->
-<header class="app-header">
-  <div>
-    <h1>PIALAX</h1>
-    <div class="ver">Family Flight Dashboard · v3.0</div>
-  </div>
-  <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
-</header>
+<!-- ═══ HEADER (PIA-033: sticky compact shell header w/ freshness + quota) ═══ -->
+<div id="shell-header">
+  <header class="app-header">
+    <div>
+      <h1>PIALAX</h1>
+      <div class="ver">Family Flight Dashboard · v3.0</div>
+    </div>
+    <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
+  </header>
+  <!-- PIA-013 AC3 (mobile mirror): fares-as-of freshness header. -->
+  <div id="freshness-header" style="display:none;padding:2px 16px 4px;font-size:var(--fs-tiny);line-height:1.4;color:var(--ink-muted);"></div>
+  <div id="quota-bar"></div>
+</div>
 
 <!-- Status bar -->
 <div id="status" class="idle">Choose dates to start</div>
 <div id="quota-warning-banner"></div>
-<div id="quota-bar"></div>
-<!-- PIA-013 AC3 (mobile mirror): fares-as-of freshness header. -->
-<div id="freshness-header" style="display:none;padding:4px 14px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);color:var(--muted);"></div>
 
 <!-- ═══════════════════════════════════
      The #sb wrapper + #sb-body provide
@@ -944,6 +1320,17 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   </div>
 
   <div id="sb-body">
+
+    <!-- ═══ PIA-033 TAB: Watchlist — the app's home surface ═══ -->
+    <section class="nav-tab-page active" data-tab="watchlist" id="tab-watchlist">
+      <div class="card">
+        <!-- PIA-027: Trip Watchlist (mobile) — moved here as the home surface (PIA-033). -->
+        <div id="watchlist-section" style="margin:10px 0;"></div>
+      </div>
+    </section>
+
+    <!-- ═══ PIA-033 TAB: Meetup — plan + results surface (both modes) ═══ -->
+    <section class="nav-tab-page" data-tab="plan" id="tab-plan">
 
     <!-- ═══ BLOCK 1: Plan Trip ═══ -->
     <div class="card">
@@ -965,8 +1352,6 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <option value="JAX">JAX — Jacksonville, FL</option>
         </select>
       </div>
-      <!-- PIA-027: Trip Watchlist (mobile) — sibling of home-row so it shows in both modes. -->
-      <div id="watchlist-section" style="margin:10px 0;"></div>
       <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
         ✈️ <strong style="color:#38bdf8">Sister departs JFK (NYC)</strong> for these dates — she moved from JAX in Sep 2026.
       </div>
@@ -984,55 +1369,6 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <button class="hol-btn" data-hol="peru">🏔 Peru Sep 3–13</button>
           <button class="hol-btn" data-hol="london">✅ London ✓ (done)</button>
         </div>
-      </div>
-    </div>
-
-    <!-- ═══ BLOCK 2: Choose Dates ═══ -->
-    <div class="card">
-      <div class="step-label">Step 2 · Choose Dates</div>
-
-      <div>
-        <div class="lbl">Trip Type</div>
-        <div id="trip-row">
-          <button class="tt-btn on" data-v="round">Round-Trip</button>
-          <button class="tt-btn" data-v="one">One-Way</button>
-        </div>
-      </div>
-
-      <div style="margin-top:var(--space-sm)">
-        <div class="lbl">Travel Dates</div>
-        <div id="date-row">
-          <button class="d-btn" id="dep-btn">
-            <span class="d-lbl">Depart</span>
-            <span class="d-val ph" id="dep-val">Pick date</span>
-          </button>
-          <button class="d-btn" id="ret-btn">
-            <span class="d-lbl">Return</span>
-            <span class="d-val ph" id="ret-val">Pick date</span>
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Calendar popup -->
-    <div id="cal-bd"></div>
-    <div id="cal">
-      <div id="cal-hdr">
-        <span id="cal-phase">Select departure</span>
-        <div class="cal-nav">
-          <button class="cnav" id="cprev">‹</button>
-          <button class="cnav" id="cnext">›</button>
-        </div>
-      </div>
-      <div id="cal-leg">
-        <div class="cl-item"><div class="cl-dot" style="background:var(--cheap)"></div>Cheapest</div>
-        <div class="cl-item"><div class="cl-dot" style="background:var(--mid)"></div>Moderate</div>
-        <div class="cl-item"><div class="cl-dot" style="background:var(--pricey)"></div>Pricier</div>
-      </div>
-      <div id="cal-months"></div>
-      <div id="cal-foot">
-        <span class="hint" id="cal-hint">Fares: sample · Google Flights</span>
-        <button id="cal-ok">Done</button>
       </div>
     </div>
 
@@ -1063,10 +1399,23 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
         <div id="solo-cards"></div>
       </div>
 
-      <!-- Map toggle -->
-      <div style="margin-top:var(--space-sm)">
-        <button class="map-toggle-btn" id="map-toggle-btn" type="button">🗺 Show Route Map</button>
-      </div>
+    </div>
+
+    <!-- ═══ BLOCK 4: Share Plan ═══ -->
+    <div class="card">
+      <div class="step-label">Step 4 · Share Plan</div>
+      <div id="share-card"><button id="share-card-close" aria-label="Close share card">✕ close</button><span id="share-card-text"></span></div>
+    </div>
+
+    </section><!-- /tab-plan -->
+
+    <!-- ═══ PIA-033 TAB: Map ═══ -->
+    <section class="nav-tab-page" data-tab="map" id="tab-map">
+
+    <!-- Map toggle (existing collapse behavior — nav controller reuses this path) -->
+    <div class="card">
+      <div class="step-label">Route Map</div>
+      <button class="map-toggle-btn" id="map-toggle-btn" type="button">🗺 Show Route Map</button>
     </div>
 
     <!-- Map (collapsed) -->
@@ -1082,11 +1431,39 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
       </div>
     </div>
 
-    <!-- ═══ BLOCK 4: Share Plan ═══ -->
+    </section><!-- /tab-map -->
+
+    <!-- ═══ PIA-033 TAB: Calendar / dates ═══ -->
+    <section class="nav-tab-page" data-tab="cal" id="tab-cal">
+
+    <!-- ═══ BLOCK 2: Choose Dates ═══ -->
     <div class="card">
-      <div class="step-label">Step 4 · Share Plan</div>
-      <div id="share-card"><button id="share-card-close" aria-label="Close share card">✕ close</button><span id="share-card-text"></span></div>
+      <div class="step-label">Step 2 · Choose Dates</div>
+
+      <div>
+        <div class="lbl">Trip Type</div>
+        <div id="trip-row">
+          <button class="tt-btn on" data-v="round">Round-Trip</button>
+          <button class="tt-btn" data-v="one">One-Way</button>
+        </div>
+      </div>
+
+      <div style="margin-top:var(--space-sm)">
+        <div class="lbl">Travel Dates</div>
+        <div id="date-row">
+          <button class="d-btn" id="dep-btn">
+            <span class="d-lbl">Depart</span>
+            <span class="d-val ph" id="dep-val">Pick date</span>
+          </button>
+          <button class="d-btn" id="ret-btn">
+            <span class="d-lbl">Return</span>
+            <span class="d-val ph" id="ret-val">Pick date</span>
+          </button>
+        </div>
+      </div>
     </div>
+
+    </section><!-- /tab-cal -->
 
   </div><!-- /sb-body -->
   <div id="sb-foot" style="display:none">PIALAX v3.0</div>
@@ -1150,6 +1527,30 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   </div>
 </details>
 
+<!-- Calendar popup (PIA-033: moved out of the tab flow — the position:fixed
+     bottom sheet must render from ANY tab, e.g. the meetup strip's date pills;
+     a display:none tab ancestor would suppress it. Behavior unchanged.) -->
+<div id="cal-bd"></div>
+<div id="cal">
+  <div id="cal-hdr">
+    <span id="cal-phase">Select departure</span>
+    <div class="cal-nav">
+      <button class="cnav" id="cprev">‹</button>
+      <button class="cnav" id="cnext">›</button>
+    </div>
+  </div>
+  <div id="cal-leg">
+    <div class="cl-item"><div class="cl-dot" style="background:var(--cheap)"></div>Cheapest</div>
+    <div class="cl-item"><div class="cl-dot" style="background:var(--mid)"></div>Moderate</div>
+    <div class="cl-item"><div class="cl-dot" style="background:var(--pricey)"></div>Pricier</div>
+  </div>
+  <div id="cal-months"></div>
+  <div id="cal-foot">
+    <span class="hint" id="cal-hint">Fares: sample · Google Flights</span>
+    <button id="cal-ok">Done</button>
+  </div>
+</div>
+
 <!-- Sticky CTA -->
 <div class="sticky-cta">
   <button id="search-btn" title="Fetches live Google Flights fares via SerpAPI — uses 1+ of your monthly queries. Loading the page never spends a query.">
@@ -1158,6 +1559,14 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
     <div class="spin-sm" id="search-spin"></div>
   </button>
 </div>
+
+<!-- PIA-033: bottom tab bar (app-shell navigation) -->
+<nav id="tab-bar" aria-label="Main navigation">
+  <button type="button" class="tabbar-btn on" data-tab="watchlist"><span class="tb-ico">📋</span>Watchlist</button>
+  <button type="button" class="tabbar-btn" data-tab="plan"><span class="tb-ico">👨‍👩‍👧</span>Meetup</button>
+  <button type="button" class="tabbar-btn" data-tab="map"><span class="tb-ico">🗺</span>Map</button>
+  <button type="button" class="tabbar-btn" data-tab="cal"><span class="tb-ico">📅</span>Calendar</button>
+</nav>
 
 <!-- Share toast -->
 <div id="share-toast" aria-live="polite"></div>
@@ -5087,6 +5496,7 @@ async function boot() {
   window.setMode      = setMode;
   initMobileControls();
   ensureMapRendersOnMobile();
+  setActiveTab(initialTab()); // PIA-033: land on the derived tab (trip-state deep links → plan)
 }
 
 // ── MOBILE CONTROLS ──────────────────────────────────────────────
@@ -5115,6 +5525,53 @@ function updateMobileChips() {
 function ensureMapRendersOnMobile() {
   // Map starts collapsed; no need to force render
 }
+
+// ── PIA-033: APP-SHELL NAV CONTROLLER (thin glue — show/hide only) ──
+// Bottom tab bar: Watchlist (home) · Meetup · Map · Calendar. Toggles the
+// visibility of existing containers only; no state, logic, or render-function
+// changes. URL params stay frozen — the landing tab is DERIVED from the
+// restored state, never serialized.
+var NAV_TABS = ['watchlist', 'plan', 'map', 'cal'];
+function setActiveTab(tab) {
+  if (NAV_TABS.indexOf(tab) === -1) tab = 'watchlist';
+  document.querySelectorAll('.nav-tab-page').forEach(function(p){
+    p.classList.toggle('active', p.getAttribute('data-tab') === tab);
+  });
+  document.querySelectorAll('.tabbar-btn').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-tab') === tab);
+  });
+  if (tab === 'map') {
+    // Reuse the existing #map-toggle-btn open path (keeps its double-redraw
+    // layout-settle guard intact); if the map is already open it was hidden by
+    // the previous tab (zero-size → redrawMap bailed), so redraw the same way.
+    var wrap = document.getElementById('map-wrap');
+    var btn = document.getElementById('map-toggle-btn');
+    if (wrap && btn && !wrap.classList.contains('open')) {
+      btn.click();
+    } else if (wrap && wrap.classList.contains('open')) {
+      setTimeout(function(){ redrawMap(); }, 50);
+      setTimeout(function(){ redrawMap(); }, 350);
+    }
+  }
+}
+function initialTab() {
+  // Deep links restore exactly as before (restoreFromURL untouched); a link
+  // carrying trip state lands on the plan tab, a bare open or a ?wl=-only
+  // shared-plan link lands on the Watchlist home.
+  try {
+    var sp = new URLSearchParams(window.location.search);
+    if (sp.get('dep') || sp.get('mode') || sp.get('hub') || sp.get('trip') || sp.get('mhub')) return 'plan';
+  } catch(e) {}
+  return 'watchlist';
+}
+document.querySelectorAll('.tabbar-btn').forEach(function(b){
+  b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); });
+});
+// Watchlist "Open ↗" drills into the plan surface. Delegated so the existing
+// per-render .wl-open handler (openWatchlistTrip) stays untouched and fires first.
+document.addEventListener('click', function(e){
+  if (e.target && e.target.closest && e.target.closest('.wl-open')) setActiveTab('plan');
+});
 
 window.addEventListener('orientationchange', function() {
   setTimeout(function() {
