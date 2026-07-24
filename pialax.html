@@ -670,9 +670,9 @@ button{font-family:inherit;cursor:pointer;}
 /* ── Map ── */
 #map-wrap{flex:1;position:relative;overflow:hidden;}
 #map-svg{width:100%;height:100%;display:block;}
-#tip{position:absolute;pointer-events:none;display:none;background:rgba(8,14,26,.96);border:1px solid var(--border2);border-radius:9px;padding:7px 11px;font-size:.7rem;color:var(--text);box-shadow:0 6px 24px rgba(0,0,0,.6);z-index:200;max-width:230px;line-height:1.55;}
-#map-leg{position:absolute;bottom:16px;right:16px;background:rgba(7,16,30,.9);border:1px solid var(--border2);border-radius:10px;padding:9px 12px;backdrop-filter:blur(10px);}
-.ml{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:.65rem;color:var(--muted);}
+#tip{position:absolute;pointer-events:none;display:none;background:var(--tooltip-bg);border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:7px 11px;font-size:var(--fs-caption);color:var(--ink);box-shadow:var(--shadow-2);z-index:200;max-width:230px;line-height:1.55;}
+#map-leg{position:absolute;bottom:16px;right:16px;background:var(--overlay-bg);border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:9px 12px;backdrop-filter:blur(10px);}
+.ml{display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:var(--fs-caption);color:var(--ink-muted);}
 .ml:last-child{margin-bottom:0;}
 .ml-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
 
@@ -681,10 +681,10 @@ button{font-family:inherit;cursor:pointer;}
 .bar-chart-row{display:flex;align-items:center;justify-content:space-between;font-size:.5rem;color:var(--muted);margin-top:2px;margin-bottom:5px;}
 
 /* ── Map toggle (US / World) ── */
-#map-toggle{position:absolute;top:12px;left:12px;z-index:100;display:flex;gap:0;border-radius:8px;overflow:hidden;border:1px solid var(--border2);background:var(--surface);}
-.mt-btn{padding:5px 12px;font-size:.62rem;font-weight:800;color:var(--muted);background:transparent;border:none;cursor:pointer;transition:all .12s;letter-spacing:.04em;}
-.mt-btn.on{background:var(--a-dim);color:var(--accent);}
-.mt-btn:hover:not(.on){color:var(--text);}
+#map-toggle{position:absolute;top:12px;left:12px;z-index:100;display:flex;gap:0;border-radius:var(--rad-md);overflow:hidden;border:1px solid var(--line-strong);background:var(--surface);}
+.mt-btn{padding:5px 12px;font-size:var(--fs-tiny);font-weight:800;color:var(--ink-muted);background:transparent;border:none;cursor:pointer;transition:all var(--t-fast);letter-spacing:.04em;}
+.mt-btn.on{background:var(--accent-dim);color:var(--accent);}
+.mt-btn:hover:not(.on){color:var(--ink);}
 
 /* ── Stats bar ── */
 #statsbar{padding:7px 18px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
@@ -4282,13 +4282,13 @@ function rebuildLegend() {
   var leg=document.getElementById('map-leg');
   var html='';
   if (S.mode === 'meetup') {
-    html += '<div class="ml"><div class="ml-dot" style="background:#ffffff"></div>★ Best Hub</div>';
+    html += '<div class="ml"><div class="ml-dot" style="background:var(--map-hub-dot)"></div>★ Best Hub</div>';
     // JFK transition fix: use date-aware family so post-Sep-1 trips show JFK, not JAX.
     var legendFamily = familyForDate(S.depDate || today);
     legendFamily.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+(DC[c]||'#888')+'"></div>'+c+' (family)</div>'; });
     if (S.includeLHR) INTL_DESTS.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (intl)</div>'; });
   } else {
-    html='<div class="ml"><div class="ml-dot" style="background:var(--green)"></div>Home Airport</div>';
+    html='<div class="ml"><div class="ml-dot" style="background:var(--map-home-dot)"></div>Home Airport</div>';
     dests().forEach(function(d){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[d]+'"></div>→ '+d+'</div>'; });
   }
   leg.innerHTML=html;
@@ -4317,24 +4317,24 @@ function redrawMap() {
   var geoFallback = isWorld ? S.worldGeoFallback : S.geoFallback;
 
   var defs=svg.append('defs');
-  defs.append('style').text('@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd 1.8s linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse 2.6s ease-in-out infinite;fill:#10b981}.sp{fill:#132134;stroke:#1e3550;stroke-width:.5;transition:fill .15s}.sp:hover{fill:#1a2f48}');
+  defs.append('style').text('@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd var(--dur-arc,1.8s) linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse var(--dur-pulse,2.6s) ease-in-out infinite;fill:var(--map-home-dot,#10b981)}.sp{fill:var(--map-land,#132134);stroke:var(--surface-3,#1e3550);stroke-width:.5;transition:fill var(--t-quick,.15s)}.sp:hover{fill:var(--map-land-hover,#1a2f48)}');
   dests().forEach(function(code){
     var c=DC[code]||'#888';
     defs.append('marker').attr('id','arr-'+code).attr('markerWidth',8).attr('markerHeight',8).attr('refX',7).attr('refY',3).attr('orient','auto')
       .append('polygon').attr('points','0 0,8 3,0 6').attr('fill',c).attr('opacity',.9);
   });
 
-  svg.append('rect').attr('width',w).attr('height',h).attr('fill','#060e1a');
+  svg.append('rect').attr('width',w).attr('height',h).style('fill','var(--map-bg)');
 
   if (!geoFallback) {
     svg.append('g').selectAll('path').data(geoSrc.features).enter().append('path').attr('class','sp').attr('d',pg)
       .on('mouseenter', function(e,d){ showTip(e,'<strong>'+(d.properties&&d.properties.name||'Region')+'</strong>'); })
       .on('mouseleave', hideTip);
     svg.append('path').datum({type:'FeatureCollection',features:geoSrc.features})
-      .attr('d',pg).attr('fill','none').attr('stroke','#2e7cf6').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
+      .attr('d',pg).attr('fill','none').style('stroke','var(--map-outline)').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
   } else {
     svg.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
-      .attr('fill','#2a4060').attr('font-size',10).attr('font-family','system-ui,sans-serif')
+      .style('fill','var(--line-strong)').attr('font-size',10).attr('font-family','system-ui,sans-serif')
       .text('Borders load from internet · airport positions and routes are accurate');
   }
 
@@ -4372,7 +4372,7 @@ function redrawMap() {
           var lbl = isPiaDriving ? ('🚗 $'+ORD_DRIVE_TAX) : (price ? '$'+price+(S.tripType==='round'?' RT':' OW') : '…');
           svg.append('g').call(function(bg){
             bg.append('rect').attr('x',bx-34).attr('y',by-14).attr('width',68).attr('height',22).attr('rx',11).attr('fill',fromCol).attr('opacity',0.88);
-            bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#fff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').text(lbl);
+            bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').text(lbl);
           });
         });
       }
@@ -4394,8 +4394,8 @@ function redrawMap() {
       if (isHub) g.append('circle').attr('class','hp');
       g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
         .on('mouseenter', function(e){
-          var h = '<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--muted);font-size:.63rem">'+ap.name+'</span>';
-          if (isHub) h += '<br/><span style="color:var(--green);font-size:.63rem">★ Best Meetup Hub</span>';
+          var h = '<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--ink-muted);font-size:var(--fs-tiny)">'+ap.name+'</span>';
+          if (isHub) h += '<br/><span style="color:var(--success);font-size:var(--fs-tiny)">★ Best Meetup Hub</span>';
           if (isMember && !isHub && meetupHub) {
             var fkey = ap.code+'-'+meetupHub;
             var fp = S.prices[fkey]||getMock(ap.code,meetupHub);
@@ -4408,7 +4408,7 @@ function redrawMap() {
       if (!isOther) {
         var labelY = isHub ? -26 : -20;
         g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',col).attr('font-size',isHub?14:11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').attr('fill',isHub?'#a0c4e8':'#4a6a88').attr('font-size',8).attr('font-weight',isHub?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHub?'★ MEETUP':ap.name.split(',')[0]);
+        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHub?'var(--map-label)':'var(--map-label-dim)').attr('font-size',8).attr('font-weight',isHub?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHub?'★ MEETUP':ap.name.split(',')[0]);
       }
     });
 
@@ -4438,7 +4438,7 @@ function redrawMap() {
       var lbl=price?('$'+price+(S.tripType==='round'?' RT':' OW')):'…';
       svg.append('g').call(function(bg){
         bg.append('rect').attr('x',bx-32).attr('y',by-14).attr('width',64).attr('height',22).attr('rx',11).attr('fill',col).attr('opacity',labelAlpha);
-        bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#fff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',arcAlpha).text(lbl);
+        bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',arcAlpha).text(lbl);
       });
     });
 
@@ -4447,14 +4447,14 @@ function redrawMap() {
       var xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
       var isHome=ap.code===S.home, isDest=dests().indexOf(ap.code)>-1, isOther=!isHome&&!isDest;
-      var col=isHome?'#10b981':(isDest?(DC[ap.code]||'#888'):'#2a4060'), r=isHome?9:(isDest?7:4);
+      var col=isHome?'#10b981':(isDest?(DC[ap.code]||'#888'):'#243b55'), r=isHome?9:(isDest?7:4);
       var g=ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
       if (isHome) g.append('circle').attr('class','hp');
       g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
         .on('mouseenter', function(e){
           var key=isDest?S.home+'-'+ap.code:null;
           var p=key?(S.prices[key]||getMock(S.home,ap.code)):null;
-          var h='<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--muted);font-size:.63rem">'+ap.name+'</span>';
+          var h='<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--ink-muted);font-size:var(--fs-tiny)">'+ap.name+'</span>';
           if (p&&p.ow) h+='<br/>From <strong style="color:'+col+'">$'+p.ow+' OW</strong> · $'+p.rt+' RT';
           showTip(e,h);
         })
@@ -4462,7 +4462,7 @@ function redrawMap() {
       if (!isOther) {
         var labelY=isHome?-26:-20;
         g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',isHome?'#10b981':col).attr('font-size',isHome?14:11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').attr('fill',isHome?'#6ee7b7':'#4a6a88').attr('font-size',8).attr('font-weight',isHome?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHome?'⌂ HOME':ap.name.split(',')[0]);
+        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHome?'var(--map-label-home)':'var(--map-label-dim)').attr('font-size',8).attr('font-weight',isHome?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHome?'⌂ HOME':ap.name.split(',')[0]);
       }
     });
   }
