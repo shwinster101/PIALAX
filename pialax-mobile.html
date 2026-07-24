@@ -5560,7 +5560,14 @@ function initialTab() {
   // shared-plan link lands on the Watchlist home.
   try {
     var sp = new URLSearchParams(window.location.search);
-    if (sp.get('dep') || sp.get('mode') || sp.get('hub') || sp.get('trip') || sp.get('mhub')) return 'plan';
+    // ?wl= wins over trip-state params (share links always carry hub/trip/mode
+    // via syncURL) so a shared family plan lands on the Watchlist home — same
+    // precedence as desktop initShellView.
+    if (sp.get('wl')) return 'watchlist';
+    var tripParams = ['dep','ret','mode','hub','trip','mhub','md','pia','ms','ord','lhr'];
+    for (var i = 0; i < tripParams.length; i++) {
+      if (sp.get(tripParams[i])) return 'plan';
+    }
   } catch(e) {}
   return 'watchlist';
 }

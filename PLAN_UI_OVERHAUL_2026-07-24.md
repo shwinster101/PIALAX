@@ -62,6 +62,7 @@ Ticket IDs start at **PIA-030** (PIA-027/028 range in use by watchlist work).
 - **PIA-032 (minor, desktop):** new shell for `pialax.html` — watchlist as home surface, clear top-level nav (Watchlist · Meetup · Map · Calendar), consistent header with data-freshness + quota status, sidebar re-organized. All existing sections remain reachable; no render-logic changes, only structure/CSS + the thin glue that shows/hides views.
 - **PIA-033 (minor, mobile):** same shell for `pialax-mobile.html` with bottom tab bar + sheet-style detail views.
 - **Gate per ticket:** A5 parity + regression run → Manager review vs inventory → preflight.
+- _Phase 2 gate outcome (2026-07-24): GO — 46/46 regression checks passed, CSP/SRI byte-identical, all frozen keys/params intact. Accepted intentional divergences (Manager sign-off): desktop Calendar tab opens the `#cal` popup directly while mobile shows the dates page and opens the sheet on Depart tap (sheet-pattern adaptation); desktop Meetup tab forces `setMode('meetup')` from solo while mobile's plan tab never forces mode (mode switching stays in-page). The mobile `?wl=` landing-precedence divergence was fixed post-gate (wl checked first, param list aligned to desktop's 11). Note: preflight step 5 (live SRI fetch) cannot pass in the sandbox (cdnjs egress blocked) — re-run where cdnjs is reachable before shipping to main; hashes were verified out-of-band against genuine package bytes._
 
 ### Phase 3 — Component restyle sweep (A3 + A4, ticket-per-surface)
 One ticket per surface keeps commits single-purpose (HQ §6) and rollback trivial:
@@ -70,7 +71,7 @@ One ticket per surface keeps commits single-purpose (HQ §6) and rollback trivia
 - **PIA-036:** Map view (markers, arcs, tooltips, legend) restyled to tokens; fallback text path preserved.
 - **PIA-037:** Sync calendar + bar charts (estimate `~$` labeling and winner-dot suppression rules preserved exactly).
 - **PIA-038:** Trip Binder timeline + gap/conflict flags; RSVP board.
-- **PIA-039:** Data/API surfaces — quota banner + bar, proxy URL input, freshness pills, share/toast, holiday chips.
+- **PIA-039:** Data/API surfaces — quota banner + bar, proxy URL input, freshness pills, share/toast, holiday chips. _Scope additions from the Phase 2 A5 gate:_ (a) mobile `#quota-bar` is populated but never visible (pre-existing bug: CSS `display:none` + JS clears inline style only — fix to actually show it); (b) desktop header quota text collides ("remaining0 used") in the narrow `#shell-status` flex; (c) theme parity — mobile is now light-mode capable (legacy `:root` removed in PIA-033) while desktop stays dark-locked by its retained legacy `:root`; reconcile when desktop flips to the canonical token base in Phase 3.
 - Each ticket: A3 ships desktop diff → A4 mirrors mobile in the same ticket → A5 gate → Manager gate.
 
 ### Phase 4 — Audit & hardening (A6) — 1 session
