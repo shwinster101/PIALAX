@@ -393,21 +393,12 @@
 .u-lbl{font-size:var(--fs-tiny);font-weight:700;color:var(--ink-muted);
   text-transform:uppercase;letter-spacing:.09em;}
 
-/* ═══ End PIA-031 token layer. Legacy rules below intentionally kept —
-   they win where they collide (PIA-032 lands the shell only; Phase-3
-   tickets migrate the inner components onto the tokens above). ═══ */
-:root{
-  --bg:#07101e;--surface:#0f1d2e;--surface2:#162233;
-  --border:#1c2f45;--border2:#243b55;--text:#e8f0f8;--muted:#5b7a99;
-  --accent:#2e7cf6;--a-dim:rgba(46,124,246,.12);
-  --green:#10b981;--amber:#f59e0b;--red:#ef4444;
-  --lax:#2e7cf6;--jax:#f59e0b;--pia:#a855f7;--ord:#06b6d4;
-  --cheap:#10b981;--mid:#f59e0b;--pricey:#ef4444;
-  --r:10px;--ease:cubic-bezier(.4,0,.2,1);--fast:cubic-bezier(.25,.1,.25,1);
-}
+/* ═══ End PIA-031 token layer. Legacy :root retired in PIA-034 — every
+   consumer now resolves through the canonical tokens (aliases above),
+   which also unlocks the light-mode override block for desktop. ═══ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;}
+html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+  font-family:var(--font);font-size:var(--fs-base);}
 button{font-family:inherit;cursor:pointer;}
 #app{display:flex;flex-direction:column;height:100vh;width:100vw;}
 
@@ -459,8 +450,53 @@ button{font-family:inherit;cursor:pointer;}
 /* PIA-031: "＋ New trip" solo|family toggle — visually mirrors .tt-btn but is a
    distinct class so the various global document.querySelectorAll('.tt-btn')
    re-syncs elsewhere (applyHoliday, restoreFromURL, …) never touch it. */
-.nt-mode-btn{flex:1;padding:5px;font-size:.58rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r);cursor:pointer;font-family:inherit;transition:all .15s var(--ease);}
-.nt-mode-btn.on{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
+.nt-mode-btn{flex:1;padding:5px;font-size:var(--fs-tiny);font-weight:700;color:var(--ink-muted);background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--rad-md);cursor:pointer;font-family:inherit;transition:all var(--t-quick) var(--ease);}
+.nt-mode-btn.on{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+
+/* ── Trip Watchlist (PIA-034) — card recipe on tokens; stage tint stays
+     JS-driven (hex+alpha suffix reading WATCHLIST_STAGES, per §6.3) ── */
+.wl-stage-hdr{display:flex;align-items:center;gap:5px;font-size:var(--fs-micro);font-weight:800;
+  text-transform:uppercase;letter-spacing:.09em;margin:7px 0 4px;}
+.wl-stage-hdr .wl-stage-count{font-weight:700;color:var(--ink-muted);text-transform:none;letter-spacing:0;}
+.wl-card{border:1px solid var(--line-strong);border-left-width:3px;border-radius:var(--rad-md);
+  padding:7px 10px;margin-bottom:6px;background:var(--surface-2);
+  transition:border-color var(--t-med),box-shadow var(--t-med);}
+.wl-card:hover{box-shadow:var(--shadow-1);}
+.wl-row{cursor:pointer;padding:3px 0;}
+.wl-title{font-size:var(--fs-body-s);font-weight:900;color:var(--ink);flex:1;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-est{font-size:var(--fs-tiny);font-weight:800;color:var(--success);white-space:nowrap;}
+.wl-caret{font-size:var(--fs-tiny);color:var(--ink-muted);}
+.wl-next-line{font-size:var(--fs-micro);color:var(--ink-muted);margin-top:1px;padding-left:22px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.wl-next-hint{font-size:var(--fs-micro);color:var(--ink-muted);opacity:.55;margin-top:1px;padding-left:22px;}
+.wl-next-hint:hover{opacity:.9;color:var(--accent);}
+.wl-input{width:100%;box-sizing:border-box;margin-top:6px;font-size:var(--fs-tiny);font-family:inherit;
+  color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);
+  border-radius:var(--rad-sm);padding:5px 7px;}
+.wl-input:focus{outline:none;border-color:var(--accent);}
+.wl-act{font-size:var(--fs-micro);font-weight:800;text-decoration:none;border-radius:var(--rad-sm);
+  padding:4px 8px;display:inline-block;font-family:inherit;transition:opacity var(--t-quick);}
+.wl-act:hover{opacity:.85;}
+#wl-newtrip{flex:1;font-size:var(--fs-tiny);font-weight:800;background:transparent;color:var(--accent);
+  border:1px dashed var(--accent);border-radius:var(--rad-md);padding:7px;cursor:pointer;font-family:inherit;
+  transition:background var(--t-quick);}
+#wl-newtrip:hover{background:var(--accent-soft);}
+#wl-share{font-size:var(--fs-tiny);font-weight:800;background:var(--accent);color:var(--ink-on-accent);
+  border:none;border-radius:var(--rad-md);padding:7px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;
+  transition:opacity var(--t-quick);}
+#wl-share:hover{opacity:.88;}
+#nt-form{border:1px dashed var(--accent);border-radius:var(--rad-md);padding:8px;
+  display:flex;flex-direction:column;gap:6px;background:var(--accent-soft);}
+.nt-input{width:100%;box-sizing:border-box;font-size:var(--fs-tiny);font-family:inherit;color:var(--ink);
+  background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--rad-sm);padding:6px 7px;}
+.nt-input:focus{outline:none;border-color:var(--accent);}
+#nt-save{flex:1;font-size:var(--fs-tiny);font-weight:800;background:var(--accent);color:var(--ink-on-accent);
+  border:none;border-radius:var(--rad-md);padding:7px;cursor:pointer;font-family:inherit;}
+#nt-save:hover{opacity:.88;}
+#nt-cancel{font-size:var(--fs-tiny);font-weight:800;background:transparent;color:var(--ink-muted);
+  border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:7px 10px;cursor:pointer;font-family:inherit;}
+#nt-cancel:hover{color:var(--ink);border-color:var(--accent);}
 
 /* ── Dates ── */
 #date-row{display:flex;gap:4px;}
@@ -5194,12 +5230,13 @@ function renderWatchlist(){
   var header =
     '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" id="wl-hdr">' +
       '<span>📋 Trip Watchlist</span>' +
-      '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">' +
+      '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;">' +
         '👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + (needMove>0 ? ' · '+needMove+' need a move' : '') + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') +
       '</span>' +
     '</div>';
   if (_watchlistCollapsed) { sec.innerHTML = header; wireWatchlist(sec); return; }
   var order = WATCHLIST.slice().sort(function(a,b){ return (WATCHLIST_STAGES[a.stage].order)-(WATCHLIST_STAGES[b.stage].order); });
+  var _lastStage = null; // PIA-034: stage grouping headers between the sorted cards
   var cards = order.map(function(t){
     var st = WATCHLIST_STAGES[t.stage] || WATCHLIST_STAGES.watching;
     var col = st.color;
@@ -5213,30 +5250,40 @@ function renderWatchlist(){
     var nextLineHtml = '';
     if (t.stage !== 'completed') {
       if (t.nextAction) {
-        nextLineHtml = '<div style="font-size:.55rem;color:var(--muted);margin-top:1px;padding-left:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+        nextLineHtml = '<div class="wl-next-line">' +
           (blockerDots ? '<span style="margin-right:3px;">'+blockerDots+'</span>' : '') + '🎯 ' + esc(t.nextAction) +
         '</div>';
       } else if (needsMove) {
-        nextLineHtml = '<div class="wl-next-hint" data-id="'+t.id+'" style="font-size:.55rem;color:var(--muted);opacity:.55;margin-top:1px;padding-left:22px;">＋ next step</div>';
+        nextLineHtml = '<div class="wl-next-hint" data-id="'+t.id+'">＋ next step</div>';
       }
     }
-    var row = '<div class="wl-row" data-wl-id="'+t.id+'" style="cursor:pointer;padding:3px 0;">' +
+    // PIA-034: stage grouping header when the sorted list crosses into a new stage.
+    var groupHdr = '';
+    if (t.stage !== _lastStage) {
+      _lastStage = t.stage;
+      groupHdr = '<div class="wl-stage-hdr" style="color:'+col+';">' +
+        '<span>'+st.emoji+' '+st.lbl+'</span>' +
+        '<span class="wl-stage-count">· '+(counts[t.stage]||0)+'</span>' +
+      '</div>';
+    }
+    var row = '<div class="wl-row" data-wl-id="'+t.id+'">' +
       '<div style="display:flex;align-items:center;gap:6px;">' +
         '<span style="font-size:.62rem;background:'+col+'22;color:'+col+';border-radius:50%;width:16px;height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
-        '<span style="font-size:.72rem;font-weight:900;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(t.title)+'</span>' +
-        '<span style="font-size:.58rem;font-weight:800;color:var(--green);white-space:nowrap;">'+estTxt+'</span>' +
-        '<span style="font-size:.6rem;color:var(--muted);">'+(open?'▾':'▸')+'</span>' +
+        '<span class="wl-title">'+esc(t.title)+'</span>' +
+        '<span class="wl-est">'+estTxt+'</span>' +
+        '<span class="wl-caret">'+(open?'▾':'▸')+'</span>' +
       '</div>' +
       nextLineHtml +
     '</div>';
     var body = '';
     if (open) {
-      var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:.55rem;font-weight:800;background:var(--surface2);color:'+col+';border:1px solid '+col+';border-radius:5px;padding:2px 4px;font-family:inherit;">' +
+      var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:var(--fs-micro);font-weight:800;background:var(--surface-2);color:'+col+';border:1px solid '+col+';border-radius:var(--rad-sm);padding:2px 4px;font-family:inherit;">' +
         Object.keys(WATCHLIST_STAGES).map(function(k){ var s=WATCHLIST_STAGES[k]; return '<option value="'+k+'"'+(k===t.stage?' selected':'')+'>'+s.emoji+' '+s.lbl+'</option>'; }).join('') +
         '</select>';
-      var modeChip = '<span style="font-size:.48rem;font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:3px;">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
+      // Mode-chip hexes stay raw (alpha-suffix concat) but byte-match --mode-family/--mode-solo (§6.3).
+      var modeChip = '<span style="font-size:var(--fs-micro);font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:var(--rad-xs);">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
       var remind = (t.reminders && t.reminders.length)
-        ? '<div style="margin-top:5px;font-size:.53rem;color:var(--muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
+        ? '<div style="margin-top:5px;font-size:var(--fs-micro);color:var(--ink-muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
       var gfUrl = watchlistGFUrl(t);
       // PIA-030: next-action input + blocker chips — hidden for completed trips
       // (nothing left to decide).
@@ -5244,31 +5291,30 @@ function renderWatchlist(){
       if (t.stage !== 'completed') {
         var blockerChips = Object.keys(BLOCKERS).map(function(k){
           var b = BLOCKERS[k]; var on = (t.blockers||[]).indexOf(k) > -1;
-          return '<span class="wl-blocker" data-id="'+t.id+'" data-key="'+k+'" style="font-size:.52rem;font-weight:800;padding:2px 6px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:2px;' +
-            (on ? 'background:'+col+'22;color:'+col+';border:1px solid '+col+';' : 'background:transparent;color:var(--muted);border:1px solid var(--border2);') +
+          return '<span class="wl-blocker" data-id="'+t.id+'" data-key="'+k+'" style="font-size:var(--fs-micro);font-weight:800;padding:2px 6px;border-radius:var(--rad-pill);cursor:pointer;display:inline-flex;align-items:center;gap:2px;' +
+            (on ? 'background:'+col+'22;color:'+col+';border:1px solid '+col+';' : 'background:transparent;color:var(--ink-muted);border:1px solid var(--line-strong);') +
             '">' + b.emoji + ' ' + b.label + '</span>';
         }).join('');
         nextActionHtml =
-          '<input class="wl-next" data-id="'+t.id+'" placeholder="🎯 Next action…" value="'+esc(t.nextAction||'')+'" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;"/>' +
+          '<input class="wl-next wl-input" data-id="'+t.id+'" placeholder="🎯 Next action…" value="'+esc(t.nextAction||'')+'"/>' +
           '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">' + blockerChips + '</div>';
       }
-      var actStyle = 'font-size:.55rem;font-weight:800;text-decoration:none;border-radius:6px;padding:4px 8px;display:inline-block;';
       var actions =
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
-          '<button class="wl-open" data-id="'+t.id+'" style="'+actStyle+'background:'+col+';color:#000;border:none;cursor:pointer;font-family:inherit;">Open ↗</button>' +
-          (gfUrl ? '<a class="wl-gf" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
-          '<a class="wl-flighty" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="'+actStyle+'color:var(--muted);border:1px solid var(--border2);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' +
-          (t._added ? '<button class="wl-del" data-id="'+t.id+'" title="Remove" style="'+actStyle+'background:none;border:none;color:var(--muted);cursor:pointer;">✕</button>' : '') +
+          '<button class="wl-open wl-act" data-id="'+t.id+'" style="background:'+col+';color:var(--ink-on-warn);border:none;cursor:pointer;">Open ↗</button>' +
+          (gfUrl ? '<a class="wl-gf wl-act" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
+          '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' +
+          (t._added ? '<button class="wl-del wl-act" data-id="'+t.id+'" title="Remove" style="background:none;border:none;color:var(--ink-muted);cursor:pointer;">✕</button>' : '') +
         '</div>';
       body = '<div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
-        '<div style="font-size:.55rem;color:var(--muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
-        '<textarea class="wl-notes" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
+        '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
+        '<textarea class="wl-notes wl-input" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
         nextActionHtml +
         remind + actions +
       '</div>';
     }
-    return '<div style="border:1px solid '+col+'55;border-left:3px solid '+col+';border-radius:9px;padding:7px 10px;margin-bottom:6px;background:'+col+'0f;">' +
+    return groupHdr + '<div class="wl-card" style="border-color:'+col+'55;border-left-color:'+col+';background:'+col+'0f;">' +
       row + body +
     '</div>';
   }).join('');
@@ -5281,26 +5327,25 @@ function renderWatchlist(){
     var ntPrefillDep = S.depDate ? fmtISO(S.depDate) : '';
     var ntPrefillRet = S.retDate ? fmtISO(S.retDate) : '';
     var ntPrefillMode = ntIsFam ? 'family' : 'solo';
-    var inputStyle = 'width:100%;box-sizing:border-box;font-size:.6rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:6px 7px;';
-    addBtn = '<div id="nt-form" style="border:1px dashed var(--accent);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;">' +
-      '<input id="nt-dest" type="text" placeholder="City or airport, e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'" style="'+inputStyle+'"/>' +
+    addBtn = '<div id="nt-form">' +
+      '<input id="nt-dest" class="nt-input" type="text" placeholder="City or airport, e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'"/>' +
       '<div style="display:flex;gap:5px;">' +
-        '<input id="nt-dep" type="date" value="'+ntPrefillDep+'" style="flex:1;'+inputStyle+'"/>' +
-        '<input id="nt-ret" type="date" value="'+ntPrefillRet+'" style="flex:1;'+inputStyle+'"/>' +
+        '<input id="nt-dep" class="nt-input" type="date" value="'+ntPrefillDep+'" style="flex:1;"/>' +
+        '<input id="nt-ret" class="nt-input" type="date" value="'+ntPrefillRet+'" style="flex:1;"/>' +
       '</div>' +
       '<div id="nt-mode" style="display:flex;gap:4px;">' +
         '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='solo'?' on':'')+'" data-v="solo">Solo</button>' +
         '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='family'?' on':'')+'" data-v="family">Family</button>' +
       '</div>' +
       '<div style="display:flex;gap:6px;">' +
-        '<button id="nt-save" style="flex:1;font-size:.6rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px;cursor:pointer;font-family:inherit;">＋ Add</button>' +
-        '<button id="nt-cancel" style="font-size:.6rem;font-weight:800;background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;cursor:pointer;font-family:inherit;">Cancel</button>' +
+        '<button id="nt-save">＋ Add</button>' +
+        '<button id="nt-cancel">Cancel</button>' +
       '</div>' +
     '</div>';
   } else {
     addBtn = '<div style="display:flex;gap:6px;">' +
-      '<button id="wl-newtrip" style="flex:1;font-size:.6rem;font-weight:800;background:transparent;color:var(--accent);border:1px dashed var(--accent);border-radius:8px;padding:7px;cursor:pointer;font-family:inherit;">＋ New trip</button>' +
-      '<button id="wl-share" title="Copy a shareable summary + link of the whole plan" style="font-size:.6rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:7px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;">🔗 Share plan</button>' +
+      '<button id="wl-newtrip">＋ New trip</button>' +
+      '<button id="wl-share" title="Copy a shareable summary + link of the whole plan">🔗 Share plan</button>' +
     '</div>';
   }
   sec.innerHTML = header + '<div style="margin-top:6px;">' + cards + addBtn + '</div>';
