@@ -5012,8 +5012,8 @@ function renderTripBinder(key){
     segs.forEach(function(s, i){
       if (i > 0){
         var gap = tbDays(segs[i-1].end, s.start);
-        if (gap > 0) rows += '<div style="font-size:.52rem;color:var(--muted);padding:2px 0 2px 10px;border-left:2px dotted var(--border2);margin-left:6px;">▫ ' + gap + ' day' + (gap>1?'s':'') + ' free' + (segs[i-1].location ? ' in ' + esc(segs[i-1].location) : '') + '</div>';
-        else if (gap < 0) rows += '<div style="font-size:.52rem;color:var(--red);font-weight:800;padding:2px 0 2px 10px;margin-left:6px;">⚠ overlaps previous by ' + Math.abs(gap) + ' day' + (Math.abs(gap)>1?'s':'') + '</div>';
+        if (gap > 0) rows += '<div style="font-size:var(--fs-micro);color:var(--warn);padding:2px 0 2px 10px;border-left:2px dotted var(--warn);margin-left:6px;opacity:.85;">▫ ' + gap + ' day' + (gap>1?'s':'') + ' free' + (segs[i-1].location ? ' in ' + esc(segs[i-1].location) : '') + '</div>';
+        else if (gap < 0) rows += '<div style="font-size:var(--fs-micro);color:var(--danger);font-weight:800;padding:2px 0 2px 10px;margin-left:6px;">⚠ overlaps previous by ' + Math.abs(gap) + ' day' + (Math.abs(gap)>1?'s':'') + '</div>';
       }
       var col = TB_COL[s.type] || TB_COL.other;
       var outside = (s.type !== 'flight' && (s.start < winStart || s.end > winEnd));
@@ -5023,31 +5023,31 @@ function renderTripBinder(key){
       if (s.cost) meta.push('$' + s.cost);
       if (s.conf) meta.push('🎟 ' + esc(s.conf));
       var rm = '';
-      if (s._added) { addedIdx++; rm = '<button onclick="removeTripBooking(\'' + key + '\',' + addedIdx + ')" title="Remove" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:.7rem;min-height:28px;">✕</button>'; }
-      rows += '<div style="border-left:3px solid ' + col + ';padding:5px 8px;margin:4px 0;background:' + col + '10;border-radius:0 6px 6px 0;">' +
+      if (s._added) { addedIdx++; rm = '<button onclick="removeTripBooking(\'' + key + '\',' + addedIdx + ')" title="Remove" style="background:none;border:none;color:var(--ink-muted);cursor:pointer;font-size:var(--fs-caption);min-height:28px;">✕</button>'; }
+      rows += '<div style="border-left:3px solid ' + col + ';padding:5px 8px;margin:4px 0;background:' + col + '10;border-radius:0 var(--rad-sm) var(--rad-sm) 0;">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;gap:6px;">' +
-          '<span style="font-size:.62rem;font-weight:800;color:var(--ink,var(--text));">' + (TB_ICON[s.type]||TB_ICON.other) + ' ' + esc(s.title) + '</span>' +
-          '<span style="font-size:.55rem;color:var(--muted);white-space:nowrap;">' + dates + ' ' + rm + '</span>' +
+          '<span style="font-size:var(--fs-tiny);font-weight:800;color:var(--ink);">' + (TB_ICON[s.type]||TB_ICON.other) + ' ' + esc(s.title) + '</span>' +
+          '<span style="font-size:var(--fs-micro);color:var(--ink-muted);white-space:nowrap;">' + dates + ' ' + rm + '</span>' +
         '</div>' +
-        (meta.length ? '<div style="font-size:.52rem;color:var(--muted);margin-top:1px;">' + meta.join(' · ') + '</div>' : '') +
-        (outside ? '<div style="font-size:.52rem;color:var(--red);font-weight:800;margin-top:1px;">⚠ outside your flight window (' + tbFmt(winStart) + '–' + tbFmt(winEnd) + ')</div>' : '') +
+        (meta.length ? '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:1px;">' + meta.join(' · ') + '</div>' : '') +
+        (outside ? '<div style="font-size:var(--fs-micro);color:var(--danger);font-weight:800;margin-top:1px;">⚠ outside your flight window (' + tbFmt(winStart) + '–' + tbFmt(winEnd) + ')</div>' : '') +
       '</div>';
     });
   } else {
-    rows = '<div style="font-size:.55rem;color:var(--muted);padding:4px 0;">No bookings yet — add flights, lodging, treks…</div>';
+    rows = '<div style="font-size:var(--fs-micro);color:var(--ink-muted);padding:4px 0;">No bookings yet — add flights, lodging, treks…</div>';
   }
   // Ids are suffixed by key (tb-type-<key>, etc.) so multiple binders on the
   // page (one per solo dest) don't clobber each other's add-forms.
-  var addForm = '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);display:flex;gap:3px;flex-wrap:wrap;align-items:center;">' +
-    '<select id="tb-type-' + key + '" style="font-size:.55rem;background:var(--surface2);color:var(--ink,var(--text));border:1px solid var(--border2);border-radius:4px;padding:3px;font-family:inherit;min-height:30px;">' +
+  var addForm = '<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--line-strong);display:flex;gap:3px;flex-wrap:wrap;align-items:center;">' +
+    '<select id="tb-type-' + key + '" style="font-size:var(--fs-micro);background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--rad-xs);padding:3px;font-family:inherit;min-height:30px;">' +
       ['lodging','tour','transfer','trek','flight','other'].map(function(t){ return '<option value="' + t + '">' + (TB_ICON[t]||'📌') + ' ' + t + '</option>'; }).join('') + '</select>' +
-    '<input id="tb-title-' + key + '" placeholder="title" style="flex:1;min-width:70px;font-size:.55rem;background:var(--surface2);color:var(--ink,var(--text));border:1px solid var(--border2);border-radius:4px;padding:4px 5px;font-family:inherit;min-height:30px;"/>' +
-    '<input id="tb-start-' + key + '" type="date" style="font-size:.55rem;background:var(--surface2);color:var(--ink,var(--text));border:1px solid var(--border2);border-radius:4px;padding:3px;font-family:inherit;min-height:30px;"/>' +
-    '<input id="tb-end-' + key + '" type="date" style="font-size:.55rem;background:var(--surface2);color:var(--ink,var(--text));border:1px solid var(--border2);border-radius:4px;padding:3px;font-family:inherit;min-height:30px;"/>' +
-    '<button onclick="addTripBooking(\'' + key + '\')" style="font-size:.6rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:5px;padding:4px 10px;cursor:pointer;font-family:inherit;min-height:30px;">＋</button>' +
+    '<input id="tb-title-' + key + '" placeholder="title" style="flex:1;min-width:70px;font-size:var(--fs-micro);background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--rad-xs);padding:4px 5px;font-family:inherit;min-height:30px;"/>' +
+    '<input id="tb-start-' + key + '" type="date" style="font-size:var(--fs-micro);background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--rad-xs);padding:3px;font-family:inherit;min-height:30px;"/>' +
+    '<input id="tb-end-' + key + '" type="date" style="font-size:var(--fs-micro);background:var(--surface-2);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--rad-xs);padding:3px;font-family:inherit;min-height:30px;"/>' +
+    '<button onclick="addTripBooking(\'' + key + '\')" style="font-size:var(--fs-micro);font-weight:800;background:var(--accent);color:var(--ink-on-accent);border:none;border-radius:var(--rad-sm);padding:4px 10px;cursor:pointer;font-family:inherit;min-height:30px;">＋</button>' +
   '</div>';
   return '<div class="lbl" style="margin-top:2px;">🧳 Trip binder · timeline</div>' +
-    '<div style="border:1px solid var(--border2);border-radius:9px;padding:8px 10px;margin-bottom:8px;background:var(--surface2);">' + rows + addForm + '</div>';
+    '<div class="u-card" style="margin-bottom:8px;">' + rows + addForm + '</div>';
 }
 
 // ══ PIA-022 · COST SPLIT + HOST FAIRNESS · PIA-025 · GROUP PRICE-WATCH (mobile) ══
@@ -5124,7 +5124,9 @@ function renderGroupCost(){
   var flyerCount = costs.rows.filter(function(r){ return !r.host && !r.drives && r.status !== 'out'; }).length;
   function statusSel(code, status){
     var opts = { in:'✅ in', tentative:'🤔 maybe', out:'✖ out' };
-    return '<select class="gc-status" data-code="' + code + '" style="font-size:var(--fs-micro);font-weight:800;background:var(--surface-2);color:var(--ink-muted);border:1px solid var(--line-strong);border-radius:var(--rad-xs);padding:2px 3px;font-family:inherit;margin-left:4px;min-height:28px;">' +
+    // PIA-038: selector carries its status color — in=success, maybe=warn, out=danger.
+    var stCol = status === 'in' ? 'var(--success)' : (status === 'tentative' ? 'var(--warn)' : (status === 'out' ? 'var(--danger)' : 'var(--ink-muted)'));
+    return '<select class="gc-status" data-code="' + code + '" style="font-size:var(--fs-micro);font-weight:800;background:var(--surface-2);color:' + stCol + ';border:1px solid ' + (status === 'in' ? 'var(--line-strong)' : stCol) + ';border-radius:var(--rad-xs);padding:2px 3px;font-family:inherit;margin-left:4px;min-height:28px;">' +
       ['in','tentative','out'].map(function(s){ return '<option value="' + s + '"' + (s===status?' selected':'') + '>' + opts[s] + '</option>'; }).join('') + '</select>';
   }
   var splitRows = costs.rows.map(function(r){
