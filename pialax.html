@@ -5077,6 +5077,33 @@ var _watchlistCollapsed = false;
 var _watchlistOpen = {};
 var _watchlistFocusId = null; // PIA-030: id of a .wl-next input to focus after the next render
 var _watchlistAdding = false; // PIA-031: true while the "＋ New trip" inline quick-add form is open
+// PIA-040 (audit BLOCKER-1): watchlist items arrive from two untrusted sources —
+// localStorage and a shared ?wl= link. Their code-like fields are interpolated into
+// HTML *attributes* downstream (data-wl-id, data-id, data-dest), where the esc() that
+// guards text nodes does not apply. Validate them against a strict charset here, at the
+// boundary, so an attribute can never be broken out of; drop the item if id is unusable.
+// Also normalizes an unknown stage, which would otherwise throw in the render sort.
+var WL_CODE_RE = /^[A-Za-z0-9_-]{1,32}$/;
+function sanitizeWatchlistItem(a) {
+  if (!a || typeof a !== 'object') return null;
+  if (typeof a.id !== 'string' || !WL_CODE_RE.test(a.id)) return null;
+  var codeKeys = ['dest','origin','hub','key'];
+  for (var i = 0; i < codeKeys.length; i++) {
+    var v = a[codeKeys[i]];
+    if (v != null && (typeof v !== 'string' || !WL_CODE_RE.test(v))) return null;
+  }
+  if (a.gf && typeof a.gf === 'object') {
+    if ((a.gf.from != null && !WL_CODE_RE.test(String(a.gf.from))) ||
+        (a.gf.to   != null && !WL_CODE_RE.test(String(a.gf.to)))) return null;
+  }
+  if (!WATCHLIST_STAGES[a.stage]) a.stage = 'watching';
+  if (a.mode !== 'family' && a.mode !== 'solo') a.mode = 'solo';
+  ['dep','ret'].forEach(function(k){ if (a[k] != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(a[k]))) a[k] = null; });
+  a.nextAction = a.nextAction || '';
+  a.blockers = Array.isArray(a.blockers) ? a.blockers.filter(function(k){ return !!BLOCKERS[k]; }) : [];
+  a.reminders = Array.isArray(a.reminders) ? a.reminders.map(String) : [];
+  return a;
+}
 function loadWatchlist() {
   WATCHLIST = WATCHLIST_SEED.map(function(t){ return Object.assign({}, t, { reminders:(t.reminders||[]).slice(), blockers:(t.blockers||[]).slice() }); });
   // PIA-030: default nextAction/blockers on every item (seed items already carry
@@ -5089,7 +5116,7 @@ function loadWatchlist() {
       if (stored && stored.overrides) {
         WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       }
-      if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ if (a && a.id){ a.nextAction=a.nextAction||''; a.blockers=a.blockers||[]; WATCHLIST.push(a); } });
+      if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it) WATCHLIST.push(it); });
     }
   } catch(e){ /* corrupt store — fall back to seed */ }
   // PIA-024: a shared plan link (?wl=…) reproduces the sender's whole watchlist —
@@ -5099,7 +5126,7 @@ function loadWatchlist() {
     if (wlp) {
       var s = JSON.parse(decodeURIComponent(atob(wlp)));
       if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
-      if (s && Array.isArray(s.added)) s.added.forEach(function(a){ if (a && a.id && !WATCHLIST.some(function(x){ return x.id===a.id; })){ a.nextAction=a.nextAction||''; a.blockers=a.blockers||[]; WATCHLIST.push(a); } });
+      if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
     }
   } catch(e){}
 }
@@ -5203,7 +5230,9 @@ function addNewTrip(){
   var modeBtn = document.querySelector('#nt-mode .nt-mode-btn.on');
   var rawDest = destEl ? destEl.value.trim() : '';
   if (!rawDest) { showShareToast('Enter a destination'); return; }
-  var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : rawDest;
+  // Codes reach HTML attributes (data-dest) — keep them attribute-safe by construction.
+  var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : rawDest.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
+  if (!dest) { showShareToast('Enter a valid destination'); return; }
   var mode = (modeBtn && modeBtn.getAttribute('data-v') === 'family') ? 'family' : 'solo';
   var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
   var ret = (retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
