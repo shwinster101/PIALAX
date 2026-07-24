@@ -425,7 +425,7 @@ button{font-family:inherit;cursor:pointer;}
 #sb-body{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:8px;}
 #sb-body::-webkit-scrollbar{width:3px;}
 #sb-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
-.lbl{font-size:.62rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:2px;}
+.lbl{font-size:var(--fs-tiny);font-weight:700;color:var(--ink-muted);text-transform:uppercase;letter-spacing:.09em;margin-bottom:2px;}
 
 /* ── Select ── */
 .s-sel{width:100%;padding:8px 28px 8px 10px;background:var(--surface2);color:var(--text);border:1px solid var(--border2);border-radius:var(--r);font-size:.86rem;font-weight:700;appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%235b7a99'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 10px center;transition:border-color .15s;}
@@ -576,28 +576,29 @@ button{font-family:inherit;cursor:pointer;}
 .ord-toggle-btn{padding:4px 10px;font-size:.63rem;font-weight:700;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);border-radius:20px;transition:all .15s var(--ease);}
 .ord-toggle-btn.on{background:rgba(6,182,212,.12);border-color:var(--ord);color:var(--ord);}
 .ord-toggle-btn:hover{border-color:var(--ord);color:var(--ord);}
-/* ── Route cards (meetup breakdown) ── */
-.route-card{background:var(--surface2);border:1px solid var(--border2);border-radius:9px;padding:8px 10px;margin-bottom:5px;}
+/* ── Route cards (meetup breakdown) — PIA-035 tokens ── */
+.route-card{background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:8px 10px;margin-bottom:5px;transition:border-color var(--t-med),box-shadow var(--t-med);}
+.route-card:hover{box-shadow:var(--shadow-1);}
 .route-card-hd{display:flex;align-items:center;gap:5px;margin-bottom:5px;}
-.route-badge{font-size:.68rem;font-weight:800;padding:2px 7px;border-radius:5px;}
-.route-arrow{font-size:.7rem;color:var(--muted);}
-.route-price{font-size:.95rem;font-weight:900;line-height:1;color:var(--text);}
-.route-fare-lbl{font-size:.55rem;font-weight:700;color:var(--muted);vertical-align:middle;}
-.route-meta{font-size:.57rem;color:var(--muted);margin-top:2px;line-height:1.4;}
-.route-drive-row{font-size:.68rem;color:var(--muted);margin-top:2px;}
-.route-est-tag{font-size:.5rem;font-weight:700;padding:1px 4px;border-radius:10px;background:var(--surface);border:1px solid var(--border2);color:var(--muted);margin-left:4px;}
-.route-copy-btn{margin-left:auto;background:transparent;border:none;cursor:pointer;font-size:.75rem;opacity:.45;padding:2px 4px;border-radius:5px;transition:opacity .15s;}
-.pia-toggle-row{display:flex;gap:4px;align-items:center;margin-top:5px;font-size:.55rem;flex-wrap:wrap;}
-.pia-toggle{padding:3px 7px;font-size:.55rem;font-weight:800;border:1px solid var(--border2);border-radius:5px;cursor:pointer;font-family:inherit;transition:all .12s;}
+.route-badge{font-size:var(--fs-caption);font-weight:800;padding:2px 7px;border-radius:var(--rad-sm);}
+.route-arrow{font-size:var(--fs-caption);color:var(--ink-muted);}
+.route-price{font-size:var(--fs-title);font-weight:900;line-height:1;color:var(--ink);}
+.route-fare-lbl{font-size:var(--fs-micro);font-weight:700;color:var(--ink-muted);vertical-align:middle;}
+.route-meta{font-size:var(--fs-micro);color:var(--ink-muted);margin-top:2px;line-height:var(--lh-normal);}
+.route-drive-row{font-size:var(--fs-caption);color:var(--ink-muted);margin-top:2px;}
+.route-est-tag{font-size:var(--fs-micro);font-weight:700;padding:1px 4px;border-radius:var(--rad-pill);background:var(--surface);border:1px solid var(--line-strong);color:var(--ink-muted);margin-left:4px;}
+.route-copy-btn{margin-left:auto;background:transparent;border:none;cursor:pointer;font-size:.75rem;opacity:.45;padding:2px 4px;border-radius:var(--rad-sm);transition:opacity var(--t-quick);}
+.pia-toggle-row{display:flex;gap:4px;align-items:center;margin-top:5px;font-size:var(--fs-micro);flex-wrap:wrap;}
+.pia-toggle{padding:3px 7px;font-size:var(--fs-micro);font-weight:800;border:1px solid var(--line-strong);border-radius:var(--rad-sm);cursor:pointer;font-family:inherit;transition:all var(--t-fast);}
 .pia-toggle:not(.on):not(.dis):hover{border-color:var(--accent);}
 .pia-toggle.dis{cursor:not-allowed;opacity:.55;}
 .pia-toggle.on{border-color:var(--accent);}
-.pia-reset{font-size:.5rem;background:none;border:none;color:var(--muted);cursor:pointer;text-decoration:underline;padding:0 0 0 2px;}
-.member-tag{font-size:.55rem;color:var(--muted);margin-left:4px;}
-.src-badge{font-size:.5rem;color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;}
-.src-badge.live{background:var(--green);}
-.src-badge.sample{background:var(--amber);}
-.route-copy-btn:hover{opacity:1;background:rgba(255,255,255,.07);}
+.pia-reset{font-size:var(--fs-micro);background:none;border:none;color:var(--ink-muted);cursor:pointer;text-decoration:underline;padding:0 0 0 2px;}
+.member-tag{font-size:var(--fs-micro);color:var(--ink-muted);margin-left:4px;}
+.src-badge{font-size:var(--fs-micro);color:var(--ink-on-warn);padding:1px 5px;border-radius:var(--rad-xs);font-weight:900;margin-left:4px;}
+.src-badge.live{background:var(--success);}
+.src-badge.sample{background:var(--warn);}
+.route-copy-btn:hover{opacity:1;background:var(--accent-soft);}
 
 
 #sb-foot{padding:7px 12px;border-top:1px solid var(--line);font-size:var(--fs-micro);color:var(--ink-ghost);flex-shrink:0;}
@@ -610,26 +611,26 @@ button{font-family:inherit;cursor:pointer;}
 .tb-r{display:flex;align-items:center;gap:8px;}
 .tb-pills{display:flex;gap:5px;}
 .pill{display:flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--line);border-radius:var(--rad-pill);font-size:var(--fs-caption);color:var(--ink-muted);background:var(--surface-2);}
-/* ── Meetup strip (compact hero + rank) ── */
-#meetup-strip{flex-shrink:0;padding:7px 18px;border-bottom:1px solid rgba(16,185,129,.2);background:linear-gradient(90deg,rgba(16,185,129,.06) 0%,rgba(46,124,246,.03) 100%);display:flex;align-items:center;gap:10px;min-height:44px;animation:stripBorder 2.8s ease-in-out infinite;}
-#meetup-strip.no-date{background:rgba(245,158,11,.05);border-bottom-color:rgba(245,158,11,.25);}
+/* ── Meetup strip (compact hero + rank) — PIA-035 tokens ── */
+#meetup-strip{flex-shrink:0;padding:7px 18px;border-bottom:1px solid rgba(16,185,129,.2);background:linear-gradient(90deg,var(--success-dim) 0%,var(--accent-soft) 100%);display:flex;align-items:center;gap:var(--sp-3);min-height:44px;animation:stripBorder var(--dur-strip) ease-in-out infinite;}
+#meetup-strip.no-date{background:var(--warn-dim);border-bottom-color:rgba(245,158,11,.25);}
 @keyframes stripBorder{0%,100%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.2)}50%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.55),0 1px 12px rgba(16,185,129,.07)}}
-.ms-badge{font-size:.57rem;font-weight:800;padding:2px 8px;border-radius:20px;background:var(--green);color:#fff;white-space:nowrap;flex-shrink:0;letter-spacing:.03em;}
-.ms-badge.sug{background:var(--amber);}
+.ms-badge{font-size:var(--fs-micro);font-weight:800;padding:2px 8px;border-radius:var(--rad-pill);background:var(--success);color:var(--ink-on-accent);white-space:nowrap;flex-shrink:0;letter-spacing:.03em;}
+.ms-badge.sug{background:var(--warn);color:var(--ink-on-warn);}
 .ms-best{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow:hidden;}
-.ms-headline{font-size:.82rem;font-weight:900;color:var(--text);white-space:nowrap;}
-.ms-price{font-size:.88rem;font-weight:900;color:var(--green);white-space:nowrap;}
-.ms-price.sug{color:var(--amber);}
+.ms-headline{font-size:var(--fs-body);font-weight:900;color:var(--ink);white-space:nowrap;}
+.ms-price{font-size:var(--fs-body);font-weight:900;color:var(--success);white-space:nowrap;}
+.ms-price.sug{color:var(--warn);}
 .ms-info{min-width:0;overflow:hidden;}
-.ms-sub{font-size:.53rem;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ms-sub{font-size:var(--fs-micro);color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .ms-ranks{display:flex;gap:5px;flex-shrink:0;flex-wrap:nowrap;align-items:center;}
-.rank-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:20px;font-size:.64rem;font-weight:700;border:1.5px solid;white-space:nowrap;cursor:pointer;transition:opacity .12s,box-shadow .12s,transform .08s;user-select:none;}
+.rank-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:var(--rad-pill);font-size:var(--fs-caption);font-weight:700;border:1.5px solid;white-space:nowrap;cursor:pointer;transition:opacity var(--t-fast),box-shadow var(--t-fast),transform var(--t-fast);user-select:none;}
 .rank-chip:hover{opacity:.85;transform:scale(1.04);}
-.rank-chip.r1{border-color:var(--green);color:var(--green);background:rgba(16,185,129,.1);}
-.rank-chip.r2{border-color:var(--amber);color:var(--amber);background:rgba(245,158,11,.08);}
-.rank-chip.r3,.rank-chip.r4{border-color:var(--border2);color:var(--muted);background:transparent;}
-.rank-chip.active{border-width:2px;box-shadow:0 0 0 2px rgba(255,255,255,.18);color:#fff!important;background:rgba(255,255,255,.13)!important;border-color:#fff!important;}
-.ms-sep{width:1px;height:22px;background:var(--border);flex-shrink:0;}
+.rank-chip.r1{border-color:var(--success);color:var(--success);background:var(--success-dim);}
+.rank-chip.r2{border-color:var(--warn);color:var(--warn);background:var(--warn-dim);}
+.rank-chip.r3,.rank-chip.r4{border-color:var(--line-strong);color:var(--ink-muted);background:transparent;}
+.rank-chip.active{border-width:2px;box-shadow:var(--focus-ring);color:var(--accent)!important;background:var(--accent-dim)!important;border-color:var(--accent)!important;}
+.ms-sep{width:1px;height:22px;background:var(--line);flex-shrink:0;}
 
 /* ── Share button ── */
 #share-btn-top{display:flex;align-items:center;gap:4px;padding:4px 11px;border-radius:8px;font-size:.65rem;font-weight:800;color:var(--muted);background:var(--surface2);border:1px solid var(--border2);transition:all .15s;cursor:pointer;}
@@ -903,7 +904,7 @@ button{font-family:inherit;cursor:pointer;}
     <div id="meetup-routes-section" style="display:none">
       <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap;">
         <span>Flight Breakdown</span>
-        <span id="meetup-routes-dates" style="font-size:.55rem;color:var(--accent);font-weight:700;text-transform:none;letter-spacing:0;"></span>
+        <span id="meetup-routes-dates" style="font-size:var(--fs-micro);color:var(--accent);font-weight:700;text-transform:none;letter-spacing:0;"></span>
       </div>
       <div id="meetup-routes"></div>
     </div>
@@ -1805,19 +1806,19 @@ function renderMeetupStrip() {
   var depEmpty = !S.depDate;
   var retEmpty = isRT && !S.retDate;
   // Empty pills get amber accent so user knows action is needed
-  var depBg = depEmpty ? 'var(--amber)' : 'var(--accent)';
-  var depFg = depEmpty ? '#000' : '#fff';
-  var retBg = retEmpty ? 'var(--amber)' : 'var(--accent)';
-  var retFg = retEmpty ? '#000' : '#fff';
+  var depBg = depEmpty ? 'var(--warn)' : 'var(--accent)';
+  var depFg = depEmpty ? 'var(--ink-on-warn)' : 'var(--ink-on-accent)';
+  var retBg = retEmpty ? 'var(--warn)' : 'var(--accent)';
+  var retFg = retEmpty ? 'var(--ink-on-warn)' : 'var(--ink-on-accent)';
   var datePillsHtml =
-    '<span style="font-size:.6rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Searching:</span>' +
-    '<button onclick="openCal(\'dep\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + depBg + ';color:' + depFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);" title="Click to edit departure">📅 ' + depTxt + '</button>' +
-    (isRT ? '<span style="font-size:.85rem;color:var(--muted);font-weight:700;">→</span>' +
-            '<button onclick="openCal(\'ret\')" style="padding:4px 10px;font-size:.72rem;font-weight:900;background:' + retBg + ';color:' + retFg + ';border:none;border-radius:7px;cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);" title="Click to edit return">📅 ' + retTxt + '</button>' : '');
+    '<span style="font-size:var(--fs-tiny);color:var(--ink-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Searching:</span>' +
+    '<button onclick="openCal(\'dep\')" style="padding:4px 10px;font-size:var(--fs-body-s);font-weight:900;background:' + depBg + ';color:' + depFg + ';border:none;border-radius:var(--rad-sm);cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);" title="Click to edit departure">📅 ' + depTxt + '</button>' +
+    (isRT ? '<span style="font-size:.85rem;color:var(--ink-muted);font-weight:700;">→</span>' +
+            '<button onclick="openCal(\'ret\')" style="padding:4px 10px;font-size:var(--fs-body-s);font-weight:900;background:' + retBg + ';color:' + retFg + ';border:none;border-radius:var(--rad-sm);cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);" title="Click to edit return">📅 ' + retTxt + '</button>' : '');
   var nightCount = (S.depDate && S.retDate && isRT)
     ? Math.round((S.retDate - S.depDate) / 86400000)
     : 0;
-  var stayTxt = nightCount > 0 ? ' <span style="font-size:.55rem;color:var(--muted);font-weight:700;">· ' + nightCount + ' nights</span>' : '';
+  var stayTxt = nightCount > 0 ? ' <span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:700;">· ' + nightCount + ' nights</span>' : '';
   // Compact, clean meetup strip: one row of "Meeting in: [▾ HUB · City · $TOTAL]"
   // with the dates in a separate visually-distinct band below. Dropdown styled
   // to look like a real interactive control (chevron via background-image).
@@ -1827,13 +1828,13 @@ function renderMeetupStrip() {
       '<span class="ms-badge' + (noDate ? ' sug' : '') + '">📍 Hub</span>' +
       '<div class="ms-info">' +
         '<div class="ms-headline" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">' +
-          '<span style="font-size:.65rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Meeting in</span>' +
+          '<span style="font-size:var(--fs-caption);color:var(--ink-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Meeting in</span>' +
           '<select id="ms-hub-select" onchange="pickMeetupHub(this.value)" ' +
-            'style="padding:5px 28px 5px 10px;font-size:.78rem;font-weight:900;background:var(--surface2);color:var(--ink);border:1.5px solid ' + hubColForBorder + ';border-radius:8px;cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22none%22 stroke=%22%23999%22 stroke-width=%221.5%22 d=%22M2 4l4 4 4-4%22/></svg>\');background-repeat:no-repeat;background-position:right 8px center;">' +
+            'style="padding:5px 28px 5px 10px;font-size:var(--fs-body);font-weight:900;background:var(--surface-2);color:var(--ink);border:1.5px solid ' + hubColForBorder + ';border-radius:var(--rad-md);cursor:pointer;font-family:inherit;appearance:none;-webkit-appearance:none;background-image:url(\'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 width=%2212%22 height=%2212%22 viewBox=%220 0 12 12%22><path fill=%22none%22 stroke=%22%23999%22 stroke-width=%221.5%22 d=%22M2 4l4 4 4-4%22/></svg>\');background-repeat:no-repeat;background-position:right 8px center;">' +
             dropdownOpts +
           '</select>' +
         '</div>' +
-        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:5px 8px;background:rgba(46,124,246,.08);border:1px dashed var(--accent);border-radius:8px;">' + datePillsHtml + stayTxt + '</div>' +
+        '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:5px 8px;background:var(--accent-soft);border:1px dashed var(--accent);border-radius:var(--rad-md);">' + datePillsHtml + stayTxt + '</div>' +
         '<div class="ms-sub" style="margin-top:4px;">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
       '</div>' +
     '</div>';
@@ -1856,9 +1857,9 @@ function completedTripMarker() {
   }
   if (!best) return '';
   var label = best.completedTrip || 'Previous trip';
-  return '<div style="margin-top:8px;padding:5px 9px;background:rgba(16,185,129,.08);' +
-         'border:1px solid var(--green);border-radius:8px;font-size:.6rem;font-weight:800;' +
-         'color:var(--green);display:flex;align-items:center;gap:6px;">' +
+  return '<div style="margin-top:8px;padding:5px 9px;background:var(--success-dim);' +
+         'border:1px solid var(--success);border-radius:var(--rad-md);font-size:var(--fs-tiny);font-weight:800;' +
+         'color:var(--success);display:flex;align-items:center;gap:6px;">' +
          '<span>✅ Last trip: ' + esc(label) + ' · complete</span></div>';
 }
 
@@ -1868,7 +1869,7 @@ function renderMeetupRoutes() {
   if (!container) return;
   if (S.mode !== 'meetup') { container.innerHTML = ''; return; }
   var ranking = computeRanking();
-  if (!ranking.length) { container.innerHTML = '<div style="font-size:.62rem;color:var(--muted);padding:6px 2px">Pick dates or a holiday to see fares</div>'; return; }
+  if (!ranking.length) { container.innerHTML = '<div style="font-size:var(--fs-tiny);color:var(--ink-muted);padding:6px 2px">Pick dates or a holiday to see fares</div>'; return; }
   var hub = getActiveHub(ranking);
   var isRT = (S.tripType === 'round');
   var fareLabel = isRT ? 'RT' : 'OW';
@@ -1887,7 +1888,7 @@ function renderMeetupRoutes() {
       hdrDateEl.textContent = '🔍 ' + dateStr + (nights > 0 ? ' · ' + nights + ' nights' : '') + ' · ' + fareLabel;
     } else {
       hdrDateEl.textContent = '⚠ no dates selected';
-      hdrDateEl.style.color = 'var(--amber)';
+      hdrDateEl.style.color = 'var(--warn)';
     }
   }
   var html = '';
@@ -1907,12 +1908,12 @@ function renderMeetupRoutes() {
     var isFocus = (S.focusMember && from === S.focusMember);
     var isTentative = (S.tentativeMembers && S.tentativeMembers.indexOf(from) > -1);
     var focusTag = isFocus
-      ? '<span style="font-size:.5rem;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="Primary plan for this trip">★ FOCUS</span>'
+      ? '<span style="font-size:var(--fs-micro);background:var(--success);color:var(--ink-on-warn);padding:1px 5px;border-radius:var(--rad-xs);font-weight:900;margin-left:4px;" title="Primary plan for this trip">★ FOCUS</span>'
       : (isTentative
-          ? '<span style="font-size:.5rem;background:var(--surface2);color:var(--muted);border:1px solid var(--border2);padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="Kept in view — not planning to go">🤔 tentative</span>'
+          ? '<span style="font-size:var(--fs-micro);background:var(--surface-2);color:var(--ink-muted);border:1px solid var(--line-strong);padding:1px 5px;border-radius:var(--rad-xs);font-weight:900;margin-left:4px;" title="Kept in view — not planning to go">🤔 tentative</span>'
           : '');
     var tentativeNote = isTentative
-      ? '<div style="font-size:.55rem;color:var(--muted);font-weight:700;margin-top:3px;font-style:italic;">🤔 In the loop · not really planning on going</div>'
+      ? '<div style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:700;margin-top:3px;font-style:italic;">🤔 In the loop · not really planning on going</div>'
       : '';
     // Per-ticket × headcount → subtotal helper for display
     function multTxt(perTicket) {
@@ -1960,8 +1961,8 @@ function renderMeetupRoutes() {
         // 2026-07-21: a completed trip flips the lock badge to a green ✅ "flew"
         // marker so a past trip reads as history, not a still-pending booking.
         var isDone = !!activePriceObj.completed;
-        var doneAccent = isDone ? 'var(--green)' : 'var(--accent)';
-        var doneBg = isDone ? 'rgba(16,185,129,.07)' : 'rgba(46,124,246,.06)';
+        var doneAccent = isDone ? 'var(--success)' : 'var(--accent)';
+        var doneBg = isDone ? 'var(--success-dim)' : 'var(--accent-soft)';
         var doneBadge = isDone ? '✅ FLEW' : '🔒 LOCKED';
         var doneHeadline = isDone
           ? '✅ ' + esc(activePriceObj.completedNote || 'Trip complete')
@@ -1975,17 +1976,17 @@ function renderMeetupRoutes() {
           '<div class="route-card" style="border-left:3px solid ' + doneAccent + ';background:' + doneBg + ';">' +
             '<div class="route-card-hd">' + lockedHdr +
               '<span class="member-tag">' + memberLabel + '</span>' +
-              '<span class="src-badge live" style="background:rgba(16,185,129,.18);border:1px solid ' + doneAccent + ';color:' + doneAccent + ';">' + doneBadge + '</span>' +
+              '<span class="src-badge live" style="background:var(--success-dim);border:1px solid ' + doneAccent + ';color:' + doneAccent + ';">' + doneBadge + '</span>' +
               '<button class="route-copy-btn" data-copy="' + esc(lockedCopyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
             '</div>' +
             '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;margin-top:4px;">' +
-              '<div style="font-size:.78rem;font-weight:900;color:var(--green);">' + doneHeadline + '</div>' +
+              '<div style="font-size:var(--fs-body);font-weight:900;color:var(--success);">' + doneHeadline + '</div>' +
             '</div>' +
-            '<div class="route-airline" style="font-size:.62rem;color:var(--accent);font-weight:700;margin-top:3px;">✈ ' +
+            '<div class="route-airline" style="font-size:var(--fs-tiny);color:var(--accent);font-weight:700;margin-top:3px;">✈ ' +
               esc(activePriceObj.airline || '') + ' · ' + esc(activePriceObj.flightNo || '') +
             '</div>' +
             (activePriceObj.bookedDep
-              ? '<div style="font-size:.55rem;color:var(--muted);font-weight:700;margin-top:3px;">📅 ' + esc(activePriceObj.bookedDep) +
+              ? '<div style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:700;margin-top:3px;">📅 ' + esc(activePriceObj.bookedDep) +
                 (activePriceObj.bookedRet ? ' → ' + esc(activePriceObj.bookedRet) : '') + ' · no fetch (saves quota)</div>'
               : '') +
           '</div>';
@@ -2003,7 +2004,7 @@ function renderMeetupRoutes() {
         var dis = (mode === 'via-ord' && !route.viaOrdAvailable) || (mode === 'direct' && !route.directFare);
         var click = dis ? '' : ' onclick="setPiaRoute(\'' + hub + '\',\'' + mode + '\')"';
         var bg = on ? 'var(--accent)' : 'transparent';
-        var fg = on ? '#fff' : (dis ? 'var(--muted)' : 'var(--accent)');
+        var fg = on ? 'var(--ink-on-accent)' : (dis ? 'var(--ink-muted)' : 'var(--accent)');
         return '<button' + click + ' class="pia-toggle' + (on ? ' on' : '') + (dis ? ' dis' : '') + '"' +
                ' style="background:' + bg + ';color:' + fg + ';">' + label + ' ' + (dis ? '—' : '$' + total) + '</button>';
       }
@@ -2015,10 +2016,10 @@ function renderMeetupRoutes() {
         var cheaperIsActive = (route.viaORD && cheaperIsViaOrd) || (!route.viaORD && !cheaperIsViaOrd);
         if (cheaperIsActive) {
           var cheaperLbl = route.viaORD ? 'ORD' : 'Direct';
-          savingsTxt = ' <span style="color:var(--green);font-weight:900;">' + cheaperLbl + ' saves $' + totalSavings + '</span>';
+          savingsTxt = ' <span style="color:var(--success);font-weight:900;">' + cheaperLbl + ' saves $' + totalSavings + '</span>';
         } else {
           var altLbl = route.viaORD ? 'Direct' : 'ORD';
-          savingsTxt = ' <span style="color:var(--amber);font-weight:900;">+$' + totalSavings + ' vs ' + altLbl + '</span>';
+          savingsTxt = ' <span style="color:var(--warn);font-weight:900;">+$' + totalSavings + ' vs ' + altLbl + '</span>';
         }
       }
       var resetLink = route.overridden
@@ -2045,7 +2046,7 @@ function renderMeetupRoutes() {
         ? '<div class="route-fare-lbl" style="margin-top:3px;">$' + activePer + ' × ' + headcount + ' = <strong>$' + subtotal + '</strong> ' + fareLabel + '</div>'
         : '';
       html +=
-        '<div class="route-card" style="border-left:3px solid var(--green);">' +
+        '<div class="route-card" style="border-left:3px solid var(--success);">' +
           '<div class="route-card-hd">' + hdrBadges +
             '<span class="member-tag">' + memberLabel + '</span>' +
             sourceBadge + resetLink +
@@ -2080,9 +2081,9 @@ function renderMeetupRoutes() {
       var parts = [];
       if (outAirlineLbl) parts.push('✈ ' + outAirlineLbl + outStopsTxt);
       if (retAirlineLbl) parts.push('↩ ' + retAirlineLbl + retStopsTxt);
-      airlineHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>';
+      airlineHtml = '<div class="route-airline" style="font-size:var(--fs-tiny);color:var(--accent);font-weight:700;margin-top:2px;">' + parts.join(' &nbsp;·&nbsp; ') + '</div>';
     } else if (outAirlineLbl) {
-      airlineHtml = '<div class="route-airline" style="font-size:.6rem;color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + outAirlineLbl + outStopsTxt + '</div>';
+      airlineHtml = '<div class="route-airline" style="font-size:var(--fs-tiny);color:var(--accent);font-weight:700;margin-top:2px;">✈ ' + outAirlineLbl + outStopsTxt + '</div>';
     }
     // FLEX DATES: per-member date pills inline. Shows the dates THIS member's
     // price was fetched for (could differ from anchor if user set custom dates).
@@ -2090,18 +2091,18 @@ function renderMeetupRoutes() {
     var memDepStr = memDates.dep ? dateFmt(memDates.dep) : '—';
     var memRetStr = (isRT && memDates.ret) ? dateFmt(memDates.ret) : '';
     var customBadge = memDates.custom
-      ? '<span style="font-size:.5rem;background:var(--amber);color:#000;padding:1px 5px;border-radius:3px;font-weight:900;margin-left:4px;" title="Custom dates set for ' + memberLabel + '">✱ custom</span>'
+      ? '<span style="font-size:var(--fs-micro);background:var(--warn);color:var(--ink-on-warn);padding:1px 5px;border-radius:var(--rad-xs);font-weight:900;margin-left:4px;" title="Custom dates set for ' + memberLabel + '">✱ custom</span>'
       : '';
     var resetBtn = memDates.custom
-      ? '<button onclick="clearMemberDatesAndRefresh(\'' + from + '\')" title="Reset to anchor dates" style="font-size:.55rem;background:none;border:none;color:var(--muted);cursor:pointer;padding:0 0 0 4px;text-decoration:underline;">↻ reset</button>'
+      ? '<button onclick="clearMemberDatesAndRefresh(\'' + from + '\')" title="Reset to anchor dates" style="font-size:var(--fs-micro);background:none;border:none;color:var(--ink-muted);cursor:pointer;padding:0 0 0 4px;text-decoration:underline;">↻ reset</button>'
       : '';
     var flexDatesHtml =
-      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:4px;font-size:.55rem;color:var(--muted);">' +
+      '<div style="display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:4px;font-size:var(--fs-micro);color:var(--ink-muted);">' +
         '<span style="font-weight:700;text-transform:uppercase;letter-spacing:.4px;">Dates:</span>' +
-        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink);border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memDepStr + '</button>' +
+        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" style="font-size:var(--fs-tiny);font-weight:800;background:var(--surface-2);color:var(--ink);border:1px solid ' + (memDates.custom ? 'var(--warn)' : 'var(--line-strong)') + ';border-radius:var(--rad-sm);padding:2px 7px;cursor:pointer;font-family:inherit;">' + memDepStr + '</button>' +
         (isRT ? '<span>→</span>' +
-                '<button onclick="openMemberCal(\'' + from + '\',\'ret\')" style="font-size:.6rem;font-weight:800;background:var(--surface2);color:var(--ink);border:1px solid ' + (memDates.custom ? 'var(--amber)' : 'var(--border2)') + ';border-radius:5px;padding:2px 7px;cursor:pointer;font-family:inherit;">' + memRetStr + '</button>' : '') +
-        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" title="Edit ' + memberLabel + '\\\'s travel window" style="font-size:.55rem;background:none;border:none;color:var(--accent);cursor:pointer;padding:0;">✏️</button>' +
+                '<button onclick="openMemberCal(\'' + from + '\',\'ret\')" style="font-size:var(--fs-tiny);font-weight:800;background:var(--surface-2);color:var(--ink);border:1px solid ' + (memDates.custom ? 'var(--warn)' : 'var(--line-strong)') + ';border-radius:var(--rad-sm);padding:2px 7px;cursor:pointer;font-family:inherit;">' + memRetStr + '</button>' : '') +
+        '<button onclick="openMemberCal(\'' + from + '\',\'dep\')" title="Edit ' + memberLabel + '\\\'s travel window" style="font-size:var(--fs-micro);background:none;border:none;color:var(--accent);cursor:pointer;padding:0;">✏️</button>' +
         resetBtn +
       '</div>';
     // Subtotal line — only when headcount > 1 (else price already shown above).
@@ -2110,14 +2111,14 @@ function renderMeetupRoutes() {
       : '';
     // Focus → green left-accent; tentative → dashed muted border + dimmed.
     var cardStyle = isFocus
-      ? ' style="border-left:3px solid var(--green);background:rgba(16,185,129,.06);"'
-      : (isTentative ? ' style="border-left:3px dashed var(--border2);opacity:.68;"' : '');
+      ? ' style="border-left:3px solid var(--success);background:var(--success-dim);"'
+      : (isTentative ? ' style="border-left:3px dashed var(--line-strong);opacity:.68;"' : '');
     // Direct link to Google Flights for this member's route + dates (booking hop).
     var gfUrl = gflightsUrl(from, hub, fmtISO(memDates.dep), (isRT && memDates.ret) ? fmtISO(memDates.ret) : '', isRT);
     var bookLinkHtml = gfUrl
       ? '<a href="' + gfUrl + '" target="_blank" rel="noopener noreferrer" ' +
-        'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:.6rem;font-weight:800;' +
-        'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:3px 8px;" ' +
+        'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:var(--fs-tiny);font-weight:800;' +
+        'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:var(--rad-sm);padding:3px 8px;" ' +
         'title="Open this route in Google Flights">🔗 Book on Google Flights ↗</a>'
       : '';
     html +=
@@ -2143,7 +2144,7 @@ function renderMeetupRoutes() {
         bookLinkHtml +
       '</div>';
   });
-  container.innerHTML = html || '<div style="font-size:.62rem;color:var(--muted);padding:4px 2px">All family members at hub</div>';
+  container.innerHTML = html || '<div style="font-size:var(--fs-tiny);color:var(--ink-muted);padding:4px 2px">All family members at hub</div>';
   if (typeof renderGroupCost === 'function') renderGroupCost(); // PIA-022/025 panel
 }
 
@@ -2478,31 +2479,31 @@ function renderMeetupFinder() {
     var html2 =
       '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;">' +
         '<span>💡 Cheapest week to gather · next ' + FINDER_NWEEKS + ' wks</span>' +
-        '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">estimate</span>' +
+        '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;">estimate</span>' +
       '</div>' +
-      '<div style="border:1.5px solid ' + actCol + ';background:' + actCol + '12;border-radius:10px;padding:10px 12px;">' +
-        '<div style="font-size:.72rem;font-weight:900;color:' + actCol + ';margin-bottom:4px;">Meet in ' + actCity + ' · ' + activeHub + '</div>';
+      '<div style="border:1.5px solid ' + actCol + ';background:' + actCol + '12;border-radius:var(--rad-md);padding:10px 12px;">' +
+        '<div style="font-size:var(--fs-body-s);font-weight:900;color:' + actCol + ';margin-bottom:4px;">Meet in ' + actCity + ' · ' + activeHub + '</div>';
     if (onCheapest) {
-      html2 += '<div style="font-size:.68rem;font-weight:800;color:var(--green);">✓ You’re on the cheapest week for this trip</div>' +
-               '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">Your ' + curDatesTxt + ' ≈ $' + (curEst != null ? curEst : '—') + ' ' + recFareLbl + ' total</div>';
+      html2 += '<div style="font-size:var(--fs-caption);font-weight:800;color:var(--success);">✓ You’re on the cheapest week for this trip</div>' +
+               '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:2px;">Your ' + curDatesTxt + ' ≈ $' + (curEst != null ? curEst : '—') + ' ' + recFareLbl + ' total</div>';
     } else if (bestAtHub) {
       html2 += '<div style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">' +
-                 '<span style="font-size:.55rem;color:var(--muted);">Your ' + curDatesTxt + ' ≈ <strong style="color:var(--ink);">$' + (curEst != null ? curEst : '—') + '</strong></span>' +
+                 '<span style="font-size:var(--fs-micro);color:var(--ink-muted);">Your ' + curDatesTxt + ' ≈ <strong style="color:var(--ink);">$' + (curEst != null ? curEst : '—') + '</strong></span>' +
                '</div>' +
                '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:5px;flex-wrap:wrap;">' +
-                 '<div style="font-size:.62rem;font-weight:800;color:var(--ink);">' + dateFmt(bestAtHub.dep) + '–' + dateFmt(bestAtHub.ret) + ' ≈ <span style="color:var(--green);font-weight:900;">$' + bestAtHub.total + '</span></div>' +
+                 '<div style="font-size:var(--fs-tiny);font-weight:800;color:var(--ink);">' + dateFmt(bestAtHub.dep) + '–' + dateFmt(bestAtHub.ret) + ' ≈ <span style="color:var(--success);font-weight:900;">$' + bestAtHub.total + '</span></div>' +
                  '<button class="finder-apply-btn" data-dep="' + fmtISO(bestAtHub.dep) + '" data-ret="' + fmtISO(bestAtHub.ret) + '" data-hub="' + activeHub + '" ' +
-                   'style="font-size:.58rem;font-weight:900;background:var(--green);color:#000;border:none;border-radius:6px;padding:5px 10px;cursor:pointer;font-family:inherit;">' +
+                   'style="font-size:var(--fs-tiny);font-weight:900;background:var(--success);color:var(--ink-on-warn);border:none;border-radius:var(--rad-sm);padding:5px 10px;cursor:pointer;font-family:inherit;">' +
                    (save > 0 ? 'Move & save ~$' + save + ' →' : 'Use this week →') + '</button>' +
                '</div>';
     }
     // Flexible-on-city nudge — only when a different hub/week is the absolute cheapest.
     if (absBest && (absBest.bestHub !== activeHub || fmtISO(absBest.dep) !== (bestAtHub ? fmtISO(bestAtHub.dep) : ''))) {
       var absCity = AIRPORTS[absBest.bestHub] ? AIRPORTS[absBest.bestHub].name.split(',')[0] : absBest.bestHub;
-      html2 += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid var(--border2);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
-                 '<div style="font-size:.55rem;color:var(--muted);">Flexible on city? Cheapest anywhere: <strong style="color:var(--ink);">' + absCity + '</strong> ' + dateFmt(absBest.dep) + ' ≈ <strong style="color:var(--green);">$' + absBest.total + '</strong></div>' +
+      html2 += '<div style="margin-top:8px;padding-top:7px;border-top:1px solid var(--line-strong);display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">' +
+                 '<div style="font-size:var(--fs-micro);color:var(--ink-muted);">Flexible on city? Cheapest anywhere: <strong style="color:var(--ink);">' + absCity + '</strong> ' + dateFmt(absBest.dep) + ' ≈ <strong style="color:var(--success);">$' + absBest.total + '</strong></div>' +
                  '<button class="finder-apply-btn" data-dep="' + fmtISO(absBest.dep) + '" data-ret="' + fmtISO(absBest.ret) + '" data-hub="' + absBest.bestHub + '" ' +
-                   'style="font-size:.55rem;font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;cursor:pointer;font-family:inherit;white-space:nowrap;">Switch →</button>' +
+                   'style="font-size:var(--fs-micro);font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:var(--rad-sm);padding:4px 8px;cursor:pointer;font-family:inherit;white-space:nowrap;">Switch →</button>' +
                '</div>';
     }
     html2 += '</div>';
@@ -2531,22 +2532,22 @@ function renderMeetupFinder() {
   var html =
     '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;">' +
       '<span>Best Meetup Weekend · Next ' + FINDER_NWEEKS + ' weeks</span>' +
-      '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">PIA-default</span>' +
+      '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;">PIA-default</span>' +
     '</div>' +
     '<button class="finder-best-card" data-dep="' + fmtISO(best.dep) + '" data-ret="' + fmtISO(best.ret) + '" data-hub="' + best.bestHub + '" ' +
-      'style="width:100%;padding:11px 13px;border:1.5px solid ' + hubCol + ';background:' + hubCol + '12;border-radius:10px;cursor:pointer;text-align:left;font-family:inherit;color:var(--ink);transition:transform .12s, box-shadow .12s;">' +
+      'style="width:100%;padding:11px 13px;border:1.5px solid ' + hubCol + ';background:' + hubCol + '12;border-radius:var(--rad-md);cursor:pointer;text-align:left;font-family:inherit;color:var(--ink);transition:transform var(--t-fast), box-shadow var(--t-fast);">' +
       '<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">' +
         '<span style="font-size:.85rem;">🥇</span>' +
-        '<span style="font-size:.75rem;font-weight:900;color:' + hubCol + ';">Meet in ' + cityName + ' &middot; ' + best.bestHub + (best.isORD ? ' 🚗' : '') + '</span>' +
+        '<span style="font-size:var(--fs-body-s);font-weight:900;color:' + hubCol + ';">Meet in ' + cityName + ' &middot; ' + best.bestHub + (best.isORD ? ' 🚗' : '') + '</span>' +
       '</div>' +
-      '<div style="font-size:.95rem;font-weight:900;color:var(--ink);line-height:1.1;">' + dateFmt(best.dep) + ' &ndash; ' + dateFmt(best.ret) + '</div>' +
+      '<div style="font-size:var(--fs-title);font-weight:900;color:var(--ink);line-height:1.1;">' + dateFmt(best.dep) + ' &ndash; ' + dateFmt(best.ret) + '</div>' +
       '<div style="display:flex;align-items:baseline;gap:6px;margin-top:4px;">' +
-        '<span style="font-size:1.1rem;font-weight:900;color:var(--green);">$' + best.total + '</span>' +
-        '<span style="font-size:.6rem;color:var(--muted);font-weight:700;">' + fareLabel + ' total for ' + best.parts.length + ' travelers</span>' +
+        '<span style="font-size:var(--fs-price);font-weight:900;color:var(--success);">$' + best.total + '</span>' +
+        '<span style="font-size:var(--fs-tiny);color:var(--ink-muted);font-weight:700;">' + fareLabel + ' total for ' + best.parts.length + ' travelers</span>' +
       '</div>' +
-      '<div style="font-size:.55rem;color:var(--muted);margin-top:5px;line-height:1.4;">' + best.parts.join(' &middot; ') + (best.isORD ? ' &middot; 🚗 PIA drives' : '') + '</div>' +
-      (runnerTxt ? '<div style="font-size:.55rem;color:var(--muted);margin-top:4px;font-style:italic;line-height:1.4;">' + runnerTxt + '</div>' : '') +
-      '<div style="font-size:.55rem;color:var(--accent);margin-top:6px;font-weight:700;">Click to lock these dates &amp; hub →</div>' +
+      '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:5px;line-height:var(--lh-normal);">' + best.parts.join(' &middot; ') + (best.isORD ? ' &middot; 🚗 PIA drives' : '') + '</div>' +
+      (runnerTxt ? '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:4px;font-style:italic;line-height:var(--lh-normal);">' + runnerTxt + '</div>' : '') +
+      '<div style="font-size:var(--fs-micro);color:var(--accent);margin-top:6px;font-weight:700;">Click to lock these dates &amp; hub →</div>' +
     '</button>';
   section.innerHTML = html;
   // Wire click → set dates, set hub override, fetch live prices
@@ -2565,7 +2566,7 @@ function renderMeetupFinder() {
       loadPrices();
       syncURL();
     });
-    card.addEventListener('mouseenter', function(){ card.style.transform = 'translateY(-1px)'; card.style.boxShadow = '0 4px 12px rgba(0,0,0,.25)'; });
+    card.addEventListener('mouseenter', function(){ card.style.transform = 'translateY(-1px)'; card.style.boxShadow = 'var(--shadow-1)'; });
     card.addEventListener('mouseleave', function(){ card.style.transform = ''; card.style.boxShadow = ''; });
   }
 }
@@ -4975,25 +4976,25 @@ function renderGroupCost(){
   // PIA-023: inline RSVP status selector for a flyer.
   function statusSel(code, status){
     var opts = { in:'✅ in', tentative:'🤔 maybe', out:'✖ out' };
-    return '<select class="gc-status" data-code="' + code + '" style="font-size:.5rem;font-weight:800;background:var(--surface2);color:var(--muted);border:1px solid var(--border2);border-radius:4px;padding:1px 2px;font-family:inherit;margin-left:4px;">' +
+    return '<select class="gc-status" data-code="' + code + '" style="font-size:var(--fs-micro);font-weight:800;background:var(--surface-2);color:var(--ink-muted);border:1px solid var(--line-strong);border-radius:var(--rad-xs);padding:1px 2px;font-family:inherit;margin-left:4px;">' +
       ['in','tentative','out'].map(function(s){ return '<option value="' + s + '"' + (s===status?' selected':'') + '>' + opts[s] + '</option>'; }).join('') + '</select>';
   }
   var splitRows = costs.rows.map(function(r){
-    if (r.host) return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;color:var(--muted);"><span>🏠 ' + esc(r.label) + ' <span style="font-size:.5rem;">hosts</span></span><span style="font-weight:800;color:var(--green);">$0</span></div>';
+    if (r.host) return '<div class="u-row u-row--muted" style="font-size:var(--fs-tiny);border-top:none;padding:2px 0;"><span>🏠 ' + esc(r.label) + ' <span style="font-size:var(--fs-micro);">hosts</span></span><span style="font-weight:800;color:var(--success);">$0</span></div>';
     var isOut = r.status === 'out', isTent = r.status === 'tentative';
-    var lblCol = isOut ? 'var(--muted)' : 'var(--ink)';
-    var amt = isOut ? '<s style="color:var(--muted);">$' + r.subtotal + '</s>' : '<strong style="color:var(--ink);">$' + r.subtotal + '</strong>';
-    if (r.drives) return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;color:var(--muted);"><span>🚗 ' + esc(r.label) + statusSel(r.code, r.status) + '</span><span style="font-weight:800;">~$' + ORD_DRIVE_TAX + '</span></div>';
+    var lblCol = isOut ? 'var(--ink-muted)' : 'var(--ink)';
+    var amt = isOut ? '<s style="color:var(--ink-muted);">$' + r.subtotal + '</s>' : '<strong style="color:var(--ink);">$' + r.subtotal + '</strong>';
+    if (r.drives) return '<div class="u-row u-row--muted" style="font-size:var(--fs-tiny);border-top:none;padding:2px 0;"><span>🚗 ' + esc(r.label) + statusSel(r.code, r.status) + '</span><span style="font-weight:800;">~$' + ORD_DRIVE_TAX + '</span></div>';
     var pct = (!isOut && costs.total > 0) ? Math.round(r.subtotal / costs.total * 100) : 0;
-    return '<div style="display:flex;justify-content:space-between;align-items:center;font-size:.58rem;' + (isOut?'opacity:.6;':'') + '">' +
+    return '<div class="u-row" style="font-size:var(--fs-tiny);border-top:none;padding:2px 0;' + (isOut?'opacity:.6;':'') + '">' +
       '<span style="color:' + lblCol + ';">' + (isTent?'🤔 ':'') + esc(r.label) + statusSel(r.code, r.status) + '</span>' +
-      '<span>' + (!isOut ? '<span style="color:var(--muted);font-size:.5rem;">' + pct + '% · </span>' : '') + amt + '</span></div>';
+      '<span>' + (!isOut ? '<span style="color:var(--ink-muted);font-size:var(--fs-micro);">' + pct + '% · </span>' : '') + amt + '</span></div>';
   }).join('');
   // PIA-023 RSVP headline
   var goingN = costs.rows.filter(function(r){ return r.status === 'in' || r.status === 'hosting'; }).length;
   var tentN = costs.rows.filter(function(r){ return r.status === 'tentative'; }).length;
   var outN = costs.rows.filter(function(r){ return r.status === 'out'; }).length;
-  var rsvpHtml = '<div style="display:flex;align-items:center;gap:6px;font-size:.55rem;color:var(--muted);margin-bottom:5px;">' +
+  var rsvpHtml = '<div style="display:flex;align-items:center;gap:6px;font-size:var(--fs-micro);color:var(--ink-muted);margin-bottom:5px;">' +
     '<span style="font-weight:800;color:var(--ink);">👥 ' + goingN + ' of ' + costs.rows.length + ' in</span>' +
     (tentN ? '<span>· ' + tentN + ' maybe</span>' : '') + (outN ? '<span>· ' + outN + ' out</span>' : '') + '</div>';
   var hist = (readGroupPrices()[priceSig(hub)]) || [];
@@ -5003,27 +5004,27 @@ function renderGroupCost(){
     var first = totals[0], last = totals[totals.length-1], delta = last - first;
     var since = (hist[0].ts||'').slice(5,10);
     var deltaTxt = delta === 0 ? 'no change' : (delta < 0 ? '↓ $' + Math.abs(delta) : '↑ $' + delta);
-    var deltaCol = delta === 0 ? 'var(--muted)' : (delta < 0 ? 'var(--green)' : 'var(--red)');
-    watchHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);">' +
-      '<span style="font-size:.53rem;color:var(--muted);">📈 Last live $' + last + ' · <span style="color:' + deltaCol + ';font-weight:800;">' + deltaTxt + '</span> since ' + since + '</span>' + sparklineSVG(totals, 74, 18) + '</div>';
+    var deltaCol = delta === 0 ? 'var(--ink-muted)' : (delta < 0 ? 'var(--success)' : 'var(--danger)');
+    watchHtml = '<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--line-strong);">' +
+      '<span style="font-size:var(--fs-micro);color:var(--ink-muted);">📈 Last live $' + last + ' · <span style="color:' + deltaCol + ';font-weight:800;">' + deltaTxt + '</span> since ' + since + '</span>' + sparklineSVG(totals, 74, 18) + '</div>';
   } else {
-    watchHtml = '<div style="font-size:.5rem;color:var(--muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--border2);">📈 Tap <strong>Get Live Fares</strong> to start watching this trip’s total over time.</div>';
+    watchHtml = '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:6px;padding-top:6px;border-top:1px solid var(--line-strong);">📈 Tap <strong>Get Live Fares</strong> to start watching this trip’s total over time.</div>';
   }
   var l = readLedger();
   var famCodes = familyForDate(today).filter(function(c){ return c !== 'ORD'; });
   var ledgerTxt = famCodes.map(function(c){ var e = l[c] || {hosted:0,spend:0}; return labelFor(c) + ' ' + (e.hosted||0) + '×'; }).join(' · ');
   var nextHost = fairestNextHost();
-  var fairHtml = '<div style="margin-top:7px;padding-top:6px;border-top:1px solid var(--border2);">' +
-    '<div style="font-size:.53rem;color:var(--muted);">⚖ Hosted so far: ' + esc(ledgerTxt || '—') + '</div>' +
-    (nextHost ? '<div style="font-size:.55rem;color:var(--ink);margin-top:2px;">Fairest next host: <strong style="color:' + (DC[nextHost]||'var(--accent)') + ';">' + esc(labelFor(nextHost)) + '</strong></div>' : '') +
-    '<button id="gc-log" style="margin-top:5px;font-size:.53rem;font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:6px;padding:4px 8px;cursor:pointer;font-family:inherit;">＋ Log this meetup to fairness</button></div>';
+  var fairHtml = '<div style="margin-top:7px;padding-top:6px;border-top:1px solid var(--line-strong);">' +
+    '<div style="font-size:var(--fs-micro);color:var(--ink-muted);">⚖ Hosted so far: ' + esc(ledgerTxt || '—') + '</div>' +
+    (nextHost ? '<div style="font-size:var(--fs-micro);color:var(--ink);margin-top:2px;">Fairest next host: <strong style="color:' + (DC[nextHost]||'var(--accent)') + ';">' + esc(labelFor(nextHost)) + '</strong></div>' : '') +
+    '<button id="gc-log" style="margin-top:5px;font-size:var(--fs-micro);font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:var(--rad-sm);padding:4px 8px;cursor:pointer;font-family:inherit;">＋ Log this meetup to fairness</button></div>';
   panel.innerHTML =
     '<div class="lbl">💰 Family cost split · ' + hub + '</div>' +
-    '<div style="border:1px solid ' + hubCol + '55;border-left:3px solid ' + hubCol + ';border-radius:9px;padding:9px 11px;background:' + hubCol + '0f;">' +
+    '<div style="border:1px solid ' + hubCol + '55;border-left:3px solid ' + hubCol + ';border-radius:var(--rad-md);padding:9px 11px;background:' + hubCol + '0f;">' +
       rsvpHtml +
       '<div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">' +
-        '<span style="font-size:.6rem;font-weight:900;color:var(--ink);">Total · ' + flyerCount + ' flying</span>' +
-        '<span style="font-size:.9rem;font-weight:900;color:var(--green);">$' + costs.total + ' <span style="font-size:.5rem;color:var(--muted);">' + fareLbl + '</span></span>' +
+        '<span style="font-size:var(--fs-tiny);font-weight:900;color:var(--ink);">Total · ' + flyerCount + ' flying</span>' +
+        '<span style="font-size:var(--fs-title);font-weight:900;color:var(--success);">$' + costs.total + ' <span style="font-size:var(--fs-micro);color:var(--ink-muted);">' + fareLbl + '</span></span>' +
       '</div>' + splitRows + watchHtml + fairHtml +
     '</div>';
   panel.style.display = '';
