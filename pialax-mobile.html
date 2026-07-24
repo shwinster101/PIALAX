@@ -542,13 +542,15 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   line-height: 1.4;
   color: var(--ink);
 }
-/* PIA-033: quota bar lives inside the sticky #shell-header */
+/* PIA-033: quota bar lives inside the sticky #shell-header.
+   PIA-039 fix: the blanket display:none here made the bar unhideable-by-JS
+   (updateApiCallCount only clears the INLINE style) — visibility now lives on
+   the element's inline style="display:none", same contract as desktop. */
 #quota-bar {
-  display: none;
   margin: 0;
   padding: 2px var(--sp-5) 6px;
   font-size: var(--fs-tiny);
-  line-height: 1.4;
+  line-height: var(--lh-normal);
 }
 /* PIA-033: content breathing room under the sticky header */
 #sb-body { padding-top: var(--sp-3); }
@@ -634,21 +636,21 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 #hol-row::-webkit-scrollbar { display: none; }
 .hol-btn {
   padding: 6px 12px;
-  font-size: 0.72rem;
+  font-size: var(--fs-body-s);
   font-weight: 700;
-  color: var(--text-muted);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  transition: all .15s var(--ease);
+  color: var(--ink-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--rad-pill);
+  transition: all var(--t-quick) var(--ease);
   white-space: nowrap;
   flex-shrink: 0;
   min-height: 44px;
   display: flex;
   align-items: center;
 }
-.hol-btn:hover { border-color: var(--primary); color: var(--primary); }
-.hol-btn.active { background: var(--a-dim); border-color: var(--primary); color: var(--primary); }
+.hol-btn:hover { border-color: var(--accent); color: var(--accent); }
+.hol-btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
 
 /* ═══ BLOCK 2: Choose Dates ═══ */
 
@@ -891,51 +893,51 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 .solo-live-btn {
   width: 100%;
   padding: 8px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--rad-sm);
   background: transparent;
-  color: var(--text-muted);
-  font-size: 0.65rem;
+  color: var(--ink-muted);
+  font-size: var(--fs-caption);
   font-weight: 700;
   cursor: pointer;
   margin-top: 6px;
-  transition: all .15s;
+  transition: all var(--t-quick);
   text-align: center;
   min-height: 44px;
 }
-.solo-live-btn:hover { border-color: var(--primary); color: var(--primary); }
-.solo-live-btn.loading { color: var(--amber); border-color: var(--amber); cursor: wait; }
+.solo-live-btn:hover { border-color: var(--accent); color: var(--accent); }
+.solo-live-btn.loading { color: var(--warn); border-color: var(--warn); cursor: wait; }
 
 /* ═══ BLOCK 4: Share Plan ═══ */
 #share-card {
   padding: var(--space-sm) var(--space-md);
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  font-size: 0.72rem;
-  color: var(--text-main);
-  line-height: 1.65;
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--rad-md);
+  font-size: var(--fs-body-s);
+  color: var(--ink);
+  line-height: var(--lh-loose);
   white-space: pre-wrap;
   word-break: break-all;
   display: none;
 }
-#share-card-close { float: right; cursor: pointer; color: var(--text-muted); font-size: 0.7rem; font-weight: 700; margin-left: 8px; }
-#share-card-close:hover { color: var(--red); }
+#share-card-close { float: right; cursor: pointer; color: var(--ink-muted); font-size: var(--fs-caption); font-weight: 700; margin-left: 8px; }
+#share-card-close:hover { color: var(--danger); }
 
-/* ── Share toast ── */
+/* ── Share toast — PIA-039: legacy rgba(0,200,83,.97) migrated to --success ── */
 #share-toast {
   position: fixed;
   bottom: calc(env(safe-area-inset-bottom) + 136px); /* PIA-033: clears CTA + tab bar */
   left: 50%;
   transform: translateX(-50%) translateY(50px);
-  background: rgba(0,200,83,.97);
-  color: #fff;
-  font-size: 0.73rem;
+  background: var(--success);
+  color: var(--ink-on-accent);
+  font-size: var(--fs-body-s);
   font-weight: 800;
   padding: 10px 24px;
-  border-radius: 20px;
+  border-radius: var(--rad-pill);
   opacity: 0;
-  transition: all .28s var(--ease);
+  transition: all var(--t-slow) var(--ease);
   z-index: 2000;
   pointer-events: none;
   white-space: nowrap;
@@ -1231,48 +1233,48 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   padding: var(--space-md);
 }
 
-/* API banner inside advanced */
+/* API banner inside advanced — PIA-039 tokens */
 #api-banner { background: transparent; border: none; overflow: hidden; }
 #api-hdr { display: flex; align-items: center; justify-content: space-between; padding: 0 0 7px; cursor: pointer; }
-#api-hdr .abt { font-size: 0.72rem; font-weight: 800; color: var(--text-main); }
-.ab-badge { font-size: 0.6rem; font-weight: 700; padding: 3px 8px; border-radius: 20px; color: #fff; }
-.b-mock { background: #4a6080; }
-.b-live { background: var(--green); }
-#api-body { padding: 9px 0 0; border-top: 1px solid var(--border); display: none; }
+#api-hdr .abt { font-size: var(--fs-body-s); font-weight: 800; color: var(--ink); }
+.ab-badge { font-size: var(--fs-tiny); font-weight: 700; padding: 3px 8px; border-radius: var(--rad-pill); color: var(--ink-on-accent); }
+.b-mock { background: var(--sample); color: var(--ink-on-warn); }
+.b-live { background: var(--success); }
+#api-body { padding: 9px 0 0; border-top: 1px solid var(--line); display: none; }
 #api-body.open { display: block; }
-.api-lbl { font-size: 0.62rem; font-weight: 700; color: var(--text-muted); margin-bottom: 3px; text-transform: uppercase; }
+.api-lbl { font-size: var(--fs-tiny); font-weight: 700; color: var(--ink-muted); margin-bottom: 3px; text-transform: uppercase; }
 #api-key-inp {
   width: 100%;
   padding: 10px 12px;
   background: var(--bg);
-  color: var(--text-main);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  font-size: 0.78rem;
-  font-family: monospace;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--rad-sm);
+  font-size: var(--fs-body);
+  font-family: var(--font-mono);
   margin-bottom: 5px;
   min-height: 44px;
 }
-#api-key-inp:focus { outline: none; border-color: var(--primary); }
-#api-key-inp::placeholder { color: var(--text-muted); }
+#api-key-inp:focus { outline: none; border-color: var(--accent); }
+#api-key-inp::placeholder { color: var(--ink-muted); }
 .api-btn-row { display: flex; gap: 5px; margin-bottom: 5px; }
 .api-btn-row button {
   flex: 1;
   padding: 8px;
   border: none;
-  border-radius: 8px;
-  font-size: 0.75rem;
+  border-radius: var(--rad-sm);
+  font-size: var(--fs-body-s);
   font-weight: 800;
   cursor: pointer;
-  transition: opacity .15s;
+  transition: opacity var(--t-quick);
   min-height: 44px;
 }
-#api-apply { background: var(--primary); color: #fff; }
+#api-apply { background: var(--accent); color: var(--ink-on-accent); }
 #api-apply:hover { opacity: .85; }
-#api-clear { background: #1e3550; color: var(--text-muted); }
-#api-clear:hover { color: var(--text-main); }
-.api-note { font-size: 0.62rem; color: var(--text-muted); line-height: 1.5; }
-.api-note a { color: var(--primary); text-decoration: none; }
+#api-clear { background: var(--surface-3); color: var(--ink-muted); }
+#api-clear:hover { color: var(--ink); }
+.api-note { font-size: var(--fs-tiny); color: var(--ink-muted); line-height: 1.5; }
+.api-note a { color: var(--accent); text-decoration: none; }
 
 /* ── ORD toggle (kept but hidden behind advanced) ── */
 #ord-toggle-row { margin-top: 6px; }
@@ -1350,7 +1352,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   </header>
   <!-- PIA-013 AC3 (mobile mirror): fares-as-of freshness header. -->
   <div id="freshness-header" style="display:none;padding:2px 16px 4px;font-size:var(--fs-tiny);line-height:1.4;color:var(--ink-muted);"></div>
-  <div id="quota-bar"></div>
+  <div id="quota-bar" style="display:none"></div>
 </div>
 
 <!-- Status bar -->
@@ -1563,12 +1565,12 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <button id="api-clear" style="display:none" aria-label="Disconnect proxy">✕ Disconnect</button>
         </div>
         <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank" rel="noopener noreferrer">Setup guide in worker.js</a></div>
-        <div id="api-calls-lbl" style="display:none;font-size:.6rem;color:var(--green);margin-top:3px;"></div>
-        <div id="api-quota-lbl" style="display:none;font-size:.62rem;margin-top:3px;line-height:1.4;"></div>
-        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:.58rem;color:var(--text-muted);">
+        <div id="api-calls-lbl" style="display:none;font-size:var(--fs-tiny);color:var(--success);margin-top:3px;"></div>
+        <div id="api-quota-lbl" style="display:none;font-size:var(--fs-tiny);margin-top:3px;line-height:var(--lh-normal);"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-top:4px;font-size:var(--fs-tiny);color:var(--ink-muted);">
           <label for="api-budget-inp">Monthly budget</label>
-          <input id="api-budget-inp" type="number" min="1" max="10000" value="1000" style="width:60px;padding:4px 6px;font-size:.65rem;background:var(--bg);color:var(--text-main);border:1px solid var(--border);border-radius:6px;min-height:36px;"/>
-          <button id="api-quota-reset" style="font-size:.58rem;padding:4px 8px;min-height:36px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text-muted);cursor:pointer;">Reset</button>
+          <input id="api-budget-inp" type="number" min="1" max="10000" value="1000" style="width:60px;padding:4px 6px;font-size:var(--fs-caption);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:var(--rad-xs);min-height:36px;"/>
+          <button id="api-quota-reset" style="font-size:var(--fs-micro);padding:4px 8px;min-height:36px;background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--rad-sm);color:var(--ink-muted);cursor:pointer;">Reset</button>
         </div>
       </div>
     </div>
@@ -3791,8 +3793,8 @@ function updateFreshnessHeader() {
   // PIA-declutter: fold the old #status "Showing N fares" pill's count into this single line.
   el.innerHTML = '<strong style="color:var(--ink);">' + keys.length + ' fare' + (keys.length!==1?'s':'') + '</strong>'
               + ' · Fares as of <strong style="color:var(--ink);">' + asOfTxt + '</strong>'
-              + ' · <span style="color:#10b981;">' + liveCount + ' live</span>'
-              + ' · <span style="color:#94a3b8;">' + sampleCount + ' sample</span>';
+              + ' · <span style="color:var(--live);">' + liveCount + ' live</span>'
+              + ' · <span style="color:var(--sample);">' + sampleCount + ' sample</span>';
   el.style.display = '';
 }
 
@@ -3827,7 +3829,7 @@ function freshnessLabel(entry, familyCode) {
 }
 function _freshPill(tier, txt) {
   var color = tier==='LIVE' ? '#10b981' : tier==='CACHED' ? '#f59e0b' : tier==='BOOKED' ? '#3b82f6' : '#94a3b8';
-  return '<span class="fresh-pill" data-tier="' + tier + '" style="display:inline-block;font-size:.55rem;font-weight:800;letter-spacing:.02em;padding:1px 6px;border-radius:9px;background:rgba(255,255,255,.04);color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;">' + txt + '</span>';
+  return '<span class="fresh-pill" data-tier="' + tier + '" style="display:inline-block;font-size:var(--fs-micro);font-weight:800;letter-spacing:.02em;padding:1px 6px;border-radius:var(--rad-pill);background:var(--surface-2);color:' + color + ';border:1px solid ' + color + ';white-space:nowrap;">' + txt + '</span>';
 }
 
 // ── SerpAPI Monthly Quota Tracking ───────────────────────────────
@@ -3903,11 +3905,11 @@ function updateQuotaWarningBanner() {
   var remaining = Math.max(0, q.budget - q.used);
 
   if (!PROXY_URL) {
-    bn.innerHTML = '<strong style="color:var(--amber);">📡 Sample data mode</strong><br/>'
-      + '<span style="color:var(--muted);">Connect a SerpAPI proxy in Advanced Settings to see live Google Flights pricing.</span>';
+    bn.innerHTML = '<strong style="color:var(--warn);">📡 Sample data mode</strong><br/>'
+      + '<span style="color:var(--ink-muted);">Connect a SerpAPI proxy in Advanced Settings to see live Google Flights pricing.</span>';
     bn.style.display = '';
-    bn.style.borderColor = 'var(--amber)';
-    bn.style.background = 'rgba(245,158,11,.14)';
+    bn.style.borderColor = 'var(--warn)';
+    bn.style.background = 'var(--warn-dim)';
     return;
   }
 
@@ -3916,23 +3918,23 @@ function updateQuotaWarningBanner() {
               + remaining + ' until reset (' + resetTxt + ')';
 
   if (q.exceeded || q.used >= QUOTA_LOCK_AT) {
-    bn.innerHTML = '<strong style="color:var(--red);">⛔ Fetch locked — quota safety cutoff</strong><br/>'
-      + '<span style="color:var(--muted);">' + bodyTxt + '. Search disabled until plan resets.</span>';
+    bn.innerHTML = '<strong style="color:var(--danger);">⛔ Fetch locked — quota safety cutoff</strong><br/>'
+      + '<span style="color:var(--ink-muted);">' + bodyTxt + '. Search disabled until plan resets.</span>';
     bn.style.display = '';
-    bn.style.borderColor = 'var(--red)';
-    bn.style.background = 'rgba(239,68,68,.14)';
+    bn.style.borderColor = 'var(--danger)';
+    bn.style.background = 'var(--danger-dim)';
   } else if (q.used >= QUOTA_RED_AT) {
-    bn.innerHTML = '<strong style="color:var(--red);">⚠ Approaching cap — under 50 calls left</strong><br/>'
-      + '<span style="color:var(--muted);">' + bodyTxt + '.</span>';
+    bn.innerHTML = '<strong style="color:var(--danger);">⚠ Approaching cap — under 50 calls left</strong><br/>'
+      + '<span style="color:var(--ink-muted);">' + bodyTxt + '.</span>';
     bn.style.display = '';
-    bn.style.borderColor = 'var(--red)';
-    bn.style.background = 'rgba(239,68,68,.10)';
+    bn.style.borderColor = 'var(--danger)';
+    bn.style.background = 'var(--danger-dim)';
   } else if (q.used >= QUOTA_AMBER_AT) {
-    bn.innerHTML = '<strong style="color:var(--amber);">🟡 SerpAPI usage warning</strong><br/>'
-      + '<span style="color:var(--muted);">' + bodyTxt + '.</span>';
+    bn.innerHTML = '<strong style="color:var(--warn);">🟡 SerpAPI usage warning</strong><br/>'
+      + '<span style="color:var(--ink-muted);">' + bodyTxt + '.</span>';
     bn.style.display = '';
-    bn.style.borderColor = 'var(--amber)';
-    bn.style.background = 'rgba(245,158,11,.10)';
+    bn.style.borderColor = 'var(--warn)';
+    bn.style.background = 'var(--warn-dim)';
   } else {
     bn.style.display = 'none';
   }
@@ -4340,16 +4342,17 @@ function updateApiCallCount() {
     var remaining = Math.max(0, q.budget - q.used);
     var pct = q.budget > 0 ? remaining / q.budget : 0;
     var locked = q.exceeded || q.used >= QUOTA_LOCK_AT;
-    var color = locked || q.used >= QUOTA_RED_AT ? 'var(--red)'
-              : q.used >= QUOTA_AMBER_AT ? 'var(--amber)'
-              : 'var(--green)';
+    var color = locked || q.used >= QUOTA_RED_AT ? 'var(--quota-red)'
+              : q.used >= QUOTA_AMBER_AT ? 'var(--quota-amber)'
+              : 'var(--quota-ok)';
     var barW = Math.round(pct * 100);
-    var lockTag = locked ? ' · <span style="color:var(--red);">⛔ locked</span>' : '';
-    qbar.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;">'
-      + '<span style="color:' + color + ';font-weight:700;">SerpAPI: ' + remaining + ' / ' + q.budget + ' remaining' + lockTag + '</span>'
-      + '<span style="color:var(--muted);">' + q.used + ' used · ' + SESSION_CALLS + ' session</span></div>'
-      + '<div style="height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
-      + '<div style="height:100%;width:' + barW + '%;background:' + color + ';transition:width .3s;"></div></div>';
+    var lockTag = locked ? ' · <span style="color:var(--quota-locked);">⛔ locked</span>' : '';
+    // PIA-039: gap + wrap so the two spans never collide in a narrow viewport.
+    qbar.innerHTML = '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">'
+      + '<span style="color:' + color + ';font-weight:700;white-space:nowrap;">SerpAPI: ' + remaining + ' / ' + q.budget + ' remaining' + lockTag + '</span>'
+      + '<span style="color:var(--ink-muted);white-space:nowrap;">' + q.used + ' used · ' + SESSION_CALLS + ' session</span></div>'
+      + '<div class="u-progress" style="height:3px;margin-top:3px;">'
+      + '<div class="u-progress__fill" style="width:' + barW + '%;background:' + color + ';"></div></div>';
     qbar.style.display = '';
   }
   // PIA-005 AC2: lock the search button at the 990 safety cutoff.
@@ -4373,21 +4376,21 @@ function updateApiCallCount() {
   if (!PROXY_URL) { qel.style.display = 'none'; return; }
   var remaining = Math.max(0, q.budget - q.used);
   var pct = q.budget > 0 ? remaining / q.budget : 0;
-  var color = pct > 0.20 ? 'var(--green)' : (pct > 0.05 ? 'var(--amber)' : 'var(--red)');
-  if (q.exceeded || remaining === 0) color = 'var(--red)';
-  var bar = '<div style="height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;margin-top:3px;">'
-          + '<div style="height:100%;width:' + Math.round((1-pct)*100) + '%;background:' + color + ';transition:width .3s;"></div></div>';
+  var color = pct > 0.20 ? 'var(--quota-ok)' : (pct > 0.05 ? 'var(--quota-amber)' : 'var(--quota-red)');
+  if (q.exceeded || remaining === 0) color = 'var(--quota-red)';
+  var bar = '<div class="u-progress" style="height:4px;margin-top:3px;">'
+          + '<div class="u-progress__fill" style="width:' + Math.round((1-pct)*100) + '%;background:' + color + ';"></div></div>';
   var note = q.exceeded ? ' · <strong>budget reached — falling back to mock</strong>' : '';
   var syncTxt = '';
   if (_serpApiAccountLastSync) {
     var diffSec = Math.round((Date.now() - _serpApiAccountLastSync.getTime()) / 1000);
     var ago = diffSec < 60 ? diffSec + 's ago' : diffSec < 3600 ? Math.round(diffSec / 60) + 'm ago' : Math.round(diffSec / 3600) + 'h ago';
-    syncTxt = ' · <span style="color:var(--green);">✓ synced ' + ago + '</span>';
+    syncTxt = ' · <span style="color:var(--success);">✓ synced ' + ago + '</span>';
   } else if (PROXY_URL) {
-    syncTxt = ' · <span style="color:var(--muted);">⚠ local count only</span>';
+    syncTxt = ' · <span style="color:var(--ink-muted);">⚠ local count only</span>';
   }
   qel.innerHTML = '<span style="color:' + color + ';">SerpAPI: ' + remaining + ' / ' + q.budget
-                + ' free calls remaining this month</span> <span style="color:var(--muted);">(used ' + q.used + ')</span>'
+                + ' free calls remaining this month</span> <span style="color:var(--ink-muted);">(used ' + q.used + ')</span>'
                 + syncTxt + note + bar;
   qel.style.display = '';
 }
