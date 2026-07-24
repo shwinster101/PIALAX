@@ -329,6 +329,24 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   min-height: 48px;
 }
 .tt-btn.on { background: var(--a-dim); border-color: var(--primary); color: var(--primary); }
+/* PIA-031: "＋ New trip" solo|family toggle — visually mirrors .tt-btn but is a
+   distinct class so the various global document.querySelectorAll('.tt-btn')
+   re-syncs elsewhere (applyHoliday, restoreFromURL, …) never touch it. */
+.nt-mode-btn {
+  flex: 1;
+  padding: 8px;
+  font-size: .62rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: inherit;
+  transition: all .15s var(--ease);
+  min-height: 36px;
+}
+.nt-mode-btn.on { background: var(--a-dim); border-color: var(--primary); color: var(--primary); }
 
 /* Date pickers */
 #date-row { display: flex; gap: 6px; }
@@ -1386,6 +1404,10 @@ var S = {
   prices:{}, geoData:null, geoFallback:false,
   proj:null,
   mode:'meetup', soloFocus:null, barFocus:null,
+  // PIA-031: solo dests added via the "＋ New trip" quick-add for a city the app
+  // doesn't model as a route (e.g. Memphis) — lets renderSoloCards() union them
+  // in so a light card renders even though ROUTE_GRAPH[S.home] doesn't list them.
+  extraSoloDests: [],
   soloPreview: null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
   memberDates: {},
@@ -2622,14 +2644,25 @@ function renderSoloCards() {
   var container = document.getElementById('solo-cards');
   if (!container) return;
   container.innerHTML = '';
-  dests().forEach(function(dest) {
-    var weekends = computeBestWeekends(S.home, dest, 13);
+  // PIA-031: solo dest list = dests() (ROUTE_GRAPH) UNION any solo watchlist
+  // item's dest not already in dests() UNION S.extraSoloDests — so a quick-added
+  // city the app doesn't model as a route (e.g. Memphis) still gets a card.
+  var soloDests = dests().slice();
+  WATCHLIST.forEach(function(t){
+    if (t.mode === 'solo' && t.origin === S.home && t.stage !== 'completed' && t.dest && soloDests.indexOf(t.dest) === -1) soloDests.push(t.dest);
+  });
+  (S.extraSoloDests || []).forEach(function(d){ if (d && soloDests.indexOf(d) === -1) soloDests.push(d); });
+  soloDests.forEach(function(dest) {
+    // Modeled = has real AIRPORTS/fare data. Unmodeled dests get a lighter card
+    // (no fare grid) — see the `modeled` branches below.
+    var modeled = !!AIRPORTS[dest];
+    var weekends = modeled ? computeBestWeekends(S.home, dest, 13) : [];
     var top = weekends.slice(0, 3);
     var col = DC[dest] || '#888';
     var apInfo = AIRPORTS[dest];
     var bestPrice = top[0] ? top[0].price : 0;
     var activePreset = null;
-    var presets = TRIP_PRESETS[dest] || [];
+    var presets = modeled ? (TRIP_PRESETS[dest] || []) : [];
     if (S.depDate) {
       var depISO = fmtISO(S.depDate);
       var retISO = S.retDate ? fmtISO(S.retDate) : '';
@@ -2707,14 +2740,15 @@ function renderSoloCards() {
     var chartId = 'chart-' + dest;
     var hasLive = !!(S.soloBarPrices[S.home + '-' + dest]);
     // PIA-013 AC2+AC4 (mobile mirror): centralized freshness pill, family-booked-aware.
-    var liveTag = freshnessLabel(S.prices[S.home + '-' + dest] || getMock(S.home, dest), S.home).pillHtml;
+    var liveTag = modeled ? freshnessLabel(S.prices[S.home + '-' + dest] || getMock(S.home, dest), S.home).pillHtml : '';
     // Gate the 13-call live fetch (mobile mirror): disable when quota-locked;
     // require a two-step in-card confirm (mirrors .wknd-row → .solo-preview-lock
-    // below) that shows remaining quota before spending it.
+    // below) that shows remaining quota before spending it. Unmodeled dests have
+    // no fare data to fetch, so the button is skipped entirely (modeled-only).
     var quotaLocked = isFetchLocked();
     var liveBtnLabel = hasLive ? '🔄 Refresh 13 live weeks (~13 queries)' : '📡 Load 13 live weeks (~13 queries)';
     var liveBtnHtml = '';
-    if (PROXY_URL) {
+    if (modeled && PROXY_URL) {
       if (_soloLiveConfirm === dest) {
         var _q = readQuota();
         var _remaining = Math.max(0, _q.budget - _q.used);
@@ -2736,12 +2770,20 @@ function renderSoloCards() {
     // the bar chart as the headline. Reuses top[0] (computeBestWeekends), already
     // computed above, plus a prominent Google Flights hand-off for real prices.
     var cheapWeekTop = top[0];
-    var cheapWeekHtml = cheapWeekTop
+    var gfSeeRealLinkHtml = soloBookUrl ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;font-size:.62rem;font-weight:900;color:#fff;background:var(--accent);text-decoration:none;border-radius:6px;padding:6px 12px;min-height:36px;" title="Search real prices + set fare alerts on Google Flights">🔎 See real prices on Google Flights ↗</a>' : '';
+    // PIA-031: unmodeled dest (no AIRPORTS/fare data) — collapse the headline to
+    // "— · " + the same Google Flights hand-off link instead of a fabricated $ estimate.
+    var cheapWeekHtml = !modeled
       ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 10px;margin-bottom:6px;background:rgba(16,185,129,.08);border:1px solid var(--green);border-radius:8px;">' +
-          '<div style="font-size:.65rem;font-weight:800;color:var(--ink,var(--text));">📅 Cheapest week ≈ <span style="color:var(--green);font-weight:900;">$' + cheapWeekTop.price + '</span> <span style="color:var(--muted);font-weight:600;">(est.)</span> · ' + dateFmt(cheapWeekTop.dep) + '–' + dateFmt(cheapWeekTop.ret) + '</div>' +
-          (soloBookUrl ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;font-size:.62rem;font-weight:900;color:#fff;background:var(--accent);text-decoration:none;border-radius:6px;padding:6px 12px;min-height:36px;" title="Search real prices + set fare alerts on Google Flights">🔎 See real prices on Google Flights ↗</a>' : '') +
+          '<div style="font-size:.65rem;font-weight:800;color:var(--ink,var(--text));">— · <span style="color:var(--muted);font-weight:600;">not modeled — check real fares</span></div>' +
+          gfSeeRealLinkHtml +
         '</div>'
-      : '';
+      : (cheapWeekTop
+          ? '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 10px;margin-bottom:6px;background:rgba(16,185,129,.08);border:1px solid var(--green);border-radius:8px;">' +
+              '<div style="font-size:.65rem;font-weight:800;color:var(--ink,var(--text));">📅 Cheapest week ≈ <span style="color:var(--green);font-weight:900;">$' + cheapWeekTop.price + '</span> <span style="color:var(--muted);font-weight:600;">(est.)</span> · ' + dateFmt(cheapWeekTop.dep) + '–' + dateFmt(cheapWeekTop.ret) + '</div>' +
+              gfSeeRealLinkHtml +
+            '</div>'
+          : '');
     // CUZ uses the A-vs-B comparison block instead of the single generic link —
     // it already carries its own Google Flights links, so this is suppressed there.
     var soloBookHtml = (soloBookUrl && dest !== 'CUZ')
@@ -2842,11 +2884,12 @@ function renderSoloCards() {
           '</div>' +
         '</div>' +
         '<div style="text-align:right;flex-shrink:0;">' +
-          '<div style="font-size:.88rem;font-weight:900;color:var(--green)">$' + (activePreset ? (presetLivePrice || bestPrice) : bestPrice) + '</div>' +
+          // Unmodeled dests have no fare data at all, so show "—" instead of a fabricated $0.
+          '<div style="font-size:.88rem;font-weight:900;color:var(--green)">' + (modeled ? ('$' + (activePreset ? (presetLivePrice || bestPrice) : bestPrice)) : '—') + '</div>' +
           '<div style="font-size:.5rem;color:var(--muted)">' +
-            (activePreset
+            (!modeled ? 'not modeled' : (activePreset
               ? (presetLivePrice ? 'preset · live' : 'preset · est.')
-              : (hasLive ? 'live best' : 'est. best')) +
+              : (hasLive ? 'live best' : 'est. best'))) +
           '</div>' +
         '</div>' +
       '</div>' +
@@ -2854,19 +2897,24 @@ function renderSoloCards() {
         cheapWeekHtml +
         soloDecisionHtml +
         renderTripBinder(binderKeyFor(dest)) + (dest === 'CUZ' ? peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
-        presetBannerHtml +
-        (activePreset
+        // PIA-031: the fare-grid pieces below (preset banner, Best-Weekends rows,
+        // presets, price-trend chart, 13-call live button) all need fare data that
+        // doesn't exist for an unmodeled dest — modeled-only.
+        (modeled ? presetBannerHtml : '') +
+        (modeled && activePreset
           ? '<div style="font-size:.55rem;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;margin:4px 0 4px;">— or pick a different weekend below —</div>'
           : '') +
-        '<div style="' + (activePreset ? 'opacity:.85;' : '') + '">' + wkndsHtml + '</div>' +
-        presetHtml +
+        (modeled ? ('<div style="' + (activePreset ? 'opacity:.85;' : '') + '">' + wkndsHtml + '</div>') : '') +
+        (modeled ? presetHtml : '') +
         // Demoted price-trend chart — collapsed disclosure, default closed.
-        chartToggleHtml +
-        '<div class="solo-chart-wrap" data-dest="' + dest + '" style="' + (chartOpen ? '' : 'max-height:0;overflow:hidden;') + '">' +
-          '<svg id="' + chartId + '" class="bar-chart-svg" style="' + (activePreset ? 'opacity:.7;' : '') + '"></svg>' +
-          '<div class="bar-chart-row"><span>Now</span>' + (applyOrdPivot(dest, bestPrice) ? '<span style="color:var(--green)">— ghost = ORD route</span>' : '') + '<span>+13 wks</span></div>' +
-        '</div>' +
-        liveBtnHtml +
+        (modeled ? chartToggleHtml : '') +
+        (modeled
+          ? ('<div class="solo-chart-wrap" data-dest="' + dest + '" style="' + (chartOpen ? '' : 'max-height:0;overflow:hidden;') + '">' +
+              '<svg id="' + chartId + '" class="bar-chart-svg" style="' + (activePreset ? 'opacity:.7;' : '') + '"></svg>' +
+              '<div class="bar-chart-row"><span>Now</span>' + (applyOrdPivot(dest, bestPrice) ? '<span style="color:var(--green)">— ghost = ORD route</span>' : '') + '<span>+13 wks</span></div>' +
+            '</div>')
+          : '') +
+        (modeled ? liveBtnHtml : '') +
         soloActionsHtml +
         soloNotesHtml +
       '</div>';
@@ -2937,7 +2985,7 @@ function renderSoloCards() {
       });
     });
     var svgEl = document.getElementById(chartId);
-    if (svgEl) renderBarChart(svgEl, S.home, dest);
+    if (modeled && svgEl) renderBarChart(svgEl, S.home, dest);
     // Demoted chart disclosure toggle
     card.querySelectorAll('.solo-chart-toggle').forEach(function(el){
       el.addEventListener('click', function(e){
@@ -4709,6 +4757,7 @@ var WATCHLIST = [];
 var _watchlistCollapsed = false;
 var _watchlistOpen = {};
 var _watchlistFocusId = null; // PIA-030: id of a .wl-next input to focus after the next render
+var _watchlistAdding = false; // PIA-031: true while the "＋ New trip" inline quick-add form is open
 function loadWatchlist() {
   WATCHLIST = WATCHLIST_SEED.map(function(t){ return Object.assign({}, t, { reminders:(t.reminders||[]).slice(), blockers:(t.blockers||[]).slice() }); });
   // PIA-030: default nextAction/blockers on every item (seed items already carry
@@ -4785,6 +4834,13 @@ function openWatchlistTrip(id){
   if (t.key) { applyHoliday(t.key); return; }
   if (t.mode === 'solo') {
     S.home = t.origin || S.home; var hs=document.getElementById('home-sel'); if (hs) hs.value=S.home;
+    // PIA-031: a dest the app doesn't model as a route (e.g. Memphis) won't be in
+    // ROUTE_GRAPH[S.home] — park it in S.extraSoloDests so renderSoloCards() draws
+    // its (light) card immediately instead of the dest silently having no card.
+    if (t.dest && (ROUTE_GRAPH[S.home]||[]).indexOf(t.dest) === -1) {
+      if (!S.extraSoloDests) S.extraSoloDests = [];
+      if (S.extraSoloDests.indexOf(t.dest) === -1) S.extraSoloDests.push(t.dest);
+    }
     S.soloFocus = t.dest || null; if (S.mode !== 'solo') setMode('solo');
   } else {
     if (t.hub) S.meetupHubOverride = t.hub; if (S.mode !== 'meetup') setMode('meetup');
@@ -4808,6 +4864,37 @@ function addCurrentToWatchlist(){
     gf:{ from:(isFam?'LAX':S.home), to:(hub||dest||'') }
   };
   WATCHLIST.push(item); saveWatchlist(); renderWatchlist();
+}
+// PIA-031: quick-add ANY destination — even a city the app doesn't model as a
+// route (e.g. Memphis) — as a watchlist item in ≤2 clicks. Reuses the exact
+// item shape + Thu→Sun default from addCurrentToWatchlist above.
+function addNewTrip(){
+  var destEl = document.getElementById('nt-dest');
+  var depEl = document.getElementById('nt-dep');
+  var retEl = document.getElementById('nt-ret');
+  var modeBtn = document.querySelector('#nt-mode .nt-mode-btn.on');
+  var rawDest = destEl ? destEl.value.trim() : '';
+  if (!rawDest) { showShareToast('Enter a destination'); return; }
+  var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : rawDest;
+  var mode = (modeBtn && modeBtn.getAttribute('data-v') === 'family') ? 'family' : 'solo';
+  var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
+  var ret = (retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
+  if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
+  var item = {
+    id:'w'+Date.now(), _added:true, mode:mode, origin:S.home, dest:dest,
+    dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
+    title:(dest+' — '+mode+' trip'), routeTxt:(S.home+' → '+dest),
+    gf:{ from:S.home, to:dest },
+    notes:'', reminders:[], nextAction:'', blockers:[]
+  };
+  WATCHLIST.push(item); saveWatchlist();
+  if (mode === 'solo') {
+    if (!S.extraSoloDests) S.extraSoloDests = [];
+    if (S.extraSoloDests.indexOf(dest) === -1) S.extraSoloDests.push(dest);
+  }
+  _watchlistAdding = false;
+  renderWatchlist();
+  if (S.mode === 'solo') renderSoloCards();
 }
 function renderWatchlist(){
   var sec = document.getElementById('watchlist-section');
@@ -4893,10 +4980,37 @@ function renderWatchlist(){
       row + body +
     '</div>';
   }).join('');
-  var addBtn = '<div style="display:flex;gap:6px;">' +
-    '<button id="wl-add" style="flex:1;font-size:.62rem;font-weight:800;background:transparent;color:var(--accent);border:1px dashed var(--accent);border-radius:8px;padding:9px;cursor:pointer;font-family:inherit;min-height:38px;">＋ Add current view</button>' +
-    '<button id="wl-share" title="Copy a shareable summary + link of the whole plan" style="font-size:.62rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;font-family:inherit;white-space:nowrap;min-height:38px;">🔗 Share</button>' +
-  '</div>';
+  var addBtn;
+  if (_watchlistAdding) {
+    // PIA-031: pre-fill dest/dates/mode from the current view when one is active —
+    // subsumes the old "＋ Add current view" primitive into this quick-add form.
+    var ntIsFam = (S.mode === 'meetup');
+    var ntPrefillDest = ntIsFam ? (getActiveHub(computeRanking()) || '') : (S.soloFocus || (dests()[0]||'') || '');
+    var ntPrefillDep = S.depDate ? fmtISO(S.depDate) : '';
+    var ntPrefillRet = S.retDate ? fmtISO(S.retDate) : '';
+    var ntPrefillMode = ntIsFam ? 'family' : 'solo';
+    var inputStyle = 'width:100%;box-sizing:border-box;font-size:.62rem;font-family:inherit;color:var(--ink,var(--text));background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:8px;min-height:36px;';
+    addBtn = '<div id="nt-form" style="border:1px dashed var(--accent);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:6px;">' +
+      '<input id="nt-dest" type="text" placeholder="City or airport, e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'" style="'+inputStyle+'"/>' +
+      '<div style="display:flex;gap:5px;">' +
+        '<input id="nt-dep" type="date" value="'+ntPrefillDep+'" style="flex:1;'+inputStyle+'"/>' +
+        '<input id="nt-ret" type="date" value="'+ntPrefillRet+'" style="flex:1;'+inputStyle+'"/>' +
+      '</div>' +
+      '<div id="nt-mode" style="display:flex;gap:4px;">' +
+        '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='solo'?' on':'')+'" data-v="solo">Solo</button>' +
+        '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='family'?' on':'')+'" data-v="family">Family</button>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;">' +
+        '<button id="nt-save" style="flex:1;font-size:.62rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px;cursor:pointer;font-family:inherit;min-height:38px;">＋ Add</button>' +
+        '<button id="nt-cancel" style="font-size:.62rem;font-weight:800;background:transparent;color:var(--muted);border:1px solid var(--border2);border-radius:8px;padding:9px 12px;cursor:pointer;font-family:inherit;min-height:38px;">Cancel</button>' +
+      '</div>' +
+    '</div>';
+  } else {
+    addBtn = '<div style="display:flex;gap:6px;">' +
+      '<button id="wl-newtrip" style="flex:1;font-size:.62rem;font-weight:800;background:transparent;color:var(--accent);border:1px dashed var(--accent);border-radius:8px;padding:9px;cursor:pointer;font-family:inherit;min-height:38px;">＋ New trip</button>' +
+      '<button id="wl-share" title="Copy a shareable summary + link of the whole plan" style="font-size:.62rem;font-weight:800;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:9px 11px;cursor:pointer;font-family:inherit;white-space:nowrap;min-height:38px;">🔗 Share</button>' +
+    '</div>';
+  }
   sec.innerHTML = header + '<div style="margin-top:6px;">' + cards + addBtn + '</div>';
   wireWatchlist(sec);
 }
@@ -4911,7 +5025,15 @@ function wireWatchlist(sec){
   sec.querySelectorAll('.wl-next-hint').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var id=el.getAttribute('data-id'); _watchlistOpen[id]=true; _watchlistFocusId=id; renderWatchlist(); }); });
   sec.querySelectorAll('.wl-open').forEach(function(el){ el.addEventListener('click', function(){ openWatchlistTrip(el.getAttribute('data-id')); }); });
   sec.querySelectorAll('.wl-del').forEach(function(el){ el.addEventListener('click', function(){ removeWatchlistItem(el.getAttribute('data-id')); }); });
-  var add = sec.querySelector('#wl-add'); if (add) add.addEventListener('click', addCurrentToWatchlist);
+  var newTrip = sec.querySelector('#wl-newtrip'); if (newTrip) newTrip.addEventListener('click', function(){ _watchlistAdding=true; renderWatchlist(); });
+  sec.querySelectorAll('.nt-mode-btn').forEach(function(b){
+    b.addEventListener('click', function(){
+      sec.querySelectorAll('.nt-mode-btn').forEach(function(x){ x.classList.remove('on'); });
+      b.classList.add('on');
+    });
+  });
+  var ntSave = sec.querySelector('#nt-save'); if (ntSave) ntSave.addEventListener('click', addNewTrip);
+  var ntCancel = sec.querySelector('#nt-cancel'); if (ntCancel) ntCancel.addEventListener('click', function(){ _watchlistAdding=false; renderWatchlist(); });
   var shr = sec.querySelector('#wl-share'); if (shr) shr.addEventListener('click', sharePlan);
   if (_watchlistFocusId) {
     var toFocus = sec.querySelector('.wl-next[data-id="'+_watchlistFocusId+'"]');
