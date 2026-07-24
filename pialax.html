@@ -2374,6 +2374,25 @@ function renderSoloCards() {
     var soloNotesMatch = watchlistSoloItem(dest);
     var soloNotesVal = soloNotesMatch ? (soloNotesMatch.notes || '') : '';
     var soloNotesHtml = '<textarea class="solo-notes" data-dest="' + dest + '" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;resize:vertical;">' + esc(soloNotesVal) + '</textarea>';
+    // PIA-030: solo decision strip — the same next-action + blocker chips as the
+    // watchlist, synced to the same matched item (or lazy-created like solo-notes).
+    // Hidden once the matched watchlist trip is completed (nothing left to decide).
+    var soloIsCompleted = soloNotesMatch && soloNotesMatch.stage === 'completed';
+    var soloDecisionHtml = '';
+    if (!soloIsCompleted) {
+      var soloNextVal = soloNotesMatch ? (soloNotesMatch.nextAction || '') : '';
+      var soloBlockersArr = soloNotesMatch ? (soloNotesMatch.blockers || []) : [];
+      var soloBlockerChips = Object.keys(BLOCKERS).map(function(k){
+        var b = BLOCKERS[k]; var on = soloBlockersArr.indexOf(k) > -1;
+        return '<span class="solo-blocker" data-dest="' + dest + '" data-key="' + k + '" style="font-size:.52rem;font-weight:800;padding:2px 6px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:2px;' +
+          (on ? 'background:' + col + '22;color:' + col + ';border:1px solid ' + col + ';' : 'background:transparent;color:var(--muted);border:1px solid var(--border2);') +
+          '">' + b.emoji + ' ' + b.label + '</span>';
+      }).join('');
+      soloDecisionHtml = '<div class="solo-decision" style="padding:6px 8px;margin-bottom:6px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;">' +
+        '<input class="solo-next" data-dest="' + dest + '" placeholder="🎯 Next action…" value="' + esc(soloNextVal) + '" style="width:100%;box-sizing:border-box;font-size:.6rem;font-family:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;"/>' +
+        '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">' + soloBlockerChips + '</div>' +
+      '</div>';
+    }
     // Demoted 13-week bar chart — collapsed disclosure, default closed. The SVG
     // stays in the DOM even when collapsed so renderBarChart() (wired below) can
     // still find + fill it.
@@ -2450,6 +2469,7 @@ function renderSoloCards() {
       '</div>' +
       '<div class="solo-dest-body">' +
         cheapWeekHtml +
+        soloDecisionHtml +
         renderTripBinder(binderKeyFor(dest)) + (dest === 'CUZ' ? peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
         presetBannerHtml +
         // Section header above the rolling-window stuff. When a preset is active,
@@ -2602,11 +2622,48 @@ function renderSoloCards() {
         } else {
           WATCHLIST.push({
             id: 'solo-' + d, _added: true, mode: 'solo', origin: S.home, dest: d,
-            dep: soloDepISO, ret: soloRetISO, stage: 'watching', notes: val,
+            dep: soloDepISO, ret: soloRetISO, stage: 'watching', notes: val, nextAction: '', blockers: [],
             reminders: [], gf: { from: S.home, to: d }
           });
           saveWatchlist();
         }
+      });
+    });
+    // PIA-030: solo decision strip — next action saves on blur (no re-render, like
+    // notes); blocker chip toggles via the shared setter, then re-renders the solo
+    // cards too (toggleWatchlistBlocker only re-renders the watchlist section).
+    card.querySelectorAll('.solo-next').forEach(function(el){
+      el.addEventListener('blur', function(){
+        var d = el.getAttribute('data-dest');
+        var val = el.value;
+        var item = watchlistSoloItem(d);
+        if (item) {
+          setWatchlistNextAction(item.id, val);
+        } else {
+          WATCHLIST.push({
+            id: 'solo-' + d, _added: true, mode: 'solo', origin: S.home, dest: d,
+            dep: soloDepISO, ret: soloRetISO, stage: 'watching', notes: '', nextAction: val, blockers: [],
+            reminders: [], gf: { from: S.home, to: d }
+          });
+          saveWatchlist();
+        }
+      });
+    });
+    card.querySelectorAll('.solo-blocker').forEach(function(el){
+      el.addEventListener('click', function(){
+        var d = el.getAttribute('data-dest');
+        var key = el.getAttribute('data-key');
+        var item = watchlistSoloItem(d);
+        if (!item) {
+          item = {
+            id: 'solo-' + d, _added: true, mode: 'solo', origin: S.home, dest: d,
+            dep: soloDepISO, ret: soloRetISO, stage: 'watching', notes: '', nextAction: '', blockers: [],
+            reminders: [], gf: { from: S.home, to: d }
+          };
+          WATCHLIST.push(item);
+        }
+        toggleWatchlistBlocker(item.id, key);
+        renderSoloCards();
       });
     });
   });
@@ -4508,6 +4565,10 @@ var WATCHLIST_STAGES = {
   booked:    { lbl:'Booked',    emoji:'✅', color:'#10b981', order:2 },
   completed: { lbl:'Completed', emoji:'🏁', color:'#94a3b8', order:3 },
 };
+// PIA-030: fixed, multi-select set of "why isn't this booked yet" chips — paired
+// with a freeform nextAction line to turn watching-stall into one clear next move.
+var BLOCKERS = { price:{emoji:'💰',label:'Price'}, dates:{emoji:'📅',label:'Dates'},
+  companion:{emoji:'🧑‍🤝‍🧑',label:'Companion'}, pto:{emoji:'🏖',label:'PTO'}, deciding:{emoji:'🤔',label:'Deciding'} };
 // Seeded from the trips already in the app. `key` = holiday-preset key so Open just
 // reuses applyHoliday(). gf = route for the Google Flights hand-off.
 var WATCHLIST_SEED = [
@@ -4515,11 +4576,13 @@ var WATCHLIST_SEED = [
     routeTxt:'LAX + PIA → JAX', hub:'JAX', dep:'2026-08-07', ret:'2026-08-09', stage:'watching',
     notes:'See sister before her Sep 1 NYC move. LAX (me) is the focus; Mom & Dad tentative.',
     reminders:['Sister hosts — no hotel needed','Lock before JAX fares climb'],
+    nextAction:'Confirm Mom & Dad (tentative) · lock before JAX fares climb', blockers:['companion','price'],
     gf:{from:'LAX',to:'JAX'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
     routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-03', ret:'2026-09-13', stage:'watching',
     notes:'Trek BOOKED (Salkantay & Inca Trail, BK-035216, $1,200). Flights NOT booked yet — watching RT vs two one-ways, may end in Lima with friend.',
     reminders:['Trek briefing 17:00 day before · Triunfo St 392, Ofc 212','Passport valid 6+ months from entry','Send passport photo to Eduardo'],
+    nextAction:'Confirm friend’s Lima dates, then watch the fare', blockers:['companion','price'],
     gf:{from:'LAX',to:'CUZ',openjaw:true} },
   { id:'london', key:'london', mode:'family', title:'London — Family trip',
     routeTxt:'PIA + LAX + JAX → LHR', hub:'LHR', dep:'2026-06-25', ret:'2026-07-03', stage:'completed',
@@ -4529,16 +4592,20 @@ var WATCHLIST_SEED = [
 var WATCHLIST = [];
 var _watchlistCollapsed = false;
 var _watchlistOpen = {};
+var _watchlistFocusId = null; // PIA-030: id of a .wl-next input to focus after the next render
 function loadWatchlist() {
-  WATCHLIST = WATCHLIST_SEED.map(function(t){ return Object.assign({}, t, { reminders:(t.reminders||[]).slice() }); });
+  WATCHLIST = WATCHLIST_SEED.map(function(t){ return Object.assign({}, t, { reminders:(t.reminders||[]).slice(), blockers:(t.blockers||[]).slice() }); });
+  // PIA-030: default nextAction/blockers on every item (seed items already carry
+  // them where set; this just fills the rest, e.g. London/completed).
+  WATCHLIST.forEach(function(t){ t.nextAction=t.nextAction||''; t.blockers=t.blockers||[]; });
   try {
     var raw = localStorage.getItem(WATCHLIST_STORAGE_KEY);
     if (raw) {
       var stored = JSON.parse(raw);
       if (stored && stored.overrides) {
-        WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; } });
+        WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       }
-      if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ if (a && a.id) WATCHLIST.push(a); });
+      if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ if (a && a.id){ a.nextAction=a.nextAction||''; a.blockers=a.blockers||[]; WATCHLIST.push(a); } });
     }
   } catch(e){ /* corrupt store — fall back to seed */ }
   // PIA-024: a shared plan link (?wl=…) reproduces the sender's whole watchlist —
@@ -4547,15 +4614,15 @@ function loadWatchlist() {
     var wlp = new URLSearchParams(window.location.search).get('wl');
     if (wlp) {
       var s = JSON.parse(decodeURIComponent(atob(wlp)));
-      if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; } });
-      if (s && Array.isArray(s.added)) s.added.forEach(function(a){ if (a && a.id && !WATCHLIST.some(function(x){ return x.id===a.id; })) WATCHLIST.push(a); });
+      if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
+      if (s && Array.isArray(s.added)) s.added.forEach(function(a){ if (a && a.id && !WATCHLIST.some(function(x){ return x.id===a.id; })){ a.nextAction=a.nextAction||''; a.blockers=a.blockers||[]; WATCHLIST.push(a); } });
     }
   } catch(e){}
 }
 // PIA-024: copy a shareable summary + link of the WHOLE plan (every watched trip).
 function sharePlan(){
   var payload = { overrides:{}, added:[] };
-  WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes }; });
+  WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers }; });
   var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e){}
   var sp = new URLSearchParams(window.location.search); sp.set('wl', enc);
   var url = window.location.origin + window.location.pathname + '?' + sp.toString();
@@ -4572,7 +4639,7 @@ function saveWatchlist() {
     var overrides = {}, added = [];
     WATCHLIST.forEach(function(t){
       if (t._added) added.push(t);
-      else overrides[t.id] = { stage:t.stage, notes:t.notes };
+      else overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers };
     });
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify({ overrides:overrides, added:added }));
   } catch(e){}
@@ -4596,6 +4663,11 @@ function watchlistEst(t){
 }
 function setWatchlistStage(id, stage){ var t=watchlistItem(id); if (t && WATCHLIST_STAGES[stage]) { t.stage=stage; saveWatchlist(); renderWatchlist(); } }
 function setWatchlistNotes(id, notes){ var t=watchlistItem(id); if (t) { t.notes=notes; saveWatchlist(); } }
+// PIA-030: next action saves on blur without a re-render (like notes); a blocker
+// toggle re-renders so the chip on/off state + row hint update immediately.
+function setWatchlistNextAction(id, text){ var t=watchlistItem(id); if (t){ t.nextAction=text; saveWatchlist(); } }
+function toggleWatchlistBlocker(id, key){ var t=watchlistItem(id); if (!t||!BLOCKERS[key])return; t.blockers=t.blockers||[];
+  var i=t.blockers.indexOf(key); if (i>-1) t.blockers.splice(i,1); else t.blockers.push(key); saveWatchlist(); renderWatchlist(); }
 function removeWatchlistItem(id){ var t=watchlistItem(id); if (t && t._added) { WATCHLIST=WATCHLIST.filter(function(x){return x.id!==id;}); saveWatchlist(); renderWatchlist(); } }
 function openWatchlistTrip(id){
   var t = watchlistItem(id); if (!t) return;
@@ -4635,11 +4707,13 @@ function renderWatchlist(){
   if (!sec) return;
   var counts = { watching:0, planning:0, booked:0, completed:0 };
   WATCHLIST.forEach(function(t){ if (counts[t.stage]!=null) counts[t.stage]++; });
+  // PIA-030: header nudge — how many Watching/Planning trips still have no next action set.
+  var needMove = WATCHLIST.filter(function(t){ return (t.stage==='watching'||t.stage==='planning') && !t.nextAction; }).length;
   var header =
     '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" id="wl-hdr">' +
       '<span>📋 Trip Watchlist</span>' +
       '<span style="font-size:.55rem;color:var(--muted);font-weight:600;">' +
-        '👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') +
+        '👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + (needMove>0 ? ' · '+needMove+' need a move' : '') + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') +
       '</span>' +
     '</div>';
   if (_watchlistCollapsed) { sec.innerHTML = header; wireWatchlist(sec); return; }
@@ -4650,11 +4724,28 @@ function renderWatchlist(){
     var est = watchlistEst(t);
     var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
     var open = !!_watchlistOpen[t.id];
-    var row = '<div class="wl-row" data-wl-id="'+t.id+'" style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:3px 0;">' +
-      '<span style="font-size:.62rem;background:'+col+'22;color:'+col+';border-radius:50%;width:16px;height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
-      '<span style="font-size:.72rem;font-weight:900;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(t.title)+'</span>' +
-      '<span style="font-size:.58rem;font-weight:800;color:var(--green);white-space:nowrap;">'+estTxt+'</span>' +
-      '<span style="font-size:.6rem;color:var(--muted);">'+(open?'▾':'▸')+'</span>' +
+    // PIA-030: compact 2nd line under the title — blocker dots + 🎯 next action (if
+    // set), else a faint "＋ next step" hint for a still-active trip with no move yet.
+    var needsMove = (t.stage==='watching'||t.stage==='planning');
+    var blockerDots = (t.blockers||[]).map(function(k){ return BLOCKERS[k]?BLOCKERS[k].emoji:''; }).join('');
+    var nextLineHtml = '';
+    if (t.stage !== 'completed') {
+      if (t.nextAction) {
+        nextLineHtml = '<div style="font-size:.55rem;color:var(--muted);margin-top:1px;padding-left:22px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' +
+          (blockerDots ? '<span style="margin-right:3px;">'+blockerDots+'</span>' : '') + '🎯 ' + esc(t.nextAction) +
+        '</div>';
+      } else if (needsMove) {
+        nextLineHtml = '<div class="wl-next-hint" data-id="'+t.id+'" style="font-size:.55rem;color:var(--muted);opacity:.55;margin-top:1px;padding-left:22px;">＋ next step</div>';
+      }
+    }
+    var row = '<div class="wl-row" data-wl-id="'+t.id+'" style="cursor:pointer;padding:3px 0;">' +
+      '<div style="display:flex;align-items:center;gap:6px;">' +
+        '<span style="font-size:.62rem;background:'+col+'22;color:'+col+';border-radius:50%;width:16px;height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
+        '<span style="font-size:.72rem;font-weight:900;color:var(--ink);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+esc(t.title)+'</span>' +
+        '<span style="font-size:.58rem;font-weight:800;color:var(--green);white-space:nowrap;">'+estTxt+'</span>' +
+        '<span style="font-size:.6rem;color:var(--muted);">'+(open?'▾':'▸')+'</span>' +
+      '</div>' +
+      nextLineHtml +
     '</div>';
     var body = '';
     if (open) {
@@ -4665,6 +4756,20 @@ function renderWatchlist(){
       var remind = (t.reminders && t.reminders.length)
         ? '<div style="margin-top:5px;font-size:.53rem;color:var(--muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
       var gfUrl = watchlistGFUrl(t);
+      // PIA-030: next-action input + blocker chips — hidden for completed trips
+      // (nothing left to decide).
+      var nextActionHtml = '';
+      if (t.stage !== 'completed') {
+        var blockerChips = Object.keys(BLOCKERS).map(function(k){
+          var b = BLOCKERS[k]; var on = (t.blockers||[]).indexOf(k) > -1;
+          return '<span class="wl-blocker" data-id="'+t.id+'" data-key="'+k+'" style="font-size:.52rem;font-weight:800;padding:2px 6px;border-radius:10px;cursor:pointer;display:inline-flex;align-items:center;gap:2px;' +
+            (on ? 'background:'+col+'22;color:'+col+';border:1px solid '+col+';' : 'background:transparent;color:var(--muted);border:1px solid var(--border2);') +
+            '">' + b.emoji + ' ' + b.label + '</span>';
+        }).join('');
+        nextActionHtml =
+          '<input class="wl-next" data-id="'+t.id+'" placeholder="🎯 Next action…" value="'+esc(t.nextAction||'')+'" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;"/>' +
+          '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">' + blockerChips + '</div>';
+      }
       var actStyle = 'font-size:.55rem;font-weight:800;text-decoration:none;border-radius:6px;padding:4px 8px;display:inline-block;';
       var actions =
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
@@ -4677,6 +4782,7 @@ function renderWatchlist(){
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
         '<div style="font-size:.55rem;color:var(--muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
         '<textarea class="wl-notes" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="width:100%;box-sizing:border-box;margin-top:6px;font-size:.58rem;font-family:inherit;color:var(--ink);background:var(--surface2);border:1px solid var(--border2);border-radius:6px;padding:5px 7px;resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
+        nextActionHtml +
         remind + actions +
       '</div>';
     }
@@ -4696,10 +4802,19 @@ function wireWatchlist(sec){
   sec.querySelectorAll('.wl-row').forEach(function(el){ el.addEventListener('click', function(){ var id=el.getAttribute('data-wl-id'); _watchlistOpen[id]=!_watchlistOpen[id]; renderWatchlist(); }); });
   sec.querySelectorAll('.wl-stage').forEach(function(el){ el.addEventListener('change', function(){ setWatchlistStage(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-notes').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNotes(el.getAttribute('data-id'), el.value); }); });
+  sec.querySelectorAll('.wl-next').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNextAction(el.getAttribute('data-id'), el.value); }); });
+  sec.querySelectorAll('.wl-blocker').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); toggleWatchlistBlocker(el.getAttribute('data-id'), el.getAttribute('data-key')); }); });
+  // PIA-030: "＋ next step" hint expands the card and focuses the next-action input.
+  sec.querySelectorAll('.wl-next-hint').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var id=el.getAttribute('data-id'); _watchlistOpen[id]=true; _watchlistFocusId=id; renderWatchlist(); }); });
   sec.querySelectorAll('.wl-open').forEach(function(el){ el.addEventListener('click', function(){ openWatchlistTrip(el.getAttribute('data-id')); }); });
   sec.querySelectorAll('.wl-del').forEach(function(el){ el.addEventListener('click', function(){ removeWatchlistItem(el.getAttribute('data-id')); }); });
   var add = sec.querySelector('#wl-add'); if (add) add.addEventListener('click', addCurrentToWatchlist);
   var shr = sec.querySelector('#wl-share'); if (shr) shr.addEventListener('click', sharePlan);
+  if (_watchlistFocusId) {
+    var toFocus = sec.querySelector('.wl-next[data-id="'+_watchlistFocusId+'"]');
+    if (toFocus) toFocus.focus();
+    _watchlistFocusId = null;
+  }
 }
 
 // ── INIT ─────────────────────────────────────────────────────────
