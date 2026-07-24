@@ -886,7 +886,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 
 /* Bar chart */
 .bar-chart-svg { display: block; width: 100%; height: 46px; overflow: visible; cursor: crosshair; }
-.bar-chart-row { display: flex; align-items: center; justify-content: space-between; font-size: 0.5rem; color: var(--text-muted); margin-top: 2px; margin-bottom: 5px; }
+.bar-chart-row { display: flex; align-items: center; justify-content: space-between; font-size: var(--fs-micro); color: var(--ink-muted); margin-top: 2px; margin-bottom: 5px; }
 .bar-live { opacity: 1 !important; }
 .solo-live-btn {
   width: 100%;
@@ -1125,28 +1125,28 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 #cal.open { display: block; }
 @keyframes calIn { from { opacity: 0; transform: translateY(20px) } to { opacity: 1; transform: none } }
 #cal-hdr { display: flex; align-items: center; justify-content: space-between; margin-bottom: 7px; }
-#cal-phase { font-size: 0.72rem; font-weight: 700; color: var(--primary); text-transform: uppercase; letter-spacing: 0.08em; }
+#cal-phase { font-size: var(--fs-body-s); font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.08em; }
 .cal-nav { display: flex; gap: 3px; }
 .cnav {
   width: 36px; height: 36px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--rad-sm);
+  color: var(--ink-muted);
   font-size: 1rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all .12s;
+  transition: all var(--t-fast);
 }
-.cnav:hover { border-color: var(--primary); color: var(--primary); }
-#cal-leg { display: flex; gap: 9px; margin-bottom: 7px; padding-bottom: 7px; border-bottom: 1px solid var(--border); }
-.cl-item { display: flex; align-items: center; gap: 3px; font-size: 0.6rem; color: var(--text-muted); }
+.cnav:hover { border-color: var(--accent); color: var(--accent); }
+#cal-leg { display: flex; gap: 9px; margin-bottom: 7px; padding-bottom: 7px; border-bottom: 1px solid var(--line); }
+.cl-item { display: flex; align-items: center; gap: 3px; font-size: var(--fs-tiny); color: var(--ink-muted); }
 .cl-dot { width: 6px; height: 6px; border-radius: 50%; }
 #cal-months { display: flex; flex-direction: column; gap: 16px; }
-.cal-mo-name { font-size: 0.82rem; font-weight: 700; color: var(--text-main); text-align: center; margin-bottom: 5px; }
+.cal-mo-name { font-size: var(--fs-body); font-weight: 700; color: var(--ink); text-align: center; margin-bottom: 5px; }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; }
-.cal-dh { text-align: center; font-size: 0.6rem; font-weight: 700; color: var(--text-muted); padding: 2px 0; }
+.cal-dh { text-align: center; font-size: var(--fs-tiny); font-weight: 700; color: var(--ink-muted); padding: 2px 0; }
 .cd {
   width: 100%;
   aspect-ratio: 1;
@@ -1154,34 +1154,34 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 8px;
+  border-radius: var(--rad-sm);
   cursor: pointer;
   user-select: none;
-  transition: background .1s;
+  transition: background var(--t-fast);
   min-height: 40px;
 }
-.cd:hover:not(.cx):not(.ce) { background: rgba(46,124,246,.18); }
+.cd:hover:not(.cx):not(.ce) { background: var(--accent-dim); }
 .cd.ce { pointer-events: none; }
 .cd.cx { opacity: .25; pointer-events: none; }
 .cd.today .dn { text-decoration: underline; text-underline-offset: 2px; }
-.dn { font-size: 0.8rem; font-weight: 700; color: var(--text-main); line-height: 1; }
-.dp { font-size: 0.52rem; font-weight: 800; line-height: 1; margin-top: 1px; }
-.dp.cheap { color: var(--cheap); }
-.dp.mid { color: var(--mid); }
-.dp.pricey { color: var(--pricey); }
-.cd.s0, .cd.s1 { background: var(--primary) !important; border-radius: 8px; }
-.cd.s0 .dn, .cd.s1 .dn { color: #fff; }
-.cd.s0 .dp, .cd.s1 .dp { color: rgba(255,255,255,.7); }
-.cd.inr { background: rgba(46,124,246,.14); border-radius: 0; }
-#cal-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--border); }
-#cal-foot .hint { font-size: 0.62rem; color: var(--text-muted); }
+.dn { font-size: var(--fs-body); font-weight: 700; color: var(--ink); line-height: 1; }
+.dp { font-size: var(--fs-micro); font-weight: 800; line-height: 1; margin-top: 1px; }
+.dp.cheap { color: var(--tier-cheap); }
+.dp.mid { color: var(--tier-mid); }
+.dp.pricey { color: var(--tier-pricey); }
+.cd.s0, .cd.s1 { background: var(--accent) !important; border-radius: var(--rad-sm); }
+.cd.s0 .dn, .cd.s1 .dn { color: var(--ink-on-accent); }
+.cd.s0 .dp, .cd.s1 .dp { color: var(--ink-on-accent); opacity: .75; }
+.cd.inr { background: var(--accent-dim); border-radius: 0; }
+#cal-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 9px; padding-top: 7px; border-top: 1px solid var(--line); }
+#cal-foot .hint { font-size: var(--fs-tiny); color: var(--ink-muted); }
 #cal-ok {
   padding: 8px 20px;
   border: none;
-  border-radius: 8px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 0.78rem;
+  border-radius: var(--rad-sm);
+  background: var(--accent);
+  color: var(--ink-on-accent);
+  font-size: var(--fs-body);
   font-weight: 800;
   min-height: 44px;
 }
@@ -1588,9 +1588,9 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
     </div>
   </div>
   <div id="cal-leg">
-    <div class="cl-item"><div class="cl-dot" style="background:var(--cheap)"></div>Cheapest</div>
-    <div class="cl-item"><div class="cl-dot" style="background:var(--mid)"></div>Moderate</div>
-    <div class="cl-item"><div class="cl-dot" style="background:var(--pricey)"></div>Pricier</div>
+    <div class="cl-item"><div class="cl-dot" style="background:var(--tier-cheap)"></div>Cheapest</div>
+    <div class="cl-item"><div class="cl-dot" style="background:var(--tier-mid)"></div>Moderate</div>
+    <div class="cl-item"><div class="cl-dot" style="background:var(--tier-pricey)"></div>Pricier</div>
   </div>
   <div id="cal-months"></div>
   <div id="cal-foot">
@@ -3058,7 +3058,7 @@ function renderBarChart(svgEl, from, to) {
     var y = H - bh;
     var isBest = (i === minIdx);
     var isLive = !!w.live;
-    var barColor = isBest ? 'var(--green)' : 'var(--accent)';
+    var barColor = isBest ? 'var(--tier-cheap)' : 'var(--accent)';
     var barOp = isBest ? '0.92' : (isLive ? '0.65' : '0.38');
     var barClass = isLive ? ' class="bar-live"' : '';
     svgParts.push('<rect data-idx="' + i + '"' + barClass + ' x="' + x + '" y="' + y + '" width="' + bw + '" height="' + bh + '" rx="1" fill="' + barColor + '" opacity="' + barOp + '"/>');
@@ -3066,10 +3066,10 @@ function renderBarChart(svgEl, from, to) {
     if (ordPivot) {
       var obh = barH(ordPivot.total);
       var oy = H - obh;
-      svgParts.push('<rect x="' + x + '" y="' + oy + '" width="' + bw + '" height="' + obh + '" rx="1" fill="none" stroke="var(--green)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/>');
+      svgParts.push('<rect x="' + x + '" y="' + oy + '" width="' + bw + '" height="' + obh + '" rx="1" fill="none" stroke="var(--tier-cheap)" stroke-width="1" stroke-dasharray="2,2" opacity="0.7"/>');
     }
     if (isBest) {
-      svgParts.push('<circle cx="' + (x + bw / 2) + '" cy="' + (y - 4) + '" r="2.5" fill="var(--green)"/>');
+      svgParts.push('<circle cx="' + (x + bw / 2) + '" cy="' + (y - 4) + '" r="2.5" fill="var(--tier-cheap)"/>');
     }
   });
   svgEl.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
@@ -3990,7 +3990,7 @@ function renderCal() {
         if (!past) {
           el.addEventListener('click', function(){ onDayClick(dt); });
           el.addEventListener('mouseenter', function(ev){
-            var tc=t==='cheap'?'#10b981':(t==='mid'?'#f59e0b':'#ef4444');
+            var tc=t==='cheap'?'var(--tier-cheap)':(t==='mid'?'var(--tier-mid)':'var(--tier-pricey)');
             showTip(ev,'<strong>'+dateFmt(dt,'long')+'</strong><br/>Est. <span style="color:'+tc+'">$'+p+'</span> OW');
           });
           el.addEventListener('mouseleave', hideTip);
