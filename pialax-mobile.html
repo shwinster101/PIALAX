@@ -5378,6 +5378,9 @@ function renderWatchlist(){
   var cards = order.map(function(t){
     var st = WATCHLIST_STAGES[t.stage] || WATCHLIST_STAGES.watching;
     var col = st.color;
+    // Text-bearing colors use the theme-aware token (light mode darkens stages);
+    // raw hex stays only for alpha-suffix backgrounds (col+'22') per §6.3.
+    var colVar = 'var(--stage-' + (WATCHLIST_STAGES[t.stage] ? t.stage : 'watching') + ')';
     var est = watchlistEst(t);
     var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
     var open = !!_watchlistOpen[t.id];
@@ -5399,14 +5402,14 @@ function renderWatchlist(){
     var groupHdr = '';
     if (t.stage !== _lastStage) {
       _lastStage = t.stage;
-      groupHdr = '<div class="wl-stage-hdr" style="color:'+col+';">' +
+      groupHdr = '<div class="wl-stage-hdr" style="color:'+colVar+';">' +
         '<span>'+st.emoji+' '+st.lbl+'</span>' +
         '<span class="wl-stage-count">· '+(counts[t.stage]||0)+'</span>' +
       '</div>';
     }
     var row = '<div class="wl-row" data-wl-id="'+t.id+'">' +
       '<div style="display:flex;align-items:center;gap:6px;">' +
-        '<span style="font-size:.68rem;background:'+col+'22;color:'+col+';border-radius:50%;width:20px;height:20px;min-width:20px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
+        '<span style="font-size:.68rem;background:'+col+'22;color:'+colVar+';border-radius:50%;width:20px;height:20px;min-width:20px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
         '<span class="wl-title">'+esc(t.title)+'</span>' +
         '<span class="wl-est">'+estTxt+'</span>' +
         '<span class="wl-caret">'+(open?'▾':'▸')+'</span>' +
@@ -5415,7 +5418,7 @@ function renderWatchlist(){
     '</div>';
     var body = '';
     if (open) {
-      var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:var(--fs-tiny);font-weight:800;background:var(--surface-2);color:'+col+';border:1px solid '+col+';border-radius:var(--rad-sm);padding:3px 5px;font-family:inherit;min-height:32px;">' +
+      var stageSel = '<select class="wl-stage" data-id="'+t.id+'" style="font-size:var(--fs-tiny);font-weight:800;background:var(--surface-2);color:'+colVar+';border:1px solid '+colVar+';border-radius:var(--rad-sm);padding:3px 5px;font-family:inherit;min-height:32px;">' +
         Object.keys(WATCHLIST_STAGES).map(function(k){ var s=WATCHLIST_STAGES[k]; return '<option value="'+k+'"'+(k===t.stage?' selected':'')+'>'+s.emoji+' '+s.lbl+'</option>'; }).join('') + '</select>';
       // Mode-chip hexes stay raw (alpha-suffix concat) but byte-match --mode-family/--mode-solo (§6.3).
       var modeChip = '<span style="font-size:var(--fs-micro);font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+';border:1px solid '+(t.mode==='family'?'#a855f7':'#2e7cf6')+';padding:1px 5px;border-radius:var(--rad-xs);">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
@@ -5428,7 +5431,7 @@ function renderWatchlist(){
         var blockerChips = Object.keys(BLOCKERS).map(function(k){
           var b = BLOCKERS[k]; var on = (t.blockers||[]).indexOf(k) > -1;
           return '<span class="wl-blocker" data-id="'+t.id+'" data-key="'+k+'" style="font-size:var(--fs-tiny);font-weight:800;padding:4px 8px;min-height:32px;border-radius:var(--rad-pill);cursor:pointer;display:inline-flex;align-items:center;gap:3px;' +
-            (on ? 'background:'+col+'22;color:'+col+';border:1px solid '+col+';' : 'background:transparent;color:var(--ink-muted);border:1px solid var(--line-strong);') +
+            (on ? 'background:'+col+'22;color:'+colVar+';border:1px solid '+colVar+';' : 'background:transparent;color:var(--ink-muted);border:1px solid var(--line-strong);') +
             '">' + b.emoji + ' ' + b.label + '</span>';
         }).join('');
         nextActionHtml =
