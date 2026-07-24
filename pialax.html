@@ -31,6 +31,371 @@
 })();
 </script>
 <style>
+/* ═══════════════════════════════════════════════════════════════════
+   PIALAX UI DESIGN TOKENS — PIA-031 (A2, Phase 1)
+   Canonical token layer for BOTH pialax.html and pialax-mobile.html.
+   Paste this block at the TOP of each file's <style> element, replacing
+   the existing :root block. Spec: UI_DESIGN_SYSTEM.md.
+   Pure CSS custom properties + shared utility classes.
+   No markup, no JS, no @import, no external url().
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* ── Color · surfaces (dark-first) ─────────────────────────────── */
+  --bg:#07101e;                 /* page background */
+  --surface:#0f1d2e;            /* sidebar / cards level 1 */
+  --surface-2:#162233;          /* nested cards, inputs, chips */
+  --surface-3:#1e3550;          /* pressed / tertiary fills (e.g. secondary btn) */
+  --backdrop:rgba(0,0,0,.55);   /* modal / sheet backdrop */
+  --tooltip-bg:rgba(8,14,26,.96);
+  --overlay-bg:rgba(7,16,30,.9);/* map legend / floating panels */
+
+  /* ── Color · ink (text) ────────────────────────────────────────── */
+  --ink:#e8f0f8;                /* primary text — was undefined; now canonical */
+  --ink-muted:#7a99b8;          /* secondary text (canonical: mobile side wins) */
+  --ink-faint:#5b7a99;          /* tertiary text, disabled labels */
+  --ink-ghost:#253548;          /* near-invisible footer text */
+  --ink-on-accent:#ffffff;      /* text on accent/success/danger fills */
+  --ink-on-warn:#07101e;        /* text on amber fills (contrast) */
+
+  /* ── Color · lines (borders/dividers) ──────────────────────────── */
+  --line:#1c2f45;               /* default border — was undefined; now canonical */
+  --line-strong:#243b55;        /* emphasized border (inputs, chips) */
+
+  /* ── Color · brand accent ──────────────────────────────────────── */
+  --accent:#2e7cf6;             /* PIALAX blue */
+  --accent-dim:rgba(46,124,246,.12);   /* selected-state tint */
+  --accent-soft:rgba(46,124,246,.07);  /* row hover tint */
+
+  /* ── Color · status ────────────────────────────────────────────── */
+  --success:#10b981;            /* canonical green (desktop wins; replaces mobile #00c853) */
+  --success-dim:rgba(16,185,129,.1);
+  --warn:#f59e0b;
+  --warn-dim:rgba(245,158,11,.12);
+  --danger:#ef4444;
+  --danger-dim:rgba(239,68,68,.1);
+  --info:#38bdf8;               /* informational highlight (JFK banner, watching stage) */
+
+  /* ── Color · data-freshness (pill system) ──────────────────────── */
+  --live:var(--success);        /* 🟢 LIVE ≤24h */
+  --cached:var(--warn);         /* 🟡 CACHED 24h–7d */
+  --sample:#94a3b8;             /* ⚪ SAMPLE / estimates */
+  --booked:#3b82f6;             /* 🔒 BOOKED */
+
+  /* ── Color · quota states ──────────────────────────────────────── */
+  --quota-ok:var(--success);
+  --quota-amber:var(--warn);    /* ≥800 used */
+  --quota-red:var(--danger);    /* ≥950 used */
+  --quota-locked:var(--danger); /* ⛔ safety cutoff */
+
+  /* ── Color · watchlist lifecycle stages ────────────────────────── */
+  --stage-watching:#38bdf8;     /* 👀 */
+  --stage-planning:#f59e0b;     /* 📝 */
+  --stage-booked:#10b981;       /* ✅ */
+  --stage-completed:#94a3b8;    /* 🏁 */
+
+  /* ── Color · trip-mode chips ───────────────────────────────────── */
+  --mode-family:#a855f7;
+  --mode-solo:#2e7cf6;
+
+  /* ── Color · airport / d3 series (DC palette + arcs/markers) ───── */
+  --co-lax:#2e7cf6; --co-jax:#f59e0b; --co-pia:#a855f7; --co-ord:#06b6d4;
+  --co-mia:#14b8a6; --co-jfk:#ec4899; --co-lhr:#e11d48; --co-cuz:#22c55e;
+  --co-lim:#eab308; --co-fallback:#888;
+
+  /* ── Color · map internals (SVG) ───────────────────────────────── */
+  --map-bg:#060e1a;
+  --map-land:#132134;
+  --map-land-hover:#1a2f48;
+  --map-outline:var(--accent);
+  --map-label:#a0c4e8;          /* hub / emphasized labels */
+  --map-label-dim:#4a6a88;      /* other-airport labels */
+  --map-label-home:#6ee7b7;     /* ⌂ HOME label */
+  --map-hub-dot:#ffffff;
+  --map-home-dot:var(--success);
+
+  /* ── Color · calendar fare tiers ───────────────────────────────── */
+  --tier-cheap:#10b981;
+  --tier-mid:#f59e0b;
+  --tier-pricey:#ef4444;
+
+  /* ── Color · trip-binder segment types (TB_COL) ────────────────── */
+  --tb-flight:var(--accent);
+  --tb-trek:var(--success);
+  --tb-lodging:var(--warn);
+  --tb-tour:#a855f7;
+  --tb-transfer:#06b6d4;
+  --tb-other:#94a3b8;
+
+  /* ── Color · warm accent (home-airport selector block) ─────────── */
+  --warm:#f59e0b;
+  --warm-hover:#fbbf24;
+  --warm-border:#d97706;
+  --warm-deep:#b45309;
+  --warm-label:#b8852b;
+  --warm-ink:#1a1a1a;
+  --warm-option-bg:#1f2937;
+
+  /* ── Type ──────────────────────────────────────────────────────── */
+  --font:-apple-system,BlinkMacSystemFont,'SF Pro Display','Segoe UI',system-ui,sans-serif;
+  --font-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  --fs-base:15px;               /* CANONICAL base — mobile wins; desktop moves 14→15px */
+  --fs-micro:.55rem;            /* badges, est-tags, sub-metadata */
+  --fs-tiny:.6rem;              /* labels, notes, hints */
+  --fs-caption:.66rem;          /* pills, chips, legend, stats */
+  --fs-body-s:.73rem;           /* buttons, banner body, toast */
+  --fs-body:.82rem;             /* card headlines, date values */
+  --fs-title:.95rem;            /* route price, section titles */
+  --fs-price:1.1rem;            /* finder / hero prices */
+  --fs-display:1.5rem;          /* app h1 */
+  --lh-tight:1.2;
+  --lh-normal:1.4;
+  --lh-loose:1.65;
+
+  /* ── Spacing (4px-ish scale) ───────────────────────────────────── */
+  --sp-1:4px; --sp-2:6px; --sp-3:10px; --sp-4:14px; --sp-5:16px;
+  --sp-6:24px; --sp-7:32px;
+
+  /* ── Radius ────────────────────────────────────────────────────── */
+  --rad-xs:4px;                 /* micro inputs, src badges */
+  --rad-sm:6px;                 /* calendar cells, small buttons, textareas */
+  --rad-md:10px;                /* default control/card radius */
+  --rad-lg:14px;                /* popovers, calendar panel */
+  --rad-xl:20px;                /* mobile hero cards */
+  --rad-sheet:18px;             /* bottom-sheet top corners */
+  --rad-pill:999px;             /* pills, chips, progress */
+
+  /* ── Elevation ─────────────────────────────────────────────────── */
+  --shadow-1:0 4px 20px rgba(0,0,0,.4);      /* card focus/hover */
+  --shadow-2:0 6px 24px rgba(0,0,0,.6);      /* tooltip / popover */
+  --shadow-3:0 24px 64px rgba(0,0,0,.75);    /* modal / calendar */
+  --shadow-sheet:0 -8px 40px rgba(0,0,0,.7); /* bottom sheet */
+  --focus-ring:0 0 0 2px rgba(46,124,246,.4);
+
+  /* ── Motion ────────────────────────────────────────────────────── */
+  --ease:cubic-bezier(.4,0,.2,1);
+  --fast:cubic-bezier(.25,.1,.25,1);
+  --t-fast:.12s;                /* micro feedback (hover, toggle) */
+  --t-quick:.15s;               /* default control transitions */
+  --t-med:.18s;                 /* card border/shadow */
+  --t-slow:.28s;                /* toast slide */
+  --dur-pop:.16s;               /* calendar/sheet entrance */
+  --dur-spin:.6s;
+  --dur-arc:1.8s;               /* map route dash */
+  --dur-blink:2.4s;             /* live-pill dot */
+  --dur-pulse:2.6s;             /* home-hub pulse */
+  --dur-strip:2.8s;             /* meetup-strip shimmer */
+
+  /* ═══ Backward-compat aliases (both files' existing names) ══════ */
+  --surface2:var(--surface-2);
+  --border:var(--line);
+  --border2:var(--line-strong);
+  --text:var(--ink);
+  --muted:var(--ink-muted);
+  --a-dim:var(--accent-dim);
+  --green:var(--success);       /* closes the #00c853 vs #10b981 drift */
+  --amber:var(--warn);
+  --red:var(--danger);
+  --lax:var(--co-lax); --jax:var(--co-jax); --pia:var(--co-pia); --ord:var(--co-ord);
+  --cheap:var(--tier-cheap); --mid:var(--tier-mid); --pricey:var(--tier-pricey);
+  --r:var(--rad-md);
+  /* mobile-file legacy names */
+  --text-main:var(--ink);
+  --text-muted:var(--ink-muted);
+  --card:var(--surface);
+  --primary:var(--accent);
+  --space-xs:var(--sp-2);
+  --space-sm:var(--sp-3);
+  --space-md:var(--sp-5);
+  --space-lg:var(--sp-6);
+  --radius-md:var(--rad-lg);    /* mobile cards stay 14px */
+  --radius-lg:var(--rad-xl);    /* mobile hero cards stay 20px */
+}
+
+/* ═══ Light mode — same custom properties, overridden ═════════════ */
+@media (prefers-color-scheme:light){
+  :root{
+    --bg:#f2f5f9;
+    --surface:#ffffff;
+    --surface-2:#e9eef5;
+    --surface-3:#dde5ee;
+    --backdrop:rgba(15,29,46,.35);
+    --tooltip-bg:rgba(255,255,255,.97);
+    --overlay-bg:rgba(255,255,255,.92);
+
+    --ink:#0f1d2e;
+    --ink-muted:#4a6480;
+    --ink-faint:#7a92ab;
+    --ink-ghost:#c3cfdc;
+    --ink-on-accent:#ffffff;
+    --ink-on-warn:#3a2500;
+
+    --line:#d7e0ea;
+    --line-strong:#c2cfdd;
+
+    --accent:#1f66d6;
+    --accent-dim:rgba(31,102,214,.1);
+    --accent-soft:rgba(31,102,214,.06);
+
+    --success:#0b9668;
+    --success-dim:rgba(11,150,104,.1);
+    --warn:#b45309;
+    --warn-dim:rgba(180,83,9,.1);
+    --danger:#dc2626;
+    --danger-dim:rgba(220,38,38,.08);
+    --info:#0284c7;
+
+    --sample:#64748b;
+    --booked:#2563eb;
+
+    --stage-watching:#0284c7;
+    --stage-planning:#b45309;
+    --stage-booked:#0b9668;
+    --stage-completed:#64748b;
+
+    --mode-family:#9333ea;
+    --mode-solo:#1f66d6;
+
+    --map-bg:#e4ebf3;
+    --map-land:#ffffff;
+    --map-land-hover:#dde8f2;
+    --map-label:#33506e;
+    --map-label-dim:#8aa0b8;
+    --map-label-home:#0b9668;
+    --map-hub-dot:#0f1d2e;
+
+    --tier-cheap:#0b9668;
+    --tier-mid:#b45309;
+    --tier-pricey:#dc2626;
+
+    --tb-tour:#9333ea; --tb-transfer:#0e7490; --tb-other:#64748b;
+
+    --warm:#f59e0b;
+    --warm-hover:#fbbf24;
+    --warm-border:#d97706;
+    --warm-deep:#b45309;
+    --warm-label:#92610a;
+    --warm-ink:#1a1a1a;
+    --warm-option-bg:#ffffff;
+
+    --shadow-1:0 4px 20px rgba(15,29,46,.12);
+    --shadow-2:0 6px 24px rgba(15,29,46,.16);
+    --shadow-3:0 24px 64px rgba(15,29,46,.22);
+    --shadow-sheet:0 -8px 40px rgba(15,29,46,.2);
+    --focus-ring:0 0 0 2px rgba(31,102,214,.35);
+  }
+}
+
+/* ═══ Reduced motion — kill ambient/decorative animation ══════════ */
+@media (prefers-reduced-motion:reduce){
+  :root{
+    --t-fast:0s; --t-quick:0s; --t-med:0s; --t-slow:0s; --dur-pop:0s;
+    --dur-arc:0s; --dur-blink:0s; --dur-pulse:0s; --dur-strip:0s;
+  }
+  *,*::before,*::after{
+    animation-duration:.01ms!important;
+    animation-iteration-count:1!important;
+    transition-duration:.01ms!important;
+  }
+}
+
+/* ═══ Shared utility classes (component-recipe primitives) ════════ */
+
+/* Card — level-1 container */
+.u-card{background:var(--surface-2);border:1px solid var(--line-strong);
+  border-radius:var(--rad-md);padding:var(--sp-3) var(--sp-4);}
+.u-card--raised{background:var(--surface);box-shadow:var(--shadow-1);}
+
+/* Pill — rounded status/label lozenge */
+.u-pill{display:inline-flex;align-items:center;gap:4px;
+  padding:3px 9px;border-radius:var(--rad-pill);font-size:var(--fs-caption);
+  font-weight:700;color:var(--ink-muted);background:var(--surface-2);
+  border:1px solid var(--line);white-space:nowrap;}
+.u-pill--success{color:var(--ink-on-accent);background:var(--success);border-color:var(--success);}
+.u-pill--warn{color:var(--ink-on-warn);background:var(--warn);border-color:var(--warn);}
+.u-pill--accent{color:var(--accent);background:var(--accent-dim);border-color:var(--accent);}
+
+/* Chip — selectable filter/toggle */
+.u-chip{display:inline-flex;align-items:center;gap:4px;padding:4px 10px;
+  font-size:var(--fs-caption);font-weight:700;color:var(--ink-muted);
+  background:var(--surface-2);border:1px solid var(--line-strong);
+  border-radius:var(--rad-pill);cursor:pointer;white-space:nowrap;
+  transition:all var(--t-quick) var(--ease);font-family:inherit;}
+.u-chip:hover{border-color:var(--accent);color:var(--accent);}
+.u-chip.on,.u-chip.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+.u-chip:disabled{opacity:.45;cursor:default;border-style:dashed;}
+
+/* Buttons */
+.u-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:7px 12px;border-radius:var(--rad-md);font-size:var(--fs-body-s);
+  font-weight:800;font-family:inherit;cursor:pointer;border:1px solid transparent;
+  transition:opacity var(--t-quick),transform var(--t-fast),border-color var(--t-quick),color var(--t-quick);}
+.u-btn:active{transform:scale(.98);}
+.u-btn:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+.u-btn--primary{background:var(--accent);color:var(--ink-on-accent);}
+.u-btn--primary:hover{opacity:.88;}
+.u-btn--secondary{background:var(--surface-3);color:var(--ink-muted);border-color:var(--line-strong);}
+.u-btn--secondary:hover{color:var(--ink);border-color:var(--accent);}
+.u-btn--danger{background:var(--danger);color:var(--ink-on-accent);}
+.u-btn--danger:hover{opacity:.88;}
+.u-btn--ghost{background:transparent;color:var(--ink-muted);border-color:var(--line-strong);}
+.u-btn--ghost:hover{color:var(--accent);border-color:var(--accent);}
+.u-btn:disabled{opacity:.4;cursor:default;transform:none;}
+
+/* Banner — full-width message strip */
+.u-banner{padding:var(--sp-2) var(--sp-3);border-radius:var(--rad-md);
+  border:1.5px solid var(--line-strong);background:var(--surface-2);
+  font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink);}
+.u-banner--warn{background:var(--warn-dim);border-color:var(--warn);}
+.u-banner--danger{background:var(--danger-dim);border-color:var(--danger);}
+.u-banner--success{background:var(--success-dim);border-color:var(--success);}
+.u-banner--info{background:var(--accent-dim);border-color:var(--info);}
+
+/* Sheet / modal panel */
+.u-sheet{background:var(--surface);border:1px solid var(--line-strong);
+  border-radius:var(--rad-lg);box-shadow:var(--shadow-3);
+  animation:u-pop var(--dur-pop) var(--fast);}
+.u-sheet--bottom{border-radius:var(--rad-sheet) var(--rad-sheet) 0 0;
+  box-shadow:var(--shadow-sheet);}
+.u-backdrop{position:fixed;inset:0;background:var(--backdrop);}
+@keyframes u-pop{from{opacity:0;transform:translateY(-7px) scale(.98)}to{opacity:1;transform:none}}
+
+/* Table / ledger row */
+.u-row{display:flex;align-items:center;justify-content:space-between;
+  gap:var(--sp-2);padding:var(--sp-2) var(--sp-2);border-top:1px solid var(--line);
+  font-size:var(--fs-caption);color:var(--ink);transition:background var(--t-fast);}
+.u-row:hover{background:var(--accent-soft);}
+.u-row--muted{color:var(--ink-muted);}
+
+/* Toast */
+.u-toast{position:fixed;bottom:24px;left:50%;
+  transform:translateX(-50%) translateY(50px);
+  background:var(--success);color:var(--ink-on-accent);
+  font-size:var(--fs-body-s);font-weight:800;padding:8px 20px;
+  border-radius:var(--rad-pill);opacity:0;z-index:2000;pointer-events:none;
+  white-space:nowrap;transition:all var(--t-slow) var(--ease);}
+.u-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+/* Progress bar (quota) */
+.u-progress{height:5px;background:var(--surface-3);border-radius:var(--rad-pill);overflow:hidden;}
+.u-progress__fill{height:100%;border-radius:var(--rad-pill);
+  background:var(--quota-ok);transition:width var(--t-slow) var(--ease);}
+.u-progress__fill--amber{background:var(--quota-amber);}
+.u-progress__fill--red{background:var(--quota-red);}
+
+/* Stat tile */
+.u-stat{display:flex;flex-direction:column;gap:2px;}
+.u-stat__label{font-size:var(--fs-micro);font-weight:700;color:var(--ink-muted);
+  text-transform:uppercase;letter-spacing:.08em;}
+.u-stat__value{font-size:var(--fs-body);font-weight:900;color:var(--ink);line-height:var(--lh-tight);}
+
+/* Micro label (form/section captions) */
+.u-lbl{font-size:var(--fs-tiny);font-weight:700;color:var(--ink-muted);
+  text-transform:uppercase;letter-spacing:.09em;}
+
+/* ═══ End PIA-031 token layer. Legacy rules below intentionally kept —
+   they win where they collide (PIA-032 lands the shell only; Phase-3
+   tickets migrate the inner components onto the tokens above). ═══ */
 :root{
   --bg:#07101e;--surface:#0f1d2e;--surface2:#162233;
   --border:#1c2f45;--border2:#243b55;--text:#e8f0f8;--muted:#5b7a99;
@@ -44,15 +409,27 @@
 html,body{height:100%;overflow:hidden;background:var(--bg);color:var(--text);
   font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;font-size:14px;}
 button{font-family:inherit;cursor:pointer;}
-#app{display:flex;height:100vh;width:100vw;}
+#app{display:flex;flex-direction:column;height:100vh;width:100vw;}
+
+/* ── PIA-032 · App shell header + top-level nav (token-styled) ── */
+#app-header{display:flex;align-items:center;gap:var(--sp-5);padding:var(--sp-2) var(--sp-5);background:var(--surface);border-bottom:1px solid var(--line);flex-shrink:0;flex-wrap:wrap;}
+#app-body{display:flex;flex:1;min-height:0;min-width:0;}
+#app-nav{display:flex;gap:var(--sp-1);}
+.nav-tab{padding:6px 14px;font-size:var(--fs-caption);font-weight:800;color:var(--ink-muted);background:transparent;border:1px solid transparent;border-radius:var(--rad-pill);cursor:pointer;letter-spacing:.02em;white-space:nowrap;transition:all var(--t-quick) var(--ease);font-family:inherit;}
+.nav-tab:hover:not(.active){color:var(--ink);border-color:var(--line-strong);}
+.nav-tab.active{background:var(--accent-dim);border-color:var(--accent);color:var(--accent);}
+.nav-tab:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+#shell-status{margin-left:auto;display:flex;align-items:center;gap:var(--sp-4);min-width:0;}
+#panel-watchlist,#panel-planner{display:flex;flex-direction:column;gap:8px;}
+#sb.wl-home{width:340px;}
 
 /* ── Sidebar ── */
-#sb{width:300px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;}
-#sb-top{padding:14px 16px 11px;border-bottom:1px solid var(--border);flex-shrink:0;display:flex;align-items:flex-start;justify-content:space-between;}
-#sb-top h1{font-size:1.5rem;font-weight:900;letter-spacing:-1.5px;color:var(--text);line-height:1;}
-#sb-top .ver{font-size:.57rem;color:var(--muted);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;}
-.live-pill{display:flex;align-items:center;gap:5px;font-size:.63rem;color:var(--muted);background:var(--surface2);border:1px solid var(--border);border-radius:20px;padding:3px 9px;margin-top:2px;}
-.ld{width:6px;height:6px;border-radius:50%;background:var(--amber);animation:blink 2.4s ease-in-out infinite;}
+#sb{width:300px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;}
+#sb-top{display:flex;align-items:center;gap:var(--sp-3);flex-shrink:0;}
+#sb-top h1{font-size:var(--fs-display);font-weight:900;letter-spacing:-1.5px;color:var(--ink);line-height:1;}
+#sb-top .ver{font-size:var(--fs-micro);color:var(--ink-muted);margin-top:3px;text-transform:uppercase;letter-spacing:.08em;}
+.live-pill{display:flex;align-items:center;gap:5px;font-size:var(--fs-tiny);color:var(--ink-muted);background:var(--surface-2);border:1px solid var(--line);border-radius:var(--rad-pill);padding:3px 9px;}
+.ld{width:6px;height:6px;border-radius:50%;background:var(--warn);animation:blink var(--dur-blink) ease-in-out infinite;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.2}}
 #sb-body{flex:1;overflow-y:auto;padding:9px 12px;display:flex;flex-direction:column;gap:8px;}
 #sb-body::-webkit-scrollbar{width:3px;}
@@ -187,16 +564,16 @@ button{font-family:inherit;cursor:pointer;}
 .route-copy-btn:hover{opacity:1;background:rgba(255,255,255,.07);}
 
 
-#sb-foot{padding:7px 12px;border-top:1px solid var(--border);font-size:.58rem;color:#253548;flex-shrink:0;}
+#sb-foot{padding:7px 12px;border-top:1px solid var(--line);font-size:var(--fs-micro);color:var(--ink-ghost);flex-shrink:0;}
 
 /* ── Main ── */
 #main{flex:1;display:flex;flex-direction:column;min-width:0;}
-#topbar{padding:9px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
-.tb-l h2{font-size:.9rem;font-weight:800;color:var(--text);}
-.tb-l p{font-size:.67rem;color:var(--muted);margin-top:1px;}
+#topbar{padding:9px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
+.tb-l h2{font-size:var(--fs-title);font-weight:800;color:var(--ink);}
+.tb-l p{font-size:var(--fs-caption);color:var(--ink-muted);margin-top:1px;}
 .tb-r{display:flex;align-items:center;gap:8px;}
 .tb-pills{display:flex;gap:5px;}
-.pill{display:flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--border);border-radius:20px;font-size:.67rem;color:var(--muted);background:var(--surface2);}
+.pill{display:flex;align-items:center;gap:4px;padding:3px 9px;border:1px solid var(--line);border-radius:var(--rad-pill);font-size:var(--fs-caption);color:var(--ink-muted);background:var(--surface-2);}
 /* ── Meetup strip (compact hero + rank) ── */
 #meetup-strip{flex-shrink:0;padding:7px 18px;border-bottom:1px solid rgba(16,185,129,.2);background:linear-gradient(90deg,rgba(16,185,129,.06) 0%,rgba(46,124,246,.03) 100%);display:flex;align-items:center;gap:10px;min-height:44px;animation:stripBorder 2.8s ease-in-out infinite;}
 #meetup-strip.no-date{background:rgba(245,158,11,.05);border-bottom-color:rgba(245,158,11,.25);}
@@ -232,7 +609,7 @@ button{font-family:inherit;cursor:pointer;}
 #share-card-close:hover{color:var(--red);}
 
 /* ── Mode Switcher ── */
-#mode-switcher{display:flex;gap:5px;padding:9px 12px 8px;border-bottom:1px solid var(--border);flex-shrink:0;}
+#mode-switcher{display:flex;gap:5px;padding:0 0 8px;border-bottom:1px solid var(--line);flex-shrink:0;}
 .mode-btn{flex:1;padding:7px 6px;font-size:.66rem;font-weight:800;color:var(--muted);background:transparent;border:1px solid var(--border2);border-radius:8px;transition:all .15s;white-space:nowrap;cursor:pointer;}
 .mode-btn.on{background:var(--a-dim);border-color:var(--accent);color:var(--accent);}
 .mode-btn:hover:not(.on){color:var(--text);border-color:var(--border);}
@@ -273,9 +650,9 @@ button{font-family:inherit;cursor:pointer;}
 .mt-btn:hover:not(.on){color:var(--text);}
 
 /* ── Stats bar ── */
-#statsbar{padding:7px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
-.si{font-size:.67rem;color:var(--muted);}
-.si strong{color:#7a99b8;font-weight:700;}
+#statsbar{padding:7px 18px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
+.si{font-size:var(--fs-caption);color:var(--ink-muted);}
+.si strong{color:var(--ink-muted);font-weight:700;}
 
 /* ══════════════════════════════════════════
    MOBILE RESPONSIVE  —  iPhone 13+ (390 px)
@@ -284,6 +661,12 @@ button{font-family:inherit;cursor:pointer;}
   /* Base layout — stack vertically, allow scroll */
   html,body{overflow:auto;height:auto;}
   #app{flex-direction:column;height:auto;min-height:100svh;min-height:100vh;}
+  /* PIA-032 shell: header wraps; body column-stacks (existing #main/#sb order rules apply within) */
+  #app-body{flex-direction:column;flex:none;height:auto;}
+  #app-header{flex-wrap:wrap;gap:8px;padding:8px 12px;}
+  #app-nav{overflow-x:auto;max-width:100%;scrollbar-width:none;}
+  #shell-status{margin-left:0;flex:1 1 100%;}
+  #sb.wl-home{width:100%;}
 
   /* Map on top */
   #main{order:1;flex:none;width:100%;height:44vw;min-height:220px;position:relative;}
@@ -354,27 +737,48 @@ button{font-family:inherit;cursor:pointer;}
 <body>
 <div id="app">
 
-<!-- ═══════ SIDEBAR ═══════ -->
-<aside id="sb">
+<!-- ═══════ PIA-032 · APP SHELL HEADER (brand · nav · status) ═══════ -->
+<header id="app-header">
   <div id="sb-top">
     <div><h1>PIALAX</h1><div class="ver">Family Flight Dashboard · v3.0</div></div>
     <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
   </div>
-  <!-- Quota-exhaustion banner — surfaces at top of sidebar when live data unavailable.
-       Hidden by default; populated by updateQuotaWarningBanner() on each render. -->
-  <div id="quota-warning-banner" style="display:none;padding:8px 12px;background:rgba(245,158,11,.14);border:1.5px solid var(--amber);border-radius:8px;margin:6px 14px 0;font-size:.62rem;line-height:1.4;color:var(--ink);"></div>
-
-  <div id="mode-switcher">
-    <button class="mode-btn" data-mode="meetup">👨‍👩‍👧 Family Meetup</button>
-    <button class="mode-btn on" data-mode="solo">✈️ Solo Mode</button>
+  <nav id="app-nav" aria-label="Primary">
+    <button type="button" class="nav-tab active" data-view="watchlist">📋 Watchlist</button>
+    <button type="button" class="nav-tab" data-view="meetup">👨‍👩‍👧 Meetup</button>
+    <button type="button" class="nav-tab" data-view="map">🗺 Map</button>
+    <button type="button" class="nav-tab" data-view="calendar">📅 Calendar</button>
+  </nav>
+  <div id="shell-status">
+    <!-- PIA-013 AC3: Fares-as-of freshness header. Populated by updateFreshnessHeader();
+         hidden when S.prices is empty. Excludes locked/booked entries from counts. -->
+    <div id="freshness-header" style="display:none;font-size:.6rem;line-height:1.4;color:var(--muted);"></div>
+    <div id="quota-bar" style="display:none;min-width:200px;font-size:.6rem;line-height:1.4;"></div>
   </div>
+</header>
+<!-- Quota-exhaustion banner — full-width strip under the shell header when live data is
+     unavailable. Hidden by default; populated by updateQuotaWarningBanner() on each render. -->
+<div id="quota-warning-banner" style="display:none;padding:6px 18px;background:rgba(245,158,11,.14);border:1.5px solid var(--amber);border-left:none;border-right:none;border-radius:0;font-size:.62rem;line-height:1.4;color:var(--ink);"></div>
 
-  <div id="quota-bar" style="display:none;padding:4px 14px 2px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);"></div>
-  <!-- PIA-013 AC3: Fares-as-of freshness header. Populated by updateFreshnessHeader();
-       hidden when S.prices is empty. Excludes locked/booked entries from counts. -->
-  <div id="freshness-header" style="display:none;padding:4px 14px;font-size:.6rem;line-height:1.4;border-bottom:1px solid var(--border);color:var(--muted);"></div>
-
+<div id="app-body">
+<!-- ═══════ SIDEBAR ═══════ -->
+<aside id="sb">
   <div id="sb-body">
+
+    <!-- PIA-032 · Watchlist home panel (nav: Watchlist) -->
+    <div id="panel-watchlist">
+      <!-- PIA-027: Trip Watchlist — the "considering, not yet booked" home. Rendered by renderWatchlist(). -->
+      <div id="watchlist-section" style="margin:2px 0;"></div>
+    </div>
+
+    <!-- PIA-032 · Trip planner panel (nav: Meetup — hosts the Family-Meetup AND Solo
+         modes; the existing #mode-switcher below flips between them, unchanged). -->
+    <div id="panel-planner" style="display:none;">
+
+    <div id="mode-switcher">
+      <button class="mode-btn" data-mode="meetup">👨‍👩‍👧 Family Meetup</button>
+      <button class="mode-btn on" data-mode="solo">✈️ Solo Mode</button>
+    </div>
 
     <div id="home-airport-row">
       <div class="lbl">Your Home Airport</div>
@@ -385,8 +789,6 @@ button{font-family:inherit;cursor:pointer;}
         <option value="JAX">JAX — Jacksonville, FL</option>
       </select>
     </div>
-    <!-- PIA-027: Trip Watchlist — the "considering, not yet booked" home. Rendered by renderWatchlist(). -->
-    <div id="watchlist-section" style="margin:10px 0;"></div>
     <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
       ✈️ <strong style="color:#38bdf8">Sister departs JFK (NYC)</strong> for these dates — she moved from JAX in Sep 2026.
     </div>
@@ -434,28 +836,6 @@ button{font-family:inherit;cursor:pointer;}
       <div class="spin-sm" id="search-spin"></div>
     </button>
 
-    <!-- Calendar popup -->
-    <div id="cal-bd"></div>
-    <div id="cal">
-      <div id="cal-hdr">
-        <span id="cal-phase">Select departure</span>
-        <div class="cal-nav">
-          <button class="cnav" id="cprev">‹</button>
-          <button class="cnav" id="cnext">›</button>
-        </div>
-      </div>
-      <div id="cal-leg">
-        <div class="cl-item"><div class="cl-dot" style="background:var(--cheap)"></div>Cheapest</div>
-        <div class="cl-item"><div class="cl-dot" style="background:var(--mid)"></div>Moderate</div>
-        <div class="cl-item"><div class="cl-dot" style="background:var(--pricey)"></div>Pricier</div>
-      </div>
-      <div id="cal-months"></div>
-      <div id="cal-foot">
-        <span class="hint" id="cal-hint">Fares: sample · Google Flights</span>
-        <button id="cal-ok">Done</button>
-      </div>
-    </div>
-
     <div id="api-banner">
       <div id="api-hdr">
         <span class="abt">Data Source</span>
@@ -496,6 +876,8 @@ button{font-family:inherit;cursor:pointer;}
       <div class="lbl">Best Weekends · <span id="solo-win-lbl">Next 90 days · Thu–Sun</span></div>
       <div id="solo-cards"></div>
     </div>
+
+    </div><!-- /panel-planner (PIA-032) -->
 
   </div>
   <div id="sb-foot">PIALAX v3.0 · Thu–Sun windows · Bar chart · Meetup strip</div>
@@ -542,6 +924,32 @@ button{font-family:inherit;cursor:pointer;}
     <div class="si" id="s-upd">—</div>
   </div>
 </main>
+</div><!-- /app-body (PIA-032) -->
+
+<!-- Calendar popup — position:fixed overlay; lives at shell level (PIA-032) so it can
+     open from ANY nav tab (meetup-strip date pills, per-member calendars, Calendar tab),
+     not only while the planner panel is visible. All IDs/behavior unchanged. -->
+<div id="cal-bd"></div>
+<div id="cal">
+  <div id="cal-hdr">
+    <span id="cal-phase">Select departure</span>
+    <div class="cal-nav">
+      <button class="cnav" id="cprev">‹</button>
+      <button class="cnav" id="cnext">›</button>
+    </div>
+  </div>
+  <div id="cal-leg">
+    <div class="cl-item"><div class="cl-dot" style="background:var(--cheap)"></div>Cheapest</div>
+    <div class="cl-item"><div class="cl-dot" style="background:var(--mid)"></div>Moderate</div>
+    <div class="cl-item"><div class="cl-dot" style="background:var(--pricey)"></div>Pricier</div>
+  </div>
+  <div id="cal-months"></div>
+  <div id="cal-foot">
+    <span class="hint" id="cal-hint">Fares: sample · Google Flights</span>
+    <button id="cal-ok">Done</button>
+  </div>
+</div>
+
 <div id="share-toast" aria-live="polite"></div>
 </div>
 
@@ -4926,6 +5334,57 @@ function wireWatchlist(sec){
   }
 }
 
+// ── PIA-032 · APP SHELL NAV (thin glue: show/hide + existing fns only) ──
+// Top-level tabs: Watchlist (home) · Meetup (planner: Family-Meetup + Solo
+// modes) · Map (full-width map) · Calendar (launches the existing popup).
+// This controller ONLY toggles the visibility of the two new sidebar panel
+// wrappers (#panel-watchlist / #panel-planner) and the sidebar itself, then
+// calls existing entry points (openCal, setMode, redrawMap). It owns no
+// pricing, quota, date, or URL logic — those contracts are untouched.
+var _activeView = 'watchlist';
+function setView(view) {
+  if (view === 'calendar') { openCal('dep'); return; } // launcher, not a surface
+  _activeView = view;
+  var sb = document.getElementById('sb');
+  var pw = document.getElementById('panel-watchlist');
+  var pp = document.getElementById('panel-planner');
+  if (sb) {
+    sb.style.display = (view === 'map') ? 'none' : '';
+    sb.classList.toggle('wl-home', view === 'watchlist');
+  }
+  if (pw) pw.style.display = (view === 'watchlist') ? '' : 'none';
+  if (pp) pp.style.display = (view === 'meetup') ? '' : 'none';
+  document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.view === view); });
+  redrawMap(); // sidebar visibility changes the map container width (bails safely pre-geo)
+}
+document.querySelectorAll('.nav-tab').forEach(function(b){
+  b.addEventListener('click', function(){
+    var v = b.dataset.view;
+    // The Meetup tab IS the family-meetup planner; Solo mode stays reachable via
+    // the in-panel #mode-switcher (its buttons keep their own setMode handlers).
+    if (v === 'meetup' && S.mode !== 'meetup') setMode('meetup');
+    setView(v);
+  });
+});
+// Watchlist "Open ↗" applies a trip via openWatchlistTrip (wired in wireWatchlist);
+// this delegated hook additionally lands the user on the planner surface so the
+// applied trip is visible. Bubbles after the button's own handler — order-safe.
+document.addEventListener('click', function(e){
+  if (e.target && e.target.closest && e.target.closest('.wl-open')) setView('meetup');
+});
+// Deep-link landing (PIA-032). URL params are FROZEN, so the landing tab is
+// derived, never stored: a shared-plan link (?wl=…) lands on the Watchlist home;
+// any other restorable state (hub/dep/mode/…) lands on the planner so the deep
+// link shows exactly the restored trip; a clean visit lands on the Watchlist.
+function initShellView() {
+  try {
+    var sp = new URLSearchParams(window.location.search);
+    if (sp.get('wl') != null) { setView('watchlist'); return; }
+    var deep = ['hub','trip','mode','dep','ret','mhub','md','pia','ms','ord','lhr'].some(function(k){ return sp.get(k) != null; });
+    setView(deep ? 'meetup' : 'watchlist');
+  } catch(e) { setView('watchlist'); }
+}
+
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
   restoreFromURL();
@@ -4978,6 +5437,7 @@ window.pickMeetupHub = pickMeetupHub;
 window.copyRouteText = copyRouteText;
 window.setMode = setMode;
 
+initShellView(); // PIA-032: pick the landing tab (URL-derived) before first paint
 boot();
 
 })(); // end IIFE
