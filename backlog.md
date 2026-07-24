@@ -113,3 +113,20 @@ SerpAPI response shape — ask the user to paste one live response.
 
 ## Question
 Should PIA-005's broad-search fan-out be **gated client-side** (one Worker call per hub, client parses the response into per-route map) or **gated at the Worker** (a new `/batch` endpoint on `pialax-proxy.ashwinyedavalli.workers.dev` that fans out internally and returns a pre-shaped grid) — given that the second option keeps PIALAX's HTML edit-surface untouched but adds a Worker deploy step T4 currently doesn't have a playbook for?
+
+---
+
+## PIA-041 — UI overhaul cosmetic follow-ups (2026-07-24)
+
+_Source: A6 audit of the PIA-030…040 UI overhaul (`RELEASE_UI_OVERHAUL.md`). All non-blocking; the overhaul shipped without them. Auditors: these are known and ticketed — do not re-flag as new findings._
+
+| # | Finding | Files | Tag |
+|---|---|---|---|
+| 1 | Light-mode contrast: ORD route badge uses raw `#06b6d4` for text (2.24–2.43:1 on light surfaces). A darkened variant already exists as `--tb-transfer:#0e7490`; needs a `--co-ord` light override. | both HTML | patch |
+| 2 | Light-mode contrast: watchlist FAMILY/SOLO mode chip uses raw `#a855f7`/`#2e7cf6` for text/border (3.63–3.96:1) while `--mode-family`/`--mode-solo` light values exist at 5.3:1. Same defect class as the stage-color fix in `770cacc`. | both HTML | patch |
+| 3 | Desktop `#api-banner` (proxy connect — global app config) sits in `#panel-planner`, so it's unreachable from the Watchlist and Map tabs. | `pialax.html` | patch |
+| 4 | Desktop calendar popup mispositions to the viewport corner when opened from the Map tab (`openCal` measures `#sb`/`#date-row`, both zero-width while the sidebar is hidden). | `pialax.html` | patch |
+| 5 | 26 of 28 shipped `u-*` utility recipes are unused in both files — decide: adopt in a future restyle or strip. | both HTML | chore |
+| 6 | `TB_COL` binder hexes are raw dark-palette values, so binder tints don't follow the light theme (cosmetic only — border + 6% background, never text). | both HTML | chore |
+| 7 | Binder "▫ N days free in X" rows now render in `--warn` (amber) alongside genuine red conflict rows; free days are a good outcome and read as a warning. | both HTML | patch |
+| 8 | Mobile `#tip` lives inside `#map-wrap` (its positioning context), so it can't show while another tab is active. **Deliberately not fixed** — relocating breaks `posTip()`; revisit only if a real hover/tap-tooltip need appears on the calendar. | `pialax-mobile.html` | note |

@@ -6,6 +6,12 @@ Maintained by the Deployment team (T4) after every ticket closes.
 
 ## Closed
 
+- **2026-07-24 · PIA-030 … PIA-040** · Projects UI overhaul (both dashboards) — see `RELEASE_UI_OVERHAUL.md`.
+  Fix: shared design-token layer (`ui-tokens.css.frag`, 187 custom properties, light mode + reduced motion) adopted by `pialax.html` and `pialax-mobile.html`; new app shell (desktop top nav / mobile bottom tabs, watchlist as home); all component surfaces restyled onto tokens. Verified zero feature loss against `FEATURE_INVENTORY_UI_OVERHAUL.md` (69/69 rows, 281/281 anchors, zero functions removed, zero logic diffs in `familyForDate`/quota module/`computeRanking`/`computeBestMeetupWeekends`/`fetchFlights`/`syncURL`/`restoreFromURL`, all 17 data constants byte-identical, CSP + SRI + `index.html` byte-identical to base `246d1d9`).
+  Bugs closed en route (all pre-existing): **attribute XSS via `?wl=` share links** — untrusted watchlist items now pass `sanitizeWatchlistItem()` at both the localStorage and URL boundaries (exploit reproduced live pre-fix, proved closed post-fix); mobile quota-warning banner could never render (stylesheet `display:none` vs JS clearing only the inline style — same class as the `#quota-bar` bug fixed one element over); an unknown stage in a shared link threw in the render sort and blanked the watchlist; desktop light mode was structurally broken by a legacy `:root` re-pinning dark surfaces after the light override without re-pinning `--ink`. Zero undefined `var(--…)` usages remain — the original `--ink`/`--line` defect class is closed by construction.
+  Standing note for auditors: the deferred cosmetic findings are tracked as **PIA-041** in `backlog.md` — do not re-flag them as new.
+  Shipped: branch `claude/projects-ui-overhaul-plan-nh20q9`, head `61c1394` (base `246d1d9`).
+
 - **2026-05-25 · PIA-001** · CDN tamper risk on d3 + topojson.
   Fix: sha512 SRI `integrity=` + `crossorigin="anonymous"` on both CDN scripts in `pialax.html` and `pialax-mobile.html`. Standing check: `scripts/verify-sri.sh` re-hashes the cdnjs bytes vs the pinned values; preflight step 5/7 invokes it on every push.
   Shipped: `560e6ec73889eff01dc3464105b4729c5f1916f3`.
