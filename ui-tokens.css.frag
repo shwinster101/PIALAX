@@ -235,6 +235,11 @@
     --tier-mid:#b45309;
     --tier-pricey:#dc2626;
 
+    /* PIA-041 #1: raw --co-ord (#06b6d4) reads at 2.24-2.43:1 on light
+       surfaces. Same darkened teal already proven at 4.94:1 as --tb-transfer.
+       Also lifts .ord-toggle-btn, which resolves through the --ord alias. */
+    --co-ord:#0e7490;
+
     --tb-tour:#9333ea; --tb-transfer:#0e7490; --tb-other:#64748b;
 
     --warm:#f59e0b;

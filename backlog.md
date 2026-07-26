@@ -116,7 +116,9 @@ Should PIA-005's broad-search fan-out be **gated client-side** (one Worker call 
 
 ---
 
-## PIA-041 — UI overhaul cosmetic follow-ups (2026-07-24)
+## ~~PIA-041~~ ✅ — UI overhaul cosmetic follow-ups (2026-07-24)
+
+_CLOSED 2026-07-24. Items 1-7 shipped; item 8 deliberately not fixed (documented below). Verified headless: ORD badge 2.4:1 → 5.36:1 and mode chips 3.6-4.0:1 → 5.34-5.38:1 in light mode, dark unchanged; proxy panel visible on every sidebar tab; calendar centers instead of corner-pinning when opened from the Map tab; 26 unused `u-*` recipes removed from both HTML files (`u-card`/`u-row`/`u-row--muted`/`u-progress` were live and kept — the audit note that only 3 were used was wrong)._
 
 _Source: A6 audit of the PIA-030…040 UI overhaul (`RELEASE_UI_OVERHAUL.md`). All non-blocking; the overhaul shipped without them. Auditors: these are known and ticketed — do not re-flag as new findings._
 
