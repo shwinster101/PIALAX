@@ -5215,7 +5215,14 @@ function sanitizeWatchlistItem(a) {
 }
 // One-off migration (2026-07-30, mobile mirror): Memphis became a seed trip — drop
 // any user-quick-added copy so it doesn't duplicate.
-function _isSeedDupMemphis(it){ return !!(it && it.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(it.dest || ''))); }
+// PIA-042 (audit F2, mobile mirror): date-scoped to the seeded Aug 31–Sep 4 2026
+// window so a FUTURE Memphis trip (e.g. added next March) isn't silently eaten forever.
+function _isSeedDupMemphis(it){
+  if (!(it && it.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(it.dest || '')))) return false;
+  var SEED_DEP = '2026-08-31', SEED_RET = '2026-09-04';
+  var dep = it.dep || '', ret = it.ret || dep;
+  return !!(dep && dep <= SEED_RET && ret >= SEED_DEP);
+}
 // LESSONS 2026-07-30 (mobile mirror): surface overlap / back-to-back between ACTIVE
 // trips on the watchlist row (Memphis Aug 31–Sep 4 vs Peru Sep 5 departure).
 function watchlistClashFor(t){

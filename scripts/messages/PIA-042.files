@@ -1,0 +1,10 @@
+# PIA-042 ship manifest — T1: pure-function test harness + F2 migration-filter
+# fix (audit remediation, 2026-07-30). No security surface touched (SRI/CSP/
+# secrets untouched); scripts/ addition is tooling, not production code.
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/test-core.sh
+scripts/test-core.js
+scripts/messages/PIA-042.msg
+scripts/messages/PIA-042.files

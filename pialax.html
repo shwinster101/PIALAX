@@ -5087,7 +5087,15 @@ function sanitizeWatchlistItem(a) {
 }
 // One-off migration (2026-07-30): Memphis became a seed trip (id:'memphis'). Any copy
 // the user quick-added earlier via "＋ New trip" would now duplicate it — drop those.
-function _isSeedDupMemphis(it){ return !!(it && it.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(it.dest || ''))); }
+// PIA-042 (audit F2): date-scoped to the seeded Aug 31–Sep 4 2026 window. The original
+// version matched on mode+dest alone, which would silently eat every FUTURE Memphis
+// trip forever (e.g. one added next March) — this narrows it to genuine duplicates.
+function _isSeedDupMemphis(it){
+  if (!(it && it.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(it.dest || '')))) return false;
+  var SEED_DEP = '2026-08-31', SEED_RET = '2026-09-04';
+  var dep = it.dep || '', ret = it.ret || dep;
+  return !!(dep && dep <= SEED_RET && ret >= SEED_DEP);
+}
 // LESSONS 2026-07-30: real-world date drift collides trips silently (Memphis slipped
 // to Aug 31–Sep 4, landing back-to-back with the Peru Sep 5 departure). Surface
 // overlap / back-to-back between ACTIVE trips right on the watchlist row.
