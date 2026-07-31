@@ -1,0 +1,8 @@
+# PIA-043 ship manifest — audit remediation (2026-07-31 findings 9-14):
+# date-guard on live fetch (F10 kernel), last-error toast + persistent chip
+# (F11/F14 kernel). No security surface touched (SRI/CSP/secrets untouched).
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-043.msg
+scripts/messages/PIA-043.files

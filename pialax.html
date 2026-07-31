@@ -732,6 +732,13 @@ button{font-family:inherit;cursor:pointer;}
 <!-- Quota-exhaustion banner — full-width strip under the shell header when live data is
      unavailable. Hidden by default; populated by updateQuotaWarningBanner() on each render. -->
 <div id="quota-warning-banner" style="display:none;padding:6px 18px;background:var(--warn-dim);border:1.5px solid var(--warn);border-left:none;border-right:none;border-radius:0;font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink);"></div>
+<!-- Audit F11/F14 (2026-07-31): persistent last-error chip. Populated by
+     updateApiCallCount() from _lastFetchError; hidden when null. Distinct from the
+     quota banner above (that's "you're out of budget"; this is "a fetch actually failed"). -->
+<div id="last-error-chip" style="display:none;padding:5px 18px;background:var(--warn-dim);border:1.5px solid var(--warn);border-left:none;border-right:none;border-radius:0;font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink);justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+  <span id="last-error-chip-text"></span>
+  <button type="button" id="last-error-chip-dismiss" aria-label="Dismiss last-error notice" style="background:none;border:1px solid var(--warn);border-radius:4px;color:var(--ink);font-size:var(--fs-tiny);padding:1px 7px;cursor:pointer;">✕</button>
+</div>
 
 <div id="app-body">
 <!-- ═══════ SIDEBAR ═══════ -->
@@ -3213,6 +3220,15 @@ function rehydrateFlightCache() {
   } catch(e) { return 0; }
 }
 
+// Audit findings F11/F14 (2026-07-31): a live-fetch failure (proxy down, network,
+// non-2xx) is masked by fetchFlights' own catch below returning mock data — the
+// caller's promise resolves normally, so loadPrices()'s allFailed/failCount check
+// almost never sees it. This is the one place that DOES observe every real
+// failure; it's the source of truth for both the "N failed" toast and the
+// persistent last-error chip. Cleared on the next successful live fetch.
+var _lastFetchError = null;       // {route, msg, at} | null — drives the chip
+var _liveFetchErrorCount = 0;     // per-refresh count — drives the toast, reset in loadPrices()
+
 async function fetchFlights(from, to, dep, ret) {
   // LOCKED_TRIPS short-circuit (PIA-009 AC2) — booked tickets bypass network entirely.
   // Fires BEFORE the proxy / quota / cache gates so a locked route costs zero quota
@@ -3362,9 +3378,12 @@ async function fetchFlights(from, to, dep, ret) {
       persistFlightCache(); // PIA-005 AC4: write through to localStorage
       // Live success → consume 1 quota unit
       bumpQuota(1);
+      _lastFetchError = null; // F11/F14: a fresh success supersedes any prior warning
       return data;
     } catch(e) {
       console.warn('SerpAPI fetch failed for ' + from + '→' + to + ':', e.message);
+      _lastFetchError = { route: from + '→' + to, msg: e && e.message ? e.message : String(e), at: Date.now() };
+      _liveFetchErrorCount++;
       return getMock(from, to);
     } finally {
       delete _flightInflight[key];
@@ -3931,6 +3950,7 @@ async function loadPrices(allowLive) {
   if (live) {
     if (btn.disabled) return; // already fetching
     btn.disabled=true; spin.style.display='block'; icon.style.display='none'; lbl.textContent='Searching…';
+    _liveFetchErrorCount = 0; // F11/F14: count only this button-press's batch
   }
   // Per-route dep/ret defaults (used by solo + as fallback for meetup members without overrides)
   var globalDep=fmtISO(S.depDate)||null, globalRet=S.tripType==='round'?fmtISO(S.retDate)||null:null;
@@ -4032,6 +4052,14 @@ async function loadPrices(allowLive) {
   }));
   if (PROXY_URL && liveCount > 0) { S.apiCalls += liveCount; }
   updateApiCallCount();
+  // F11 (2026-07-31): loadPrices' own allFailed/failCount below rarely fires on a
+  // real proxy/network failure — fetchFlights catches those internally and resolves
+  // with mock data, so the caller never sees a rejection. _liveFetchErrorCount is
+  // the one place that DOES see every real failure; surface it as an explicit toast
+  // only for a button-press (live), so cache-only renders never notify.
+  if (live && _liveFetchErrorCount > 0 && typeof showShareToast === 'function') {
+    showShareToast('⚠ ' + _liveFetchErrorCount + ' live fetch' + (_liveFetchErrorCount > 1 ? 'es' : '') + ' failed — showing sample for those routes');
+  }
   // Gap #3: show user-friendly status (now also distinguishes cache vs. fresh)
   var allFailed = failCount === routes.length;
   var total = routes.length;
@@ -4108,6 +4136,23 @@ async function loadSoloWeeklyPrices(dest) {
   return calls;
 }
 
+// Audit F11/F14 (2026-07-31): renders the persistent "last error" chip from
+// _lastFetchError. A real live-fetch failure is otherwise silent (fetchFlights
+// swallows it into a mock-data fallback) — this is the one visible, lasting trace
+// of it, until either the user dismisses it or a subsequent fetch succeeds.
+function updateLastErrorChip() {
+  var chip = document.getElementById('last-error-chip');
+  var txt = document.getElementById('last-error-chip-text');
+  if (!chip || !txt) return;
+  if (!_lastFetchError) { chip.style.display = 'none'; return; }
+  var diffSec = Math.round((Date.now() - _lastFetchError.at) / 1000);
+  var ago = diffSec < 60 ? diffSec + 's ago'
+          : diffSec < 3600 ? Math.round(diffSec / 60) + 'm ago'
+          : Math.round(diffSec / 3600) + 'h ago';
+  txt.textContent = '⚠ Last fetch error · ' + _lastFetchError.route + ' · ' + ago + ' · ' + _lastFetchError.msg;
+  chip.style.display = 'flex';
+}
+
 function updateApiCallCount() {
   var el = document.getElementById('api-calls-lbl');
   if (el) {
@@ -4118,6 +4163,7 @@ function updateApiCallCount() {
   // Three states: NO PROXY, QUOTA EXHAUSTED, ALL OK (banner hidden).
   updateQuotaWarningBanner();
   updateFreshnessHeader(); // PIA-013 AC3
+  updateLastErrorChip(); // F11/F14 (2026-07-31)
   // Always-visible quota bar at top of sidebar.
   // PIA-005 AC2: absolute thresholds (amber 800 / red 950 / locked 990) replace the old %-tiers.
   var q = readQuota();
@@ -4447,7 +4493,22 @@ document.getElementById('dep-btn').addEventListener('click', function(){ openCal
 document.getElementById('ret-btn').addEventListener('click', function(){ if(!document.getElementById('ret-btn').disabled) openCal('ret'); });
 // The search button is the ONLY caller that passes allowLive=true — i.e. the only
 // path that spends a SerpAPI query. Everything else renders from cache/sample.
-document.getElementById('search-btn').addEventListener('click', function(){ loadPrices(true); });
+document.getElementById('search-btn').addEventListener('click', function(){
+  // Audit finding F10 (2026-07-31): guard the explicit live-fetch trigger so a
+  // press with no dates picked doesn't silently burn a SerpAPI call against a
+  // fabricated "today" query (fetchFlights falls back to today when dep is null).
+  if (!S.depDate || (S.tripType === 'round' && !S.retDate)) {
+    if (typeof showShareToast === 'function') {
+      showShareToast('Pick your dates first — ' + (S.tripType === 'round' ? 'departure + return' : 'a departure date') + ' needed before fetching live fares');
+    }
+    return;
+  }
+  loadPrices(true);
+});
+document.getElementById('last-error-chip-dismiss').addEventListener('click', function(){
+  _lastFetchError = null;
+  updateLastErrorChip();
+});
 document.getElementById('share-btn-top').addEventListener('click', shareThePlan);
 document.getElementById('copy-link-btn').addEventListener('click', copyShareLink);
 document.querySelectorAll('.mode-btn').forEach(function(b){
