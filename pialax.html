@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://pialax-proxy.ashwinyedavalli.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
+<!-- Audit finding F-disclosure (2026-08-01): personal family trip tracker, not a
+     public product — block search-engine indexing/crawling (paired with /robots.txt). -->
+<meta name="robots" content="noindex, nofollow, noarchive"/>
 <title>PIALAX — Family Flight Dashboard</title>
 <!-- CDN scripts. SRI integrity= is the primary tamper-guard (PIA-001). Hashes sourced
      from cdnjs "Copy SRI Hash" 2026-05-25. If cdnjs republishes the file, integrity
@@ -1365,11 +1368,15 @@ function bookingUrlFor(from, dest, depISO, retISO, isRT){
 // LAX departure to ~Sep 5. ⚠ A Sep 5 red-eye lands Cusco Sep 6 — AFTER the Sep 5
 // 17:00 briefing and the Sep 6 trek start. The fits-line below now warns instead of
 // green-lighting; resolution options live in the Peru watchlist item's nextAction.
+// Audit finding F-disclosure (2026-08-01): this block previously carried a real
+// friend's name, a specific street address, and a real booking confirmation code —
+// all publicly indexable. Genericized; no functional field was removed, only the
+// identifying values.
 var TREK_INFO = {
   pkg: 'Salkantay & Inca Trail', days: 7, status: 'confirmed',
-  bookingNo: 'BK-035216', startTxt: 'Sep 6', endTxt: 'Sep 12, 2026',
-  price: 1200, people: 1, contact: 'Eduardo',
-  briefing: 'Briefing 17:00 the day before · Triunfo St 392, Ofc 212 (2nd fl), Cusco',
+  bookingNo: 'confirmed', startTxt: 'Sep 6', endTxt: 'Sep 12, 2026',
+  price: 1200, people: 1, contact: 'via trek contact',
+  briefing: 'Briefing 17:00 the day before at the trek operator office, Cusco',
   passport: 'Send passport photo · must be valid 6+ months from entry'
 };
 function trekInfoCardHtml() {
@@ -1380,10 +1387,10 @@ function trekInfoCardHtml() {
       '<span style="font-size:.5rem;font-weight:900;background:var(--green);color:#000;padding:1px 5px;border-radius:3px;">✅ CONFIRMED · ' + t.days + ' DAYS</span>' +
     '</div>' +
     '<div style="font-size:.58rem;color:var(--accent);font-weight:800;margin-top:4px;">📅 Trek ' + t.startTxt + ' – ' + t.endTxt + ' · both trails</div>' +
-    '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">🎟 Booking ' + t.bookingNo + ' · $' + t.price + ' · ' + t.people + ' person · contact ' + t.contact + '</div>' +
+    '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">🎟 Booking ' + t.bookingNo + ' · $' + t.price + ' · ' + t.people + ' person · ' + t.contact + '</div>' +
     '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">📍 ' + t.briefing + '</div>' +
     '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">🛂 ' + t.passport + '</div>' +
-    '<div style="font-size:.53rem;color:var(--warn,#f59e0b);font-weight:800;margin-top:4px;">⚠ Tight fit: a Sep 5 red-eye lands CUZ Sep 6 — after the Sep 5 17:00 briefing &amp; the Sep 6 trek start. Make it work: Fri Sep 4 late red-eye (straight after Memphis) lands Sat Sep 5 — or clear a late-join with Eduardo.</div>' +
+    '<div style="font-size:.53rem;color:var(--warn,#f59e0b);font-weight:800;margin-top:4px;">⚠ Tight fit: a Sep 5 red-eye lands CUZ Sep 6 — after the Sep 5 17:00 briefing &amp; the Sep 6 trek start. Make it work: Fri Sep 4 late red-eye (straight after Memphis) lands Sat Sep 5 — or arrange a late trek join.</div>' +
   '</div>';
 }
 // Peru flight-option comparison for the Cusco card. Two ways to fly the trip:
@@ -4848,8 +4855,8 @@ var TRIP_BOOKINGS_SEED = {
   // clash on the timeline instead of us hand-waving it in a comment.
   peru: [
     { type:'flight', title:'LAX → Cusco (red-eye)', start:'2026-09-05', end:'2026-09-06', location:'Cusco', notes:'⚠ lands Sep 6 — after briefing + trek start. Alt: Sep 4 late red-eye post-Memphis lands Sep 5.' },
-    { type:'other', title:'⚠ Trek briefing 17:00 (must attend)', start:'2026-09-05', end:'2026-09-05', location:'Cusco · Triunfo St 392, Ofc 212', notes:'Conflicts with a Sep 5 departure — you are in the air.' },
-    { type:'trek', title:'Salkantay & Inca Trail', start:'2026-09-06', end:'2026-09-12', location:'Cusco region', cost:1200, conf:'BK-035216', notes:'Both trails · zero acclimatization days on a Sep 5 dep' },
+    { type:'other', title:'⚠ Trek briefing 17:00 (must attend)', start:'2026-09-05', end:'2026-09-05', location:'Cusco · trek operator office', notes:'Conflicts with a Sep 5 departure — you are in the air.' },
+    { type:'trek', title:'Salkantay & Inca Trail', start:'2026-09-06', end:'2026-09-12', location:'Cusco region', cost:1200, conf:'confirmed', notes:'Both trails · zero acclimatization days on a Sep 5 dep' },
     { type:'flight', title:'Lima → LAX', start:'2026-09-13', end:'2026-09-13', location:'LAX', notes:'Copa via PTY (open-jaw out)' }
   ],
   // Memphis work week (unmodeled dest — binder key = 'MEM' via binderKeyFor).
@@ -5100,9 +5107,9 @@ var WATCHLIST_SEED = [
     gf:{from:'LAX',to:'JAX'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
     routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-05', ret:'2026-09-13', stage:'watching',
-    notes:'Trek BOOKED (Salkantay & Inca Trail, BK-035216, $1,200). Flights NOT booked. Memphis work trip now ends Fri Sep 4 → leaning Sep 5 LAX departure. ⚠ A Sep 5 red-eye lands Cusco Sep 6 — AFTER the Sep 5 17:00 briefing and the Sep 6 trek start, with zero acclimatization. Options: Fri Sep 4 late red-eye straight after Memphis (lands Cusco Sat Sep 5, makes the briefing), or clear a late-join with Eduardo. Friend is in Cusco Sep 5–12.',
-    reminders:['Trek briefing 17:00 day before · Triunfo St 392, Ofc 212','Passport valid 6+ months from entry','Send passport photo to Eduardo','Friend in Cusco Sep 5–12 (AUS↔LIM via ATL/SAL)','Memphis return Fri Sep 4 — back-to-back with this departure'],
-    nextAction:'Resolve the Sep 5 clash — ask Eduardo about late-join OR plan the Sep 4 post-Memphis red-eye', blockers:['dates','price'],
+    notes:'Trek BOOKED (Salkantay & Inca Trail, confirmed, $1,200). Flights NOT booked. Memphis work trip now ends Fri Sep 4 → leaning Sep 5 LAX departure. ⚠ A Sep 5 red-eye lands Cusco Sep 6 — AFTER the Sep 5 17:00 briefing and the Sep 6 trek start, with zero acclimatization. Options: Fri Sep 4 late red-eye straight after Memphis (lands Cusco Sat Sep 5, makes the briefing), or arrange a late trek join. A friend is also in Cusco Sep 5–12.',
+    reminders:['Trek briefing 17:00 day before · trek operator office','Passport valid 6+ months from entry','Send passport photo to trek contact','A friend is also in Cusco Sep 5–12','Memphis return Fri Sep 4 — back-to-back with this departure'],
+    nextAction:'Resolve the Sep 5 clash — arrange a late trek join OR plan the Sep 4 post-Memphis red-eye', blockers:['dates','price'],
     gf:{from:'LAX',to:'CUZ',openjaw:true} },
   { id:'memphis', mode:'solo', title:'Memphis — Work trip',
     routeTxt:'LAX → MEM', origin:'LAX', dest:'MEM', dep:'2026-08-31', ret:'2026-09-04', stage:'watching',

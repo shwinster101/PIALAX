@@ -13,7 +13,7 @@ _Scope: the 2026-07-21 → 07-30 cycle (JAX/Peru/Memphis trip planning, watchlis
 
 ## 2. Standing risks not yet ticketed
 
-- **R1 — Sep 5 departure is operationally unresolved.** The data now *warns* (watchlist nextAction, trek card, binder timeline), but only a human can resolve it: either the Fri Sep 4 late red-eye straight after Memphis (lands Sat Sep 5, makes the 17:00 briefing) or an Eduardo-approved late join. Zero acclimatization before a 15,200 ft pass is also a health consideration the app cannot judge.
+- **R1 — Sep 5 departure is operationally unresolved.** The data now *warns* (watchlist nextAction, trek card, binder timeline), but only a human can resolve it: either the Fri Sep 4 late red-eye straight after Memphis (lands Sat Sep 5, makes the 17:00 briefing) or a late trek join arranged with the trek contact. Zero acclimatization before a 15,200 ft pass is also a health consideration the app cannot judge.
 - **R2 — dedupe-on-promotion is ad-hoc.** `_isSeedDupMemphis` is a one-off; a general "seed absorbs matching user-added item (same mode+dest)" mechanism would prevent the next occurrence.
 - **R3 — clash detection is date-granularity only.** `watchlistClashFor` compares whole days; it cannot see that a Fri-night red-eye makes back-to-back *feasible* while a Sat departure breaks the briefing. Time-of-day anchors live only in binder segments/notes.
 - **R4 — post-overhaul solo/quota surfaces not re-audited.** The PIA-030..041 overhaul restructured both files; the earlier solo-mode audit's conclusions (quota gating, hand-off placement) should be spot-checked against the new DOM.
@@ -26,4 +26,4 @@ _Scope: the 2026-07-21 → 07-30 cycle (JAX/Peru/Memphis trip planning, watchlis
 | T2 | patch | ~~Memphis seed + Peru Sep 5 shift + briefing-conflict warnings~~ **shipped this commit** | Peru dep = 2026-09-05 everywhere; trek card shows ⚠ fits-line; binder shows briefing overlap |
 | T1 | minor | Generalize seed-vs-added dedupe (R2) into `loadWatchlist` | Promoting any trip to seed cannot duplicate |
 | T5 | minor | Post-overhaul re-audit of solo/quota surfaces (R4) | Findings doc; no silent quota spend paths |
-| Ashwin | — | Resolve R1 with Eduardo (late-join?) or commit to the Sep 4 red-eye | Peru `dates` blocker cleared; nextAction updated |
+| Ashwin | — | Resolve R1 (late-join with trek contact, or commit to the Sep 4 red-eye) | Peru `dates` blocker cleared; nextAction updated |

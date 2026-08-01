@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>PIALAX — Family Flight Dashboard</title>
   <meta name="description" content="PIALAX family flight dashboard — redirecting to the right view for your device."/>
+  <!-- Audit finding F-disclosure (2026-08-01): this is a personal family trip
+       tracker, not a public product — block search-engine indexing/crawling.
+       Doesn't undo prior crawls, but stops new ones. Paired with /robots.txt. -->
+  <meta name="robots" content="noindex, nofollow, noarchive"/>
   <style>
     :root { color-scheme: dark; }
     html,body { height:100%; margin:0; }

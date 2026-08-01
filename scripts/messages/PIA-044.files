@@ -1,0 +1,13 @@
+# PIA-044 ship manifest — disclosure fix (2026-08-01): redact real PII from
+# shipped seed data (friend's name, street address, real booking confirmation
+# code, friend's flight routing) + block search-engine indexing site-wide.
+# Independent ticket per explicit instruction — ships alone, not bundled with
+# the sample/live honesty work. Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+index.html
+robots.txt
+LESSONS_LEARNED_2026-07-30.md
+FEATURE_INVENTORY_UI_OVERHAUL.md
+scripts/messages/PIA-044.msg
+scripts/messages/PIA-044.files

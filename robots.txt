@@ -1,0 +1,7 @@
+# PIALAX is a personal family trip tracker, not a public product.
+# Audit finding F-disclosure (2026-08-01): block all crawling. Paired with
+# <meta name="robots" content="noindex, nofollow, noarchive"/> on every page —
+# robots.txt stops well-behaved crawlers from fetching at all; the meta tag
+# covers ones that fetch anyway but respect on-page directives.
+User-agent: *
+Disallow: /
