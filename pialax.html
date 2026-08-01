@@ -740,7 +740,13 @@ button{font-family:inherit;cursor:pointer;}
      quota banner above (that's "you're out of budget"; this is "a fetch actually failed"). -->
 <div id="last-error-chip" style="display:none;padding:5px 18px;background:var(--warn-dim);border:1.5px solid var(--warn);border-left:none;border-right:none;border-radius:0;font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink);justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
   <span id="last-error-chip-text"></span>
-  <button type="button" id="last-error-chip-dismiss" aria-label="Dismiss last-error notice" style="background:none;border:1px solid var(--warn);border-radius:4px;color:var(--ink);font-size:var(--fs-tiny);padding:1px 7px;cursor:pointer;">✕</button>
+  <span style="display:flex;gap:6px;align-items:center;">
+    <!-- Audit finding (2026-08-01): a proxy/fetch failure needs a recovery path,
+         not just a dismissible notice — retry re-runs the exact same explicit,
+         quota-gated live fetch as the search button. -->
+    <button type="button" id="last-error-chip-retry" aria-label="Retry live fetch" style="background:none;border:1px solid var(--warn);border-radius:4px;color:var(--ink);font-size:var(--fs-tiny);padding:1px 7px;cursor:pointer;font-weight:700;">↻ Retry</button>
+    <button type="button" id="last-error-chip-dismiss" aria-label="Dismiss last-error notice" style="background:none;border:1px solid var(--warn);border-radius:4px;color:var(--ink);font-size:var(--fs-tiny);padding:1px 7px;cursor:pointer;">✕</button>
+  </span>
 </div>
 
 <div id="app-body">
@@ -852,7 +858,7 @@ button{font-family:inherit;cursor:pointer;}
     <div id="api-banner">
       <div id="api-hdr">
         <span class="abt">Data Source</span>
-        <span class="ab-badge b-mock" id="data-badge">Sample Data</span>
+        <span class="ab-badge b-mock" id="data-badge">Mock Data</span>
       </div>
       <div id="api-body">
         <div class="api-lbl">Proxy URL (Cloudflare Worker)</div>
@@ -888,7 +894,7 @@ button{font-family:inherit;cursor:pointer;}
       <button id="copy-link-btn" title="Copy a deep-link URL that reproduces this exact dashboard view" style="display:flex;align-items:center;gap:4px;padding:4px 11px;border-radius:var(--rad-md);font-size:var(--fs-caption);font-weight:800;color:var(--ink-muted);background:var(--surface-2);border:1px solid var(--line-strong);transition:all var(--t-quick);cursor:pointer;margin-left:6px;">🔗 Copy Link</button>
       <div class="tb-pills">
         <div class="pill"><span class="ld"></span>&nbsp;<span id="pill-trip">Round-Trip</span></div>
-        <div class="pill"><span id="pill-src">Sample Data</span></div>
+        <div class="pill"><span id="pill-src">Mock Data</span></div>
       </div>
     </div>
   </div>
@@ -938,7 +944,7 @@ button{font-family:inherit;cursor:pointer;}
   </div>
   <div id="cal-months"></div>
   <div id="cal-foot">
-    <span class="hint" id="cal-hint">Fares: sample · Google Flights</span>
+    <span class="hint" id="cal-hint">Fares: mock · Google Flights</span>
     <button id="cal-ok">Done</button>
   </div>
 </div>
@@ -3626,7 +3632,7 @@ function updateQuotaWarningBanner() {
   var remaining = Math.max(0, q.budget - q.used);
 
   if (!PROXY_URL) {
-    bn.innerHTML = '<strong style="color:var(--warn);">📡 Sample data mode</strong><br/>'
+    bn.innerHTML = '<strong style="color:var(--warn);">📡 Mock data mode</strong><br/>'
       + '<span style="color:var(--ink-muted);">Connect a SerpAPI proxy in the sidebar to see live Google Flights pricing. Current numbers are illustrative estimates.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--warn)';
@@ -3951,6 +3957,22 @@ async function loadPrices(allowLive) {
   if (live && PROXY_URL && isFetchLocked()) {
     console.warn('[PIALAX] loadPrices: short-circuited — quota safety cutoff reached. Plan resets on the 1st.');
     updateApiCallCount(); // re-render so banner + bar show the lock state
+    // Audit finding (2026-08-01): this was a silent no-op — pressing "Get Live Fares"
+    // while quota-locked left whatever the badge said before (possibly a stale "Live
+    // Data" from an earlier fetch), with no toast and no visible change at all. Fail
+    // closed instead: force the badge into an explicit Blind state so a locked press
+    // is never indistinguishable from a working one.
+    var lockedBadge = document.getElementById('data-badge');
+    if (lockedBadge) { lockedBadge.textContent = 'Blind — quota locked'; lockedBadge.className = 'ab-badge b-mock'; }
+    var lockedPill = document.getElementById('pill-src');
+    if (lockedPill) lockedPill.textContent = 'Blind — quota locked';
+    var lockedPillLbl = document.getElementById('data-pill-lbl');
+    if (lockedPillLbl) lockedPillLbl.textContent = 'Mock';
+    var lockedDot = document.querySelector('.ld');
+    if (lockedDot) lockedDot.style.background = 'var(--danger)';
+    if (typeof showShareToast === 'function') {
+      showShareToast('⛔ Live fares blocked — quota safety cutoff reached. Showing mock data until plan resets.');
+    }
     return;
   }
   // Gap #3: disable button during a live fetch to prevent spam (cache-only skips this).
@@ -4065,7 +4087,7 @@ async function loadPrices(allowLive) {
   // the one place that DOES see every real failure; surface it as an explicit toast
   // only for a button-press (live), so cache-only renders never notify.
   if (live && _liveFetchErrorCount > 0 && typeof showShareToast === 'function') {
-    showShareToast('⚠ ' + _liveFetchErrorCount + ' live fetch' + (_liveFetchErrorCount > 1 ? 'es' : '') + ' failed — showing sample for those routes');
+    showShareToast('⚠ ' + _liveFetchErrorCount + ' live fetch' + (_liveFetchErrorCount > 1 ? 'es' : '') + ' failed — showing mock fares for those routes');
   }
   // Gap #3: show user-friendly status (now also distinguishes cache vs. fresh)
   var allFailed = failCount === routes.length;
@@ -4074,17 +4096,20 @@ async function loadPrices(allowLive) {
   // route came from fresh cache. All-sample cache-only renders read as Sample.
   var isLiveish = PROXY_URL && !allFailed && (live || (cachedCount === total && total > 0));
   var statusLbl;
-  if (!PROXY_URL) statusLbl = 'Sample Data';
-  else if (!live) statusLbl = (cachedCount === 0 ? 'Sample · tap Get Live Fares'
-                     : cachedCount === total ? 'Cached fares' : 'Cached + sample');
-  else if (allFailed) statusLbl = 'API Error — Using Samples';
+  if (!PROXY_URL) statusLbl = 'Mock Data';
+  else if (!live) statusLbl = (cachedCount === 0 ? 'Mock · tap Get Live Fares'
+                     : cachedCount === total ? 'Cached fares' : 'Cached + mock');
+  else if (allFailed) statusLbl = 'Blind — fetch failed (mock shown)';
   else if (liveCount === 0 && cachedCount > 0) statusLbl = 'Live (cached)';
   else statusLbl = 'Live Data';
   document.getElementById('data-badge').textContent   = statusLbl;
   document.getElementById('data-badge').className     = 'ab-badge ' + (isLiveish ? 'b-live' : 'b-mock');
   document.getElementById('pill-src').textContent     = statusLbl;
-  document.getElementById('data-pill-lbl').textContent= isLiveish ? 'Live' : 'Sample';
-  document.querySelector('.ld').style.background      = isLiveish ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('data-pill-lbl').textContent= isLiveish ? 'Live' : 'Mock';
+  // Audit finding (2026-08-01): a genuine fetch failure should read as more alarming
+  // than routine mock/cached — amber means "never claimed to be live", red means
+  // "we tried live and it broke", matching the quota-locked dot color above.
+  document.querySelector('.ld').style.background      = isLiveish ? 'var(--green)' : (allFailed ? 'var(--danger)' : 'var(--amber)');
   renderMeetupStrip(); redrawMap(); updateStats();
   // PIA-025: on a real live fetch, record the whole-family total for this trip so the
   // group price-watch can show the delta on the next check. Cache-only renders don't record.
@@ -4498,18 +4523,29 @@ document.getElementById('cal-ok').addEventListener('click', closeCal);
 document.getElementById('cal-bd').addEventListener('click', closeCal);
 document.getElementById('dep-btn').addEventListener('click', function(){ openCal('dep'); });
 document.getElementById('ret-btn').addEventListener('click', function(){ if(!document.getElementById('ret-btn').disabled) openCal('ret'); });
-// The search button is the ONLY caller that passes allowLive=true — i.e. the only
-// path that spends a SerpAPI query. Everything else renders from cache/sample.
-document.getElementById('search-btn').addEventListener('click', function(){
-  // Audit finding F10 (2026-07-31): guard the explicit live-fetch trigger so a
-  // press with no dates picked doesn't silently burn a SerpAPI call against a
-  // fabricated "today" query (fetchFlights falls back to today when dep is null).
+// Audit finding F10 (2026-07-31): shared guard for every live-fetch trigger point
+// (search button, last-error retry) so a press with no dates picked never burns a
+// SerpAPI call on a fabricated "today" query (fetchFlights falls back to today when
+// dep is null). Centralized so a new trigger can't reintroduce the bug this fixed.
+function canFetchLiveDates() {
   if (!S.depDate || (S.tripType === 'round' && !S.retDate)) {
     if (typeof showShareToast === 'function') {
       showShareToast('Pick your dates first — ' + (S.tripType === 'round' ? 'departure + return' : 'a departure date') + ' needed before fetching live fares');
     }
-    return;
+    return false;
   }
+  return true;
+}
+// The search button is the ONLY caller that passes allowLive=true — i.e. the only
+// path that spends a SerpAPI query. Everything else renders from cache/sample.
+document.getElementById('search-btn').addEventListener('click', function(){
+  if (!canFetchLiveDates()) return;
+  loadPrices(true);
+});
+document.getElementById('last-error-chip-retry').addEventListener('click', function(){
+  // Audit finding (2026-08-01): the recovery path for a proxy/fetch failure — reruns
+  // the exact same explicit, quota-gated live fetch as the search button.
+  if (!canFetchLiveDates()) return;
   loadPrices(true);
 });
 document.getElementById('last-error-chip-dismiss').addEventListener('click', function(){
@@ -4624,7 +4660,7 @@ document.getElementById('api-apply').addEventListener('click', function(){
         var prev = badge.textContent;
         badge.textContent = 'Invalid URL';
         badge.className = 'ab-badge b-mock';
-        setTimeout(function(){ badge.textContent = prev || 'Sample Data'; }, 3500);
+        setTimeout(function(){ badge.textContent = prev || 'Mock Data'; }, 3500);
       }
       try { console.warn('Invalid proxy URL — expected https://<name>.workers.dev (no path).'); } catch(e){}
       return;
@@ -4634,12 +4670,12 @@ document.getElementById('api-apply').addEventListener('click', function(){
   // Persist so the user doesn't have to re-enter on next session
   try { if (url) localStorage.setItem(PROXY_URL_STORAGE_KEY, url); else localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}
   var isLive=!!url;
-  document.getElementById('data-badge').textContent   = isLive?'Connecting…':'Sample Data';
+  document.getElementById('data-badge').textContent   = isLive?'Connecting…':'Mock Data';
   document.getElementById('data-badge').className     = 'ab-badge '+(isLive?'b-live':'b-mock');
-  document.getElementById('pill-src').textContent     = isLive?'Live Data':'Sample Data';
-  document.getElementById('data-pill-lbl').textContent= isLive?'Live':'Sample';
+  document.getElementById('pill-src').textContent     = isLive?'Live Data':'Mock Data';
+  document.getElementById('data-pill-lbl').textContent= isLive?'Live':'Mock';
   document.querySelector('.ld').style.background      = isLive?'var(--green)':'var(--amber)';
-  document.getElementById('cal-hint').textContent     = isLive?'Fares: Google Flights live':'Fares: sample · Google Flights';
+  document.getElementById('cal-hint').textContent     = isLive?'Fares: Google Flights live':'Fares: mock · Google Flights';
   document.getElementById('api-clear').style.display  = isLive?'':'none';
   document.getElementById('api-body').classList.remove('open');
   if (isLive) {
@@ -4652,12 +4688,12 @@ document.getElementById('api-apply').addEventListener('click', function(){
 document.getElementById('api-clear').addEventListener('click', function(){
   PROXY_URL=''; document.getElementById('api-key-inp').value='';
   try { localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}
-  document.getElementById('data-badge').textContent   = 'Sample Data';
+  document.getElementById('data-badge').textContent   = 'Mock Data';
   document.getElementById('data-badge').className     = 'ab-badge b-mock';
-  document.getElementById('pill-src').textContent     = 'Sample Data';
-  document.getElementById('data-pill-lbl').textContent= 'Sample';
+  document.getElementById('pill-src').textContent     = 'Mock Data';
+  document.getElementById('data-pill-lbl').textContent= 'Mock';
   document.querySelector('.ld').style.background      = 'var(--amber)';
-  document.getElementById('cal-hint').textContent     = 'Fares: sample · Google Flights';
+  document.getElementById('cal-hint').textContent     = 'Fares: mock · Google Flights';
   document.getElementById('api-clear').style.display  = 'none';
   document.getElementById('api-calls-lbl').style.display = 'none';
   S.prices={}; S.soloBarPrices={};

@@ -1,0 +1,8 @@
+# PIA-045 ship manifest — sample/live honesty + recovery (2026-08-01 audit item
+# 2): "Mock" replaces "Sample" wording, quota-lock becomes an explicit fail-closed
+# Blind badge state instead of a silent no-op, and the last-error chip gets a
+# Retry CTA. No security surface touched. Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-045.msg
+scripts/messages/PIA-045.files

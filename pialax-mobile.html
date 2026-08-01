@@ -501,7 +501,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   gap: var(--sp-3);
   flex-wrap: wrap;
 }
-#last-error-chip-dismiss {
+#last-error-chip-dismiss, #last-error-chip-retry {
   background: none;
   border: 1px solid var(--warn);
   border-radius: var(--rad-sm, 4px);
@@ -510,6 +510,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   padding: 1px 7px;
   cursor: pointer;
 }
+#last-error-chip-retry { font-weight: 700; }
+#last-error-chip .lec-actions { display: flex; gap: 6px; align-items: center; }
 /* PIA-033: quota bar lives inside the sticky #shell-header.
    PIA-039 fix: the blanket display:none here made the bar unhideable-by-JS
    (updateApiCallCount only clears the INLINE style) — visibility now lives on
@@ -1332,7 +1334,13 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
      "a fetch actually failed"). -->
 <div id="last-error-chip" style="display:none;">
   <span id="last-error-chip-text"></span>
-  <button type="button" id="last-error-chip-dismiss" aria-label="Dismiss last-error notice">✕</button>
+  <span class="lec-actions">
+    <!-- Audit finding (2026-08-01): a proxy/fetch failure needs a recovery path,
+         not just a dismissible notice — retry re-runs the exact same explicit,
+         quota-gated live fetch as the search button. -->
+    <button type="button" id="last-error-chip-retry" aria-label="Retry live fetch">↻ Retry</button>
+    <button type="button" id="last-error-chip-dismiss" aria-label="Dismiss last-error notice">✕</button>
+  </span>
 </div>
 
 <!-- ═══════════════════════════════════
@@ -1507,7 +1515,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
       <button id="copy-link-btn" title="Copy deep-link URL" style="display:none;">🔗 Link</button>
       <div class="tb-pills">
         <div class="pill"><span class="ld"></span>&nbsp;<span id="pill-trip">Round-Trip</span></div>
-        <div class="pill"><span id="pill-src">Sample Data</span></div>
+        <div class="pill"><span id="pill-src">Mock Data</span></div>
       </div>
     </div>
   </div>
@@ -1531,7 +1539,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
     <div id="api-banner">
       <div id="api-hdr">
         <span class="abt">Data Source</span>
-        <span class="ab-badge b-mock" id="data-badge">Sample Data</span>
+        <span class="ab-badge b-mock" id="data-badge">Mock Data</span>
       </div>
       <div id="api-body">
         <div class="api-lbl">Proxy URL (Cloudflare Worker)</div>
@@ -1572,7 +1580,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   </div>
   <div id="cal-months"></div>
   <div id="cal-foot">
-    <span class="hint" id="cal-hint">Fares: sample · Google Flights</span>
+    <span class="hint" id="cal-hint">Fares: mock · Google Flights</span>
     <button id="cal-ok">Done</button>
   </div>
 </div>
@@ -3906,7 +3914,7 @@ function updateQuotaWarningBanner() {
   var remaining = Math.max(0, q.budget - q.used);
 
   if (!PROXY_URL) {
-    bn.innerHTML = '<strong style="color:var(--warn);">📡 Sample data mode</strong><br/>'
+    bn.innerHTML = '<strong style="color:var(--warn);">📡 Mock data mode</strong><br/>'
       + '<span style="color:var(--ink-muted);">Connect a SerpAPI proxy in Advanced Settings to see live Google Flights pricing.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--warn)';
@@ -4157,6 +4165,22 @@ async function loadPrices(allowLive) {
   if (live && PROXY_URL && isFetchLocked()) {
     console.warn('[PIALAX-mobile] loadPrices: short-circuited — quota safety cutoff reached.');
     updateApiCallCount();
+    // Audit finding (2026-08-01): this was a silent no-op — pressing "Get Live Fares"
+    // while quota-locked left whatever the badge said before (possibly a stale "Live
+    // Data" from an earlier fetch), with no toast and no visible change at all. Fail
+    // closed instead: force the badge into an explicit Blind state so a locked press
+    // is never indistinguishable from a working one.
+    var lockedBadge = document.getElementById('data-badge');
+    if (lockedBadge) { lockedBadge.textContent = 'Blind — quota locked'; lockedBadge.className = 'ab-badge b-mock'; }
+    var lockedPill = document.getElementById('pill-src');
+    if (lockedPill) lockedPill.textContent = 'Blind — quota locked';
+    var lockedPillLbl = document.getElementById('data-pill-lbl');
+    if (lockedPillLbl) lockedPillLbl.textContent = 'Mock';
+    var lockedDot = document.querySelector('.ld');
+    if (lockedDot) lockedDot.style.background = 'var(--danger)';
+    if (typeof showShareToast === 'function') {
+      showShareToast('⛔ Live fares blocked — quota safety cutoff reached. Showing mock data until plan resets.');
+    }
     return;
   }
   if (live) {
@@ -4260,23 +4284,26 @@ async function loadPrices(allowLive) {
   // the one place that DOES see every real failure; surface it as an explicit toast
   // only for a button-press (live), so cache-only renders never notify.
   if (live && _liveFetchErrorCount > 0 && typeof showShareToast === 'function') {
-    showShareToast('⚠ ' + _liveFetchErrorCount + ' live fetch' + (_liveFetchErrorCount > 1 ? 'es' : '') + ' failed — showing sample for those routes');
+    showShareToast('⚠ ' + _liveFetchErrorCount + ' live fetch' + (_liveFetchErrorCount > 1 ? 'es' : '') + ' failed — showing mock fares for those routes');
   }
   var allFailed = failCount === routes.length;
   var total = routes.length;
   var isLiveish = PROXY_URL && !allFailed && (live || (cachedCount === total && total > 0));
   var statusLbl;
-  if (!PROXY_URL) statusLbl = 'Sample Data';
-  else if (!live) statusLbl = (cachedCount === 0 ? 'Sample · tap Get Live Fares'
-                     : cachedCount === total ? 'Cached fares' : 'Cached + sample');
-  else if (allFailed) statusLbl = 'API Error — Using Samples';
+  if (!PROXY_URL) statusLbl = 'Mock Data';
+  else if (!live) statusLbl = (cachedCount === 0 ? 'Mock · tap Get Live Fares'
+                     : cachedCount === total ? 'Cached fares' : 'Cached + mock');
+  else if (allFailed) statusLbl = 'Blind — fetch failed (mock shown)';
   else if (liveCount === 0 && cachedCount > 0) statusLbl = 'Live (cached)';
   else statusLbl = 'Live Data';
   document.getElementById('data-badge').textContent   = statusLbl;
   document.getElementById('data-badge').className     = 'ab-badge ' + (isLiveish ? 'b-live' : 'b-mock');
   document.getElementById('pill-src').textContent     = statusLbl;
-  document.getElementById('data-pill-lbl').textContent= isLiveish ? 'Live' : 'Sample';
-  document.querySelector('.ld').style.background      = isLiveish ? 'var(--green)' : 'var(--amber)';
+  document.getElementById('data-pill-lbl').textContent= isLiveish ? 'Live' : 'Mock';
+  // Audit finding (2026-08-01): a genuine fetch failure should read as more alarming
+  // than routine mock/cached — amber means "never claimed to be live", red means
+  // "we tried live and it broke", matching the quota-locked dot color above.
+  document.querySelector('.ld').style.background      = isLiveish ? 'var(--green)' : (allFailed ? 'var(--danger)' : 'var(--amber)');
   renderMeetupStrip(); redrawMap(); updateStats();
   // PIA-025: record the whole-family total on a real live fetch (mobile mirror).
   if (live && S.mode === 'meetup') {
@@ -4689,18 +4716,29 @@ document.getElementById('cal-ok').addEventListener('click', closeCal);
 document.getElementById('cal-bd').addEventListener('click', closeCal);
 document.getElementById('dep-btn').addEventListener('click', function(){ openCal('dep'); });
 document.getElementById('ret-btn').addEventListener('click', function(){ if(!document.getElementById('ret-btn').disabled) openCal('ret'); });
-// The search button is the ONLY caller that passes allowLive=true — the only path
-// that spends a SerpAPI query. Everything else renders from cache/sample.
-document.getElementById('search-btn').addEventListener('click', function(){
-  // Audit finding F10 (2026-07-31): guard the explicit live-fetch trigger so a
-  // press with no dates picked doesn't silently burn a SerpAPI call against a
-  // fabricated "today" query (fetchFlights falls back to today when dep is null).
+// Audit finding F10 (2026-07-31): shared guard for every live-fetch trigger point
+// (search button, last-error retry) so a press with no dates picked never burns a
+// SerpAPI call on a fabricated "today" query (fetchFlights falls back to today when
+// dep is null). Centralized so a new trigger can't reintroduce the bug this fixed.
+function canFetchLiveDates() {
   if (!S.depDate || (S.tripType === 'round' && !S.retDate)) {
     if (typeof showShareToast === 'function') {
       showShareToast('Pick your dates first — ' + (S.tripType === 'round' ? 'departure + return' : 'a departure date') + ' needed before fetching live fares');
     }
-    return;
+    return false;
   }
+  return true;
+}
+// The search button is the ONLY caller that passes allowLive=true — the only path
+// that spends a SerpAPI query. Everything else renders from cache/sample.
+document.getElementById('search-btn').addEventListener('click', function(){
+  if (!canFetchLiveDates()) return;
+  loadPrices(true);
+});
+document.getElementById('last-error-chip-retry').addEventListener('click', function(){
+  // Audit finding (2026-08-01): the recovery path for a proxy/fetch failure — reruns
+  // the exact same explicit, quota-gated live fetch as the search button.
+  if (!canFetchLiveDates()) return;
   loadPrices(true);
 });
 document.getElementById('last-error-chip-dismiss').addEventListener('click', function(){
@@ -4809,12 +4847,12 @@ document.getElementById('api-apply').addEventListener('click', function(){
   PROXY_URL = url;
   try { if (url) localStorage.setItem(PROXY_URL_STORAGE_KEY, url); else localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}
   var isLive=!!url;
-  document.getElementById('data-badge').textContent   = isLive?'Connecting…':'Sample Data';
+  document.getElementById('data-badge').textContent   = isLive?'Connecting…':'Mock Data';
   document.getElementById('data-badge').className     = 'ab-badge '+(isLive?'b-live':'b-mock');
-  document.getElementById('pill-src').textContent     = isLive?'Live Data':'Sample Data';
-  document.getElementById('data-pill-lbl').textContent= isLive?'Live':'Sample';
+  document.getElementById('pill-src').textContent     = isLive?'Live Data':'Mock Data';
+  document.getElementById('data-pill-lbl').textContent= isLive?'Live':'Mock';
   document.querySelector('.ld').style.background      = isLive?'var(--green)':'var(--amber)';
-  document.getElementById('cal-hint').textContent     = isLive?'Fares: Google Flights live':'Fares: sample · Google Flights';
+  document.getElementById('cal-hint').textContent     = isLive?'Fares: Google Flights live':'Fares: mock · Google Flights';
   document.getElementById('api-clear').style.display  = isLive?'':'none';
   document.getElementById('api-body').classList.remove('open');
   if (isLive) {
@@ -4826,12 +4864,12 @@ document.getElementById('api-apply').addEventListener('click', function(){
 document.getElementById('api-clear').addEventListener('click', function(){
   PROXY_URL=''; document.getElementById('api-key-inp').value='';
   try { localStorage.removeItem(PROXY_URL_STORAGE_KEY); } catch(e) {}
-  document.getElementById('data-badge').textContent   = 'Sample Data';
+  document.getElementById('data-badge').textContent   = 'Mock Data';
   document.getElementById('data-badge').className     = 'ab-badge b-mock';
-  document.getElementById('pill-src').textContent     = 'Sample Data';
-  document.getElementById('data-pill-lbl').textContent= 'Sample';
+  document.getElementById('pill-src').textContent     = 'Mock Data';
+  document.getElementById('data-pill-lbl').textContent= 'Mock';
   document.querySelector('.ld').style.background      = 'var(--amber)';
-  document.getElementById('cal-hint').textContent     = 'Fares: sample · Google Flights';
+  document.getElementById('cal-hint').textContent     = 'Fares: mock · Google Flights';
   document.getElementById('api-clear').style.display  = 'none';
   document.getElementById('api-calls-lbl').style.display = 'none';
   S.prices={}; S.soloBarPrices={};
