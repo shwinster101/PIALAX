@@ -1,0 +1,827 @@
+{
+  "_readme": [
+    "PIA-047 extraction fixtures. Consumed by scripts/test-extraction.js against the",
+    "DETERMINISTIC fallbackParse() captured from BOTH html files.",
+    "",
+    "Scoring contract (enforced by the runner, not by convention):",
+    "  · expect.* lists what MUST be found. Field-level accuracy across the whole",
+    "    `parser` set must be >= 0.90.",
+    "  · `forbid` lists values that must NOT appear anywhere in the extraction.",
+    "    Any hit is a hard failure regardless of accuracy — this is the",
+    "    'zero invented required fields' gate. Inventing an origin is far worse",
+    "    than missing one: a wrong airport silently produces a wrong price and a",
+    "    wrong booking link, while a missing one just asks the user a question.",
+    "  · every emitted value carrying source_text must quote text present in the",
+    "    input verbatim; the runner checks this on every fixture.",
+    "",
+    "refIso is the reference 'today' — relative dates resolve against it and",
+    "nothing else, so these fixtures never depend on the wall clock."
+  ],
+  "parser": [
+    {
+      "name": "A1 Peru conflict — two candidate departures + hard briefing anchor",
+      "input": {
+        "text": "Memphis ends Friday Sep 4. If I leave LAX Sep 5 I land after the 5pm trek briefing. My friend is in Cusco Sep 5-12. I can leave Sep 4 if needed.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "constraint_types": [
+          "must_arrive_before"
+        ],
+        "companion_labels": [
+          "friend"
+        ]
+      },
+      "forbid": {
+        "segment_origins": [
+          "JAX",
+          "ORD",
+          "PIA"
+        ]
+      }
+    },
+    {
+      "name": "A2 briefing time is captured as a datetime, not just a date",
+      "input": {
+        "text": "The trek briefing is Sept 5 at 5pm in Cusco.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "constraint_datetimes": [
+          "2026-09-05T17:00:00"
+        ]
+      }
+    },
+    {
+      "name": "A3 24h clock briefing",
+      "input": {
+        "text": "Briefing Sep 5 at 17:00, do not be late.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "constraint_datetimes": [
+          "2026-09-05T17:00:00"
+        ]
+      }
+    },
+    {
+      "name": "B1 JAX family — tentative parents detected as companions",
+      "input": {
+        "text": "Mom and Dad are tentative for Jacksonville Aug 7-9. Sister can host, so no hotel. I am going from LAX.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "companion_labels": [
+          "mom and dad",
+          "sister"
+        ],
+        "companion_status": {
+          "mom and dad": "tentative"
+        }
+      }
+    },
+    {
+      "name": "C1 simple round trip with target price",
+      "input": {
+        "text": "Watch LAX to ORD Sep 17-20, economy, nonstop preferred, target under $200.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17"
+          }
+        ],
+        "target_price": 200
+      }
+    },
+    {
+      "name": "D1 open jaw — two ordered segments, never collapsed to a round trip",
+      "input": {
+        "text": "Fly LAX to Cusco Sep 4 and return Lima to LAX Sep 13.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "CUZ",
+            "departure_date": "2026-09-04"
+          },
+          {
+            "origin": "LIM",
+            "destination": "LAX",
+            "departure_date": "2026-09-13"
+          }
+        ]
+      }
+    },
+    {
+      "name": "D2 open jaw with IATA codes throughout",
+      "input": {
+        "text": "LAX to CUZ on 2026-09-04, then LIM to LAX on 2026-09-13.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "CUZ",
+            "departure_date": "2026-09-04"
+          },
+          {
+            "origin": "LIM",
+            "destination": "LAX",
+            "departure_date": "2026-09-13"
+          }
+        ]
+      }
+    },
+    {
+      "name": "E1 missing origin — vague note invents nothing",
+      "input": {
+        "text": "Peru sounds fun around Labor Day.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count": 0,
+        "missing_includes": [
+          "segments.0.origin",
+          "segments.0.destination",
+          "segments.0.departure_date"
+        ]
+      },
+      "forbid": {
+        "segment_origins": [
+          "LAX",
+          "LIM",
+          "CUZ"
+        ],
+        "any_date": true
+      }
+    },
+    {
+      "name": "E2 destination only, no origin",
+      "input": {
+        "text": "Thinking about Memphis in the fall.",
+        "refIso": "2026-08-02"
+      },
+      "forbid": {
+        "segment_origins": [
+          "LAX",
+          "MEM"
+        ]
+      }
+    },
+    {
+      "name": "E3 empty note",
+      "input": {
+        "text": "",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count": 0,
+        "missing_includes": [
+          "raw_text"
+        ]
+      }
+    },
+    {
+      "name": "E4 whitespace-only note",
+      "input": {
+        "text": "     \n  ",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count": 0,
+        "missing_includes": [
+          "raw_text"
+        ]
+      }
+    },
+    {
+      "name": "F1 multi-airport city is offered as a choice, never guessed",
+      "input": {
+        "text": "Fly Chicago to LAX Sep 9.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "conflict_reasons": [
+          "multi_airport_city"
+        ],
+        "conflict_values": [
+          "ORD",
+          "MDW"
+        ]
+      },
+      "forbid": {
+        "segment_origins": [
+          "ORD",
+          "MDW"
+        ]
+      }
+    },
+    {
+      "name": "F2 New York is multi-airport too",
+      "input": {
+        "text": "LAX to New York Oct 2.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "conflict_reasons": [
+          "multi_airport_city"
+        ]
+      },
+      "forbid": {
+        "segment_destinations": [
+          "JFK",
+          "LGA",
+          "EWR"
+        ]
+      }
+    },
+    {
+      "name": "G1 relative month rolls forward past the reference date",
+      "input": {
+        "text": "LAX to MEM Feb 3.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "MEM",
+            "departure_date": "2027-02-03"
+          }
+        ]
+      }
+    },
+    {
+      "name": "G2 month later in the same year stays in that year",
+      "input": {
+        "text": "LAX to MEM Nov 3.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "MEM",
+            "departure_date": "2026-11-03"
+          }
+        ]
+      }
+    },
+    {
+      "name": "G3 weekday decoration does not break date parsing",
+      "input": {
+        "text": "Leave LAX to MEM Friday Sept 4.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "MEM",
+            "departure_date": "2026-09-04"
+          }
+        ]
+      }
+    },
+    {
+      "name": "G4 ordinal suffix",
+      "input": {
+        "text": "LAX to JAX Aug 7th.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "JAX",
+            "departure_date": "2026-08-07"
+          }
+        ]
+      }
+    },
+    {
+      "name": "G5 day-before-month ordering",
+      "input": {
+        "text": "LAX to JAX 7 August.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "JAX",
+            "departure_date": "2026-08-07"
+          }
+        ]
+      }
+    },
+    {
+      "name": "G6 explicit ISO date wins outright",
+      "input": {
+        "text": "LAX to LHR on 2027-01-15.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "LHR",
+            "departure_date": "2027-01-15"
+          }
+        ]
+      }
+    },
+    {
+      "name": "G7 no reference date — a bare month cannot be resolved, and is not invented",
+      "input": {
+        "text": "LAX to MEM Sep 4.",
+        "refIso": null
+      },
+      "forbid": {
+        "any_date": true
+      }
+    },
+    {
+      "name": "H1 arrow notation",
+      "input": {
+        "text": "LAX → CUZ Sep 4.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "CUZ",
+            "departure_date": "2026-09-04"
+          }
+        ]
+      }
+    },
+    {
+      "name": "H2 ascii arrow notation",
+      "input": {
+        "text": "LAX -> LIM Sep 6.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "LIM",
+            "departure_date": "2026-09-06"
+          }
+        ]
+      }
+    },
+    {
+      "name": "H3 adjacency without a direction word is NOT a segment",
+      "input": {
+        "text": "Cusco Sep 4 and separately Lima Sep 13.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count": 0
+      }
+    },
+    {
+      "name": "I1 flight number captured",
+      "input": {
+        "text": "LAX to JAX Aug 7 on AA 1234.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "JAX",
+            "departure_date": "2026-08-07",
+            "flight_number": "AA1234"
+          }
+        ]
+      }
+    },
+    {
+      "name": "I2 flight number without a space",
+      "input": {
+        "text": "LAX to JAX Aug 7 on DL88.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "flight_number": "DL88"
+          }
+        ]
+      }
+    },
+    {
+      "name": "J1 target price with dollar sign and comma",
+      "input": {
+        "text": "LAX to LHR Dec 1, budget $1,200.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "target_price": 1200
+      }
+    },
+    {
+      "name": "J2 target phrased as 'no more than'",
+      "input": {
+        "text": "LAX to MEM Sep 4, no more than $340.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "target_price": 340
+      }
+    },
+    {
+      "name": "J3 a bare price with no budget word is not a target",
+      "input": {
+        "text": "LAX to MEM Sep 4. Last year it was $410.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "target_price": null
+      }
+    },
+    {
+      "name": "K1 decision deadline",
+      "input": {
+        "text": "LAX to ORD Sep 17. Need to decide by Sep 1.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "decision_deadline": "2026-09-01"
+      }
+    },
+    {
+      "name": "K2 book-by phrasing",
+      "input": {
+        "text": "LAX to JAX Aug 7, book by Aug 5.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "decision_deadline": "2026-08-05"
+      }
+    },
+    {
+      "name": "L1 hostile input is data, never markup",
+      "input": {
+        "text": "LAX to MEM Sep 4 <img src=x onerror=alert(1)> \"><script>alert(2)</script>",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "MEM",
+            "departure_date": "2026-09-04"
+          }
+        ]
+      }
+    },
+    {
+      "name": "L2 prose that merely mentions places is not an itinerary",
+      "input": {
+        "text": "I have never been to Memphis or Lima but I would like to go someday.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count": 0
+      },
+      "forbid": {
+        "any_date": true
+      }
+    },
+    {
+      "name": "L3 at most two segments are ever emitted",
+      "input": {
+        "text": "LAX to MEM Sep 1, then MEM to ORD Sep 4, then ORD to JAX Sep 8, then JAX to LAX Sep 12.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count_max": 2
+      }
+    },
+    {
+      "name": "M1 companion tentative status",
+      "input": {
+        "text": "My sister might come to JAX, she is not sure yet.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "companion_status": {
+          "sister": "tentative"
+        }
+      }
+    },
+    {
+      "name": "M2 no companion words means no companions",
+      "input": {
+        "text": "LAX to ORD Sep 17 solo.",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "companion_count": 0
+      }
+    },
+    {
+      "name": "N1 destination-first phrasing — 'to B from A' is not inverted",
+      "input": {
+        "text": "Flying to Lima from Los Angeles on Sept 6",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "LIM",
+            "departure_date": "2026-09-06"
+          }
+        ]
+      }
+    },
+    {
+      "name": "N2 constraint time binds to its keyword, not to a nearby clock",
+      "input": {
+        "text": "we land in cusco at 6am on sep 5, briefing that evening at 5pm",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "constraint_datetimes": [
+          "2026-09-05T17:00:00"
+        ]
+      }
+    },
+    {
+      "name": "N3 ambiguous numeric date is left unresolved rather than guessed",
+      "input": {
+        "text": "LAX->CUZ 9/4",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "CUZ",
+            "departure_date": null
+          }
+        ]
+      },
+      "forbid": {
+        "any_date": true
+      }
+    },
+    {
+      "name": "N4 unmodelled destination yields no segment rather than a wrong one",
+      "input": {
+        "text": "I want to go to Tokyo in March",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count": 0
+      },
+      "forbid": {
+        "any_date": true
+      }
+    },
+    {
+      "name": "N5 incidental place mentions are not an itinerary",
+      "input": {
+        "text": "The ATM in Lima ate my card",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segment_count": 0
+      }
+    },
+    {
+      "name": "N6 flight number + evening departure",
+      "input": {
+        "text": "My flight AA100 from LAX to LHR departs Dec 24 at 8pm",
+        "refIso": "2026-08-02"
+      },
+      "expect": {
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "LHR",
+            "departure_date": "2026-12-24"
+          }
+        ]
+      }
+    }
+  ],
+  "merge": [
+    {
+      "name": "F-scenario — a new date NEVER overwrites a confirmed one",
+      "trip_id": "peru",
+      "steps": [
+        {
+          "confirm": {
+            "field_path": "segments.0.departure_date",
+            "value": "2026-09-04"
+          }
+        },
+        {
+          "propose": {
+            "field_path": "segments.0.departure_date",
+            "value": "2026-09-05"
+          }
+        }
+      ],
+      "expect": {
+        "confirmed_values": {
+          "segments.0.departure_date": null
+        },
+        "conflicted_paths": [
+          "segments.0.departure_date"
+        ],
+        "state_unresolved": [
+          "segments.0.departure_date"
+        ]
+      }
+    },
+    {
+      "name": "reinforcement — an identical repeat does not raise a conflict",
+      "trip_id": "peru",
+      "steps": [
+        {
+          "confirm": {
+            "field_path": "segments.0.origin",
+            "value": "LAX"
+          }
+        },
+        {
+          "propose": {
+            "field_path": "segments.0.origin",
+            "value": "LAX"
+          }
+        }
+      ],
+      "expect": {
+        "confirmed_values": {
+          "segments.0.origin": "LAX"
+        },
+        "conflicted_paths": [],
+        "state_unresolved": []
+      }
+    },
+    {
+      "name": "two different unconfirmed answers both surface for review",
+      "trip_id": "jax",
+      "steps": [
+        {
+          "propose": {
+            "field_path": "segments.0.departure_date",
+            "value": "2026-08-07"
+          }
+        },
+        {
+          "propose": {
+            "field_path": "segments.0.departure_date",
+            "value": "2026-08-08"
+          }
+        }
+      ],
+      "expect": {
+        "conflicted_paths": [
+          "segments.0.departure_date"
+        ],
+        "confirmed_values": {
+          "segments.0.departure_date": null
+        }
+      }
+    },
+    {
+      "name": "confirming one candidate settles the field and clears the conflict",
+      "trip_id": "jax",
+      "steps": [
+        {
+          "propose": {
+            "field_path": "segments.0.departure_date",
+            "value": "2026-08-07"
+          }
+        },
+        {
+          "propose": {
+            "field_path": "segments.0.departure_date",
+            "value": "2026-08-08"
+          }
+        },
+        {
+          "confirm_last": true
+        }
+      ],
+      "expect": {
+        "conflicted_paths": [],
+        "confirmed_values": {
+          "segments.0.departure_date": "2026-08-08"
+        },
+        "state_unresolved": []
+      }
+    },
+    {
+      "name": "rejected facts stay in history for audit",
+      "trip_id": "jax",
+      "steps": [
+        {
+          "propose": {
+            "field_path": "target_price",
+            "value": 300
+          }
+        },
+        {
+          "reject_last": true
+        }
+      ],
+      "expect": {
+        "status_counts": {
+          "rejected": 1
+        },
+        "confirmed_values": {
+          "target_price": null
+        }
+      }
+    },
+    {
+      "name": "only confirmed facts reach TripState",
+      "trip_id": "peru",
+      "steps": [
+        {
+          "propose": {
+            "field_path": "segments.0.origin",
+            "value": "LAX"
+          }
+        },
+        {
+          "confirm": {
+            "field_path": "segments.0.destination",
+            "value": "CUZ"
+          }
+        }
+      ],
+      "expect": {
+        "state_segments": [
+          {
+            "origin": null,
+            "destination": "CUZ"
+          }
+        ],
+        "state_missing_includes": [
+          "segments.0.origin",
+          "segments.0.departure_date"
+        ]
+      }
+    }
+  ],
+  "migration": [
+    {
+      "name": "legacy notes become ContextEvent #1 and the note is left in place",
+      "watchlist": [
+        {
+          "id": "peru",
+          "notes": "Trek booked, flights not booked yet."
+        },
+        {
+          "id": "jax",
+          "notes": ""
+        },
+        {
+          "id": "memphis",
+          "notes": "Work trip, dates may slip."
+        }
+      ],
+      "expect": {
+        "created_trip_ids": [
+          "peru",
+          "memphis"
+        ],
+        "changed": true
+      }
+    },
+    {
+      "name": "running it twice creates nothing new (idempotent)",
+      "watchlist": [
+        {
+          "id": "peru",
+          "notes": "Trek booked, flights not booked yet."
+        }
+      ],
+      "run_twice": true,
+      "expect": {
+        "created_trip_ids": [
+          "peru"
+        ],
+        "changed_second_run": false
+      }
+    }
+  ]
+}

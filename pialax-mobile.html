@@ -5626,6 +5626,728 @@ function saveWatchlist() {
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify({ overrides:overrides, added:added }));
   } catch(e){}
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Trip Assistant — data layer + deterministic parser (PIA-047)
+// ═══════════════════════════════════════════════════════════════════════════
+// Three separate layers, per the 2026-08-02 sprint spec:
+//   ContextEvent — immutable raw human input. Never edited, never rewritten.
+//   ParsedFact   — one atomic proposed/confirmed fact, traceable to its event.
+//   TripState    — the decision-ready view, rebuilt from CONFIRMED facts only.
+//
+// Nothing here renders anything: the `assistant` flag gates the UI in a later
+// phase. Shipping it dark keeps this commit trivially revertible and lets the
+// fixture suite exercise the logic before any of it reaches a user.
+//
+// Every key is versioned and every load is sanitized, so a corrupt or
+// foreign-shaped value degrades to empty instead of throwing — the same
+// contract loadWatchlist()/readQuota() already follow.
+//
+// The parser below is the DETERMINISTIC fallback. A server-side LLM (Phase 3)
+// produces the same schema with better recall; this one runs when the Worker
+// route is absent, unconfigured, or failing, so the feature never hard-depends
+// on a network call or an API key.
+
+var CONTEXT_EVENTS_KEY = 'pialax_context_events_v1';
+var PARSED_FACTS_KEY   = 'pialax_parsed_facts_v1';
+var TRIP_STATE_KEY     = 'pialax_trip_state_v1';
+var FARE_HISTORY_KEY   = 'pialax_fare_history_v1';
+
+// Caps keep localStorage bounded — mobile Safari gives ~5MB for the whole
+// origin and the price cache already shares it. Oldest-first eviction, except
+// migration events, which are the only remaining copy of a pre-assistant note.
+var TA_MAX_EVENTS      = 200;
+var TA_MAX_FACTS       = 500;
+var TA_MAX_FARE_POINTS = 60;
+var TA_MAX_RAW_TEXT    = 4000;
+
+// Ids reach DOM attributes downstream (data-ce-id, data-fact-id), so they carry
+// the same charset discipline PIA-040 imposed on watchlist ids.
+var TA_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
+var TA_ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+var TA_EVENT_STATUSES = { pending:1, parsed:1, failed:1 };
+var TA_FACT_STATUSES  = { proposed:1, confirmed:1, rejected:1, superseded:1, conflicted:1 };
+
+function taNewId(prefix) {
+  var p = String(prefix || 'ta').replace(/[^A-Za-z0-9_-]/g, '');
+  return p + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 8);
+}
+function taPad2(n) { return (n < 10 ? '0' : '') + n; }
+
+// ── storage plumbing ──────────────────────────────────────────────────────
+function taReadKey(key, prop) {
+  try {
+    var raw = localStorage.getItem(key);
+    if (!raw) return null;
+    var obj = JSON.parse(raw);
+    if (!obj || typeof obj !== 'object' || obj.v !== 1) return null;
+    return obj[prop] == null ? null : obj[prop];
+  } catch (e) { return null; }
+}
+function taWriteKey(key, prop, value) {
+  try {
+    var payload = { v: 1 };
+    payload[prop] = value;
+    localStorage.setItem(key, JSON.stringify(payload));
+    return true;
+  } catch (e) { return false; }
+}
+
+// ── ContextEvent ──────────────────────────────────────────────────────────
+function sanitizeContextEvent(e) {
+  if (!e || typeof e !== 'object') return null;
+  if (typeof e.id !== 'string' || !TA_ID_RE.test(e.id)) return null;
+  if (typeof e.trip_id !== 'string' || !TA_ID_RE.test(e.trip_id)) return null;
+  var raw = typeof e.raw_text === 'string' ? e.raw_text : '';
+  return {
+    id: e.id,
+    trip_id: e.trip_id,
+    created_at: typeof e.created_at === 'string' ? e.created_at : '',
+    raw_text: raw.slice(0, TA_MAX_RAW_TEXT),
+    extraction_status: TA_EVENT_STATUSES[e.extraction_status] ? e.extraction_status : 'pending',
+    parser_version: typeof e.parser_version === 'string' ? e.parser_version : '',
+    source: e.source === 'notes_migration' ? 'notes_migration' : 'user'
+  };
+}
+function loadContextEvents() {
+  var arr = taReadKey(CONTEXT_EVENTS_KEY, 'events');
+  if (!Array.isArray(arr)) return [];
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    var e = sanitizeContextEvent(arr[i]);
+    if (e) out.push(e);
+  }
+  return out;
+}
+function saveContextEvents(events) {
+  return taWriteKey(CONTEXT_EVENTS_KEY, 'events', taCapEvents(events));
+}
+// Cap by evicting the oldest USER events first. A notes_migration event is the
+// only surviving copy of a note the user wrote before the assistant existed —
+// dropping one would be exactly the silent data loss this feature promises not
+// to do, so those are kept even past the cap.
+function taCapEvents(events) {
+  var list = Array.isArray(events) ? events.slice() : [];
+  if (list.length <= TA_MAX_EVENTS) return list;
+  var keep = [], spill = [];
+  for (var i = 0; i < list.length; i++) {
+    if (list[i] && list[i].source === 'notes_migration') keep.push(list[i]); else spill.push(list[i]);
+  }
+  var room = Math.max(0, TA_MAX_EVENTS - keep.length);
+  var trimmed = spill.slice(Math.max(0, spill.length - room));
+  return keep.concat(trimmed).sort(function (a, b) {
+    return String(a.created_at || '').localeCompare(String(b.created_at || ''));
+  });
+}
+function createContextEvent(tripId, rawText, nowIso, source) {
+  return {
+    id: taNewId('ce'),
+    trip_id: String(tripId || ''),
+    created_at: String(nowIso || ''),
+    raw_text: String(rawText == null ? '' : rawText).slice(0, TA_MAX_RAW_TEXT),
+    extraction_status: 'pending',
+    parser_version: '',
+    source: source === 'notes_migration' ? 'notes_migration' : 'user'
+  };
+}
+
+// Pure. Turns each watchlist item's legacy `notes` blob into ContextEvent #1 so
+// nothing written before the assistant is stranded. Idempotent via a
+// deterministic id + a source check, and NON-DESTRUCTIVE: `notes` is left on
+// the item untouched, so with the flag off the old textarea keeps working and
+// reverting this feature loses nothing.
+function migrateNotesToContextEvents(watchlist, existingEvents, nowIso) {
+  var events = Array.isArray(existingEvents) ? existingEvents.slice() : [];
+  var seen = {};
+  for (var i = 0; i < events.length; i++) {
+    if (events[i] && events[i].source === 'notes_migration') seen[events[i].trip_id] = true;
+  }
+  var changed = false;
+  var items = Array.isArray(watchlist) ? watchlist : [];
+  for (var j = 0; j < items.length; j++) {
+    var t = items[j];
+    if (!t || !t.id || seen[t.id]) continue;
+    var notes = typeof t.notes === 'string' ? t.notes.trim() : '';
+    if (!notes) continue;
+    events.push({
+      id: 'ce-mig-' + t.id,
+      trip_id: t.id,
+      created_at: String(nowIso || ''),
+      raw_text: notes.slice(0, TA_MAX_RAW_TEXT),
+      extraction_status: 'pending',
+      parser_version: '',
+      source: 'notes_migration'
+    });
+    seen[t.id] = true;
+    changed = true;
+  }
+  return { events: events, changed: changed };
+}
+
+// ── ParsedFact ────────────────────────────────────────────────────────────
+function sanitizeParsedFact(f) {
+  if (!f || typeof f !== 'object') return null;
+  if (typeof f.id !== 'string' || !TA_ID_RE.test(f.id)) return null;
+  if (typeof f.trip_id !== 'string' || !TA_ID_RE.test(f.trip_id)) return null;
+  if (typeof f.field_path !== 'string' || !f.field_path) return null;
+  var conf = typeof f.confidence === 'number' && isFinite(f.confidence) ? f.confidence : 0;
+  if (conf < 0) conf = 0; if (conf > 1) conf = 1;
+  return {
+    id: f.id,
+    trip_id: f.trip_id,
+    context_event_id: (typeof f.context_event_id === 'string' && TA_ID_RE.test(f.context_event_id)) ? f.context_event_id : '',
+    field_path: f.field_path,
+    value: f.value === undefined ? null : f.value,
+    status: TA_FACT_STATUSES[f.status] ? f.status : 'proposed',
+    confidence: conf,
+    source_text: typeof f.source_text === 'string' ? f.source_text.slice(0, 400) : '',
+    is_inferred: f.is_inferred === true,
+    created_at: typeof f.created_at === 'string' ? f.created_at : '',
+    resolved_at: typeof f.resolved_at === 'string' ? f.resolved_at : ''
+  };
+}
+function loadParsedFacts() {
+  var arr = taReadKey(PARSED_FACTS_KEY, 'facts');
+  if (!Array.isArray(arr)) return [];
+  var out = [];
+  for (var i = 0; i < arr.length; i++) {
+    var f = sanitizeParsedFact(arr[i]);
+    if (f) out.push(f);
+  }
+  return out;
+}
+function saveParsedFacts(facts) {
+  var list = Array.isArray(facts) ? facts.slice() : [];
+  if (list.length > TA_MAX_FACTS) {
+    // Evict resolved history (superseded/rejected) before anything live.
+    var live = [], dead = [];
+    for (var i = 0; i < list.length; i++) {
+      var s = list[i].status;
+      if (s === 'superseded' || s === 'rejected') dead.push(list[i]); else live.push(list[i]);
+    }
+    var room = Math.max(0, TA_MAX_FACTS - live.length);
+    list = live.concat(dead.slice(Math.max(0, dead.length - room)));
+  }
+  return taWriteKey(PARSED_FACTS_KEY, 'facts', list);
+}
+
+// ── TripState ─────────────────────────────────────────────────────────────
+function sanitizeTripState(s) {
+  if (!s || typeof s !== 'object') return null;
+  if (typeof s.trip_id !== 'string' || !TA_ID_RE.test(s.trip_id)) return null;
+  var segs = Array.isArray(s.segments) ? s.segments.slice(0, 2) : [];
+  var cleanSegs = [];
+  for (var i = 0; i < segs.length; i++) {
+    var g = segs[i] || {};
+    cleanSegs.push({
+      origin: (typeof g.origin === 'string' && WL_CODE_RE.test(g.origin)) ? g.origin : null,
+      destination: (typeof g.destination === 'string' && WL_CODE_RE.test(g.destination)) ? g.destination : null,
+      departure_date: (typeof g.departure_date === 'string' && TA_ISO_DATE_RE.test(g.departure_date)) ? g.departure_date : null,
+      flight_number: typeof g.flight_number === 'string' ? g.flight_number.slice(0, 12) : null
+    });
+  }
+  return {
+    trip_id: s.trip_id,
+    version: (typeof s.version === 'number' && s.version >= 0) ? s.version : 0,
+    mode: (s.mode === 'family' || s.mode === 'meetup') ? s.mode : 'solo',
+    status: WATCHLIST_STAGES[s.status] ? s.status : 'watching',
+    segments: cleanSegs,
+    travelers: Array.isArray(s.travelers) ? s.travelers.slice(0, 12) : [],
+    constraints: Array.isArray(s.constraints) ? s.constraints.slice(0, 20) : [],
+    companions: Array.isArray(s.companions) ? s.companions.slice(0, 20) : [],
+    target_price: (typeof s.target_price === 'number' && isFinite(s.target_price)) ? s.target_price : null,
+    decision_deadline: (typeof s.decision_deadline === 'string' && TA_ISO_DATE_RE.test(s.decision_deadline)) ? s.decision_deadline : null,
+    unresolved_conflicts: Array.isArray(s.unresolved_conflicts) ? s.unresolved_conflicts.slice(0, 40) : [],
+    missing_required_fields: Array.isArray(s.missing_required_fields) ? s.missing_required_fields.slice(0, 40) : [],
+    last_fare_snapshot_id: typeof s.last_fare_snapshot_id === 'string' ? s.last_fare_snapshot_id : '',
+    recommendation: (s.recommendation && typeof s.recommendation === 'object') ? s.recommendation : null,
+    updated_at: typeof s.updated_at === 'string' ? s.updated_at : ''
+  };
+}
+function loadTripStates() {
+  var obj = taReadKey(TRIP_STATE_KEY, 'trips');
+  if (!obj || typeof obj !== 'object') return {};
+  var out = {};
+  var keys = Object.keys(obj);
+  for (var i = 0; i < keys.length; i++) {
+    var st = sanitizeTripState(obj[keys[i]]);
+    if (st) out[st.trip_id] = st;
+  }
+  return out;
+}
+function saveTripStates(trips) { return taWriteKey(TRIP_STATE_KEY, 'trips', trips || {}); }
+
+// ── fare history (per trip; group_price_v1 only covers meetup hubs) ────────
+function loadFareHistory() {
+  var obj = taReadKey(FARE_HISTORY_KEY, 'trips');
+  return (obj && typeof obj === 'object') ? obj : {};
+}
+function recordFareHistory(tripId, price, source, nowMs, snapshotId) {
+  if (!tripId || typeof price !== 'number' || !isFinite(price) || price <= 0) return false;
+  var all = loadFareHistory();
+  var series = Array.isArray(all[tripId]) ? all[tripId] : [];
+  series.push({
+    ts: typeof nowMs === 'number' ? nowMs : Date.now(),
+    price: price,
+    source: source === 'live' ? 'live' : 'mock',
+    snapshot_id: String(snapshotId || '')
+  });
+  if (series.length > TA_MAX_FARE_POINTS) series = series.slice(series.length - TA_MAX_FARE_POINTS);
+  all[tripId] = series;
+  return taWriteKey(FARE_HISTORY_KEY, 'trips', all);
+}
+
+// ── gazetteer ─────────────────────────────────────────────────────────────
+// Deliberately small: only airports this app already models, plus the cities
+// the seeded trips actually mention. A bigger list would raise recall at the
+// cost of false positives on ordinary prose, and the LLM path is the answer
+// for breadth — this one only has to be RIGHT, not complete.
+var TA_AIRPORTS = ['LAX','CUZ','LIM','JAX','MEM','ORD','PIA','JFK','LHR','MIA','AUS','ATL','SAL','PTY','MDW','LGA','EWR','LGW','DFW','IAH'];
+var TA_CITIES = {
+  'los angeles':'LAX', 'cusco':'CUZ', 'cuzco':'CUZ', 'lima':'LIM',
+  'jacksonville':'JAX', 'memphis':'MEM', 'peoria':'PIA', 'miami':'MIA',
+  'austin':'AUS', 'atlanta':'ATL', 'panama city':'PTY'
+};
+// Cities with more than one plausible airport are never guessed — the spec is
+// explicit that these become a CHOICE for the user, not an assumption.
+var TA_MULTI_AIRPORT = {
+  'chicago':   ['ORD','MDW'],
+  'new york':  ['JFK','LGA','EWR'],
+  'nyc':       ['JFK','LGA','EWR'],
+  'london':    ['LHR','LGW'],
+  'houston':   ['IAH','HOU'],
+  'dallas':    ['DFW','DAL']
+};
+var TA_MONTHS = { jan:1, feb:2, mar:3, apr:4, may:5, jun:6, jul:7, aug:8, sep:9, sept:9, oct:10, nov:11, dec:12 };
+
+// Pure. Resolves a date mention against a supplied reference date. Relative
+// resolution ONLY happens when refIso is given (the spec forbids inventing a
+// year); a bare "Sep 4" written after September rolls to the next year.
+function taResolveDate(text, refIso) {
+  if (!text) return null;
+  var s = String(text);
+  var iso = /(\d{4})-(\d{2})-(\d{2})/.exec(s);
+  if (iso) return iso[0];
+  var rm = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(refIso || ''));
+  if (!rm) return null;
+  var refY = +rm[1], refM = +rm[2], refD = +rm[3];
+  var mon = null, day = null;
+  var m = /\b([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:st|nd|rd|th)?\b/.exec(s);
+  if (m) {
+    var k = m[1].toLowerCase();
+    var mk = TA_MONTHS[k] || TA_MONTHS[k.slice(0, 3)];
+    if (mk) { mon = mk; day = +m[2]; }
+  }
+  if (mon == null) {
+    var m2 = /\b(\d{1,2})(?:st|nd|rd|th)?\s+([A-Za-z]{3,9})\b/.exec(s);
+    if (m2) {
+      var k2 = m2[2].toLowerCase();
+      var mk2 = TA_MONTHS[k2] || TA_MONTHS[k2.slice(0, 3)];
+      if (mk2) { mon = mk2; day = +m2[1]; }
+    }
+  }
+  if (mon == null || !day || day < 1 || day > 31) return null;
+  var year = refY;
+  if (mon < refM || (mon === refM && day < refD)) year = refY + 1;
+  return year + '-' + taPad2(mon) + '-' + taPad2(day);
+}
+
+// Pure. Every place mention in the text, in order, de-overlapped.
+function taScanPlaces(text) {
+  var s = String(text || '');
+  var hits = [];
+  var re = /\b([A-Z]{3})\b/g, m;
+  while ((m = re.exec(s))) {
+    if (TA_AIRPORTS.indexOf(m[1]) > -1) {
+      hits.push({ code: m[1], label: m[1], index: m.index, len: 3, options: null });
+    }
+  }
+  function scanNames(map, multi) {
+    var names = Object.keys(map);
+    for (var i = 0; i < names.length; i++) {
+      var name = names[i];
+      var cre = new RegExp('\\b' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), cm;
+      while ((cm = cre.exec(s))) {
+        hits.push({
+          code: multi ? null : map[name],
+          label: s.substr(cm.index, name.length),
+          index: cm.index,
+          len: name.length,
+          options: multi ? map[name].slice() : null
+        });
+      }
+    }
+  }
+  scanNames(TA_CITIES, false);
+  scanNames(TA_MULTI_AIRPORT, true);
+  hits.sort(function (a, b) { return a.index - b.index || b.len - a.len; });
+  // Drop hits that sit inside an earlier, longer match ("Panama City" vs "PTY").
+  var out = [];
+  for (var j = 0; j < hits.length; j++) {
+    var h = hits[j], covered = false;
+    for (var k = 0; k < out.length; k++) {
+      var p = out[k];
+      if (h.index < p.index + p.len && p.index < h.index + h.len) { covered = true; break; }
+    }
+    if (!covered) out.push(h);
+  }
+  return out;
+}
+
+// Pure. The deterministic extractor. Returns the SAME schema the LLM route
+// returns, so downstream code never branches on which produced it — only
+// parser_version and the (lower) confidences differ.
+function fallbackParse(rawText, refIso) {
+  var s = String(rawText == null ? '' : rawText);
+  var out = {
+    segments: [], constraints: [], companions: [],
+    target_price: null, decision_deadline: null,
+    missing_fields: [], conflicts: []
+  };
+  if (!s.trim()) { out.missing_fields.push('raw_text'); return out; }
+
+  var places = taScanPlaces(s);
+  // Pair adjacent places only when a direction marker sits between them, so
+  // "Cusco Sep 4 and return Lima" does NOT become a Cusco→Lima segment.
+  var pairs = [];
+  for (var i = 0; i + 1 < places.length; i++) {
+    var a = places[i], b = places[i + 1];
+    var between = s.slice(a.index + a.len, b.index);
+    if (between.length > 40) continue;
+    // "LAX to CUZ" — the common order.
+    if (/(?:→|->|\bto\b|\bthrough\b)/i.test(between)) {
+      pairs.push({ from: a, to: b, tailFrom: b });
+      i++; // consume both; a place belongs to one segment
+    } else if (/\bfrom\b/i.test(between)) {
+      // "flying to Lima from Los Angeles" — destination stated first. Reading
+      // this in text order would invert the whole itinerary, so the direction
+      // word decides, not the position.
+      pairs.push({ from: b, to: a, tailFrom: b });
+      i++;
+    }
+  }
+  for (var p = 0; p < pairs.length && out.segments.length < 2; p++) {
+    var pr = pairs[p];
+    var idx = out.segments.length;
+    // Date = the first resolvable date AFTER this pair, before the next pair.
+    var tailStart = pr.tailFrom.index + pr.tailFrom.len;
+    var nextPair = pairs[p + 1];
+    var tailEnd = nextPair ? Math.min(nextPair.from.index, nextPair.to.index) : s.length;
+    var tail = s.slice(tailStart, Math.max(tailStart, tailEnd));
+    var dep = taResolveDate(tail, refIso);
+    var fnm = /\b([A-Z]{2})\s?(\d{2,4})\b/.exec(tail);
+    var srcFrom = Math.max(0, pr.from.index);
+    var seg = {
+      origin: pr.from.code,
+      destination: pr.to.code,
+      departure_date: dep,
+      flight_number: fnm ? (fnm[1] + fnm[2]) : null,
+      confidence: 0.6,
+      source_text: s.slice(srcFrom, Math.min(s.length, tailStart + 24)).trim(),
+      is_inferred: true
+    };
+    out.segments.push(seg);
+    if (!seg.origin) {
+      out.missing_fields.push('segments.' + idx + '.origin');
+      if (pr.from.options) {
+        out.conflicts.push({
+          field_path: 'segments.' + idx + '.origin',
+          values: pr.from.options,
+          reason: 'multi_airport_city',
+          source_text: pr.from.label
+        });
+      }
+    }
+    if (!seg.destination) {
+      out.missing_fields.push('segments.' + idx + '.destination');
+      if (pr.to.options) {
+        out.conflicts.push({
+          field_path: 'segments.' + idx + '.destination',
+          values: pr.to.options,
+          reason: 'multi_airport_city',
+          source_text: pr.to.label
+        });
+      }
+    }
+    if (!seg.departure_date) out.missing_fields.push('segments.' + idx + '.departure_date');
+  }
+  if (!out.segments.length) {
+    out.missing_fields.push('segments.0.origin');
+    out.missing_fields.push('segments.0.destination');
+    out.missing_fields.push('segments.0.departure_date');
+  }
+
+  // Hard time anchors — a briefing/meeting/check-in the itinerary must beat.
+  var cre = /\b(briefing|check-?in|meeting|ceremony|orientation|tour start|trek start|wedding)\b/gi, cm;
+  while ((cm = cre.exec(s))) {
+    var win = s.slice(Math.max(0, cm.index - 70), Math.min(s.length, cm.index + 90));
+    var cDate = taResolveDate(win, refIso);
+    // Look for the time AFTER the keyword first. "we land at 6am ... briefing
+    // at 5pm" must bind 5pm to the briefing — scanning the whole window would
+    // grab the landing time and produce a constraint that is simply wrong,
+    // which then drives a wrong CHANGE_DATES recommendation downstream.
+    var timeRe = /\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b|\b(\d{1,2}):(\d{2})\b/i;
+    var after = s.slice(cm.index, Math.min(s.length, cm.index + 90));
+    var tm = timeRe.exec(after) || timeRe.exec(win);
+    var hh = null, mi = 0;
+    if (tm) {
+      if (tm[1]) {
+        hh = +tm[1]; mi = tm[2] ? +tm[2] : 0;
+        if (/pm/i.test(tm[3]) && hh < 12) hh += 12;
+        if (/am/i.test(tm[3]) && hh === 12) hh = 0;
+      } else { hh = +tm[4]; mi = +tm[5]; }
+    }
+    if (cDate) {
+      out.constraints.push({
+        type: 'must_arrive_before',
+        datetime: cDate + (hh == null ? '' : 'T' + taPad2(hh) + ':' + taPad2(mi) + ':00'),
+        label: cm[1],
+        confidence: hh == null ? 0.45 : 0.65,
+        source_text: win.trim(),
+        is_inferred: true
+      });
+    }
+  }
+
+  // Target price / budget ceiling.
+  var tp = /\b(?:target|budget|under|below|no more than|max(?:imum)?)\b[^$\d]{0,14}\$?\s?(\d[\d,]*)/i.exec(s);
+  if (tp) {
+    var n = parseInt(String(tp[1]).replace(/,/g, ''), 10);
+    if (isFinite(n) && n > 0) out.target_price = n;
+  }
+  // Decision deadline — "decide by Aug 15", "book by Sep 1".
+  var dd = /\b(?:decide|book|decision|commit)\b[^.]{0,20}?\bby\b([^.,;]{0,24})/i.exec(s);
+  if (dd) {
+    var ddIso = taResolveDate(dd[1], refIso);
+    if (ddIso) out.decision_deadline = ddIso;
+  }
+  // Companions — role words only. Names are NOT inferred: guessing that a
+  // capitalised word is a person is exactly the kind of invention the spec bans.
+  var pre = /\b(mom and dad|mom|dad|sister|brother|friend|parents|wife|husband|partner)\b/gi, pm;
+  var seenC = {};
+  while ((pm = pre.exec(s))) {
+    var who = pm[1].toLowerCase();
+    if (seenC[who]) continue;
+    seenC[who] = true;
+    var cwin = s.slice(Math.max(0, pm.index - 40), Math.min(s.length, pm.index + 80));
+    out.companions.push({
+      label: pm[1],
+      status: /\btentative|maybe|might|unsure|not sure\b/i.test(cwin) ? 'tentative' : 'unknown',
+      confidence: 0.5,
+      source_text: cwin.trim(),
+      is_inferred: true
+    });
+  }
+  return out;
+}
+
+// Pure. Strict shape gate. Anything that fails here is discarded whole rather
+// than "repaired" — a half-understood note must never become confirmed state.
+function validateExtraction(obj) {
+  var errs = [];
+  if (!obj || typeof obj !== 'object') return { ok: false, errors: ['not an object'] };
+  var arrays = ['segments', 'constraints', 'companions', 'missing_fields', 'conflicts'];
+  for (var i = 0; i < arrays.length; i++) {
+    if (!Array.isArray(obj[arrays[i]])) errs.push(arrays[i] + ' must be an array');
+  }
+  if (obj.target_price != null && typeof obj.target_price !== 'number') errs.push('target_price must be a number or null');
+  if (obj.decision_deadline != null && !TA_ISO_DATE_RE.test(String(obj.decision_deadline))) errs.push('decision_deadline must be YYYY-MM-DD or null');
+  if (Array.isArray(obj.segments)) {
+    if (obj.segments.length > 2) errs.push('at most 2 segments supported');
+    for (var j = 0; j < obj.segments.length; j++) {
+      var g = obj.segments[j] || {};
+      if (g.origin != null && !WL_CODE_RE.test(String(g.origin))) errs.push('segments.' + j + '.origin bad code');
+      if (g.destination != null && !WL_CODE_RE.test(String(g.destination))) errs.push('segments.' + j + '.destination bad code');
+      if (g.departure_date != null && !TA_ISO_DATE_RE.test(String(g.departure_date))) errs.push('segments.' + j + '.departure_date not YYYY-MM-DD');
+    }
+  }
+  return { ok: errs.length === 0, errors: errs };
+}
+
+// Pure. Flattens an extraction into atomic facts keyed by field_path.
+function extractionToFacts(extraction, tripId, ceId, nowIso, idSeed) {
+  var facts = [];
+  var seq = 0;
+  function mk(path, value, conf, src, inferred) {
+    if (value == null || value === '') return;
+    seq++;
+    facts.push({
+      id: (idSeed ? idSeed + '-' + seq : taNewId('fact')),
+      trip_id: String(tripId || ''),
+      context_event_id: String(ceId || ''),
+      field_path: path,
+      value: value,
+      status: 'proposed',
+      confidence: typeof conf === 'number' ? conf : 0.5,
+      source_text: String(src || '').slice(0, 400),
+      is_inferred: inferred === true,
+      created_at: String(nowIso || ''),
+      resolved_at: ''
+    });
+  }
+  if (!extraction || typeof extraction !== 'object') return facts;
+  var segs = Array.isArray(extraction.segments) ? extraction.segments : [];
+  for (var i = 0; i < segs.length; i++) {
+    var g = segs[i] || {};
+    mk('segments.' + i + '.origin', g.origin, g.confidence, g.source_text, g.is_inferred);
+    mk('segments.' + i + '.destination', g.destination, g.confidence, g.source_text, g.is_inferred);
+    mk('segments.' + i + '.departure_date', g.departure_date, g.confidence, g.source_text, g.is_inferred);
+    mk('segments.' + i + '.flight_number', g.flight_number, g.confidence, g.source_text, g.is_inferred);
+  }
+  var cons = Array.isArray(extraction.constraints) ? extraction.constraints : [];
+  for (var c = 0; c < cons.length; c++) {
+    var k = cons[c] || {};
+    mk('constraints.' + c, { type: k.type, datetime: k.datetime, label: k.label }, k.confidence, k.source_text, k.is_inferred);
+  }
+  var comps = Array.isArray(extraction.companions) ? extraction.companions : [];
+  for (var m = 0; m < comps.length; m++) {
+    var cp = comps[m] || {};
+    mk('companions.' + m, { label: cp.label, status: cp.status }, cp.confidence, cp.source_text, cp.is_inferred);
+  }
+  mk('target_price', extraction.target_price, 0.7, '', false);
+  mk('decision_deadline', extraction.decision_deadline, 0.7, '', false);
+  return facts;
+}
+
+function taSameValue(a, b) {
+  if (a === b) return true;
+  try { return JSON.stringify(a) === JSON.stringify(b); } catch (e) { return false; }
+}
+
+// Pure. THE merge contract, and the reason this whole layer exists:
+//   · a proposed fact NEVER overwrites a confirmed one;
+//   · an identical repeat reinforces (recorded as superseded, not a conflict);
+//   · a DIFFERENT value for a confirmed field raises a conflict the user must
+//     settle — both values are kept, neither wins silently;
+//   · rejected facts stay in history for audit.
+function applyParsedFacts(existingFacts, newFacts) {
+  var facts = Array.isArray(existingFacts) ? existingFacts.slice() : [];
+  var incoming = Array.isArray(newFacts) ? newFacts : [];
+  var conflicts = [];
+  for (var i = 0; i < incoming.length; i++) {
+    var nf = incoming[i];
+    if (!nf || !nf.field_path) continue;
+    var confirmed = null, proposed = [];
+    for (var j = 0; j < facts.length; j++) {
+      var f = facts[j];
+      if (f.trip_id !== nf.trip_id || f.field_path !== nf.field_path) continue;
+      if (f.status === 'confirmed') confirmed = f;
+      else if (f.status === 'proposed' || f.status === 'conflicted') proposed.push(f);
+    }
+    if (confirmed) {
+      if (taSameValue(confirmed.value, nf.value)) {
+        // Reinforcement: the new note agrees with what the user already
+        // confirmed. Keep it as history, do not re-ask.
+        facts.push(Object.assign({}, nf, { status: 'superseded' }));
+      } else {
+        confirmed.status = 'conflicted';
+        facts.push(Object.assign({}, nf, { status: 'conflicted' }));
+        conflicts.push({ field_path: nf.field_path, confirmed_id: confirmed.id, proposed_id: nf.id });
+      }
+      continue;
+    }
+    // No confirmed value yet: an identical pending proposal is a duplicate.
+    var dup = false;
+    for (var d = 0; d < proposed.length; d++) {
+      if (taSameValue(proposed[d].value, nf.value)) { dup = true; break; }
+    }
+    if (dup) { facts.push(Object.assign({}, nf, { status: 'superseded' })); continue; }
+    if (proposed.length) {
+      // Two different unconfirmed answers for the same field — surface both.
+      for (var q = 0; q < proposed.length; q++) proposed[q].status = 'conflicted';
+      facts.push(Object.assign({}, nf, { status: 'conflicted' }));
+      conflicts.push({ field_path: nf.field_path, confirmed_id: '', proposed_id: nf.id });
+      continue;
+    }
+    facts.push(nf);
+  }
+  return { facts: facts, conflicts: conflicts };
+}
+
+// Pure. Status transition with an audit stamp.
+function setFactStatus(facts, id, status, nowIso) {
+  var list = Array.isArray(facts) ? facts.slice() : [];
+  if (!TA_FACT_STATUSES[status]) return list;
+  for (var i = 0; i < list.length; i++) {
+    if (list[i].id !== id) continue;
+    var updated = Object.assign({}, list[i], { status: status, resolved_at: String(nowIso || '') });
+    list[i] = updated;
+    if (status === 'confirmed') {
+      // Confirming one answer settles the field: every other live candidate
+      // for the same path steps aside, so a resolved conflict cannot re-fire.
+      for (var j = 0; j < list.length; j++) {
+        if (j === i) continue;
+        var o = list[j];
+        if (o.trip_id === updated.trip_id && o.field_path === updated.field_path &&
+            (o.status === 'proposed' || o.status === 'conflicted' || o.status === 'confirmed')) {
+          list[j] = Object.assign({}, o, { status: 'superseded', resolved_at: String(nowIso || '') });
+        }
+      }
+    }
+    break;
+  }
+  return list;
+}
+
+var TA_REQUIRED_FIELDS = ['segments.0.origin', 'segments.0.destination', 'segments.0.departure_date'];
+
+// Pure. Rebuilds decision-ready state from CONFIRMED facts only — the single
+// rule that keeps an unreviewed extraction out of a recommendation or a
+// booking link. Bumps `version` so a recommendation can record what it saw.
+function rebuildTripState(tripId, facts, prevState, nowIso) {
+  var base = sanitizeTripState(prevState) || {
+    trip_id: String(tripId), version: 0, mode: 'solo', status: 'watching',
+    segments: [], travelers: [], constraints: [], companions: [],
+    target_price: null, decision_deadline: null, unresolved_conflicts: [],
+    missing_required_fields: [], last_fare_snapshot_id: '', recommendation: null, updated_at: ''
+  };
+  var segs = [{ origin: null, destination: null, departure_date: null, flight_number: null },
+              { origin: null, destination: null, departure_date: null, flight_number: null }];
+  var constraints = [], companions = [], conflicts = {};
+  var target = null, deadline = null, segUsed = 0;
+  var list = Array.isArray(facts) ? facts : [];
+  for (var i = 0; i < list.length; i++) {
+    var f = list[i];
+    if (!f || f.trip_id !== tripId) continue;
+    if (f.status === 'conflicted') { conflicts[f.field_path] = true; continue; }
+    if (f.status !== 'confirmed') continue;
+    var mSeg = /^segments\.(\d+)\.(origin|destination|departure_date|flight_number)$/.exec(f.field_path);
+    if (mSeg) {
+      var idx = +mSeg[1];
+      if (idx < 2) { segs[idx][mSeg[2]] = f.value; segUsed = Math.max(segUsed, idx + 1); }
+      continue;
+    }
+    if (/^constraints\./.test(f.field_path)) { constraints.push(f.value); continue; }
+    if (/^companions\./.test(f.field_path)) { companions.push(f.value); continue; }
+    if (f.field_path === 'target_price') { target = f.value; continue; }
+    if (f.field_path === 'decision_deadline') { deadline = f.value; continue; }
+  }
+  var finalSegs = segs.slice(0, Math.max(1, segUsed));
+  var missing = [];
+  for (var r = 0; r < TA_REQUIRED_FIELDS.length; r++) {
+    var rm2 = /^segments\.(\d+)\.(\w+)$/.exec(TA_REQUIRED_FIELDS[r]);
+    if (rm2 && !finalSegs[+rm2[1]][rm2[2]]) missing.push(TA_REQUIRED_FIELDS[r]);
+  }
+  return {
+    trip_id: String(tripId),
+    version: (base.version || 0) + 1,
+    mode: base.mode,
+    status: base.status,
+    segments: finalSegs,
+    travelers: base.travelers,
+    constraints: constraints,
+    companions: companions,
+    target_price: target,
+    decision_deadline: deadline,
+    unresolved_conflicts: Object.keys(conflicts),
+    missing_required_fields: missing,
+    last_fare_snapshot_id: base.last_fare_snapshot_id,
+    recommendation: base.recommendation,
+    updated_at: String(nowIso || '')
+  };
+}
+
 function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id === id; })[0] || null; }
 // Matches a solo dest to its watchlist entry (if any) — used to sync the
 // per-solo-card notes textarea with the watchlist's own notes field.

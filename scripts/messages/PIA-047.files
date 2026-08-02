@@ -1,0 +1,14 @@
+# PIA-047 ship manifest — Phase 2 of the "Context to Decision" sprint:
+# ContextEvent / ParsedFact / TripState data layer, non-destructive notes
+# migration, and the deterministic fallback parser. Ships DARK — no UI, no
+# call sites, nothing gated on yet. No security surface touched.
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/harness.js
+scripts/test-core.js
+scripts/test-extraction.sh
+scripts/test-extraction.js
+scripts/fixtures/extraction-fixtures.json
+scripts/messages/PIA-047.msg
+scripts/messages/PIA-047.files
