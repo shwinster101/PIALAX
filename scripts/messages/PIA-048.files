@@ -1,0 +1,17 @@
+# PIA-048 ship manifest — Phase 3 of the "Context to Decision" sprint:
+# Worker POST /extract (Anthropic, fail-closed) + the client extraction
+# pipeline with deterministic fallback. Ships DARK — no UI calls it yet.
+# SECURITY-RELEVANT: adds a second Worker secret (ANTHROPIC_API_KEY) and a
+# new POST route. Key stays server-side; the HTML files never reference it.
+# Envelope self-includes per HQ §2.4 D1.
+worker.js
+wrangler.toml
+pialax.html
+pialax-mobile.html
+scripts/harness.js
+scripts/test-extraction.js
+scripts/test-worker.sh
+scripts/test-worker.js
+PIALAX-SETUP-GUIDE.txt
+scripts/messages/PIA-048.msg
+scripts/messages/PIA-048.files

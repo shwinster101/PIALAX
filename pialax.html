@@ -6127,6 +6127,162 @@ function rebuildTripState(tripId, facts, prevState, nowIso) {
   };
 }
 
+
+// ── extraction pipeline (PIA-048) ─────────────────────────────────────────
+// Turns a typed note into proposed facts. Two producers, one schema: the
+// Worker's /extract route (LLM, better recall) and fallbackParse (local,
+// deterministic). Downstream code never branches on which ran — only
+// parser_version and the confidences differ.
+//
+// Ordering here is the whole safety story. The ContextEvent is persisted
+// BEFORE any network call, so "your note was saved" is true even if the
+// request times out, the Worker is old, the key is missing, or the browser is
+// offline. Extraction is an enrichment step on already-durable data, never a
+// precondition for keeping it.
+//
+// Spends ZERO SerpAPI quota — /extract never touches SerpAPI — and only ever
+// fires from an explicit user action, same discipline as canFetchLiveDates().
+
+var TA_EXTRACT_TIMEOUT_MS = 25000; // > the Worker's own 20s, so its 504 wins
+
+// Pure. Decides what a /extract response means, which is really the decision
+// of what to tell the user:
+//   'ok'       — usable extraction came back
+//   'fallback' — this Worker can't do extraction (old deploy, no key, upstream
+//                trouble). Use the local parser and say nothing; the feature
+//                still works, just with lower recall. Nagging here would be
+//                noise about something the user cannot act on.
+//   'failed'   — a real, actionable misconfiguration (bad API key). Worth
+//                surfacing, because only the operator can fix it.
+//   'retry'    — transient (rate limit). Offer the action again.
+function classifyExtractResponse(status, body) {
+  var code = '';
+  try { var j = (typeof body === 'string') ? JSON.parse(body) : body; if (j && j.code) code = String(j.code); } catch (e) {}
+  if (status === 200) return 'ok';
+  if (status === 404 || status === 405 || status === 501) return 'fallback';
+  if (status === 429) return 'retry';
+  if (code === 'bad_key') return 'failed';
+  if (status === 0) return 'fallback';   // network error / offline
+  if (status === 504 || code === 'timeout') return 'retry';
+  return 'fallback';                     // 4xx/5xx we can't act on
+}
+
+// Runs the LLM route when it is available, else the local parser. Always
+// resolves — never rejects — with {extraction, parser_version, classification}.
+function requestExtraction(event, tripState, todayIso, tz) {
+  var localResult = {
+    extraction: fallbackParse(event.raw_text, todayIso),
+    parser_version: 'fallback-1',
+    classification: 'fallback'
+  };
+  if (!flagOn('assistant') || !PROXY_URL || typeof fetch !== 'function') {
+    return Promise.resolve(localResult);
+  }
+  var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, TA_EXTRACT_TIMEOUT_MS) : null;
+  return fetch(PROXY_URL + '/extract', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      today: todayIso,
+      tz: tz || 'UTC',
+      trip_state: tripState || null,
+      context_event: { id: event.id, raw_text: event.raw_text }
+    }),
+    signal: ctrl ? ctrl.signal : undefined
+  }).then(function (res) {
+    if (timer) clearTimeout(timer);
+    return res.text().then(function (text) {
+      var kind = classifyExtractResponse(res.status, text);
+      if (kind !== 'ok') {
+        console.warn('[PIALAX] /extract ' + res.status + ' → ' + kind + '; using local parser');
+        localResult.classification = kind;
+        return localResult;
+      }
+      var payload = null;
+      try { payload = JSON.parse(text); } catch (e) {}
+      // Validate client-side too. The Worker already checked, but this is the
+      // boundary where data enters *this* app's storage, and the cost of
+      // re-checking is a function call.
+      var v = payload && payload.extraction ? validateExtraction(payload.extraction) : { ok: false };
+      if (!v.ok) {
+        console.warn('[PIALAX] /extract returned an extraction that failed local validation; using local parser');
+        localResult.classification = 'fallback';
+        return localResult;
+      }
+      return {
+        extraction: payload.extraction,
+        parser_version: payload.parser_version || 'llm-1',
+        classification: 'ok'
+      };
+    });
+  }).catch(function (e) {
+    if (timer) clearTimeout(timer);
+    console.warn('[PIALAX] /extract failed (' + (e && e.message) + '); using local parser');
+    localResult.classification = (e && e.name === 'AbortError') ? 'retry' : 'fallback';
+    return localResult;
+  });
+}
+
+// Persists the event, then enriches it. Returns a promise resolving to the
+// stored event id so a caller can re-render or retry against the same id.
+function submitContextNote(tripId, text, nowIso) {
+  var now = nowIso || new Date().toISOString();
+  var ev = createContextEvent(tripId, text, now, 'user');
+  // Durable FIRST. Everything after this point is best-effort.
+  var events = loadContextEvents();
+  events.push(ev);
+  if (!saveContextEvents(events)) {
+    if (typeof showShareToast === 'function') showShareToast('⚠ Could not save your note — device storage is full');
+    return Promise.resolve(null);
+  }
+  return taRunExtraction(ev, now).then(function () { return ev.id; });
+}
+
+// Re-runs extraction for an event that already exists. Reuses the SAME event
+// id, so a retry after a timeout can never create a duplicate note — the bug
+// that would otherwise turn "try again" into "say it twice".
+function retryExtraction(eventId, nowIso) {
+  var events = loadContextEvents();
+  var ev = null;
+  for (var i = 0; i < events.length; i++) { if (events[i].id === eventId) { ev = events[i]; break; } }
+  if (!ev) return Promise.resolve(null);
+  return taRunExtraction(ev, nowIso || new Date().toISOString()).then(function () { return ev.id; });
+}
+
+// Shared tail of both paths: extract → facts → merge → persist, updating the
+// event's own status as it goes so the UI can show per-note progress.
+function taRunExtraction(ev, nowIso) {
+  var states = loadTripStates();
+  var todayIso = nowIso.slice(0, 10);
+  var tz = 'UTC';
+  try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) {}
+  return requestExtraction(ev, states[ev.trip_id] || null, todayIso, tz).then(function (res) {
+    var events = loadContextEvents();
+    var stored = null;
+    for (var i = 0; i < events.length; i++) { if (events[i].id === ev.id) { stored = events[i]; break; } }
+    var v = validateExtraction(res.extraction);
+    if (!v.ok) {
+      if (stored) { stored.extraction_status = 'failed'; stored.parser_version = res.parser_version; saveContextEvents(events); }
+      if (typeof showShareToast === 'function') showShareToast('Could not extract trip details — your note was saved');
+      return false;
+    }
+    var newFacts = extractionToFacts(res.extraction, ev.trip_id, ev.id, nowIso);
+    var merged = applyParsedFacts(loadParsedFacts(), newFacts);
+    saveParsedFacts(merged.facts);
+    // TripState is rebuilt from CONFIRMED facts only, so this cannot promote
+    // anything the user has not reviewed — it just refreshes conflict and
+    // missing-field bookkeeping.
+    states[ev.trip_id] = rebuildTripState(ev.trip_id, merged.facts, states[ev.trip_id] || null, nowIso);
+    saveTripStates(states);
+    if (stored) { stored.extraction_status = 'parsed'; stored.parser_version = res.parser_version; saveContextEvents(events); }
+    if (res.classification === 'failed' && typeof showShareToast === 'function') {
+      showShareToast('⚠ Assistant API key rejected — check the Worker secret');
+    }
+    return true;
+  });
+}
+
 function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id === id; })[0] || null; }
 // Matches a solo dest to its watchlist entry (if any) — used to sync the
 // per-solo-card notes textarea with the watchlist's own notes field.

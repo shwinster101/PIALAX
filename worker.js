@@ -28,11 +28,35 @@ const ALLOWED_ORIGINS = [
 
 const SERPAPI_BASE = 'https://serpapi.com/search.json';
 
+// ── Trip-assistant extraction (PIA-048) ──
+// POST /extract turns one free-text trip note into structured PROPOSED facts.
+// It never decides anything and never builds a URL — the client's deterministic
+// code does both, from facts the user has confirmed. See EXTRACT_SYSTEM below.
+const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages';
+const ANTHROPIC_VERSION = '2023-06-01';
+// Haiku 4.5 is the default deliberately: this is short-input structured
+// extraction with a forced schema, which it handles well, and the caller is a
+// family dashboard that already rations its API budget carefully. Point
+// ANTHROPIC_MODEL at a larger model (e.g. claude-sonnet-5) if notes get gnarlier.
+const DEFAULT_MODEL = 'claude-haiku-4-5-20251001';
+const EXTRACT_TIMEOUT_MS = 20000;
+const MAX_BODY_BYTES = 16384;
+
 export default {
   async fetch(request, env) {
     // ── CORS preflight ──
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(request) });
+    }
+
+    // ── POST /extract — the only non-GET route ──
+    if (request.method === 'POST') {
+      let pathname = '/';
+      try { pathname = new URL(request.url).pathname; } catch (e) { /* fall through */ }
+      if (pathname === '/extract' || pathname === '/extract/') {
+        return handleExtract(request, env);
+      }
+      return jsonError('Method not allowed', 405, request);
     }
 
     if (request.method !== 'GET') {
@@ -160,15 +184,315 @@ function corsHeaders(request) {
 
   return {
     'Access-Control-Allow-Origin': allowed,
-    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age': '86400',
   };
 }
 
-function jsonError(msg, status, request) {
-  return new Response(JSON.stringify({ error: msg }), {
+// `code` is the machine-readable half — the client branches on it to decide
+// between falling back silently (no_key / upstream), telling the user something
+// is genuinely misconfigured (bad_key), and offering a retry (timeout).
+// `detail` carries upstream text for the console only; it is never surfaced
+// in the UI, so an upstream error message can't leak into the page.
+function jsonError(msg, status, request, code, detail) {
+  const payload = { error: msg };
+  if (code) payload.code = code;
+  if (detail) payload.detail = detail;
+  return new Response(JSON.stringify(payload), {
     status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders(request) },
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-store',
+      ...corsHeaders(request),
+    },
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// POST /extract — LLM fact extraction (PIA-048)
+// ═══════════════════════════════════════════════════════════════════════════
+// Contract, and the reasoning behind each half of it:
+//
+//   · The model EXTRACTS, it does not DECIDE. No recommendation, no URL, no
+//     booking advice. The client's deterministic code owns both the decision
+//     engine and the Google Flights link, built only from facts the user has
+//     confirmed. A model that could emit a URL could emit a wrong one, and a
+//     wrong booking link is indistinguishable from a right one until someone
+//     has paid for it.
+//
+//   · It must never invent. A fabricated airport or date silently produces a
+//     wrong price and a wrong link; a missing one just asks the user a
+//     question. Every material value has to quote its supporting text
+//     verbatim so a human reviewing the proposal can see where it came from.
+//
+//   · Output shape is enforced STRUCTURALLY via a forced tool call, not by
+//     asking for "JSON only" — then validated again here, and discarded whole
+//     if it fails. Nothing is repaired: a half-understood note must never
+//     become confirmed trip state.
+//
+//   · Responses are NEVER edge-cached. Notes are unique per user and per
+//     moment, so a cache would be pure downside plus a cross-user leak risk.
+//
+// The client treats 404/405/501 as "route not deployed or not configured" and
+// silently falls back to its own deterministic parser, so an old Worker (or no
+// API key at all) degrades to reduced recall rather than a broken feature.
+
+const EXTRACT_SYSTEM = [
+  'You extract structured trip facts from one short, informal travel note.',
+  '',
+  'Rules, in priority order:',
+  '1. NEVER invent. If the note does not state something, leave it null and list',
+  '   it in missing_fields. Missing data is safe; guessed data is not.',
+  '2. Quote supporting text VERBATIM in source_text for every value you emit.',
+  '   The substring must appear character-for-character in the note.',
+  '3. Resolve relative dates ONLY against the supplied `today` and `tz`. Never',
+  '   assume a year that is not derivable from them.',
+  '4. Set is_inferred=true for anything you derived rather than read directly.',
+  '5. If a city has more than one plausible airport (Chicago, New York, London,',
+  '   Houston, Dallas, Washington), do NOT pick one. Leave the code null and add',
+  '   a conflicts entry with reason "multi_airport_city" listing the options.',
+  '6. If the note gives two different values for the same thing, emit BOTH as a',
+  '   conflicts entry. Do not silently choose.',
+  '7. Segments are ordered travel legs, max 2 (round trip = 1 segment; open jaw',
+  '   = 2). Do not collapse an open jaw into a round trip.',
+  '8. Do not recommend anything, do not decide whether to book, and never emit',
+  '   a URL. Extraction only.',
+  '',
+  'Return your result by calling the record_trip_facts tool exactly once.',
+].join('\n');
+
+const EXTRACT_TOOL = {
+  name: 'record_trip_facts',
+  description: 'Record the trip facts stated in the note. Omit anything not stated.',
+  input_schema: {
+    type: 'object',
+    properties: {
+      segments: {
+        type: 'array',
+        maxItems: 2,
+        description: 'Ordered travel legs actually stated in the note.',
+        items: {
+          type: 'object',
+          properties: {
+            origin: { type: ['string', 'null'], description: '3-letter IATA code, or null if not stated / ambiguous.' },
+            destination: { type: ['string', 'null'], description: '3-letter IATA code, or null if not stated / ambiguous.' },
+            departure_date: { type: ['string', 'null'], description: 'YYYY-MM-DD, or null.' },
+            flight_number: { type: ['string', 'null'] },
+            confidence: { type: 'number' },
+            source_text: { type: 'string', description: 'Verbatim substring of the note.' },
+            is_inferred: { type: 'boolean' },
+          },
+          required: ['origin', 'destination', 'departure_date', 'confidence', 'source_text'],
+        },
+      },
+      constraints: {
+        type: 'array',
+        description: 'Hard time anchors the itinerary must satisfy (briefings, check-ins, ceremonies).',
+        items: {
+          type: 'object',
+          properties: {
+            type: { type: 'string', enum: ['must_arrive_before', 'must_depart_after', 'must_be_present'] },
+            datetime: { type: 'string', description: 'YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS.' },
+            label: { type: 'string' },
+            confidence: { type: 'number' },
+            source_text: { type: 'string' },
+            is_inferred: { type: 'boolean' },
+          },
+          required: ['type', 'datetime', 'label', 'confidence', 'source_text'],
+        },
+      },
+      companions: {
+        type: 'array',
+        description: 'Other people whose participation affects the decision.',
+        items: {
+          type: 'object',
+          properties: {
+            label: { type: 'string' },
+            status: { type: 'string', enum: ['in', 'tentative', 'out', 'unknown'] },
+            confidence: { type: 'number' },
+            source_text: { type: 'string' },
+            is_inferred: { type: 'boolean' },
+          },
+          required: ['label', 'status', 'confidence', 'source_text'],
+        },
+      },
+      target_price: { type: ['number', 'null'], description: 'Budget ceiling in USD if stated.' },
+      decision_deadline: { type: ['string', 'null'], description: 'YYYY-MM-DD if stated.' },
+      missing_fields: {
+        type: 'array', items: { type: 'string' },
+        description: 'Dotted paths the note left unstated, e.g. segments.0.origin.',
+      },
+      conflicts: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            field_path: { type: 'string' },
+            values: { type: 'array', items: {} },
+            reason: { type: 'string' },
+            source_text: { type: 'string' },
+          },
+          required: ['field_path', 'values', 'reason'],
+        },
+      },
+    },
+    required: ['segments', 'constraints', 'companions', 'missing_fields', 'conflicts'],
+  },
+};
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const CODE_RE = /^[A-Za-z0-9_-]{1,32}$/;
+
+// Deliberately a near-copy of the client's validateExtraction(). There is no
+// module boundary between a Cloudflare Worker and a single-file HTML app, so
+// the choice is duplication or trust — and trusting unvalidated model output to
+// cross the wire into stored trip state is not a trade worth making. Keep the
+// two in sync; both carry this note.
+function validateExtractionShape(obj) {
+  const errs = [];
+  if (!obj || typeof obj !== 'object') return { ok: false, errors: ['not an object'] };
+  for (const k of ['segments', 'constraints', 'companions', 'missing_fields', 'conflicts']) {
+    if (!Array.isArray(obj[k])) errs.push(`${k} must be an array`);
+  }
+  if (obj.target_price != null && typeof obj.target_price !== 'number') errs.push('target_price must be a number or null');
+  if (obj.decision_deadline != null && !ISO_DATE_RE.test(String(obj.decision_deadline))) errs.push('decision_deadline must be YYYY-MM-DD or null');
+  if (Array.isArray(obj.segments)) {
+    if (obj.segments.length > 2) errs.push('at most 2 segments supported');
+    obj.segments.forEach((g, i) => {
+      if (!g || typeof g !== 'object') { errs.push(`segments.${i} not an object`); return; }
+      if (g.origin != null && !CODE_RE.test(String(g.origin))) errs.push(`segments.${i}.origin bad code`);
+      if (g.destination != null && !CODE_RE.test(String(g.destination))) errs.push(`segments.${i}.destination bad code`);
+      if (g.departure_date != null && !ISO_DATE_RE.test(String(g.departure_date))) errs.push(`segments.${i}.departure_date not YYYY-MM-DD`);
+    });
+  }
+  return { ok: errs.length === 0, errors: errs };
+}
+
+async function handleExtract(request, env) {
+  const apiKey = env.ANTHROPIC_KEY || env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    // 501, not 500: "this Worker does not offer extraction", which is exactly
+    // what the client needs to hear to fall back quietly instead of retrying.
+    return jsonError('Extraction not configured on this Worker (no ANTHROPIC_API_KEY secret)', 501, request, 'no_key');
+  }
+
+  let raw;
+  try {
+    raw = await request.text();
+  } catch (e) {
+    return jsonError('Could not read request body', 400, request, 'bad_body');
+  }
+  if (raw.length > MAX_BODY_BYTES) {
+    return jsonError('Request body too large', 413, request, 'too_large');
+  }
+
+  let body;
+  try { body = JSON.parse(raw); } catch (e) {
+    return jsonError('Body must be JSON', 400, request, 'bad_body');
+  }
+  const note = body && body.context_event && typeof body.context_event.raw_text === 'string'
+    ? body.context_event.raw_text : null;
+  if (!note || !note.trim()) {
+    return jsonError('context_event.raw_text is required', 400, request, 'bad_body');
+  }
+  const today = (body.today && ISO_DATE_RE.test(String(body.today))) ? String(body.today) : null;
+  if (!today) {
+    // Without a reference date the model cannot resolve "Sep 4" without
+    // inventing a year, and inventing is the one thing it must not do.
+    return jsonError('today (YYYY-MM-DD) is required', 400, request, 'bad_body');
+  }
+  const tz = typeof body.tz === 'string' ? body.tz.slice(0, 64) : 'UTC';
+
+  const userPayload = {
+    today,
+    tz,
+    note,
+    confirmed_trip_state: body.trip_state || null,
+  };
+
+  const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctrl ? setTimeout(() => ctrl.abort(), EXTRACT_TIMEOUT_MS) : null;
+
+  let res;
+  try {
+    res = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': ANTHROPIC_VERSION,
+      },
+      body: JSON.stringify({
+        model: env.ANTHROPIC_MODEL || DEFAULT_MODEL,
+        max_tokens: 1024,
+        system: EXTRACT_SYSTEM,
+        tools: [EXTRACT_TOOL],
+        tool_choice: { type: 'tool', name: EXTRACT_TOOL.name },
+        messages: [{ role: 'user', content: JSON.stringify(userPayload) }],
+      }),
+      signal: ctrl ? ctrl.signal : undefined,
+    });
+  } catch (e) {
+    if (timer) clearTimeout(timer);
+    const aborted = e && e.name === 'AbortError';
+    return jsonError(
+      aborted ? `Extraction timed out after ${EXTRACT_TIMEOUT_MS}ms` : `Extraction request failed: ${e.message}`,
+      aborted ? 504 : 502, request, aborted ? 'timeout' : 'upstream'
+    );
+  }
+  if (timer) clearTimeout(timer);
+
+  const text = await res.text();
+  if (!res.ok) {
+    // Forward the upstream STATUS CLASS only — never the upstream body. The
+    // client needs to distinguish "my key is bad" (401/403, worth telling the
+    // user) from "try again" (429/5xx), and the status alone carries that.
+    // Echoing the body would pipe arbitrary upstream text through to the page;
+    // it is logged here instead, where `wrangler tail` shows it to the operator
+    // and to nobody else.
+    console.warn('[extract] Anthropic ' + res.status + ': ' + text.slice(0, 400));
+    return jsonError(`Anthropic API returned ${res.status}`, res.status === 429 ? 429 : 502, request,
+      res.status === 401 || res.status === 403 ? 'bad_key' : 'upstream');
+  }
+
+  let parsed;
+  try { parsed = JSON.parse(text); } catch (e) {
+    return jsonError('Anthropic response was not JSON', 502, request, 'bad_json');
+  }
+
+  // Pull the forced tool call. Anything else — a text reply, a refusal, a
+  // second tool — means the model did not do what was asked, and we fail
+  // closed rather than trying to salvage it.
+  let extraction = null;
+  const content = Array.isArray(parsed.content) ? parsed.content : [];
+  for (const block of content) {
+    if (block && block.type === 'tool_use' && block.name === EXTRACT_TOOL.name) {
+      extraction = block.input;
+      break;
+    }
+  }
+  if (!extraction) {
+    return jsonError('Model did not return the expected tool call', 502, request, 'bad_json');
+  }
+
+  const check = validateExtractionShape(extraction);
+  if (!check.ok) {
+    return jsonError(`Extraction failed schema validation: ${check.errors.join('; ')}`, 502, request, 'bad_json');
+  }
+
+  return new Response(JSON.stringify({
+    ok: true,
+    parser_version: 'llm-1',
+    model: parsed.model || (env.ANTHROPIC_MODEL || DEFAULT_MODEL),
+    extraction,
+  }), {
+    status: 200,
+    headers: {
+      'Content-Type': 'application/json',
+      // Notes are unique and personal — never cache, at any layer.
+      'Cache-Control': 'no-store',
+      ...corsHeaders(request),
+    },
   });
 }

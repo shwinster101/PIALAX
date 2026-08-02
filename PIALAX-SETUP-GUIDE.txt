@@ -203,3 +203,120 @@ RECOMMENDED PATH FOR YOU
 If anything in step 1 still misbehaves once you're on http://, that's a real
 bug in the mobile build (not a hosting issue) and I should debug it directly
 in Chrome MCP — tell me and I'll dig in.
+
+
+==========================================================
+TRIP ASSISTANT — LLM EXTRACTION (PIA-048, added 2026-08-02)
+==========================================================
+The assistant turns a pasted note ("Memphis ends Friday Sep 4, if I leave
+Sep 5 I land after the briefing...") into structured, reviewable trip facts.
+
+IT ALREADY WORKS WITH NO SETUP. A deterministic parser runs in the browser
+and handles the common shapes (routes, dates, targets, briefings). The steps
+below only ADD the LLM path, which handles messier notes. If you never do
+them, nothing breaks — the app quietly uses the local parser.
+
+----------------------------------------------------------
+1. TURN THE FEATURE ON (no deploy needed)
+----------------------------------------------------------
+Open the site once with the flag in the URL:
+
+  https://shwinster101.github.io/PIALAX/pialax-mobile.html?flags=assistant
+
+It sticks (saved to localStorage), so you only do this once per device.
+To turn it off again:  ?flags=-assistant       To clear all flags: ?flags=none
+There is also a "Trip assistant (beta)" checkbox under Admin & Diagnostics.
+
+The flag is deliberately NOT carried in Share Plan links — sending someone
+your plan will never switch on an in-progress feature on their phone.
+
+----------------------------------------------------------
+2. ADD THE ANTHROPIC KEY (optional, enables the LLM path)
+----------------------------------------------------------
+From the repo folder, with wrangler already logged in:
+
+  wrangler secret put ANTHROPIC_API_KEY     # paste the key when prompted
+  wrangler deploy
+
+Get a key at https://console.anthropic.com/ → API Keys.
+
+The key lives ONLY as a Worker secret. It is never in the HTML, never in
+localStorage, never in a URL, and never sent to the browser — same contract
+as SERPAPI_KEY. The browser only ever talks to your Worker.
+
+Model: defaults to claude-haiku-4-5, which is the right size for short
+structured extraction and keeps the per-note cost negligible. To use a
+larger model, add this to wrangler.toml and redeploy:
+
+  [vars]
+  ANTHROPIC_MODEL = "claude-sonnet-5"
+
+Cost: one short call per note you add. Notes are small, so this is
+fractions of a cent each. It does NOT touch your SerpAPI quota — flight
+prices and note extraction are completely separate paths.
+
+----------------------------------------------------------
+3. CHECK IT'S WORKING
+----------------------------------------------------------
+  curl -s -X POST https://pialax-proxy.YOUR-SUB.workers.dev/extract \
+    -H 'Content-Type: application/json' \
+    -d '{"today":"2026-08-02","tz":"America/Los_Angeles",
+         "context_event":{"id":"t1","raw_text":"Fly LAX to Cusco Sep 4 and return Lima to LAX Sep 13."}}'
+
+Expected: {"ok":true,"parser_version":"llm-1","extraction":{...}}
+
+  501 {"code":"no_key"}  → secret not set, or you didn't redeploy after
+                           setting it. The app still works (local parser).
+  404 / 405              → the deployed Worker predates this route. Run
+                           `wrangler deploy`. App still works meanwhile.
+  401 {"code":"bad_key"} → the key is wrong or revoked. This is the one
+                           case the app tells you about, because it is the
+                           one case only you can fix.
+  502 {"code":"bad_json"}→ the model returned something off-schema and the
+                           Worker refused it. Working as intended: nothing
+                           unvalidated is allowed into your trip data.
+
+Live logs while you test:   wrangler tail
+
+----------------------------------------------------------
+WHAT THE MODEL IS AND ISN'T ALLOWED TO DO
+----------------------------------------------------------
+It EXTRACTS facts. It does not decide anything, does not recommend booking,
+and never builds a booking link — the app's own deterministic code does
+that, using only facts YOU have confirmed. So a model mistake can produce a
+wrong SUGGESTION you can reject, never a wrong link you might click.
+
+It is instructed never to invent: anything the note doesn't say comes back
+empty and gets asked about instead of guessed. Ambiguous cities (Chicago,
+New York, London) are offered as a choice rather than picked for you.
+
+Everything it proposes lands as "proposed" and needs your confirmation.
+A proposed fact can never overwrite one you already confirmed — if a new
+note disagrees with a confirmed fact, both are kept and you settle it.
+
+----------------------------------------------------------
+PRIVACY
+----------------------------------------------------------
+When you add a note to a trip, the request sends exactly three things:
+  1. the text of that note;
+  2. today's date + your timezone (needed to resolve "Sep 4" without the
+     model guessing a year);
+  3. that ONE trip's already-confirmed state — its segments, constraints,
+     companions, target price and deadline.
+
+(3) is sent so the model can tell a genuine change from a restatement and
+flag a contradiction with something you already confirmed. It is scoped to
+the single trip you are adding the note to.
+
+NOT sent: your other trips, your watchlist, your fare history, your prices,
+your quota, or your proxy URL.
+
+Notes are never cached — not at Cloudflare's edge, not anywhere. Anthropic's
+data-retention terms for API traffic apply to what is sent; see
+https://www.anthropic.com/legal/commercial-terms
+
+Bear in mind (3) can include real names if you have typed them into a trip's
+facts — "Mom and Dad", a friend's name in a companion field. If that matters
+to you for a particular trip, keep names out of the note, or skip the LLM
+path entirely: don't set ANTHROPIC_API_KEY and the local parser runs
+100% in the browser, with nothing leaving the device at all.

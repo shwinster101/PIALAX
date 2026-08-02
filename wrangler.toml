@@ -11,3 +11,14 @@ compatibility_date = "2026-05-09"
 #   wrangler deploy
 #
 # That's it — no more Cloudflare dashboard clicking.
+
+# PIA-048: model used by POST /extract. Haiku 4.5 is deliberate — short
+# structured extraction with a forced schema, at negligible per-note cost.
+# Change to claude-sonnet-5 if notes get messier, then `wrangler deploy`.
+[vars]
+ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
+
+# One-time, to enable the LLM path (the app works without it — it falls back
+# to a deterministic in-browser parser):
+#   wrangler secret put ANTHROPIC_API_KEY
+#   wrangler deploy

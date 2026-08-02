@@ -155,7 +155,12 @@ function makeShim() {
 // ---- 5: capture the symbols under test -----------------------------------
 
 
-function loadApi(filepath, label, EXPECT) {
+// `shimOverrides` lets a suite swap individual browser globals — a controllable
+// fetch, a pre-seeded localStorage — WITHOUT the app having to export anything
+// for testability. PIALAX deliberately exports only its ~12 inline-handler
+// targets; adding more just to make tests possible would be the test tail
+// wagging the production dog.
+function loadApi(filepath, label, EXPECT, shimOverrides) {
   const html = fs.readFileSync(filepath, 'utf8');
   const body = extractAppBody(html, label);
   const returnStmt =
@@ -163,7 +168,7 @@ function loadApi(filepath, label, EXPECT) {
     EXPECT.map((n) => n + ": (typeof " + n + " !== 'undefined' ? " + n + ' : undefined)').join(', ') +
     ' };\n';
 
-  const shim = makeShim();
+  const shim = Object.assign(makeShim(), shimOverrides || {});
   const paramNames = Object.keys(shim);
   // eslint-disable-next-line no-new-func
   const fn = new Function(...paramNames, body + returnStmt);

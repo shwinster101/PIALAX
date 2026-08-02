@@ -28,6 +28,7 @@ const EXPECT = [
   'extractionToFacts', 'applyParsedFacts', 'setFactStatus', 'rebuildTripState',
   'sanitizeContextEvent', 'sanitizeParsedFact', 'sanitizeTripState',
   'createContextEvent', 'migrateNotesToContextEvents', 'taCapEvents',
+  'classifyExtractResponse',
   'TA_GAZETTEER_PLACEHOLDER',
 ];
 // TA_GAZETTEER_PLACEHOLDER is not a real symbol — drop it. (Kept out of the
@@ -370,6 +371,36 @@ for (const f of FILES) {
   const big = api.createContextEvent('peru', 'x'.repeat(9000), '2026-08-02T00:00:00Z');
   if (big.raw_text.length <= 4000) ok(`${f}: createContextEvent truncates oversized notes (${big.raw_text.length} chars)`);
   else bad(`${f}: createContextEvent stored ${big.raw_text.length} chars — cap not applied`);
+}
+
+// ---- 4b. /extract response classification (PIA-048) ------------------------
+// This function decides what the user is told when extraction does not work.
+// Getting it wrong in the "fallback" direction nags people about something they
+// cannot fix; getting it wrong in the "failed" direction hides a real
+// misconfiguration behind silently degraded results.
+for (const f of FILES) {
+  const api = loaded[f];
+  if (!api) continue;
+  const cases = [
+    [200, '{"ok":true}', 'ok', 'a good response is usable'],
+    [404, '', 'fallback', 'old Worker without the route degrades quietly'],
+    [405, '', 'fallback', 'method not allowed degrades quietly'],
+    [501, '{"code":"no_key"}', 'fallback', 'unconfigured Worker degrades quietly'],
+    [502, '{"code":"bad_json"}', 'fallback', 'unusable model output degrades quietly'],
+    [502, '{"code":"upstream"}', 'fallback', 'upstream trouble degrades quietly'],
+    [0, '', 'fallback', 'offline degrades quietly'],
+    [429, '{"code":"rate_limit"}', 'retry', 'rate limit is retryable'],
+    [504, '{"code":"timeout"}', 'retry', 'timeout is retryable'],
+    [401, '{"code":"bad_key"}', 'failed', 'a rejected API key IS surfaced'],
+    [403, '{"code":"bad_key"}', 'failed', 'a forbidden API key IS surfaced'],
+    [200, 'not json at all', 'ok', 'status wins over an unparseable body'],
+  ];
+  let allGood = true;
+  for (const [status, body, want, desc] of cases) {
+    const got = api.classifyExtractResponse(status, body);
+    if (got !== want) { allGood = false; bad(`${f}: classify(${status}) — ${desc}: expected ${want}, got ${got}`); }
+  }
+  if (allGood) ok(`${f}: /extract classification correct for all ${cases.length} response shapes`);
 }
 
 // ---- 5. parity -------------------------------------------------------------
