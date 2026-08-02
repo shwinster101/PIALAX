@@ -1,0 +1,12 @@
+# PIA-046 ship manifest — Phase 1 of the "Context to Decision" sprint:
+# audited mobile defect pack, accessibility pass, Admin & Diagnostics panel,
+# and the repo's first feature-flag primitive (defaults OFF, gates nothing yet).
+# No security surface touched (SRI/CSP/secrets untouched).
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/test-core.js
+scripts/test-viewport.sh
+scripts/test-viewport.mjs
+scripts/messages/PIA-046.msg
+scripts/messages/PIA-046.files

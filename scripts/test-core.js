@@ -175,6 +175,8 @@ const EXPECT = [
   '_isSeedDupMemphis', 'sanitizeWatchlistItem', 'watchlistClashFor',
   'tbDays', 'gflightsUrl', 'bookingUrlFor', 'binderKeyFor', 'esc',
   'watchlistEst', 'BLOCKERS', 'WATCHLIST_STAGES', 'WL_CODE_RE', 'WATCHLIST_SEED',
+  // PIA-046: feature-flag primitive.
+  'parseFlagsParam', 'KNOWN_FLAGS',
 ];
 
 function loadApi(filepath, label) {
@@ -236,6 +238,57 @@ for (const f of FILES) {
   const notMemphis = api._isSeedDupMemphis({ mode: 'solo', dest: 'JAX', dep: '2026-08-31', ret: '2026-09-04' });
   if (notMemphis === false) ok(f + ': AC1 — non-Memphis dest correctly NOT flagged');
   else bad(f + ': AC1 — non-Memphis dest should NOT be flagged duplicate, got ' + notMemphis);
+}
+
+// AC-FLAGS (PIA-046) — the feature-flag primitive. It gates every unreleased
+// surface, so "defaults to off" and "an unknown name never persists" are the two
+// properties that keep an in-progress feature from leaking to a family member.
+for (const f of FILES) {
+  const api = loaded[f];
+  if (!api) { bad(f + ': AC-FLAGS skipped — file failed to load above'); continue; }
+  const P = api.parseFlagsParam;
+
+  const def = P('', null);
+  if (Object.keys(def.flags).length === 0) ok(f + ': AC-FLAGS — no param, no storage → all flags OFF');
+  else bad(f + ': AC-FLAGS — expected no flags by default, got ' + JSON.stringify(def.flags));
+
+  const on = P('?flags=assistant', null);
+  if (on.flags.assistant === true && on.changed === true) ok(f + ': AC-FLAGS — ?flags=assistant enables and reports changed');
+  else bad(f + ': AC-FLAGS — ?flags=assistant should enable+change, got ' + JSON.stringify(on));
+
+  const off = P('?flags=-assistant', '{"assistant":true}');
+  if (off.flags.assistant === undefined && off.changed === true) ok(f + ': AC-FLAGS — ?flags=-assistant disables a stored flag');
+  else bad(f + ': AC-FLAGS — ?flags=-assistant should disable, got ' + JSON.stringify(off));
+
+  const restored = P('', '{"assistant":true}');
+  if (restored.flags.assistant === true && restored.changed === false) ok(f + ': AC-FLAGS — stored flag restored without a rewrite');
+  else bad(f + ': AC-FLAGS — stored flag should restore unchanged, got ' + JSON.stringify(restored));
+
+  const unknown = P('?flags=notARealFlag', null);
+  if (Object.keys(unknown.flags).length === 0) ok(f + ': AC-FLAGS — unknown flag name ignored, never stored');
+  else bad(f + ': AC-FLAGS — unknown flag should be dropped, got ' + JSON.stringify(unknown.flags));
+
+  const none = P('?flags=none', '{"assistant":true}');
+  if (Object.keys(none.flags).length === 0) ok(f + ': AC-FLAGS — ?flags=none clears everything');
+  else bad(f + ': AC-FLAGS — ?flags=none should clear, got ' + JSON.stringify(none.flags));
+
+  const corrupt = P('', '{not json');
+  if (Object.keys(corrupt.flags).length === 0) ok(f + ': AC-FLAGS — corrupt stored JSON degrades to OFF, does not throw');
+  else bad(f + ': AC-FLAGS — corrupt storage should degrade to empty, got ' + JSON.stringify(corrupt.flags));
+
+  const stripped = P('', '{"assistant":true,"ghost":true}');
+  if (stripped.flags.ghost === undefined && stripped.changed === true) ok(f + ': AC-FLAGS — unknown stored key stripped on load');
+  else bad(f + ': AC-FLAGS — unknown stored key should be stripped, got ' + JSON.stringify(stripped));
+}
+
+// AC-PARITY (PIA-046) — the two files are hand-mirrored with nothing enforcing
+// it. Every captured pure function must be byte-identical across them, so drift
+// is caught here instead of as a bug that only reproduces on one device.
+if (loaded[FILES[0]] && loaded[FILES[1]]) {
+  const a = loaded[FILES[0]], b = loaded[FILES[1]];
+  const drifted = EXPECT.filter((n) => typeof a[n] === 'function' && String(a[n]) !== String(b[n]));
+  if (drifted.length === 0) ok('parity — all captured functions byte-identical across desktop + mobile');
+  else bad('parity — drifted between desktop and mobile: ' + drifted.join(', '));
 }
 
 console.log('');

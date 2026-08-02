@@ -765,8 +765,8 @@ button{font-family:inherit;cursor:pointer;}
     <div id="panel-planner" style="display:none;">
 
     <div id="mode-switcher">
-      <button class="mode-btn" data-mode="meetup">👨‍👩‍👧 Family Meetup</button>
-      <button class="mode-btn on" data-mode="solo">✈️ Solo Mode</button>
+      <button class="mode-btn" data-mode="meetup" aria-pressed="false">👨‍👩‍👧 Family Meetup</button>
+      <button class="mode-btn on" data-mode="solo" aria-pressed="true">✈️ Solo Mode</button>
     </div>
 
     <div id="home-airport-row">
@@ -785,14 +785,14 @@ button{font-family:inherit;cursor:pointer;}
     <div id="meetup-only" style="display:none">
       <div class="lbl">Holiday Quick-Pick</div>
       <div id="hol-row">
-        <button class="hol-btn" data-hol="memday">✈ Memorial Day</button>
-        <button class="hol-btn" data-hol="july4">🇺🇸 July 4th</button>
-        <button class="hol-btn" data-hol="laborday">⚡ Labor Day</button>
-        <button class="hol-btn" data-hol="thanksgiving">🦃 Thanksgiving</button>
-        <button class="hol-btn" data-hol="christmas">🎄 Christmas</button>
-        <button class="hol-btn" data-hol="jaxaug">🏖 JAX Aug 7–9</button>
-        <button class="hol-btn" data-hol="peru">🏔 Peru Sep 5–13</button>
-        <button class="hol-btn" data-hol="london">✅ London ✓ (done)</button>
+        <button class="hol-btn" data-hol="memday" aria-label="Quick-pick: Memorial Day">✈ Memorial Day</button>
+        <button class="hol-btn" data-hol="july4" aria-label="Quick-pick: July 4th">🇺🇸 July 4th</button>
+        <button class="hol-btn" data-hol="laborday" aria-label="Quick-pick: Labor Day">⚡ Labor Day</button>
+        <button class="hol-btn" data-hol="thanksgiving" aria-label="Quick-pick: Thanksgiving">🦃 Thanksgiving</button>
+        <button class="hol-btn" data-hol="christmas" aria-label="Quick-pick: Christmas">🎄 Christmas</button>
+        <button class="hol-btn" data-hol="jaxaug" aria-label="Quick-pick: Jacksonville, August 7 to 9">🏖 JAX Aug 7–9</button>
+        <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 5 to 13">🏔 Peru Sep 5–13</button>
+        <button class="hol-btn" data-hol="london" aria-label="Quick-pick: London — trip completed">✅ London ✓ (done)</button>
       </div>
       <!-- ORD Hub toggle removed — ORD always available as a meetup hub via the dropdown. -->
     </div>
@@ -800,19 +800,19 @@ button{font-family:inherit;cursor:pointer;}
     <div>
       <div class="lbl">Trip Type</div>
       <div id="trip-row">
-        <button class="tt-btn on" data-v="round">Round-Trip</button>
-        <button class="tt-btn" data-v="one">One-Way</button>
+        <button class="tt-btn on" data-v="round" aria-pressed="true">Round-Trip</button>
+        <button class="tt-btn" data-v="one" aria-pressed="false">One-Way</button>
       </div>
     </div>
 
     <div>
       <div class="lbl">Travel Dates</div>
       <div id="date-row">
-        <button class="d-btn" id="dep-btn">
+        <button class="d-btn" id="dep-btn" aria-label="Departure date — opens the date picker">
           <span class="d-lbl">Depart</span>
           <span class="d-val ph" id="dep-val">Pick date</span>
         </button>
-        <button class="d-btn" id="ret-btn">
+        <button class="d-btn" id="ret-btn" aria-label="Return date — opens the date picker">
           <span class="d-lbl">Return</span>
           <span class="d-val ph" id="ret-val">Pick date</span>
         </button>
@@ -856,8 +856,8 @@ button{font-family:inherit;cursor:pointer;}
          (which hides #sb wholesale) legitimately hides it too. Element ID,
          all inner IDs and every handler are byte-identical to before. -->
     <div id="api-banner">
-      <div id="api-hdr">
-        <span class="abt">Data Source</span>
+      <div id="api-hdr" role="button" tabindex="0" aria-expanded="false" aria-label="Admin and diagnostics — expand or collapse">
+        <span class="abt">Admin &amp; Diagnostics</span>
         <span class="ab-badge b-mock" id="data-badge">Mock Data</span>
       </div>
       <div id="api-body">
@@ -874,6 +874,12 @@ button{font-family:inherit;cursor:pointer;}
           <label for="api-budget-inp">Monthly budget</label>
           <input id="api-budget-inp" type="number" min="1" max="10000" value="1000" style="width:60px;padding:2px 4px;font-size:var(--fs-tiny);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:var(--rad-xs);"/>
           <button id="api-quota-reset" style="font-size:var(--fs-micro);padding:2px 6px;">Reset</button>
+        </div>
+        <!-- PIA-046: the only in-app way to flip a feature flag; equivalent to
+             loading the page with ?flags=assistant. Persists to localStorage. -->
+        <div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:var(--fs-micro);color:var(--ink-muted);">
+          <input id="flag-assistant" type="checkbox" style="width:16px;height:16px;cursor:pointer;"/>
+          <label for="flag-assistant" style="cursor:pointer;">Trip assistant (beta)</label>
         </div>
       </div>
     </div>
@@ -904,8 +910,8 @@ button{font-family:inherit;cursor:pointer;}
   <div id="map-wrap">
     <svg id="map-svg"></svg>
     <div id="map-toggle">
-      <button class="mt-btn on" data-view="us">🇺🇸 US</button>
-      <button class="mt-btn" data-view="world">🌍 World</button>
+      <button class="mt-btn on" data-view="us" aria-pressed="true" aria-label="US map view">🇺🇸 US</button>
+      <button class="mt-btn" data-view="world" aria-pressed="false" aria-label="World map view">🌍 World</button>
     </div>
     <div id="tip"></div>
     <div id="map-leg"></div>
@@ -933,8 +939,8 @@ button{font-family:inherit;cursor:pointer;}
   <div id="cal-hdr">
     <span id="cal-phase">Select departure</span>
     <div class="cal-nav">
-      <button class="cnav" id="cprev">‹</button>
-      <button class="cnav" id="cnext">›</button>
+      <button class="cnav" id="cprev" aria-label="Previous month">‹</button>
+      <button class="cnav" id="cnext" aria-label="Next month">›</button>
     </div>
   </div>
   <div id="cal-leg">
@@ -1860,6 +1866,22 @@ function renderMeetupRoutes() {
       hdrDateEl.textContent = '⚠ no dates selected';
       hdrDateEl.style.color = 'var(--warn)';
     }
+  }
+  // PIA-046 (audit defect): with no dates picked, this function used to keep
+  // rendering full route cards — real-looking airlines, flight numbers and
+  // prices from the mock table — directly beneath the "⚠ no dates selected"
+  // header. That contradiction reads as live data for a trip the user hasn't
+  // even scheduled. Fail closed: say what's missing, render nothing priceable.
+  if (noDate) {
+    container.innerHTML =
+      '<div style="padding:12px 14px;border:1px dashed var(--line-strong);border-radius:8px;' +
+      'font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink-muted);">' +
+        '<div style="font-weight:800;color:var(--ink);margin-bottom:3px;">Pick dates to see routes</div>' +
+        'Fares depend on when you fly, so there is nothing to price yet. Choose a departure date in ' +
+        '<strong>Pick depart</strong> in the sidebar' + ' — or tap a Holiday Quick-Pick — and every family route will appear here.' +
+      '</div>';
+    if (typeof renderGroupCost === 'function') renderGroupCost();
+    return;
   }
   var html = '';
   // Date-aware family list (sister: JAX→JFK after Aug 31 2026)
@@ -2806,12 +2828,15 @@ function renderSoloCards() {
         'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:4px 9px;" ' +
         'title="Open this trip in Google Flights">🔗 Book on Google Flights ↗</a>'
       : '';
-    // Flighty hand-off — passport wallet + past/booked flight stats. Shown on
-    // every solo card (reuses the exact watchlist Flighty markup/link).
-    var soloFlightyHtml = '<a href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" ' +
+    // Flighty hand-off — passport wallet + past/booked flight stats. PIA-046:
+    // shown only once the trip is BOOKED (Flighty owns post-booking ops; on a
+    // still-being-shopped trip it advertises a tool that can't help yet).
+    var _soloWlItem = watchlistSoloItem(dest);
+    var soloFlightyHtml = (_soloWlItem && _soloWlItem.stage === 'booked') ? '<a href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" ' +
       'style="display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:800;' +
       'color:var(--muted);text-decoration:none;border:1px solid var(--border2);border-radius:6px;padding:4px 9px;" ' +
-      'title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>';
+      'title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>'
+      : '';
     var soloActionsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + soloBookHtml + soloFlightyHtml + '</div>';
     // Per-card notes, synced to the watchlist (lazy-creates a minimal watched item
     // on first blur so every solo dest gets a persistent notes field, not just CUZ).
@@ -4612,7 +4637,117 @@ document.getElementById('home-sel').addEventListener('change', function(e){
   syncURL();
 });
 
-document.getElementById('api-hdr').addEventListener('click', function(){ document.getElementById('api-body').classList.toggle('open'); });
+// PIA-046: the panel header is a non-native disclosure control — keep its
+// aria-expanded truthful and let a keyboard open it.
+(function wireApiHdr(){
+  var hdr = document.getElementById('api-hdr');
+  var body = document.getElementById('api-body');
+  if (!hdr || !body) return;
+  function toggleApi(){
+    var open = body.classList.toggle('open');
+    hdr.setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  hdr.addEventListener('click', toggleApi);
+  hdr.addEventListener('keydown', taKeyActivate(toggleApi));
+})();
+
+// PIA-046 (audit defect): keep aria-pressed in lockstep with the visual `.on`
+// state of every toggle-group button. Done as one delegated pass rather than by
+// editing each of the ~10 sites that set `.on` — those are spread across mode,
+// trip-type, map-view and preset handlers, and any one of them (or a future
+// one) silently drifting would leave a screen reader announcing the wrong
+// state, which is worse than no state at all.
+function syncPressedState() {
+  try {
+    document.querySelectorAll('.tt-btn, .mode-btn, .mt-btn').forEach(function(b){
+      b.setAttribute('aria-pressed', b.classList.contains('on') ? 'true' : 'false');
+    });
+  } catch(e) {}
+}
+document.addEventListener('click', function(){ setTimeout(syncPressedState, 0); });
+syncPressedState();
+
+// PIA-046: Enter/Space activation for elements given role="button". Returns a
+// keydown handler that swallows Space's page-scroll default before acting.
+function taKeyActivate(fn) {
+  return function(e){
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault(); e.stopPropagation(); fn(e);
+    }
+  };
+}
+
+// ===== Feature flags (PIA-046) =====
+// First flag primitive in the codebase. Modeled on restoreProxyURL below: the
+// value persists in localStorage, so enabling it once on the deployed page
+// sticks. There is no build step — the only ways to flip a flag on GitHub Pages
+// are the ?flags= query param and the Admin & Diagnostics checkbox:
+//   ?flags=assistant   → on (persisted)   ?flags=-assistant → off   ?flags=none → clear
+// Flags are deliberately NOT serialized into ?wl= share links — a shared plan
+// must never silently enable an in-progress feature for the recipient.
+var FLAGS_STORAGE_KEY = 'pialax_flags_v1';
+var KNOWN_FLAGS = ['assistant'];
+var FLAGS = {};
+// Pure: given a location.search string and the raw stored JSON, return the
+// resolved flag set plus whether it differs from what was stored (so the caller
+// knows to re-persist). Unknown names are dropped rather than stored, so a typo
+// can never linger in localStorage.
+function parseFlagsParam(searchStr, storedJson) {
+  var flags = {};
+  // `before` is the RAW stored value, not the filtered one — so a stale or
+  // unknown key (a renamed flag, a typo written by an older build) is reported
+  // as a change and gets cleaned out of localStorage on the next boot, rather
+  // than being silently ignored in memory while lingering on disk forever.
+  var before = '{}';
+  try {
+    var stored = storedJson ? JSON.parse(storedJson) : null;
+    if (stored && typeof stored === 'object') {
+      before = JSON.stringify(stored);
+      KNOWN_FLAGS.forEach(function(k){ if (stored[k] === true) flags[k] = true; });
+    }
+  } catch(e) { before = '\u0000corrupt'; } // force a rewrite over corrupt storage
+  var m = /[?&]flags=([^&#]*)/.exec(searchStr || '');
+  if (m) {
+    decodeURIComponent(m[1]).split(',').forEach(function(raw){
+      var name = raw.trim();
+      if (!name) return;
+      if (name === 'none') { flags = {}; return; }
+      var off = name.charAt(0) === '-';
+      if (off) name = name.slice(1);
+      if (KNOWN_FLAGS.indexOf(name) === -1) return; // unknown → ignored, not stored
+      if (off) delete flags[name]; else flags[name] = true;
+    });
+  }
+  return { flags: flags, changed: JSON.stringify(flags) !== before };
+}
+function flagOn(name) { return FLAGS[name] === true; }
+function setFlag(name, on) {
+  if (KNOWN_FLAGS.indexOf(name) === -1) return;
+  if (on) FLAGS[name] = true; else delete FLAGS[name];
+  try { localStorage.setItem(FLAGS_STORAGE_KEY, JSON.stringify(FLAGS)); } catch(e) {}
+}
+(function restoreFlags(){
+  try {
+    var res = parseFlagsParam(location.search, localStorage.getItem(FLAGS_STORAGE_KEY));
+    FLAGS = res.flags;
+    if (res.changed) localStorage.setItem(FLAGS_STORAGE_KEY, JSON.stringify(FLAGS));
+  } catch(e) { FLAGS = {}; }
+})();
+(function wireFlagToggles(){
+  var cb = document.getElementById('flag-assistant');
+  if (!cb) return;
+  cb.checked = flagOn('assistant');
+  cb.addEventListener('change', function(){
+    setFlag('assistant', cb.checked);
+    // Re-render the surfaces the flag actually gates so the change is immediate
+    // rather than requiring a reload.
+    if (typeof renderWatchlist === 'function') renderWatchlist();
+    if (typeof showShareToast === 'function') {
+      showShareToast(cb.checked ? 'Trip assistant enabled' : 'Trip assistant disabled');
+    }
+  });
+})();
+
 // Critical fix: persist PROXY_URL override to localStorage so user-entered
 // proxy URLs survive reload (no more re-typing on every visit).
 var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
@@ -5159,7 +5294,9 @@ var WATCHLIST_SEED = [
 ];
 var WATCHLIST = [];
 var _watchlistCollapsed = false;
-var _watchlistOpen = {};
+// PIA-046 (audit defect): one expanded trip at a time. Was a map, so every card
+// the user ever opened stayed open, stacking into an unreadable wall on mobile.
+var _watchlistOpenId = null;
 var _watchlistFocusId = null; // PIA-030: id of a .wl-next input to focus after the next render
 var _watchlistAdding = false; // PIA-031: true while the "＋ New trip" inline quick-add form is open
 // PIA-040 (audit BLOCKER-1): watchlist items arrive from two untrusted sources —
@@ -5391,7 +5528,7 @@ function renderWatchlist(){
     var colVar = 'var(--stage-' + (WATCHLIST_STAGES[t.stage] ? t.stage : 'watching') + ')';
     var est = watchlistEst(t);
     var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
-    var open = !!_watchlistOpen[t.id];
+    var open = (_watchlistOpenId === t.id);
     // PIA-030: compact 2nd line under the title — blocker dots + 🎯 next action (if
     // set), else a faint "＋ next step" hint for a still-active trip with no move yet.
     var needsMove = (t.stage==='watching'||t.stage==='planning');
@@ -5423,7 +5560,7 @@ function renderWatchlist(){
         '<span class="wl-stage-count">· '+(counts[t.stage]||0)+'</span>' +
       '</div>';
     }
-    var row = '<div class="wl-row" data-wl-id="'+t.id+'">' +
+    var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open?'true':'false')+'" aria-label="'+esc(t.title)+' — '+(open?'collapse':'expand')+' trip details" data-wl-id="'+t.id+'">' +
       '<div style="display:flex;align-items:center;gap:6px;">' +
         '<span style="font-size:.62rem;background:'+col+'22;color:'+colVar+';border-radius:50%;width:16px;height:16px;min-width:16px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
         '<span class="wl-title">'+esc(t.title)+'</span>' +
@@ -5450,7 +5587,7 @@ function renderWatchlist(){
       if (t.stage !== 'completed') {
         var blockerChips = Object.keys(BLOCKERS).map(function(k){
           var b = BLOCKERS[k]; var on = (t.blockers||[]).indexOf(k) > -1;
-          return '<span class="wl-blocker" data-id="'+t.id+'" data-key="'+k+'" style="font-size:var(--fs-micro);font-weight:800;padding:2px 6px;border-radius:var(--rad-pill);cursor:pointer;display:inline-flex;align-items:center;gap:2px;' +
+          return '<span class="wl-blocker" role="button" tabindex="0" aria-pressed="'+(on?'true':'false')+'" aria-label="Blocker: '+esc(b.label)+'" data-id="'+t.id+'" data-key="'+k+'" style="font-size:var(--fs-micro);font-weight:800;padding:2px 6px;border-radius:var(--rad-pill);cursor:pointer;display:inline-flex;align-items:center;gap:2px;' +
             (on ? 'background:'+col+'22;color:'+colVar+';border:1px solid '+colVar+';' : 'background:transparent;color:var(--ink-muted);border:1px solid var(--line-strong);') +
             '">' + b.emoji + ' ' + b.label + '</span>';
         }).join('');
@@ -5462,8 +5599,10 @@ function renderWatchlist(){
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
           '<button class="wl-open wl-act" data-id="'+t.id+'" style="background:'+col+';color:var(--ink-on-warn);border:none;cursor:pointer;">Open ↗</button>' +
           (gfUrl ? '<a class="wl-gf wl-act" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
-          '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' +
-          (t._added ? '<button class="wl-del wl-act" data-id="'+t.id+'" title="Remove" style="background:none;border:none;color:var(--ink-muted);cursor:pointer;">✕</button>' : '') +
+          // PIA-046 (audit defect): Flighty owns POST-booking ops — showing it on a
+          // trip that isn't booked yet advertises a tool the user can't use for it.
+          (t.stage === 'booked' ? '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' : '') +
+          (t._added ? '<button class="wl-del wl-act" data-id="'+t.id+'" title="Remove" aria-label="Remove '+esc(t.title)+' from the watchlist" style="background:none;border:none;color:var(--ink-muted);cursor:pointer;">✕</button>' : '') +
         '</div>';
       body = '<div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
@@ -5512,13 +5651,24 @@ function renderWatchlist(){
 }
 function wireWatchlist(sec){
   var hdr = sec.querySelector('#wl-hdr'); if (hdr) hdr.addEventListener('click', function(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); });
-  sec.querySelectorAll('.wl-row').forEach(function(el){ el.addEventListener('click', function(){ var id=el.getAttribute('data-wl-id'); _watchlistOpen[id]=!_watchlistOpen[id]; renderWatchlist(); }); });
+  // PIA-046: .wl-row / .wl-blocker are non-native controls now carrying
+  // role="button" — they must answer Enter/Space or the role is a lie to a
+  // keyboard user. taKeyActivate wraps that once for both.
+  sec.querySelectorAll('.wl-row').forEach(function(el){
+    function toggleRow(){ var id=el.getAttribute('data-wl-id'); _watchlistOpenId = (_watchlistOpenId === id) ? null : id; renderWatchlist(); }
+    el.addEventListener('click', toggleRow);
+    el.addEventListener('keydown', taKeyActivate(toggleRow));
+  });
   sec.querySelectorAll('.wl-stage').forEach(function(el){ el.addEventListener('change', function(){ setWatchlistStage(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-notes').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNotes(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-next').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNextAction(el.getAttribute('data-id'), el.value); }); });
-  sec.querySelectorAll('.wl-blocker').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); toggleWatchlistBlocker(el.getAttribute('data-id'), el.getAttribute('data-key')); }); });
+  sec.querySelectorAll('.wl-blocker').forEach(function(el){
+    function toggleB(e){ if (e) e.stopPropagation(); toggleWatchlistBlocker(el.getAttribute('data-id'), el.getAttribute('data-key')); }
+    el.addEventListener('click', toggleB);
+    el.addEventListener('keydown', taKeyActivate(toggleB));
+  });
   // PIA-030: "＋ next step" hint expands the card and focuses the next-action input.
-  sec.querySelectorAll('.wl-next-hint').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var id=el.getAttribute('data-id'); _watchlistOpen[id]=true; _watchlistFocusId=id; renderWatchlist(); }); });
+  sec.querySelectorAll('.wl-next-hint').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var id=el.getAttribute('data-id'); _watchlistOpenId=id; _watchlistFocusId=id; renderWatchlist(); }); });
   sec.querySelectorAll('.wl-open').forEach(function(el){ el.addEventListener('click', function(){ openWatchlistTrip(el.getAttribute('data-id')); }); });
   sec.querySelectorAll('.wl-del').forEach(function(el){ el.addEventListener('click', function(){ removeWatchlistItem(el.getAttribute('data-id')); }); });
   var newTrip = sec.querySelector('#wl-newtrip'); if (newTrip) newTrip.addEventListener('click', function(){ _watchlistAdding=true; renderWatchlist(); });
