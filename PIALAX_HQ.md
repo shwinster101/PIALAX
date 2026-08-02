@@ -232,3 +232,64 @@ That phase has no home today. Google Flights tracks **one trip's price at a time
 **Test for every new ticket:** it must either (a) deepen the watchlist/consideration phase (group economics, cheapest-week, notes/reminders, coordination), or (b) improve a hand-off to GF/Flighty. If it merely re-implements single-trip search (GF) or post-booking tracking (Flighty), it is out of scope — link out instead.
 
 _Codified from the 2026-07-21 sprint. Source: `SPRINT_PROPOSAL_2026-07-21.md` §4a (Watchlist reframe) + Ashwin's positioning steer._
+
+---
+
+## 11. "Context to Decision" sprint retrospective (PIA-046..051, 2026-08-02)
+
+**What shipped, flag-gated (`?flags=assistant`, default OFF, persists once set):**
+a Context Log (append-only notes → structured facts, never silently
+overwritten), a deterministic fallback parser + optional Anthropic extraction
+(Worker `POST /extract`, fails closed, degrades to the local parser with zero
+config), a four-state decision engine (CHANGE DATES / COORDINATE / BUY /
+WAIT) with fare snapshots and a reviewed Google Flights handoff, and a
+preview-only alerts layer (PIA-051 — no email provider yet, see backlog
+PIA-052). Plus an audited defect pack, an a11y pass, and the repo's first
+feature-flag primitive (PIA-046).
+
+**Parser accuracy — read this before trusting the number.** `test-extraction.sh`
+reports field accuracy against `scripts/fixtures/extraction-fixtures.json`
+(89/89 → 100% at last count). That number was written by the same person who
+wrote the parser, so it mostly proves internal consistency, not real-world
+recall. Every phase that touched the parser was cross-checked by hand-probing
+it with inputs that had NO fixture — that process caught 4 real bugs across
+the sprint (a reversed "to B from A" phrasing that would have inverted an
+itinerary; a constraint that bound to the nearest clock time instead of the
+one actually stated; a round-trip date range with nowhere to store the return
+leg; a note that *updates* an existing trip producing nothing, because the
+parser only looked for a complete route inside one note). Each was fixed and
+turned into a new fixture, but the technique — write fixtures, then
+adversarially probe past them — is the actual quality signal here, not the
+pass rate. Anyone extending the parser should keep doing this, not just
+adding fixtures that already match its current behavior.
+
+**Two defects only became visible once the engine was wired to real UI**
+(Phase 5), and are worth internalizing as a pattern: (1) the decision engine
+was blind to a real, already-known conflict (the Peru trek briefing) because
+it only read confirmed `ParsedFacts`, and a seeded trip has none — it has to
+also read the trip binder, where the app's OTHER features already keep this
+kind of fact. (2) fare history was never actually recorded from a real
+render for the first two phases it existed, because the function that wrote
+it lived in an orchestrator (`recomputeTripDecision`) that nothing called —
+correct in isolation, dead in the app. Both are the same lesson: a
+fixture-green pure function proves the function is right, not that it's
+wired to anything. Phase 5's browser walkthroughs (not the unit fixtures)
+found both.
+
+**Architecture note for future work:** `TripState` is DERIVED every render
+from the watchlist item + confirmed facts (`tripStateFor`), never persisted
+as the source of truth — the item stays authoritative for what it already
+owns (route, dates), confirmed facts supply what it can't express
+(constraints, companions, targets, deadlines). `pialax_trip_state_v1` still
+exists but now holds only a tiny "last seen recommendation" cache used
+solely to detect a material change for alerting — it is never read back for
+rendering. If you're tempted to read it for anything else, don't; that was
+the exact bug in (2) above.
+
+**Manual configuration remaining:** `wrangler secret put ANTHROPIC_API_KEY` +
+`wrangler deploy` to enable live extraction (works without it, at reduced
+recall); the flag itself (`?flags=assistant` once, or the Admin checkbox);
+email delivery is preview-only until PIA-052.
+
+_Source: sprint spec `SPRINT_PROPOSAL_2026-08-02` (verbal), tickets
+PIA-046 through PIA-051, this file's §10 positioning principle unchanged._

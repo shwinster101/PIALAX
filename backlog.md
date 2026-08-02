@@ -132,3 +132,29 @@ _Source: A6 audit of the PIA-030…040 UI overhaul (`RELEASE_UI_OVERHAUL.md`). A
 | 6 | `TB_COL` binder hexes are raw dark-palette values, so binder tints don't follow the light theme (cosmetic only — border + 6% background, never text). | both HTML | chore |
 | 7 | Binder "▫ N days free in X" rows now render in `--warn` (amber) alongside genuine red conflict rows; free days are a good outcome and read as a warning. | both HTML | patch |
 | 8 | Mobile `#tip` lives inside `#map-wrap` (its positioning context), so it can't show while another tab is active. **Deliberately not fixed** — relocating breaks `posTip()`; revisit only if a real hover/tap-tooltip need appears on the calendar. | `pialax-mobile.html` | note |
+
+---
+
+## PIA-052 — email delivery for trip alerts (deferred from PIA-051)
+
+_Filed 2026-08-02, on close of the "Context to Decision" sprint (PIA-046..051)._
+
+**Scope:** wire a real email provider to drain `pialax_alert_log_v1`. The
+contract, preferences, dedupe, and a fully-functional Preview panel already
+shipped in PIA-051 — this ticket is delivery only, not design.
+
+**Design (already decided, see `worker.js` "FUTURE: POST /alert" comment):**
+1. `wrangler secret put RESEND_API_KEY` (or MailChannels — Resend is simpler).
+2. New Worker route `POST /alert`: validate one `AlertEvent` + recipient
+   email, fail closed on a malformed body, call the provider, return status.
+   Structurally identical to `/extract` (PIA-048) — same shape of work.
+3. Client: drain unset-`sent` events from `pialax_alert_log_v1`, POST each to
+   `/alert`, mark sent on success. No change to `checkAndQueueAlert` /
+   `buildAlertEvent` — they already decide correctly what and when to queue.
+
+**Acceptance:** a real email arrives for a real fare-drop or blocked-dates
+event, matching what the Preview panel already shows. No behavior change to
+the (already correct, already tested) decision of whether to alert.
+
+**Effort:** S–M. Not release-blocking — the feature is fully usable via
+Preview without it.

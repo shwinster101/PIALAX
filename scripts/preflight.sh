@@ -36,7 +36,7 @@ else
 fi
 
 # 1 — files present
-step "1/7  file presence"
+step "1/8  file presence"
 for f in "${FILES[@]}"; do
   if [ -f "$f" ]; then pass "$(basename "$f") found"
   else warn "$(basename "$f") MISSING"
@@ -44,14 +44,14 @@ for f in "${FILES[@]}"; do
 done
 
 # 2 — no console.log in shipping files
-step "2/7  no console.log"
+step "2/8  no console.log"
 hits=$(grep -nE 'console\.log' "${FILES[@]}" 2>/dev/null | wc -l | tr -d ' ')
 if [ "$hits" = "0" ]; then pass "0 console.log calls"
 else warn "$hits console.log call(s) — listing:"; grep -nE 'console\.log' "${FILES[@]}"
 fi
 
 # 3 — hardcoded-secret scan (common prefixes + generic key/secret/token tokens)
-step "3/7  hardcoded secret scan"
+step "3/8  hardcoded secret scan"
 pat='(sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_\-]{35}|(api[_-]?key|secret|bearer|password)["'\''=: ]+[A-Za-z0-9_\-]{20,})'
 hits=$(grep -inE "$pat" "${FILES[@]}" 2>/dev/null \
   | grep -viE 'placeholder|example|TODO|comment|<!--|//' \
@@ -61,7 +61,7 @@ else warn "$hits possible secret(s) — REVIEW MANUALLY:"; grep -inE "$pat" "${F
 fi
 
 # 4 — HTML structural smoke (balanced <script>...</script>)
-step "4/7  HTML <script> tag balance"
+step "4/8  HTML <script> tag balance"
 for f in "${FILES[@]}"; do
   opens=$(grep -cE '<script[ >]' "$f")
   closes=$(grep -cE '</script>' "$f")
@@ -72,7 +72,7 @@ done
 
 # 5 — live SRI hash check (delegates to verify-sri.sh)
 # Invoked via `bash` so a stripped exec bit doesn't break the gate (PIA-002 fix).
-step "5/7  SRI hash freshness (live cdnjs)"
+step "5/8  SRI hash freshness (live cdnjs)"
 if [ -f "$HERE/scripts/verify-sri.sh" ]; then
   if bash "$HERE/scripts/verify-sri.sh" > /tmp/pialax-sri.log 2>&1; then
     pass "SRI hashes match cdnjs"
@@ -87,7 +87,7 @@ fi
 # 6 — bash -n syntax check on every shipping shell script (PIA-002).
 # Catches a broken helper that no one ran by hand before it lands on main.
 # Pre-push hook + scheduled runs both rely on these scripts parsing.
-step "6/7  shell-script syntax check"
+step "6/8  shell-script syntax check"
 shopt -s nullglob
 shfiles=("$HERE"/scripts/*.sh)
 shopt -u nullglob
@@ -107,7 +107,7 @@ fi
 # 7 — optional shellcheck pass (advisory: skips if not installed, surfaces
 # findings as notes without blocking the gate). Install: `brew install shellcheck`.
 # Set STRICT=1 in the env to escalate shellcheck warnings to gate failures.
-step "7/7  shellcheck (advisory)"
+step "7/8  shellcheck (advisory)"
 if ! command -v shellcheck >/dev/null 2>&1; then
   note "shellcheck not installed — skipping (brew install shellcheck for full linting)"
 elif [ "${#shfiles[@]}" -eq 0 ]; then
@@ -129,6 +129,33 @@ else
   done
   [ "$strict" = "1" ] || note "advisory mode — set STRICT=1 to block ship on shellcheck warnings"
 fi
+
+# 8 — trip-assistant test suites (PIA-051). Each script self-skips (exit 0,
+# printed as a note below) when node — or, for test-viewport, Playwright — is
+# unavailable, so a fresh machine without either never fails the gate here;
+# it just gets no coverage from this step. A real failure inside any suite
+# DOES block the push, same as every other step above. test-viewport.sh is
+# deliberately NOT run here — it needs a browser and takes real wall-clock
+# time, so it stays a manual/CI-optional check rather than a pre-push gate.
+step "8/8  trip-assistant test suites"
+suites=(test-core.sh test-extraction.sh test-worker.sh)
+for s in "${suites[@]}"; do
+  sf="$HERE/scripts/$s"
+  if [ ! -f "$sf" ]; then
+    warn "$s MISSING at $HERE/scripts/$s"
+    continue
+  fi
+  if bash "$sf" "$HERE" > /tmp/pialax-suite-"$s".log 2>&1; then
+    if grep -q "SKIPPED" /tmp/pialax-suite-"$s".log; then
+      note "$s: skipped ($(grep -o 'SKIPPED.*' /tmp/pialax-suite-"$s".log | head -1))"
+    else
+      pass "$s: $(grep -E '^(all|[0-9]+ failing)' /tmp/pialax-suite-"$s".log | tail -1)"
+    fi
+  else
+    warn "$s: FAILED — log follows:"
+    sed 's/^/      /' /tmp/pialax-suite-"$s".log
+  fi
+done
 
 # verdict
 printf "\n"

@@ -32,6 +32,8 @@ const EXPECT = [
   // PIA-049 decision engine + handoff
   'computeRecommendation', 'typicalRangeFor', 'constraintViolationsFor',
   'buildHandoffUrl', 'buildReviewLine', 'taIsRoundTrip',
+  // PIA-051 alerts
+  'buildAlertEvent', 'alertDedupeKey', 'sanitizeAlertSettings',
   'TA_GAZETTEER_PLACEHOLDER',
 ];
 // TA_GAZETTEER_PLACEHOLDER is not a real symbol — drop it. (Kept out of the
@@ -504,6 +506,76 @@ for (const f of FILES) {
   const rt = [{ origin: 'LAX', destination: 'ORD', departure_date: '2026-09-17' }, { origin: 'ORD', destination: 'LAX', departure_date: '2026-09-20' }];
   if (api.taIsRoundTrip(oj) === false && api.taIsRoundTrip(rt) === true) ok(`${f}: open jaw vs round trip distinguished structurally`);
   else bad(`${f}: taIsRoundTrip misclassified`);
+}
+
+// ---- 4e. alerts (PIA-051) ---------------------------------------------------
+// buildAlertEvent's whole job is scenario H (spec §11): a fare drop on a trip
+// whose dates still don't work must explain the conflict, never just say to
+// book. Priority mirrors computeRecommendation's own — a blocker always
+// outranks a price movement, however good.
+for (const f of FILES) {
+  const api = loaded[f];
+  if (!api) { bad(`${f}: alert fixtures skipped — file failed to load`); continue; }
+
+  for (const fx of FIXTURES.alert) {
+    const label = `${f}: alert — ${fx.name}`;
+    let rec, evt;
+    try {
+      rec = api.computeRecommendation(fx.trip_state, fx.fare_snapshot, fx.now);
+      evt = api.buildAlertEvent(fx.trip_state, rec, fx.fare_snapshot, fx.prev_fare_snapshot, fx.prefs, fx.now);
+    } catch (e) { bad(`${label} — threw ${e && e.message}`); continue; }
+    const want = fx.expect || {};
+
+    if (want.null) {
+      if (evt === null) ok(`${label} — correctly produced no alert`);
+      else bad(`${label} — expected null, got ${JSON.stringify(evt)}`);
+      continue;
+    }
+    if (!evt) { bad(`${label} — expected an alert, got null (rec was ${rec.state})`); continue; }
+
+    if (want.type && evt.type === want.type) ok(`${label} — type ${evt.type}`);
+    else if (want.type) bad(`${label} — expected type ${want.type}, got ${evt.type}`);
+
+    if (want.body_not_contains) {
+      if (!evt.body_text.toLowerCase().includes(want.body_not_contains.toLowerCase())) {
+        ok(`${label} — body does not say "${want.body_not_contains}"`);
+      } else bad(`${label} — body should NOT contain "${want.body_not_contains}": "${evt.body_text}"`);
+    }
+    if (want.body_contains) {
+      if (evt.body_text.toLowerCase().includes(want.body_contains.toLowerCase())) {
+        ok(`${label} — body mentions "${want.body_contains}"`);
+      } else bad(`${label} — body missing "${want.body_contains}": "${evt.body_text}"`);
+    }
+    // Structural invariants for every alert.
+    if (!evt.dedupe_key) bad(`${label} — every alert must carry a dedupe_key`);
+    if (evt.trip_id !== fx.trip_state.trip_id) bad(`${label} — trip_id mismatch`);
+    if (!evt.subject || !evt.body_text) bad(`${label} — subject/body must not be empty`);
+  }
+
+  // Dedupe key: pure, stable, and sensitive to exactly the things that make
+  // two alerts genuinely different (day, type, price bucket) and nothing else.
+  const k1 = api.alertDedupeKey('peru', 'fare_drop', '2026-08-02T09:00:00Z', 842);
+  const k2 = api.alertDedupeKey('peru', 'fare_drop', '2026-08-02T21:00:00Z', 843);
+  const k3 = api.alertDedupeKey('peru', 'fare_drop', '2026-08-03T09:00:00Z', 842);
+  const k4 = api.alertDedupeKey('peru', 'constraint_violation', '2026-08-02T09:00:00Z', 842);
+  const k5 = api.alertDedupeKey('peru', 'fare_drop', '2026-08-02T09:00:00Z', 895);
+  if (k1 === k2) ok(`${f}: alertDedupeKey — same day + same $10 price bucket dedupes across times of day`);
+  else bad(`${f}: alertDedupeKey — expected same key for ${k1} vs ${k2}`);
+  if (k1 !== k3) ok(`${f}: alertDedupeKey — a new day is a new key`);
+  else bad(`${f}: alertDedupeKey — different days should not collide`);
+  if (k1 !== k4) ok(`${f}: alertDedupeKey — a different alert type is a new key`);
+  else bad(`${f}: alertDedupeKey — different types should not collide`);
+  if (k1 !== k5) ok(`${f}: alertDedupeKey — a genuinely different price bucket is a new key`);
+  else bad(`${f}: alertDedupeKey — $842 and $895 should not collide`);
+
+  // Settings sanitizer: corrupt/hostile input degrades to safe defaults.
+  const s1 = api.sanitizeAlertSettings({ email: 'x'.repeat(500), prefs: { peru: { enabled: true, fare_drop_pct: 999, deadline_days: -5 }, 'bad id!': { enabled: true } } });
+  if (s1.email.length <= 200) ok(`${f}: sanitizeAlertSettings truncates an oversized email`);
+  else bad(`${f}: sanitizeAlertSettings did not truncate email`);
+  if (s1.prefs.peru.fare_drop_pct === 10 && s1.prefs.peru.deadline_days === 3) ok(`${f}: sanitizeAlertSettings clamps out-of-range thresholds to defaults`);
+  else bad(`${f}: sanitizeAlertSettings did not clamp — got ${JSON.stringify(s1.prefs.peru)}`);
+  if (!s1.prefs['bad id!']) ok(`${f}: sanitizeAlertSettings drops a trip id outside the charset`);
+  else bad(`${f}: sanitizeAlertSettings kept an invalid trip id`);
 }
 
 // ---- 5. parity -------------------------------------------------------------

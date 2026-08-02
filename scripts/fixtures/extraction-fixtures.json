@@ -1807,5 +1807,499 @@
       },
       "expect_url": null
     }
+  ],
+  "alert": [
+    {
+      "name": "H scenario — fare drop while dates still conflict explains the conflict, never says to book",
+      "trip_state": {
+        "trip_id": "peru",
+        "version": 3,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "CUZ",
+            "departure_date": "2026-09-05",
+            "flight_number": null
+          },
+          {
+            "origin": "LIM",
+            "destination": "LAX",
+            "departure_date": "2026-09-13",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [
+          {
+            "type": "must_arrive_before",
+            "datetime": "2026-09-05T17:00:00",
+            "label": "the trek briefing"
+          }
+        ],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s1",
+        "price": 842,
+        "source": "live",
+        "delta": -53,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 895
+      },
+      "prefs": {
+        "enabled": true,
+        "fare_drop_pct": 5,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "type": "fare_drop",
+        "body_not_contains": "book",
+        "body_contains": "briefing"
+      }
+    },
+    {
+      "name": "blocked dates with NO price drop → plain constraint_violation, not fare_drop",
+      "trip_state": {
+        "trip_id": "peru",
+        "version": 3,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "CUZ",
+            "departure_date": "2026-09-05",
+            "flight_number": null
+          },
+          {
+            "origin": "LIM",
+            "destination": "LAX",
+            "departure_date": "2026-09-13",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [
+          {
+            "type": "must_arrive_before",
+            "datetime": "2026-09-05T17:00:00",
+            "label": "the trek briefing"
+          }
+        ],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s2",
+        "price": 895,
+        "source": "live",
+        "delta": 0,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 895
+      },
+      "prefs": {
+        "enabled": true,
+        "fare_drop_pct": 10,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "type": "constraint_violation",
+        "body_not_contains": "book"
+      }
+    },
+    {
+      "name": "tentative companion, no price movement → conflict_needs_you",
+      "trip_state": {
+        "trip_id": "jax",
+        "version": 2,
+        "mode": "family",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "JAX",
+            "departure_date": "2026-08-07",
+            "flight_number": null
+          },
+          {
+            "origin": "JAX",
+            "destination": "LAX",
+            "departure_date": "2026-08-09",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [
+          {
+            "label": "Mom and Dad",
+            "status": "tentative"
+          }
+        ],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s3",
+        "price": 339,
+        "source": "live",
+        "delta": 0,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 339
+      },
+      "prefs": {
+        "enabled": true,
+        "fare_drop_pct": 10,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "type": "conflict_needs_you",
+        "body_contains": "Mom and Dad"
+      }
+    },
+    {
+      "name": "clean fare drop on an unblocked trip → fare_drop, free to mention booking",
+      "trip_state": {
+        "trip_id": "ord",
+        "version": 1,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17",
+            "flight_number": null
+          },
+          {
+            "origin": "ORD",
+            "destination": "LAX",
+            "departure_date": "2026-09-20",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s4",
+        "price": 180,
+        "source": "live",
+        "delta": -60,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 240
+      },
+      "prefs": {
+        "enabled": true,
+        "fare_drop_pct": 10,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "type": "fare_drop",
+        "body_contains": "180"
+      }
+    },
+    {
+      "name": "deadline approaching, no drop, no blockers → deadline_approaching",
+      "trip_state": {
+        "trip_id": "ord",
+        "version": 1,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17",
+            "flight_number": null
+          },
+          {
+            "origin": "ORD",
+            "destination": "LAX",
+            "departure_date": "2026-09-20",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": "2026-08-04",
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s5",
+        "price": 250,
+        "source": "live",
+        "delta": 0,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 250
+      },
+      "prefs": {
+        "enabled": true,
+        "fare_drop_pct": 10,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "type": "deadline_approaching"
+      }
+    },
+    {
+      "name": "prefs disabled → null regardless of how alert-worthy the trip is",
+      "trip_state": {
+        "trip_id": "peru",
+        "version": 3,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "CUZ",
+            "departure_date": "2026-09-05",
+            "flight_number": null
+          },
+          {
+            "origin": "LIM",
+            "destination": "LAX",
+            "departure_date": "2026-09-13",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [
+          {
+            "type": "must_arrive_before",
+            "datetime": "2026-09-05T17:00:00",
+            "label": "the trek briefing"
+          }
+        ],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s6",
+        "price": 700,
+        "source": "live",
+        "delta": -195,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 895
+      },
+      "prefs": {
+        "enabled": false,
+        "fare_drop_pct": 10,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "null": true
+      }
+    },
+    {
+      "name": "drop below threshold and nothing else notable → null (no material change)",
+      "trip_state": {
+        "trip_id": "ord",
+        "version": 1,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17",
+            "flight_number": null
+          },
+          {
+            "origin": "ORD",
+            "destination": "LAX",
+            "departure_date": "2026-09-20",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s7",
+        "price": 235,
+        "source": "live",
+        "delta": -5,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 240
+      },
+      "prefs": {
+        "enabled": true,
+        "fare_drop_pct": 10,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "null": true
+      }
+    },
+    {
+      "name": "a MOCK 'drop' never triggers an alert — fabricated numbers stay fabricated",
+      "trip_state": {
+        "trip_id": "ord",
+        "version": 1,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17",
+            "flight_number": null
+          },
+          {
+            "origin": "ORD",
+            "destination": "LAX",
+            "departure_date": "2026-09-20",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s8",
+        "price": 50,
+        "source": "mock",
+        "delta": -400,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 450
+      },
+      "prefs": {
+        "enabled": true,
+        "fare_drop_pct": 10,
+        "deadline_days": 3
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "null": true
+      }
+    },
+    {
+      "name": "no prefs object at all (trip never configured) → null, same as disabled",
+      "trip_state": {
+        "trip_id": "ord",
+        "version": 1,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17",
+            "flight_number": null
+          },
+          {
+            "origin": "ORD",
+            "destination": "LAX",
+            "departure_date": "2026-09-20",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [],
+        "target_price": null,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s9",
+        "price": 100,
+        "source": "live",
+        "delta": -140,
+        "typical": null
+      },
+      "prev_fare_snapshot": {
+        "price": 240
+      },
+      "prefs": null,
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "null": true
+      }
+    }
   ]
 }

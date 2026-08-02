@@ -496,3 +496,45 @@ async function handleExtract(request, env) {
     },
   });
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FUTURE: POST /alert — email delivery (PIA-051, not implemented)
+// ═══════════════════════════════════════════════════════════════════════════
+// The client (pialax.html / pialax-mobile.html) already implements the full
+// alert CONTRACT: pialax_alert_prefs_v1 (per-trip enable + thresholds, one
+// shared recipient email) and pialax_alert_log_v1 (the outbox — every queued
+// AlertEvent lives there, deduped, capped at 100). What's missing is only the
+// last mile: nothing currently reads that outbox and sends mail. Today the
+// "Preview email" button in each trip's Alerts panel is the entire delivery
+// mechanism — it renders the exact email a real send would produce, so the
+// contract is fully exercisable and testable without a provider.
+//
+// Wiring a real provider is a DROP-IN, not a redesign, because the contract
+// is already final:
+//
+//   1. Add a secret for the chosen provider, same pattern as SERPAPI_KEY /
+//      ANTHROPIC_API_KEY:
+//        wrangler secret put RESEND_API_KEY      # or MAILCHANNELS_API_KEY
+//
+//   2. Add a POST /alert route here, structurally identical to /extract
+//      above: parse the request body as one AlertEvent (id, trip_id, type,
+//      subject, body_text, dedupe_key, created_at, trip_state_version) plus
+//      the recipient email, validate the shape (fail closed — do not send a
+//      malformed event), call the provider's send API, return its status.
+//
+//   3. Client-side, drain pialax_alert_log_v1: for each event not yet marked
+//      sent, POST it to /alert, mark `sent: true` on success. This is the
+//      only client change needed — the event shape and the dedupe logic that
+//      decides WHEN to queue an event (checkAndQueueAlert, buildAlertEvent)
+//      are both already correct and already tested; delivery only has to
+//      drain what's already there.
+//
+//   4. Candidates: Resend (resend.com/docs/api-reference/emails/send-email —
+//      simplest REST API, generous free tier) or Cloudflare's own MailChannels
+//      binding (no separate account, but Workers-only and requires DNS setup
+//      for domain verification). Resend is the simpler first choice.
+//
+// Deliberately NOT built now: this sprint's job was the contract (the hard,
+// hand-mirrored, fixture-tested part) and the delivery is a small, isolated,
+// provider-specific addition that can land in an afternoon whenever a real
+// recipient is ready to receive mail. See backlog.md for the ticket.

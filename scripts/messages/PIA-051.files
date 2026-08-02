@@ -1,0 +1,16 @@
+# PIA-051 ship manifest — Phase 6 (final phase) of the "Context to Decision"
+# sprint: alerts (contract + preview, no provider), preflight step 8/8 running
+# all three test suites, and a real bug fix found only by this review — the
+# Phase-4 orchestrator was a silent no-op, so fare history was never actually
+# recorded from a live render. Flag still defaults OFF.
+pialax.html
+pialax-mobile.html
+worker.js
+scripts/preflight.sh
+scripts/test-extraction.js
+scripts/fixtures/extraction-fixtures.json
+backlog.md
+PIALAX_HQ.md
+PIALAX-SETUP-GUIDE.txt
+scripts/messages/PIA-051.msg
+scripts/messages/PIA-051.files

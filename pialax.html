@@ -446,6 +446,22 @@ button{font-family:inherit;cursor:pointer;}
 .ta-row-state { font-size: var(--fs-micro); font-weight: 900; letter-spacing: .06em; }
 .ta-row-fare { font-size: var(--fs-micro); color: var(--ink-muted); }
 .ta-row-next { font-size: var(--fs-micro); color: var(--ink-muted); line-height: 1.45; margin-top: 1px; }
+.ta-alert-row { display: flex; align-items: center; gap: 6px; font-size: var(--fs-tiny); color: var(--ink); cursor: pointer; }
+.ta-alert-fields { display: flex; flex-direction: column; gap: 5px; margin: 6px 0; font-size: var(--fs-micro); color: var(--ink-muted); }
+.ta-alert-fields input[type="number"] { width: 52px; margin: 0 2px; padding: 3px 5px; font-size: var(--fs-micro);
+  background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: var(--rad-xs); }
+.ta-alert-preview-btn { margin-top: 4px; min-height: 36px; padding: 6px 12px; font-size: var(--fs-micro); font-weight: 800;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong);
+  border-radius: var(--rad-sm, 6px); cursor: pointer; font-family: inherit; }
+.ta-alert-preview { margin-top: 6px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line-strong);
+  border-radius: var(--rad-sm, 6px); }
+.ta-alert-preview-empty { font-size: var(--fs-micro); color: var(--ink-muted); font-style: italic; border-style: dashed; }
+.ta-alert-from { font-size: var(--fs-micro); color: var(--ink-muted); }
+.ta-alert-subject { font-size: var(--fs-tiny); font-weight: 800; color: var(--ink); margin-top: 2px; }
+.ta-alert-body { font-size: var(--fs-tiny); color: var(--ink); line-height: 1.5; margin-top: 4px; }
+.ta-alert-log { margin-top: 6px; }
+.ta-alert-sent { font-size: var(--fs-micro); color: var(--ink-muted); line-height: 1.6; }
+.ta-alert-sent.ta-alert-empty { font-style: italic; }
 
 .wl-card{border:1px solid var(--line-strong);border-left-width:3px;border-radius:var(--rad-md);
   padding:7px 10px;margin-bottom:6px;background:var(--surface-2);
@@ -930,6 +946,13 @@ button{font-family:inherit;cursor:pointer;}
         <div style="display:flex;align-items:center;gap:6px;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:var(--fs-micro);color:var(--ink-muted);">
           <input id="flag-assistant" type="checkbox" style="width:16px;height:16px;cursor:pointer;"/>
           <label for="flag-assistant" style="cursor:pointer;">Trip assistant (beta)</label>
+        </div>
+        <!-- PIA-051: one alert recipient per device, shared by every trip's
+             alert toggle — matches "one verified recipient per account" (no
+             per-trip email; per-trip settings are just enable + thresholds). -->
+        <div id="ta-alert-email-row" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:var(--fs-tiny);color:var(--ink-muted);">
+          <label for="ta-alert-email" style="display:block;margin-bottom:3px;">Alert email <span style="font-weight:400;">(preview only — no provider connected yet)</span></label>
+          <input id="ta-alert-email" type="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:var(--fs-caption);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:var(--rad-xs);min-height:36px;"/>
         </div>
       </div>
     </div>
@@ -4787,8 +4810,11 @@ function setFlag(name, on) {
   var cb = document.getElementById('flag-assistant');
   if (!cb) return;
   cb.checked = flagOn('assistant');
+  var emailRow = document.getElementById('ta-alert-email-row');
+  if (emailRow) emailRow.style.display = cb.checked ? '' : 'none';
   cb.addEventListener('change', function(){
     setFlag('assistant', cb.checked);
+    if (emailRow) emailRow.style.display = cb.checked ? '' : 'none';
     // Re-render the surfaces the flag actually gates so the change is immediate
     // rather than requiring a reload.
     if (typeof renderWatchlist === 'function') renderWatchlist();
@@ -4797,6 +4823,7 @@ function setFlag(name, on) {
     }
   });
 })();
+
 
 // Critical fix: persist PROXY_URL override to localStorage so user-entered
 // proxy URLs survive reload (no more re-typing on every visit).
@@ -6732,35 +6759,234 @@ function fareSnapshotFor(tripId, tripState, nowMs) {
   };
 }
 
-// Impure orchestrator: snapshot → recommendation → persist onto TripState.
-// Spends nothing; safe to call on every render.
-function recomputeTripDecision(tripId, nowIso) {
-  var now = nowIso || new Date().toISOString();
-  var states = loadTripStates();
-  var ts = states[tripId];
-  if (!ts) return null;
-  var snap = fareSnapshotFor(tripId, ts, Date.parse(now) || undefined);
-  // Record the point BEFORE recommending on it, but only when the price was
-  // actually observed. Mock fares are fabricated; letting them into the series
-  // would make typicalRangeFor() report a "typical range" built from numbers
-  // nobody ever quoted, and then cite it as evidence to buy. One point per
-  // (day, price) keeps a re-render from inflating the series.
-  if (snap && (snap.source === 'live' || snap.source === 'cached')) {
-    var hist = loadFareHistory()[tripId] || [];
-    var last = hist.length ? hist[hist.length - 1] : null;
-    var sameDay = last && new Date(last.ts).toISOString().slice(0, 10) === now.slice(0, 10);
-    if (!last || last.price !== snap.price || !sameDay) {
-      recordFareHistory(tripId, snap.price, snap.source === 'live' ? 'live' : 'mock', Date.parse(now) || undefined, snap.snapshot_id);
-      snap = fareSnapshotFor(tripId, ts, Date.parse(now) || undefined); // refresh delta/typical
+// PIA-051 correction: recomputeTripDecision (above, now removed) read
+// loadTripStates()[tripId] as if it were the live TripState — but PIA-050 made
+// TripState derived fresh from the item + facts every render (see
+// tripStateFor/assistantViewFor below) and never writes to trip_state_v1.
+// So this function always found `states[tripId] === undefined` and returned
+// null on every call — a 100%-silent no-op. Nothing called it either, so it
+// shipped invisibly broken. Two real consequences: fare history was NEVER
+// actually recorded from a real render (only from direct test calls), so
+// typicalRangeFor() could never see live data no matter how long a user ran
+// the app; and there was no home for "did anything change since I last told
+// this user something" — exactly what alerting needs. Both are fixed below:
+// fare-history recording now lives in assistantViewFor, the one place a
+// trip's fare is actually assembled, and trip_state_v1 is repurposed as a
+// small "last seen" cache purely for alert diffing — never read back for
+// rendering, which stays fully derived per PIA-050.
+
+// ── alerts (PIA-051) ───────────────────────────────────────────────────────
+// No email provider exists yet (spec §9's explicit fallback: "implement the
+// event contract, persisted preferences, preview/test mode, and document the
+// exact provider binding needed"). So this ships the contract, the
+// preferences, and a Preview panel; pialax_alert_log_v1 IS the outbox until a
+// POST /alert route exists (see worker.js).
+//
+// One recipient email lives per device (Admin & Diagnostics), matching the
+// spec's "one verified recipient per account" — enable/thresholds are
+// per-trip, since whether THIS trip is alert-worthy is a per-trip question.
+
+var ALERT_PREFS_KEY = 'pialax_alert_prefs_v1';
+var ALERT_LOG_KEY = 'pialax_alert_log_v1';
+var TA_MAX_ALERTS = 100;
+var TA_ALERT_TYPES = { fare_drop: 1, constraint_violation: 1, deadline_approaching: 1, conflict_needs_you: 1 };
+
+function sanitizeAlertSettings(obj) {
+  var email = (obj && typeof obj.email === 'string') ? obj.email.slice(0, 200) : '';
+  var prefs = {};
+  if (obj && obj.prefs && typeof obj.prefs === 'object') {
+    Object.keys(obj.prefs).forEach(function (id) {
+      if (!TA_ID_RE.test(id)) return;
+      var p = obj.prefs[id] || {};
+      prefs[id] = {
+        enabled: p.enabled === true,
+        fare_drop_pct: (typeof p.fare_drop_pct === 'number' && p.fare_drop_pct > 0 && p.fare_drop_pct <= 100) ? p.fare_drop_pct : 10,
+        deadline_days: (typeof p.deadline_days === 'number' && p.deadline_days >= 0 && p.deadline_days <= 60) ? p.deadline_days : 3
+      };
+    });
+  }
+  return { email: email, prefs: prefs };
+}
+function loadAlertSettings() { return sanitizeAlertSettings(taReadKey(ALERT_PREFS_KEY, 'settings')); }
+function saveAlertSettings(settings) { return taWriteKey(ALERT_PREFS_KEY, 'settings', sanitizeAlertSettings(settings)); }
+// Per-trip view with sane defaults, so a trip nobody has configured yet is
+// unambiguously "disabled" rather than undefined.
+function alertPrefsFor(tripId) {
+  var s = loadAlertSettings();
+  var p = s.prefs[tripId] || { enabled: false, fare_drop_pct: 10, deadline_days: 3 };
+  return { enabled: p.enabled, fare_drop_pct: p.fare_drop_pct, deadline_days: p.deadline_days, email: s.email };
+}
+function setAlertPrefsFor(tripId, patch) {
+  var s = loadAlertSettings();
+  var cur = s.prefs[tripId] || { enabled: false, fare_drop_pct: 10, deadline_days: 3 };
+  s.prefs[tripId] = Object.assign({}, cur, patch || {});
+  return saveAlertSettings(s);
+}
+
+function sanitizeAlertEvent(e) {
+  if (!e || typeof e !== 'object') return null;
+  if (typeof e.id !== 'string' || !TA_ID_RE.test(e.id)) return null;
+  if (typeof e.trip_id !== 'string' || !TA_ID_RE.test(e.trip_id)) return null;
+  if (!TA_ALERT_TYPES[e.type]) return null;
+  return {
+    id: e.id, trip_id: e.trip_id, type: e.type,
+    subject: typeof e.subject === 'string' ? e.subject.slice(0, 200) : '',
+    body_text: typeof e.body_text === 'string' ? e.body_text.slice(0, 1000) : '',
+    dedupe_key: typeof e.dedupe_key === 'string' ? e.dedupe_key : '',
+    created_at: typeof e.created_at === 'string' ? e.created_at : '',
+    trip_state_version: typeof e.trip_state_version === 'number' ? e.trip_state_version : 0
+  };
+}
+function loadAlertLog() {
+  var arr = taReadKey(ALERT_LOG_KEY, 'events');
+  if (!Array.isArray(arr)) return [];
+  var out = [];
+  for (var i = 0; i < arr.length; i++) { var e = sanitizeAlertEvent(arr[i]); if (e) out.push(e); }
+  return out;
+}
+function appendAlertLog(evt) {
+  var list = loadAlertLog();
+  list.push(evt);
+  if (list.length > TA_MAX_ALERTS) list = list.slice(list.length - TA_MAX_ALERTS);
+  return taWriteKey(ALERT_LOG_KEY, 'events', list);
+}
+
+// Pure. Same trip + type + day + price-bucket → the same key, so opening the
+// app five times today about the same $12 wobble produces one alert, not
+// five. `price` is null for price-independent alerts (deadline, a plain
+// blocked-dates notice) so those dedupe on day alone.
+function alertDedupeKey(tripId, type, nowIso, price) {
+  var day = String(nowIso || '').slice(0, 10);
+  var bucket = (typeof price === 'number' && price > 0) ? Math.round(price / 10) * 10 : 'na';
+  return String(tripId) + '|' + String(type) + '|' + day + '|' + bucket;
+}
+
+function taFareDropPct(prevPrice, price) {
+  if (!(prevPrice > 0) || !(price > 0) || price >= prevPrice) return 0;
+  return ((prevPrice - price) / prevPrice) * 100;
+}
+
+// Pure. One event or null. Priority mirrors computeRecommendation's own logic
+// for a reason: a blocked trip is always the more important thing to say,
+// even when the price also moved favorably — a cheap fare for a trip that
+// still misses its briefing is not good news on its own, which is exactly
+// scenario H (spec §11) and exactly why a fare-drop alert on a blocked trip
+// explains the block instead of ever just saying to book.
+function buildAlertEvent(tripState, rec, snapshot, prevSnapshot, prefs, nowIso) {
+  if (!prefs || prefs.enabled !== true) return null;
+  var ts = tripState || {};
+  var now = String(nowIso || '');
+  var priceReal = !!(snapshot && (snapshot.source === 'live' || snapshot.source === 'cached') && typeof snapshot.price === 'number' && snapshot.price > 0);
+  var dropPct = (priceReal && prevSnapshot && typeof prevSnapshot.price === 'number') ? taFareDropPct(prevSnapshot.price, snapshot.price) : 0;
+  var threshold = (typeof prefs.fare_drop_pct === 'number' && prefs.fare_drop_pct > 0) ? prefs.fare_drop_pct : 10;
+  var droppedEnough = priceReal && dropPct >= threshold;
+
+  function mk(type, subject, body) {
+    return {
+      id: taNewId('alert'),
+      trip_id: ts.trip_id,
+      type: type,
+      subject: subject,
+      body_text: body,
+      dedupe_key: alertDedupeKey(ts.trip_id, type, now, priceReal ? snapshot.price : null),
+      created_at: now,
+      trip_state_version: ts.version || 0
+    };
+  }
+
+  if (rec.state === 'CHANGE_DATES') {
+    if (droppedEnough) {
+      return mk('fare_drop', 'Fare dropped, but the dates still don’t work',
+        'Dropped to ' + taMoney(snapshot.price) + ' (was ' + taMoney(prevSnapshot.price) + '), but ' +
+        rec.headline.charAt(0).toLowerCase() + rec.headline.slice(1) + '. ' + rec.next_action);
+    }
+    return mk('constraint_violation', rec.headline, rec.next_action);
+  }
+  if (rec.state === 'COORDINATE') {
+    if (droppedEnough) {
+      return mk('fare_drop', 'Fare dropped, but this still needs a decision',
+        'Dropped to ' + taMoney(snapshot.price) + ' (was ' + taMoney(prevSnapshot.price) + '). ' + rec.next_action);
+    }
+    return mk('conflict_needs_you', rec.headline, rec.next_action);
+  }
+  if (droppedEnough) {
+    return mk('fare_drop', 'Fare dropped ' + Math.round(dropPct) + '%',
+      'Now ' + taMoney(snapshot.price) + ' (was ' + taMoney(prevSnapshot.price) + '). ' + rec.next_action);
+  }
+  var daysLeft = taDaysBetween(now.slice(0, 10), ts.decision_deadline);
+  var window = (typeof prefs.deadline_days === 'number' && prefs.deadline_days >= 0) ? prefs.deadline_days : 3;
+  if (daysLeft != null && daysLeft >= 0 && daysLeft <= window) {
+    return mk('deadline_approaching',
+      'Decide on this trip ' + (daysLeft === 0 ? 'today' : 'within ' + daysLeft + ' day' + (daysLeft > 1 ? 's' : '')),
+      rec.next_action);
+  }
+  return null;
+}
+
+// Pure. The full "email". esc() on every field — this is rendered as
+// innerHTML, and body_text/subject both trace back to rec.headline /
+// rec.next_action, which quote user-typed note text.
+function renderAlertPreviewHtml(evt) {
+  if (!evt) {
+    return '<div class="ta-alert-preview ta-alert-preview-empty">Nothing to alert on for this trip right now.</div>';
+  }
+  return '<div class="ta-alert-preview">' +
+    '<div class="ta-alert-from">PIALAX &lt;alerts@pialax.app&gt;</div>' +
+    '<div class="ta-alert-subject">' + esc(evt.subject) + '</div>' +
+    '<div class="ta-alert-body">' + esc(evt.body_text) + '</div>' +
+  '</div>';
+}
+
+// Impure. The alert side-channel. Diffs the just-computed view against the
+// last-seen recommendation for this trip and queues an event when warranted.
+// This is the ONLY thing trip_state_v1 is used for now — a small "what did I
+// last tell this user" cache for detecting a MATERIAL change, never the
+// rendering source of truth (that is always freshly derived, per PIA-050).
+// Runs on every render; appending is deduped and cheap, so this is safe.
+function checkAndQueueAlert(item, view, nowIso) {
+  var prefs = alertPrefsFor(item.id);
+  if (prefs.enabled) {
+    var prevSnap = (view.snap && typeof view.snap.delta === 'number') ? { price: view.snap.price - view.snap.delta } : null;
+    var evt = buildAlertEvent(view.state, view.rec, view.snap, prevSnap, prefs, nowIso);
+    if (evt) {
+      var already = loadAlertLog().some(function (e) { return e.dedupe_key === evt.dedupe_key; });
+      if (!already) appendAlertLog(evt);
     }
   }
-  var rec = computeRecommendation(ts, snap, now);
-  ts.recommendation = rec;
-  ts.last_fare_snapshot_id = rec.fare_snapshot_id || '';
-  states[tripId] = ts;
-  saveTripStates(states);
-  return { recommendation: rec, snapshot: snap };
 }
+
+// Pure. Renders the per-trip alert settings block: enable toggle, thresholds,
+// Preview panel, and a short sent-log. The global email lives in Admin &
+// Diagnostics, not here — one recipient per device, not per trip.
+function renderAlertSettings(item, view, previewOpen) {
+  var prefs = alertPrefsFor(item.id);
+  var log = loadAlertLog().filter(function (e) { return e.trip_id === item.id; }).slice(-3).reverse();
+  var logHtml = log.length
+    ? log.map(function (e) { return '<div class="ta-alert-sent">' + esc(taLogStamp(e.created_at)) + ' — ' + esc(e.subject) + '</div>'; }).join('')
+    : '<div class="ta-alert-sent ta-alert-empty">No alerts sent yet.</div>';
+  var previewHtml = '';
+  if (previewOpen) {
+    var prevSnap = (view.snap && typeof view.snap.delta === 'number') ? { price: view.snap.price - view.snap.delta } : null;
+    var previewEvt = buildAlertEvent(view.state, view.rec, view.snap, prevSnap, Object.assign({}, prefs, { enabled: true }), _taNowIso());
+    previewHtml = renderAlertPreviewHtml(previewEvt);
+  }
+  return '<div class="ta-block">' +
+    '<div class="ta-block-hdr">Alerts</div>' +
+    '<label class="ta-alert-row">' +
+      '<input type="checkbox" class="ta-alert-enabled" data-id="' + esc(item.id) + '"' + (prefs.enabled ? ' checked' : '') + '/> Notify me about this trip' +
+    '</label>' +
+    (prefs.enabled ? (
+      '<div class="ta-alert-fields">' +
+        '<label>Fare drop <input type="number" class="ta-alert-pct" data-id="' + esc(item.id) + '" min="1" max="100" value="' + prefs.fare_drop_pct + '"/>%</label>' +
+        '<label>Remind me <input type="number" class="ta-alert-days" data-id="' + esc(item.id) + '" min="0" max="60" value="' + prefs.deadline_days + '"/> days before the deadline</label>' +
+      '</div>'
+    ) : '') +
+    '<button type="button" class="ta-alert-preview-btn" data-id="' + esc(item.id) + '">Preview email</button>' +
+    previewHtml +
+    '<div class="ta-alert-log">' + logHtml + '</div>' +
+  '</div>';
+}
+
 
 function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id === id; })[0] || null; }
 
@@ -6782,6 +7008,9 @@ function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id ===
 // One clock read per render pass. Cards computed microseconds apart could
 // otherwise straddle midnight and disagree about a deadline.
 var _taRenderNow = null;
+// Which trip's alert Preview panel is expanded — at most one at a time,
+// same discipline as _watchlistOpenId.
+var _taPreviewFor = null;
 function _taNowIso() { return _taRenderNow || new Date().toISOString(); }
 
 // Pure. Ordered legs implied by a watchlist item.
@@ -6935,8 +7164,23 @@ function assistantViewFor(item, nowIso) {
   var facts = loadParsedFacts();
   var st = tripStateFor(item, facts, now);
   var snap = fareSnapshotFor(item.id, st, Date.parse(now) || undefined);
+  // PIA-051 fix: this used to be the only place a fare would ever get
+  // recorded, but it lived in an orchestrator (recomputeTripDecision) that
+  // nothing called — so fare history was never actually written from a real
+  // render. Moved here, where a trip's fare is actually assembled. Only an
+  // OBSERVED price counts (never a mock estimate), and at most one point per
+  // day per price so a re-render can't inflate the series.
+  if (snap && (snap.source === 'live' || snap.source === 'cached')) {
+    var hist = loadFareHistory()[item.id] || [];
+    var last = hist.length ? hist[hist.length - 1] : null;
+    var sameDay = last && new Date(last.ts).toISOString().slice(0, 10) === now.slice(0, 10);
+    if (!last || last.price !== snap.price || !sameDay) {
+      recordFareHistory(item.id, snap.price, snap.source, Date.parse(now) || undefined, snap.snapshot_id);
+      snap = fareSnapshotFor(item.id, st, Date.parse(now) || undefined); // refresh delta/typical
+    }
+  }
   var rec = computeRecommendation(st, snap, now);
-  return {
+  var view = {
     state: st,
     rec: rec,
     snap: snap,
@@ -6945,6 +7189,10 @@ function assistantViewFor(item, nowIso) {
     pending: taPendingFactsFor(item.id, facts),
     events: taEventsFor(item.id, loadContextEvents())
   };
+  // Alert side-channel — never blocks rendering; a failure here is logged,
+  // not thrown, since a broken alert must not break the trip card itself.
+  try { checkAndQueueAlert(item, view, now); } catch (e) { console.warn('[PIALAX] alert check failed for ' + item.id, e); }
+  return view;
 }
 
 var TA_STATE_META = {
@@ -7312,6 +7560,7 @@ function renderWatchlist(){
         (taView ? renderFactChips(taView) : '') +
         (taView ? renderContextLog(t, taView)
                 : '<textarea class="wl-notes wl-input" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="resize:vertical;">'+esc(t.notes||'')+'</textarea>') +
+        (taView ? renderAlertSettings(t, taView, _taPreviewFor === t.id) : '') +
         nextActionHtml +
         remind + actions +
       '</div>';
@@ -7359,7 +7608,7 @@ function wireWatchlist(sec){
   // role="button" — they must answer Enter/Space or the role is a lie to a
   // keyboard user. taKeyActivate wraps that once for both.
   sec.querySelectorAll('.wl-row').forEach(function(el){
-    function toggleRow(){ var id=el.getAttribute('data-wl-id'); _watchlistOpenId = (_watchlistOpenId === id) ? null : id; renderWatchlist(); }
+    function toggleRow(){ var id=el.getAttribute('data-wl-id'); if (_watchlistOpenId !== id) _taPreviewFor = null; _watchlistOpenId = (_watchlistOpenId === id) ? null : id; renderWatchlist(); }
     el.addEventListener('click', toggleRow);
     el.addEventListener('keydown', taKeyActivate(toggleRow));
   });
@@ -7425,6 +7674,35 @@ function wireWatchlist(sec){
   sec.querySelectorAll('.ta-decision, .ta-block').forEach(function(el){
     // These live inside the expanded card but must not toggle it shut.
     el.addEventListener('click', function(e){ e.stopPropagation(); });
+  });
+  sec.querySelectorAll('.ta-alert-enabled').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); });
+    el.addEventListener('change', function(){
+      setAlertPrefsFor(el.getAttribute('data-id'), { enabled: el.checked });
+      renderWatchlist();
+    });
+  });
+  sec.querySelectorAll('.ta-alert-pct').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); });
+    el.addEventListener('change', function(){
+      var v = parseInt(el.value, 10);
+      if (v >= 1 && v <= 100) setAlertPrefsFor(el.getAttribute('data-id'), { fare_drop_pct: v });
+    });
+  });
+  sec.querySelectorAll('.ta-alert-days').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); });
+    el.addEventListener('change', function(){
+      var v = parseInt(el.value, 10);
+      if (v >= 0 && v <= 60) setAlertPrefsFor(el.getAttribute('data-id'), { deadline_days: v });
+    });
+  });
+  sec.querySelectorAll('.ta-alert-preview-btn').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      var id = el.getAttribute('data-id');
+      _taPreviewFor = (_taPreviewFor === id) ? null : id;
+      renderWatchlist();
+    });
   });
 
   sec.querySelectorAll('.wl-blocker').forEach(function(el){
@@ -7556,6 +7834,18 @@ window.pickMeetupHub = pickMeetupHub;
 window.copyRouteText = copyRouteText;
 window.setMode = setMode;
 
+(function wireAlertEmail(){
+  var inp = document.getElementById('ta-alert-email');
+  if (!inp) return;
+  try { inp.value = loadAlertSettings().email || ''; } catch (e) {}
+  inp.addEventListener('change', function(){
+    try {
+      var s = loadAlertSettings();
+      s.email = inp.value.trim();
+      saveAlertSettings(s);
+    } catch (e) {}
+  });
+})();
 initShellView(); // PIA-032: pick the landing tab (URL-derived) before first paint
 boot();
 

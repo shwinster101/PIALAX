@@ -320,3 +320,32 @@ facts — "Mom and Dad", a friend's name in a companion field. If that matters
 to you for a particular trip, keep names out of the note, or skip the LLM
 path entirely: don't set ANTHROPIC_API_KEY and the local parser runs
 100% in the browser, with nothing leaving the device at all.
+
+
+==========================================================
+TRIP ASSISTANT — ALERTS (PIA-051, added 2026-08-02)
+==========================================================
+Each trip card (with the assistant flag on) has an "Alerts" section: a
+per-trip on/off toggle, a fare-drop % threshold, a days-before-deadline
+reminder, a "Preview email" button, and a short log of what's been queued.
+
+PREVIEW ONLY — NO EMAIL ACTUALLY SENDS YET. There is no email provider wired
+up. "Preview email" shows you EXACTLY what a real send would contain — same
+subject, same body — so the feature is fully testable and honest about its
+own limits. Queued alerts land in local storage (pialax_alert_log_v1) and
+show up in each trip's log; nothing leaves your device.
+
+One recipient email lives in Admin & Diagnostics (shared by every trip you
+enable alerts for) — set it there once. Per-trip settings are just the
+toggle and thresholds.
+
+To actually receive email, someone needs to wire a provider (Resend or
+Cloudflare's MailChannels binding) into a new Worker route — the design for
+this is written out in worker.js under "FUTURE: POST /alert", and tracked as
+backlog ticket PIA-052. It's a small, isolated addition; the hard part (when
+to alert, and what to say) already works and is tested.
+
+The alert copy is deliberately not a bare "book now": if a fare drops on a
+trip whose dates still conflict with something fixed (a briefing, a check-in
+you already logged), the alert explains the conflict instead of telling you
+to buy a ticket for dates that don't work.
