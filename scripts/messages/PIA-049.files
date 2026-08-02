@@ -1,0 +1,11 @@
+# PIA-049 ship manifest — Phase 4 of the "Context to Decision" sprint:
+# deterministic four-state decision engine, fare snapshots with delta +
+# typical range, and the reviewed Google Flights handoff. Ships DARK — no UI
+# calls it yet. No security surface touched.
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/test-extraction.js
+scripts/fixtures/extraction-fixtures.json
+scripts/messages/PIA-049.msg
+scripts/messages/PIA-049.files

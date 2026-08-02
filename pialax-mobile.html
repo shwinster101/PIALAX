@@ -6077,6 +6077,39 @@ function fallbackParse(rawText, refIso) {
     out.missing_fields.push('segments.0.destination');
     out.missing_fields.push('segments.0.departure_date');
   }
+  // A stated date RANGE on a single leg ("LAX to ORD Sep 17-20") describes a
+  // round trip. Derive the return leg rather than dropping the second date on
+  // the floor — otherwise the handoff below builds a one-way search for a trip
+  // the user plainly described as a return. This is derivation, not invention:
+  // the range is in the note, the leg is marked is_inferred, its source_text
+  // quotes the range, and the user still confirms it before anything uses it.
+  // Only ever applied when there is exactly ONE segment, so a genuine open jaw
+  // (two explicit legs) is never collapsed or extended.
+  if (out.segments.length === 1 && out.segments[0].departure_date) {
+    var seg0 = out.segments[0];
+    var retIso = null, rangeSrc = '';
+    var rng = /\b([A-Za-z]{3,9})\.?\s+(\d{1,2})\s*(?:[-–—]|\bto\b|\bthrough\b)\s*(\d{1,2})\b/.exec(s);
+    if (rng) {
+      var d2 = taResolveDate(rng[1] + ' ' + rng[3], refIso);
+      if (d2 && d2 > seg0.departure_date) { retIso = d2; rangeSrc = rng[0]; }
+    }
+    if (!retIso) {
+      // "…Sep 17 to Sep 20" / two explicit dates for one leg.
+      var both = /(\d{4}-\d{2}-\d{2})\s*(?:[-–—]|\bto\b|\bthrough\b)\s*(\d{4}-\d{2}-\d{2})/.exec(s);
+      if (both && both[2] > seg0.departure_date) { retIso = both[2]; rangeSrc = both[0]; }
+    }
+    if (retIso) {
+      out.segments.push({
+        origin: seg0.destination,
+        destination: seg0.origin,
+        departure_date: retIso,
+        flight_number: null,
+        confidence: 0.5,
+        source_text: rangeSrc,
+        is_inferred: true
+      });
+    }
+  }
 
   // Hard time anchors — a briefing/meeting/check-in the itinerary must beat.
   var cre = /\b(briefing|check-?in|meeting|ceremony|orientation|tour start|trek start|wedding)\b/gi, cm;
@@ -6502,6 +6535,351 @@ function taRunExtraction(ev, nowIso) {
     }
     return true;
   });
+}
+
+
+// ── decision engine + handoff (PIA-049) ───────────────────────────────────
+// Everything a user acts on is computed HERE, deterministically, from facts
+// they confirmed — never by the model. computeRecommendation and
+// buildHandoffUrl are pure and fixture-tested; a recommendation records the
+// trip_state_version it saw, so a stale card can always be identified.
+
+// Pure. Quartiles of the per-trip price series. Null below 3 points, because
+// "typical" from one or two samples is a story, not a range.
+function typicalRangeFor(history) {
+  var pts = [];
+  var list = Array.isArray(history) ? history : [];
+  for (var i = 0; i < list.length; i++) {
+    var p = list[i] && list[i].price;
+    if (typeof p === 'number' && isFinite(p) && p > 0) pts.push(p);
+  }
+  if (pts.length < 3) return null;
+  pts.sort(function (a, b) { return a - b; });
+  function q(frac) {
+    var idx = (pts.length - 1) * frac;
+    var lo = Math.floor(idx), hi = Math.ceil(idx);
+    if (lo === hi) return pts[lo];
+    return pts[lo] + (pts[hi] - pts[lo]) * (idx - lo);
+  }
+  return { low: Math.round(q(0.25)), median: Math.round(q(0.5)), high: Math.round(q(0.75)), n: pts.length };
+}
+
+// Pure. Is a confirmed itinerary compatible with its hard time anchors?
+//
+// Day-granularity only — TripState carries departure DATES, not arrival times,
+// and the app has no flight-duration model. So this deliberately treats
+// "departs on or after the anchor day" as a violation: for a multi-leg trip you
+// cannot count on arriving before an anchor on the day you leave. That is
+// conservative and will sometimes flag a short domestic hop that would have
+// been fine. The asymmetry justifies it — the cost of a spurious "check your
+// dates" is a few seconds, the cost of silently green-lighting a departure
+// that misses a paid, non-refundable trek is the trek. (Standing limitation
+// R3 in LESSONS_LEARNED_2026-07-30.)
+function constraintViolationsFor(tripState) {
+  var out = [];
+  if (!tripState) return out;
+  var segs = tripState.segments || [];
+  var cons = tripState.constraints || [];
+  var firstDep = null;
+  for (var i = 0; i < segs.length; i++) {
+    if (segs[i] && segs[i].departure_date) { firstDep = segs[i].departure_date; break; }
+  }
+  if (!firstDep) return out;
+  for (var c = 0; c < cons.length; c++) {
+    var k = cons[c];
+    if (!k || !k.datetime) continue;
+    var day = String(k.datetime).slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) continue;
+    if (k.type === 'must_arrive_before' && firstDep >= day) {
+      out.push({
+        label: k.label || 'a fixed commitment',
+        constraint_date: day,
+        departure_date: firstDep,
+        same_day: firstDep === day
+      });
+    }
+  }
+  return out;
+}
+
+var TA_DECISION_STATES = { CHANGE_DATES: 1, COORDINATE: 1, BUY: 1, WAIT: 1 };
+
+// Pure. The four-state engine, evaluated in strict priority order. `nowIso` is
+// injected rather than read from the clock so the same inputs always produce
+// the same output — the property the determinism fixture asserts.
+function computeRecommendation(tripState, fareSnapshot, nowIso) {
+  var now = String(nowIso || '');
+  var ts = tripState || {};
+  var evidence = [];
+  var snap = fareSnapshot || null;
+  var base = {
+    state: 'WAIT',
+    headline: '',
+    next_action: '',
+    evidence: [],
+    blocking_conflict: null,
+    generated_at: now,
+    trip_state_version: ts.version || 0,
+    fare_snapshot_id: snap && snap.snapshot_id ? snap.snapshot_id : null
+  };
+
+  var missing = (ts.missing_required_fields || []).slice();
+  var conflicts = (ts.unresolved_conflicts || []).slice();
+  var violations = constraintViolationsFor(ts);
+
+  // 1 — CHANGE DATES. A confirmed itinerary that cannot meet a hard anchor is
+  // not a price question, and offering a fare for it would be actively wrong.
+  if (violations.length) {
+    var v = violations[0];
+    base.state = 'CHANGE_DATES';
+    base.headline = 'These dates miss ' + taArticled(v.label);
+    base.next_action = v.same_day
+      ? 'Leaving ' + v.departure_date + ' is the same day as ' + taArticled(v.label) + ' — move the departure earlier, or clear a late arrival.'
+      : 'Departure ' + v.departure_date + ' is after ' + taArticled(v.label) + ' on ' + v.constraint_date + '. Pick an earlier departure.';
+    evidence.push('Departs ' + v.departure_date + '; ' + taArticled(v.label) + ' is ' + v.constraint_date);
+    if (violations.length > 1) evidence.push((violations.length - 1) + ' other commitment' + (violations.length > 2 ? 's' : '') + ' also affected');
+    if (snap && snap.price) evidence.push('Current fare ' + taMoney(snap.price) + ' — not worth booking until the dates work');
+    base.blocking_conflict = { kind: 'constraint', label: v.label, date: v.constraint_date };
+    base.evidence = evidence.slice(0, 3);
+    return base;
+  }
+
+  // 2 — COORDINATE. Someone else, or an unsettled contradiction, is the
+  // blocker. Buying now would commit against an unknown.
+  var tentative = [];
+  var comps = ts.companions || [];
+  for (var i = 0; i < comps.length; i++) {
+    if (comps[i] && comps[i].status === 'tentative') tentative.push(comps[i].label || 'someone');
+  }
+  if (conflicts.length || tentative.length) {
+    base.state = 'COORDINATE';
+    if (conflicts.length) {
+      base.headline = 'Settle ' + conflicts.length + ' conflicting detail' + (conflicts.length > 1 ? 's' : '') + ' first';
+      base.next_action = 'Two notes disagree about ' + taFieldLabel(conflicts[0]) + '. Pick the right one.';
+      evidence.push('Unresolved: ' + conflicts.map(taFieldLabel).slice(0, 2).join(', '));
+      base.blocking_conflict = { kind: 'fact', field_path: conflicts[0] };
+    } else {
+      base.headline = 'Confirm ' + tentative.slice(0, 2).join(' and ') + ' before booking';
+      base.next_action = 'Ask ' + tentative[0] + ' to confirm — the total changes with the headcount.';
+      evidence.push(tentative.join(', ') + ' still tentative');
+      base.blocking_conflict = { kind: 'companion', label: tentative[0] };
+    }
+    if (snap && snap.price) evidence.push('Fare today ' + taMoney(snap.price) + taDeltaPhrase(snap));
+    base.evidence = evidence.slice(0, 3);
+    return base;
+  }
+
+  // Incomplete trips cannot be priced or booked — ask, don't guess.
+  if (missing.length) {
+    base.state = 'WAIT';
+    base.headline = 'Needs ' + taFieldLabel(missing[0]);
+    base.next_action = 'Add ' + taFieldLabel(missing[0]) + ' so fares can be checked.';
+    base.evidence = ['Missing: ' + missing.map(taFieldLabel).slice(0, 3).join(', ')];
+    return base;
+  }
+
+  // 3 — BUY, but only on positive evidence. Absence of blockers is not a
+  // reason to spend money.
+  var price = snap && typeof snap.price === 'number' ? snap.price : null;
+  var typical = snap && snap.typical ? snap.typical : null;
+  var reasons = [];
+  if (price != null && typeof ts.target_price === 'number' && price <= ts.target_price) {
+    reasons.push('At ' + taMoney(price) + ', under your ' + taMoney(ts.target_price) + ' target');
+  }
+  if (price != null && typical && price <= typical.low) {
+    reasons.push('Cheapest quartile — typical is ' + taMoney(typical.low) + '–' + taMoney(typical.high));
+  }
+  var daysLeft = taDaysBetween(now.slice(0, 10), ts.decision_deadline);
+  if (daysLeft != null && daysLeft >= 0 && daysLeft <= 3) {
+    reasons.push('Your decision deadline is ' + (daysLeft === 0 ? 'today' : 'in ' + daysLeft + ' day' + (daysLeft > 1 ? 's' : '')));
+  }
+  if (reasons.length) {
+    base.state = 'BUY';
+    base.headline = 'Good time to book';
+    base.next_action = 'Open Google Flights and book — the details below are confirmed.';
+    base.evidence = reasons.slice(0, 3);
+    return base;
+  }
+
+  // 4 — WAIT. Feasible, but nothing argues for acting today.
+  base.state = 'WAIT';
+  base.headline = 'Nothing to do yet';
+  if (price != null && typical) {
+    base.next_action = 'Fare is mid-range. Keep watching, or set a target price to get told when it drops.';
+    evidence.push('At ' + taMoney(price) + ' vs typical ' + taMoney(typical.low) + '–' + taMoney(typical.high));
+  } else if (price != null) {
+    base.next_action = 'Keep watching — a few more fare checks will show whether ' + taMoney(price) + ' is good.';
+    evidence.push('At ' + taMoney(price) + ' · not enough history yet to judge');
+  } else {
+    base.next_action = 'Tap Get Live Fares to see real prices for these dates.';
+    evidence.push('No fare checked yet');
+  }
+  if (typeof ts.target_price === 'number' && price != null && price > ts.target_price) {
+    evidence.push(taMoney(price - ts.target_price) + ' above your ' + taMoney(ts.target_price) + ' target');
+  }
+  base.evidence = evidence.slice(0, 3);
+  return base;
+}
+
+// The label can arrive either as a bare noun from the local parser ("briefing")
+// or as a phrase from the LLM ("the trek briefing"); read naturally either way.
+function taArticled(label) {
+  var s = String(label || 'a fixed commitment').trim();
+  return /^(the|a|an|your|my)\b/i.test(s) ? s : 'the ' + s;
+}
+function taMoney(n) { return '$' + Math.round(Number(n) || 0).toLocaleString('en-US'); }
+function taDeltaPhrase(snap) {
+  if (!snap || typeof snap.delta !== 'number' || !snap.delta) return '';
+  return snap.delta > 0 ? ' (up ' + taMoney(snap.delta) + ')' : ' (down ' + taMoney(-snap.delta) + ')';
+}
+function taDaysBetween(aIso, bIso) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(aIso)) || !/^\d{4}-\d{2}-\d{2}$/.test(String(bIso))) return null;
+  return Math.round((new Date(bIso + 'T00:00:00Z') - new Date(aIso + 'T00:00:00Z')) / 86400000);
+}
+// Turns a dotted field_path into something a person would say.
+function taFieldLabel(path) {
+  var p = String(path || '');
+  var m = /^segments\.(\d+)\.(\w+)$/.exec(p);
+  if (m) {
+    var leg = (+m[1] === 0) ? 'outbound' : 'return';
+    if (m[2] === 'origin') return 'the ' + leg + ' departure airport';
+    if (m[2] === 'destination') return 'the ' + leg + ' arrival airport';
+    if (m[2] === 'departure_date') return 'the ' + leg + ' date';
+    if (m[2] === 'flight_number') return 'the ' + leg + ' flight number';
+  }
+  if (p === 'target_price') return 'the target price';
+  if (p === 'decision_deadline') return 'the decision deadline';
+  if (/^constraints\./.test(p)) return 'a fixed commitment';
+  if (/^companions\./.test(p)) return 'who is coming';
+  return p;
+}
+
+// Pure. True when the two legs are exact reverses — i.e. a round trip rather
+// than an open jaw. Deriving this instead of storing a flag is what makes
+// "never collapse an open jaw into a round trip" structural.
+function taIsRoundTrip(segs) {
+  if (!segs || segs.length !== 2) return false;
+  var a = segs[0], b = segs[1];
+  return !!(a && b && a.origin && a.destination && b.origin && b.destination &&
+            b.origin === a.destination && b.destination === a.origin);
+}
+
+// Pure. The ONLY place a booking URL is built. Returns null — deliberately
+// disabling the CTA — whenever the trip is incomplete or contradicted, so a
+// user can never hand off a search that does not match what they confirmed.
+function buildHandoffUrl(tripState) {
+  var ts = tripState || {};
+  if ((ts.missing_required_fields || []).length) return null;
+  if ((ts.unresolved_conflicts || []).length) return null;
+  // A trip whose dates cannot meet a hard commitment must NOT offer a booking
+  // search for those dates. Handing someone a live Google Flights link for an
+  // itinerary the app has just told them is infeasible invites them to buy the
+  // exact ticket it was warning about — the CTA would contradict the headline
+  // directly above it. Phase 5 replaces it with an alternative-dates action;
+  // until then the honest answer is no link at all.
+  if (constraintViolationsFor(ts).length) return null;
+  var segs = (ts.segments || []).filter(function (s) {
+    return s && s.origin && s.destination && s.departure_date;
+  });
+  if (!segs.length) return null;
+  if (segs.length === 1) {
+    return gflightsUrl(segs[0].origin, segs[0].destination, segs[0].departure_date, null, false);
+  }
+  if (taIsRoundTrip(segs)) {
+    return gflightsUrl(segs[0].origin, segs[0].destination, segs[0].departure_date, segs[1].departure_date, true);
+  }
+  // Open jaw → multi-city query, matching the shape bookingUrlFor already uses
+  // for the seeded Peru trip, but generalised to any two legs.
+  var q = 'Flights from ' + segs[0].origin + ' to ' + segs[0].destination + ' on ' + segs[0].departure_date +
+          ', from ' + segs[1].origin + ' to ' + segs[1].destination + ' on ' + segs[1].departure_date;
+  return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+}
+
+// Pure. The human-readable line shown directly above the CTA. It must describe
+// exactly what the link will search — if these two ever disagree, the review
+// step is theatre.
+function buildReviewLine(tripState) {
+  var ts = tripState || {};
+  var segs = (ts.segments || []).filter(function (s) {
+    return s && s.origin && s.destination && s.departure_date;
+  });
+  if (!segs.length) return '';
+  var parts = [];
+  for (var i = 0; i < segs.length; i++) {
+    parts.push(segs[i].origin + ' → ' + segs[i].destination + ' ' + taShortDate(segs[i].departure_date));
+  }
+  var kind = segs.length === 1 ? 'One-way' : (taIsRoundTrip(segs) ? 'Round trip' : 'Multi-city');
+  return 'Searching ' + parts.join('; ') + ' · ' + kind;
+}
+function taShortDate(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return String(iso || '');
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return MON[(+m[2]) - 1] + ' ' + (+m[3]);
+}
+
+// Impure assembler — reads cached/mock prices ONLY and never fetches, so
+// computing a recommendation can never spend SerpAPI quota. The quota
+// invariant is that only an explicit button press hits the network; this
+// function is called on every render.
+function fareSnapshotFor(tripId, tripState, nowMs) {
+  var ts = tripState || {};
+  var segs = (ts.segments || []).filter(function (s) { return s && s.origin && s.destination; });
+  if (!segs.length) return null;
+  var from = segs[0].origin, to = segs[0].destination;
+  var key = from + '-' + to;
+  var entry = (typeof S !== 'undefined' && S.prices) ? S.prices[key] : null;
+  var price = null, source = 'mock', lastChecked = null;
+  if (entry) {
+    price = (typeof entry.rt === 'number' && entry.rt) ? entry.rt : entry.ow;
+    source = (entry.live && !entry.cached) ? 'live' : (entry.cached ? 'cached' : 'mock');
+    lastChecked = entry.lastVerified || null;
+  }
+  if (price == null) {
+    try { var m = getMock(from, to); price = m ? (m.rt || m.ow) : null; source = 'mock'; } catch (e) {}
+  }
+  if (price == null) return null;
+  var hist = loadFareHistory()[tripId] || [];
+  var prev = hist.length ? hist[hist.length - 1] : null;
+  return {
+    snapshot_id: 'snap-' + tripId + '-' + (typeof nowMs === 'number' ? nowMs : Date.now()),
+    price: price,
+    source: source,
+    last_checked: lastChecked,
+    delta: (prev && typeof prev.price === 'number') ? (price - prev.price) : null,
+    typical: typicalRangeFor(hist),
+    history_points: hist.length
+  };
+}
+
+// Impure orchestrator: snapshot → recommendation → persist onto TripState.
+// Spends nothing; safe to call on every render.
+function recomputeTripDecision(tripId, nowIso) {
+  var now = nowIso || new Date().toISOString();
+  var states = loadTripStates();
+  var ts = states[tripId];
+  if (!ts) return null;
+  var snap = fareSnapshotFor(tripId, ts, Date.parse(now) || undefined);
+  // Record the point BEFORE recommending on it, but only when the price was
+  // actually observed. Mock fares are fabricated; letting them into the series
+  // would make typicalRangeFor() report a "typical range" built from numbers
+  // nobody ever quoted, and then cite it as evidence to buy. One point per
+  // (day, price) keeps a re-render from inflating the series.
+  if (snap && (snap.source === 'live' || snap.source === 'cached')) {
+    var hist = loadFareHistory()[tripId] || [];
+    var last = hist.length ? hist[hist.length - 1] : null;
+    var sameDay = last && new Date(last.ts).toISOString().slice(0, 10) === now.slice(0, 10);
+    if (!last || last.price !== snap.price || !sameDay) {
+      recordFareHistory(tripId, snap.price, snap.source === 'live' ? 'live' : 'mock', Date.parse(now) || undefined, snap.snapshot_id);
+      snap = fareSnapshotFor(tripId, ts, Date.parse(now) || undefined); // refresh delta/typical
+    }
+  }
+  var rec = computeRecommendation(ts, snap, now);
+  ts.recommendation = rec;
+  ts.last_fare_snapshot_id = rec.fare_snapshot_id || '';
+  states[tripId] = ts;
+  saveTripStates(states);
+  return { recommendation: rec, snapshot: snap };
 }
 
 function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id === id; })[0] || null; }

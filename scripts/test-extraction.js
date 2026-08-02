@@ -29,6 +29,9 @@ const EXPECT = [
   'sanitizeContextEvent', 'sanitizeParsedFact', 'sanitizeTripState',
   'createContextEvent', 'migrateNotesToContextEvents', 'taCapEvents',
   'classifyExtractResponse',
+  // PIA-049 decision engine + handoff
+  'computeRecommendation', 'typicalRangeFor', 'constraintViolationsFor',
+  'buildHandoffUrl', 'buildReviewLine', 'taIsRoundTrip',
   'TA_GAZETTEER_PLACEHOLDER',
 ];
 // TA_GAZETTEER_PLACEHOLDER is not a real symbol — drop it. (Kept out of the
@@ -401,6 +404,101 @@ for (const f of FILES) {
     if (got !== want) { allGood = false; bad(`${f}: classify(${status}) — ${desc}: expected ${want}, got ${got}`); }
   }
   if (allGood) ok(`${f}: /extract classification correct for all ${cases.length} response shapes`);
+}
+
+// ---- 4c. decision engine (PIA-049) -----------------------------------------
+// The engine is what a user actually acts on, so its priority ORDER is the
+// thing under test: a blocked itinerary or an unsettled contradiction must
+// outrank any price, however good. A cheap fare for a trip that misses a paid
+// trek is not a buy signal.
+for (const f of FILES) {
+  const api = loaded[f];
+  if (!api) { bad(`${f}: decision fixtures skipped — file failed to load`); continue; }
+
+  for (const fx of FIXTURES.decision) {
+    const label = `${f}: decision — ${fx.name}`;
+    let rec;
+    try { rec = api.computeRecommendation(fx.trip_state, fx.fare_snapshot, fx.now); }
+    catch (e) { bad(`${label} — threw ${e && e.message}`); continue; }
+    const want = fx.expect || {};
+
+    if (rec.state === want.state) ok(`${label} — ${rec.state}`);
+    else bad(`${label} — expected ${want.state}, got ${rec.state} ("${rec.headline}")`);
+
+    if (want.blocking_kind !== undefined) {
+      const got = rec.blocking_conflict ? rec.blocking_conflict.kind : null;
+      if (got === want.blocking_kind) ok(`${label} — blocking_conflict ${got === null ? 'absent' : got}`);
+      else bad(`${label} — blocking kind expected ${want.blocking_kind}, got ${got}`);
+    }
+    if (want.next_action_contains) {
+      if (String(rec.next_action).includes(want.next_action_contains)) ok(`${label} — next action names "${want.next_action_contains}"`);
+      else bad(`${label} — next action missing "${want.next_action_contains}": "${rec.next_action}"`);
+    }
+    // Structural invariants that hold for EVERY recommendation.
+    if (!Array.isArray(rec.evidence) || rec.evidence.length > 3) bad(`${label} — evidence must be an array of <=3, got ${JSON.stringify(rec.evidence)}`);
+    if (want.evidence_min != null && rec.evidence.length < want.evidence_min) bad(`${label} — expected >=${want.evidence_min} evidence, got ${rec.evidence.length}`);
+    if (!rec.next_action) bad(`${label} — every recommendation must carry a next action`);
+    if (rec.trip_state_version !== (fx.trip_state.version || 0)) bad(`${label} — recommendation must record the trip_state_version it saw`);
+    if (rec.generated_at !== fx.now) bad(`${label} — generated_at must be the injected now, got ${rec.generated_at}`);
+
+    // Determinism: same inputs, same output, twice. The engine must not read
+    // the clock or anything else ambient.
+    const again = api.computeRecommendation(fx.trip_state, fx.fare_snapshot, fx.now);
+    if (JSON.stringify(again) === JSON.stringify(rec)) ok(`${label} — deterministic across repeated calls`);
+    else bad(`${label} — NOT deterministic; second call differed`);
+
+    if (want.handoff_url_null != null) {
+      const url = api.buildHandoffUrl(fx.trip_state);
+      if (want.handoff_url_null && url === null) ok(`${label} — booking CTA correctly disabled`);
+      else if (!want.handoff_url_null && url) ok(`${label} — booking CTA available`);
+      else bad(`${label} — handoff url expected ${want.handoff_url_null ? 'null' : 'a url'}, got ${JSON.stringify(url)}`);
+    }
+  }
+
+  // typicalRangeFor: refuses to invent a "typical" from too little data.
+  if (api.typicalRangeFor([]) === null && api.typicalRangeFor([{ price: 1 }, { price: 2 }]) === null) {
+    ok(`${f}: typicalRangeFor returns null below 3 data points`);
+  } else bad(`${f}: typicalRangeFor should be null under 3 points`);
+  const tr = api.typicalRangeFor([{ price: 100 }, { price: 200 }, { price: 300 }, { price: 400 }, { price: 500 }]);
+  if (tr && tr.low === 200 && tr.median === 300 && tr.high === 400 && tr.n === 5) ok(`${f}: typicalRangeFor quartiles correct`);
+  else bad(`${f}: typicalRangeFor quartiles wrong — ${JSON.stringify(tr)}`);
+}
+
+// ---- 4d. handoff URL (PIA-049) ---------------------------------------------
+// The review line and the URL must describe the SAME search. If they can
+// disagree, the review step is theatre and the user is confirming a fiction.
+for (const f of FILES) {
+  const api = loaded[f];
+  if (!api) { bad(`${f}: handoff fixtures skipped — file failed to load`); continue; }
+  for (const fx of FIXTURES.handoff) {
+    const label = `${f}: handoff — ${fx.name}`;
+    const url = api.buildHandoffUrl(fx.trip_state);
+    if (fx.expect_url === null) {
+      if (url === null) ok(`${label} — no url, CTA disabled`);
+      else bad(`${label} — expected null, got ${url}`);
+      continue;
+    }
+    if (url === fx.expect_url) ok(`${label} — url matches exactly`);
+    else bad(`${label} — url mismatch\n       want ${fx.expect_url}\n       got  ${url}`);
+
+    if (fx.expect_review) {
+      const line = api.buildReviewLine(fx.trip_state);
+      if (line === fx.expect_review) ok(`${label} — review line matches`);
+      else bad(`${label} — review line mismatch\n       want ${fx.expect_review}\n       got  ${line}`);
+      // Cross-check: every airport + date in the review line must appear in
+      // the decoded URL, so the two can never drift apart silently.
+      const decoded = decodeURIComponent(url);
+      const tokens = (line.match(/\b[A-Z]{3}\b/g) || []);
+      const missing = tokens.filter((t) => !decoded.includes(t));
+      if (!missing.length) ok(`${label} — review line and url agree on airports`);
+      else bad(`${label} — review names ${missing.join(',')} but the url does not`);
+    }
+  }
+  // An open jaw must never be readable as a round trip.
+  const oj = [{ origin: 'LAX', destination: 'CUZ', departure_date: '2026-09-04' }, { origin: 'LIM', destination: 'LAX', departure_date: '2026-09-13' }];
+  const rt = [{ origin: 'LAX', destination: 'ORD', departure_date: '2026-09-17' }, { origin: 'ORD', destination: 'LAX', departure_date: '2026-09-20' }];
+  if (api.taIsRoundTrip(oj) === false && api.taIsRoundTrip(rt) === true) ok(`${f}: open jaw vs round trip distinguished structurally`);
+  else bad(`${f}: taIsRoundTrip misclassified`);
 }
 
 // ---- 5. parity -------------------------------------------------------------
