@@ -867,7 +867,8 @@
         "snapshot_id": "s1",
         "price": 895,
         "delta": null,
-        "typical": null
+        "typical": null,
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -920,7 +921,8 @@
         "snapshot_id": "s1",
         "price": 895,
         "delta": null,
-        "typical": null
+        "typical": null,
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -974,7 +976,8 @@
           "median": 280,
           "high": 320,
           "n": 6
-        }
+        },
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1024,7 +1027,8 @@
           "median": 250,
           "high": 300,
           "n": 8
-        }
+        },
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1074,7 +1078,8 @@
           "median": 250,
           "high": 300,
           "n": 8
-        }
+        },
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1124,7 +1129,8 @@
           "median": 250,
           "high": 300,
           "n": 8
-        }
+        },
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1176,7 +1182,8 @@
           "median": 250,
           "high": 300,
           "n": 8
-        }
+        },
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1258,7 +1265,8 @@
         "snapshot_id": "s",
         "price": 400,
         "delta": null,
-        "typical": null
+        "typical": null,
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1301,7 +1309,8 @@
         "snapshot_id": "s",
         "price": 400,
         "delta": null,
-        "typical": null
+        "typical": null,
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1344,7 +1353,8 @@
         "snapshot_id": "s",
         "price": 400,
         "delta": null,
-        "typical": null
+        "typical": null,
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1393,7 +1403,8 @@
         "snapshot_id": "s",
         "price": 400,
         "delta": null,
-        "typical": null
+        "typical": null,
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1448,7 +1459,8 @@
           "median": 500,
           "high": 600,
           "n": 9
-        }
+        },
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
@@ -1497,12 +1509,112 @@
         "snapshot_id": "s",
         "price": 100,
         "delta": null,
-        "typical": null
+        "typical": null,
+        "source": "live"
       },
       "now": "2026-08-02T12:00:00Z",
       "expect": {
         "state": "BUY",
         "blocking_kind": null
+      }
+    },
+    {
+      "name": "a MOCK price under target is not a buy signal (only observed fares are)",
+      "trip_state": {
+        "trip_id": "ord",
+        "version": 1,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17",
+            "flight_number": null
+          },
+          {
+            "origin": "ORD",
+            "destination": "LAX",
+            "departure_date": "2026-09-20",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [],
+        "target_price": 200,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s3",
+        "price": 180,
+        "delta": null,
+        "typical": {
+          "low": 210,
+          "median": 250,
+          "high": 300,
+          "n": 8
+        },
+        "source": "mock"
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "state": "WAIT"
+      }
+    },
+    {
+      "name": "a mock price is never narrated as \"the fare\"",
+      "trip_state": {
+        "trip_id": "ord",
+        "version": 1,
+        "mode": "solo",
+        "status": "watching",
+        "segments": [
+          {
+            "origin": "LAX",
+            "destination": "ORD",
+            "departure_date": "2026-09-17",
+            "flight_number": null
+          },
+          {
+            "origin": "ORD",
+            "destination": "LAX",
+            "departure_date": "2026-09-20",
+            "flight_number": null
+          }
+        ],
+        "travelers": [],
+        "constraints": [],
+        "companions": [],
+        "target_price": 200,
+        "decision_deadline": null,
+        "unresolved_conflicts": [],
+        "missing_required_fields": [],
+        "last_fare_snapshot_id": "",
+        "recommendation": null,
+        "updated_at": ""
+      },
+      "fare_snapshot": {
+        "snapshot_id": "s3",
+        "price": 180,
+        "delta": null,
+        "typical": {
+          "low": 210,
+          "median": 250,
+          "high": 300,
+          "n": 8
+        },
+        "source": "mock"
+      },
+      "now": "2026-08-02T12:00:00Z",
+      "expect": {
+        "state": "WAIT",
+        "evidence_contains": "estimate"
       }
     }
   ],

@@ -430,6 +430,11 @@ for (const f of FILES) {
       if (got === want.blocking_kind) ok(`${label} — blocking_conflict ${got === null ? 'absent' : got}`);
       else bad(`${label} — blocking kind expected ${want.blocking_kind}, got ${got}`);
     }
+    if (want.evidence_contains) {
+      const joined = (rec.evidence || []).join(' | ');
+      if (joined.includes(want.evidence_contains)) ok(`${label} — evidence mentions "${want.evidence_contains}"`);
+      else bad(`${label} — evidence missing "${want.evidence_contains}": ${JSON.stringify(rec.evidence)}`);
+    }
     if (want.next_action_contains) {
       if (String(rec.next_action).includes(want.next_action_contains)) ok(`${label} — next action names "${want.next_action_contains}"`);
       else bad(`${label} — next action missing "${want.next_action_contains}": "${rec.next_action}"`);

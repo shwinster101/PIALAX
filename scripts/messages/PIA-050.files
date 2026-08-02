@@ -1,0 +1,12 @@
+# PIA-050 ship manifest — Phase 5 of the "Context to Decision" sprint: the
+# first VISIBLE phase. Flag-gated card UI (decision card, fact review, context
+# log), TripState as a derived projection, and the truthfulness fixes that
+# wiring it exposed. Flag still defaults OFF. No security surface touched.
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/test-extraction.js
+scripts/test-viewport.mjs
+scripts/fixtures/extraction-fixtures.json
+scripts/messages/PIA-050.msg
+scripts/messages/PIA-050.files

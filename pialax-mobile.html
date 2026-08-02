@@ -512,6 +512,56 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   color: var(--danger);
 }
 
+/* ── Trip assistant (PIA-050) — only rendered when the `assistant` flag is on ── */
+.ta-decision { margin: 6px 0 8px; padding: 8px 10px; background: var(--surface-2); border-radius: var(--rad-md, 8px); }
+.ta-badge { font-size: var(--fs-micro); font-weight: 900; letter-spacing: .08em; text-transform: uppercase; }
+.ta-headline { font-size: var(--fs-body-s); font-weight: 800; color: var(--ink); margin-top: 2px; line-height: 1.3; }
+.ta-next { font-size: var(--fs-tiny); color: var(--ink); margin-top: 3px; line-height: 1.45; }
+.ta-evidence { margin: 5px 0 0; padding-left: 15px; }
+.ta-evidence li { font-size: var(--fs-micro); color: var(--ink-muted); line-height: 1.5; }
+.ta-review { margin-top: 7px; font-size: var(--fs-micro); color: var(--ink-muted); font-style: italic; }
+.ta-cta { display: inline-flex; align-items: center; justify-content: center; margin-top: 4px; min-height: 40px;
+  padding: 8px 14px; background: var(--accent); color: #fff; text-decoration: none;
+  border-radius: var(--rad-sm, 6px); font-size: var(--fs-tiny); font-weight: 800; }
+.ta-cta-blocked { margin-top: 7px; padding: 6px 8px; font-size: var(--fs-micro); color: var(--ink-muted);
+  border: 1px dashed var(--line-strong); border-radius: var(--rad-sm, 6px); }
+.ta-block { margin-top: 8px; }
+.ta-block-hdr { font-size: var(--fs-micro); font-weight: 800; text-transform: uppercase; letter-spacing: .1em;
+  color: var(--ink-muted); margin-bottom: 4px; }
+.ta-fact { padding: 6px 8px; margin-bottom: 4px; background: var(--surface-2);
+  border: 1px solid var(--line); border-left: 2px solid var(--accent); border-radius: var(--rad-sm, 6px); }
+.ta-fact.conflicted { border-left-color: var(--warn); }
+.ta-fact-main { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; }
+.ta-fact-label { font-size: var(--fs-micro); color: var(--ink-muted); }
+.ta-fact-val { font-size: var(--fs-tiny); font-weight: 800; color: var(--ink); }
+.ta-fact-flag { font-size: var(--fs-micro); font-weight: 800; color: var(--warn); }
+.ta-fact-flag.ta-inferred { color: var(--ink-muted); font-weight: 600; }
+.ta-fact-src { font-size: var(--fs-micro); color: var(--ink-muted); margin-top: 2px; line-height: 1.4; }
+.ta-fact-acts { display: flex; gap: 5px; margin-top: 5px; }
+.ta-fact-acts button { min-height: 32px; padding: 4px 10px; font-size: var(--fs-micro); font-weight: 800;
+  border-radius: var(--rad-sm, 6px); cursor: pointer; font-family: inherit; }
+.ta-confirm { background: var(--accent); color: #fff; border: none; }
+.ta-reject { background: none; color: var(--ink-muted); border: 1px solid var(--line-strong); }
+.ta-log-entry { padding: 5px 0; border-bottom: 1px solid var(--line); }
+.ta-log-meta { display: flex; align-items: center; gap: 6px; font-size: var(--fs-micro); color: var(--ink-muted); }
+.ta-log-status { font-style: italic; }
+.ta-log-status.ta-failed { color: var(--warn); font-style: normal; }
+.ta-retry { min-height: 28px; padding: 2px 8px; font-size: var(--fs-micro); font-weight: 800; cursor: pointer;
+  background: none; color: var(--ink); border: 1px solid var(--warn); border-radius: var(--rad-sm, 6px); font-family: inherit; }
+.ta-log-text { font-size: var(--fs-tiny); color: var(--ink); line-height: 1.5; margin-top: 2px; white-space: pre-wrap; }
+.ta-log-empty { font-size: var(--fs-micro); color: var(--ink-muted); line-height: 1.5; padding: 3px 0 5px; }
+.ta-composer { width: 100%; margin-top: 6px; min-height: 72px; max-height: 120px; overflow-y: auto;
+  padding: 8px; font-family: inherit; font-size: var(--fs-tiny); line-height: 1.5; color: var(--ink);
+  background: var(--bg); border: 1px solid var(--line-strong); border-radius: var(--rad-sm, 6px); resize: vertical; }
+.ta-add-note { margin-top: 5px; min-height: 40px; padding: 8px 14px; font-size: var(--fs-tiny); font-weight: 800;
+  background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong);
+  border-radius: var(--rad-sm, 6px); cursor: pointer; font-family: inherit; }
+.ta-add-note[disabled] { opacity: .55; cursor: default; }
+/* Collapsed-card decision line: the answer to "does this need me?" */
+.ta-row-state { font-size: var(--fs-micro); font-weight: 900; letter-spacing: .06em; }
+.ta-row-fare { font-size: var(--fs-micro); color: var(--ink-muted); }
+.ta-row-next { font-size: var(--fs-micro); color: var(--ink-muted); line-height: 1.45; margin-top: 1px; }
+
 /* ── Quota warning banner ── */
 /* PIA-040: no blanket display:none — updateApiCallCount() only clears the INLINE
    style, so a stylesheet rule made every warning state render invisibly. Visibility
@@ -5590,7 +5640,7 @@ function loadWatchlist() {
     if (raw) {
       var stored = JSON.parse(raw);
       if (stored && stored.overrides) {
-        WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
+        WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       }
       if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it)) WATCHLIST.push(it); });
     }
@@ -5600,14 +5650,14 @@ function loadWatchlist() {
     var wlp = new URLSearchParams(window.location.search).get('wl');
     if (wlp) {
       var s = JSON.parse(decodeURIComponent(atob(wlp)));
-      if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
+      if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
     }
   } catch(e){}
 }
 function sharePlan(){
   var payload = { overrides:{}, added:[] };
-  WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers }; });
+  WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers, dep:t.dep, ret:t.ret }; });
   var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e){}
   var sp = new URLSearchParams(window.location.search); sp.set('wl', enc);
   var url = window.location.origin + window.location.pathname + '?' + sp.toString();
@@ -5622,7 +5672,10 @@ function sharePlan(){
 function saveWatchlist() {
   try {
     var overrides = {}, added = [];
-    WATCHLIST.forEach(function(t){ if (t._added) added.push(t); else overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers }; });
+    WATCHLIST.forEach(function(t){ if (t._added) added.push(t); else // PIA-050: dates are overridable now. Confirming a date change from a note
+    // mutates the item, and without persisting dep/ret that change silently
+    // vanished on reload — the exact data loss this feature exists to prevent.
+    overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers, dep:t.dep, ret:t.ret }; });
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify({ overrides:overrides, added:added }));
   } catch(e){}
 }
@@ -5998,7 +6051,7 @@ function taScanPlaces(text) {
 // Pure. The deterministic extractor. Returns the SAME schema the LLM route
 // returns, so downstream code never branches on which produced it — only
 // parser_version and the (lower) confidences differ.
-function fallbackParse(rawText, refIso) {
+function fallbackParse(rawText, refIso, tripState) {
   var s = String(rawText == null ? '' : rawText);
   var out = {
     segments: [], constraints: [], companions: [],
@@ -6111,6 +6164,33 @@ function fallbackParse(rawText, refIso) {
     }
   }
 
+  // A note is filed AGAINST a trip that usually already has a route, so an
+  // update like "moving departure to Sep 4" states a date and nothing else.
+  // Without this, the most common kind of note produces no usable fact at all.
+  // Requires an explicit departure cue next to the date so that merely
+  // mentioning any date cannot silently rewrite the itinerary.
+  if (!out.segments.length && tripState && Array.isArray(tripState.segments) && tripState.segments[0] &&
+      tripState.segments[0].origin && tripState.segments[0].destination) {
+    var cue = /\b(depart\w*|leav\w*|fly out|mov\w*|push\w*|shift\w*|resched\w*)\b/i.exec(s);
+    if (cue) {
+      var win2 = s.slice(Math.max(0, cue.index - 20), Math.min(s.length, cue.index + 70));
+      var newDep = taResolveDate(win2, refIso);
+      if (newDep && newDep !== tripState.segments[0].departure_date) {
+        out.segments.push({
+          origin: tripState.segments[0].origin,
+          destination: tripState.segments[0].destination,
+          departure_date: newDep,
+          flight_number: null,
+          confidence: 0.55,
+          source_text: win2.trim(),
+          is_inferred: true
+        });
+        // The route came from the trip, not the note, so nothing is missing.
+        out.missing_fields = out.missing_fields.filter(function (m) { return !/^segments\.0\./.test(m); });
+      }
+    }
+  }
+
   // Hard time anchors — a briefing/meeting/check-in the itinerary must beat.
   var cre = /\b(briefing|check-?in|meeting|ceremony|orientation|tour start|trek start|wedding)\b/gi, cm;
   while ((cm = cre.exec(s))) {
@@ -6131,7 +6211,13 @@ function fallbackParse(rawText, refIso) {
         if (/am/i.test(tm[3]) && hh === 12) hh = 0;
       } else { hh = +tm[4]; mi = +tm[5]; }
     }
-    if (cDate) {
+    // Only treat this as a hard anchor when the note actually SAYS when it is.
+    // "…to make the briefing" references a commitment without scheduling it;
+    // grabbing the nearest date would fabricate an anchor and then block the
+    // trip against it. Require a time-of-day, or an explicit "<keyword> is/on/at
+    // <date>" linkage.
+    var linked = new RegExp(cm[1] + '\\s+(?:is|on|at|starts?)\\b', 'i').test(win);
+    if (cDate && (hh != null || linked)) {
       out.constraints.push({
         type: 'must_arrive_before',
         datetime: cDate + (hh == null ? '' : 'T' + taPad2(hh) + ':' + taPad2(mi) + ':00'),
@@ -6425,7 +6511,7 @@ function classifyExtractResponse(status, body) {
 // resolves — never rejects — with {extraction, parser_version, classification}.
 function requestExtraction(event, tripState, todayIso, tz) {
   var localResult = {
-    extraction: fallbackParse(event.raw_text, todayIso),
+    extraction: fallbackParse(event.raw_text, todayIso, tripState),
     parser_version: 'fallback-1',
     classification: 'fallback'
   };
@@ -6507,11 +6593,14 @@ function retryExtraction(eventId, nowIso) {
 // Shared tail of both paths: extract → facts → merge → persist, updating the
 // event's own status as it goes so the UI can show per-note progress.
 function taRunExtraction(ev, nowIso) {
-  var states = loadTripStates();
+  // TripState is derived, not stored (PIA-050) — build it from the item so the
+  // parser knows the route this note is being filed against.
+  var _item = (typeof watchlistItem === 'function') ? watchlistItem(ev.trip_id) : null;
+  var derived = _item ? tripStateFor(_item, loadParsedFacts(), nowIso) : null;
   var todayIso = nowIso.slice(0, 10);
   var tz = 'UTC';
   try { tz = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch (e) {}
-  return requestExtraction(ev, states[ev.trip_id] || null, todayIso, tz).then(function (res) {
+  return requestExtraction(ev, derived, todayIso, tz).then(function (res) {
     var events = loadContextEvents();
     var stored = null;
     for (var i = 0; i < events.length; i++) { if (events[i].id === ev.id) { stored = events[i]; break; } }
@@ -6527,8 +6616,6 @@ function taRunExtraction(ev, nowIso) {
     // TripState is rebuilt from CONFIRMED facts only, so this cannot promote
     // anything the user has not reviewed — it just refreshes conflict and
     // missing-field bookkeeping.
-    states[ev.trip_id] = rebuildTripState(ev.trip_id, merged.facts, states[ev.trip_id] || null, nowIso);
-    saveTripStates(states);
     if (stored) { stored.extraction_status = 'parsed'; stored.parser_version = res.parser_version; saveContextEvents(events); }
     if (res.classification === 'failed' && typeof showShareToast === 'function') {
       showShareToast('⚠ Assistant API key rejected — check the Worker secret');
@@ -6623,6 +6710,10 @@ function computeRecommendation(tripState, fareSnapshot, nowIso) {
     fare_snapshot_id: snap && snap.snapshot_id ? snap.snapshot_id : null
   };
 
+  // A mock/sample number is never described as "the fare". It may be shown as
+  // a labelled estimate elsewhere, but the engine must not narrate it as an
+  // observation, or it launders a fabricated figure into reasoning.
+  var snapIsReal = !!(snap && (snap.source === 'live' || snap.source === 'cached'));
   var missing = (ts.missing_required_fields || []).slice();
   var conflicts = (ts.unresolved_conflicts || []).slice();
   var violations = constraintViolationsFor(ts);
@@ -6638,7 +6729,7 @@ function computeRecommendation(tripState, fareSnapshot, nowIso) {
       : 'Departure ' + v.departure_date + ' is after ' + taArticled(v.label) + ' on ' + v.constraint_date + '. Pick an earlier departure.';
     evidence.push('Departs ' + v.departure_date + '; ' + taArticled(v.label) + ' is ' + v.constraint_date);
     if (violations.length > 1) evidence.push((violations.length - 1) + ' other commitment' + (violations.length > 2 ? 's' : '') + ' also affected');
-    if (snap && snap.price) evidence.push('Current fare ' + taMoney(snap.price) + ' — not worth booking until the dates work');
+    if (snapIsReal && snap.price) evidence.push('Current fare ' + taMoney(snap.price) + ' — not worth booking until the dates work');
     base.blocking_conflict = { kind: 'constraint', label: v.label, date: v.constraint_date };
     base.evidence = evidence.slice(0, 3);
     return base;
@@ -6664,7 +6755,7 @@ function computeRecommendation(tripState, fareSnapshot, nowIso) {
       evidence.push(tentative.join(', ') + ' still tentative');
       base.blocking_conflict = { kind: 'companion', label: tentative[0] };
     }
-    if (snap && snap.price) evidence.push('Fare today ' + taMoney(snap.price) + taDeltaPhrase(snap));
+    if (snapIsReal && snap.price) evidence.push('Fare today ' + taMoney(snap.price) + taDeltaPhrase(snap));
     base.evidence = evidence.slice(0, 3);
     return base;
   }
@@ -6683,10 +6774,13 @@ function computeRecommendation(tripState, fareSnapshot, nowIso) {
   var price = snap && typeof snap.price === 'number' ? snap.price : null;
   var typical = snap && snap.typical ? snap.typical : null;
   var reasons = [];
-  if (price != null && typeof ts.target_price === 'number' && price <= ts.target_price) {
+  // Only an OBSERVED price can justify buying. A mock estimate that happens to
+  // sit under the target is not evidence of anything.
+  var priceIsReal = snapIsReal;
+  if (priceIsReal && price != null && typeof ts.target_price === 'number' && price <= ts.target_price) {
     reasons.push('At ' + taMoney(price) + ', under your ' + taMoney(ts.target_price) + ' target');
   }
-  if (price != null && typical && price <= typical.low) {
+  if (priceIsReal && price != null && typical && price <= typical.low) {
     reasons.push('Cheapest quartile — typical is ' + taMoney(typical.low) + '–' + taMoney(typical.high));
   }
   var daysLeft = taDaysBetween(now.slice(0, 10), ts.decision_deadline);
@@ -6704,12 +6798,17 @@ function computeRecommendation(tripState, fareSnapshot, nowIso) {
   // 4 — WAIT. Feasible, but nothing argues for acting today.
   base.state = 'WAIT';
   base.headline = 'Nothing to do yet';
-  if (price != null && typical) {
+  var observed = snapIsReal;
+  if (price != null && typical && observed) {
     base.next_action = 'Fare is mid-range. Keep watching, or set a target price to get told when it drops.';
     evidence.push('At ' + taMoney(price) + ' vs typical ' + taMoney(typical.low) + '–' + taMoney(typical.high));
-  } else if (price != null) {
+  } else if (price != null && observed) {
     base.next_action = 'Keep watching — a few more fare checks will show whether ' + taMoney(price) + ' is good.';
     evidence.push('At ' + taMoney(price) + ' · not enough history yet to judge');
+  } else if (price != null) {
+    // Estimate only. Say so, and do not invite the user to reason about it.
+    base.next_action = 'Tap Get Live Fares to replace the ' + taMoney(price) + ' estimate with a real price.';
+    evidence.push('Showing a sample estimate — no live fare checked for these dates');
   } else {
     base.next_action = 'Tap Get Live Fares to see real prices for these dates.';
     evidence.push('No fare checked yet');
@@ -6838,7 +6937,9 @@ function fareSnapshotFor(tripId, tripState, nowMs) {
   if (price == null) {
     try { var m = getMock(from, to); price = m ? (m.rt || m.ow) : null; source = 'mock'; } catch (e) {}
   }
-  if (price == null) return null;
+  // A zero or negative "price" means the mock table has no entry for this
+  // route — reporting "$0" would be a fabricated number dressed as a fare.
+  if (price == null || !(price > 0)) return null;
   var hist = loadFareHistory()[tripId] || [];
   var prev = hist.length ? hist[hist.length - 1] : null;
   return {
@@ -6883,6 +6984,318 @@ function recomputeTripDecision(tripId, nowIso) {
 }
 
 function watchlistItem(id){ return WATCHLIST.filter(function(t){ return t.id === id; })[0] || null; }
+
+// ── assistant view model + UI (PIA-050) ───────────────────────────────────
+// First principle for this phase: a watchlist card exists to answer ONE
+// question at a glance — "does this trip need me right now?" Everything else
+// is detail behind the expand. So the collapsed card leads with the decision,
+// not with a fabricated price estimate.
+//
+// Second principle, and the design decision that shapes everything below:
+// TripState is DERIVED, never stored. A watchlist item already owns the user's
+// own route and dates — they typed them, or the seed declared them, so they
+// are confirmed data by definition. Duplicating them into a second store would
+// create two truths that drift the moment either is edited. Instead the item
+// stays the source of truth for what it owns, confirmed facts supply what it
+// cannot express (commitments, companions, targets, deadlines), and the state
+// is recomputed on every render. Nothing to desync.
+
+// One clock read per render pass. Cards computed microseconds apart could
+// otherwise straddle midnight and disagree about a deadline.
+var _taRenderNow = null;
+function _taNowIso() { return _taRenderNow || new Date().toISOString(); }
+
+// Pure. Ordered legs implied by a watchlist item.
+function taSegmentsFromItem(item) {
+  if (!item) return [];
+  var gf = item.gf || {};
+  var from = (item.mode === 'family') ? (gf.from || item.origin || null) : (item.origin || gf.from || null);
+  var to   = (item.mode === 'family') ? (item.hub || gf.to || null)      : (item.dest   || gf.to   || null);
+  var dep = item.dep || null, ret = item.ret || null;
+  if (!from && !to && !dep) return [];
+  var segs = [{ origin: from, destination: to, departure_date: dep, flight_number: null }];
+  if (ret && from && to) {
+    // The app knows exactly one open-jaw return — Peru flies home from Lima,
+    // the same fact bookingUrlFor() already encodes. Any OTHER open jaw has a
+    // return origin nobody has stated, so it is left null and asked about
+    // rather than assumed.
+    var openjaw = !!gf.openjaw;
+    var backFrom = openjaw ? (to === 'CUZ' ? 'LIM' : null) : to;
+    segs.push({ origin: backFrom, destination: from, departure_date: ret, flight_number: null });
+  }
+  return segs;
+}
+
+// Cheap stable fingerprint. Used as TripState.version so a recommendation can
+// record exactly which inputs produced it — more useful than a counter,
+// because identical inputs give an identical version and any change shows.
+function taFingerprint(obj) {
+  var s = '';
+  try { s = JSON.stringify(obj); } catch (e) { s = String(obj); }
+  var h = 0;
+  for (var i = 0; i < s.length; i++) { h = ((h << 5) - h + s.charCodeAt(i)) | 0; }
+  return Math.abs(h);
+}
+
+// The app has ALWAYS known about fixed commitments — they sit in the trip
+// binder (the Peru trek briefing, the trek start) and the old trek card warned
+// about them. Reading only confirmed ParsedFacts would make the new decision
+// engine blind to data the app already holds, so a seeded trip with a real
+// conflict would cheerfully report "nothing to do yet" while the card right
+// below it warned otherwise. That is worse than not shipping the engine.
+function taConstraintsFromBinder(item) {
+  var out = [];
+  if (!item) return out;
+  try {
+    var key = binderKeyFor(item.dest || item.hub || '');
+    var segs = (typeof TRIP_BOOKINGS_SEED !== 'undefined' && TRIP_BOOKINGS_SEED[key]) || [];
+    for (var i = 0; i < segs.length; i++) {
+      var b = segs[i];
+      if (!b || !b.start) continue;
+      var title = String(b.title || '');
+      // A commitment is hard when it says so, or when it is the start of a
+      // booked activity you have to be present for.
+      var mustAttend = /must attend|mandatory|required/i.test(title);
+      var isStart = (b.type === 'trek' || b.type === 'tour');
+      if (!mustAttend && !isStart) continue;
+      var timeM = /\b(\d{1,2}):(\d{2})\b|\b(\d{1,2})\s*(am|pm)\b/i.exec(title);
+      var dt = b.start;
+      if (timeM) {
+        var hh = timeM[1] ? +timeM[1] : +timeM[3];
+        var mm = timeM[2] ? +timeM[2] : 0;
+        if (timeM[4] && /pm/i.test(timeM[4]) && hh < 12) hh += 12;
+        dt = b.start + 'T' + (hh < 10 ? '0' : '') + hh + ':' + (mm < 10 ? '0' : '') + mm + ':00';
+      }
+      out.push({
+        type: 'must_arrive_before',
+        datetime: dt,
+        label: title.replace(/^[^A-Za-z0-9]+/, '').replace(/\s*\(must attend\)\s*/i, '').trim() || 'a booked commitment',
+        from_binder: true
+      });
+    }
+  } catch (e) { /* binder is optional */ }
+  return out;
+}
+
+// Pure. Item + facts → decision-ready state. Confirmed facts only; anything
+// still proposed is deliberately invisible here, which is what keeps an
+// unreviewed extraction out of a recommendation or a booking link.
+function tripStateFor(item, facts, nowIso) {
+  var segs = taSegmentsFromItem(item);
+  var constraints = taConstraintsFromBinder(item), companions = [], conflicts = {};
+  var target = null, deadline = null;
+  var list = Array.isArray(facts) ? facts : [];
+  for (var i = 0; i < list.length; i++) {
+    var f = list[i];
+    if (!f || f.trip_id !== item.id) continue;
+    if (f.status === 'conflicted') { conflicts[f.field_path] = true; continue; }
+    if (f.status !== 'confirmed') continue;
+    var m = /^segments\.(\d+)\.(origin|destination|departure_date|flight_number)$/.exec(f.field_path);
+    if (m) {
+      var idx = +m[1];
+      if (idx < 2) {
+        if (!segs[idx]) segs[idx] = { origin: null, destination: null, departure_date: null, flight_number: null };
+        segs[idx][m[2]] = f.value;
+      }
+      continue;
+    }
+    if (/^constraints\./.test(f.field_path)) { constraints.push(f.value); continue; }
+    if (/^companions\./.test(f.field_path)) { companions.push(f.value); continue; }
+    if (f.field_path === 'target_price') { target = f.value; continue; }
+    if (f.field_path === 'decision_deadline') { deadline = f.value; continue; }
+  }
+  if (!segs.length) segs = [{ origin: null, destination: null, departure_date: null, flight_number: null }];
+  var missing = [];
+  if (!segs[0].origin) missing.push('segments.0.origin');
+  if (!segs[0].destination) missing.push('segments.0.destination');
+  if (!segs[0].departure_date) missing.push('segments.0.departure_date');
+  if (segs[1] && !segs[1].origin) missing.push('segments.1.origin');
+  var st = {
+    trip_id: item.id,
+    version: 0,
+    mode: item.mode === 'family' ? 'family' : 'solo',
+    status: item.stage || 'watching',
+    segments: segs,
+    travelers: [],
+    constraints: constraints,
+    companions: companions,
+    target_price: target,
+    decision_deadline: deadline,
+    unresolved_conflicts: Object.keys(conflicts),
+    missing_required_fields: missing,
+    last_fare_snapshot_id: '',
+    recommendation: null,
+    updated_at: String(nowIso || '')
+  };
+  st.version = taFingerprint([st.segments, st.constraints, st.companions, st.target_price, st.decision_deadline, st.unresolved_conflicts]);
+  return st;
+}
+
+// Facts still awaiting a human decision, newest first.
+function taPendingFactsFor(tripId, facts) {
+  var out = [];
+  var list = Array.isArray(facts) ? facts : [];
+  for (var i = list.length - 1; i >= 0; i--) {
+    var f = list[i];
+    if (f && f.trip_id === tripId && (f.status === 'proposed' || f.status === 'conflicted')) out.push(f);
+  }
+  return out;
+}
+function taEventsFor(tripId, events) {
+  var out = [];
+  var list = Array.isArray(events) ? events : [];
+  for (var i = 0; i < list.length; i++) if (list[i] && list[i].trip_id === tripId) out.push(list[i]);
+  out.sort(function (a, b) { return String(a.created_at).localeCompare(String(b.created_at)); });
+  return out;
+}
+
+// Impure, once per card render. Reads cached/mock prices only — never fetches,
+// so rendering can never spend SerpAPI quota.
+function assistantViewFor(item, nowIso) {
+  var now = nowIso || new Date().toISOString();
+  var facts = loadParsedFacts();
+  var st = tripStateFor(item, facts, now);
+  var snap = fareSnapshotFor(item.id, st, Date.parse(now) || undefined);
+  var rec = computeRecommendation(st, snap, now);
+  return {
+    state: st,
+    rec: rec,
+    snap: snap,
+    url: buildHandoffUrl(st),
+    review: buildReviewLine(st),
+    pending: taPendingFactsFor(item.id, facts),
+    events: taEventsFor(item.id, loadContextEvents())
+  };
+}
+
+var TA_STATE_META = {
+  CHANGE_DATES: { label: 'CHANGE DATES', emoji: '⚠', tone: 'var(--danger)' },
+  COORDINATE:   { label: 'COORDINATE',   emoji: '👥', tone: 'var(--warn)' },
+  BUY:          { label: 'BOOK IT',      emoji: '✅', tone: 'var(--success, var(--green))' },
+  WAIT:         { label: 'WATCHING',     emoji: '👀', tone: 'var(--ink-muted)' }
+};
+
+// Pure. The one-line fare summary. Says what it actually knows: an observed
+// price with its age, or plainly that nothing has been checked. It never
+// presents a mock number as if it were a quote.
+function renderFareLine(snap) {
+  if (!snap || snap.price == null) return '<span style="color:var(--ink-muted);">no fare checked</span>';
+  var out = '<strong>' + esc(taMoney(snap.price)) + '</strong>';
+  if (snap.source === 'mock') {
+    out += ' <span style="color:var(--ink-muted);">est.</span>';
+  } else {
+    if (typeof snap.delta === 'number' && snap.delta) {
+      out += ' <span style="color:' + (snap.delta > 0 ? 'var(--danger)' : 'var(--success, var(--green))') + ';">' +
+        (snap.delta > 0 ? '▲' : '▼') + esc(taMoney(Math.abs(snap.delta))) + '</span>';
+    }
+    if (snap.typical) out += ' <span style="color:var(--ink-muted);">typical ' + esc(taMoney(snap.typical.low)) + '–' + esc(taMoney(snap.typical.high)) + '</span>';
+  }
+  return out;
+}
+
+// Pure. The dominant block in an expanded card: what to do, why, and the ONE
+// action. When the trip is blocked or incomplete the CTA is replaced by the
+// question that would unblock it — offering a booking search for an itinerary
+// the app has just called infeasible would contradict its own headline.
+function renderDecisionCard(view) {
+  var rec = view.rec, meta = TA_STATE_META[rec.state] || TA_STATE_META.WAIT;
+  var h = '<div class="ta-decision" style="border-left:3px solid ' + meta.tone + ';">' +
+    '<div class="ta-badge" style="color:' + meta.tone + ';">' + meta.emoji + ' ' + meta.label + '</div>' +
+    '<div class="ta-headline">' + esc(rec.headline) + '</div>' +
+    '<div class="ta-next">' + esc(rec.next_action) + '</div>';
+  if (rec.evidence && rec.evidence.length) {
+    h += '<ul class="ta-evidence">' + rec.evidence.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';
+  }
+  if (view.url) {
+    h += '<div class="ta-review">' + esc(view.review) + '</div>' +
+      '<a class="ta-cta" href="' + esc(view.url) + '" target="_blank" rel="noopener noreferrer">🔎 Search these flights ↗</a>';
+  } else {
+    var why = rec.blocking_conflict
+      ? (rec.blocking_conflict.kind === 'constraint'
+          ? 'No search link while the dates conflict — fix the dates and it comes back.'
+          : 'No search link until this is settled.')
+      : 'No search link until the missing details are filled in.';
+    h += '<div class="ta-cta-blocked">' + esc(why) + '</div>';
+  }
+  return h + '</div>';
+}
+
+// Pure. Proposed facts awaiting review. Every row shows the value AND the text
+// it came from — a user confirming a fact should never have to take the app's
+// word for where it got it.
+function renderFactChips(view) {
+  if (!view.pending.length) return '';
+  var rows = view.pending.slice(0, 8).map(function (f) {
+    var val = (f.value && typeof f.value === 'object')
+      ? (f.value.label || f.value.type || JSON.stringify(f.value))
+      : String(f.value);
+    var conflicted = f.status === 'conflicted';
+    return '<div class="ta-fact' + (conflicted ? ' conflicted' : '') + '">' +
+      '<div class="ta-fact-main">' +
+        '<span class="ta-fact-label">' + esc(taFieldLabel(f.field_path)) + '</span>' +
+        '<span class="ta-fact-val">' + esc(val) + '</span>' +
+        (conflicted ? '<span class="ta-fact-flag">conflicts</span>' : '') +
+        (f.is_inferred ? '<span class="ta-fact-flag ta-inferred">inferred</span>' : '') +
+      '</div>' +
+      (f.source_text ? '<div class="ta-fact-src">“' + esc(String(f.source_text).slice(0, 110)) + '”</div>' : '') +
+      '<div class="ta-fact-acts">' +
+        '<button type="button" class="ta-confirm" data-fact="' + esc(f.id) + '">Confirm</button>' +
+        '<button type="button" class="ta-reject" data-fact="' + esc(f.id) + '">Discard</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+  return '<div class="ta-block"><div class="ta-block-hdr">Needs your review · ' + view.pending.length + '</div>' + rows + '</div>';
+}
+
+// Pure. Append-only history plus the composer. Entries are never edited or
+// rewritten — that is the promise the whole layer exists to keep.
+function renderContextLog(item, view) {
+  var entries = view.events.map(function (e) {
+    var status = e.extraction_status === 'failed'
+      ? '<span class="ta-log-status ta-failed">couldn’t read this one</span>'
+      : (e.extraction_status === 'pending' ? '<span class="ta-log-status">reading…</span>' : '');
+    var mig = e.source === 'notes_migration' ? '<span class="ta-log-status">from your old notes</span>' : '';
+    return '<div class="ta-log-entry">' +
+      '<div class="ta-log-meta">' + esc(taLogStamp(e.created_at)) + ' ' + mig + status +
+        (e.extraction_status === 'failed' ? '<button type="button" class="ta-retry" data-ce="' + esc(e.id) + '">Retry</button>' : '') +
+      '</div>' +
+      '<div class="ta-log-text">' + esc(e.raw_text) + '</div>' +
+    '</div>';
+  }).join('');
+  return '<div class="ta-block">' +
+    '<div class="ta-block-hdr">Context log' + (view.events.length ? ' · ' + view.events.length : '') + '</div>' +
+    (entries || '<div class="ta-log-empty">Nothing logged yet. Paste what changed and it becomes trip facts you confirm.</div>') +
+    '<textarea class="ta-composer" data-id="' + esc(item.id) + '" rows="2" placeholder="Add an update — e.g. “Memphis now ends Fri Sep 4, briefing is Sep 5 at 5pm”"></textarea>' +
+    '<button type="button" class="ta-add-note" data-id="' + esc(item.id) + '">Add update</button>' +
+  '</div>';
+}
+function taLogStamp(iso) {
+  var d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  var MON = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return MON[d.getMonth()] + ' ' + d.getDate() + ', ' + String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+}
+
+// Confirming a fact that the watchlist item itself owns writes THROUGH to the
+// item, so the two never disagree. This is the other half of "TripState is
+// derived": the item stays the single source of truth for its own fields.
+function taApplyConfirmedFactToItem(fact) {
+  var item = watchlistItem(fact.trip_id);
+  if (!item) return false;
+  var m = /^segments\.(\d+)\.(origin|destination|departure_date)$/.exec(fact.field_path);
+  if (!m) return false;
+  var idx = +m[1], field = m[2], changed = false;
+  if (idx === 0) {
+    if (field === 'departure_date' && item.dep !== fact.value) { item.dep = fact.value; changed = true; }
+    if (field === 'origin' && item.mode !== 'family' && item.origin !== fact.value) { item.origin = fact.value; changed = true; }
+    if (field === 'destination' && item.mode !== 'family' && item.dest !== fact.value) { item.dest = fact.value; changed = true; }
+  } else if (idx === 1 && field === 'departure_date' && item.ret !== fact.value) {
+    item.ret = fact.value; changed = true;
+  }
+  if (changed) saveWatchlist();
+  return changed;
+}
+
 // Matches a solo dest to its watchlist entry (if any) — used to sync the
 // per-solo-card notes textarea with the watchlist's own notes field.
 function watchlistSoloItem(dest){ return WATCHLIST.find(function(t){ return t.mode === 'solo' && t.dest === dest; }) || null; }
@@ -6979,6 +7392,16 @@ function addNewTrip(){
 function renderWatchlist(){
   var sec = document.getElementById('watchlist-section');
   if (!sec) return;
+  _taRenderNow = new Date().toISOString();
+  // PIA-050: fold legacy notes into the context log the first time the
+  // assistant renders. Idempotent and non-destructive — item.notes is left
+  // in place, so turning the flag back off loses nothing.
+  if (flagOn('assistant')) {
+    try {
+      var _mig = migrateNotesToContextEvents(WATCHLIST, loadContextEvents(), _taRenderNow);
+      if (_mig.changed) saveContextEvents(_mig.events);
+    } catch (e) { console.warn('[PIALAX] notes migration skipped', e); }
+  }
   var counts = { watching:0, planning:0, booked:0, completed:0 };
   WATCHLIST.forEach(function(t){ if (counts[t.stage]!=null) counts[t.stage]++; });
   // PIA-030: header nudge — how many Watching/Planning trips still have no next action set.
@@ -7000,12 +7423,30 @@ function renderWatchlist(){
     var est = watchlistEst(t);
     var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
     var open = (_watchlistOpenId === t.id);
+    // PIA-050: one view-model per card when the flag is on. Reads cached/mock
+    // prices only — never fetches — so rendering cannot spend SerpAPI quota.
+    var taView = null;
+    if (flagOn('assistant') && t.stage !== 'completed') {
+      try { taView = assistantViewFor(t, _taNowIso()); } catch (e) { console.warn('[PIALAX] assistant view failed for ' + t.id, e); }
+    }
     // PIA-030: compact 2nd line under the title — blocker dots + 🎯 next action (if
     // set), else a faint "＋ next step" hint for a still-active trip with no move yet.
     var needsMove = (t.stage==='watching'||t.stage==='planning');
     var blockerDots = (t.blockers||[]).map(function(k){ return BLOCKERS[k]?BLOCKERS[k].emoji:''; }).join('');
     var nextLineHtml = '';
-    if (t.stage !== 'completed') {
+    if (taView) {
+      // First principle for this line: the card exists to answer "does this
+      // trip need me?" — so the decision leads, and the user's own typed next
+      // action stays as supporting detail rather than the headline.
+      var _m = TA_STATE_META[taView.rec.state] || TA_STATE_META.WAIT;
+      nextLineHtml =
+        '<div class="ta-row-next" style="display:flex;align-items:baseline;gap:6px;flex-wrap:wrap;">' +
+          '<span class="ta-row-state" style="color:' + _m.tone + ';">' + _m.emoji + ' ' + _m.label + '</span>' +
+          '<span class="ta-row-fare">' + renderFareLine(taView.snap) + '</span>' +
+        '</div>' +
+        '<div class="ta-row-next">' + esc(taView.rec.next_action) + '</div>' +
+        (taView.pending.length ? '<div class="ta-row-next" style="color:var(--accent);font-weight:800;">' + taView.pending.length + ' detail' + (taView.pending.length > 1 ? 's' : '') + ' to review</div>' : '');
+    } else if (t.stage !== 'completed') {
       if (t.nextAction) {
         nextLineHtml = '<div class="wl-next-line">' +
           (blockerDots ? '<span style="margin-right:3px;">'+blockerDots+'</span>' : '') + '🎯 ' + esc(t.nextAction) +
@@ -7072,10 +7513,17 @@ function renderWatchlist(){
           (t.stage === 'booked' ? '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport + past/booked flights in Flighty">🛂 Flighty ↗</a>' : '') +
           (t._added ? '<button class="wl-del wl-act" data-id="'+t.id+'" title="Remove" aria-label="Remove '+esc(t.title)+' from the watchlist" style="background:none;border:none;color:var(--ink-muted);cursor:pointer;">✕</button>' : '') +
         '</div>';
+      // PIA-050: with the assistant on, the decision leads and the freeform
+      // notes textarea is replaced by the append-only context log. The item's
+      // `notes` field is NOT deleted — flipping the flag off restores the old
+      // editor with its content intact.
       body = '<div>' +
+        (taView ? renderDecisionCard(taView) : '') +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
         '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
-        '<textarea class="wl-notes wl-input" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="resize:vertical;">'+esc(t.notes||'')+'</textarea>' +
+        (taView ? renderFactChips(taView) : '') +
+        (taView ? renderContextLog(t, taView)
+                : '<textarea class="wl-notes wl-input" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="resize:vertical;">'+esc(t.notes||'')+'</textarea>') +
         nextActionHtml +
         remind + actions +
       '</div>';
@@ -7130,6 +7578,67 @@ function wireWatchlist(sec){
   sec.querySelectorAll('.wl-stage').forEach(function(el){ el.addEventListener('change', function(){ setWatchlistStage(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-notes').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNotes(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-next').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNextAction(el.getAttribute('data-id'), el.value); }); });
+  // ── PIA-050 assistant handlers ──
+  sec.querySelectorAll('.ta-add-note').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      var id = el.getAttribute('data-id');
+      var box = sec.querySelector('.ta-composer[data-id="' + id + '"]');
+      var text = box ? box.value.trim() : '';
+      if (!text) { if (box) box.focus(); return; }
+      el.disabled = true; el.textContent = 'Reading…';
+      // The note is persisted inside submitContextNote BEFORE any network
+      // call, so a failure here can never lose what the user typed.
+      submitContextNote(id, text, _taNowIso()).then(function(){
+        _watchlistOpenId = id;
+        renderWatchlist();
+      }).catch(function(err){
+        console.warn('[PIALAX] note submit failed', err);
+        el.disabled = false; el.textContent = 'Add update';
+        renderWatchlist();
+      });
+    });
+  });
+  sec.querySelectorAll('.ta-composer').forEach(function(el){
+    // Keep a half-typed note across the re-render that other controls trigger.
+    el.addEventListener('click', function(e){ e.stopPropagation(); });
+    el.addEventListener('keydown', function(e){ e.stopPropagation(); });
+  });
+  sec.querySelectorAll('.ta-confirm').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      var id = el.getAttribute('data-fact');
+      var facts = setFactStatus(loadParsedFacts(), id, 'confirmed', _taNowIso());
+      saveParsedFacts(facts);
+      // Write through to the watchlist item for fields the item itself owns,
+      // so the two representations cannot drift apart.
+      for (var i = 0; i < facts.length; i++) {
+        if (facts[i].id === id) { taApplyConfirmedFactToItem(facts[i]); break; }
+      }
+      renderWatchlist();
+    });
+  });
+  sec.querySelectorAll('.ta-reject').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      // Rejected facts are kept, not deleted — the log stays auditable.
+      saveParsedFacts(setFactStatus(loadParsedFacts(), el.getAttribute('data-fact'), 'rejected', _taNowIso()));
+      renderWatchlist();
+    });
+  });
+  sec.querySelectorAll('.ta-retry').forEach(function(el){
+    el.addEventListener('click', function(e){
+      e.stopPropagation();
+      el.disabled = true; el.textContent = 'Retrying…';
+      // Same event id — a retry can never duplicate the note.
+      retryExtraction(el.getAttribute('data-ce'), _taNowIso()).then(function(){ renderWatchlist(); });
+    });
+  });
+  sec.querySelectorAll('.ta-decision, .ta-block').forEach(function(el){
+    // These live inside the expanded card but must not toggle it shut.
+    el.addEventListener('click', function(e){ e.stopPropagation(); });
+  });
+
   sec.querySelectorAll('.wl-blocker').forEach(function(el){
     function toggleB(e){ if (e) e.stopPropagation(); toggleWatchlistBlocker(el.getAttribute('data-id'), el.getAttribute('data-key')); }
     el.addEventListener('click', toggleB);

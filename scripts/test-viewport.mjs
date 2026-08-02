@@ -105,9 +105,22 @@ for (const file of FILES) {
     const page = await ctx.newPage();
     const label = `${file} @ ${vp.name}`;
     try {
-      await page.goto(url, { waitUntil: 'load' });
+      // PIA-050: exercise the assistant UI too — it is the densest layout the
+      // app produces (decision card + fact chips + context log in one card),
+      // so if anything overflows or overlaps at 360px it will be this.
+      await page.goto(url + (file === 'pialax-mobile.html' ? '?flags=assistant' : ''), { waitUntil: 'load' });
       // Let boot()/first render settle before measuring anything.
       await page.waitForTimeout(600);
+
+      // Expand a card. Cards render COLLAPSED by default, so measuring the
+      // list alone would miss the densest layout the app produces — decision
+      // card + fact chips + context log stacked inside one card at 360px.
+      // Without this the flag-on run proves much less than it appears to.
+      await page.evaluate(() => {
+        const r = document.querySelector('.wl-row');
+        if (r && r.getAttribute('aria-expanded') !== 'true') r.click();
+      });
+      await page.waitForTimeout(400);
 
       // ---- 1. no page-level horizontal overflow -------------------------
       const overflow = await page.evaluate(() => ({
