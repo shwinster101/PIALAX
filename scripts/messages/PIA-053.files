@@ -1,0 +1,9 @@
+# PIA-053 ship manifest — trip data: Peru departure settled Sep 5 → Sep 4
+# (red-eye that makes the 17:00 briefing, mirroring the friend's booked
+# pattern), clash resolved, stale-override scrub. No security surface touched;
+# no friend flight numbers/routing in repo text (PIA-044 discipline).
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-053.msg
+scripts/messages/PIA-053.files

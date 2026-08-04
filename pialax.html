@@ -857,7 +857,7 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="thanksgiving" aria-label="Quick-pick: Thanksgiving">🦃 Thanksgiving</button>
         <button class="hol-btn" data-hol="christmas" aria-label="Quick-pick: Christmas">🎄 Christmas</button>
         <button class="hol-btn" data-hol="jaxaug" aria-label="Quick-pick: Jacksonville, August 7 to 9">🏖 JAX Aug 7–9</button>
-        <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 5 to 13">🏔 Peru Sep 5–13</button>
+        <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 4 to 13">🏔 Peru Sep 4–13</button>
         <button class="hol-btn" data-hol="london" aria-label="Quick-pick: London — trip completed">✅ London ✓ (done)</button>
       </div>
       <!-- ORD Hub toggle removed — ORD always available as a meetup hub via the dropdown. -->
@@ -1160,11 +1160,11 @@ var TRIP_PRESETS = {
     // Combo: arrive in JAX one-way the weekend prior, then drive/bus ~5hr to Miami
     { id:'mia-via-jax', label:'JAX Jun 12 OW (then drive ~5hr)', dep:'2026-06-12', ret:null, tripType:'one', altDest:'JAX', validUntil:'2026-06-12' },
   ],
-  // Peru — Machu Picchu, Sep 5–13 2026 (open-jaw CUZ in / LIM out). Moved from Sep 3
-  // on 2026-07-30: Memphis work trip now runs Aug 31–Sep 4, pushing the LAX departure
-  // to ~Sep 5. ⚠ A Sep 5 red-eye lands Cusco Sep 6 — see the trek-card warning.
+  // Peru — Machu Picchu, Sep 4–13 2026 (open-jaw CUZ in / LIM out). Dates settled
+  // 2026-08-02: the Fri Sep 4 red-eye straight after the Memphis return lands
+  // Cusco Sep 5 morning, in time for the 17:00 briefing.
   CUZ: [
-    { id:'cuz-sep5', label:'Sep 5–13 RT', dep:'2026-09-05', ret:'2026-09-13', tripType:'round', validUntil:'2026-09-13' },
+    { id:'cuz-sep4', label:'Sep 4–13 RT', dep:'2026-09-04', ret:'2026-09-13', tripType:'round', validUntil:'2026-09-13' },
   ],
 };
 // PIA-013 AC5: returns true when today (ISO) > preset.validUntil — chip should grey out.
@@ -1300,7 +1300,7 @@ var HOLIDAYS = {
   christmas:    nextOccurrence(11, 25),
   london:       new Date(2026, 5, 25), // June 25, 2026 — London family trip (Jun 25 – Jul 3) · COMPLETED (flew, returned Jul 3)
   jaxaug:       new Date(2026, 7, 7),  // Aug 7, 2026 — JAX weekend (Fri Aug 7 – Sun Aug 9); visit sister before her Sep 1 NYC move
-  peru:         new Date(2026, 8, 5),  // Sep 5, 2026 — LAX solo Machu Picchu (open-jaw CUZ in / LIM out Sep 13); moved from Sep 3 after Memphis slipped to Aug 31–Sep 4
+  peru:         new Date(2026, 8, 4),  // Sep 4, 2026 — LAX solo Machu Picchu (open-jaw CUZ in / LIM out Sep 13); Fri red-eye lands Sep 5 AM, makes the briefing
 };
 
 // ── STATE ────────────────────────────────────────────────────────
@@ -1450,9 +1450,8 @@ function bookingUrlFor(from, dest, depISO, retISO, isRT){
 }
 // CONFIRMED trek booking (2026-07-21) — Salkantay & Inca Trail combo (both trails),
 // 7 days. 2026-07-30 update: Memphis work trip slipped to Aug 31–Sep 4, pushing the
-// LAX departure to ~Sep 5. ⚠ A Sep 5 red-eye lands Cusco Sep 6 — AFTER the Sep 5
-// 17:00 briefing and the Sep 6 trek start. The fits-line below now warns instead of
-// green-lighting; resolution options live in the Peru watchlist item's nextAction.
+// LAX departure settled 2026-08-02: the Fri Sep 4 red-eye lands Cusco Sep 5
+// morning, in time for the 17:00 briefing — the fits-line below green-lights it.
 // Audit finding F-disclosure (2026-08-01): this block previously carried a real
 // friend's name, a specific street address, and a real booking confirmation code —
 // all publicly indexable. Genericized; no functional field was removed, only the
@@ -1475,7 +1474,7 @@ function trekInfoCardHtml() {
     '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">🎟 Booking ' + t.bookingNo + ' · $' + t.price + ' · ' + t.people + ' person · ' + t.contact + '</div>' +
     '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">📍 ' + t.briefing + '</div>' +
     '<div style="font-size:.55rem;color:var(--muted);margin-top:2px;">🛂 ' + t.passport + '</div>' +
-    '<div style="font-size:.53rem;color:var(--warn,#f59e0b);font-weight:800;margin-top:4px;">⚠ Tight fit: a Sep 5 red-eye lands CUZ Sep 6 — after the Sep 5 17:00 briefing &amp; the Sep 6 trek start. Make it work: Fri Sep 4 late red-eye (straight after Memphis) lands Sat Sep 5 — or arrange a late trek join.</div>' +
+    '<div style="font-size:.53rem;color:var(--green,#10b981);font-weight:800;margin-top:4px;">✅ Fits: the Fri Sep 4 red-eye lands CUZ Sat Sep 5 morning — in time for the 17:00 briefing and the Sep 6 trek start. Same plan as the friend already in Cusco Sep 5–12.</div>' +
   '</div>';
 }
 // Peru flight-option comparison for the Cusco card. Two ways to fly the trip:
@@ -1484,7 +1483,7 @@ function trekInfoCardHtml() {
 // Shows both estimates side-by-side, flags the cheaper one, and links each to live
 // Google Flights. Real winner is decided live — the links are the source of truth.
 function peruFlightOptionsHtml(depISO, retISO) {
-  depISO = depISO || '2026-09-05';
+  depISO = depISO || '2026-09-04';
   retISO = retISO || '2026-09-13';
   var cuzRT = getMock('LAX','CUZ').rt || 0;   // Option A: round trip into/out of Cusco
   var cuzOW = getMock('LAX','CUZ').ow || 0;   // Option B leg 1: LAX→CUZ one-way
@@ -1637,11 +1636,11 @@ function applyHoliday(key) {
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'us') { S.mapView = 'us'; redrawMap(); updateMapToggle(); }
   } else if (key === 'peru') {
-    // Machu Picchu — Ashwin's SOLO trip from LAX, Sep 5–13 2026 (moved from Sep 3 on
+    // Machu Picchu — Ashwin's SOLO trip from LAX, Sep 4–13 2026 (moved from Sep 3 on
     // 2026-07-30: Memphis work trip now ends Fri Sep 4). Open-jaw: fly into Cusco
     // (CUZ), back from Lima (LIM). Switches home→LAX + solo mode + focuses the Cusco
-    // card + world map. ⚠ Sep 5 red-eye lands Sep 6 — see trek-card warning.
-    dep = new Date(2026, 8, 5); ret = new Date(2026, 8, 13);
+    // card + world map. Sep 4 red-eye lands Sep 5 AM — briefing reachable.
+    dep = new Date(2026, 8, 4); ret = new Date(2026, 8, 13);
     S.home = 'LAX';
     var hsel = document.getElementById('home-sel'); if (hsel) hsel.value = 'LAX';
     S.prices = {}; S.soloBarPrices = {};
@@ -5097,14 +5096,13 @@ var BOOKINGS_KEY = 'pialax_bookings_v1';
 var TB_ICON = { flight:'✈', trek:'🎒', lodging:'🏨', tour:'🗺', transfer:'🚐', other:'📌' };
 var TB_COL  = { flight:'#2e7cf6', trek:'#10b981', lodging:'#f59e0b', tour:'#a855f7', transfer:'#06b6d4', other:'#94a3b8' };
 var TRIP_BOOKINGS_SEED = {
-  // 2026-07-30: Memphis slipped to Aug 31–Sep 4 → LAX departure moved Sep 3 → Sep 5.
-  // The Sep 5 red-eye lands Sep 6, so the briefing segment below deliberately sits
-  // inside the flight segment — the binder's overlap detection then surfaces the
-  // clash on the timeline instead of us hand-waving it in a comment.
+  // Dates settled 2026-08-02: the Fri Sep 4 red-eye lands Sep 5 morning, so the
+  // briefing (Sep 5 17:00) is now REACHABLE — flight ends the day the briefing
+  // starts, which the binder renders as a clean sequence, no overlap row.
   peru: [
-    { type:'flight', title:'LAX → Cusco (red-eye)', start:'2026-09-05', end:'2026-09-06', location:'Cusco', notes:'⚠ lands Sep 6 — after briefing + trek start. Alt: Sep 4 late red-eye post-Memphis lands Sep 5.' },
-    { type:'other', title:'⚠ Trek briefing 17:00 (must attend)', start:'2026-09-05', end:'2026-09-05', location:'Cusco · trek operator office', notes:'Conflicts with a Sep 5 departure — you are in the air.' },
-    { type:'trek', title:'Salkantay & Inca Trail', start:'2026-09-06', end:'2026-09-12', location:'Cusco region', cost:1200, conf:'confirmed', notes:'Both trails · zero acclimatization days on a Sep 5 dep' },
+    { type:'flight', title:'LAX → Cusco (red-eye)', start:'2026-09-04', end:'2026-09-05', location:'Cusco', notes:'Departs Fri night straight after the Memphis return · lands Sep 5 morning, in time for the 17:00 briefing.' },
+    { type:'other', title:'Trek briefing 17:00 (must attend)', start:'2026-09-05', end:'2026-09-05', location:'Cusco · trek operator office', notes:'Reachable on the Sep 4 red-eye — you land that morning.' },
+    { type:'trek', title:'Salkantay & Inca Trail', start:'2026-09-06', end:'2026-09-12', location:'Cusco region', cost:1200, conf:'confirmed', notes:'Both trails · one night in Cusco before the start' },
     { type:'flight', title:'Lima → LAX', start:'2026-09-13', end:'2026-09-13', location:'LAX', notes:'Copa via PTY (open-jaw out)' }
   ],
   // Memphis work week (unmodeled dest — binder key = 'MEM' via binderKeyFor).
@@ -5354,10 +5352,10 @@ var WATCHLIST_SEED = [
     nextAction:'Confirm Mom & Dad (tentative) · lock before JAX fares climb', blockers:['companion','price'],
     gf:{from:'LAX',to:'JAX'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
-    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-05', ret:'2026-09-13', stage:'watching',
-    notes:'Trek BOOKED (Salkantay & Inca Trail, confirmed, $1,200). Flights NOT booked. Memphis work trip now ends Fri Sep 4 → leaning Sep 5 LAX departure. ⚠ A Sep 5 red-eye lands Cusco Sep 6 — AFTER the Sep 5 17:00 briefing and the Sep 6 trek start, with zero acclimatization. Options: Fri Sep 4 late red-eye straight after Memphis (lands Cusco Sat Sep 5, makes the briefing), or arrange a late trek join. A friend is also in Cusco Sep 5–12.',
-    reminders:['Trek briefing 17:00 day before · trek operator office','Passport valid 6+ months from entry','Send passport photo to trek contact','A friend is also in Cusco Sep 5–12','Memphis return Fri Sep 4 — back-to-back with this departure'],
-    nextAction:'Resolve the Sep 5 clash — arrange a late trek join OR plan the Sep 4 post-Memphis red-eye', blockers:['dates','price'],
+    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-04', ret:'2026-09-13', stage:'watching',
+    notes:'Trek BOOKED (Salkantay & Inca Trail, confirmed, $1,200). Flights NOT booked. DATES DECIDED 2026-08-02: Fri Sep 4 red-eye straight after the Memphis return — lands Cusco Sat Sep 5 morning, makes the 17:00 briefing. Mirrors the friend already going (lands Sep 5 late morning, leaves Cusco the night of Sep 12). Return: CUZ→LIM the evening of Sep 12 after the trek, LIM→LAX Sep 13.',
+    reminders:['Trek briefing 17:00 day before · trek operator office','Passport valid 6+ months from entry','Send passport photo to trek contact','A friend is also in Cusco Sep 5–12','Memphis return Fri Sep 4 — same-day chain into this red-eye'],
+    nextAction:'Book it: LAX red-eye Sep 4 (lands CUZ Sep 5 AM) + CUZ→LIM eve of Sep 12 + LIM→LAX Sep 13', blockers:['price'],
     gf:{from:'LAX',to:'CUZ',openjaw:true} },
   { id:'memphis', mode:'solo', title:'Memphis — Work trip',
     routeTxt:'LAX → MEM', origin:'LAX', dest:'MEM', dep:'2026-08-31', ret:'2026-09-04', stage:'watching',
@@ -5408,6 +5406,21 @@ function sanitizeWatchlistItem(a) {
 // PIA-042 (audit F2): date-scoped to the seeded Aug 31–Sep 4 2026 window. The original
 // version matched on mode+dest alone, which would silently eat every FUTURE Memphis
 // trip forever (e.g. one added next March) — this narrows it to genuine duplicates.
+// One-off migration (2026-08-02): Peru's seed departure moved Sep 5 → Sep 4
+// (the red-eye that makes the 17:00 briefing — dates settled with the friend's
+// booked itinerary). PIA-050 persists dep/ret in overrides on EVERY save, so
+// any device that touched the app while the seed said Sep 5 carries
+// overrides.peru.dep='2026-09-05' as a stale echo of the OLD seed — and would
+// silently clobber the corrected date forever. Drop exactly that value, from
+// exactly that trip: a user-chosen date that differs from the superseded seed
+// (Sep 6, whatever) survives untouched. Same targeted-migration pattern as
+// _isSeedDupMemphis below.
+function _scrubStalePeruDep(overrides){
+  try {
+    if (overrides && overrides.peru && overrides.peru.dep === '2026-09-05') delete overrides.peru.dep;
+  } catch(e) {}
+  return overrides;
+}
 function _isSeedDupMemphis(it){
   if (!(it && it.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(it.dest || '')))) return false;
   var SEED_DEP = '2026-08-31', SEED_RET = '2026-09-04';
@@ -5441,6 +5454,7 @@ function loadWatchlist() {
     if (raw) {
       var stored = JSON.parse(raw);
       if (stored && stored.overrides) {
+        _scrubStalePeruDep(stored.overrides);
         WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       }
       if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it)) WATCHLIST.push(it); });
@@ -5452,6 +5466,7 @@ function loadWatchlist() {
     var wlp = new URLSearchParams(window.location.search).get('wl');
     if (wlp) {
       var s = JSON.parse(decodeURIComponent(atob(wlp)));
+      if (s && s.overrides) { _scrubStalePeruDep(s.overrides); } 
       if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
     }
