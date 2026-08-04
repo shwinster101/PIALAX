@@ -1577,14 +1577,18 @@ function airlineRowHtml(priceObj, isRT) {
 }
 
 // ── HOLIDAYS APPLY ───────────────────────────────────────────────
-function applyHoliday(key) {
+function applyHoliday(key, opts) {
   var base = HOLIDAYS[key];
   if (!base) return;
   // Clear any prior trip-focus emphasis; the selected preset re-seeds it below.
   S.focusMember = null; S.tentativeMembers = []; S.memberStatus = {};
   // Toggle-off: if the London chip is already active, clicking again clears
   // the trip so the user can start over (per Ashwin's request — London only).
-  if (key === 'london') {
+  // PIA-054: openWatchlistTrip passes skipToggle so re-opening London from the
+  // watchlist always re-shows it, instead of hitting this branch when the chip
+  // is already .active from a prior click (left mode/hub untouched — the
+  // "random trip" bug).
+  if (key === 'london' && !(opts && opts.skipToggle)) {
     var alreadyActive = document.querySelector('.hol-btn[data-hol="london"]').classList.contains('active');
     if (alreadyActive) {
       S.depDate = null; S.retDate = null; S.meetupHubOverride = null;
@@ -1658,6 +1662,11 @@ function applyHoliday(key) {
     ret = new Date(dep);
     ret.setDate(dep.getDate() + 3); // Sun (Thu + 3)
   }
+  // PIA-054: opts.dep/opts.ret (the watchlist item's own live dates, which the
+  // assistant can edit post-seed) win over this branch's hardcoded preset —
+  // otherwise "Open" on an edited trip silently reverted to the original literal.
+  if (opts && opts.dep) dep = new Date(opts.dep + 'T12:00:00');
+  if (opts && opts.ret) ret = new Date(opts.ret + 'T12:00:00');
   S.depDate = dep; S.retDate = ret; S.tripType = 'round';
   S.meetupHubOverride = (key === 'london') ? 'LHR' : (key === 'jaxaug' ? 'JAX' : null);
   document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v==='round'); });
@@ -7364,7 +7373,7 @@ function toggleWatchlistBlocker(id, key){ var t=watchlistItem(id); if (!t||!BLOC
 function removeWatchlistItem(id){ var t=watchlistItem(id); if (t && t._added) { WATCHLIST=WATCHLIST.filter(function(x){return x.id!==id;}); saveWatchlist(); renderWatchlist(); } }
 function openWatchlistTrip(id){
   var t = watchlistItem(id); if (!t) return;
-  if (t.key) { applyHoliday(t.key); return; }
+  if (t.key) { applyHoliday(t.key, { dep: t.dep, ret: t.ret, skipToggle: true }); return; }
   // Added (custom) trip — apply its snapshot generically.
   if (t.mode === 'solo') {
     S.home = t.origin || S.home; var hs=document.getElementById('home-sel'); if (hs) hs.value=S.home;

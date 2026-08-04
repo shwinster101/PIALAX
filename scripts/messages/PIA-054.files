@@ -1,0 +1,9 @@
+# PIA-054 ship manifest — fix: watchlist "Open" landing on the wrong trip.
+# applyHoliday(key, opts) gains opts.dep/opts.ret (live-date override) and
+# opts.skipToggle (bypasses London's toggle-off branch); openWatchlistTrip
+# passes both for key-bearing trips. No security surface touched.
+# Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-054.msg
+scripts/messages/PIA-054.files
