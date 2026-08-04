@@ -1049,10 +1049,13 @@ var AIRPORTS = {
   CUZ:{ code:'CUZ', name:'Cusco, Peru',      full:'Alejandro Velasco Astete Intl (Cusco)', lat:-13.5358, lon:-71.9389 },
   LIM:{ code:'LIM', name:'Lima, Peru',       full:'Jorge Chávez International (Lima)',   lat:-12.0219, lon:-77.1143 },
 };
-// Solo destination MIA added to LAX (per Ashwin's Jun 18–21 trip). JFK becomes sister's base after Aug 31, 2026 (grad school move).
+// JFK becomes sister's base after Aug 31, 2026 (grad school move).
 // CUZ (Cusco/Peru) added to LAX only — it's Ashwin's solo Machu Picchu trip, not a
 // family meetup hub, so it stays out of INTL_DESTS (which drives meetup hub inclusion).
-var ROUTE_GRAPH = { PIA:['LAX','JAX','JFK'], ORD:['LAX','JAX','JFK'], LAX:['PIA','ORD','JAX','MIA','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'] };
+// PIA-055: MIA dropped as an active LAX solo destination — that trip (Jun 18–21,
+// 2026) is done. AIRPORTS/DC/MOCK/TRIP_PRESETS entries for MIA are left in place
+// as history (fare data + the past preset dates), just no longer an active board pick.
+var ROUTE_GRAPH = { PIA:['LAX','JAX','JFK'], ORD:['LAX','JAX','JFK'], LAX:['PIA','ORD','JAX','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'] };
 // International routes (meetup-only destinations — not in home-sel dropdown)
 var INTL_DESTS = ['LHR'];
 var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LHR:'#e11d48', CUZ:'#22c55e', LIM:'#eab308' };
@@ -2877,11 +2880,16 @@ function renderSoloCards() {
         liveBtnHtml = '<button class="solo-live-btn" data-dest="' + dest + '"' + _lockAttr + '>' + liveBtnLabel + '</button>';
       }
     }
-    // Google Flights booking link for the active dates. Peru (CUZ) resolves to an
-    // open-jaw multi-city query (LAX→CUZ / LIM→LAX) via bookingUrlFor().
+    // Google Flights booking link for the active dates. PIA-055: for the CUZ
+    // open-jaw, link this single CTA to the outbound leg only — a compound
+    // "from X to Y on D1, from A to B on D2" query landed on a blank Google
+    // Flights page; the full outbound+return comparison is peruFlightOptionsHtml()
+    // right below.
     var soloDepISO = S.depDate ? fmtISO(S.depDate) : '';
     var soloRetISO = (isRTSolo && S.retDate) ? fmtISO(S.retDate) : '';
-    var soloBookUrl = bookingUrlFor(S.home, dest, soloDepISO, soloRetISO, isRTSolo);
+    var soloBookUrl = (dest === 'CUZ')
+      ? gflightsUrl(S.home, dest, soloDepISO, '', false)
+      : bookingUrlFor(S.home, dest, soloDepISO, soloRetISO, isRTSolo);
     // Cheap-week signal (free, no API spend) — the new primary surface, replacing
     // the bar chart as the headline. Reuses top[0] (computeBestWeekends), already
     // computed above, plus a prominent Google Flights hand-off for real prices.
@@ -7350,10 +7358,24 @@ function taApplyConfirmedFactToItem(fact) {
 // Matches a solo dest to its watchlist entry (if any) — used to sync the
 // per-solo-card notes textarea with the watchlist's own notes field.
 function watchlistSoloItem(dest){ return WATCHLIST.find(function(t){ return t.mode === 'solo' && t.dest === dest; }) || null; }
-function watchlistGFUrl(t){
-  if (!t.gf) return '';
-  if (t.gf.openjaw) return bookingUrlFor(t.gf.from, t.gf.to, t.dep, t.ret, true);
-  return gflightsUrl(t.gf.from, t.gf.to, t.dep, t.ret, true);
+// PIA-055: returns one Google Flights link for a simple round-trip/one-way
+// item, or TWO for an open-jaw item (only Peru/CUZ today) instead of the old
+// single compound "from X to Y on D1, from A to B on D2" query. Google's
+// free-text q= search reliably fills in a plain one-way/round-trip query but
+// not a two-segment sentence, which was landing on a blank Google Flights page.
+function watchlistGFLinks(t){
+  if (!t.gf) return [];
+  if (t.gf.openjaw) {
+    var links = [];
+    var outUrl = gflightsUrl(t.gf.from, t.gf.to, t.dep, '', false);
+    if (outUrl) links.push({ label: t.gf.from + ' → ' + t.gf.to, url: outUrl });
+    var retFrom = (t.gf.to === 'CUZ') ? 'LIM' : t.gf.to; // Peru: home from Lima, not Cusco
+    var retUrl = gflightsUrl(retFrom, t.gf.from, t.ret, '', false);
+    if (retUrl) links.push({ label: retFrom + ' → ' + t.gf.from, url: retUrl });
+    return links;
+  }
+  var url = gflightsUrl(t.gf.from, t.gf.to, t.dep, t.ret, true);
+  return url ? [{ label: null, url: url }] : [];
 }
 function watchlistEst(t){
   if (t.stage === 'completed') return null;
@@ -7549,7 +7571,7 @@ function renderWatchlist(){
       var modeChip = '<span style="font-size:var(--fs-micro);font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'var(--mode-family)':'var(--mode-solo)')+';border:1px solid '+(t.mode==='family'?'var(--mode-family)':'var(--mode-solo)')+';padding:1px 5px;border-radius:var(--rad-xs);">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
       var remind = (t.reminders && t.reminders.length)
         ? '<div style="margin-top:5px;font-size:var(--fs-micro);color:var(--ink-muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
-      var gfUrl = watchlistGFUrl(t);
+      var gfLinks = watchlistGFLinks(t);
       // PIA-030: next-action input + blocker chips — hidden for completed trips
       // (nothing left to decide).
       var nextActionHtml = '';
@@ -7567,7 +7589,9 @@ function renderWatchlist(){
       var actions =
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
           '<button class="wl-open wl-act" data-id="'+t.id+'" style="background:'+col+';color:var(--ink-on-warn);border:none;cursor:pointer;">Open ↗</button>' +
-          (gfUrl ? '<a class="wl-gf wl-act" href="'+gfUrl+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 Google Flights ↗</a>' : '') +
+          gfLinks.map(function(l){
+            return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 '+(l.label ? esc(l.label) : 'Google Flights')+' ↗</a>';
+          }).join('') +
           // PIA-046 (audit defect): Flighty owns POST-booking ops — showing it on a
           // trip that isn't booked yet advertises a tool the user can't use for it.
           (t.stage === 'booked' ? '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' : '') +

@@ -1,0 +1,8 @@
+# PIA-055 ship manifest — MIA dropped from the active Solo board (history data
+# kept); Peru's open-jaw Google Flights links split into two reliable one-way
+# queries instead of one compound query that was landing blank. No security
+# surface touched. Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-055.msg
+scripts/messages/PIA-055.files
