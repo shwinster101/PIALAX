@@ -1,0 +1,7 @@
+# PIA-056 ship manifest — removes the JAX trip card from the WATCHLIST_SEED
+# board (both files). Holiday Quick-Pick chip/preset left intact, out of
+# scope. No security surface touched. Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-056.msg
+scripts/messages/PIA-056.files
