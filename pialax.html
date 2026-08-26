@@ -2926,7 +2926,19 @@ function renderSoloCards() {
       'color:var(--muted);text-decoration:none;border:1px solid var(--border2);border-radius:6px;padding:4px 9px;" ' +
       'title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>'
       : '';
-    var soloActionsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + soloBookHtml + soloFlightyHtml + '</div>';
+    // PIA-057: one-tap save of this card's setup (origin + current dates) to the
+    // watchlist — the missing "keep this trip" action that made solo mode feel
+    // like browsing with nowhere to put the result. Shows a passive ✓ once the
+    // watchlist item already matches the current setup.
+    var _soloSaved = _soloWlItem && _soloWlItem.origin === S.home &&
+      (_soloWlItem.dep || '') === soloDepISO && (_soloWlItem.ret || '') === soloRetISO;
+    var soloSaveHtml = _soloSaved
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:800;color:var(--green);border:1px solid var(--green);border-radius:6px;padding:4px 9px;" title="This trip (dates + airport) is on the watchlist">✓ On watchlist</span>'
+      : '<button class="solo-save-btn" data-dest="' + dest + '" ' +
+        'style="display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:800;' +
+        'color:var(--green);background:transparent;border:1px solid var(--green);border-radius:6px;padding:4px 9px;cursor:pointer;" ' +
+        'title="Save this trip (dates + airport) to the watchlist">' + (_soloWlItem ? '↻ Update watchlist dates' : '☆ Save to watchlist') + '</button>';
+    var soloActionsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + soloSaveHtml + soloBookHtml + soloFlightyHtml + '</div>';
     // Per-card notes, synced to the watchlist (lazy-creates a minimal watched item
     // on first blur so every solo dest gets a persistent notes field, not just CUZ).
     var soloNotesMatch = watchlistSoloItem(dest);
@@ -3175,6 +3187,13 @@ function renderSoloCards() {
         renderSoloCards();
       });
     }
+    // PIA-057: save/update this card's trip on the watchlist in one tap.
+    card.querySelectorAll('.solo-save-btn').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        saveSoloTrip(btn.getAttribute('data-dest'), soloDepISO, soloRetISO);
+      });
+    });
     // Per-card notes — sync to the watchlist (or lazy-create a minimal solo item)
     card.querySelectorAll('.solo-notes').forEach(function(el){
       el.addEventListener('blur', function(){
@@ -4952,6 +4971,56 @@ function updateStats() {
   document.getElementById('s-upd').textContent='Updated '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
 
+// ══ PIA-057 · SAVED SEARCH SETUP ═════════════════════════════════
+// Persist the search setup (home airport, trip type, dates, mode) to
+// localStorage so the dashboard reopens exactly where it was left — the solo
+// flow starts pre-filled instead of blank, one tap from saving the trip to
+// the watchlist. Written from syncURL() (the single funnel every state change
+// already flows through); restored in boot() only when no share-URL state was
+// loaded, so shared links still win.
+var SOLO_PREFS_KEY = 'pialax_solo_prefs_v1';
+function saveSoloPrefs() {
+  try {
+    localStorage.setItem(SOLO_PREFS_KEY, JSON.stringify({
+      home: S.home,
+      trip: S.tripType,
+      mode: S.mode,
+      dep: S.depDate ? fmtISO(S.depDate) : null,
+      ret: (S.retDate && S.tripType === 'round') ? fmtISO(S.retDate) : null
+    }));
+  } catch (e) { /* localStorage unavailable — prefs just don't persist */ }
+}
+function restoreSoloPrefs() {
+  try {
+    var raw = localStorage.getItem(SOLO_PREFS_KEY);
+    if (!raw) return;
+    var p = JSON.parse(raw) || {};
+    if (p.home && AIRPORTS[p.home]) {
+      S.home = p.home;
+      var sel = document.getElementById('home-sel');
+      if (sel) sel.value = p.home;
+    }
+    if (p.trip === 'one' || p.trip === 'round') {
+      S.tripType = p.trip;
+      document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === p.trip); });
+      document.getElementById('pill-trip').textContent = p.trip === 'one' ? 'One-Way' : 'Round-Trip';
+      document.getElementById('s-trip').textContent    = p.trip === 'one' ? 'One-Way' : 'Round-Trip';
+    }
+    if (p.mode === 'solo' || p.mode === 'meetup') S.mode = p.mode;
+    // Saved dates are dropped once the departure has passed — never reopen on a stale trip.
+    if (p.dep && /^\d{4}-\d{2}-\d{2}$/.test(p.dep) && p.dep >= fmtISO(today)) {
+      var dd = new Date(p.dep + 'T12:00:00');
+      if (!isNaN(dd.getTime())) {
+        S.depDate = dd;
+        if (p.ret && /^\d{4}-\d{2}-\d{2}$/.test(p.ret) && S.tripType === 'round') {
+          var rd = new Date(p.ret + 'T12:00:00');
+          if (!isNaN(rd.getTime()) && rd > dd) S.retDate = rd;
+        }
+      }
+    }
+  } catch (e) { /* corrupt prefs — ignore, boot proceeds with defaults */ }
+}
+
 // ── URL PARAM RESTORE (shared links) ────────────────────────────
 // Track whether a URL state was loaded — boot uses this to skip the London default
 var _urlStateLoaded = false;
@@ -5042,6 +5111,7 @@ function syncURL() {
   _syncURLScheduled = true;
   requestAnimationFrame(function(){
     _syncURLScheduled = false;
+    saveSoloPrefs(); // PIA-057: every state change funnels through here — persist the setup
     try {
       var sp = new URLSearchParams();
       sp.set('hub', S.home);
@@ -7409,6 +7479,36 @@ function openWatchlistTrip(id){
   S.tripType = t.ret ? 'round' : 'one';
   updateDateUI(); renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap(); loadPrices(); syncURL();
 }
+// PIA-057: save one solo card's setup (home airport + current dates) to the
+// watchlist. Updates the existing solo item for that dest instead of
+// duplicating; falls back to the Thu→Sun weekend rule when no dates are set.
+function saveSoloTrip(dest, depISO, retISO){
+  if (!dest) return;
+  if (!depISO) {
+    var d = new Date(today); var toThu = (4 - d.getDay() + 7) % 7 || 7;
+    var dep = new Date(d); dep.setDate(d.getDate() + toThu);
+    var ret = new Date(dep); ret.setDate(dep.getDate() + 3);
+    depISO = fmtISO(dep); retISO = fmtISO(ret);
+  }
+  var item = watchlistSoloItem(dest);
+  if (item) {
+    item.origin = S.home; item.dep = depISO; item.ret = retISO || null;
+    if (!item.gf) item.gf = {};
+    item.gf.from = S.home; item.gf.to = dest;
+    saveWatchlist(); renderWatchlist(); renderSoloCards();
+    showShareToast('↻ ' + dest + ' watchlist dates updated');
+  } else {
+    WATCHLIST.push({
+      id:'solo-' + dest, _added:true, mode:'solo', origin:S.home, dest:dest,
+      dep:depISO, ret:retISO || null, stage:'watching',
+      title:(S.home + ' → ' + dest + ' — solo trip'), routeTxt:(S.home + ' → ' + dest),
+      gf:{ from:S.home, to:dest },
+      notes:'', reminders:[], nextAction:'', blockers:[]
+    });
+    saveWatchlist(); renderWatchlist(); renderSoloCards();
+    showShareToast('✓ Saved ' + dest + ' to watchlist');
+  }
+}
 // Snapshot the CURRENT dashboard view as a new watched trip. Defaults to a
 // Thursday→Sunday weekend when no dates are set (per Ashwin's Thu-night→Sun-night rule).
 function addCurrentToWatchlist(){
@@ -7827,6 +7927,7 @@ function initShellView() {
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
   restoreFromURL();
+  if (!_urlStateLoaded) restoreSoloPrefs(); // PIA-057: shared links win; otherwise reopen with the saved setup
   loadWatchlist(); // PIA-027: hydrate the trip watchlist (seed + localStorage overrides)
   rehydrateFlightCache(); // PIA-005 AC4: restore prior session's cached prices before any render
   document.getElementById('tb-sub').textContent='Loading…';
