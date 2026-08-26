@@ -1,0 +1,10 @@
+# PIA-064 ship manifest — booked-reality watchlist sync (NYC chain, LGA
+# Memphis, LATAM-via-SCL Peru + binder), pre-booking override scrub + NYC
+# dedupe migrations, urgency window (red/amber/countdown + header count),
+# Thanksgiving family seed leaning PIA, alerts-activation deferred note.
+# Both dashboard files (mobile parity). Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+backlog.md
+scripts/messages/PIA-064.msg
+scripts/messages/PIA-064.files

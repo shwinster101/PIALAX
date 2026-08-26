@@ -5462,18 +5462,20 @@ var BOOKINGS_KEY = 'pialax_bookings_v1';
 var TB_ICON = { flight:'✈', trek:'🎒', lodging:'🏨', tour:'🗺', transfer:'🚐', other:'📌' };
 var TB_COL  = { flight:'#2e7cf6', trek:'#10b981', lodging:'#f59e0b', tour:'#a855f7', transfer:'#06b6d4', other:'#94a3b8' };
 var TRIP_BOOKINGS_SEED = {
-  // 2026-07-30 (mobile mirror): dep moved Sep 3 → Sep 5 after Memphis slipped to
-  // Dates settled 2026-08-02: the Sep 4 red-eye lands Sep 5 morning, so the
-  // briefing (Sep 5 17:00) is reachable — flight ends the day it starts.
+  // PIA-064: real booked itinerary (2026-08-26) — LATAM via Santiago, not the
+  // LAX→CUZ red-eye the plan assumed. Lands CUZ 2:25 PM Sep 5, 2.5 h before
+  // the 17:00 briefing.
   peru: [
-    { type:'flight', title:'LAX → Cusco (red-eye)', start:'2026-09-04', end:'2026-09-05', location:'Cusco', notes:'Departs Fri night straight after the Memphis return · lands Sep 5 morning, in time for the 17:00 briefing.' },
-    { type:'other', title:'Trek briefing 17:00 (must attend)', start:'2026-09-05', end:'2026-09-05', location:'Cusco · trek operator office', notes:'Reachable on the Sep 4 red-eye — you land that morning.' },
+    { type:'flight', title:'LAX → Santiago → Lima → Cusco (LATAM)', start:'2026-09-04', end:'2026-09-05', location:'Cusco', notes:'LA 603 LAX 3:55p Sep 4 → SCL 5:35a+1 · LA 650 SCL 7:50a → LIM 10:45a · LA 2028 LIM 1:05p → CUZ 2:25p.' },
+    { type:'other', title:'Trek briefing 17:00 (must attend)', start:'2026-09-05', end:'2026-09-05', location:'Cusco · trek operator office', notes:'Lands 2:25 PM the same day — 2.5 h buffer.' },
     { type:'trek', title:'Salkantay & Inca Trail', start:'2026-09-06', end:'2026-09-12', location:'Cusco region', cost:1200, conf:'confirmed', notes:'Both trails · one night in Cusco before the start' },
-    { type:'flight', title:'Lima → LAX', start:'2026-09-13', end:'2026-09-13', location:'LAX', notes:'Copa via PTY (open-jaw out)' }
+    { type:'flight', title:'Cusco → Lima → LAX', start:'2026-09-12', end:'2026-09-13', location:'LAX', notes:'LA 2224 CUZ 9:20p → LIM 10:55p · LA 2478 LIM 12:40a → LAX 7:50a.' }
   ],
-  // Memphis work week (unmodeled dest — binder key = 'MEM' via binderKeyFor).
+  // Memphis work week — BOOKED: in from NYC on Mon, out Thu via DFW.
   MEM: [
-    { type:'other', title:'Work week', start:'2026-08-31', end:'2026-09-04', location:'Memphis', notes:'Likely Mon–Fri · return Fri night — back-to-back with Peru' }
+    { type:'flight', title:'LGA → Memphis (DL 4903)', start:'2026-08-31', end:'2026-08-31', location:'Memphis', notes:'Departs LGA, not LAX — chained after the NYC sister visit.' },
+    { type:'other', title:'Work week', start:'2026-08-31', end:'2026-09-03', location:'Memphis', notes:'Mon–Thu · home Thu night, the day before Peru.' },
+    { type:'flight', title:'Memphis → DFW → LAX (AA)', start:'2026-09-03', end:'2026-09-03', location:'LAX', notes:'AA 3932 MEM 7:31p → DFW 9:20p · AA 1913 DFW 10:45p → LAX 11:57p.' }
   ]
 };
 function readBookings(){ try { return JSON.parse(localStorage.getItem(BOOKINGS_KEY)) || {}; } catch(e){ return {}; } }
@@ -5700,17 +5702,37 @@ var WATCHLIST_STAGES = {
 var BLOCKERS = { price:{emoji:'💰',label:'Price'}, dates:{emoji:'📅',label:'Dates'},
   companion:{emoji:'🧑‍🤝‍🧑',label:'Companion'}, pto:{emoji:'🏖',label:'PTO'}, deciding:{emoji:'🤔',label:'Deciding'} };
 var WATCHLIST_SEED = [
-  { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
-    routeTxt:'LAX → CUZ · LIM → LAX (open-jaw)', origin:'LAX', dest:'CUZ', dep:'2026-09-04', ret:'2026-09-13', stage:'watching',
-    notes:'Trek BOOKED (Salkantay & Inca Trail, confirmed, $1,200). Flights NOT booked. DATES DECIDED 2026-08-02: Fri Sep 4 red-eye straight after the Memphis return — lands Cusco Sat Sep 5 morning, makes the 17:00 briefing. Mirrors the friend already going (lands Sep 5 late morning, leaves Cusco the night of Sep 12). Return: CUZ→LIM the evening of Sep 12 after the trek, LIM→LAX Sep 13.',
-    reminders:['Trek briefing 17:00 day before · trek operator office','Passport valid 6+ months from entry','Send passport photo to trek contact','A friend is also in Cusco Sep 5–12','Memphis return Fri Sep 4 — same-day chain into this red-eye'],
-    nextAction:'Book it: LAX red-eye Sep 4 (lands CUZ Sep 5 AM) + CUZ→LIM eve of Sep 12 + LIM→LAX Sep 13', blockers:['price'],
-    gf:{from:'LAX',to:'CUZ',openjaw:true} },
+  // PIA-064 reality sync (2026-08-26): the next three trips got BOOKED — booked
+  // separately, outside the app (the UX gap the next sprint digs into). Seeds
+  // now carry the REAL itineraries from Flighty, including two things the plan
+  // never modeled: the NYC-first chain (no LAX return between trips) and the
+  // Memphis departure from LGA.
+  { id:'nyc', mode:'solo', title:'NYC — First visit to sister (booked)',
+    routeTxt:'LAX → JFK (one-way · chains into Memphis)', origin:'LAX', dest:'JFK', dep:'2026-08-28', ret:null, stage:'booked',
+    notes:'Booked: B6 424 LAX 9:49a → JFK 6:24p, Fri Aug 28. First NYC visit since the move. No return leg on purpose — Mon Aug 31 continues LGA → MEM for the work week.',
+    reminders:['Sister meets at JFK Friday evening'], nextAction:'', blockers:[],
+    gf:{from:'LAX',to:'JFK'} },
   { id:'memphis', mode:'solo', title:'Memphis — Work trip',
-    routeTxt:'LAX → MEM', origin:'LAX', dest:'MEM', dep:'2026-08-31', ret:'2026-09-04', stage:'watching',
-    notes:'Work trip, likely Mon Aug 31 – Fri Sep 4 (was week of Aug 16, delayed). Return Fri night is back-to-back with the Peru departure — a Fri late red-eye LAX→Lima would chain them.',
-    reminders:[], nextAction:'Confirm the Aug 31 week is firm, then book', blockers:['dates'],
-    gf:{from:'LAX',to:'MEM'} },
+    routeTxt:'LGA → MEM · MEM → LAX (via DFW)', origin:'LGA', dest:'MEM', dep:'2026-08-31', ret:'2026-09-03', stage:'booked',
+    notes:'BOOKED: DL 4903 LGA 8:41a → MEM 10:36a, Mon Aug 31 — departs from NYC, chained after the sister visit. Return Thu Sep 3: AA 3932 MEM 7:31p → DFW 9:20p, AA 1913 DFW 10:45p → LAX 11:57p — home the night before Peru.',
+    reminders:[], nextAction:'', blockers:[],
+    gf:{from:'LGA',to:'MEM'} },
+  { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
+    routeTxt:'LAX → SCL → LIM → CUZ · LIM → LAX', origin:'LAX', dest:'CUZ', dep:'2026-09-04', ret:'2026-09-13', stage:'booked',
+    notes:'BOOKED: LATAM via Santiago (not the direct red-eye the plan assumed) — LA 603 LAX 3:55p Sep 4 → SCL 5:35a+1 · LA 650 SCL 7:50a → LIM 10:45a · LA 2028 LIM 1:05p → CUZ 2:25p Sep 5. Lands 2.5h before the 17:00 briefing. Return LA 2224 CUZ 9:20p Sep 12 → LIM · LA 2478 LIM 12:40a → LAX 7:50a Sep 13. Trek was already booked ($1,200).',
+    reminders:['Trek briefing 17:00 Sep 5 · trek operator office','Passport valid 6+ months from entry','A friend is also in Cusco Sep 5–12'],
+    nextAction:'', blockers:[],
+    gf:{from:'LAX',to:'CUZ',openjaw:true} },
+  // PIA-065: Thanksgiving — the FIRST LGA-era family meetup and the next real
+  // family window. Leaning PIA as of Aug 26 (Mom & Dad host; Ashwin LAX→PIA,
+  // sister's first trip home from NYC, LGA→PIA). This card is the one the
+  // watchlist exists to not miss.
+  { id:'tgiving', key:'thanksgiving', mode:'family', title:'🦃 Thanksgiving — Family meetup',
+    routeTxt:'LAX + LGA → PIA (leaning)', hub:'PIA', dep:'2026-11-25', ret:'2026-11-29', stage:'planning',
+    notes:'First family gathering of the LGA era. Leaning PIA as of Aug 26 — Mom & Dad host, Ashwin flies LAX→PIA, sister flies LGA→PIA. ORD drive-to stays the fallback if PIA fares spike.',
+    reminders:['Thanksgiving-week fares firm up early — lock the hub by late September'],
+    nextAction:'Lock the hub (leaning PIA), then run Get Live Fares once', blockers:['dates'],
+    gf:{from:'LGA',to:'PIA'} },
   { id:'london', key:'london', mode:'family', title:'London — Family trip',
     routeTxt:'PIA + LAX + JAX → LHR', hub:'LHR', dep:'2026-06-25', ret:'2026-07-03', stage:'completed',
     notes:'Completed — flew Jun 25, returned Jul 3.',
@@ -5769,6 +5791,30 @@ function _scrubStalePeruDep(overrides){
   } catch(e) {}
   return overrides;
 }
+// One-off migration (2026-08-26, PIA-064): Memphis, Peru and the NYC hop got
+// BOOKED outside the app, and the seeds now carry the real itineraries. A
+// device that touched these trips pre-booking holds stage/dep/ret overrides
+// that would silently keep them "watching" with the old dates forever. Drop
+// exactly those fields; user-typed notes/nextAction/blockers survive.
+function _scrubPrebookingOverrides(overrides){
+  try {
+    ['peru','memphis'].forEach(function(id){
+      var o = overrides && overrides[id];
+      if (!o) return;
+      if (o.stage === 'watching' || o.stage === 'planning') delete o.stage;
+      delete o.dep; delete o.ret;
+    });
+  } catch(e) {}
+  return overrides;
+}
+// Same pattern as _isSeedDupMemphis for the NYC hop (seed id:'nyc'): a
+// hand-added "NYC — solo trip" from before the seed existed would duplicate
+// it. Date-scoped to the booked Aug 28 weekend.
+function _isSeedDupNyc(it){
+  if (!(it && it.mode === 'solo' && /^(NYC|JFK|LGA|EWR)$/i.test(String(it.dest || '')))) return false;
+  var dep = it.dep || '';
+  return !!(dep && dep >= '2026-08-26' && dep <= '2026-09-01');
+}
 function _isSeedDupMemphis(it){
   if (!(it && it.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(it.dest || '')))) return false;
   var SEED_DEP = '2026-08-31', SEED_RET = '2026-09-04';
@@ -5803,9 +5849,10 @@ function loadWatchlist() {
       var stored = JSON.parse(raw);
       if (stored && stored.overrides) {
         _scrubStalePeruDep(stored.overrides);
+        _scrubPrebookingOverrides(stored.overrides);
         WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       }
-      if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it)) WATCHLIST.push(it); });
+      if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !_isSeedDupNyc(it)) WATCHLIST.push(it); });
     }
   } catch(e){}
   // PIA-024 (mobile mirror): a shared plan link (?wl=…) reproduces the whole watchlist.
@@ -5813,9 +5860,9 @@ function loadWatchlist() {
     var wlp = new URLSearchParams(window.location.search).get('wl');
     if (wlp) {
       var s = JSON.parse(decodeURIComponent(atob(wlp)));
-      if (s && s.overrides) { _scrubStalePeruDep(s.overrides); } 
+      if (s && s.overrides) { _scrubStalePeruDep(s.overrides); _scrubPrebookingOverrides(s.overrides); } 
       if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
-      if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
+      if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !_isSeedDupNyc(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
     }
   } catch(e){}
 }
@@ -7977,10 +8024,18 @@ function renderWatchlist(){
   WATCHLIST.forEach(function(t){ if (counts[t.stage]!=null) counts[t.stage]++; });
   // PIA-030: header nudge — how many Watching/Planning trips still have no next action set.
   var needMove = WATCHLIST.filter(function(t){ return (t.stage==='watching'||t.stage==='planning') && !t.nextAction; }).length;
+  // PIA-064: urgency window — unbooked trips inside 7 days of departure.
+  var _wlTodayISO = fmtISO(today);
+  var urgentCount = WATCHLIST.filter(function(t){
+    if (!(t.stage==='watching'||t.stage==='planning') || !t.dep) return false;
+    var d = taDaysBetween(_wlTodayISO, t.dep);
+    return d != null && d >= 0 && d <= 7;
+  }).length;
+
   var header =
     '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" id="wl-hdr">' +
       '<span>📋 Trip Watchlist</span>' +
-      '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;">👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + (needMove>0 ? ' · '+needMove+' need a move' : '') + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') + '</span>' +
+      '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;">👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + (urgentCount>0 ? ' · 🔴 '+urgentCount+' URGENT' : '') + (needMove>0 ? ' · '+needMove+' need a move' : '') + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') + '</span>' +
     '</div>';
   if (_watchlistCollapsed) { sec.innerHTML = header; wireWatchlist(sec); return; }
   var order = WATCHLIST.slice().sort(function(a,b){ return (WATCHLIST_STAGES[a.stage].order)-(WATCHLIST_STAGES[b.stage].order); });
@@ -7994,6 +8049,23 @@ function renderWatchlist(){
     var est = watchlistEst(t);
     var estTxt = (t.stage==='completed') ? '🏁 done' : (est!=null ? '≈ $'+est : '—');
     var open = (_watchlistOpenId === t.id);
+    // PIA-064: urgency window — an unbooked trip inside 7 days of departure is
+    // a red-alert card (inside 14: amber); a booked one gets a calm countdown.
+    var daysToDep = t.dep ? taDaysBetween(_wlTodayISO, t.dep) : null;
+    var _unbooked = (t.stage === 'watching' || t.stage === 'planning');
+    var urgency = null;
+    if (_unbooked && daysToDep != null && daysToDep >= 0) {
+      if (daysToDep <= 7) urgency = 'red'; else if (daysToDep <= 14) urgency = 'amber';
+    }
+    var urgencyLine = '';
+    if (urgency) {
+      urgencyLine = '<div style="font-size:var(--fs-micro);font-weight:900;color:' + (urgency==='red'?'var(--danger,#ef4444)':'var(--warn,#f59e0b)') + ';margin-top:2px;padding-left:22px;">⏰ ' +
+        (daysToDep === 0 ? 'DEPARTS TODAY' : 'departs in ' + daysToDep + ' day' + (daysToDep === 1 ? '' : 's')) + ' — still unbooked</div>';
+    } else if (t.stage === 'booked' && daysToDep != null && daysToDep >= 0 && daysToDep <= 14) {
+      urgencyLine = '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:2px;padding-left:22px;">✈ departs ' +
+        (daysToDep === 0 ? 'today' : 'in ' + daysToDep + ' day' + (daysToDep === 1 ? '' : 's')) + '</div>';
+    }
+
     // PIA-050: one view-model per card when the flag is on. Reads cached/mock
     // prices only — never fetches — so rendering cannot spend SerpAPI quota.
     var taView = null;
@@ -8049,7 +8121,7 @@ function renderWatchlist(){
         '<span class="wl-est">'+estTxt+'</span>' +
         '<span class="wl-caret">'+(open?'▾':'▸')+'</span>' +
       '</div>' +
-      nextLineHtml +
+      nextLineHtml + urgencyLine +
     '</div>';
     var body = '';
     if (open) {
@@ -8102,7 +8174,12 @@ function renderWatchlist(){
         remind + actions +
       '</div>';
     }
-    return groupHdr + '<div class="wl-card" style="border-color:'+col+'55;border-left-color:'+col+';background:'+col+'0f;">' +
+    var cardStyle = (urgency === 'red')
+      ? 'border-color:var(--danger,#ef4444);border-left-color:var(--danger,#ef4444);border-left-width:4px;background:#ef44440f;'
+      : (urgency === 'amber')
+      ? 'border-color:var(--warn,#f59e0b);border-left-color:var(--warn,#f59e0b);background:'+col+'0f;'
+      : 'border-color:'+col+'55;border-left-color:'+col+';background:'+col+'0f;';
+    return groupHdr + '<div class="wl-card" style="' + cardStyle + '">' +
       row + body +
     '</div>';
   }).join('');
