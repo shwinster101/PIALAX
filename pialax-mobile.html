@@ -1515,6 +1515,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <option value="ORD">ORD — Chicago, IL</option>
           <option value="LAX">LAX — Los Angeles, CA</option>
           <option value="JAX">JAX — Jacksonville, FL</option>
+          <option value="JFK">JFK — New York, NY</option>
         </select>
       </div>
       <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
@@ -3442,7 +3443,19 @@ function renderSoloCards() {
       'color:var(--muted);text-decoration:none;border:1px solid var(--border2);border-radius:6px;padding:5px 10px;min-height:32px;" ' +
       'title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>'
       : '';
-    var soloActionsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + soloBookHtml + soloFlightyHtml + '</div>';
+    // PIA-057: one-tap save of this card's setup (origin + current dates) to the
+    // watchlist — the missing "keep this trip" action that made solo mode feel
+    // like browsing with nowhere to put the result. Shows a passive ✓ once the
+    // watchlist item already matches the current setup.
+    var _soloSaved = _soloWlItem && _soloWlItem.origin === S.home &&
+      (_soloWlItem.dep || '') === soloDepISO && (_soloWlItem.ret || '') === soloRetISO;
+    var soloSaveHtml = _soloSaved
+      ? '<span style="display:inline-flex;align-items:center;gap:4px;font-size:.62rem;font-weight:800;color:var(--green);border:1px solid var(--green);border-radius:6px;padding:5px 10px;min-height:32px;" title="This trip (dates + airport) is on the watchlist">✓ On watchlist</span>'
+      : '<button class="solo-save-btn" data-dest="' + dest + '" ' +
+        'style="display:inline-flex;align-items:center;gap:4px;font-size:.62rem;font-weight:800;' +
+        'color:var(--green);background:transparent;border:1px solid var(--green);border-radius:6px;padding:5px 10px;min-height:32px;cursor:pointer;" ' +
+        'title="Save this trip (dates + airport) to the watchlist">' + (_soloWlItem ? '↻ Update watchlist dates' : '☆ Save to watchlist') + '</button>';
+    var soloActionsHtml = '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;">' + soloSaveHtml + soloBookHtml + soloFlightyHtml + '</div>';
     // Per-card notes (mobile mirror), synced to the watchlist (lazy-creates a
     // minimal watched item on first blur so every solo dest gets a persistent
     // notes field, not just CUZ).
@@ -3669,6 +3682,13 @@ function renderSoloCards() {
         renderSoloCards();
       });
     }
+    // PIA-057: save/update this card's trip on the watchlist in one tap.
+    card.querySelectorAll('.solo-save-btn').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        saveSoloTrip(btn.getAttribute('data-dest'), soloDepISO, soloRetISO);
+      });
+    });
     // Per-card notes — sync to the watchlist (or lazy-create a minimal solo item)
     card.querySelectorAll('.solo-notes').forEach(function(el){
       el.addEventListener('blur', function(){
@@ -4723,6 +4743,10 @@ function rebuildLegend() {
 }
 
 function redrawMap() {
+  // PIA-058: the map is a progressive enhancement. If the d3 CDN load failed
+  // (outage, SRI hash break, offline) every caller — boot, tab switches, mode
+  // switches — must keep working; only the map itself goes dark.
+  if (typeof d3 === 'undefined') return;
   var isWorld = (S.mapView === 'world');
   var geoSrc = isWorld ? (S.worldGeo || S.geoData) : S.geoData;
   if (!geoSrc) return;
@@ -5198,6 +5222,56 @@ function updateStats() {
   document.getElementById('s-upd').textContent='Updated '+new Date().toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
 }
 
+// ══ PIA-057 · SAVED SEARCH SETUP (mobile mirror) ═════════════════
+// Persist the search setup (home airport, trip type, dates, mode) to
+// localStorage so the dashboard reopens exactly where it was left — the solo
+// flow starts pre-filled instead of blank, one tap from saving the trip to
+// the watchlist. Written from syncURL() (the single funnel every state change
+// already flows through); restored in boot() only when no share-URL state was
+// loaded, so shared links still win.
+var SOLO_PREFS_KEY = 'pialax_solo_prefs_v1';
+function saveSoloPrefs() {
+  try {
+    localStorage.setItem(SOLO_PREFS_KEY, JSON.stringify({
+      home: S.home,
+      trip: S.tripType,
+      mode: S.mode,
+      dep: S.depDate ? fmtISO(S.depDate) : null,
+      ret: (S.retDate && S.tripType === 'round') ? fmtISO(S.retDate) : null
+    }));
+  } catch (e) { /* localStorage unavailable — prefs just don't persist */ }
+}
+function restoreSoloPrefs() {
+  try {
+    var raw = localStorage.getItem(SOLO_PREFS_KEY);
+    if (!raw) return;
+    var p = JSON.parse(raw) || {};
+    if (p.home && AIRPORTS[p.home]) {
+      S.home = p.home;
+      var sel = document.getElementById('home-sel');
+      if (sel) sel.value = p.home;
+    }
+    if (p.trip === 'one' || p.trip === 'round') {
+      S.tripType = p.trip;
+      document.querySelectorAll('.tt-btn').forEach(function(b){ b.classList.toggle('on', b.dataset.v === p.trip); });
+      document.getElementById('pill-trip').textContent = p.trip === 'one' ? 'One-Way' : 'Round-Trip';
+      document.getElementById('s-trip').textContent    = p.trip === 'one' ? 'One-Way' : 'Round-Trip';
+    }
+    if (p.mode === 'solo' || p.mode === 'meetup') S.mode = p.mode;
+    // Saved dates are dropped once the departure has passed — never reopen on a stale trip.
+    if (p.dep && /^\d{4}-\d{2}-\d{2}$/.test(p.dep) && p.dep >= fmtISO(today)) {
+      var dd = new Date(p.dep + 'T12:00:00');
+      if (!isNaN(dd.getTime())) {
+        S.depDate = dd;
+        if (p.ret && /^\d{4}-\d{2}-\d{2}$/.test(p.ret) && S.tripType === 'round') {
+          var rd = new Date(p.ret + 'T12:00:00');
+          if (!isNaN(rd.getTime()) && rd > dd) S.retDate = rd;
+        }
+      }
+    }
+  } catch (e) { /* corrupt prefs — ignore, boot proceeds with defaults */ }
+}
+
 // ── URL PARAM RESTORE (shared links) ────────────────────────────
 var _urlStateLoaded = false;
 function restoreFromURL() {
@@ -5278,6 +5352,7 @@ function syncURL() {
   _syncURLScheduled = true;
   requestAnimationFrame(function(){
     _syncURLScheduled = false;
+    saveSoloPrefs(); // PIA-057: every state change funnels through here — persist the setup
     try {
       var sp = new URLSearchParams();
       sp.set('hub', S.home);
@@ -7631,6 +7706,36 @@ function openWatchlistTrip(id){
   S.tripType = t.ret ? 'round' : 'one';
   updateDateUI(); renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap(); loadPrices(); syncURL();
 }
+// PIA-057: save one solo card's setup (home airport + current dates) to the
+// watchlist. Updates the existing solo item for that dest instead of
+// duplicating; falls back to the Thu→Sun weekend rule when no dates are set.
+function saveSoloTrip(dest, depISO, retISO){
+  if (!dest) return;
+  if (!depISO) {
+    var d = new Date(today); var toThu = (4 - d.getDay() + 7) % 7 || 7;
+    var dep = new Date(d); dep.setDate(d.getDate() + toThu);
+    var ret = new Date(dep); ret.setDate(dep.getDate() + 3);
+    depISO = fmtISO(dep); retISO = fmtISO(ret);
+  }
+  var item = watchlistSoloItem(dest);
+  if (item) {
+    item.origin = S.home; item.dep = depISO; item.ret = retISO || null;
+    if (!item.gf) item.gf = {};
+    item.gf.from = S.home; item.gf.to = dest;
+    saveWatchlist(); renderWatchlist(); renderSoloCards();
+    showShareToast('↻ ' + dest + ' watchlist dates updated');
+  } else {
+    WATCHLIST.push({
+      id:'solo-' + dest, _added:true, mode:'solo', origin:S.home, dest:dest,
+      dep:depISO, ret:retISO || null, stage:'watching',
+      title:(S.home + ' → ' + dest + ' — solo trip'), routeTxt:(S.home + ' → ' + dest),
+      gf:{ from:S.home, to:dest },
+      notes:'', reminders:[], nextAction:'', blockers:[]
+    });
+    saveWatchlist(); renderWatchlist(); renderSoloCards();
+    showShareToast('✓ Saved ' + dest + ' to watchlist');
+  }
+}
 function addCurrentToWatchlist(){
   var dep = S.depDate, ret = S.retDate;
   if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
@@ -7660,18 +7765,30 @@ function addNewTrip(){
   var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : rawDest.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
   if (!dest) { showShareToast('Enter a valid destination'); return; }
   var mode = (modeBtn && modeBtn.getAttribute('data-v') === 'family') ? 'family' : 'solo';
+  // PIA-059: origin comes from the form's From selector, not silently from S.home.
+  var fromEl = document.getElementById('nt-from');
+  var origin = (fromEl && AIRPORTS[fromEl.value]) ? fromEl.value : S.home;
   var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
   var ret = (retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
   if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
   var item = {
-    id:'w'+Date.now(), _added:true, mode:mode, origin:S.home, dest:dest,
+    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest,
     dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
-    title:(dest+' — '+mode+' trip'), routeTxt:(S.home+' → '+dest),
-    gf:{ from:S.home, to:dest },
+    title:(dest+' — '+mode+' trip'), routeTxt:(origin+' → '+dest),
+    gf:{ from:origin, to:dest },
     notes:'', reminders:[], nextAction:'', blockers:[]
   };
   WATCHLIST.push(item); saveWatchlist();
   if (mode === 'solo') {
+    // PIA-059: picking a different From airport for a solo trip also switches
+    // the home airport (via the selector's own handler so labels, caches and
+    // saved prefs all update the one proven way) — the solo board then shows
+    // the new trip's card instead of silently filing it under another origin.
+    if (origin !== S.home) {
+      var ntHs = document.getElementById('home-sel');
+      if (ntHs) { ntHs.value = origin; ntHs.dispatchEvent(new Event('change')); }
+      else { S.home = origin; }
+    }
     if (!S.extraSoloDests) S.extraSoloDests = [];
     if (S.extraSoloDests.indexOf(dest) === -1) S.extraSoloDests.push(dest);
   }
@@ -7834,7 +7951,14 @@ function renderWatchlist(){
     var ntPrefillDep = S.depDate ? fmtISO(S.depDate) : '';
     var ntPrefillRet = S.retDate ? fmtISO(S.retDate) : '';
     var ntPrefillMode = ntIsFam ? 'family' : 'solo';
+    // PIA-059: the quick-add used to pin the origin silently to S.home — the
+    // search showed only one airport with no way to pick another. Every home
+    // airport the app models as an origin (ROUTE_GRAPH keys) is now selectable.
+    var ntFromOpts = Object.keys(ROUTE_GRAPH).map(function(c){
+      return '<option value="'+c+'"'+(c===S.home?' selected':'')+'>'+c+' — '+(AIRPORTS[c]?AIRPORTS[c].name:c)+'</option>';
+    }).join('');
     addBtn = '<div id="nt-form">' +
+      '<select id="nt-from" class="nt-input" title="From (home) airport" aria-label="From (home) airport">'+ntFromOpts+'</select>' +
       '<input id="nt-dest" class="nt-input" type="text" placeholder="City or airport, e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'"/>' +
       '<div style="display:flex;gap:5px;">' +
         '<input id="nt-dep" class="nt-input" type="date" value="'+ntPrefillDep+'" style="flex:1;"/>' +
@@ -7990,6 +8114,7 @@ function wireWatchlist(sec){
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
   restoreFromURL();
+  if (!_urlStateLoaded) restoreSoloPrefs(); // PIA-057: shared links win; otherwise reopen with the saved setup
   loadWatchlist(); // PIA-027: hydrate the trip watchlist
   rehydrateFlightCache(); // PIA-005 AC4: restore prior session's cached prices before any render
   document.getElementById('tb-sub').textContent='Loading…';
@@ -8016,8 +8141,12 @@ async function boot() {
   document.getElementById('s-routes').textContent=dests().length;
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
   updateDateUI(); updateStats();
-  setMode(S.mode);
+  // PIA-058: the Watchlist is the home surface — paint it BEFORE planner/map
+  // init, and never let a planner-side throw keep boot from finishing (mobile
+  // mirror of the desktop audit fix; mobile only survived d3 loss by luck —
+  // its map starts collapsed at zero size).
   renderWatchlist(); // PIA-027: paint the watchlist home
+  try { setMode(S.mode); } catch(e) { console.warn('[PIALAX] planner init failed — watchlist home unaffected', e); }
   S._booting = false;
   if (PROXY_URL) syncSerpApiAccount();
   await loadPrices();

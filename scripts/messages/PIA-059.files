@@ -1,0 +1,8 @@
+# PIA-059 ship manifest — selectable From airport in the watchlist quick-add
+# (origin no longer silently pinned to S.home; solo adds switch home via the
+# selector's own change handler) + JFK added to #home-sel. Both dashboard
+# files (mobile parity). Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-059.msg
+scripts/messages/PIA-059.files
