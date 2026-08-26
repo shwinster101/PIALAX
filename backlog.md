@@ -137,6 +137,11 @@ _Source: A6 audit of the PIA-030…040 UI overhaul (`RELEASE_UI_OVERHAUL.md`). A
 
 ## PIA-052 — email delivery for trip alerts (deferred from PIA-051)
 
+**✅ SHIPPED as PIA-063 (2026-08-26)** — POST /alert (Resend delivery, client
+drains the outbox), POST /alerts/sync + KV + daily Cron Trigger re-pricing the
+watches server-side, per-trip Send-test-email button. Worker-side setup steps
+live in wrangler.toml.
+
 _Filed 2026-08-02, on close of the "Context to Decision" sprint (PIA-046..051)._
 
 **Scope:** wire a real email provider to drain `pialax_alert_log_v1`. The

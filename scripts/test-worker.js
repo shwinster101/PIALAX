@@ -252,6 +252,166 @@ const VALID_EXTRACTION = {
     else ok('upstream error bodies are never forwarded (status class only)');
   }
 
+  // ═══ PIA-063: real fare alerts ═══════════════════════════════════════════
+  const mockKV = () => {
+    const m = new Map();
+    return { get: async (k) => (m.has(k) ? m.get(k) : null), put: async (k, v) => { m.set(k, v); }, _m: m };
+  };
+  const isoPlus = (days) => new Date(Date.now() + days * 86400000).toISOString().slice(0, 10);
+  const GOOD_EVENT = { id: 'alert-abc123', trip_id: 'peru', type: 'fare_drop', subject: 'Fare dropped 12%', body_text: 'Now $780 (was $895). Book it.' };
+
+  // ---- 9. POST /alert — delivery, fail closed ----------------------------
+  {
+    const res501 = await call(req('POST', 'https://w.dev/alert', { to: 'a@b.co', event: GOOD_EVENT }), {});
+    const j501 = await readJson(res501);
+    if (res501.status === 501 && j501 && j501.code === 'no_key') ok('/alert without RESEND_API_KEY -> 501 no_key (client stays preview-only)');
+    else bad(`/alert no key: expected 501/no_key, got ${res501.status}/${j501 && j501.code}`);
+
+    const envMail = { RESEND_API_KEY: 're-test' };
+    const badCases = [
+      ['non-JSON body', 'not json'],
+      ['missing recipient', { event: GOOD_EVENT }],
+      ['bad recipient', { to: 'not-an-email', event: GOOD_EVENT }],
+      ['unknown alert type', { to: 'a@b.co', event: Object.assign({}, GOOD_EVENT, { type: 'spam' }) }],
+      ['empty subject', { to: 'a@b.co', event: Object.assign({}, GOOD_EVENT, { subject: '  ' }) }],
+      ['injected event id', { to: 'a@b.co', event: Object.assign({}, GOOD_EVENT, { id: '"><script>' }) }],
+    ];
+    for (const [label, body] of badCases) {
+      const res = await call(req('POST', 'https://w.dev/alert', body), envMail);
+      const j = await readJson(res);
+      if (res.status === 400 && j && j.code === 'bad_body') ok(`/alert rejects ${label} -> 400 bad_body`);
+      else bad(`/alert ${label}: expected 400/bad_body, got ${res.status}/${j && j.code}`);
+    }
+
+    let sent = null;
+    const resOk = await call(req('POST', 'https://w.dev/alert', { to: 'ash@example.com', event: GOOD_EVENT }), envMail,
+      async (url, init) => { sent = { url, init }; return new Response('{"id":"em_1"}', { status: 200 }); });
+    const jOk = await readJson(resOk);
+    if (resOk.status === 200 && jOk && jOk.ok === true) ok('/alert happy path -> 200 ok');
+    else bad(`/alert happy path: got ${resOk.status} ${JSON.stringify(jOk)}`);
+    const mail = sent ? JSON.parse(sent.init.body) : {};
+    if (sent && sent.url === 'https://api.resend.com/emails' && sent.init.headers.Authorization === 'Bearer re-test') {
+      ok('/alert calls Resend with the Bearer secret');
+    } else bad('/alert upstream call malformed: ' + (sent && sent.url));
+    if (mail.to && mail.to[0] === 'ash@example.com' && /PIALAX · Fare dropped/.test(mail.subject) && /\$780/.test(mail.text)) {
+      ok('/alert email carries recipient + subject prefix + body');
+    } else bad('/alert email payload wrong: ' + JSON.stringify(mail).slice(0, 140));
+    if (resOk.headers.get('Cache-Control') === 'no-store') ok('/alert responses are never cached');
+    else bad('/alert missing no-store');
+
+    const res401 = await call(req('POST', 'https://w.dev/alert', { to: 'a@b.co', event: GOOD_EVENT }), envMail,
+      async () => new Response('{"message":"invalid key sk-LEAK"}', { status: 401 }));
+    const j401 = await readJson(res401);
+    const t401 = JSON.stringify(j401);
+    if (j401 && j401.code === 'bad_key' && !t401.includes('sk-LEAK')) ok('/alert provider 401 -> bad_key, upstream body never forwarded');
+    else bad(`/alert 401: got ${res401.status}/${j401 && j401.code}`);
+  }
+
+  // ---- 10. /alerts/sync + /alerts/status ---------------------------------
+  {
+    const resNoKv = await call(req('POST', 'https://w.dev/alerts/sync', { email: 'a@b.co', watches: [] }), {});
+    const jNoKv = await readJson(resNoKv);
+    if (resNoKv.status === 501 && jNoKv && jNoKv.code === 'no_kv') ok('/alerts/sync without KV binding -> 501 no_kv');
+    else bad(`/alerts/sync no KV: expected 501/no_kv, got ${resNoKv.status}/${jNoKv && jNoKv.code}`);
+
+    const goodWatch = { trip_id: 'peru', label: 'Peru — Machu Picchu', from: 'LAX', to: 'CUZ', dep: isoPlus(30), ret: isoPlus(39), threshold_pct: 10, remind_days: 3, baseline: 895 };
+    const kvEnv = () => ({ ALERTS: mockKV() });
+    const badSyncs = [
+      ['bad email', { email: 'nope', watches: [goodWatch] }],
+      ['non-IATA origin', { email: 'a@b.co', watches: [Object.assign({}, goodWatch, { from: 'L1' })] }],
+      ['prose date', { email: 'a@b.co', watches: [Object.assign({}, goodWatch, { dep: 'next friday' })] }],
+      ['eleven watches', { email: 'a@b.co', watches: Array.from({ length: 11 }, () => goodWatch) }],
+    ];
+    for (const [label, body] of badSyncs) {
+      const res = await call(req('POST', 'https://w.dev/alerts/sync', body), kvEnv());
+      if (res.status === 400) ok(`/alerts/sync rejects ${label} -> 400`);
+      else bad(`/alerts/sync ${label}: expected 400, got ${res.status}`);
+    }
+
+    const env = kvEnv();
+    const resSync = await call(req('POST', 'https://w.dev/alerts/sync', { email: 'ash@example.com', watches: [goodWatch] }), env);
+    const jSync = await readJson(resSync);
+    const storedRaw = await env.ALERTS.get('alerts:config');
+    const stored = storedRaw ? JSON.parse(storedRaw) : null;
+    if (resSync.status === 200 && jSync && jSync.stored === 1 && stored && stored.watches.length === 1 && stored.email === 'ash@example.com') {
+      ok('/alerts/sync happy path stores the config in KV');
+    } else bad(`/alerts/sync happy path: ${resSync.status} ${JSON.stringify(jSync)}`);
+
+    const resStat = await call(req('GET', 'https://w.dev/alerts/status'), env);
+    const jStat = await readJson(resStat);
+    if (resStat.status === 200 && jStat && jStat.watches === 1 && jStat.email_masked && !JSON.stringify(jStat).includes('ash@example.com')) {
+      ok('/alerts/status reports watch count with a masked email');
+    } else bad(`/alerts/status: ${resStat.status} ${JSON.stringify(jStat).slice(0, 140)}`);
+  }
+
+  // ---- 11. scheduled cron: drop + deadline, no daily repeats -------------
+  {
+    const runCron = async (env, fetchImpl) => {
+      const waits = [];
+      globalThis.fetch = fetchImpl;
+      try { await worker.scheduled({}, env, { waitUntil: (p) => waits.push(p) }); await Promise.all(waits); }
+      finally { globalThis.fetch = realFetch; }
+    };
+    const serpOk = (price) => new Response(JSON.stringify({ best_flights: [{ price }] }), { status: 200 });
+
+    // A. price under threshold -> exactly one email; repeat run -> none.
+    {
+      const env = { ALERTS: mockKV(), SERPAPI_KEY: 'sk', RESEND_API_KEY: 're' };
+      await env.ALERTS.put('alerts:config', JSON.stringify({
+        email: 'ash@example.com',
+        watches: [
+          { trip_id: 'peru', label: 'Peru', from: 'LAX', to: 'CUZ', dep: isoPlus(30), ret: isoPlus(39), threshold_pct: 10, remind_days: 3, baseline: 400 },
+          { trip_id: 'old', label: 'Departed', from: 'LAX', to: 'MEM', dep: '2020-01-01', ret: null, threshold_pct: 10, remind_days: 3, baseline: 300 },
+        ],
+      }));
+      const mails = [];
+      const impl = async (url, init) => {
+        if (String(url).startsWith('https://serpapi.com/')) return serpOk(350);
+        if (String(url).startsWith('https://api.resend.com/')) { mails.push(JSON.parse(init.body)); return new Response('{}', { status: 200 }); }
+        throw new Error('unexpected fetch ' + url);
+      };
+      await runCron(env, impl);
+      const run1 = JSON.parse(await env.ALERTS.get('alerts:last_run'));
+      if (mails.length === 1 && /dropped to \$350/.test(mails[0].subject) && run1.sent === 1 && run1.checked === 1) {
+        ok('cron: $350 vs $400 baseline (10% threshold) -> one fare-drop email; departed watch skipped');
+      } else bad(`cron drop: mails=${mails.length} run=${JSON.stringify(run1)}`);
+      await runCron(env, impl); // same price again
+      if (mails.length === 1) ok('cron: same price on the next run -> no repeat email');
+      else bad(`cron repeat: expected 1 mail total, got ${mails.length}`);
+      const st = JSON.parse(await env.ALERTS.get('alerts:state'));
+      if (st.peru && st.peru.last_alert_price === 350 && st.peru.last_price === 350) ok('cron: per-watch state records last/alerted price');
+      else bad('cron state wrong: ' + JSON.stringify(st).slice(0, 140));
+    }
+
+    // B. departure inside the remind window -> one reminder, never twice.
+    {
+      const env = { ALERTS: mockKV(), SERPAPI_KEY: 'sk', RESEND_API_KEY: 're' };
+      await env.ALERTS.put('alerts:config', JSON.stringify({
+        email: 'ash@example.com',
+        watches: [{ trip_id: 'mem', label: 'Memphis', from: 'LAX', to: 'MEM', dep: isoPlus(2), ret: null, threshold_pct: 10, remind_days: 3, baseline: null }],
+      }));
+      const mails = [];
+      const impl = async (url, init) => {
+        if (String(url).startsWith('https://serpapi.com/')) return new Response('{}', { status: 200 }); // no price available
+        if (String(url).startsWith('https://api.resend.com/')) { mails.push(JSON.parse(init.body)); return new Response('{}', { status: 200 }); }
+        throw new Error('unexpected fetch ' + url);
+      };
+      await runCron(env, impl);
+      await runCron(env, impl);
+      if (mails.length === 1 && /departs in 2 days/.test(mails[0].subject)) ok('cron: departure reminder fires once, even with no price data');
+      else bad(`cron reminder: mails=${mails.length} subj=${mails[0] && mails[0].subject}`);
+    }
+
+    // C. missing secrets -> run records why it skipped, sends nothing.
+    {
+      const env = { ALERTS: mockKV(), SERPAPI_KEY: 'sk' }; // no RESEND_API_KEY
+      await runCron(env, async () => { throw new Error('must not fetch'); });
+      const run = JSON.parse(await env.ALERTS.get('alerts:last_run'));
+      if (run && run.skipped === 'no RESEND_API_KEY' && run.sent === 0) ok('cron: unconfigured delivery -> skipped + recorded, zero sends');
+      else bad('cron skip: ' + JSON.stringify(run));
+    }
+  }
+
   fs.rmSync(tmpDir, { recursive: true, force: true });
   finish();
 })().catch((e) => {

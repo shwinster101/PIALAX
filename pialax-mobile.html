@@ -576,7 +576,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 .ta-alert-fields { display: flex; flex-direction: column; gap: 5px; margin: 6px 0; font-size: var(--fs-micro); color: var(--ink-muted); }
 .ta-alert-fields input[type="number"] { width: 52px; margin: 0 2px; padding: 3px 5px; font-size: var(--fs-micro);
   background: var(--bg); color: var(--ink); border: 1px solid var(--line); border-radius: var(--rad-xs); }
-.ta-alert-preview-btn { margin-top: 4px; min-height: 36px; padding: 6px 12px; font-size: var(--fs-micro); font-weight: 800;
+.ta-alert-preview-btn, .ta-alert-test { margin-top: 4px; min-height: 36px; padding: 6px 12px; font-size: var(--fs-micro); font-weight: 800;
   background: var(--surface-2); color: var(--ink); border: 1px solid var(--line-strong);
   border-radius: var(--rad-sm, 6px); cursor: pointer; font-family: inherit; }
 .ta-alert-preview { margin-top: 6px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line-strong);
@@ -585,6 +585,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 .ta-alert-from { font-size: var(--fs-micro); color: var(--ink-muted); }
 .ta-alert-subject { font-size: var(--fs-tiny); font-weight: 800; color: var(--ink); margin-top: 2px; }
 .ta-alert-body { font-size: var(--fs-tiny); color: var(--ink); line-height: 1.5; margin-top: 4px; }
+.ta-alert-test { margin-left: 5px; }
+.ta-alert-delivery { margin-top: 5px; font-size: var(--fs-micro); color: var(--ink-muted); }
 .ta-alert-log { margin-top: 6px; }
 .ta-alert-sent { font-size: var(--fs-micro); color: var(--ink-muted); line-height: 1.6; }
 .ta-alert-sent.ta-alert-empty { font-style: italic; }
@@ -1718,7 +1720,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
              alert toggle — matches "one verified recipient per account" (no
              per-trip email; per-trip settings are just enable + thresholds). -->
         <div id="ta-alert-email-row" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--line);font-size:var(--fs-tiny);color:var(--ink-muted);">
-          <label for="ta-alert-email" style="display:block;margin-bottom:3px;">Alert email <span style="font-weight:400;">(preview only — no provider connected yet)</span></label>
+          <label for="ta-alert-email" style="display:block;margin-bottom:3px;">Alert email <span style="font-weight:400;">(real delivery once the Worker is configured — see wrangler.toml)</span></label>
           <input id="ta-alert-email" type="email" placeholder="you@example.com" style="width:100%;box-sizing:border-box;padding:6px 8px;font-size:var(--fs-caption);background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:var(--rad-xs);min-height:36px;"/>
         </div>
       </div>
@@ -7190,7 +7192,8 @@ function sanitizeAlertEvent(e) {
     body_text: typeof e.body_text === 'string' ? e.body_text.slice(0, 1000) : '',
     dedupe_key: typeof e.dedupe_key === 'string' ? e.dedupe_key : '',
     created_at: typeof e.created_at === 'string' ? e.created_at : '',
-    trip_state_version: typeof e.trip_state_version === 'number' ? e.trip_state_version : 0
+    trip_state_version: typeof e.trip_state_version === 'number' ? e.trip_state_version : 0,
+    sent: e.sent === true  // PIA-063: delivery marker — survives the sanitize round-trip
   };
 }
 function loadAlertLog() {
@@ -7311,6 +7314,127 @@ function checkAndQueueAlert(item, view, nowIso) {
   }
 }
 
+// ── PIA-063: REAL DELIVERY — outbox drain + server watch sync ──────────────
+// The Worker's POST /alert emails one queued AlertEvent (the outbox contract
+// from PIA-051 finally has a last mile); POST /alerts/sync stores the active
+// watches so the Worker's daily cron re-prices them and emails with the app
+// CLOSED. Both degrade exactly like /extract: a 501 means "this Worker isn't
+// configured for delivery", and the panel stays in preview-only mode with no
+// retry spam.
+var _alertDeliveryOff = false;  // 501 from /alert seen this session
+var _alertSyncOff = false;      // 501 from /alerts/sync seen this session
+var _alertDrainBusy = false;
+var _lastAlertSyncJson = null;
+var _alertMaintTimer = null;
+
+function saveAlertLog(list) { return taWriteKey(ALERT_LOG_KEY, 'events', list); }
+
+function drainAlertOutbox() {
+  if (!PROXY_URL || _alertDeliveryOff || _alertDrainBusy) return;
+  var email = loadAlertSettings().email;
+  if (!email) return;
+  var pending = loadAlertLog().filter(function (e) { return !e.sent; }).slice(0, 5);
+  if (!pending.length) return;
+  _alertDrainBusy = true;
+  var idx = 0, sentAny = false;
+  function next() {
+    if (idx >= pending.length) {
+      _alertDrainBusy = false;
+      if (sentAny) renderWatchlist(); // repaint the per-trip log with its ✉ sent markers
+      return;
+    }
+    var evt = pending[idx++];
+    fetch(PROXY_URL + '/alert', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: email, event: evt })
+    }).then(function (res) {
+      if (res.status === 501) { _alertDeliveryOff = true; _alertDrainBusy = false; return; }
+      if (res.ok) {
+        // Mark sent by id in a FRESH read — another handler may have appended
+        // to the log while this request was in flight.
+        var all = loadAlertLog();
+        for (var i = 0; i < all.length; i++) if (all[i].id === evt.id) all[i].sent = true;
+        saveAlertLog(all);
+        sentAny = true;
+      }
+      next();
+    }).catch(function () { _alertDrainBusy = false; /* offline — retried on a later render */ });
+  }
+  next();
+}
+
+// Server-side watch list: alert-enabled, still-shoppable trips with a
+// 3-letter route and a future departure. Family trips watch their gf route.
+function alertWatchesPayload() {
+  var s = loadAlertSettings();
+  if (!s.email) return null;
+  var todayISO = fmtISO(today);
+  var watches = [];
+  WATCHLIST.forEach(function (t) {
+    if (watches.length >= 10) return;
+    var p = s.prefs[t.id];
+    if (!p || p.enabled !== true) return;
+    if (t.stage === 'booked' || t.stage === 'completed') return;
+    var from = String((t.gf && t.gf.from) || t.origin || '').toUpperCase();
+    var to = String((t.gf && t.gf.to) || t.dest || t.hub || '').toUpperCase();
+    if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to) || from === to) return;
+    if (!t.dep || !/^\d{4}-\d{2}-\d{2}$/.test(String(t.dep)) || t.dep < todayISO) return;
+    var est = null; try { est = watchlistEst(t); } catch (e) {}
+    watches.push({
+      trip_id: t.id,
+      label: String(t.title || (from + ' → ' + to)).slice(0, 80),
+      from: from, to: to, dep: t.dep,
+      ret: (t.ret && /^\d{4}-\d{2}-\d{2}$/.test(String(t.ret))) ? t.ret : null,
+      threshold_pct: p.fare_drop_pct, remind_days: p.deadline_days,
+      baseline: (typeof est === 'number' && est > 0) ? est : null
+    });
+  });
+  return { email: s.email, watches: watches };
+}
+
+function syncAlertWatches() {
+  if (!PROXY_URL || _alertSyncOff) return;
+  var payload = alertWatchesPayload();
+  if (!payload) return;
+  var json = JSON.stringify(payload);
+  if (json === _lastAlertSyncJson) return; // unchanged — no chatter
+  fetch(PROXY_URL + '/alerts/sync', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
+  }).then(function (res) {
+    if (res.status === 501) { _alertSyncOff = true; return; }
+    if (res.ok) _lastAlertSyncJson = json;
+  }).catch(function () { /* offline — retried on the next change */ });
+}
+
+// Debounced: renders happen in bursts; one drain + sync per settle is plenty.
+function scheduleAlertMaintenance() {
+  if (!PROXY_URL) return;
+  if (_alertMaintTimer) clearTimeout(_alertMaintTimer);
+  _alertMaintTimer = setTimeout(function () {
+    _alertMaintTimer = null;
+    try { drainAlertOutbox(); } catch (e) {}
+    try { syncAlertWatches(); } catch (e) {}
+  }, 1200);
+}
+
+function sendTestAlertEmail() {
+  var email = loadAlertSettings().email;
+  if (!PROXY_URL) { showShareToast('Connect the proxy Worker first (Advanced Settings)'); return; }
+  if (!email) { showShareToast('Set the alert email first (Advanced Settings)'); return; }
+  fetch(PROXY_URL + '/alert', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ to: email, event: {
+      id: taNewId('test'), trip_id: 'test', type: 'test',
+      subject: 'Test alert — delivery works',
+      body_text: 'This is a test from your PIALAX dashboard. Real fare alerts will arrive at this address.'
+    } })
+  }).then(function (res) {
+    if (res.ok) showShareToast('✓ Test email sent to ' + email);
+    else if (res.status === 501) { _alertDeliveryOff = true; showShareToast('Worker not set up for email yet — see wrangler.toml (RESEND_API_KEY)'); }
+    else showShareToast('✗ Send failed (HTTP ' + res.status + ')');
+  }).catch(function () { showShareToast('✗ Send failed — network'); });
+}
+
 // Pure. Renders the per-trip alert settings block: enable toggle, thresholds,
 // Preview panel, and a short sent-log. The global email lives in Admin &
 // Diagnostics, not here — one recipient per device, not per trip.
@@ -7318,7 +7442,7 @@ function renderAlertSettings(item, view, previewOpen) {
   var prefs = alertPrefsFor(item.id);
   var log = loadAlertLog().filter(function (e) { return e.trip_id === item.id; }).slice(-3).reverse();
   var logHtml = log.length
-    ? log.map(function (e) { return '<div class="ta-alert-sent">' + esc(taLogStamp(e.created_at)) + ' — ' + esc(e.subject) + '</div>'; }).join('')
+    ? log.map(function (e) { return '<div class="ta-alert-sent">' + esc(taLogStamp(e.created_at)) + ' — ' + esc(e.subject) + (e.sent ? ' · ✉ sent' : '') + '</div>'; }).join('')
     : '<div class="ta-alert-sent ta-alert-empty">No alerts sent yet.</div>';
   var previewHtml = '';
   if (previewOpen) {
@@ -7338,7 +7462,13 @@ function renderAlertSettings(item, view, previewOpen) {
       '</div>'
     ) : '') +
     '<button type="button" class="ta-alert-preview-btn" data-id="' + esc(item.id) + '">Preview email</button>' +
+    '<button type="button" class="ta-alert-test">Send test email</button>' +
     previewHtml +
+    // PIA-063: delivery status — which mode this device is actually in.
+    '<div class="ta-alert-delivery">' + esc(
+      !PROXY_URL ? 'Preview only — connect the proxy Worker to send real email.'
+      : (_alertDeliveryOff ? 'Preview only — Worker not set up for email yet (RESEND_API_KEY).'
+      : '☁ Real delivery armed — alerts email you; the server re-checks fares daily.')) + '</div>' +
     '<div class="ta-alert-log">' + logHtml + '</div>' +
   '</div>';
 }
@@ -8015,6 +8145,9 @@ function renderWatchlist(){
   }
   sec.innerHTML = header + '<div style="margin-top:6px;">' + cards + addBtn + '</div>';
   wireWatchlist(sec);
+  // PIA-063: after each settle, drain the outbox + sync watches (no-ops
+  // without the assistant surface, a proxy, or a recipient email).
+  if (flagOn('assistant')) scheduleAlertMaintenance();
 }
 function wireWatchlist(sec){
   var hdr = sec.querySelector('#wl-hdr'); if (hdr) hdr.addEventListener('click', function(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); });
@@ -8117,6 +8250,10 @@ function wireWatchlist(sec){
       _taPreviewFor = (_taPreviewFor === id) ? null : id;
       renderWatchlist();
     });
+  });
+  // PIA-063: one-tap proof the whole delivery pipe works end to end.
+  sec.querySelectorAll('.ta-alert-test').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); sendTestAlertEmail(); });
   });
 
   sec.querySelectorAll('.wl-blocker').forEach(function(el){
@@ -8340,6 +8477,8 @@ window.addEventListener('orientationchange', function() {
       var s = loadAlertSettings();
       s.email = inp.value.trim();
       saveAlertSettings(s);
+      _lastAlertSyncJson = null; // PIA-063: recipient changed — force a fresh watch sync
+      if (typeof scheduleAlertMaintenance === 'function') scheduleAlertMaintenance();
     } catch (e) {}
   });
 })();
