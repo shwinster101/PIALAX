@@ -1,0 +1,8 @@
+# PIA-062 ship manifest — JAX demoted to a grayed "past home": disabled
+# dropdown entry, out of active dest lists / From picker, past JAX chip
+# removed. Both dashboard files (mobile parity). Envelope self-includes
+# per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-062.msg
+scripts/messages/PIA-062.files

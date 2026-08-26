@@ -841,7 +841,7 @@ button{font-family:inherit;cursor:pointer;}
         <option value="PIA">PIA — Peoria, IL</option>
         <option value="ORD">ORD — Chicago, IL</option>
         <option value="LAX">LAX — Los Angeles, CA</option>
-        <option value="JAX">JAX — Jacksonville, FL</option>
+        <option value="JAX" disabled>JAX — Jacksonville, FL · past home</option>
         <option value="LGA">LGA — New York, NY (LaGuardia)</option>
         <option value="JFK">JFK — New York, NY (Kennedy)</option>
       </select>
@@ -858,7 +858,6 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="laborday" aria-label="Quick-pick: Labor Day">⚡ Labor Day</button>
         <button class="hol-btn" data-hol="thanksgiving" aria-label="Quick-pick: Thanksgiving">🦃 Thanksgiving</button>
         <button class="hol-btn" data-hol="christmas" aria-label="Quick-pick: Christmas">🎄 Christmas</button>
-        <button class="hol-btn" data-hol="jaxaug" aria-label="Quick-pick: Jacksonville, August 7 to 9">🏖 JAX Aug 7–9</button>
         <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 4 to 13">🏔 Peru Sep 4–13</button>
         <button class="hol-btn" data-hol="london" aria-label="Quick-pick: London — trip completed">✅ London ✓ (done)</button>
       </div>
@@ -1058,7 +1057,12 @@ var AIRPORTS = {
 // PIA-055: MIA dropped as an active LAX solo destination — that trip (Jun 18–21,
 // 2026) is done. AIRPORTS/DC/MOCK/TRIP_PRESETS entries for MIA are left in place
 // as history (fare data + the past preset dates), just no longer an active board pick.
-var ROUTE_GRAPH = { PIA:['LAX','JAX','LGA','JFK'], ORD:['LAX','JAX','LGA','JFK'], LAX:['PIA','ORD','JAX','LGA','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'], LGA:['PIA','ORD','LAX'] };
+// PIA-062: JAX demoted to a PAST home — sister has moved to NYC (LGA), so JAX
+// is out of the active destination lists (no solo card, map dot auto-demotes
+// to the muted 'other' style). It stays a grayed nostalgia entry in the Home
+// Airport dropdown and keeps its origin routes so historical trips still render.
+var ROUTE_GRAPH = { PIA:['LAX','LGA','JFK'], ORD:['LAX','LGA','JFK'], LAX:['PIA','ORD','LGA','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'], LGA:['PIA','ORD','LAX'] };
+var LEGACY_HOMES = ['JAX']; // past homes: visible for nostalgia, excluded from active pickers
 // International routes (meetup-only destinations — not in home-sel dropdown)
 var INTL_DESTS = ['LHR'];
 var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LGA:'#fb7185', LHR:'#e11d48', CUZ:'#22c55e', LIM:'#eab308' };
@@ -7759,7 +7763,7 @@ function renderWatchlist(){
     // PIA-059: the quick-add used to pin the origin silently to S.home — the
     // search showed only one airport with no way to pick another. Every home
     // airport the app models as an origin (ROUTE_GRAPH keys) is now selectable.
-    var ntFromOpts = Object.keys(ROUTE_GRAPH).map(function(c){
+    var ntFromOpts = Object.keys(ROUTE_GRAPH).filter(function(c){ return LEGACY_HOMES.indexOf(c) === -1; }).map(function(c){
       return '<option value="'+c+'"'+(c===S.home?' selected':'')+'>'+c+' — '+(AIRPORTS[c]?AIRPORTS[c].name:c)+'</option>';
     }).join('');
     addBtn = '<div id="nt-form">' +
