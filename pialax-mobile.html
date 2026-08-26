@@ -362,6 +362,17 @@ body {
    just the tab bar so we don't leave a band of dead space behind. */
 body.no-cta { padding-bottom: calc(env(safe-area-inset-bottom) + 68px); }
 body.no-cta .sticky-cta { display: none; }
+/* PIA-061 UX sweep: chrome is tab-scoped so each tab leads with its primary
+   feature. Planner prompts + fare/quota diagnostics + the stats strip belong
+   to the Meetup (plan) tab; Advanced Settings lives on the Watchlist home.
+   The quota WARNING banner and last-error chip stay global on purpose —
+   "you're out of budget" and "a fetch failed" must surface anywhere.
+   !important wins over the inline display toggles the updaters write. */
+body:not(.tab-plan) #status,
+body:not(.tab-plan) #freshness-header,
+body:not(.tab-plan) #quota-bar,
+body:not(.tab-plan) #statsbar { display: none !important; }
+body:not(.tab-watchlist) details.advanced { display: none !important; }
 button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 /* ── App Shell ── */
@@ -1515,11 +1526,12 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <option value="ORD">ORD — Chicago, IL</option>
           <option value="LAX">LAX — Los Angeles, CA</option>
           <option value="JAX">JAX — Jacksonville, FL</option>
-          <option value="JFK">JFK — New York, NY</option>
+          <option value="LGA">LGA — New York, NY (LaGuardia)</option>
+          <option value="JFK">JFK — New York, NY (Kennedy)</option>
         </select>
       </div>
       <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
-        ✈️ <strong style="color:#38bdf8">Sister departs JFK (NYC)</strong> for these dates — she moved from JAX in Sep 2026.
+        ✈️ <strong style="color:#38bdf8">Sister departs LGA (NYC)</strong> for these dates — she moved from JAX in Sep 2026. LGA is her closer airport; JFK works as an alternate.
       </div>
 
       <!-- Holiday quick-picks (meetup mode) -->
@@ -1777,6 +1789,7 @@ var AIRPORTS = {
   JAX:{ code:'JAX', name:'Jacksonville, FL', full:'Jacksonville International Airport', lat:30.4941, lon:-81.6879 },
   MIA:{ code:'MIA', name:'Miami, FL',        full:'Miami International Airport',        lat:25.7959, lon:-80.2870 },
   JFK:{ code:'JFK', name:'New York, NY',     full:'John F. Kennedy International Airport', lat:40.6413, lon:-73.7781 },
+  LGA:{ code:'LGA', name:'New York, NY',     full:'LaGuardia Airport',                  lat:40.7769, lon:-73.8740 },
   LHR:{ code:'LHR', name:'London, UK',       full:'London Heathrow Airport',            lat:51.4700, lon:-0.4543 },
   // Peru — Machu Picchu (2026-07-21, mobile mirror). CUZ = Cusco (in), LIM = Lima (out).
   CUZ:{ code:'CUZ', name:'Cusco, Peru',      full:'Alejandro Velasco Astete Intl (Cusco)', lat:-13.5358, lon:-71.9389 },
@@ -1786,9 +1799,9 @@ var AIRPORTS = {
 // PIA-055: MIA dropped as an active LAX solo destination — that trip (Jun 18–21,
 // 2026) is done. AIRPORTS/DC/MOCK/TRIP_PRESETS entries for MIA are left in place
 // as history (fare data + the past preset dates), just no longer an active board pick.
-var ROUTE_GRAPH = { PIA:['LAX','JAX','JFK'], ORD:['LAX','JAX','JFK'], LAX:['PIA','ORD','JAX','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'] };
+var ROUTE_GRAPH = { PIA:['LAX','JAX','LGA','JFK'], ORD:['LAX','JAX','LGA','JFK'], LAX:['PIA','ORD','JAX','LGA','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'], LGA:['PIA','ORD','LAX'] };
 var INTL_DESTS = ['LHR'];
-var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LHR:'#e11d48', CUZ:'#22c55e', LIM:'#eab308' };
+var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LGA:'#fb7185', LHR:'#e11d48', CUZ:'#22c55e', LIM:'#eab308' };
 // Airline + sample flight number per route. `flightNo` overridden by SerpAPI live data.
 var MOCK = {
   'PIA-LAX':{ ow:218, rt:389, airline:'American Airlines', flightNo:'AA 3421' },
@@ -1815,6 +1828,16 @@ var MOCK = {
   'JFK-LAX':{ ow:179, rt:332, airline:'JetBlue',           flightNo:'B6 23' },
   'JFK-LHR':{ ow:298, rt:548, airline:'British Airways',   flightNo:'BA 178' },
   'LHR-JFK':{ ow:285, rt:528, airline:'British Airways',   flightNo:'BA 179' },
+  // LGA — sister's PRIMARY NYC airport from Sep 1, 2026 (PIA-060: closer to her
+  // than JFK). JFK stays modeled above as the alternate + transatlantic gateway.
+  'PIA-LGA':{ ow:196, rt:356, airline:'American Airlines', flightNo:'AA 4461 (via ORD)' },
+  'LGA-PIA':{ ow:188, rt:342, airline:'American Airlines', flightNo:'AA 4462 (via ORD)' },
+  'ORD-LGA':{ ow:104, rt:196, airline:'American Airlines', flightNo:'AA 398' },
+  'LGA-ORD':{ ow:99,  rt:188, airline:'United Airlines',   flightNo:'UA 611' },
+  'LAX-LGA':{ ow:201, rt:368, airline:'Delta',             flightNo:'DL 1902 (via MSP)' },
+  'LGA-LAX':{ ow:197, rt:359, airline:'Delta',             flightNo:'DL 1903 (via MSP)' },
+  'JAX-LGA':{ ow:129, rt:238, airline:'Delta',             flightNo:'DL 2361' },
+  'LGA-JAX':{ ow:124, rt:229, airline:'Delta',             flightNo:'DL 2362' },
   // London
   'PIA-LHR':{ ow:420, rt:780, airline:'American Airlines', flightNo:'AA 736 (via ORD)' },
   'LHR-PIA':{ ow:390, rt:740, airline:'American Airlines', flightNo:'AA 737 (via ORD)' },
@@ -1883,7 +1906,10 @@ var FAMILY_INFO = {
          bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
          bookedRetDep: '2026-07-04', bookedRetArr: null,
          bookedDep: '2026-06-24', bookedRet: '2026-07-04' },
-  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'JFK',
+  // PIA-060: hub transition marked OFFICIAL — sister is NYC-based from Sep 1,
+  // 2026. Primary airport is LGA (closer to her than JFK); JFK stays modeled
+  // as an alternate origin + the transatlantic gateway.
+  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'LGA',
          booked: false,
          tripCompleted: true, completedTrip: 'London · Jun 24–Jul 1, 2026',
          bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
@@ -2441,7 +2467,7 @@ function renderMeetupStrip() {
     dateStr = nextHol ? nextHol.label + ' (suggested)' : 'Pick dates';
   }
   strip.className = noDate ? 'no-date' : '';
-  var hubOrder = ['PIA', 'LAX', 'JAX', 'JFK', 'ORD', 'LHR'];
+  var hubOrder = ['PIA', 'LAX', 'JAX', 'LGA', 'JFK', 'ORD', 'LHR'];
   var sortedRanking = ranking.slice().sort(function(a, b) {
     var ai = hubOrder.indexOf(a.dest), bi = hubOrder.indexOf(b.dest);
     if (ai === -1) ai = 99;
@@ -4419,7 +4445,9 @@ async function loadPrices(allowLive) {
     var hubs = ['PIA','LAX','JAX','ORD'];
     if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (hubs.indexOf(d)===-1) hubs.push(d); });
     var meetupFamily = familyForDate(S.depDate);
-    if (S.depDate && fmtISO(S.depDate) >= '2026-09-01' && hubs.indexOf('JFK') === -1) hubs.push('JFK');
+    // PIA-060: post-move NYC hub comes from FAMILY_INFO (LGA), not a hard-coded JFK.
+    var mvInfo = FAMILY_INFO.JAX;
+    if (S.depDate && mvInfo && mvInfo.moveDate && mvInfo.moveAirport && fmtISO(S.depDate) >= mvInfo.moveDate && hubs.indexOf(mvInfo.moveAirport) === -1) hubs.push(mvInfo.moveAirport);
     var activeHub = S.meetupHubOverride || null;
     var priorityRoutes = [], otherRoutes = [];
     hubs.forEach(function(dest) {
@@ -7065,7 +7093,7 @@ function fareSnapshotFor(tripId, tripState, nowMs) {
     lastChecked = entry.lastVerified || null;
   }
   if (price == null) {
-    try { var m = getMock(from, to); price = m ? (m.rt || m.ow) : null; source = 'mock'; } catch (e) {}
+    try { var m = getMock(from, to); price = (m && (m.rt || m.ow)) || null; source = 'mock'; } catch (e) {} // PIA-061: 0-fare mock stub is "no data", not $0
   }
   // A zero or negative "price" means the mock table has no entry for this
   // route — reporting "$0" would be a fabricated number dressed as a fare.
@@ -7673,7 +7701,9 @@ function watchlistEst(t){
   if (t.stage === 'completed') return null;
   try {
     if (t.mode === 'family' && t.hub) return estimateMeetupTotalFor(new Date(t.dep + 'T12:00:00'), t.hub);
-    if (t.mode === 'solo' && t.origin && t.dest) { var m = getMock(t.origin, t.dest); return m ? (m.rt || m.ow) : null; }
+    // PIA-061: getMock returns {ow:0, rt:0} for unmodeled routes — a 0 here
+    // painted a bogus "≈ $0" on the card. No fare data → no estimate ("—").
+    if (t.mode === 'solo' && t.origin && t.dest) { var m = getMock(t.origin, t.dest); var f = m ? (m.rt || m.ow) : 0; return f || null; }
   } catch(e){}
   return null;
 }
@@ -8199,8 +8229,11 @@ function ensureMapRendersOnMobile() {
 var NAV_TABS = ['watchlist', 'plan', 'map', 'cal'];
 function setActiveTab(tab) {
   if (NAV_TABS.indexOf(tab) === -1) tab = 'watchlist';
-  // PIA-046: the fare CTA belongs only to tabs that actually price something.
-  document.body.classList.toggle('no-cta', tab === 'watchlist');
+  // PIA-061: stamp the active tab on <body> — the tab-scoped chrome CSS keys
+  // off these classes (planner prompts/diagnostics on plan, settings on home).
+  NAV_TABS.forEach(function(t){ document.body.classList.toggle('tab-' + t, t === tab); });
+  // PIA-046 → PIA-061: the fare CTA is the planner's primary action — plan tab only.
+  document.body.classList.toggle('no-cta', tab !== 'plan');
   document.querySelectorAll('.nav-tab-page').forEach(function(p){
     p.classList.toggle('active', p.getAttribute('data-tab') === tab);
   });

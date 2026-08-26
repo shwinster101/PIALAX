@@ -1,0 +1,8 @@
+# PIA-060 (+ PIA-061 folded) ship manifest — official JAX→LGA hub transition
+# (LGA primary, JFK alternate) + tab-scoped mobile chrome + zero-fare "≈ $0"
+# fix. Both dashboard files (mobile parity). Envelope self-includes per
+# HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-060.msg
+scripts/messages/PIA-060.files
