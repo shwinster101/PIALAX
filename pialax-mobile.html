@@ -4742,6 +4742,10 @@ function rebuildLegend() {
 }
 
 function redrawMap() {
+  // PIA-058: the map is a progressive enhancement. If the d3 CDN load failed
+  // (outage, SRI hash break, offline) every caller — boot, tab switches, mode
+  // switches — must keep working; only the map itself goes dark.
+  if (typeof d3 === 'undefined') return;
   var isWorld = (S.mapView === 'world');
   var geoSrc = isWorld ? (S.worldGeo || S.geoData) : S.geoData;
   if (!geoSrc) return;
@@ -8117,8 +8121,12 @@ async function boot() {
   document.getElementById('s-routes').textContent=dests().length;
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
   updateDateUI(); updateStats();
-  setMode(S.mode);
+  // PIA-058: the Watchlist is the home surface — paint it BEFORE planner/map
+  // init, and never let a planner-side throw keep boot from finishing (mobile
+  // mirror of the desktop audit fix; mobile only survived d3 loss by luck —
+  // its map starts collapsed at zero size).
   renderWatchlist(); // PIA-027: paint the watchlist home
+  try { setMode(S.mode); } catch(e) { console.warn('[PIALAX] planner init failed — watchlist home unaffected', e); }
   S._booting = false;
   if (PROXY_URL) syncSerpApiAccount();
   await loadPrices();

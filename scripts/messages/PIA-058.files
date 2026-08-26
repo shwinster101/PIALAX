@@ -1,0 +1,8 @@
+# PIA-058 ship manifest — watchlist tab robustness: d3-failure guard in
+# redrawMap(), watchlist-first boot order with guarded setMode(). Both
+# dashboard files (mobile parity). Driven by a 126-check button-by-button
+# audit of the watchlist tab. Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+scripts/messages/PIA-058.msg
+scripts/messages/PIA-058.files
