@@ -137,7 +137,9 @@ _Source: A6 audit of the PIA-030…040 UI overhaul (`RELEASE_UI_OVERHAUL.md`). A
 
 ## PIA-052 — email delivery for trip alerts (deferred from PIA-051)
 
-**✅ SHIPPED as PIA-063 (2026-08-26)** — POST /alert (Resend delivery, client
+**✅ SHIPPED as PIA-063 (2026-08-26)** · **Activation DEFERRED** — Ashwin can't
+sign up for Resend right now; the merged code sits dormant in preview-only
+mode until the wrangler.toml steps run (no expiry, pick up any time). — POST /alert (Resend delivery, client
 drains the outbox), POST /alerts/sync + KV + daily Cron Trigger re-pricing the
 watches server-side, per-trip Send-test-email button. Worker-side setup steps
 live in wrangler.toml.
