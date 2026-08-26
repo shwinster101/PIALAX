@@ -22,3 +22,29 @@ ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 # to a deterministic in-browser parser):
 #   wrangler secret put ANTHROPIC_API_KEY
 #   wrangler deploy
+
+# ── PIA-063: real fare alerts ────────────────────────────────────────────────
+# Daily cron re-prices the synced watches (through the same 24h edge cache the
+# browser uses) and emails on a real drop or an approaching departure.
+# 15:00 UTC ≈ 10am Central / 8am Pacific.
+[triggers]
+crons = ["0 15 * * *"]
+
+# One-time, to enable alerts (the app works without them — the Alerts panel
+# stays in preview-only mode until the Worker is configured):
+#   1. resend.com → sign up with the alert recipient's email → create API key
+#      (with no custom domain, Resend's onboarding@resend.dev sender delivers
+#      only to the account owner's own email — exactly right here)
+#   2. wrangler kv namespace create ALERTS
+#      → copy the printed id into the block below, then un-comment it
+#   3. wrangler secret put RESEND_API_KEY
+#   4. wrangler deploy
+#
+# [[kv_namespaces]]
+# binding = "ALERTS"
+# id = "PASTE_NAMESPACE_ID_HERE"
+#
+# Optional [vars]: ALERT_FROM (a verified sender once you have a domain),
+# ALERT_CRON_MAX (max SerpAPI fetches per cron run; default 8 ≈ 240/month
+# worst-case against the 1000/month plan — real usage is far lower because
+# cache hits are free).

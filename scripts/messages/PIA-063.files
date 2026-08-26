@@ -1,0 +1,12 @@
+# PIA-063 ship manifest — real fare alerts: Resend delivery route, KV watch
+# sync, daily cron re-pricing (worker.js + wrangler.toml), client outbox
+# drain + watch sync + test-email button (both dashboard files), worker test
+# suite 36→60, backlog PIA-052 closed. Envelope self-includes per HQ §2.4 D1.
+pialax.html
+pialax-mobile.html
+worker.js
+wrangler.toml
+scripts/test-worker.js
+backlog.md
+scripts/messages/PIA-063.msg
+scripts/messages/PIA-063.files

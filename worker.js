@@ -49,18 +49,35 @@ export default {
       return new Response(null, { status: 204, headers: corsHeaders(request) });
     }
 
-    // ── POST /extract — the only non-GET route ──
+    // ── POST routes ──
     if (request.method === 'POST') {
       let pathname = '/';
       try { pathname = new URL(request.url).pathname; } catch (e) { /* fall through */ }
       if (pathname === '/extract' || pathname === '/extract/') {
         return handleExtract(request, env);
       }
+      // PIA-063: real fare alerts — send one AlertEvent now (client-drained outbox)
+      if (pathname === '/alert' || pathname === '/alert/') {
+        return handleAlertSend(request, env);
+      }
+      // PIA-063: store this device's active fare watches for the daily cron check
+      if (pathname === '/alerts/sync' || pathname === '/alerts/sync/') {
+        return handleAlertsSync(request, env);
+      }
       return jsonError('Method not allowed', 405, request);
     }
 
     if (request.method !== 'GET') {
       return jsonError('Method not allowed', 405, request);
+    }
+
+    // PIA-063: alert config/last-cron-run status (no SerpAPI key required)
+    {
+      let pathname = '/';
+      try { pathname = new URL(request.url).pathname; } catch (e) { /* fall through */ }
+      if (pathname === '/alerts/status' || pathname === '/alerts/status/') {
+        return handleAlertsStatus(request, env);
+      }
     }
 
     // ── Validate API key is configured ──
@@ -173,6 +190,13 @@ export default {
     } catch (e) {
       return jsonError('Proxy error: ' + e.message, 502, request);
     }
+  },
+
+  // PIA-063: daily fare-alert check (Cron Trigger — see wrangler.toml).
+  // Fires with the dashboard CLOSED, which is the entire point: the app can
+  // finally tap the user on the shoulder instead of waiting to be opened.
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(runAlertCron(env));
   },
 };
 
@@ -498,43 +522,297 @@ async function handleExtract(request, env) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FUTURE: POST /alert — email delivery (PIA-051, not implemented)
+// PIA-063: REAL FARE ALERTS — delivery (POST /alert) + daily cron check
 // ═══════════════════════════════════════════════════════════════════════════
-// The client (pialax.html / pialax-mobile.html) already implements the full
-// alert CONTRACT: pialax_alert_prefs_v1 (per-trip enable + thresholds, one
-// shared recipient email) and pialax_alert_log_v1 (the outbox — every queued
-// AlertEvent lives there, deduped, capped at 100). What's missing is only the
-// last mile: nothing currently reads that outbox and sends mail. Today the
-// "Preview email" button in each trip's Alerts panel is the entire delivery
-// mechanism — it renders the exact email a real send would produce, so the
-// contract is fully exercisable and testable without a provider.
+// Realizes the PIA-051/052 contract. Two independent halves:
 //
-// Wiring a real provider is a DROP-IN, not a redesign, because the contract
-// is already final:
+//   A. DELIVERY — POST /alert sends ONE client-built AlertEvent by email.
+//      The client drains its pialax_alert_log_v1 outbox through this route
+//      and marks events `sent`. Validation mirrors the client's
+//      sanitizeAlertEvent and FAILS CLOSED — a malformed event is never sent.
 //
-//   1. Add a secret for the chosen provider, same pattern as SERPAPI_KEY /
-//      ANTHROPIC_API_KEY:
-//        wrangler secret put RESEND_API_KEY      # or MAILCHANNELS_API_KEY
+//   B. WATCHING — POST /alerts/sync stores the device's active fare watches
+//      in KV; a daily Cron Trigger re-prices each watch via SerpAPI (through
+//      the same 24h edge cache the browser uses, so a day the user browsed
+//      costs zero extra quota) and emails on a real drop or an approaching
+//      departure. This is the half that works with the app CLOSED.
 //
-//   2. Add a POST /alert route here, structurally identical to /extract
-//      above: parse the request body as one AlertEvent (id, trip_id, type,
-//      subject, body_text, dedupe_key, created_at, trip_state_version) plus
-//      the recipient email, validate the shape (fail closed — do not send a
-//      malformed event), call the provider's send API, return its status.
+// Provider: Resend (https://resend.com). With no custom domain, Resend's
+// onboarding@resend.dev sender delivers only to the account owner's own
+// verified email — exactly right for this single-family dashboard.
 //
-//   3. Client-side, drain pialax_alert_log_v1: for each event not yet marked
-//      sent, POST it to /alert, mark `sent: true` on success. This is the
-//      only client change needed — the event shape and the dedupe logic that
-//      decides WHEN to queue an event (checkAndQueueAlert, buildAlertEvent)
-//      are both already correct and already tested; delivery only has to
-//      drain what's already there.
+// SETUP (one-time):
+//   1. resend.com → sign up with the alert recipient's email → API key.
+//   2. wrangler kv namespace create ALERTS   → paste the id into wrangler.toml
+//   3. wrangler secret put RESEND_API_KEY
+//   4. wrangler deploy   (wrangler.toml already carries the cron trigger)
+// Optional env vars: ALERT_FROM (verified sender), ALERT_CRON_MAX (fetch cap).
 //
-//   4. Candidates: Resend (resend.com/docs/api-reference/emails/send-email —
-//      simplest REST API, generous free tier) or Cloudflare's own MailChannels
-//      binding (no separate account, but Workers-only and requires DNS setup
-//      for domain verification). Resend is the simpler first choice.
-//
-// Deliberately NOT built now: this sprint's job was the contract (the hard,
-// hand-mirrored, fixture-tested part) and the delivery is a small, isolated,
-// provider-specific addition that can land in an afternoon whenever a real
-// recipient is ready to receive mail. See backlog.md for the ticket.
+// Every route degrades exactly like /extract: 501 + code tells the client
+// "not configured here", and the dashboard falls back to preview-only.
+
+const RESEND_URL = 'https://api.resend.com/emails';
+const ALERT_FROM_DEFAULT = 'PIALAX <onboarding@resend.dev>';
+const DASH_URL = 'https://shwinster101.github.io/PIALAX/';
+const ALERT_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;   // mirrors client TA_ID_RE
+const ALERT_EMAIL_RE = /^[^\s@]{1,64}@[^\s@.]{1,63}(\.[^\s@.]{1,63})+$/;
+const IATA_RE = /^[A-Z]{3}$/;
+const ALERT_TYPES = { fare_drop: 1, constraint_violation: 1, deadline_approaching: 1, conflict_needs_you: 1, test: 1 };
+const MAX_WATCHES = 10;
+const CRON_MAX_FETCHES_DEFAULT = 8;
+
+function alertsCors(request, extra) {
+  return Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, corsHeaders(request), extra || {});
+}
+
+async function readJsonBody(request) {
+  const raw = await request.text();
+  if (raw.length > MAX_BODY_BYTES) return { err: jsonErrorSpec('Request body too large', 413, 'too_large') };
+  try { return { body: JSON.parse(raw) }; } catch (e) { return { err: jsonErrorSpec('Body must be JSON', 400, 'bad_body') }; }
+}
+function jsonErrorSpec(msg, status, code) { return { msg, status, code }; }
+
+// Fail-closed validation of one AlertEvent + recipient. Returns {to, event} or null.
+function validateAlertPayload(body) {
+  if (!body || typeof body !== 'object') return null;
+  const to = typeof body.to === 'string' ? body.to.trim() : '';
+  if (!ALERT_EMAIL_RE.test(to) || to.length > 200) return null;
+  const e = body.event;
+  if (!e || typeof e !== 'object') return null;
+  if (typeof e.id !== 'string' || !ALERT_ID_RE.test(e.id)) return null;
+  if (typeof e.trip_id !== 'string' || !ALERT_ID_RE.test(e.trip_id)) return null;
+  if (!ALERT_TYPES[e.type]) return null;
+  const subject = typeof e.subject === 'string' ? e.subject.slice(0, 200) : '';
+  const bodyText = typeof e.body_text === 'string' ? e.body_text.slice(0, 1000) : '';
+  if (!subject.trim() || !bodyText.trim()) return null;
+  return { to, event: { id: e.id, trip_id: e.trip_id, type: e.type, subject, body_text: bodyText } };
+}
+
+async function sendViaResend(env, to, subject, text) {
+  const res = await fetch(RESEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + env.RESEND_API_KEY },
+    body: JSON.stringify({
+      from: env.ALERT_FROM || ALERT_FROM_DEFAULT,
+      to: [to],
+      subject: subject,
+      text: text + '\n\n—\nPIALAX family flight dashboard\n' + DASH_URL,
+    }),
+  });
+  if (!res.ok) {
+    // Log the body for `wrangler tail`; never forward it (same rule as /extract).
+    console.warn('[alert] Resend ' + res.status + ': ' + (await res.text()).slice(0, 300));
+  }
+  return res;
+}
+
+async function handleAlertSend(request, env) {
+  if (!env.RESEND_API_KEY) {
+    return jsonError('Alert delivery not configured on this Worker (no RESEND_API_KEY secret)', 501, request, 'no_key');
+  }
+  let parsed;
+  try { parsed = await readJsonBody(request); } catch (e) { return jsonError('Could not read request body', 400, request, 'bad_body'); }
+  if (parsed.err) return jsonError(parsed.err.msg, parsed.err.status, request, parsed.err.code);
+  const v = validateAlertPayload(parsed.body);
+  if (!v) return jsonError('Invalid alert payload', 400, request, 'bad_body');
+  try {
+    const res = await sendViaResend(env, v.to, '✈️ PIALAX · ' + v.event.subject, v.event.body_text);
+    if (res.ok) {
+      return new Response(JSON.stringify({ ok: true }), { status: 200, headers: alertsCors(request) });
+    }
+    return jsonError('Email provider returned ' + res.status, res.status === 429 ? 429 : 502, request,
+      res.status === 401 || res.status === 403 ? 'bad_key' : 'upstream');
+  } catch (e) {
+    return jsonError('Email send failed: ' + e.message, 502, request, 'upstream');
+  }
+}
+
+// One watch = one route+dates the cron re-prices daily. Strict allowlist of
+// fields; anything off-shape rejects the WHOLE sync (fail closed — a partial
+// config silently watching the wrong trips is worse than an error).
+function validateWatch(w) {
+  if (!w || typeof w !== 'object') return null;
+  if (typeof w.trip_id !== 'string' || !ALERT_ID_RE.test(w.trip_id)) return null;
+  const from = typeof w.from === 'string' ? w.from.toUpperCase() : '';
+  const to = typeof w.to === 'string' ? w.to.toUpperCase() : '';
+  if (!IATA_RE.test(from) || !IATA_RE.test(to) || from === to) return null;
+  if (typeof w.dep !== 'string' || !ISO_DATE_RE.test(w.dep)) return null;
+  const ret = (typeof w.ret === 'string' && ISO_DATE_RE.test(w.ret)) ? w.ret : null;
+  const pct = (typeof w.threshold_pct === 'number' && w.threshold_pct >= 1 && w.threshold_pct <= 100) ? w.threshold_pct : 10;
+  const remind = (typeof w.remind_days === 'number' && w.remind_days >= 0 && w.remind_days <= 60) ? w.remind_days : 3;
+  const baseline = (typeof w.baseline === 'number' && w.baseline > 0 && w.baseline < 100000) ? Math.round(w.baseline) : null;
+  const label = typeof w.label === 'string' ? w.label.slice(0, 80) : (from + ' → ' + to);
+  return { trip_id: w.trip_id, label, from, to, dep: w.dep, ret, threshold_pct: pct, remind_days: remind, baseline };
+}
+
+async function handleAlertsSync(request, env) {
+  if (!env.ALERTS) {
+    return jsonError('Alert watching not configured on this Worker (no ALERTS KV binding)', 501, request, 'no_kv');
+  }
+  let parsed;
+  try { parsed = await readJsonBody(request); } catch (e) { return jsonError('Could not read request body', 400, request, 'bad_body'); }
+  if (parsed.err) return jsonError(parsed.err.msg, parsed.err.status, request, parsed.err.code);
+  const body = parsed.body || {};
+  const email = typeof body.email === 'string' ? body.email.trim() : '';
+  if (!ALERT_EMAIL_RE.test(email) || email.length > 200) return jsonError('Valid email is required', 400, request, 'bad_body');
+  if (!Array.isArray(body.watches) || body.watches.length > MAX_WATCHES) {
+    return jsonError('watches must be an array of at most ' + MAX_WATCHES, 400, request, 'bad_body');
+  }
+  const watches = [];
+  for (const w of body.watches) {
+    const v = validateWatch(w);
+    if (!v) return jsonError('Invalid watch in payload', 400, request, 'bad_body');
+    watches.push(v);
+  }
+  await env.ALERTS.put('alerts:config', JSON.stringify({ email, watches, synced_at: new Date().toISOString() }));
+  return new Response(JSON.stringify({ ok: true, stored: watches.length }), { status: 200, headers: alertsCors(request) });
+}
+
+async function handleAlertsStatus(request, env) {
+  if (!env.ALERTS) {
+    return jsonError('Alert watching not configured on this Worker (no ALERTS KV binding)', 501, request, 'no_kv');
+  }
+  let config = null, lastRun = null;
+  try {
+    config = JSON.parse((await env.ALERTS.get('alerts:config')) || 'null');
+    lastRun = JSON.parse((await env.ALERTS.get('alerts:last_run')) || 'null');
+  } catch (e) { /* corrupt KV — report as unconfigured */ }
+  const email = config && typeof config.email === 'string' ? config.email : '';
+  const masked = email ? email.replace(/^(.).*(@.).*(\..+)$/, '$1***$2***$3') : null;
+  return new Response(JSON.stringify({
+    ok: true,
+    delivery_configured: !!env.RESEND_API_KEY,
+    watches: config && Array.isArray(config.watches) ? config.watches.length : 0,
+    email_masked: masked,
+    synced_at: config ? config.synced_at || null : null,
+    last_run: lastRun,
+  }), { status: 200, headers: alertsCors(request) });
+}
+
+// Cache-first SerpAPI price for one watch. Shares the browser's 24h edge cache
+// key (params without api_key), so a route the family already looked at today
+// costs zero quota. Returns { price, fromCache } or { price: null }.
+async function cronFetchPrice(watch, env, counters) {
+  const params = new URLSearchParams();
+  params.set('engine', 'google_flights');
+  params.set('departure_id', watch.from);
+  params.set('arrival_id', watch.to);
+  params.set('outbound_date', watch.dep);
+  if (watch.ret) { params.set('type', '1'); params.set('return_date', watch.ret); }
+  else params.set('type', '2');
+  params.set('currency', 'USD');
+  params.set('hl', 'en');
+
+  const cacheKey = new Request(SERPAPI_BASE + '?' + params.toString(), { method: 'GET' });
+  const cache = (typeof caches !== 'undefined' && caches.default) ? caches.default : null;
+  let bodyText = null;
+  if (cache) {
+    const hit = await cache.match(cacheKey);
+    if (hit) { bodyText = await hit.text(); counters.cached++; }
+  }
+  if (bodyText == null) {
+    params.set('api_key', env.SERPAPI_KEY);
+    const res = await fetch(SERPAPI_BASE + '?' + params.toString(), { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
+    if (!res.ok) { console.warn('[alert-cron] SerpAPI ' + res.status + ' for ' + watch.from + '-' + watch.to); return { price: null }; }
+    bodyText = await res.text();
+    counters.spent++;
+    if (cache) {
+      await cache.put(cacheKey, new Response(bodyText, {
+        status: 200,
+        headers: { 'Content-Type': 'application/json', 'X-SerpAPI-Status': '200', 'Cache-Control': 'public, max-age=86400' },
+      }));
+    }
+  }
+  try {
+    const j = JSON.parse(bodyText);
+    const best = (Array.isArray(j.best_flights) && j.best_flights[0] && j.best_flights[0].price)
+      || (Array.isArray(j.other_flights) && j.other_flights[0] && j.other_flights[0].price)
+      || (j.price_insights && j.price_insights.lowest_price)
+      || null;
+    return { price: (typeof best === 'number' && best > 0) ? best : null };
+  } catch (e) { return { price: null }; }
+}
+
+async function runAlertCron(env) {
+  if (!env.ALERTS) return;   // KV not bound — feature off, nothing to record it in
+  const summary = { at: new Date().toISOString(), checked: 0, sent: 0, spent: 0, cached: 0, skipped: null };
+  try {
+    if (!env.SERPAPI_KEY || !env.RESEND_API_KEY) {
+      summary.skipped = !env.SERPAPI_KEY ? 'no SERPAPI_KEY' : 'no RESEND_API_KEY';
+      await env.ALERTS.put('alerts:last_run', JSON.stringify(summary));
+      return;
+    }
+    const config = JSON.parse((await env.ALERTS.get('alerts:config')) || 'null');
+    if (!config || !ALERT_EMAIL_RE.test(String(config.email || '')) || !Array.isArray(config.watches) || !config.watches.length) {
+      summary.skipped = 'no watches synced';
+      await env.ALERTS.put('alerts:last_run', JSON.stringify(summary));
+      return;
+    }
+    const state = JSON.parse((await env.ALERTS.get('alerts:state')) || '{}') || {};
+    const today = summary.at.slice(0, 10);
+    const maxFetches = (typeof env.ALERT_CRON_MAX === 'string' && parseInt(env.ALERT_CRON_MAX, 10) > 0)
+      ? parseInt(env.ALERT_CRON_MAX, 10) : CRON_MAX_FETCHES_DEFAULT;
+    const counters = { spent: 0, cached: 0 };
+
+    for (const raw of config.watches) {
+      const w = validateWatch(raw);
+      if (!w) continue;
+      if (w.dep < today) continue;                    // departed — stale watch
+      if (summary.checked >= maxFetches) break;       // hard quota ceiling per run
+      summary.checked++;
+
+      // One watch failing (bad route, upstream hiccup) must not kill the run.
+      try {
+        const got = await cronFetchPrice(w, env, counters);
+        const st = state[w.trip_id] || {};
+        const daysLeft = Math.round((new Date(w.dep + 'T00:00:00Z') - new Date(today + 'T00:00:00Z')) / 86400000);
+
+        if (got.price != null) {
+          if (!(st.first_price > 0)) st.first_price = got.price;
+          const baseline = w.baseline || st.first_price;
+          const target = baseline * (1 - w.threshold_pct / 100);
+          // Re-alert only when the fare drops MATERIALLY below the last alert
+          // ($10 buckets, same spirit as the client's dedupe key) — never a
+          // daily repeat about the same price.
+          const dropHit = got.price <= target && (!(st.last_alert_price > 0) || got.price <= st.last_alert_price - 10);
+          if (dropHit) {
+            const res = await sendViaResend(env, config.email,
+              '✈️ PIALAX · ' + w.label + ' dropped to $' + got.price,
+              w.from + ' → ' + w.to + ' · ' + w.dep + (w.ret ? ' – ' + w.ret : '') +
+              '\nNow $' + got.price + ' (baseline $' + Math.round(baseline) + ', your threshold ' + w.threshold_pct + '%).' +
+              '\nDeparts in ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's') + '.' +
+              '\n\nOpen the trip: ' + DASH_URL);
+            if (res.ok) { summary.sent++; st.last_alert_price = got.price; st.last_alert_day = today; }
+          }
+          st.last_price = got.price;
+        }
+
+        // Departure-window reminder — once per watch, price known or not.
+        if (daysLeft >= 0 && daysLeft <= w.remind_days && !st.deadline_sent) {
+          const res = await sendViaResend(env, config.email,
+            '✈️ PIALAX · ' + w.label + ' departs ' + (daysLeft === 0 ? 'TODAY' : 'in ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's')),
+            w.from + ' → ' + w.to + ' · ' + w.dep + (w.ret ? ' – ' + w.ret : '') +
+            (st.last_price ? '\nLatest fare seen: $' + st.last_price + '.' : '') +
+            '\nStill unbooked on the watchlist — decide now.' +
+            '\n\nOpen the trip: ' + DASH_URL);
+          if (res.ok) { summary.sent++; st.deadline_sent = true; }
+        }
+
+        st.last_checked = today;
+        state[w.trip_id] = st;
+      } catch (e) {
+        console.warn('[alert-cron] watch ' + w.trip_id + ' failed: ' + e.message);
+      }
+    }
+    summary.spent = counters.spent;
+    summary.cached = counters.cached;
+    await env.ALERTS.put('alerts:state', JSON.stringify(state));
+    await env.ALERTS.put('alerts:last_run', JSON.stringify(summary));
+  } catch (e) {
+    console.warn('[alert-cron] run failed: ' + e.message);
+    try {
+      summary.skipped = 'error: ' + e.message;
+      await env.ALERTS.put('alerts:last_run', JSON.stringify(summary));
+    } catch (e2) { /* KV write failed too — nothing left to do */ }
+  }
+}
