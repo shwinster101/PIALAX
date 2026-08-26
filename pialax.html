@@ -842,6 +842,7 @@ button{font-family:inherit;cursor:pointer;}
         <option value="ORD">ORD — Chicago, IL</option>
         <option value="LAX">LAX — Los Angeles, CA</option>
         <option value="JAX">JAX — Jacksonville, FL</option>
+        <option value="JFK">JFK — New York, NY</option>
       </select>
     </div>
     <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
@@ -7545,18 +7546,30 @@ function addNewTrip(){
   var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : rawDest.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
   if (!dest) { showShareToast('Enter a valid destination'); return; }
   var mode = (modeBtn && modeBtn.getAttribute('data-v') === 'family') ? 'family' : 'solo';
+  // PIA-059: origin comes from the form's From selector, not silently from S.home.
+  var fromEl = document.getElementById('nt-from');
+  var origin = (fromEl && AIRPORTS[fromEl.value]) ? fromEl.value : S.home;
   var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
   var ret = (retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
   if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
   var item = {
-    id:'w'+Date.now(), _added:true, mode:mode, origin:S.home, dest:dest,
+    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest,
     dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
-    title:(dest+' — '+mode+' trip'), routeTxt:(S.home+' → '+dest),
-    gf:{ from:S.home, to:dest },
+    title:(dest+' — '+mode+' trip'), routeTxt:(origin+' → '+dest),
+    gf:{ from:origin, to:dest },
     notes:'', reminders:[], nextAction:'', blockers:[]
   };
   WATCHLIST.push(item); saveWatchlist();
   if (mode === 'solo') {
+    // PIA-059: picking a different From airport for a solo trip also switches
+    // the home airport (via the selector's own handler so labels, caches and
+    // saved prefs all update the one proven way) — the solo board then shows
+    // the new trip's card instead of silently filing it under another origin.
+    if (origin !== S.home) {
+      var ntHs = document.getElementById('home-sel');
+      if (ntHs) { ntHs.value = origin; ntHs.dispatchEvent(new Event('change')); }
+      else { S.home = origin; }
+    }
     if (!S.extraSoloDests) S.extraSoloDests = [];
     if (S.extraSoloDests.indexOf(dest) === -1) S.extraSoloDests.push(dest);
   }
@@ -7724,7 +7737,14 @@ function renderWatchlist(){
     var ntPrefillDep = S.depDate ? fmtISO(S.depDate) : '';
     var ntPrefillRet = S.retDate ? fmtISO(S.retDate) : '';
     var ntPrefillMode = ntIsFam ? 'family' : 'solo';
+    // PIA-059: the quick-add used to pin the origin silently to S.home — the
+    // search showed only one airport with no way to pick another. Every home
+    // airport the app models as an origin (ROUTE_GRAPH keys) is now selectable.
+    var ntFromOpts = Object.keys(ROUTE_GRAPH).map(function(c){
+      return '<option value="'+c+'"'+(c===S.home?' selected':'')+'>'+c+' — '+(AIRPORTS[c]?AIRPORTS[c].name:c)+'</option>';
+    }).join('');
     addBtn = '<div id="nt-form">' +
+      '<select id="nt-from" class="nt-input" title="From (home) airport" aria-label="From (home) airport">'+ntFromOpts+'</select>' +
       '<input id="nt-dest" class="nt-input" type="text" placeholder="City or airport, e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'"/>' +
       '<div style="display:flex;gap:5px;">' +
         '<input id="nt-dep" class="nt-input" type="date" value="'+ntPrefillDep+'" style="flex:1;"/>' +
