@@ -31,7 +31,9 @@ const EXPECT = [
   'classifyExtractResponse',
   // PIA-049 decision engine + handoff
   'computeRecommendation', 'typicalRangeFor', 'constraintViolationsFor',
-  'buildHandoffUrl', 'buildReviewLine', 'taIsRoundTrip',
+  'buildHandoffUrl', 'buildHandoffResult', 'buildReviewLine', 'taIsRoundTrip',
+  'normalizeHandoffIntent', 'handoffLinksForIntent', 'handoffResultForIntent',
+  'handoffIntentsForWatchlistItem',
   // PIA-051 alerts
   'buildAlertEvent', 'alertDedupeKey', 'sanitizeAlertSettings',
   'TA_GAZETTEER_PLACEHOLDER',
@@ -479,26 +481,31 @@ for (const f of FILES) {
   if (!api) { bad(`${f}: handoff fixtures skipped — file failed to load`); continue; }
   for (const fx of FIXTURES.handoff) {
     const label = `${f}: handoff — ${fx.name}`;
+    const result = api.buildHandoffResult(fx.trip_state);
     const url = api.buildHandoffUrl(fx.trip_state);
+    const resultUrls = (result && Array.isArray(result.links)) ? result.links.map((l) => l.url) : [];
     if (fx.expect_url === null) {
-      if (url === null) ok(`${label} — no url, CTA disabled`);
-      else bad(`${label} — expected null, got ${url}`);
+      if (url === null && result.state === 'blocked') ok(`${label} — no url, CTA disabled`);
+      else bad(`${label} — expected blocked result, got ${JSON.stringify(result)}`);
       continue;
     }
-    if (url === fx.expect_url) ok(`${label} — url matches exactly`);
+    if (fx.expect_urls) {
+      if (JSON.stringify(resultUrls) === JSON.stringify(fx.expect_urls)) ok(`${label} — leg urls match exactly`);
+      else bad(`${label} — leg url mismatch\n       want ${JSON.stringify(fx.expect_urls)}\n       got  ${JSON.stringify(resultUrls)}`);
+    } else if (url === fx.expect_url) ok(`${label} — url matches exactly`);
     else bad(`${label} — url mismatch\n       want ${fx.expect_url}\n       got  ${url}`);
 
     if (fx.expect_review) {
       const line = api.buildReviewLine(fx.trip_state);
       if (line === fx.expect_review) ok(`${label} — review line matches`);
       else bad(`${label} — review line mismatch\n       want ${fx.expect_review}\n       got  ${line}`);
-      // Cross-check: every airport + date in the review line must appear in
-      // the decoded URL, so the two can never drift apart silently.
-      const decoded = decodeURIComponent(url);
+      // Cross-check every airport in the review against ALL provider links.
+      // Multi-leg handoffs intentionally return separate URLs.
+      const decoded = resultUrls.map((u) => decodeURIComponent(u)).join(' ');
       const tokens = (line.match(/\b[A-Z]{3}\b/g) || []);
       const missing = tokens.filter((t) => !decoded.includes(t));
-      if (!missing.length) ok(`${label} — review line and url agree on airports`);
-      else bad(`${label} — review names ${missing.join(',')} but the url does not`);
+      if (!missing.length) ok(`${label} — review line and urls agree on airports`);
+      else bad(`${label} — review names ${missing.join(',')} but the urls do not`);
     }
   }
   // An open jaw must never be readable as a round trip.
@@ -506,6 +513,29 @@ for (const f of FILES) {
   const rt = [{ origin: 'LAX', destination: 'ORD', departure_date: '2026-09-17' }, { origin: 'ORD', destination: 'LAX', departure_date: '2026-09-20' }];
   if (api.taIsRoundTrip(oj) === false && api.taIsRoundTrip(rt) === true) ok(`${f}: open jaw vs round trip distinguished structurally`);
   else bad(`${f}: taIsRoundTrip misclassified`);
+  const ojResult = api.handoffResultForIntent({ segments: oj, source: 'test' });
+  if (ojResult.state === 'multiple' && ojResult.links.length === 2 && ojResult.links.every((l) => l.kind === 'leg')) {
+    ok(`${f}: canonical open-jaw intent returns two explicit leg links`);
+  } else {
+    bad(`${f}: canonical open-jaw intent should return two leg links, got ${JSON.stringify(ojResult)}`);
+  }
+  const rtResult = api.handoffResultForIntent({ segments: rt, source: 'test' });
+  if (rtResult.state === 'ready' && rtResult.links.length === 1 && rtResult.links[0].kind === 'round-trip') {
+    ok(`${f}: canonical round-trip intent returns one round-trip link`);
+  } else {
+    bad(`${f}: canonical round-trip intent should return one link, got ${JSON.stringify(rtResult)}`);
+  }
+  const famIntents = api.handoffIntentsForWatchlistItem({
+    id: 'tgiving', mode: 'family', hub: 'PIA', dep: '2026-11-25', ret: '2026-11-29',
+    gf: { from: 'LGA', to: 'PIA' }, stage: 'planning'
+  });
+  const famOrigins = famIntents.map((i) => i.from).sort();
+  if (JSON.stringify(famOrigins) === JSON.stringify(['LAX', 'LGA']) &&
+      famIntents.every((i) => i.scope === 'family-member' && i.to === 'PIA')) {
+    ok(`${f}: family watchlist expands to effective member intents (LAX + LGA)`);
+  } else {
+    bad(`${f}: family watchlist expansion incorrect: ${JSON.stringify(famIntents)}`);
+  }
 }
 
 // ---- 4e. alerts (PIA-051) ---------------------------------------------------

@@ -469,6 +469,32 @@ button{font-family:inherit;cursor:pointer;}
   padding:7px 10px;margin-bottom:6px;background:var(--surface-2);
   transition:border-color var(--t-med),box-shadow var(--t-med);}
 .wl-card:hover{box-shadow:var(--shadow-1);}
+.wl-list{display:flex;gap:8px;overflow-x:auto;scroll-snap-type:x mandatory;
+  overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;padding:2px 2px 8px;
+  scrollbar-width:none;}
+.wl-list::-webkit-scrollbar{display:none;}
+.wl-list>.wl-card{flex:0 0 calc(100% - 18px);scroll-snap-align:start;margin-bottom:0;}
+.wl-list>.wl-stage-hdr{display:none;}
+.wl-card.wl-sheet-open{position:fixed;z-index:1200;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));
+  max-height:min(78vh,620px);overflow-y:auto;margin:0;background:var(--surface);
+  box-shadow:0 -120vh 0 120vh rgba(2,6,23,.68),0 12px 40px rgba(0,0,0,.45);
+  animation:wlSheetIn .18s ease-out;}
+@keyframes wlSheetIn{from{transform:translateY(18px);opacity:.7}to{transform:translateY(0);opacity:1}}
+.wl-sheet-close{float:right;min-height:36px;padding:6px 10px;border:1px solid var(--line-strong);
+  border-radius:var(--rad-pill);background:var(--surface-2);color:var(--ink-muted);
+  font-size:var(--fs-tiny);font-weight:800;cursor:pointer;}
+.wl-sheet-close:hover{color:var(--ink);border-color:var(--accent);}
+.wl-more-section{margin-top:8px;border-top:1px solid var(--line);padding-top:7px;}
+.wl-more-section summary{cursor:pointer;color:var(--accent);font-size:var(--fs-tiny);font-weight:800;}
+.wl-card.wl-swipe-left{transform:translateX(-34px);opacity:.72;}
+.wl-swipe-actions{display:none;gap:6px;padding:6px 0 2px;}
+.wl-card.wl-swipe-left .wl-swipe-actions{display:flex;}
+.wl-swipe-actions button{min-height:36px;padding:6px 10px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);
+  background:var(--surface-2);color:var(--ink);font-size:var(--fs-tiny);font-weight:800;cursor:pointer;}
+.wl-swipe-actions button:hover{border-color:var(--accent);color:var(--accent);}
+.trip-ideas-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin:2px 0 8px;}
+.trip-ideas-intro strong{font-size:var(--fs-body);font-weight:900;color:var(--ink);}
+.trip-ideas-intro span{font-size:var(--fs-tiny);color:var(--ink-muted);line-height:1.35;text-align:right;}
 .wl-row{cursor:pointer;padding:3px 0;}
 .wl-title{font-size:var(--fs-body-s);font-weight:900;color:var(--ink);flex:1;min-width:0;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -493,11 +519,19 @@ button{font-family:inherit;cursor:pointer;}
   border:none;border-radius:var(--rad-md);padding:7px 10px;cursor:pointer;font-family:inherit;white-space:nowrap;
   transition:opacity var(--t-quick);}
 #wl-share:hover{opacity:.88;}
-#nt-form{border:1px dashed var(--accent);border-radius:var(--rad-md);padding:8px;
+#nt-form{border:1px dashed var(--accent);border-radius:var(--rad-md);padding:10px;
   display:flex;flex-direction:column;gap:6px;background:var(--accent-soft);}
 .nt-input{width:100%;box-sizing:border-box;font-size:var(--fs-tiny);font-family:inherit;color:var(--ink);
   background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--rad-sm);padding:6px 7px;}
-.nt-input:focus{outline:none;border-color:var(--accent);}
+.nt-input:focus{outline:none;border-color:var(--accent);}.nt-help{font-size:var(--fs-tiny);color:var(--ink-muted);line-height:1.4;}
+.nt-more{border-top:1px solid var(--line);padding-top:7px;margin-top:2px;}
+.nt-more summary{cursor:pointer;font-size:var(--fs-tiny);font-weight:800;color:var(--accent);}
+@media (min-width:641px){
+  .wl-list{display:block;overflow:visible;padding:2px 0 8px;}
+  .wl-list>.wl-card{display:block;}
+  .wl-list>.wl-stage-hdr{display:flex;}
+  .wl-card.wl-sheet-open{left:50%;right:auto;bottom:18px;width:min(620px,calc(100vw - 36px));}
+}
 #nt-save{flex:1;font-size:var(--fs-tiny);font-weight:800;background:var(--accent);color:var(--ink-on-accent);
   border:none;border-radius:var(--rad-md);padding:7px;cursor:pointer;font-family:inherit;}
 #nt-save:hover{opacity:.88;}
@@ -693,6 +727,22 @@ button{font-family:inherit;cursor:pointer;}
 .mt-btn.on{background:var(--accent-dim);color:var(--accent);}
 .mt-btn:hover:not(.on){color:var(--ink);}
 
+/* ── Interactive route picker ── */
+#route-picker{position:absolute;top:56px;left:12px;z-index:110;width:min(330px,calc(100% - 24px));padding:9px 10px;background:var(--overlay-bg);border:1px solid var(--line-strong);border-radius:var(--rad-md);backdrop-filter:blur(12px);box-shadow:var(--shadow-1);}
+.rp-kicker{font-size:var(--fs-micro);font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);margin-bottom:5px;}
+.rp-line{display:flex;align-items:center;gap:5px;}
+.rp-slot{flex:1;min-width:0;display:flex;flex-direction:column;align-items:flex-start;gap:1px;padding:6px 8px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface-2);color:var(--ink);cursor:pointer;text-align:left;}
+.rp-slot:hover,.rp-slot.active{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);}
+.rp-slot:disabled{cursor:default;opacity:.8;}
+.rp-slot span{font-size:var(--fs-micro);color:var(--ink-muted);font-weight:700;}
+.rp-slot strong{font-size:var(--fs-body-s);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+.rp-arrow{color:var(--ink-muted);font-weight:900;}
+.rp-clear{border:1px solid var(--line-strong);border-radius:var(--rad-pill);background:transparent;color:var(--ink-muted);font-size:var(--fs-micro);font-weight:800;padding:5px 7px;cursor:pointer;}
+.rp-clear:hover{color:var(--ink);border-color:var(--accent);}
+#rp-hint{margin-top:5px;font-size:var(--fs-micro);line-height:1.35;color:var(--ink-muted);}
+#route-picker.is-meetup .rp-slot:first-child{cursor:default;}
+.map-hit{cursor:pointer;}
+@media (max-width:640px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
 /* ── Stats bar ── */
 #statsbar{padding:7px 18px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
 .si{font-size:var(--fs-caption);color:var(--ink-muted);}
@@ -788,8 +838,8 @@ button{font-family:inherit;cursor:pointer;}
     <div class="live-pill"><span class="ld"></span><span id="data-pill-lbl">Sample</span></div>
   </div>
   <nav id="app-nav" aria-label="Primary">
-    <button type="button" class="nav-tab active" data-view="watchlist">📋 Watchlist</button>
-    <button type="button" class="nav-tab" data-view="meetup">👨‍👩‍👧 Meetup</button>
+    <button type="button" class="nav-tab active" data-view="watchlist">📋 Trip Ideas</button>
+    <button type="button" class="nav-tab" data-view="meetup">👨‍👩‍👧 Family Plan</button>
     <button type="button" class="nav-tab" data-view="map">🗺 Map</button>
     <button type="button" class="nav-tab" data-view="calendar">📅 Calendar</button>
   </nav>
@@ -834,7 +884,7 @@ button{font-family:inherit;cursor:pointer;}
 
     <div id="mode-switcher">
       <button class="mode-btn" data-mode="meetup" aria-pressed="false">👨‍👩‍👧 Family Meetup</button>
-      <button class="mode-btn on" data-mode="solo" aria-pressed="true">✈️ Solo Mode</button>
+      <button class="mode-btn on" data-mode="solo" aria-pressed="true">✈️ Just Me</button>
     </div>
 
     <div id="home-airport-row">
@@ -849,7 +899,7 @@ button{font-family:inherit;cursor:pointer;}
       </select>
     </div>
     <div id="jfk-banner" style="display:none;margin:6px 0;padding:6px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-size:.72rem;color:#94a3b8;">
-      ✈️ <strong style="color:#38bdf8">Sister departs LGA (NYC)</strong> for these dates — she moved from JAX in Sep 2026. LGA is her closer airport; JFK works as an alternate.
+      ✈️ <strong style="color:#38bdf8">Anjo departs LGA (NYC)</strong> for these dates — Anjo moved from JAX in Sep 2026. LGA is the closer airport; JFK works as an alternate.
     </div>
 
     <div id="meetup-only" style="display:none">
@@ -888,7 +938,7 @@ button{font-family:inherit;cursor:pointer;}
       </div>
     </div>
 
-    <button id="search-btn" title="Fetches live Google Flights fares via SerpAPI — uses 1+ of your monthly queries. Loading the page never spends a query.">
+    <button id="search-btn" title="Fetches live fare results via PIALAX/SerpAPI — uses 1+ of your monthly queries. Loading the page never spends a query.">
       <span id="search-icon">⟳</span>
       <span id="search-label">Get Live Fares</span>
       <div class="spin-sm" id="search-spin"></div>
@@ -989,7 +1039,20 @@ button{font-family:inherit;cursor:pointer;}
       <button class="mt-btn on" data-view="us" aria-pressed="true" aria-label="US map view">🇺🇸 US</button>
       <button class="mt-btn" data-view="world" aria-pressed="false" aria-label="World map view">🌍 World</button>
     </div>
-    <div id="tip"></div>
+    <div id="route-picker" aria-label="Basic route picker">
+      <div class="rp-kicker" id="rp-kicker">Basic route</div>
+      <div class="rp-line">
+        <button type="button" class="rp-slot" id="rp-from" aria-label="Choose origin">
+          <span id="rp-from-label">From</span><strong id="rp-from-code">—</strong>
+        </button>
+        <span class="rp-arrow" aria-hidden="true">→</span>
+        <button type="button" class="rp-slot" id="rp-to" aria-label="Choose destination">
+          <span id="rp-to-label">To</span><strong id="rp-to-code">Choose</strong>
+        </button>
+        <button type="button" class="rp-clear" id="rp-clear" aria-label="Reset route picker">Reset</button>
+      </div>
+      <div id="rp-hint">Tap an airport dot to choose your destination.</div>
+    </div>    <div id="tip"></div>
     <div id="map-leg"></div>
   </div>
 
@@ -1026,7 +1089,7 @@ button{font-family:inherit;cursor:pointer;}
   </div>
   <div id="cal-months"></div>
   <div id="cal-foot">
-    <span class="hint" id="cal-hint">Fares: mock · Google Flights</span>
+    <span class="hint" id="cal-hint">Fares: sample · PIALAX</span>
     <button id="cal-ok">Done</button>
   </div>
 </div>
@@ -1053,13 +1116,13 @@ var AIRPORTS = {
   CUZ:{ code:'CUZ', name:'Cusco, Peru',      full:'Alejandro Velasco Astete Intl (Cusco)', lat:-13.5358, lon:-71.9389 },
   LIM:{ code:'LIM', name:'Lima, Peru',       full:'Jorge Chávez International (Lima)',   lat:-12.0219, lon:-77.1143 },
 };
-// JFK becomes sister's base after Aug 31, 2026 (grad school move).
+// Anjo is now based near LGA/JFK after Aug 31, 2026 (grad school move).
 // CUZ (Cusco/Peru) added to LAX only — it's Ashwin's solo Machu Picchu trip, not a
 // family meetup hub, so it stays out of INTL_DESTS (which drives meetup hub inclusion).
 // PIA-055: MIA dropped as an active LAX solo destination — that trip (Jun 18–21,
 // 2026) is done. AIRPORTS/DC/MOCK/TRIP_PRESETS entries for MIA are left in place
 // as history (fare data + the past preset dates), just no longer an active board pick.
-// PIA-062: JAX demoted to a PAST home — sister has moved to NYC (LGA), so JAX
+// PIA-062: JAX demoted to a PAST home — Anjo has moved to NYC (LGA), so JAX
 // is out of the active destination lists (no solo card, map dot auto-demotes
 // to the muted 'other' style). It stays a grayed nostalgia entry in the Home
 // Airport dropdown and keeps its origin routes so historical trips still render.
@@ -1086,7 +1149,7 @@ var MOCK = {
   'MIA-LAX':{ ow:269, rt:472, airline:'American Airlines', flightNo:'AA 1763' },
   'JAX-MIA':{ ow:98,  rt:178, airline:'JetBlue',           flightNo:'B6 1264' },
   'MIA-JAX':{ ow:92,  rt:168, airline:'JetBlue',           flightNo:'B6 1265' },
-  // JFK — sister's primary airport from Sep 1, 2026 onward (NYC grad school)
+  // JFK — Anjo's alternate NYC airport from Sep 1, 2026 onward (NYC grad school)
   'PIA-JFK':{ ow:198, rt:362, airline:'American Airlines', flightNo:'AA 4451 (via ORD)' },
   'JFK-PIA':{ ow:189, rt:344, airline:'American Airlines', flightNo:'AA 4452 (via ORD)' },
   'ORD-JFK':{ ow:118, rt:218, airline:'United Airlines',   flightNo:'UA 1532' },
@@ -1095,7 +1158,7 @@ var MOCK = {
   'JFK-LAX':{ ow:179, rt:332, airline:'JetBlue',           flightNo:'B6 23' },
   'JFK-LHR':{ ow:298, rt:548, airline:'British Airways',   flightNo:'BA 178' },
   'LHR-JFK':{ ow:285, rt:528, airline:'British Airways',   flightNo:'BA 179' },
-  // LGA — sister's PRIMARY NYC airport from Sep 1, 2026 (PIA-060: closer to her
+  // LGA — Anjo's PRIMARY NYC airport from Sep 1, 2026 (PIA-060: near Anjo
   // than JFK). JFK stays modeled above as the alternate + transatlantic gateway.
   'PIA-LGA':{ ow:196, rt:356, airline:'American Airlines', flightNo:'AA 4461 (via ORD)' },
   'LGA-PIA':{ ow:188, rt:342, airline:'American Airlines', flightNo:'AA 4462 (via ORD)' },
@@ -1125,7 +1188,7 @@ var MOCK = {
 // Each entry suppresses fetchFlights() for the named route during a ±2-day match
 // window around the booked dates; the route card renders a "Locked" badge with
 // the actual flight numbers instead of a price. Schema is route-keyed (from,to)
-// so a future London-return-leg or sister's JAX-NYC move can append without
+// so a future London-return-leg or Anjo's JAX-NYC move can append without
 // changing the lookup contract. Saves ~2 SerpAPI calls per London-preset refresh.
 var LOCKED_TRIPS = [
   // Mom & Dad — PIA→LHR via ORD, booked Jun 24 2026 (AA3740 PIA-ORD → AA98 ORD-LHR overnight, lands LHR 12:30pm Jun 25).
@@ -1174,7 +1237,7 @@ function findLockedTrip(from, to, dep, ret) {
 // Defaults to ret date for round-trips; dep date for one-way.
 var TRIP_PRESETS = {
   JAX: [
-    // Visit sister at JAX before her NYC move (Sep 1, 2026). Fri Aug 7 – Sun Aug 9.
+    // Visit Anjo at JAX before the NYC move (Sep 1, 2026). Fri Aug 7 – Sun Aug 9.
     { id:'jax-aug7', label:'Aug 7–9 RT', dep:'2026-08-07', ret:'2026-08-09', tripType:'round', validUntil:'2026-08-09' },
   ],
   MIA: [
@@ -1223,10 +1286,10 @@ var FAMILY_INFO = {
          bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
          bookedRetDep: '2026-07-04', bookedRetArr: null,
          bookedDep: '2026-06-24', bookedRet: '2026-07-04' }, // historical record (London)
-  // PIA-060: hub transition marked OFFICIAL — sister is NYC-based from Sep 1,
-  // 2026. Primary airport is LGA (closer to her than JFK); JFK stays modeled
+  // PIA-060: hub transition marked OFFICIAL — Anjo is NYC-based from Sep 1,
+  // 2026. Primary airport is LGA (near Anjo); JFK stays modeled
   // as an alternate origin + the transatlantic gateway.
-  JAX: { headcount: 1, label: 'Sister', moveDate: '2026-09-01', moveAirport: 'LGA',
+  JAX: { headcount: 1, label: 'Anjo', moveDate: '2026-09-01', moveAirport: 'LGA',
          booked: false,
          tripCompleted: true, completedTrip: 'London · Jun 24–Jul 1, 2026',
          bookedOutDep: '2026-06-24', bookedOutArr: '2026-06-25',
@@ -1252,8 +1315,8 @@ function bookedDateForToday(famInfo) {
   return retArr || retDep || outArr || outDep || null;
 }
 // Returns the effective FAMILY array for a given trip date — handles planned moves.
-// Sister moves JAX→JFK on 2026-09-01 (grad school in NYC). Trips on/after that date
-// model her as departing from JFK, not JAX.
+// Anjo moved from JAX to the NYC area on 2026-09-01 (grad school). Trips on/after that date
+// model Anjo as departing from LGA, with JFK retained as an alternate.
 function familyForDate(d) {
   if (!d) return FAMILY.slice();
   var iso = (typeof d === 'string') ? d : fmtISO(d);
@@ -1263,7 +1326,7 @@ function familyForDate(d) {
     return code;
   });
 }
-// Map effective code (post-move) back to the FAMILY_INFO entry, so JFK still pulls the "Sister" label.
+// Map effective code (post-move) back to the FAMILY_INFO entry, so LGA/JFK still pull Anjo's label.
 function familyInfoFor(effectiveCode) {
   if (FAMILY_INFO[effectiveCode]) return FAMILY_INFO[effectiveCode];
   // Look up by moveAirport
@@ -1324,7 +1387,7 @@ var HOLIDAYS = {
   thanksgiving: nextThanksgiving(),
   christmas:    nextOccurrence(11, 25),
   london:       new Date(2026, 5, 25), // June 25, 2026 — London family trip (Jun 25 – Jul 3) · COMPLETED (flew, returned Jul 3)
-  jaxaug:       new Date(2026, 7, 7),  // Aug 7, 2026 — JAX weekend (Fri Aug 7 – Sun Aug 9); visit sister before her Sep 1 NYC move
+  jaxaug:       new Date(2026, 7, 7),  // Aug 7, 2026 — JAX weekend (Fri Aug 7 – Sun Aug 9); visit Anjo before the Sep 1 NYC move
   peru:         new Date(2026, 8, 4),  // Sep 4, 2026 — LAX solo Machu Picchu (open-jaw CUZ in / LIM out Sep 13); Fri red-eye lands Sep 5 AM, makes the briefing
 };
 
@@ -1337,6 +1400,7 @@ var S = {
   prices:{}, geoData:null, geoFallback:false,
   proj:null,
   mode:'meetup', soloFocus:null, barFocus:null,
+  routePickStep:'destination', routePickTo:null,
   // PIA-031: solo dests added via the "＋ New trip" quick-add for a city the app
   // doesn't model as a route (e.g. Memphis) — lets renderSoloCards() union them
   // in so a light card renders even though ROUTE_GRAPH[S.home] doesn't list them.
@@ -1350,7 +1414,7 @@ var S = {
   _booting:true,
   // Per-member flex dates: { PIA: {dep, ret}, JAX: {...} } — only members with overrides have entries.
   // When absent for a member, the global S.depDate / S.retDate is used.
-  // Lets sister leave Jul 1 for orientation while you stay til Jul 3, etc.
+  // Lets Anjo leave Jul 1 for orientation while you stay til Jul 3, etc.
   memberDates: {},
   // PIA → intl routing override per destination: 'direct' | 'via-ord' | null (auto)
   piaRouteOverride: {},
@@ -1413,11 +1477,10 @@ function setPiaRoute(dest, mode) {
   if (!mode) delete S.piaRouteOverride[dest];
   else S.piaRouteOverride[dest] = mode;
   syncURL();
-  // Identify the newly-active leg. 'via-ord' = ORD→dest; anything else = PIA→dest.
+  // Route toggles are intentionally cache-only. They update the comparison immediately,
+  // but never spend SerpAPI quota; use the explicit Get Live Fares action to refresh.
   var activeFrom = (mode === 'via-ord') ? 'ORD' : 'PIA';
   var routeKey = activeFrom + '-' + dest;
-  // Use PIA's effective dates for both legs (PIA is the member whose itinerary
-  // chooses direct vs via-ORD; flex dates anchor on the PIA member).
   var memDates = (typeof effectiveDatesFor === 'function') ? effectiveDatesFor('PIA') : {};
   var rDep = memDates.dep ? fmtISO(memDates.dep) : (S.depDate ? fmtISO(S.depDate) : null);
   var rRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret)
@@ -1425,19 +1488,8 @@ function setPiaRoute(dest, mode) {
   var ck = _cacheKey(activeFrom, dest, rDep, rRet);
   var hit = _flightCache[ck];
   var fresh = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
-  var q = readQuota();
-  var headroom = q.budget - q.used;
-  if (!fresh && PROXY_URL && !isFetchLocked() && headroom > 20) {
-    // Background fetch — render now from current state, refresh when it lands.
-    fetchFlights(activeFrom, dest, rDep, rRet).then(function(d){
-      S.prices[routeKey] = d;
-      renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
-    }).catch(function(){ /* keep existing data on failure */ });
-  } else if (!fresh && S.prices[routeKey]) {
-    // No quota headroom or locked → mark the active leg as SAMPLE for the badge.
-    S.prices[routeKey].sampleStamp = true;
-  }
-  // Re-render meetup so the card reflects the new selection.
+  if (!fresh && S.prices[routeKey]) S.prices[routeKey].sampleStamp = true;
+  // Re-render meetup so the card reflects the new selection without a hidden fetch.
   renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
 }
 
@@ -1453,25 +1505,138 @@ function dateFmt(d,style){
   return d.toLocaleDateString('en-US', style==='long' ? {month:'short',day:'numeric',year:'numeric'} : {month:'short',day:'numeric'});
 }
 function fmtISO(d){ if(!d) return ''; return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
-// Deep link to Google Flights, prefilled for the given route + dates. Uses the
-// natural-language `q=` form ("Flights from LAX to JAX on <dep> through <ret>"),
-// which Google parses into a round-trip (or one-way when no ret) search. depISO/
-// retISO are 'YYYY-MM-DD'. Opens in a new tab from the route cards.
-function gflightsUrl(from, to, depISO, retISO, isRT){
+
+// ── CANONICAL HANDOFF ADAPTER ─────────────────────────────────────────────
+// First principle: Google Flights receives one traveler-specific itinerary.
+// A family meetup therefore produces one intent per member, while an open-jaw
+// produces multiple ordered legs. Legacy watchlist fields remain supported by
+// this adapter so localStorage/share links do not need a migration.
+function _handoffPart(v){
+  if(v == null) return '';
+  var s = String(v).trim();
+  if(!s) return '';
+  return (/^[A-Za-z]{3}$/.test(s) ? s.toUpperCase() : s).slice(0,64);
+}
+function _handoffDate(v){
+  var s = String(v == null ? '' : v).trim();
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : '';
+}
+function _handoffLeg(from,to,depart){
+  var a = _handoffPart(from), b = _handoffPart(to), d = _handoffDate(depart);
+  return (a && b && d) ? { from:a, to:b, depart:d } : null;
+}
+function _handoffType(legs){
+  if(legs.length === 1) return 'one-way';
+  if(legs.length === 2 &&
+     legs[1].from === legs[0].to &&
+     legs[1].to === legs[0].from) return 'round-trip';
+  return legs.length ? 'multi-city' : '';
+}
+function normalizeHandoffIntent(input){
+  var x = input || {}, legs = [];
+  var raw = Array.isArray(x.legs) ? x.legs : (Array.isArray(x.segments) ? x.segments : []);
+  raw.forEach(function(s){
+    if(!s) return;
+    var leg = _handoffLeg(
+      s.from != null ? s.from : s.origin,
+      s.to != null ? s.to : s.destination,
+      s.depart != null ? s.depart : (s.departure_date != null ? s.departure_date : s.dep)
+    );
+    if(leg) legs.push(leg);
+  });
+  if(!legs.length){
+    var outbound = _handoffLeg(
+      x.from != null ? x.from : x.origin,
+      x.to != null ? x.to : x.destination,
+      x.depISO != null ? x.depISO : (x.departure_date != null ? x.departure_date : x.dep)
+    );
+    if(outbound) legs.push(outbound);
+    var ret = _handoffDate(x.retISO != null ? x.retISO : (x.return_date != null ? x.return_date : x.ret));
+    if(outbound && ret && (x.isRT || x.returnFrom || x.openjaw)){
+      var backFrom = x.returnFrom || (x.openjaw && outbound.to === 'CUZ' ? 'LIM' : outbound.to);
+      var inbound = _handoffLeg(backFrom, outbound.from, ret);
+      if(inbound) legs.push(inbound);
+    }
+  }
+  var type = x.itineraryType || x.type || _handoffType(legs);
+  return {
+    tripId: x.tripId || x.trip_id || '',
+    scope: x.scope || 'solo',
+    traveler: x.traveler || null,
+    itineraryType: type,
+    legs: legs,
+    status: x.status || '',
+    fareStatus: x.fareStatus || '',
+    source: x.source || ''
+  };
+}
+function _googleFlightsUrl(from,to,depISO,retISO,isRT){
   if(!from || !to || !depISO) return '';
   var q = 'Flights from ' + from + ' to ' + to + ' on ' + depISO;
   if(isRT && retISO) q += ' through ' + retISO;
   return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
 }
-// Route-aware booking link. Peru (Machu Picchu) is an open-jaw — into Cusco (CUZ),
-// back from Lima (LIM) — so it builds a multi-city Google Flights query instead of
-// a same-airport round trip. Everything else falls through to gflightsUrl().
-function bookingUrlFor(from, dest, depISO, retISO, isRT){
-  if(dest === 'CUZ' && from && depISO && retISO){
-    var q = 'Flights from ' + from + ' to CUZ on ' + depISO + ', from LIM to ' + from + ' on ' + retISO;
-    return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+function _handoffDateLabel(iso){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if(!m) return String(iso || '');
+  var mons = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return mons[(+m[2])-1] + ' ' + (+m[3]);
+}
+function handoffLinksForIntent(input){
+  var intent = normalizeHandoffIntent(input), legs = intent.legs, links = [];
+  if(!legs.length) return links;
+  if(intent.itineraryType === 'round-trip' && legs.length === 2){
+    links.push({
+      id: 'round-trip',
+      kind: 'round-trip',
+      label: legs[0].from + ' ⇄ ' + legs[0].to,
+      cta: 'Search ' + legs[0].from + ' ⇄ ' + legs[0].to,
+      url: _googleFlightsUrl(legs[0].from, legs[0].to, legs[0].depart, legs[1].depart, true)
+    });
+    return links;
   }
-  return gflightsUrl(from, dest, depISO, retISO, isRT);
+  legs.forEach(function(leg,i){
+    var prefix = (intent.itineraryType === 'one-way') ? '' : (i === 0 ? 'Outbound · ' : 'Return · ');
+    var route = leg.from + ' → ' + leg.to;
+    links.push({
+      id: 'leg-' + (i + 1),
+      kind: 'leg',
+      label: prefix + route,
+      cta: 'Search ' + prefix.toLowerCase() + route,
+      url: _googleFlightsUrl(leg.from, leg.to, leg.depart, '', false)
+    });
+  });
+  return links;
+}
+function handoffResultForIntent(input){
+  var intent = normalizeHandoffIntent(input), links = handoffLinksForIntent(intent);
+  var summary = intent.legs.map(function(leg){
+    return leg.from + ' → ' + leg.to + ' ' + _handoffDateLabel(leg.depart);
+  }).join('; ');
+  if(summary) summary += ' · ' + (intent.itineraryType === 'one-way' ? 'One-way' :
+    intent.itineraryType === 'round-trip' ? 'Round trip' : 'Multi-city');
+  return {
+    state: links.length ? (links.length === 1 ? 'ready' : 'multiple') : 'blocked',
+    intent: intent,
+    links: links,
+    summary: summary,
+    warning: links.length ? 'Google Flights will show final availability and price.' : ''
+  };
+}
+// Compatibility wrapper: callers that still need one URL receive the first
+// provider link. Multi-leg UI should consume handoffResultForIntent() instead.
+function gflightsUrl(from, to, depISO, retISO, isRT){
+  var result = handoffResultForIntent({ from:from, to:to, depISO:depISO, retISO:retISO, isRT:!!isRT });
+  return result.links.length ? result.links[0].url : '';
+}
+// Route-aware compatibility wrapper. CUZ is explicitly represented as two
+// links; the old compound natural-language query is intentionally gone.
+function bookingUrlFor(from, dest, depISO, retISO, isRT){
+  var result = handoffResultForIntent({
+    from: from, to: dest, depISO: depISO, retISO: retISO, isRT: !!isRT,
+    openjaw: dest === 'CUZ', returnFrom: dest === 'CUZ' ? 'LIM' : null
+  });
+  return result.links.length ? result.links[0].url : '';
 }
 // CONFIRMED trek booking (2026-07-21) — Salkantay & Inca Trail combo (both trails),
 // 7 days. 2026-07-30 update: Memphis work trip slipped to Aug 31–Sep 4, pushing the
@@ -1527,7 +1692,7 @@ function peruFlightOptionsHtml(depISO, retISO) {
       '<div style="min-width:0;">' +
         '<div style="font-size:.62rem;font-weight:800;color:var(--accent);">A · Cusco round trip' + (aWins ? win : '') + '</div>' +
         '<div style="font-size:.52rem;color:var(--muted);">LAX ⇄ CUZ · return to Cusco to fly home</div>' +
-        '<a href="' + rtLink + '" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">🔗 Google Flights ↗</a>' +
+        '<a href="' + rtLink + '" target="_blank" rel="noopener noreferrer" style="' + linkStyle + '">🔎 Search round trip ↗</a>' +
       '</div>' +
       '<div style="font-size:.78rem;font-weight:900;color:' + (aWins ? 'var(--green)' : 'var(--ink)') + ';white-space:nowrap;">~$' + cuzRT + '</div>' +
     '</div>' +
@@ -1541,7 +1706,7 @@ function peruFlightOptionsHtml(depISO, retISO) {
       '</div>' +
       '<div style="font-size:.78rem;font-weight:900;color:' + (aWins ? 'var(--ink)' : 'var(--green)') + ';white-space:nowrap;">~$' + twoOW + '</div>' +
     '</div>' +
-    '<div style="font-size:.5rem;color:var(--muted);margin-top:5px;">Estimates — tap a link for live Google Flights pricing (the real winner is decided live). Option B lets you end in Lima with your friend.</div>' +
+    '<div style="font-size:.5rem;color:var(--muted);margin-top:5px;">Estimates — links open Google Flights for final availability; the real winner is decided live. Option B lets you end in Lima with your friend.</div>' +
   '</div>';
 }
 function tier(d){ var dw=d.getDay(); if(dw===5||dw===6||dw===0) return 'pricey'; if(dw===2||dw===3||dw===4) return 'cheap'; return 'mid'; }
@@ -1652,14 +1817,14 @@ function applyHoliday(key, opts) {
     if (S.mode !== 'meetup') setMode('meetup');
     if (S.mapView !== 'world') { S.mapView = 'world'; loadWorldGeo().then(function(){ redrawMap(); updateMapToggle(); }); }
   } else if (key === 'jaxaug') {
-    // JAX weekend Fri Aug 7 – Sun Aug 9, 2026 — visit sister at JAX before her
-    // Sep 1 move to NYC (JFK). Meetup hub = JAX (sister hosts). Focus is Ashwin's
+    // JAX weekend Fri Aug 7 – Sun Aug 9, 2026 — visit Anjo at JAX before the
+    // Sep 1 move to NYC (near LGA/JFK). Meetup hub = JAX (Anjo hosts). Focus is Ashwin's
     // LAX→JAX leg ("really going"); Mom & Dad's PIA→JAX is kept in the loop but
     // flagged tentative ("not really planning on going"). US map.
     dep = new Date(2026, 7, 7); ret = new Date(2026, 7, 9);
     S.focusMember = 'LAX';
     S.tentativeMembers = ['PIA'];
-    S.memberStatus = { PIA:'tentative' }; // PIA-023: parents tentative, me in, sister hosts
+    S.memberStatus = { PIA:'tentative' }; // PIA-023: parents tentative, me in, Anjo hosts
     // Clear any leftover per-member overrides so everyone prices the Aug 7–9 window.
     if (S.memberDates) { delete S.memberDates.JAX; delete S.memberDates.LAX; delete S.memberDates.PIA; }
     if (S.mode !== 'meetup') setMode('meetup');
@@ -1758,7 +1923,7 @@ function piaRouteTo(dest, fareKey) {
 function computeRanking() {
   var isRT = (S.tripType === 'round');
   var fareKey = isRT ? 'rt' : 'ow';
-  // Date-aware family: post-Aug 31 2026, JAX → JFK for sister
+  // Date-aware family: post-Aug 31 2026, JAX → LGA for Anjo
   var effFamily = familyForDate(S.depDate);
   var candidates = effFamily.slice();
   if (S.includeORD && candidates.indexOf('ORD') === -1) {
@@ -1990,7 +2155,7 @@ function renderMeetupRoutes() {
     return;
   }
   var html = '';
-  // Date-aware family list (sister: JAX→JFK after Aug 31 2026)
+  // Date-aware family list (Anjo: JAX→LGA after Aug 31 2026)
   var effFamily = familyForDate(S.depDate);
   effFamily.forEach(function(from) {
     if (from === hub) return; // hub host doesn't fly
@@ -2217,7 +2382,7 @@ function renderMeetupRoutes() {
       ? '<a href="' + gfUrl + '" target="_blank" rel="noopener noreferrer" ' +
         'style="display:inline-flex;align-items:center;gap:4px;margin-top:6px;font-size:var(--fs-tiny);font-weight:800;' +
         'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:var(--rad-sm);padding:3px 8px;" ' +
-        'title="Open this route in Google Flights">🔗 Book on Google Flights ↗</a>'
+        'title="Search the confirmed route in Google Flights; final availability is shown there">🔎 Search ' + memberLabel + '\'s route ↗</a>'
       : '';
     html +=
       '<div class="route-card"' + cardStyle + '>' +
@@ -2425,8 +2590,8 @@ function computeBestMeetupWeekends(nWeeks) {
   var isRT = (S.tripType === 'round');
   var fareKey = isRT ? 'rt' : 'ow';
   // Build candidate hub list (mirrors computeRanking)
-  // JFK transition fix: include both JAX and JFK in the candidate set so a single
-  // finder pass covers weekends on both sides of sister's 2026-09-01 NYC move.
+  // NYC transition fix: include legacy JAX and effective LGA/JFK candidates so a single
+  // finder pass covers weekends on both sides of Anjo's 2026-09-01 NYC move.
   // weekendFamily (per-weekend) still selects the correct origin for fare math.
   var candidates = FAMILY.slice();
   FAMILY.forEach(function(code){
@@ -2781,6 +2946,8 @@ function renderSoloCards() {
     // Modeled = has real AIRPORTS/fare data. Unmodeled dests get a lighter card
     // (no fare grid) — see the `modeled` branches below.
     var modeled = !!AIRPORTS[dest];
+    var _soloWlItem = watchlistSoloItem(dest);
+    var _soloIsBooked = !!(_soloWlItem && _soloWlItem.stage === 'booked');
     var weekends = modeled ? computeBestWeekends(S.home, dest, 13) : [];
     var top = weekends.slice(0, 3);
     var col = DC[dest] || '#888';
@@ -2886,9 +3053,9 @@ function renderSoloCards() {
     // remaining quota before spending it. Unmodeled dests have no fare data to
     // fetch, so the button is skipped entirely (modeled-only).
     var quotaLocked = isFetchLocked();
-    var liveBtnLabel = hasLive ? '🔄 Refresh 13 live weeks (~13 queries)' : '📡 Load 13 live weeks (~13 queries)';
+    var liveBtnLabel = hasLive ? '🔄 Refresh up to 3 live weeks (~3 queries)' : '📡 Load up to 3 live weeks (~3 queries)';
     var liveBtnHtml = '';
-    if (modeled && PROXY_URL) {
+    if (modeled && PROXY_URL && !_soloIsBooked) {
       if (_soloLiveConfirm === dest) {
         var _q = readQuota();
         var _remaining = Math.max(0, _q.budget - _q.used);
@@ -2909,6 +3076,10 @@ function renderSoloCards() {
     // right below.
     var soloDepISO = S.depDate ? fmtISO(S.depDate) : '';
     var soloRetISO = (isRTSolo && S.retDate) ? fmtISO(S.retDate) : '';
+    var soloHandoffResult = handoffResultForIntent({
+      from:S.home, to:dest, depISO:soloDepISO, retISO:soloRetISO, isRT:isRTSolo,
+      openjaw:dest === 'CUZ', returnFrom:dest === 'CUZ' ? 'LIM' : null, source:'solo-card'
+    });
     var soloBookUrl = (dest === 'CUZ')
       ? gflightsUrl(S.home, dest, soloDepISO, '', false)
       : bookingUrlFor(S.home, dest, soloDepISO, soloRetISO, isRTSolo);
@@ -2916,7 +3087,7 @@ function renderSoloCards() {
     // the bar chart as the headline. Reuses top[0] (computeBestWeekends), already
     // computed above, plus a prominent Google Flights hand-off for real prices.
     var cheapWeekTop = top[0];
-    var gfSeeRealLinkHtml = soloBookUrl ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:900;color:#fff;background:var(--accent);text-decoration:none;border-radius:6px;padding:5px 10px;" title="Search real prices + set fare alerts on Google Flights">🔎 See real prices on Google Flights ↗</a>' : '';
+    var gfSeeRealLinkHtml = (soloBookUrl && dest !== 'CUZ' && !_soloIsBooked) ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" style="flex-shrink:0;display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:900;color:#fff;background:var(--accent);text-decoration:none;border-radius:6px;padding:5px 10px;" title="Search this route in Google Flights; optionally set a fare alert there">🔎 Open live options ↗</a>' : '';
     // PIA-031: unmodeled dest (no AIRPORTS/fare data) — collapse the headline to
     // "— · " + the same Google Flights hand-off link instead of a fabricated $ estimate.
     var cheapWeekHtml = !modeled
@@ -2930,23 +3101,23 @@ function renderSoloCards() {
               gfSeeRealLinkHtml +
             '</div>'
           : '');
-    // CUZ uses the richer A-vs-B comparison block (rendered in the card body), so
-    // the generic single book link is suppressed there to avoid duplicate links —
-    // the A/B compare already carries its own Google Flights links.
-    var soloBookHtml = (soloBookUrl && dest !== 'CUZ')
-      ? '<a href="' + soloBookUrl + '" target="_blank" rel="noopener noreferrer" ' +
-        'style="display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:800;' +
-        'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:6px;padding:4px 9px;" ' +
-        'title="Open this trip in Google Flights">🔗 Book on Google Flights ↗</a>'
+    var soloHandoffMetaHtml = (soloBookUrl && dest !== 'CUZ' && !_soloIsBooked && soloHandoffResult.summary)
+      ? '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin:-2px 0 6px;padding:0 2px;">↗ ' + esc(soloHandoffResult.summary) + ' · final availability in Google Flights</div>'
       : '';
+    if (_soloIsBooked) {
+      cheapWeekHtml = '<div style="padding:7px 9px;margin-bottom:6px;background:var(--success-dim);border:1px solid var(--success);border-radius:8px;font-size:var(--fs-micro);color:var(--ink);">✓ Booked · manage post-booking details in Flighty.</div>';
+    } else {
+      cheapWeekHtml += soloHandoffMetaHtml;
+    }
+    // One primary handoff lives in the cheap-week strip. CUZ uses its comparison block.
+    var soloBookHtml = '';
     // Flighty hand-off — passport wallet + past/booked flight stats. PIA-046:
     // shown only once the trip is BOOKED (Flighty owns post-booking ops; on a
     // still-being-shopped trip it advertises a tool that can't help yet).
-    var _soloWlItem = watchlistSoloItem(dest);
     var soloFlightyHtml = (_soloWlItem && _soloWlItem.stage === 'booked') ? '<a href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" ' +
       'style="display:inline-flex;align-items:center;gap:4px;font-size:.6rem;font-weight:800;' +
       'color:var(--muted);text-decoration:none;border:1px solid var(--border2);border-radius:6px;padding:4px 9px;" ' +
-      'title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>'
+      'title="Passport wallet + past/booked flight stats in Flighty">🛂 Open Flighty ↗</a>'
       : '';
     // PIA-057: one-tap save of this card's setup (origin + current dates) to the
     // watchlist — the missing "keep this trip" action that made solo mode feel
@@ -2969,7 +3140,7 @@ function renderSoloCards() {
     // PIA-030: solo decision strip — the same next-action + blocker chips as the
     // watchlist, synced to the same matched item (or lazy-created like solo-notes).
     // Hidden once the matched watchlist trip is completed (nothing left to decide).
-    var soloIsCompleted = soloNotesMatch && soloNotesMatch.stage === 'completed';
+    var soloIsCompleted = soloNotesMatch && (soloNotesMatch.stage === 'completed' || soloNotesMatch.stage === 'booked');
     var soloDecisionHtml = '';
     if (!soloIsCompleted) {
       var soloNextVal = soloNotesMatch ? (soloNotesMatch.nextAction || '') : '';
@@ -3063,7 +3234,7 @@ function renderSoloCards() {
       '<div class="solo-dest-body">' +
         cheapWeekHtml +
         soloDecisionHtml +
-        renderTripBinder(binderKeyFor(dest)) + (dest === 'CUZ' ? peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
+        renderTripBinder(binderKeyFor(dest)) + (dest === 'CUZ' && !_soloIsBooked ? peruFlightOptionsHtml(soloDepISO, soloRetISO) : '') +
         // PIA-031: the fare-grid pieces below (preset banner, Best-Weekends rows,
         // presets, price-trend chart, 13-call live button) all need fare data that
         // doesn't exist for an unmodeled dest — modeled-only.
@@ -3197,7 +3368,7 @@ function renderSoloCards() {
         var d = liveConfirmYes.getAttribute('data-dest');
         _soloLiveConfirm = null;
         var row = liveConfirmYes.closest('.solo-live-confirm-row');
-        if (row) row.innerHTML = '<span style="font-size:.58rem;color:var(--amber);font-weight:800;">Fetching 13 prices…</span>';
+        if (row) row.innerHTML = '<span style="font-size:.58rem;color:var(--amber);font-weight:800;">Fetching up to 3 live weeks…</span>';
         loadSoloWeeklyPrices(d).then(function() { renderSoloCards(); redrawMap(); });
       });
     }
@@ -3298,6 +3469,7 @@ function setBarFocus(dest, weekend) {
 
 function setMode(mode) {
   S.mode = mode;
+  updateRoutePicker();
   document.querySelectorAll('.mode-btn').forEach(function(b){
     b.classList.toggle('on', b.dataset.mode === mode);
   });
@@ -3326,6 +3498,7 @@ function setMode(mode) {
     renderSoloCards(); redrawMap();
   }
   rebuildLegend();
+  updateRoutePicker();
   syncURL();
 }
 
@@ -3438,6 +3611,12 @@ async function fetchFlights(from, to, dep, ret) {
   }
   // In-flight dedupe
   if (_flightInflight[key]) return _flightInflight[key];
+  // Central safety net for callers outside loadPrices (e.g. weekly charts). Cache hits
+  // and in-flight work are returned above; new network work stops at the session cap.
+  if (isFetchLocked()) {
+    console.warn('SerpAPI fetch blocked by quota/session safety guard for ' + from + '→' + to);
+    return getMock(from, to);
+  }
 
   var flightType = ret ? 1 : 2; // 1=round-trip, 2=one-way (SerpAPI 'type' param)
   var p = new URLSearchParams({
@@ -3788,7 +3967,7 @@ function updateQuotaWarningBanner() {
 
   if (!PROXY_URL) {
     bn.innerHTML = '<strong style="color:var(--warn);">📡 Mock data mode</strong><br/>'
-      + '<span style="color:var(--ink-muted);">Connect a SerpAPI proxy in the sidebar to see live Google Flights pricing. Current numbers are illustrative estimates.</span>';
+      + '<span style="color:var(--ink-muted);">Connect a SerpAPI proxy in the sidebar to see live fare results. Current numbers are illustrative estimates.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--warn)';
     bn.style.background = 'var(--warn-dim)';
@@ -3937,8 +4116,8 @@ function onDayClick(dt) {
   updateDateUI(); renderCal();
 }
 
-// Close calendar after per-member date selection: refetch ONLY that member's
-// routes (not all 9), repaint the breakdown card with the new dates, sync URL.
+// Close calendar after per-member date selection. Editing dates is cache-only;
+// explicit Get Live Fares is the only action that refreshes network prices.
 function closeCalMember(memCode) {
   document.getElementById('cal').classList.remove('open');
   document.getElementById('cal-bd').classList.remove('open');
@@ -3946,33 +4125,7 @@ function closeCalMember(memCode) {
   document.getElementById('ret-btn').classList.remove('active');
   S.calMode = null;
   syncURL();
-  // Targeted refetch — only routes from this member, not the full meetup fan-out
-  var memDates = effectiveDatesFor(memCode);
-  var memDep = memDates.dep ? fmtISO(memDates.dep) : null;
-  var memRet = (S.tripType === 'round' && memDates.ret) ? fmtISO(memDates.ret) : null;
-  var ranking = computeRanking();
-  var hub = getActiveHub(ranking);
-  var fetchTargets = [];
-  if (hub && hub !== memCode) {
-    if (!(memCode === 'PIA' && hub === 'ORD')) {
-      fetchTargets.push({ from: memCode, to: hub, key: memCode + '-' + hub });
-    }
-    // PIA→intl uses ORD-intl too, refetch that with PIA's new dates
-    if (memCode === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
-      fetchTargets.push({ from: 'ORD', to: hub, key: 'ORD-' + hub });
-    }
-  }
-  if (!fetchTargets.length) {
-    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
-    return;
-  }
-  Promise.all(fetchTargets.map(function(r){
-    return fetchFlights(r.from, r.to, memDep, memRet)
-      .then(function(d){ S.prices[r.key] = d; })
-      .catch(function(){ S.prices[r.key] = getMock(r.from, r.to); });
-  })).then(function(){
-    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
-  });
+  renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
 }
 
 // Open the calendar in per-member mode.
@@ -4005,25 +4158,8 @@ function openMemberCal(memCode, phase) {
 // Reset a member back to anchor dates and refetch their leg.
 function clearMemberDatesAndRefresh(memCode) {
   clearMemberDates(memCode);
-  var ranking = computeRanking();
-  var hub = getActiveHub(ranking);
-  var globalDep = fmtISO(S.depDate) || null;
-  var globalRet = S.tripType === 'round' ? fmtISO(S.retDate) || null : null;
-  var fetchTargets = [];
-  if (hub && hub !== memCode && !(memCode === 'PIA' && hub === 'ORD')) {
-    fetchTargets.push({ from: memCode, to: hub, key: memCode + '-' + hub });
-    if (memCode === 'PIA' && INTL_DESTS.indexOf(hub) > -1) {
-      fetchTargets.push({ from: 'ORD', to: hub, key: 'ORD-' + hub });
-    }
-  }
-  if (!fetchTargets.length) { renderMeetupStrip(); renderMeetupRoutes(); redrawMap(); return; }
-  Promise.all(fetchTargets.map(function(r){
-    return fetchFlights(r.from, r.to, globalDep, globalRet)
-      .then(function(d){ S.prices[r.key] = d; })
-      .catch(function(){ S.prices[r.key] = getMock(r.from, r.to); });
-  })).then(function(){
-    renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
-  });
+  // Clearing a member override is also cache-only; avoid an implicit network request.
+  renderMeetupStrip(); renderMeetupRoutes(); redrawMap();
 }
 function openCal(mode) {
   S.calMode=mode;
@@ -4085,7 +4221,7 @@ function updateDateUI() {
   dEl.textContent=S.depDate?dateFmt(S.depDate):'Pick date'; dEl.classList.toggle('ph',!S.depDate);
   if (S.tripType==='one') { rEl.textContent='—'; rEl.classList.add('ph'); rBtn.disabled=true; }
   else { rEl.textContent=S.retDate?dateFmt(S.retDate):'Pick date'; rEl.classList.toggle('ph',!S.retDate); rBtn.disabled=false; }
-  // JFK transition banner: show when trip dates fall on/after sister's NYC move
+  // JFK transition banner: show when trip dates fall on/after Anjo's NYC move
   var jfkBanner = document.getElementById('jfk-banner');
   if (jfkBanner) {
     var tripDate = S.depDate ? fmtISO(S.depDate) : null;
@@ -4295,27 +4431,52 @@ async function loadSoloWeeklyPrices(dest) {
   var entries = new Array(13);
   var calls = 0;
   var fetches = [];
+  var liveBudget = MAX_CALLS_PER_REFRESH;
+
+  function setWeeklyEntry(idx, thu, sun, p) {
+    var hasReal = !!(p && (p.live || p.cached));
+    var price = isRT ? (p && (p.rt || p.ow)) : (p && p.ow);
+    entries[idx] = {
+      price: price || 0,
+      dep: thu, ret: sun,
+      live: hasReal,
+      cached: !!(p && p.cached),
+      sample: !hasReal,
+      airline: p && p.airline || null,
+      flightNo: p && p.flightNo || null,
+      stops: p && p.stops || 0,
+    };
+  }
+
   for (var i = 0; i < 13; i++) {
     (function(idx) {
       var thu = new Date(startThu);
       thu.setDate(startThu.getDate() + idx * 7);
       var sun = new Date(thu);
       sun.setDate(thu.getDate() + 3);
+      var depISO = fmtISO(thu), retISO = isRT ? fmtISO(sun) : null;
+      var ck = _cacheKey(S.home, dest, depISO, retISO);
+      var hit = _flightCache[ck];
+      var fresh = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
+
+      if (fresh) {
+        setWeeklyEntry(idx, thu, sun, Object.assign({}, hit.data, { cached: true }));
+        return;
+      }
+      // The weekly chart is a deliberate action, but it still shares the global
+      // refresh/session caps. Unfetched weeks remain sample estimates.
+      if (liveBudget <= 0 || isFetchLocked()) {
+        setWeeklyEntry(idx, thu, sun, getMock(S.home, dest));
+        return;
+      }
+      liveBudget--;
       fetches.push(
-        fetchFlights(S.home, dest, fmtISO(thu), isRT ? fmtISO(sun) : null)
+        fetchFlights(S.home, dest, depISO, retISO)
           .then(function(p) {
-            var price = isRT ? (p.rt || p.ow) : p.ow;
-            // Carry airline + flightNo so per-weekend rows can show the carrier
-            entries[idx] = {
-              price: price || 0,
-              dep: thu, ret: sun, live: true,
-              airline: p && p.airline || null,
-              flightNo: p && p.flightNo || null,
-              stops: p && p.stops || 0,
-            };
-            calls++;
+            if (p && p.live && !p.cached && !p.locked) calls++;
+            setWeeklyEntry(idx, thu, sun, p);
           })
-          .catch(function() { entries[idx] = null; })
+          .catch(function() { setWeeklyEntry(idx, thu, sun, getMock(S.home, dest)); })
       );
     })(i);
   }
@@ -4421,6 +4582,157 @@ function updateApiCallCount() {
 }
 
 
+// ── INTERACTIVE ROUTE PICKER ────────────────────────────────────
+// First-principles contract: map taps change route intent only. They never fetch;
+// live pricing remains behind the explicit Get Live Fares action.
+function routePickerCanSetHome(code) {
+  var sel = document.getElementById('home-sel');
+  var opt = sel ? sel.querySelector('option[value="' + code + '"]') : null;
+  return !!(AIRPORTS[code] && opt && !opt.disabled && LEGACY_HOMES.indexOf(code) === -1);
+}
+function routePickerHubIsSelectable(code) {
+  if (!AIRPORTS[code] || LEGACY_HOMES.indexOf(code) > -1) return false;
+  if (code === 'ORD' || INTL_DESTS.indexOf(code) > -1) return true;
+  var fam = familyForDate(S.depDate || today);
+  return fam.indexOf(code) > -1 || code === 'PIA' || code === 'LGA' || code === 'JFK';
+}
+function routePickerHub() {
+  if (S.meetupHubOverride) return S.meetupHubOverride;
+  try { return getActiveHub(computeRanking()) || null; } catch (e) { return null; }
+}
+function routePickerName(code) {
+  if (!code) return 'Choose';
+  if (code === 'FAMILY') return 'origins';
+  var ap = AIRPORTS[code];
+  return ap ? ap.name.split(',')[0] : code;
+}
+function updateRoutePicker() {
+  var root = document.getElementById('route-picker');
+  if (!root) return;
+  var meetup = S.mode === 'meetup';
+  var fromBtn = document.getElementById('rp-from');
+  var toBtn = document.getElementById('rp-to');
+  var fromLabel = document.getElementById('rp-from-label');
+  var toLabel = document.getElementById('rp-to-label');
+  var fromCode = document.getElementById('rp-from-code');
+  var toCode = document.getElementById('rp-to-code');
+  var kicker = document.getElementById('rp-kicker');
+  var hint = document.getElementById('rp-hint');
+  if (!fromBtn || !toBtn || !fromLabel || !toLabel || !fromCode || !toCode || !kicker || !hint) return;
+  var hub = meetup ? routePickerHub() : null;
+  root.classList.toggle('is-meetup', meetup);
+  kicker.textContent = meetup ? 'Meetup hub' : 'Basic route';
+  fromLabel.textContent = meetup ? 'From' : 'From';
+  fromCode.textContent = meetup ? 'Family' : (S.home || '—');
+  fromBtn.querySelector('strong').textContent = meetup ? 'origins' : routePickerName(S.home);
+  toLabel.textContent = meetup ? 'To' : 'To';
+  toCode.textContent = meetup ? (hub || 'Choose hub') : (S.routePickTo || 'Choose');
+  toBtn.querySelector('strong').textContent = meetup ? routePickerName(hub) : routePickerName(S.routePickTo);
+  fromBtn.disabled = meetup;
+  fromBtn.classList.toggle('active', !meetup && S.routePickStep === 'origin');
+  toBtn.classList.toggle('active', meetup || S.routePickStep === 'destination');
+  if (meetup) hint.textContent = 'Tap a highlighted airport to choose the meetup hub.';
+  else if (S.routePickStep === 'origin') hint.textContent = 'Tap a highlighted airport to set your home airport.';
+  else if (S.routePickTo) hint.textContent = 'Route selected. Tap another airport or reset to change it.';
+  else hint.textContent = 'Tap a highlighted airport to choose your destination.';
+}
+function routePickerSetStep(step) {
+  if (S.mode === 'meetup') return;
+  S.routePickStep = step === 'origin' ? 'origin' : 'destination';
+  updateRoutePicker();
+  redrawMap();
+}
+function routePickerSetHome(code) {
+  if (!routePickerCanSetHome(code)) {
+    showShareToast(code === 'JAX' ? 'JAX is a past home and cannot be selected.' : 'Choose an active home airport.');
+    return;
+  }
+  S.home = code;
+  var sel = document.getElementById('home-sel');
+  if (sel) sel.value = code;
+  S.routePickTo = null;
+  S.routePickStep = 'destination';
+  S.soloFocus = null; S.barFocus = null;
+  document.getElementById('s-hub').textContent = AIRPORTS[S.home].code;
+  document.getElementById('s-routes').textContent = dests().length;
+  if (S.mode !== 'meetup') document.getElementById('tb-title').textContent = 'Routes from ' + AIRPORTS[S.home].code;
+  document.getElementById('tb-sub').textContent = AIRPORTS[S.home].full + ' → ' + dests().join(', ');
+  S.prices = {}; S.soloBarPrices = {};
+  updateRoutePicker();
+  rebuildLegend();
+  if (S.mode === 'solo') renderSoloCards();
+  redrawMap();
+  // Map route selection is intent-only: render cache/sample prices, never spend a live query.
+  loadPrices(false);
+  syncURL();
+}
+function routePickerSetDestination(code) {
+  if (S.mode === 'meetup') {
+    if (!routePickerHubIsSelectable(code)) {
+      showShareToast('Tap a highlighted airport to choose a meetup hub.');
+      return;
+    }
+    S.meetupHubOverride = code;
+    S.routePickTo = code;
+    renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder();
+  } else {
+    if (dests().indexOf(code) === -1 || code === S.home) {
+      showShareToast('Tap a highlighted destination airport.');
+      return;
+    }
+    S.routePickTo = code;
+    S.routePickStep = 'destination';
+    S.soloFocus = code; S.barFocus = null;
+    renderSoloCards();
+  }
+  updateRoutePicker();
+  redrawMap();
+  syncURL();
+}
+function resetRoutePicker() {
+  S.routePickTo = null;
+  S.routePickStep = 'destination';
+  if (S.mode === 'meetup') {
+    S.meetupHubOverride = null;
+    renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder();
+  } else {
+    S.soloFocus = null; S.barFocus = null;
+    renderSoloCards();
+  }
+  updateRoutePicker();
+  redrawMap();
+  syncURL();
+}
+function handleMapAirportTap(code) {
+  if (LEGACY_HOMES.indexOf(code) > -1) {
+    showShareToast('JAX is a past home and remains historical only.');
+    return;
+  }
+  if (S.mode === 'meetup') {
+    routePickerSetDestination(code);
+    return;
+  }
+  if (S.routePickStep === 'origin') {
+    routePickerSetHome(code);
+    return;
+  }
+  if (code === S.home) {
+    routePickerSetStep('origin');
+    return;
+  }
+  routePickerSetDestination(code);
+}
+function wireMapAirportInteraction(g, code) {
+  var ap = AIRPORTS[code] || { code:code };
+  g.attr('role', 'button').attr('tabindex', 0).attr('aria-label', ap.code + ' airport route action')
+    .on('click.routePicker', function(e){ e.stopPropagation(); handleMapAirportTap(code); })
+    .on('keydown.routePicker', function(e){
+      if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+        e.preventDefault(); e.stopPropagation(); handleMapAirportTap(code);
+      }
+    });
+  g.append('circle').attr('class','map-hit').attr('r',22).attr('fill','transparent').attr('stroke','none');
+}
 // ── MAP ──────────────────────────────────────────────────────────
 // fetch() fails on file:// (null-origin CORS). We try CDN first,
 // then fall back to a minimal bounding-box GeoJSON so that
@@ -4483,7 +4795,7 @@ function rebuildLegend() {
   var html='';
   if (S.mode === 'meetup') {
     html += '<div class="ml"><div class="ml-dot" style="background:var(--map-hub-dot)"></div>★ Best Hub</div>';
-    // JFK transition fix: use date-aware family so post-Sep-1 trips show JFK, not JAX.
+    // NYC transition fix: use date-aware family so post-Sep-1 trips show LGA, not JAX.
     var legendFamily = familyForDate(S.depDate || today);
     legendFamily.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+(DC[c]||'#888')+'"></div>'+c+' (family)</div>'; });
     if (S.includeLHR) INTL_DESTS.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (intl)</div>'; });
@@ -4495,6 +4807,7 @@ function rebuildLegend() {
 }
 
 function redrawMap() {
+  updateRoutePicker();
   // PIA-058: the map is a progressive enhancement. If the d3 CDN load failed
   // (outage, SRI hash break, offline) every caller — boot, tab switches, mode
   // switches — must keep working; only the map itself goes dark.
@@ -4554,8 +4867,8 @@ function redrawMap() {
     if (meetupHub) {
       var hubXY = S.proj([AIRPORTS[meetupHub].lon, AIRPORTS[meetupHub].lat]);
       if (hubXY) {
-        // JFK transition fix: draw arcs from date-effective origins so the sister's
-        // arc lands at JFK (not JAX) for trips on/after 2026-09-01.
+        // NYC transition fix: draw arcs from date-effective origins so Anjo's
+        // arc lands at LGA (not JAX) for trips on/after 2026-09-01.
         var arcFamily = familyForDate(S.depDate || today);
         arcFamily.forEach(function(from) {
           if (from === meetupHub) return;
@@ -4595,6 +4908,7 @@ function redrawMap() {
       var col = isHub ? '#ffffff' : (isMember ? (DC[ap.code]||'#888') : '#1e3550');
       var r   = isHub ? 10 : (isMember ? 7 : 3);
       var g   = ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
+      wireMapAirportInteraction(g, ap.code);
       if (isHub) g.append('circle').attr('class','hp');
       g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
         .on('mouseenter', function(e){
@@ -4623,8 +4937,9 @@ function redrawMap() {
       if (!xy) return;
       var focused = !S.soloFocus || S.soloFocus === code;
       var barHover = S.barFocus && S.barFocus.dest === code;
-      var arcAlpha = focused ? (barHover ? 1.0 : 0.9) : 0.1;
-      var glowAlpha = focused ? (barHover ? 0.1 : 0.04) : 0.01;
+      var routeSelected = S.routePickTo === code;
+      var arcAlpha = routeSelected ? 1.0 : (focused ? (barHover ? 1.0 : 0.9) : 0.1);
+      var glowAlpha = routeSelected ? 0.16 : (focused ? (barHover ? 0.1 : 0.04) : 0.01);
       var labelAlpha = focused ? 0.9 : 0.06;
       var col=DC[code]||'#888', d=arcPath(homeXY[0],homeXY[1],xy[0],xy[1]);
       var pd=S.prices[S.home+'-'+code]||getMock(S.home,code);
@@ -4636,7 +4951,7 @@ function redrawMap() {
         if (bw[0]) price = bw[0].price;
       }
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',12).attr('opacity',glowAlpha);
-      rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',2.2).attr('stroke-dasharray','10,6').attr('class','ra').attr('marker-end','url(#arr-'+code+')').attr('opacity',arcAlpha);
+      rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',routeSelected?3.8:2.2).attr('stroke-dasharray','10,6').attr('class','ra').attr('marker-end','url(#arr-'+code+')').attr('opacity',arcAlpha);
       var dist=Math.hypot(xy[0]-homeXY[0],xy[1]-homeXY[1]);
       var bx=(homeXY[0]+xy[0])/2, by=(homeXY[1]+xy[1])/2-dist*.2-10;
       var lbl=price?('$'+price+(S.tripType==='round'?' RT':' OW')):'…';
@@ -4650,11 +4965,15 @@ function redrawMap() {
     Object.values(AIRPORTS).forEach(function(ap){
       var xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
-      var isHome=ap.code===S.home, isDest=dests().indexOf(ap.code)>-1, isOther=!isHome&&!isDest;
-      var col=isHome?'#10b981':(isDest?(DC[ap.code]||'#888'):'#243b55'), r=isHome?9:(isDest?7:4);
+      var isHome=ap.code===S.home, isDest=dests().indexOf(ap.code)>-1;
+      var routeSelected = S.routePickTo === ap.code;
+      var isOriginPick = S.routePickStep === 'origin' && routePickerCanSetHome(ap.code);
+      var isOther = !isHome && !isDest && !isOriginPick;
+      var col=isHome?'#10b981':(routeSelected?'#ffffff':(isOriginPick?'#f59e0b':(isDest?(DC[ap.code]||'#888'):'#243b55'))), r=routeSelected?10:(isHome?9:(isOriginPick?8:(isDest?7:4)));
       var g=ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
+      wireMapAirportInteraction(g, ap.code);
       if (isHome) g.append('circle').attr('class','hp');
-      g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
+      g.append('circle').attr('r',r).attr('fill',col).attr('stroke',routeSelected?'#ffffff':'#060e1a').attr('stroke-width',routeSelected?3:2).style('cursor','pointer')
         .on('mouseenter', function(e){
           var key=isDest?S.home+'-'+ap.code:null;
           var p=key?(S.prices[key]||getMock(S.home,ap.code)):null;
@@ -4718,6 +5037,14 @@ document.getElementById('copy-link-btn').addEventListener('click', copyShareLink
 document.querySelectorAll('.mode-btn').forEach(function(b){
   b.addEventListener('click', function(){ setMode(b.dataset.mode); });
 });
+document.getElementById('rp-from').addEventListener('click', function(){
+  routePickerSetStep('origin');
+});
+document.getElementById('rp-to').addEventListener('click', function(){
+  routePickerSetStep('destination');
+});
+document.getElementById('rp-clear').addEventListener('click', resetRoutePicker);
+updateRoutePicker();
 document.getElementById('share-card-close').addEventListener('click', function(){
   document.getElementById('share-card').style.display = 'none';
 });
@@ -4762,6 +5089,8 @@ document.querySelectorAll('.tt-btn').forEach(function(b){
 
 document.getElementById('home-sel').addEventListener('change', function(e){
   S.home=e.target.value;
+  S.routePickTo=null;
+  S.routePickStep='destination';
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;
   if (S.mode !== 'meetup') {
@@ -4769,7 +5098,7 @@ document.getElementById('home-sel').addEventListener('change', function(e){
   }
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
   S.prices={}; S.soloBarPrices={};
-  rebuildLegend(); loadPrices();
+  rebuildLegend(); updateRoutePicker(); redrawMap(); loadPrices();
   syncURL();
 });
 
@@ -4950,7 +5279,7 @@ document.getElementById('api-apply').addEventListener('click', function(){
   document.getElementById('pill-src').textContent     = isLive?'Live Data':'Mock Data';
   document.getElementById('data-pill-lbl').textContent= isLive?'Live':'Mock';
   document.querySelector('.ld').style.background      = isLive?'var(--green)':'var(--amber)';
-  document.getElementById('cal-hint').textContent     = isLive?'Fares: Google Flights live':'Fares: mock · Google Flights';
+  document.getElementById('cal-hint').textContent     = isLive?'Fares: PIALAX live fare check':'Fares: sample · PIALAX';
   document.getElementById('api-clear').style.display  = isLive?'':'none';
   document.getElementById('api-body').classList.remove('open');
   if (isLive) {
@@ -4968,7 +5297,7 @@ document.getElementById('api-clear').addEventListener('click', function(){
   document.getElementById('pill-src').textContent     = 'Mock Data';
   document.getElementById('data-pill-lbl').textContent= 'Mock';
   document.querySelector('.ld').style.background      = 'var(--amber)';
-  document.getElementById('cal-hint').textContent     = 'Fares: mock · Google Flights';
+  document.getElementById('cal-hint').textContent     = 'Fares: sample · PIALAX';
   document.getElementById('api-clear').style.display  = 'none';
   document.getElementById('api-calls-lbl').style.display = 'none';
   S.prices={}; S.soloBarPrices={};
@@ -5222,7 +5551,7 @@ var TRIP_BOOKINGS_SEED = {
   ],
   // Memphis work week — BOOKED: in from NYC on Mon, out Thu via DFW.
   MEM: [
-    { type:'flight', title:'LGA → Memphis (DL 4903)', start:'2026-08-31', end:'2026-08-31', location:'Memphis', notes:'Departs LGA, not LAX — chained after the NYC sister visit.' },
+    { type:'flight', title:'LGA → Memphis (DL 4903)', start:'2026-08-31', end:'2026-08-31', location:'Memphis', notes:'Departs LGA, not LAX — chained after the NYC Anjo visit.' },
     { type:'other', title:'Work week', start:'2026-08-31', end:'2026-09-03', location:'Memphis', notes:'Mon–Thu · home Thu night, the day before Peru.' },
     { type:'flight', title:'Memphis → DFW → LAX (AA)', start:'2026-09-03', end:'2026-09-03', location:'LAX', notes:'AA 3932 MEM 7:31p → DFW 9:20p · AA 1913 DFW 10:45p → LAX 11:57p.' }
   ]
@@ -5467,14 +5796,14 @@ var WATCHLIST_SEED = [
   // now carry the REAL itineraries from Flighty, including two things the plan
   // never modeled: the NYC-first chain (no LAX return between trips) and the
   // Memphis departure from LGA.
-  { id:'nyc', mode:'solo', title:'NYC — First visit to sister (booked)',
+  { id:'nyc', mode:'solo', title:'NYC — First visit to Anjo (booked)',
     routeTxt:'LAX → JFK (one-way · chains into Memphis)', origin:'LAX', dest:'JFK', dep:'2026-08-28', ret:null, stage:'booked',
     notes:'Booked: B6 424 LAX 9:49a → JFK 6:24p, Fri Aug 28. First NYC visit since the move. No return leg on purpose — Mon Aug 31 continues LGA → MEM for the work week.',
-    reminders:['Sister meets at JFK Friday evening'], nextAction:'', blockers:[],
+    reminders:['Anjo meets at JFK Friday evening'], nextAction:'', blockers:[],
     gf:{from:'LAX',to:'JFK'} },
   { id:'memphis', mode:'solo', title:'Memphis — Work trip',
     routeTxt:'LGA → MEM · MEM → LAX (via DFW)', origin:'LGA', dest:'MEM', dep:'2026-08-31', ret:'2026-09-03', stage:'booked',
-    notes:'BOOKED: DL 4903 LGA 8:41a → MEM 10:36a, Mon Aug 31 — departs from NYC, chained after the sister visit. Return Thu Sep 3: AA 3932 MEM 7:31p → DFW 9:20p, AA 1913 DFW 10:45p → LAX 11:57p — home the night before Peru.',
+    notes:'BOOKED: DL 4903 LGA 8:41a → MEM 10:36a, Mon Aug 31 — departs from NYC, chained after the Anjo visit. Return Thu Sep 3: AA 3932 MEM 7:31p → DFW 9:20p, AA 1913 DFW 10:45p → LAX 11:57p — home the night before Peru.',
     reminders:[], nextAction:'', blockers:[],
     gf:{from:'LGA',to:'MEM'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
@@ -5485,11 +5814,11 @@ var WATCHLIST_SEED = [
     gf:{from:'LAX',to:'CUZ',openjaw:true} },
   // PIA-065: Thanksgiving — the FIRST LGA-era family meetup and the next real
   // family window. Leaning PIA as of Aug 26 (Mom & Dad host; Ashwin LAX→PIA,
-  // sister's first trip home from NYC, LGA→PIA). This card is the one the
+  // Anjo's first trip home from NYC, LGA→PIA). This card is the one the
   // watchlist exists to not miss.
   { id:'tgiving', key:'thanksgiving', mode:'family', title:'🦃 Thanksgiving — Family meetup',
     routeTxt:'LAX + LGA → PIA (leaning)', hub:'PIA', dep:'2026-11-25', ret:'2026-11-29', stage:'planning',
-    notes:'First family gathering of the LGA era. Leaning PIA as of Aug 26 — Mom & Dad host, Ashwin flies LAX→PIA, sister flies LGA→PIA. ORD drive-to stays the fallback if PIA fares spike.',
+    notes:'First family gathering of the LGA era. Leaning PIA as of Aug 26 — Mom & Dad host, Ashwin flies LAX→PIA, Anjo flies LGA→PIA. ORD drive-to stays the fallback if PIA fares spike.',
     reminders:['Thanksgiving-week fares firm up early — lock the hub by late September'],
     nextAction:'Lock the hub (leaning PIA), then run Get Live Fares once', blockers:['dates'],
     gf:{from:'LGA',to:'PIA'} },
@@ -6768,7 +7097,7 @@ function computeRecommendation(tripState, fareSnapshot, nowIso) {
   if (reasons.length) {
     base.state = 'BUY';
     base.headline = 'Good time to book';
-    base.next_action = 'Open Google Flights and book — the details below are confirmed.';
+    base.next_action = 'Search the confirmed route in Google Flights, then book if the final details look right.';
     base.evidence = reasons.slice(0, 3);
     return base;
   }
@@ -6841,52 +7170,46 @@ function taIsRoundTrip(segs) {
             b.origin === a.destination && b.destination === a.origin);
 }
 
-// Pure. The ONLY place a booking URL is built. Returns null — deliberately
-// disabling the CTA — whenever the trip is incomplete or contradicted, so a
-// user can never hand off a search that does not match what they confirmed.
-function buildHandoffUrl(tripState) {
+// Pure. The canonical handoff result is the only place that decides whether
+// a confirmed trip can be handed to a provider. The legacy URL wrapper below
+// returns the first link for compatibility; multi-leg UI consumes `links`.
+function buildHandoffResult(tripState) {
   var ts = tripState || {};
-  if ((ts.missing_required_fields || []).length) return null;
-  if ((ts.unresolved_conflicts || []).length) return null;
-  // A trip whose dates cannot meet a hard commitment must NOT offer a booking
-  // search for those dates. Handing someone a live Google Flights link for an
-  // itinerary the app has just told them is infeasible invites them to buy the
-  // exact ticket it was warning about — the CTA would contradict the headline
-  // directly above it. Phase 5 replaces it with an alternative-dates action;
-  // until then the honest answer is no link at all.
-  if (constraintViolationsFor(ts).length) return null;
-  var segs = (ts.segments || []).filter(function (s) {
-    return s && s.origin && s.destination && s.departure_date;
+  var result = handoffResultForIntent({
+    tripId: ts.trip_id,
+    segments: ts.segments,
+    scope: ts.mode === 'family' ? 'family-member' : 'solo',
+    status: ts.status,
+    source: 'decision'
   });
-  if (!segs.length) return null;
-  if (segs.length === 1) {
-    return gflightsUrl(segs[0].origin, segs[0].destination, segs[0].departure_date, null, false);
+  if ((ts.missing_required_fields || []).length) {
+    result.state = 'blocked'; result.links = []; result.warning = '';
+    result.reason = 'missing_required_fields';
+    return result;
   }
-  if (taIsRoundTrip(segs)) {
-    return gflightsUrl(segs[0].origin, segs[0].destination, segs[0].departure_date, segs[1].departure_date, true);
+  if ((ts.unresolved_conflicts || []).length) {
+    result.state = 'blocked'; result.links = []; result.warning = '';
+    result.reason = 'unresolved_conflicts';
+    return result;
   }
-  // Open jaw → multi-city query, matching the shape bookingUrlFor already uses
-  // for the seeded Peru trip, but generalised to any two legs.
-  var q = 'Flights from ' + segs[0].origin + ' to ' + segs[0].destination + ' on ' + segs[0].departure_date +
-          ', from ' + segs[1].origin + ' to ' + segs[1].destination + ' on ' + segs[1].departure_date;
-  return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+  if (constraintViolationsFor(ts).length) {
+    result.state = 'blocked'; result.links = []; result.warning = '';
+    result.reason = 'constraint_violation';
+    return result;
+  }
+  return result;
+}
+function buildHandoffUrl(tripState) {
+  var result = buildHandoffResult(tripState);
+  return result.links.length ? result.links[0].url : null;
 }
 
 // Pure. The human-readable line shown directly above the CTA. It must describe
 // exactly what the link will search — if these two ever disagree, the review
 // step is theatre.
 function buildReviewLine(tripState) {
-  var ts = tripState || {};
-  var segs = (ts.segments || []).filter(function (s) {
-    return s && s.origin && s.destination && s.departure_date;
-  });
-  if (!segs.length) return '';
-  var parts = [];
-  for (var i = 0; i < segs.length; i++) {
-    parts.push(segs[i].origin + ' → ' + segs[i].destination + ' ' + taShortDate(segs[i].departure_date));
-  }
-  var kind = segs.length === 1 ? 'One-way' : (taIsRoundTrip(segs) ? 'Round trip' : 'Multi-city');
-  return 'Searching ' + parts.join('; ') + ' · ' + kind;
+  var result = handoffResultForIntent({ segments: (tripState || {}).segments });
+  return result.summary ? 'Searching ' + result.summary : '';
 }
 function taShortDate(iso) {
   var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
@@ -7484,6 +7807,7 @@ function assistantViewFor(item, nowIso) {
     state: st,
     rec: rec,
     snap: snap,
+    handoff: buildHandoffResult(st),
     url: buildHandoffUrl(st),
     review: buildReviewLine(st),
     pending: taPendingFactsFor(item.id, facts),
@@ -7533,9 +7857,15 @@ function renderDecisionCard(view) {
   if (rec.evidence && rec.evidence.length) {
     h += '<ul class="ta-evidence">' + rec.evidence.map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('') + '</ul>';
   }
-  if (view.url) {
+  var handoffLinks = (view.handoff && Array.isArray(view.handoff.links)) ? view.handoff.links :
+    (view.url ? [{ url:view.url, cta:'Search these flights' }] : []);
+  if (handoffLinks.length) {
     h += '<div class="ta-review">' + esc(view.review) + '</div>' +
-      '<a class="ta-cta" href="' + esc(view.url) + '" target="_blank" rel="noopener noreferrer">🔎 Search these flights ↗</a>';
+      '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:4px;">' +
+      handoffLinks.map(function(link){
+        return '<a class="ta-cta" href="' + esc(link.url) + '" target="_blank" rel="noopener noreferrer">🔎 ' +
+          esc(link.cta || 'Search these flights') + ' ↗</a>';
+      }).join('') + '</div>';
   } else {
     var why = rec.blocking_conflict
       ? (rec.blocking_conflict.kind === 'constraint'
@@ -7626,24 +7956,59 @@ function taApplyConfirmedFactToItem(fact) {
 // Matches a solo dest to its watchlist entry (if any) — used to sync the
 // per-solo-card notes textarea with the watchlist's own notes field.
 function watchlistSoloItem(dest){ return WATCHLIST.find(function(t){ return t.mode === 'solo' && t.dest === dest; }) || null; }
-// PIA-055: returns one Google Flights link for a simple round-trip/one-way
-// item, or TWO for an open-jaw item (only Peru/CUZ today) instead of the old
-// single compound "from X to Y on D1, from A to B on D2" query. Google's
-// free-text q= search reliably fills in a plain one-way/round-trip query but
-// not a two-segment sentence, which was landing on a blank Google Flights page.
-function watchlistGFLinks(t){
-  if (!t.gf) return [];
-  if (t.gf.openjaw) {
-    var links = [];
-    var outUrl = gflightsUrl(t.gf.from, t.gf.to, t.dep, '', false);
-    if (outUrl) links.push({ label: t.gf.from + ' → ' + t.gf.to, url: outUrl });
-    var retFrom = (t.gf.to === 'CUZ') ? 'LIM' : t.gf.to; // Peru: home from Lima, not Cusco
-    var retUrl = gflightsUrl(retFrom, t.gf.from, t.ret, '', false);
-    if (retUrl) links.push({ label: retFrom + ' → ' + t.gf.from, url: retUrl });
-    return links;
+// Build atomic provider intents from a legacy watchlist item. A family item
+// is a coordination container, so it expands to one search per effective
+// member/origin instead of pretending that multiple travelers share one fare.
+function handoffIntentsForWatchlistItem(t){
+  if(!t) return [];
+  if(t.mode !== 'family'){
+    return [{
+      tripId: t.id,
+      scope: 'solo',
+      from: t.origin || (t.gf && t.gf.from),
+      to: t.dest || (t.gf && t.gf.to),
+      depISO: t.dep,
+      retISO: t.ret,
+      isRT: !!t.ret,
+      openjaw: !!(t.gf && t.gf.openjaw),
+      returnFrom: (t.gf && t.gf.to === 'CUZ') ? 'LIM' : null,
+      status: t.stage,
+      source: 'watchlist'
+    }];
   }
-  var url = gflightsUrl(t.gf.from, t.gf.to, t.dep, t.ret, true);
-  return url ? [{ label: null, url: url }] : [];
+  var hub = t.hub || (t.gf && t.gf.to);
+  if(!hub) return [];
+  var members = familyForDate(t.dep || null);
+  return members.filter(function(from){ return from !== hub; }).map(function(from){
+    return {
+      tripId: t.id,
+      scope: 'family-member',
+      traveler: { id: from, label: labelFor(from) },
+      from: from,
+      to: hub,
+      depISO: t.dep,
+      retISO: t.ret,
+      isRT: !!t.ret,
+      status: t.stage,
+      source: 'watchlist'
+    };
+  });
+}
+function watchlistGFLinks(t){
+  var links = [];
+  handoffIntentsForWatchlistItem(t).forEach(function(raw){
+    var result = handoffResultForIntent(raw);
+    var traveler = raw.traveler && raw.traveler.label ? raw.traveler.label + ' · ' : '';
+    result.links.forEach(function(link){
+      links.push({
+        label: traveler + link.label,
+        url: link.url,
+        kind: link.kind,
+        cta: traveler + (link.cta || link.label)
+      });
+    });
+  });
+  return links;
 }
 function watchlistEst(t){
   if (t.stage === 'completed') return null;
@@ -7663,7 +8028,45 @@ function setWatchlistNextAction(id, text){ var t=watchlistItem(id); if (t){ t.ne
 function toggleWatchlistBlocker(id, key){ var t=watchlistItem(id); if (!t||!BLOCKERS[key])return; t.blockers=t.blockers||[];
   var i=t.blockers.indexOf(key); if (i>-1) t.blockers.splice(i,1); else t.blockers.push(key); saveWatchlist(); renderWatchlist(); }
 function removeWatchlistItem(id){ var t=watchlistItem(id); if (t && t._added) { WATCHLIST=WATCHLIST.filter(function(x){return x.id!==id;}); saveWatchlist(); renderWatchlist(); } }
+function closeTripSheet(){
+  if (_watchlistOpenId == null) return;
+  _watchlistOpenId = null;
+  _taPreviewFor = null;
+  renderWatchlist();
+}
+function openTripSheet(id){
+  if (!watchlistItem(id)) return;
+  _watchlistOpenId = id;
+  _taPreviewFor = null;
+  renderWatchlist();
+}
+function wireTripGestures(sec){
+  sec.querySelectorAll('.wl-card').forEach(function(card){
+    var sx = 0, sy = 0;
+    card.addEventListener('pointerdown', function(e){ sx = e.clientX; sy = e.clientY; });
+    card.addEventListener('pointerup', function(e){
+      var dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.abs(dx) < 60 || Math.abs(dx) <= Math.abs(dy) || card.classList.contains('wl-sheet-open')) return;
+      if (dx < 0) card.classList.add('wl-swipe-left');
+      else card.classList.remove('wl-swipe-left');
+    });
+    card.addEventListener('pointercancel', function(){ sx = sy = 0; });
+  });
+  sec.querySelectorAll('.wl-sheet-close').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); closeTripSheet(); });
+  });
+  sec.querySelectorAll('.wl-swipe-done').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); setWatchlistStage(el.getAttribute('data-id'), 'completed'); });
+  });
+  sec.querySelectorAll('.wl-swipe-share').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); sharePlan(); });
+  });
+}
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && _watchlistOpenId != null) closeTripSheet();
+});
 function openWatchlistTrip(id){
+  _watchlistOpenId = null;
   var t = watchlistItem(id); if (!t) return;
   if (t.key) { applyHoliday(t.key, { dep: t.dep, ret: t.ret, skipToggle: true }); return; }
   // Added (custom) trip — apply its snapshot generically.
@@ -7751,8 +8154,7 @@ function addNewTrip(){
   var fromEl = document.getElementById('nt-from');
   var origin = (fromEl && AIRPORTS[fromEl.value]) ? fromEl.value : S.home;
   var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
-  var ret = (retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
-  if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
+  var ret = (dep && retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
   var item = {
     id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest,
     dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
@@ -7804,8 +8206,8 @@ function renderWatchlist(){
   }).length;
 
   var header =
-    '<div class="lbl" style="display:flex;justify-content:space-between;align-items:center;cursor:pointer;" id="wl-hdr">' +
-      '<span>📋 Trip Watchlist</span>' +
+    '<div class="trip-ideas-intro" id="wl-hdr" role="button" tabindex="0" aria-expanded="'+(!_watchlistCollapsed?'true':'false')+'">' +
+      '<strong>📋 Trip Ideas</strong>' +
       '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;">' +
         '👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + (urgentCount>0 ? ' · 🔴 '+urgentCount+' URGENT' : '') + (needMove>0 ? ' · '+needMove+' need a move' : '') + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') +
       '</span>' +
@@ -7908,7 +8310,7 @@ function renderWatchlist(){
       var modeChip = '<span style="font-size:var(--fs-micro);font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'var(--mode-family)':'var(--mode-solo)')+';border:1px solid '+(t.mode==='family'?'var(--mode-family)':'var(--mode-solo)')+';padding:1px 5px;border-radius:var(--rad-xs);">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
       var remind = (t.reminders && t.reminders.length)
         ? '<div style="margin-top:5px;font-size:var(--fs-micro);color:var(--ink-muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
-      var gfLinks = watchlistGFLinks(t);
+      var gfLinks = (t.stage === 'booked' || t.stage === 'completed') ? [] : watchlistGFLinks(t);
       // PIA-030: next-action input + blocker chips — hidden for completed trips
       // (nothing left to decide).
       var nextActionHtml = '';
@@ -7923,31 +8325,38 @@ function renderWatchlist(){
           '<input class="wl-next wl-input" data-id="'+t.id+'" placeholder="🎯 Next action…" value="'+esc(t.nextAction||'')+'"/>' +
           '<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:5px;">' + blockerChips + '</div>';
       }
+      var bookedTripHtml = t.stage === 'booked'
+        ? '<span class="wl-act" style="color:var(--success);border:1px solid var(--success);">✓ Booked</span>'
+        : '';
       var actions =
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
           '<button class="wl-open wl-act" data-id="'+t.id+'" style="background:'+col+';color:var(--ink-on-warn);border:none;cursor:pointer;">Open ↗</button>' +
+          bookedTripHtml +
           gfLinks.map(function(l){
-            return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Expanded options + set price alerts on Google Flights">🔎 '+(l.label ? esc(l.label) : 'Google Flights')+' ↗</a>';
+            return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Search final options in Google Flights; set an alert there if you choose">🔎 '+(l.label ? esc(l.label) : 'Search route')+' ↗</a>';
           }).join('') +
           // PIA-046 (audit defect): Flighty owns POST-booking ops — showing it on a
           // trip that isn't booked yet advertises a tool the user can't use for it.
-          (t.stage === 'booked' ? '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Flighty ↗</a>' : '') +
+          (t.stage === 'booked' ? '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Open Flighty ↗</a>' : '') +
           (t._added ? '<button class="wl-del wl-act" data-id="'+t.id+'" title="Remove" aria-label="Remove '+esc(t.title)+' from the watchlist" style="background:none;border:none;color:var(--ink-muted);cursor:pointer;">✕</button>' : '') +
         '</div>';
       // PIA-050: with the assistant on, the decision leads and the freeform
       // notes textarea is replaced by the append-only context log. The item's
       // `notes` field is NOT deleted — flipping the flag off restores the old
       // editor with its content intact.
-      body = '<div>' +
+      body = '<div>' + (open ? '<button class="wl-sheet-close" type="button" data-wl-close="'+t.id+'">Close</button>' : '') +
         (taView ? renderDecisionCard(taView) : '') +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
         '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
+        nextActionHtml +
+        '<details class="wl-more-section"><summary>Notes, alerts &amp; trip details</summary>' +
         (taView ? renderFactChips(taView) : '') +
         (taView ? renderContextLog(t, taView)
                 : '<textarea class="wl-notes wl-input" data-id="'+t.id+'" rows="2" placeholder="Notes…" style="resize:vertical;">'+esc(t.notes||'')+'</textarea>') +
         (taView ? renderAlertSettings(t, taView, _taPreviewFor === t.id) : '') +
-        nextActionHtml +
-        remind + actions +
+        remind +
+        '</details>' +
+        actions +
       '</div>';
     }
     var cardStyle = (urgency === 'red')
@@ -7955,8 +8364,11 @@ function renderWatchlist(){
       : (urgency === 'amber')
       ? 'border-color:var(--warn,#f59e0b);border-left-color:var(--warn,#f59e0b);background:'+col+'0f;'
       : 'border-color:'+col+'55;border-left-color:'+col+';background:'+col+'0f;';
-    return groupHdr + '<div class="wl-card" style="' + cardStyle + '">' +
-      row + body +
+    return groupHdr + '<div class="wl-card'+(open?' wl-sheet-open':'')+'" style="' + cardStyle + '">' +
+      row + body + '<div class="wl-swipe-actions" data-id="'+t.id+'">' +
+        '<button type="button" class="wl-swipe-done" data-id="'+t.id+'">Mark done</button>' +
+        '<button type="button" class="wl-swipe-share" data-id="'+t.id+'">Share</button>' +
+      '</div>' +
     '</div>';
   }).join('');
   var addBtn;
@@ -7975,40 +8387,49 @@ function renderWatchlist(){
       return '<option value="'+c+'"'+(c===S.home?' selected':'')+'>'+c+' — '+(AIRPORTS[c]?AIRPORTS[c].name:c)+'</option>';
     }).join('');
     addBtn = '<div id="nt-form">' +
-      '<select id="nt-from" class="nt-input" title="From (home) airport" aria-label="From (home) airport">'+ntFromOpts+'</select>' +
-      '<input id="nt-dest" class="nt-input" type="text" placeholder="City or airport, e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'"/>' +
+      '<div class="nt-help">Save the idea now. Add dates and details only if you know them.</div>' +
+      '<input id="nt-dest" class="nt-input" type="text" placeholder="Where do you want to go? e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'" autofocus/>' +
       '<div style="display:flex;gap:5px;">' +
-        '<input id="nt-dep" class="nt-input" type="date" value="'+ntPrefillDep+'" style="flex:1;"/>' +
-        '<input id="nt-ret" class="nt-input" type="date" value="'+ntPrefillRet+'" style="flex:1;"/>' +
+        '<input id="nt-dep" class="nt-input" type="date" aria-label="Departure date (optional)" value="'+ntPrefillDep+'" style="flex:1;"/>' +
+        '<input id="nt-ret" class="nt-input" type="date" aria-label="Return date (optional)" value="'+ntPrefillRet+'" style="flex:1;"/>' +
       '</div>' +
-      '<div id="nt-mode" style="display:flex;gap:4px;">' +
-        '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='solo'?' on':'')+'" data-v="solo">Solo</button>' +
-        '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='family'?' on':'')+'" data-v="family">Family</button>' +
-      '</div>' +
+      '<details class="nt-more">' +
+        '<summary>More details</summary>' +
+        '<select id="nt-from" class="nt-input" title="From (home) airport" aria-label="From (home) airport">'+ntFromOpts+'</select>' +
+        '<div id="nt-mode" style="display:flex;gap:4px;margin-top:6px;">' +
+          '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='solo'?' on':'')+'" data-v="solo">Just me</button>' +
+          '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='family'?' on':'')+'" data-v="family">Family</button>' +
+        '</div>' +
+      '</details>' +
       '<div style="display:flex;gap:6px;">' +
-        '<button id="nt-save">＋ Add</button>' +
+        '<button id="nt-save">Save idea</button>' +
         '<button id="nt-cancel">Cancel</button>' +
       '</div>' +
     '</div>';
   } else {
     addBtn = '<div style="display:flex;gap:6px;">' +
       '<button id="wl-newtrip">＋ New trip</button>' +
-      '<button id="wl-share" title="Copy a shareable summary + link of the whole plan">🔗 Share plan</button>' +
+      '<button id="wl-share" title="Copy a shareable summary + link of the whole plan">🔗 Share</button>' +
     '</div>';
   }
-  sec.innerHTML = header + '<div style="margin-top:6px;">' + cards + addBtn + '</div>';
+  sec.innerHTML = header + '<div class="wl-list" style="margin-top:6px;">' + cards + '</div>' + addBtn;
   wireWatchlist(sec);
   // PIA-063: after each settle, drain the outbox + sync watches (no-ops
   // without the assistant surface, a proxy, or a recipient email).
   if (flagOn('assistant')) scheduleAlertMaintenance();
 }
 function wireWatchlist(sec){
-  var hdr = sec.querySelector('#wl-hdr'); if (hdr) hdr.addEventListener('click', function(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); });
+var hdr = sec.querySelector('#wl-hdr');
+  if (hdr) {
+    function toggleIdeas(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); }
+    hdr.addEventListener('click', toggleIdeas);
+    hdr.addEventListener('keydown', taKeyActivate(toggleIdeas));
+  }
   // PIA-046: .wl-row / .wl-blocker are non-native controls now carrying
   // role="button" — they must answer Enter/Space or the role is a lie to a
   // keyboard user. taKeyActivate wraps that once for both.
   sec.querySelectorAll('.wl-row').forEach(function(el){
-    function toggleRow(){ var id=el.getAttribute('data-wl-id'); if (_watchlistOpenId !== id) _taPreviewFor = null; _watchlistOpenId = (_watchlistOpenId === id) ? null : id; renderWatchlist(); }
+    function toggleRow(){ var id=el.getAttribute('data-wl-id'); if (_watchlistOpenId === id) closeTripSheet(); else openTripSheet(id); }
     el.addEventListener('click', toggleRow);
     el.addEventListener('keydown', taKeyActivate(toggleRow));
   });
@@ -8128,6 +8549,7 @@ function wireWatchlist(sec){
   var ntSave = sec.querySelector('#nt-save'); if (ntSave) ntSave.addEventListener('click', addNewTrip);
   var ntCancel = sec.querySelector('#nt-cancel'); if (ntCancel) ntCancel.addEventListener('click', function(){ _watchlistAdding=false; renderWatchlist(); });
   var shr = sec.querySelector('#wl-share'); if (shr) shr.addEventListener('click', sharePlan);
+  wireTripGestures(sec);
   if (_watchlistFocusId) {
     var toFocus = sec.querySelector('.wl-next[data-id="'+_watchlistFocusId+'"]');
     if (toFocus) toFocus.focus();

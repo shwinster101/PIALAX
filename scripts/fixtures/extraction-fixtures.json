@@ -1657,7 +1657,10 @@
         "recommendation": null,
         "updated_at": ""
       },
-      "expect_url": "https://www.google.com/travel/flights?q=Flights%20from%20LAX%20to%20CUZ%20on%202026-09-04%2C%20from%20LIM%20to%20LAX%20on%202026-09-13",
+      "expect_urls": [
+        "https://www.google.com/travel/flights?q=Flights%20from%20LAX%20to%20CUZ%20on%202026-09-04",
+        "https://www.google.com/travel/flights?q=Flights%20from%20LIM%20to%20LAX%20on%202026-09-13"
+      ],
       "expect_review": "Searching LAX → CUZ Sep 4; LIM → LAX Sep 13 · Multi-city"
     },
     {
