@@ -1938,6 +1938,7 @@ var AIRPORTS = {
   MIA:{ code:'MIA', name:'Miami, FL',        full:'Miami International Airport',        lat:25.7959, lon:-80.2870 },
   JFK:{ code:'JFK', name:'New York, NY',     full:'John F. Kennedy International Airport', lat:40.6413, lon:-73.7781 },
   LGA:{ code:'LGA', name:'New York, NY',     full:'LaGuardia Airport',                  lat:40.7769, lon:-73.8740 },
+  RDU:{ code:'RDU', name:'Raleigh-Durham, NC', full:'Raleigh-Durham International Airport', lat:35.8776, lon:-78.7875 },
   LHR:{ code:'LHR', name:'London, UK',       full:'London Heathrow Airport',            lat:51.4700, lon:-0.4543 },
   // Peru — Machu Picchu (2026-07-21, mobile mirror). CUZ = Cusco (in), LIM = Lima (out).
   CUZ:{ code:'CUZ', name:'Cusco, Peru',      full:'Alejandro Velasco Astete Intl (Cusco)', lat:-13.5358, lon:-71.9389 },
@@ -1954,7 +1955,9 @@ var AIRPORTS = {
 var ROUTE_GRAPH = { PIA:['LAX','LGA','JFK'], ORD:['LAX','LGA','JFK'], LAX:['PIA','ORD','LGA','JFK','CUZ'], JAX:['PIA','ORD','LAX'], JFK:['PIA','ORD','LAX'], LGA:['PIA','ORD','LAX'] };
 var LEGACY_HOMES = ['JAX']; // past homes: visible for nostalgia, excluded from active pickers
 var INTL_DESTS = ['LHR'];
-var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LGA:'#fb7185', LHR:'#e11d48', CUZ:'#22c55e', LIM:'#eab308' };
+// Family-event hubs are optional meetup destinations, not default solo routes.
+var FAMILY_EVENT_HUBS = ['RDU'];
+var DC   = { LAX:'#2e7cf6', JAX:'#f59e0b', PIA:'#a855f7', ORD:'#06b6d4', MIA:'#14b8a6', JFK:'#ec4899', LGA:'#fb7185', RDU:'#f97316', LHR:'#e11d48', CUZ:'#22c55e', LIM:'#eab308' };
 // Airline + sample flight number per route. `flightNo` overridden by SerpAPI live data.
 var MOCK = {
   'PIA-LAX':{ ow:218, rt:389, airline:'American Airlines', flightNo:'AA 3421' },
@@ -1989,6 +1992,19 @@ var MOCK = {
   'LGA-ORD':{ ow:99,  rt:188, airline:'United Airlines',   flightNo:'UA 611' },
   'LAX-LGA':{ ow:201, rt:368, airline:'Delta',             flightNo:'DL 1902 (via MSP)' },
   'LGA-LAX':{ ow:197, rt:359, airline:'Delta',             flightNo:'DL 1903 (via MSP)' },
+  // RDU — Cary, NC family-event hub (sample fares; live search can replace these).
+  'PIA-RDU':{ ow:155, rt:280, airline:'American Airlines', flightNo:'AA 6123' },
+  'RDU-PIA':{ ow:148, rt:268, airline:'American Airlines', flightNo:'AA 6124' },
+  'ORD-RDU':{ ow:125, rt:230, airline:'United Airlines',   flightNo:'UA 1841' },
+  'RDU-ORD':{ ow:118, rt:218, airline:'United Airlines',   flightNo:'UA 1842' },
+  'LAX-RDU':{ ow:239, rt:438, airline:'American Airlines', flightNo:'AA 1620' },
+  'RDU-LAX':{ ow:229, rt:418, airline:'American Airlines', flightNo:'AA 1621' },
+  'LGA-RDU':{ ow:119, rt:218, airline:'Delta',             flightNo:'DL 507' },
+  'RDU-LGA':{ ow:112, rt:206, airline:'Delta',             flightNo:'DL 508' },
+  'JFK-RDU':{ ow:128, rt:236, airline:'JetBlue',            flightNo:'B6 1841' },
+  'RDU-JFK':{ ow:121, rt:222, airline:'JetBlue',            flightNo:'B6 1842' },
+  'JAX-RDU':{ ow:96,  rt:176, airline:'Delta',              flightNo:'DL 2367' },
+  'RDU-JAX':{ ow:91,  rt:168, airline:'Delta',              flightNo:'DL 2368' },
   'JAX-LGA':{ ow:129, rt:238, airline:'Delta',             flightNo:'DL 2361' },
   'LGA-JAX':{ ow:124, rt:229, airline:'Delta',             flightNo:'DL 2362' },
   // London
@@ -2643,6 +2659,7 @@ function computeRanking() {
     if (piaIdx > -1) candidates.splice(piaIdx + 1, 0, 'ORD'); else candidates.push('ORD');
   }
   if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
+  FAMILY_EVENT_HUBS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
   var results = [];
   candidates.forEach(function(dest) {
     var total = 0, parts = [], ok = true;
@@ -2800,7 +2817,7 @@ function renderMeetupStrip() {
     dateStr = nextHol ? nextHol.label + ' (suggested)' : 'Pick dates';
   }
   strip.className = noDate ? 'no-date' : '';
-  var hubOrder = ['PIA', 'LAX', 'JAX', 'LGA', 'JFK', 'ORD', 'LHR'];
+  var hubOrder = ['PIA', 'LAX', 'JAX', 'LGA', 'JFK', 'RDU', 'ORD', 'LHR'];
   var sortedRanking = ranking.slice().sort(function(a, b) {
     var ai = hubOrder.indexOf(a.dest), bi = hubOrder.indexOf(b.dest);
     if (ai === -1) ai = 99;
@@ -3349,6 +3366,7 @@ function computeBestMeetupWeekends(nWeeks) {
     if (piaIdx2 > -1) candidates.splice(piaIdx2 + 1, 0, 'ORD'); else candidates.push('ORD');
   }
   if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
+  FAMILY_EVENT_HUBS.forEach(function(d){ if (candidates.indexOf(d) === -1) candidates.push(d); });
   var d = new Date(today);
   var daysToThu = (4 - d.getDay() + 7) % 7 || 7;
   var startThu = new Date(d);
@@ -4763,6 +4781,7 @@ async function loadPrices(allowLive) {
   if (S.mode === 'meetup') {
     var hubs = ['PIA','LAX','JAX','ORD'];
     if (S.includeLHR) INTL_DESTS.forEach(function(d){ if (hubs.indexOf(d)===-1) hubs.push(d); });
+    FAMILY_EVENT_HUBS.forEach(function(d){ if (hubs.indexOf(d)===-1) hubs.push(d); });
     var meetupFamily = familyForDate(S.depDate);
     // PIA-060: post-move NYC hub comes from FAMILY_INFO (LGA), not a hard-coded JFK.
     var mvInfo = FAMILY_INFO.JAX;
@@ -6748,10 +6767,11 @@ function recordFareHistory(tripId, price, source, nowMs, snapshotId) {
 // the seeded trips actually mention. A bigger list would raise recall at the
 // cost of false positives on ordinary prose, and the LLM path is the answer
 // for breadth — this one only has to be RIGHT, not complete.
-var TA_AIRPORTS = ['LAX','CUZ','LIM','JAX','MEM','ORD','PIA','JFK','LHR','MIA','AUS','ATL','SAL','PTY','MDW','LGA','EWR','LGW','DFW','IAH'];
+var TA_AIRPORTS = ['LAX','CUZ','LIM','JAX','MEM','ORD','PIA','JFK','LHR','MIA','RDU','AUS','ATL','SAL','PTY','MDW','LGA','EWR','LGW','DFW','IAH'];
 var TA_CITIES = {
   'los angeles':'LAX', 'cusco':'CUZ', 'cuzco':'CUZ', 'lima':'LIM',
   'jacksonville':'JAX', 'memphis':'MEM', 'peoria':'PIA', 'miami':'MIA',
+  'cary':'RDU', 'raleigh':'RDU', 'raleigh-durham':'RDU',
   'austin':'AUS', 'atlanta':'ATL', 'panama city':'PTY'
 };
 // Cities with more than one plausible airport are never guessed — the spec is
@@ -8712,7 +8732,7 @@ function addNewTrip(){
   var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
   var ret = (dep && retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
   var item = {
-    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest, hub:null,
+    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest, hub:(mode==='family' && AIRPORTS[dest] ? dest : null),
     dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
     title:(dest+' — '+(mode==='family'?'family meetup idea':'solo trip')), routeTxt:(origin+' → '+dest),
     gf:{ from:origin, to:dest },
