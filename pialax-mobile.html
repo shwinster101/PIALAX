@@ -838,6 +838,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wl-est{font-size:var(--fs-tiny);font-weight:800;color:var(--success);white-space:nowrap;}
 .wl-caret{font-size:var(--fs-tiny);color:var(--ink-muted);}
+.wl-summary{font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;}
 .wl-next-line{font-size:var(--fs-micro);color:var(--ink-muted);margin-top:1px;padding-left:26px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .wl-next-hint{font-size:var(--fs-micro);color:var(--ink-muted);opacity:.55;margin-top:1px;padding-left:26px;}
@@ -1222,6 +1223,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 .ml { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: var(--fs-tiny); color: var(--ink-muted); }
 .ml:last-child { margin-bottom: 0; }
 .ml-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.map-key-title{font-size:var(--fs-micro);font-weight:900;color:var(--ink);margin-bottom:4px;}
+.map-key-note{font-size:var(--fs-micro);color:var(--ink-muted);}
 #map-toggle {
   position: absolute;
   top: 12px;
@@ -1285,6 +1288,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
    Trips is a scan surface, not a carousel. Map controls live in normal flow so
    a tap never lands on an overlay stack or a stale tooltip. */
 #tab-watchlist #watchlist-section{margin:0!important;}
+#tab-watchlist .wl-card:not(.wl-sheet-open) .wl-next-line,#tab-watchlist .wl-card:not(.wl-sheet-open) .ta-row-next,#tab-watchlist .wl-card:not(.wl-sheet-open) .wl-next-hint{display:none!important;}
 #tab-watchlist .wl-list{display:block;overflow:visible;padding:2px 0 4px;}
 #tab-watchlist .wl-list>.wl-card{display:block;width:auto;flex:none;margin-bottom:7px;}
 #tab-watchlist .wl-list>.wl-stage-hdr{display:flex;}
@@ -1722,8 +1726,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
       <div class="map-topline">
         <div>
           <div class="step-label">Route Map</div>
-          <div class="map-context-title" id="map-context-title">Family meetup · choose a hub</div>
-          <div class="map-context-sub" id="map-context-sub">Chicago is the current best estimate; tap another hub to compare.</div>
+          <div class="map-context-title" id="map-context-title">Family meetup · choose hub</div>
+          <div class="map-context-sub" id="map-context-sub">USA focus · LAX · PIA/ORD · JFK/LGA</div>
         </div>
         <button class="map-toggle-btn" id="map-toggle-btn" type="button">🗺 Show map</button>
       </div>
@@ -5093,11 +5097,11 @@ function updateRoutePicker() {
   var contextSub = document.getElementById('map-context-sub');
   if (contextTitle && contextSub) {
     if (meetup) {
-      contextTitle.textContent = 'Family meetup · choose a hub';
-      contextSub.textContent = hub ? ((hub === 'ORD' ? 'Chicago' : routePickerName(hub)) + ' is selected; tap another hub to compare.') : 'Tap a highlighted hub to compare.';
+      contextTitle.textContent = 'Family meetup';
+      contextSub.textContent = hub ? ('Hub: ' + (hub === 'ORD' ? 'Chicago' : routePickerName(hub)) + ' · tap another') : 'Tap a hub · USA focus';
     } else {
-      contextTitle.textContent = 'Solo route · choose a destination';
-      contextSub.textContent = S.routePickTo ? (S.home + ' → ' + S.routePickTo + ' selected.') : ('From ' + S.home + ' · choose a highlighted destination.');
+      contextTitle.textContent = 'Solo route';
+      contextSub.textContent = S.routePickTo ? ('Route: ' + S.home + ' → ' + S.routePickTo) : ('From ' + S.home + ' · choose destination');
     }
   }
 }
@@ -5254,17 +5258,19 @@ var rTimer; window.addEventListener('resize', function(){ clearTimeout(rTimer); 
 
 function rebuildLegend() {
   var leg=document.getElementById('map-leg');
-  var html='';
+  if (!leg) return;
+  var html='<div class="map-key-title">Map key</div>';
   if (S.mode === 'meetup') {
-    html += '<div class="ml"><div class="ml-dot" style="background:var(--map-hub-dot)"></div>★ Best Hub</div>';
-    // NYC transition fix: legend uses date-effective family
-    var legendFamily = familyForDate(S.depDate || today);
-    legendFamily.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+(DC[c]||'#888')+'"></div>'+c+' (family)</div>'; });
-    if (S.includeLHR) INTL_DESTS.forEach(function(c){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[c]+'"></div>'+c+' (intl)</div>'; });
+    html += '<div class="ml"><div class="ml-dot" style="background:var(--map-hub-dot)"></div>★ Hub</div>';
+    html += '<div class="ml"><div class="ml-dot" style="background:var(--accent)"></div>● Family route</div>';
+    var activeHub = null;
+    try { activeHub = getActiveHub(computeRanking()); } catch(e) {}
+    if (activeHub === 'ORD') html += '<div class="ml map-key-note">🚗 PIA → ORD drive</div>';
   } else {
-    html='<div class="ml"><div class="ml-dot" style="background:var(--map-home-dot)"></div>Home Airport</div>';
-    dests().forEach(function(d){ html+='<div class="ml"><div class="ml-dot" style="background:'+DC[d]+'"></div>→ '+d+'</div>'; });
+    html += '<div class="ml"><div class="ml-dot" style="background:var(--map-home-dot)"></div>⌂ Home</div>';
+    html += '<div class="ml"><div class="ml-dot" style="background:var(--accent)"></div>→ Route</div>';
   }
+  html += '<div class="ml map-key-note">' + (S.mapView === 'world' ? 'Global expansion' : 'USA focus · LAX · PIA/ORD · JFK/LGA') + '</div>';
   leg.innerHTML=html;
 }
 
@@ -5287,7 +5293,7 @@ function renderMapRouteList() {
     }
   } catch (e) { rows = []; }
   var heading = meetup ? 'Meetup hubs' : 'Routes from ' + S.home;
-  var hint = meetup ? 'Tap a hub to make it the plan focus.' : 'Tap a route to focus the planner.';
+  var hint = meetup ? 'Tap a hub to make the plan focus.' : 'Tap a route to focus the planner.';
   var html = '<div class="map-route-hd"><strong>' + heading + '</strong><span>' + hint + '</span></div>';
   if (!rows.length) {
     el.innerHTML = html + '<div class="map-route-empty">No selectable routes are available for this setup yet.</div>';
@@ -8697,8 +8703,7 @@ function renderWatchlist(){
   }
   var counts = { watching:0, planning:0, booked:0, completed:0 };
   WATCHLIST.forEach(function(t){ if (counts[t.stage]!=null) counts[t.stage]++; });
-  // PIA-030: header nudge — how many Watching/Planning trips still have no next action set.
-  var needMove = WATCHLIST.filter(function(t){ return (t.stage==='watching'||t.stage==='planning') && !t.nextAction; }).length;
+  var activeCount = counts.watching + counts.planning;
   // PIA-064: urgency window — unbooked trips inside 7 days of departure.
   var _wlTodayISO = fmtISO(today);
   var urgentCount = WATCHLIST.filter(function(t){
@@ -8710,7 +8715,9 @@ function renderWatchlist(){
   var header =
     '<div class="trip-ideas-intro" id="wl-hdr" role="button" tabindex="0" aria-expanded="'+(!_watchlistCollapsed?'true':'false')+'">' +
       '<strong>📋 Trip Ideas</strong>' +
-      '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:600;">👀 ' + counts.watching + ' · ✅ ' + counts.booked + ' · 🏁 ' + counts.completed + (urgentCount>0 ? ' · 🔴 '+urgentCount+' URGENT' : '') + (needMove>0 ? ' · '+needMove+' need a move' : '') + ' &nbsp;' + (_watchlistCollapsed?'▸':'▾') + '</span>' +
+      '<span class="wl-summary">' +
+        activeCount + ' active' + (counts.booked>0 ? ' · '+counts.booked+' booked' : '') + (urgentCount>0 ? ' · 🔴 '+urgentCount+' urgent' : '') + ' ' + (_watchlistCollapsed?'▸':'▾') +
+      '</span>' +
     '</div>';
   if (_watchlistCollapsed) { sec.innerHTML = header; wireWatchlist(sec); return; }
   var order = WATCHLIST.slice().sort(function(a,b){ return (WATCHLIST_STAGES[a.stage].order)-(WATCHLIST_STAGES[b.stage].order); });
