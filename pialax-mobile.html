@@ -6304,16 +6304,22 @@ var WATCHLIST_SEED = [
     reminders:['Trek briefing 17:00 Sep 5 · trek operator office','Passport valid 6+ months from entry','A friend is also in Cusco Sep 5–12'],
     nextAction:'', blockers:[],
     gf:{from:'LAX',to:'CUZ',openjaw:true} },
-  // PIA-065: Thanksgiving — the FIRST LGA-era family meetup and the next real
-  // family window. Leaning PIA as of Aug 26 (Mom & Dad host; Ashwin LAX→PIA,
-  // Anjo's first trip home from NYC, LGA→PIA). This card is the one the
-  // watchlist exists to not miss.
-  { id:'tgiving', key:'thanksgiving', mode:'family', title:'🦃 Thanksgiving — Family meetup',
-    routeTxt:'LAX + LGA → PIA (leaning)', hub:'PIA', dep:'2026-11-25', ret:'2026-11-29', stage:'planning',
-    notes:'First family gathering of the LGA era. Leaning PIA as of Aug 26 — Mom & Dad host, Ashwin flies LAX→PIA, Anjo flies LGA→PIA. ORD drive-to stays the fallback if PIA fares spike.',
-    reminders:['Thanksgiving-week fares firm up early — lock the hub by late September'],
-    nextAction:'Lock the hub (leaning PIA), then run Get Live Fares once', blockers:['dates'],
-    gf:{from:'LGA',to:'PIA'} },
+  // PIA-065: Thanksgiving — Cary, NC baby-shower proposal. Keep the staged
+  // PIA meetup plan prominent while the family compares it with direct RDU
+  // options. This card is the one the watchlist exists to not miss.
+  { id:'tgiving', key:null, mode:'family', title:'🦃 Cary baby shower — RDU family meetup',
+    routeTxt:'Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU', hub:'RDU', dep:'2026-11-26', ret:'2026-11-29', eventDate:'2026-11-28', stage:'planning',
+    notes:'Cousin’s baby shower in Cary, NC on Nov 28. Staging plan: Ashwin arrives PIA Sat Nov 21; Anjo arrives PIA Tue Nov 24; family flies together to RDU for the shower. Compare this against direct RDU flights before booking.',
+    reminders:['Confirm shower timing and Cary lodging','Compare PIA staging against direct RDU travel','Thanksgiving-week fares may rise quickly'],
+    nextAction:'Price the PIA staging plan vs direct RDU flights', blockers:['dates'],
+    calendarEvents:[
+      { title:'Arrive PIA — Ashwin', start:'2026-11-21', end:'2026-11-22', location:'Peoria, IL', notes:'LAX → PIA staging for family meetup' },
+      { title:'Arrive PIA — Anjo', start:'2026-11-24', end:'2026-11-25', location:'Peoria, IL', notes:'LGA → PIA staging for family meetup' },
+      { title:'Family flight PIA → RDU', start:'2026-11-26', end:'2026-11-27', location:'Raleigh-Durham International Airport', notes:'Family travels together to Cary, NC' },
+      { title:'Cousin’s baby shower', start:'2026-11-28', end:'2026-11-29', location:'Cary, NC', notes:'Family event' },
+      { title:'Return from RDU', start:'2026-11-29', end:'2026-11-30', location:'Raleigh-Durham International Airport', notes:'Return travel window' }
+    ],
+    gf:{from:'LGA',to:'RDU'} },
   { id:'london', key:'london', mode:'family', title:'London — Family trip',
     routeTxt:'PIA + LAX + JAX → LHR', hub:'LHR', dep:'2026-06-25', ret:'2026-07-03', stage:'completed',
     notes:'Completed — flew Jun 25, returned Jul 3.',
@@ -6352,6 +6358,7 @@ function sanitizeWatchlistItem(a) {
   if (!WATCHLIST_STAGES[a.stage]) a.stage = 'watching';
   if (a.mode !== 'family' && a.mode !== 'solo') a.mode = 'solo';
   ['dep','ret'].forEach(function(k){ if (a[k] != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(a[k]))) a[k] = null; });
+  if (a.eventDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(a.eventDate))) a.eventDate = null;
   a.nextAction = a.nextAction || '';
   a.blockers = Array.isArray(a.blockers) ? a.blockers.filter(function(k){ return !!BLOCKERS[k]; }) : [];
   a.reminders = Array.isArray(a.reminders) ? a.reminders.map(String) : [];
@@ -6435,7 +6442,7 @@ function loadWatchlist() {
       if (stored && stored.overrides) {
         _scrubStalePeruDep(stored.overrides);
         _scrubPrebookingOverrides(stored.overrides);
-        WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
+        WATCHLIST.forEach(function(t){ var o = stored.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (o.eventDate != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.eventDate))) t.eventDate=o.eventDate; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       }
       if (stored && Array.isArray(stored.added)) stored.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !_isSeedDupNyc(it)) WATCHLIST.push(it); });
     }
@@ -6446,14 +6453,14 @@ function loadWatchlist() {
     if (wlp) {
       var s = JSON.parse(decodeURIComponent(atob(wlp)));
       if (s && s.overrides) { _scrubStalePeruDep(s.overrides); _scrubPrebookingOverrides(s.overrides); } 
-      if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
+      if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (o.eventDate != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.eventDate))) t.eventDate=o.eventDate; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !_isSeedDupNyc(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
     }
   } catch(e){}
 }
 function sharePlan(){
   var payload = { overrides:{}, added:[] };
-  WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers, dep:t.dep, ret:t.ret }; });
+  WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers, dep:t.dep, ret:t.ret, eventDate:t.eventDate }; });
   var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e){}
   var sp = new URLSearchParams(window.location.search); sp.set('wl', enc);
   var url = window.location.origin + window.location.pathname + '?' + sp.toString();
@@ -6469,16 +6476,53 @@ function shareWatchlistTrip(id){
   var item = watchlistItem(id); if (!item) return;
   var payload = { overrides:{}, added:[] };
   if (item._added) payload.added.push(item);
-  else payload.overrides[item.id] = { stage:item.stage, notes:item.notes, nextAction:item.nextAction, blockers:item.blockers, dep:item.dep, ret:item.ret };
+  else payload.overrides[item.id] = { stage:item.stage, notes:item.notes, nextAction:item.nextAction, blockers:item.blockers, dep:item.dep, ret:item.ret, eventDate:item.eventDate };
   var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e) {}
   var url = window.location.origin + window.location.pathname + '?wl=' + encodeURIComponent(enc);
   var dateLine = item.dep ? item.dep + (item.ret ? ' → ' + item.ret : '') : 'Dates TBD';
+  var eventLine = item.eventDate ? '\n📌 Event: ' + item.eventDate : '';
   var noteLine = item.notes ? '\nReason: ' + item.notes : '';
   var summary = '📋 Proposed trip: ' + item.title + '\n' +
-    '📅 ' + dateLine + noteLine + '\n\n' +
+    '📅 ' + dateLine + eventLine + noteLine + '\n\n' +
     'Open this idea in PIALAX: ' + url;
   if (typeof copyRouteText === 'function') copyRouteText(summary);
   else if (typeof showShareToast === 'function') showShareToast('Copy: ' + url);
+}
+function _wlIcsEscape(value){
+  return String(value || '').replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/;/g,'\\;').replace(/,/g,'\\,');
+}
+function _wlIcsDate(iso){ return String(iso || '').replace(/-/g,''); }
+function _wlNextDay(iso){ var d=new Date(iso+'T12:00:00'); d.setDate(d.getDate()+1); return fmtISO(d); }
+function watchlistCalendarEvents(item){
+  if (!item) return [];
+  var rows = Array.isArray(item.calendarEvents) ? item.calendarEvents.slice(0,12) : [];
+  if (!rows.length && /^\d{4}-\d{2}-\d{2}$/.test(String(item.eventDate || ''))) {
+    rows = [{ title:item.title || 'PIALAX family trip', start:item.eventDate, end:_wlNextDay(item.eventDate), location:item.hub && AIRPORTS[item.hub] ? AIRPORTS[item.hub].name : '', notes:item.notes || '' }];
+  }
+  return rows.filter(function(e){ return e && /^\d{4}-\d{2}-\d{2}$/.test(String(e.start || '')); }).map(function(e){
+    return { title:e.title || item.title || 'PIALAX trip', start:String(e.start), end:/^\d{4}-\d{2}-\d{2}$/.test(String(e.end || '')) ? String(e.end) : _wlNextDay(String(e.start)), location:e.location || '', notes:e.notes || '' };
+  });
+}
+function addWatchlistTripToCalendar(id){
+  var item = watchlistItem(id), events = watchlistCalendarEvents(item);
+  if (!item || !events.length) { showShareToast('Add an event date first'); return; }
+  var stamp = new Date().toISOString().replace(/[-:]/g,'').replace(/\.\d{3}Z$/,'Z');
+  var lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//PIALAX//Family Trip//EN','CALSCALE:GREGORIAN','METHOD:PUBLISH'];
+  events.forEach(function(e, i){
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:'+_wlIcsEscape(item.id+'-'+i+'@pialax')); lines.push('DTSTAMP:'+stamp);
+    lines.push('DTSTART;VALUE=DATE:'+_wlIcsDate(e.start)); lines.push('DTEND;VALUE=DATE:'+_wlIcsDate(e.end));
+    lines.push('SUMMARY:'+_wlIcsEscape(e.title));
+    if (e.location) lines.push('LOCATION:'+_wlIcsEscape(e.location));
+    if (e.notes) lines.push('DESCRIPTION:'+_wlIcsEscape(e.notes));
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  var blob = new Blob([lines.join('\r\n')+'\r\n'], { type:'text/calendar;charset=utf-8' });
+  var link = document.createElement('a'); link.href = URL.createObjectURL(blob);
+  link.download = (item.id || 'pialax-family-trip') + '.ics'; document.body.appendChild(link); link.click();
+  setTimeout(function(){ URL.revokeObjectURL(link.href); link.remove(); }, 1000);
+  showShareToast('✓ Calendar file downloaded');
 }
 function saveWatchlist() {
   try {
@@ -6486,7 +6530,7 @@ function saveWatchlist() {
     WATCHLIST.forEach(function(t){ if (t._added) added.push(t); else // PIA-050: dates are overridable now. Confirming a date change from a note
     // mutates the item, and without persisting dep/ret that change silently
     // vanished on reload — the exact data loss this feature exists to prevent.
-    overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers, dep:t.dep, ret:t.ret }; });
+    overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers, dep:t.dep, ret:t.ret, eventDate:t.eventDate }; });
     localStorage.setItem(WATCHLIST_STORAGE_KEY, JSON.stringify({ overrides:overrides, added:added }));
   } catch(e){}
 }
@@ -8569,6 +8613,9 @@ function wireTripGestures(sec){
   sec.querySelectorAll('.wl-share-trip').forEach(function(el){
     el.addEventListener('click', function(e){ e.stopPropagation(); shareWatchlistTrip(el.getAttribute('data-id')); });
   });
+  sec.querySelectorAll('.wl-calendar').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); addWatchlistTripToCalendar(el.getAttribute('data-id')); });
+  });
 }
 document.addEventListener('keydown', function(e){
   if (e.key === 'Escape' && _watchlistOpenId != null) closeTripSheet();
@@ -8719,6 +8766,7 @@ function addNewTrip(){
   var depEl = document.getElementById('nt-dep');
   var retEl = document.getElementById('nt-ret');
   var noteEl = document.getElementById('nt-note');
+  var eventEl = document.getElementById('nt-event');
   var modeBtn = document.querySelector('#nt-mode .nt-mode-btn.on');
   var rawDest = destEl ? destEl.value.trim() : '';
   if (!rawDest) { showShareToast('Enter a destination'); return; }
@@ -8736,7 +8784,7 @@ function addNewTrip(){
     dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
     title:(dest+' — '+(mode==='family'?'family meetup idea':'solo trip')), routeTxt:(origin+' → '+dest),
     gf:{ from:origin, to:dest },
-    notes:noteEl ? noteEl.value.trim() : '', reminders:[], nextAction:'', blockers:[]
+    notes:noteEl ? noteEl.value.trim() : '', eventDate:eventEl && /^\d{4}-\d{2}-\d{2}$/.test(eventEl.value) ? eventEl.value : null, reminders:[], nextAction:'', blockers:[]
   };
   WATCHLIST.push(item); saveWatchlist();
   if (mode === 'solo') {
@@ -8868,14 +8916,19 @@ function renderWatchlist(){
         '<span class="wl-stage-count">· '+(counts[t.stage]||0)+'</span>' +
       '</div>';
     }
-    var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open?'true':'false')+'" aria-label="'+esc(t.title)+' — '+(open?'collapse':'expand')+' trip details" data-wl-id="'+t.id+'">' +
+        var eventLine = '';
+    if (t.eventDate && /^\d{4}-\d{2}-\d{2}$/.test(String(t.eventDate))) {
+      var eventPlace = t.hub === 'RDU' ? ' · Cary, NC' : '';
+      eventLine = '<div style="font-size:var(--fs-micro);font-weight:800;color:var(--accent);margin-top:2px;padding-left:22px;">📅 event ' + dateFmt(new Date(t.eventDate+'T12:00:00'),'long') + eventPlace + '</div>';
+    }
+var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open?'true':'false')+'" aria-label="'+esc(t.title)+' — '+(open?'collapse':'expand')+' trip details" data-wl-id="'+t.id+'">' +
       '<div style="display:flex;align-items:center;gap:6px;">' +
         '<span style="font-size:.68rem;background:'+col+'22;color:'+colVar+';border-radius:50%;width:20px;height:20px;min-width:20px;display:inline-flex;align-items:center;justify-content:center;">'+st.emoji+'</span>' +
         '<span class="wl-title">'+esc(t.title)+'</span>' +
         '<span class="wl-est">'+estTxt+'</span>' +
         '<span class="wl-caret">'+(open?'▾':'▸')+'</span>' +
       '</div>' +
-      nextLineHtml + urgencyLine +
+      nextLineHtml + urgencyLine + eventLine +
     '</div>';
     var body = '';
     if (open) {
@@ -8908,6 +8961,7 @@ function renderWatchlist(){
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
           '<button class="wl-open wl-act" data-id="'+t.id+'" style="background:'+col+';color:var(--ink-on-warn);border:none;cursor:pointer;">Open ↗</button>' +
           (t._added ? '<button type="button" class="wl-share-trip wl-act" data-id="'+t.id+'" style="color:var(--accent);border:1px solid var(--accent);">🔗 Share idea</button>' : '') +
+          ((t.eventDate || (t.calendarEvents && t.calendarEvents.length)) ? '<button type="button" class="wl-calendar wl-act" data-id="'+t.id+'" style="color:var(--success);border:1px solid var(--success);">📅 Add to calendar</button>' : '') +
           bookedTripHtml +
           gfLinks.map(function(l){
             return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Search final options in Google Flights; set an alert there if you choose">🔎 '+(l.label ? esc(l.label) : 'Search route')+' ↗</a>';
@@ -8973,6 +9027,7 @@ function renderWatchlist(){
       '<details class="nt-more">' +
         '<summary>More details</summary>' +
 '<input id="nt-note" class="nt-input" type="text" placeholder="Reason (optional), e.g. cousin’s baby shower" />' +
+        '<input id="nt-event" class="nt-input" type="date" aria-label="Event date (optional)" title="Main event date" />' +
         '<button id="nt-thanksgiving" type="button" style="margin-top:6px;padding:4px 8px;font:inherit;font-size:var(--fs-micro);font-weight:800;color:var(--accent);background:var(--surface-2);border:1px solid var(--accent);border-radius:var(--rad-sm);">🦃 Use Thanksgiving dates</button>' +
         '<select id="nt-from" class="nt-input" title="From (home) airport" aria-label="From (home) airport">'+ntFromOpts+'</select>' +
         '<div id="nt-mode" style="display:flex;gap:4px;margin-top:6px;">' +
