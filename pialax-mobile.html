@@ -6315,17 +6315,20 @@ var _watchlistAdding = false; // PIA-031: true while the "＋ New trip" inline q
 // boundary, so an attribute can never be broken out of; drop the item if id is unusable.
 // Also normalizes an unknown stage, which would otherwise throw in the render sort.
 var WL_CODE_RE = /^[A-Za-z0-9_-]{1,32}$/;
+var WL_DEST_RE = /^[A-Za-z0-9 _&.,'-]{1,48}$/;
 function sanitizeWatchlistItem(a) {
   if (!a || typeof a !== 'object') return null;
   if (typeof a.id !== 'string' || !WL_CODE_RE.test(a.id)) return null;
-  var codeKeys = ['dest','origin','hub','key'];
+  var codeKeys = ['origin','hub','key'];
   for (var i = 0; i < codeKeys.length; i++) {
     var v = a[codeKeys[i]];
     if (v != null && (typeof v !== 'string' || !WL_CODE_RE.test(v))) return null;
   }
+  var destRe = a.mode === 'family' ? WL_DEST_RE : WL_CODE_RE;
+  if (a.dest != null && (typeof a.dest !== 'string' || !destRe.test(a.dest))) return null;
   if (a.gf && typeof a.gf === 'object') {
     if ((a.gf.from != null && !WL_CODE_RE.test(String(a.gf.from))) ||
-        (a.gf.to   != null && !WL_CODE_RE.test(String(a.gf.to)))) return null;
+        (a.gf.to   != null && !destRe.test(String(a.gf.to)))) return null;
   }
   if (!WATCHLIST_STAGES[a.stage]) a.stage = 'watching';
   if (a.mode !== 'family' && a.mode !== 'solo') a.mode = 'solo';
@@ -6440,6 +6443,21 @@ function sharePlan(){
     return (st.emoji||'') + ' ' + t.title + ' · ' + t.dep + (t.ret?'→'+t.ret:'') + (est!=null?' ≈ $'+est:'') + ' · ' + (st.lbl||t.stage);
   });
   var summary = '📋 Our trip plan (PIALAX):\n' + lines.join('\n') + '\n\n' + url;
+  if (typeof copyRouteText === 'function') copyRouteText(summary);
+  else if (typeof showShareToast === 'function') showShareToast('Copy: ' + url);
+}
+function shareWatchlistTrip(id){
+  var item = watchlistItem(id); if (!item) return;
+  var payload = { overrides:{}, added:[] };
+  if (item._added) payload.added.push(item);
+  else payload.overrides[item.id] = { stage:item.stage, notes:item.notes, nextAction:item.nextAction, blockers:item.blockers, dep:item.dep, ret:item.ret };
+  var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e) {}
+  var url = window.location.origin + window.location.pathname + '?wl=' + encodeURIComponent(enc);
+  var dateLine = item.dep ? item.dep + (item.ret ? ' → ' + item.ret : '') : 'Dates TBD';
+  var noteLine = item.notes ? '\nReason: ' + item.notes : '';
+  var summary = '📋 Proposed trip: ' + item.title + '\n' +
+    '📅 ' + dateLine + noteLine + '\n\n' +
+    'Open this idea in PIALAX: ' + url;
   if (typeof copyRouteText === 'function') copyRouteText(summary);
   else if (typeof showShareToast === 'function') showShareToast('Copy: ' + url);
 }
@@ -8526,7 +8544,10 @@ function wireTripGestures(sec){
     el.addEventListener('click', function(e){ e.stopPropagation(); setWatchlistStage(el.getAttribute('data-id'), 'completed'); });
   });
   sec.querySelectorAll('.wl-swipe-share').forEach(function(el){
-    el.addEventListener('click', function(e){ e.stopPropagation(); sharePlan(); });
+    el.addEventListener('click', function(e){ e.stopPropagation(); shareWatchlistTrip(el.getAttribute('data-id')); });
+  });
+  sec.querySelectorAll('.wl-share-trip').forEach(function(el){
+    el.addEventListener('click', function(e){ e.stopPropagation(); shareWatchlistTrip(el.getAttribute('data-id')); });
   });
 }
 document.addEventListener('keydown', function(e){
@@ -8536,6 +8557,7 @@ function openWatchlistTrip(id){
   _watchlistOpenId = null;
   var t = watchlistItem(id); if (!t) return;
   if (t.key) { applyHoliday(t.key, { dep: t.dep, ret: t.ret, skipToggle: true }); return; }
+  var customFamilyIdea = t.mode === 'family' && !t.hub;
   if (t.mode === 'solo') {
     S.home = t.origin || S.home; var hs=document.getElementById('home-sel'); if (hs) hs.value=S.home;
     // PIA-031: a dest the app doesn't model as a route (e.g. Memphis) won't be in
@@ -8547,11 +8569,19 @@ function openWatchlistTrip(id){
     }
     S.soloFocus = t.dest || null; if (S.mode !== 'solo') setMode('solo');
   } else {
-    if (t.hub) S.meetupHubOverride = t.hub; if (S.mode !== 'meetup') setMode('meetup');
+    if (customFamilyIdea) S.meetupHubOverride = null;
+    else if (t.hub && AIRPORTS[t.hub]) S.meetupHubOverride = t.hub;
+    if (S.mode !== 'meetup') setMode('meetup');
   }
   if (t.dep) S.depDate = new Date(t.dep + 'T12:00:00');
   S.retDate = t.ret ? new Date(t.ret + 'T12:00:00') : null;
   S.tripType = t.ret ? 'round' : 'one';
+  if (customFamilyIdea) {
+    _watchlistOpenId = t.id;
+    renderWatchlist();
+    showShareToast('Family idea loaded — review the event details');
+    return;
+  }
   updateDateUI(); renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap(); loadPrices(); syncURL();
 }
 // PIA-057: save one solo card's setup (home airport + current dates) to the
@@ -8656,28 +8686,37 @@ function addCurrentToWatchlist(){
 // PIA-031: quick-add ANY destination — even a city the app doesn't model as a
 // route (e.g. Memphis) — as a watchlist item in ≤2 clicks. Reuses the exact
 // item shape + Thu→Sun default from addCurrentToWatchlist above.
+function setNewTripThanksgiving(){
+  var depEl = document.getElementById('nt-dep'), retEl = document.getElementById('nt-ret');
+  var dep = HOLIDAYS.thanksgiving;
+  if (!dep || !depEl || !retEl) return;
+  var ret = new Date(dep); ret.setDate(ret.getDate() + 3);
+  depEl.value = fmtISO(dep); retEl.value = fmtISO(ret);
+  showShareToast('Thanksgiving dates loaded');
+}
 function addNewTrip(){
   var destEl = document.getElementById('nt-dest');
   var depEl = document.getElementById('nt-dep');
   var retEl = document.getElementById('nt-ret');
+  var noteEl = document.getElementById('nt-note');
   var modeBtn = document.querySelector('#nt-mode .nt-mode-btn.on');
   var rawDest = destEl ? destEl.value.trim() : '';
   if (!rawDest) { showShareToast('Enter a destination'); return; }
-  // Codes reach HTML attributes (data-dest) — keep them attribute-safe by construction.
-  var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : rawDest.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32);
-  if (!dest) { showShareToast('Enter a valid destination'); return; }
   var mode = (modeBtn && modeBtn.getAttribute('data-v') === 'family') ? 'family' : 'solo';
+  // Preserve readable event destinations (e.g. North Carolina) only for family ideas.
+  var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : (mode === 'family' ? rawDest.replace(/[^A-Za-z0-9 &'.,-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 48) : rawDest.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32));
+  if (!dest) { showShareToast('Enter a valid destination'); return; }
   // PIA-059: origin comes from the form's From selector, not silently from S.home.
   var fromEl = document.getElementById('nt-from');
   var origin = (fromEl && AIRPORTS[fromEl.value]) ? fromEl.value : S.home;
   var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
   var ret = (dep && retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
   var item = {
-    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest,
+    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest, hub:null,
     dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
-    title:(dest+' — '+mode+' trip'), routeTxt:(origin+' → '+dest),
+    title:(dest+' — '+(mode==='family'?'family meetup idea':'solo trip')), routeTxt:(origin+' → '+dest),
     gf:{ from:origin, to:dest },
-    notes:'', reminders:[], nextAction:'', blockers:[]
+    notes:noteEl ? noteEl.value.trim() : '', reminders:[], nextAction:'', blockers:[]
   };
   WATCHLIST.push(item); saveWatchlist();
   if (mode === 'solo') {
@@ -8848,6 +8887,7 @@ function renderWatchlist(){
       var actions =
         '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
           '<button class="wl-open wl-act" data-id="'+t.id+'" style="background:'+col+';color:var(--ink-on-warn);border:none;cursor:pointer;">Open ↗</button>' +
+          (t._added ? '<button type="button" class="wl-share-trip wl-act" data-id="'+t.id+'" style="color:var(--accent);border:1px solid var(--accent);">🔗 Share idea</button>' : '') +
           bookedTripHtml +
           gfLinks.map(function(l){
             return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Search final options in Google Flights; set an alert there if you choose">🔎 '+(l.label ? esc(l.label) : 'Search route')+' ↗</a>';
@@ -8912,6 +8952,8 @@ function renderWatchlist(){
       '</div>' +
       '<details class="nt-more">' +
         '<summary>More details</summary>' +
+'<input id="nt-note" class="nt-input" type="text" placeholder="Reason (optional), e.g. cousin’s baby shower" />' +
+        '<button id="nt-thanksgiving" type="button" style="margin-top:6px;padding:4px 8px;font:inherit;font-size:var(--fs-micro);font-weight:800;color:var(--accent);background:var(--surface-2);border:1px solid var(--accent);border-radius:var(--rad-sm);">🦃 Use Thanksgiving dates</button>' +
         '<select id="nt-from" class="nt-input" title="From (home) airport" aria-label="From (home) airport">'+ntFromOpts+'</select>' +
         '<div id="nt-mode" style="display:flex;gap:4px;margin-top:6px;">' +
           '<button type="button" class="nt-mode-btn'+(ntPrefillMode==='solo'?' on':'')+'" data-v="solo">Just me</button>' +
@@ -9066,6 +9108,7 @@ var hdr = sec.querySelector('#wl-hdr');
     });
   });
   var ntSave = sec.querySelector('#nt-save'); if (ntSave) ntSave.addEventListener('click', addNewTrip);
+  var ntThanks = sec.querySelector('#nt-thanksgiving'); if (ntThanks) ntThanks.addEventListener('click', setNewTripThanksgiving);
   var ntCancel = sec.querySelector('#nt-cancel'); if (ntCancel) ntCancel.addEventListener('click', function(){ _watchlistAdding=false; renderWatchlist(); });
   var shr = sec.querySelector('#wl-share'); if (shr) shr.addEventListener('click', sharePlan);
   wireTripGestures(sec);
@@ -9256,7 +9299,7 @@ syncPressedState();
 // Watchlist "Open ↗" drills into the plan surface. Delegated so the existing
 // per-render .wl-open handler (openWatchlistTrip) stays untouched and fires first.
 document.addEventListener('click', function(e){
-  if (e.target && e.target.closest && e.target.closest('.wl-open')) setActiveTab('plan');
+  if (e.target && e.target.closest && e.target.closest('.wl-open')) { var openId = e.target.closest('.wl-open').getAttribute('data-id'); var openTrip = watchlistItem(openId); setActiveTab(openTrip && openTrip.mode === 'family' && !openTrip.hub ? 'watchlist' : 'plan'); }
 });
 
 window.addEventListener('orientationchange', function() {
