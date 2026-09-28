@@ -1073,8 +1073,8 @@ button{font-family:inherit;cursor:pointer;}
   <div id="map-wrap">
     <svg id="map-svg"></svg>
     <div id="map-toggle">
-      <button class="mt-btn on" data-view="us" aria-pressed="true" aria-label="US map view">🇺🇸 US</button>
-      <button class="mt-btn" data-view="world" aria-pressed="false" aria-label="World map view">🌍 World</button>
+      <button class="mt-btn on" data-view="us" aria-pressed="true" aria-label="USA map view">🇺🇸 USA</button>
+      <button class="mt-btn" data-view="world" aria-pressed="false" aria-label="Global map view">🌍 Global</button>
     </div>
     <div id="route-picker" aria-label="Basic route picker">
       <div class="rp-kicker" id="rp-kicker">Basic route</div>
@@ -1447,7 +1447,8 @@ var S = {
   // burning SerpAPI quota (each new lock = 1 fetch).
   soloPreview: null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
-  mapView:'world', worldGeo:null, worldGeoFallback:false,
+  // USA is the planning context; Global is an explicit expansion for international trips.
+  mapView:'us', worldGeo:null, worldGeoFallback:false,
   _booting:true,
   // Per-member flex dates: { PIA: {dep, ret}, JAX: {...} } — only members with overrides have entries.
   // When absent for a member, the global S.depDate / S.retDate is used.

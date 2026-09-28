@@ -1729,8 +1729,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
       </div>
       <div class="map-tool-row">
         <div id="map-toggle" aria-label="Map region">
-          <button class="mt-btn on" data-view="us" aria-pressed="true" aria-label="US map view">🇺🇸 US</button>
-          <button class="mt-btn" data-view="world" aria-pressed="false" aria-label="World map view">🌍 World</button>
+          <button class="mt-btn on" data-view="us" aria-pressed="true" aria-label="USA map view">🇺🇸 USA</button>
+          <button class="mt-btn" data-view="world" aria-pressed="false" aria-label="Global map view">🌍 Global</button>
         </div>
       </div>
       <div id="route-picker" aria-label="Basic route picker">
@@ -2189,7 +2189,8 @@ var S = {
   focusMember: null,
   tentativeMembers: [],
   memberStatus: {}, // PIA-023: code → 'in'|'tentative'|'out' (hub resident = hosting)
-  mapView:'world', worldGeo:null, worldGeoFallback:false,
+  // USA is the planning context; Global is an explicit expansion for international trips.
+  mapView:'us', worldGeo:null, worldGeoFallback:false,
   _booting:true,
 };
 function dests() { return ROUTE_GRAPH[S.home] || []; }
