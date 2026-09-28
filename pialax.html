@@ -352,6 +352,11 @@ button{font-family:inherit;cursor:pointer;}
 #shell-status{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;gap:var(--sp-4);min-width:0;flex-wrap:wrap;}
 #panel-watchlist,#panel-planner{display:flex;flex-direction:column;gap:8px;}
 #panel-watchlist .wl-card:not(.wl-sheet-open) .wl-next-line,#panel-watchlist .wl-card:not(.wl-sheet-open) .ta-row-next,#panel-watchlist .wl-card:not(.wl-sheet-open) .wl-next-hint{display:none!important;}
+#panel-watchlist .wl-history-card,#panel-watchlist .wl-history-header{display:none;}
+#watchlist-section.history-open .wl-history-card{display:block;}
+#watchlist-section.history-open .wl-history-header{display:flex;}
+#wl-history-toggle{border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink-muted);border-radius:var(--rad-pill);padding:3px 8px;font:inherit;font-size:var(--fs-micro);font-weight:800;cursor:pointer;}
+#wl-history-toggle:hover{border-color:var(--accent);color:var(--accent);}
 #sb.wl-home{width:340px;}
 
 /* ── Sidebar ── */
@@ -5025,10 +5030,13 @@ function redrawMap() {
             .attr('stroke-dasharray', isPiaDriving ? '4,4' : '10,6').attr('class','ra').attr('opacity',0.88);
           var dist = Math.hypot(hubXY[0]-fromXY[0], hubXY[1]-fromXY[1]);
           var bx = (fromXY[0]+hubXY[0])/2, by = (fromXY[1]+hubXY[1])/2 - dist*.2 - 10;
+          var meetupShift = { LAX:[-10,-8], PIA:[18,12], ORD:[-4,-18], LGA:[16,12], JFK:[-18,-4] }[from] || [0,0];
+          bx += meetupShift[0]; by += meetupShift[1];
           var lbl = isPiaDriving ? ('🚗 $'+ORD_DRIVE_TAX) : (price ? '$'+price+(S.tripType==='round'?' RT':' OW') : '…');
-          svg.append('g').call(function(bg){
-            bg.append('rect').attr('x',bx-34).attr('y',by-14).attr('width',68).attr('height',22).attr('rx',11).attr('fill',fromCol).attr('opacity',0.88);
-            bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').text(lbl);
+          var tagW = Math.max(78, lbl.length * 7 + 22);
+          svg.append('g').attr('class','map-price-tag').call(function(bg){
+            bg.append('rect').attr('x',bx-tagW/2).attr('y',by-15).attr('width',tagW).attr('height',26).attr('rx',13).attr('fill',fromCol).attr('opacity',0.96).attr('stroke','#ffffff').attr('stroke-opacity',0.24);
+            bg.append('text').attr('x',bx).attr('y',by+3).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',12.5).attr('font-weight',900).attr('font-family','system-ui,sans-serif').text(lbl);
           });
         });
       }
@@ -5064,8 +5072,8 @@ function redrawMap() {
         .on('mouseleave', hideTip);
       if (!isOther) {
         var labelY = isHub ? -26 : -20;
-        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',col).attr('font-size',isHub?14:11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHub?'var(--map-label)':'var(--map-label-dim)').attr('font-size',8).attr('font-weight',isHub?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHub?'★ MEETUP':ap.name.split(',')[0]);
+        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',col).attr('font-size',isHub?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
+        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHub?'var(--map-label)':'var(--map-label-dim)').attr('font-size',isHub?10:9).attr('font-weight',isHub?800:600).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',3).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(isHub?'★ MEETUP':ap.name.split(',')[0]);
       }
     });
 
@@ -5093,10 +5101,13 @@ function redrawMap() {
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',routeSelected?3.8:2.2).attr('stroke-dasharray','10,6').attr('class','ra').attr('marker-end','url(#arr-'+code+')').attr('opacity',arcAlpha);
       var dist=Math.hypot(xy[0]-homeXY[0],xy[1]-homeXY[1]);
       var bx=(homeXY[0]+xy[0])/2, by=(homeXY[1]+xy[1])/2-dist*.2-10;
+      var soloShift = { PIA:[-20,18], ORD:[18,-12], LGA:[18,14], JFK:[-18,-4], CUZ:[10,12], LIM:[-10,-10] }[code] || [0,0];
+      bx += soloShift[0]; by += soloShift[1];
       var lbl=price?('$'+price+(S.tripType==='round'?' RT':' OW')):'…';
-      svg.append('g').call(function(bg){
-        bg.append('rect').attr('x',bx-32).attr('y',by-14).attr('width',64).attr('height',22).attr('rx',11).attr('fill',col).attr('opacity',labelAlpha);
-        bg.append('text').attr('x',bx).attr('y',by+2).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',arcAlpha).text(lbl);
+      var tagW=Math.max(78, lbl.length*7+22);
+      svg.append('g').attr('class','map-price-tag').call(function(bg){
+        bg.append('rect').attr('x',bx-tagW/2).attr('y',by-15).attr('width',tagW).attr('height',26).attr('rx',13).attr('fill',col).attr('opacity',labelAlpha).attr('stroke','#ffffff').attr('stroke-opacity',0.24);
+        bg.append('text').attr('x',bx).attr('y',by+3).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',12.5).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('opacity',arcAlpha).text(lbl);
       });
     });
 
@@ -5123,8 +5134,8 @@ function redrawMap() {
         .on('mouseleave', hideTip);
       if (!isOther) {
         var labelY=isHome?-26:-20;
-        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',isHome?'#10b981':col).attr('font-size',isHome?14:11).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHome?'var(--map-label-home)':'var(--map-label-dim)').attr('font-size',8).attr('font-weight',isHome?700:400).attr('font-family','system-ui,sans-serif').attr('pointer-events','none').text(isHome?'⌂ HOME':ap.name.split(',')[0]);
+        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',isHome?'#10b981':col).attr('font-size',isHome?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
+        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHome?'var(--map-label-home)':'var(--map-label-dim)').attr('font-size',isHome?10:9).attr('font-weight',isHome?800:600).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',3).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(isHome?'⌂ HOME':ap.name.split(',')[0]);
       }
     });
   }
@@ -5968,6 +5979,7 @@ var WATCHLIST_SEED = [
 ];
 var WATCHLIST = [];
 var _watchlistCollapsed = false;
+var _watchlistHistoryOpen = false;
 // PIA-046 (audit defect): one expanded trip at a time. Was a map, so every card
 // the user ever opened stayed open, stacking into an unreadable wall on mobile.
 var _watchlistOpenId = null;
@@ -8397,11 +8409,15 @@ function renderWatchlist(){
     return d != null && d >= 0 && d <= 7;
   }).length;
 
+  var historyCount = counts.booked + counts.completed;
+  var historyLabel = _watchlistHistoryOpen ? 'Hide booked' : 'Show booked';
+  var historyButton = historyCount ? '<button type="button" id="wl-history-toggle" aria-expanded="'+(_watchlistHistoryOpen?'true':'false')+'">'+historyLabel+' · '+historyCount+'</button>' : '';
+  sec.classList.toggle('history-open', _watchlistHistoryOpen);
   var header =
     '<div class="trip-ideas-intro" id="wl-hdr" role="button" tabindex="0" aria-expanded="'+(!_watchlistCollapsed?'true':'false')+'">' +
       '<strong>📋 Trip Ideas</strong>' +
       '<span class="wl-summary">' +
-        activeCount + ' active' + (counts.booked>0 ? ' · '+counts.booked+' booked' : '') + (urgentCount>0 ? ' · 🔴 '+urgentCount+' urgent' : '') + ' ' + (_watchlistCollapsed?'▸':'▾') +
+        activeCount + ' active' + (urgentCount>0 ? ' · 🔴 '+urgentCount+' urgent' : '') + ' ' + historyButton + ' ' + (_watchlistCollapsed?'▸':'▾') +
       '</span>' +
     '</div>';
   if (_watchlistCollapsed) { sec.innerHTML = header; wireWatchlist(sec); return; }
@@ -8477,7 +8493,7 @@ function renderWatchlist(){
     var groupHdr = '';
     if (t.stage !== _lastStage) {
       _lastStage = t.stage;
-      groupHdr = '<div class="wl-stage-hdr" style="color:'+colVar+';">' +
+      groupHdr = '<div class="wl-stage-hdr '+((t.stage==='booked'||t.stage==='completed')?'wl-history-header':'')+'" style="color:'+colVar+';">' +
         '<span>'+st.emoji+' '+st.lbl+'</span>' +
         '<span class="wl-stage-count">· '+(counts[t.stage]||0)+'</span>' +
       '</div>';
@@ -8556,7 +8572,7 @@ function renderWatchlist(){
       : (urgency === 'amber')
       ? 'border-color:var(--warn,#f59e0b);border-left-color:var(--warn,#f59e0b);background:'+col+'0f;'
       : 'border-color:'+col+'55;border-left-color:'+col+';background:'+col+'0f;';
-    return groupHdr + '<div class="wl-card'+(open?' wl-sheet-open':'')+'" style="' + cardStyle + '">' +
+    return groupHdr + '<div class="wl-card'+((t.stage==='booked'||t.stage==='completed')?' wl-history-card':'')+(open?' wl-sheet-open':'')+'" style="' + cardStyle + '">' +
       row + body + '<div class="wl-swipe-actions" data-id="'+t.id+'">' +
         '<button type="button" class="wl-swipe-done" data-id="'+t.id+'">Mark done</button>' +
         '<button type="button" class="wl-swipe-share" data-id="'+t.id+'">Share</button>' +
@@ -8612,6 +8628,8 @@ function renderWatchlist(){
 }
 function wireWatchlist(sec){
 var hdr = sec.querySelector('#wl-hdr');
+  var historyToggle = sec.querySelector('#wl-history-toggle');
+  if (historyToggle) historyToggle.addEventListener('click', function(e){ e.stopPropagation(); _watchlistHistoryOpen=!_watchlistHistoryOpen; renderWatchlist(); });
   if (hdr) {
     function toggleIdeas(){ _watchlistCollapsed=!_watchlistCollapsed; renderWatchlist(); }
     hdr.addEventListener('click', toggleIdeas);
