@@ -646,7 +646,11 @@ button{font-family:inherit;cursor:pointer;}
 
 /* ── Main ── */
 #main{flex:1;display:flex;flex-direction:column;min-width:0;}
-#topbar{padding:9px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
+#topbar{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:18px;flex-shrink:0;background:linear-gradient(180deg,var(--surface) 0%,var(--bg) 100%);}
+#topbar .tb-l{min-width:0;}
+#topbar .tb-l::before{content:'PLAN WORKSPACE';display:block;margin-bottom:4px;color:var(--accent);font-size:var(--fs-micro);font-weight:900;letter-spacing:.14em;}
+#topbar h2{font-size:1.12rem;letter-spacing:-.02em;}
+#topbar p{margin-top:3px;color:var(--ink-muted);font-size:var(--fs-caption);}
 .tb-l h2{font-size:var(--fs-title);font-weight:800;color:var(--ink);}
 .tb-l p{font-size:var(--fs-caption);color:var(--ink-muted);margin-top:1px;}
 .tb-r{display:flex;align-items:center;gap:8px;}
@@ -655,6 +659,12 @@ button{font-family:inherit;cursor:pointer;}
 /* ── Meetup strip (compact hero + rank) — PIA-035 tokens ── */
 #meetup-strip{flex-shrink:0;padding:7px 18px;border-bottom:1px solid rgba(16,185,129,.2);background:linear-gradient(90deg,var(--success-dim) 0%,var(--accent-soft) 100%);display:flex;align-items:center;gap:var(--sp-3);min-height:44px;animation:stripBorder var(--dur-strip) ease-in-out infinite;}
 #meetup-strip.no-date{background:var(--warn-dim);border-bottom-color:rgba(245,158,11,.25);}
+
+.meetup-wl-row{display:flex;align-items:center;gap:7px;margin-top:7px;}
+.meetup-wl-btn{min-height:40px;padding:7px 11px;border:1px solid var(--accent);border-radius:var(--rad-md);background:var(--accent-soft);color:var(--accent);font:inherit;font-size:var(--fs-tiny);font-weight:900;cursor:pointer;}
+.meetup-wl-btn.saved{border-color:var(--success);background:var(--success-dim);color:var(--success);}
+.meetup-wl-note{font-size:var(--fs-micro);color:var(--ink-muted);}
+
 @keyframes stripBorder{0%,100%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.2)}50%{box-shadow:inset 0 -1px 0 0 rgba(16,185,129,.55),0 1px 12px rgba(16,185,129,.07)}}
 .ms-badge{font-size:var(--fs-micro);font-weight:800;padding:2px 8px;border-radius:var(--rad-pill);background:var(--success);color:var(--ink-on-accent);white-space:nowrap;flex-shrink:0;letter-spacing:.03em;}
 .ms-badge.sug{background:var(--warn);color:var(--ink-on-warn);}
@@ -710,6 +720,18 @@ button{font-family:inherit;cursor:pointer;}
 
 /* ── Map ── */
 #map-wrap{flex:1;position:relative;overflow:hidden;}
+#main > #map-wrap{margin:12px 18px 0;min-height:260px;border:1px solid var(--line-strong);border-radius:var(--rad-lg);background:var(--map-bg);box-shadow:var(--shadow-1);}
+#decision-rail{display:grid;grid-template-columns:minmax(220px,1.35fr) repeat(3,minmax(110px,.7fr));gap:10px;align-items:stretch;margin:12px 18px 0;padding:12px 14px;background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--rad-lg);box-shadow:var(--shadow-1);}
+#decision-rail .decision-copy{min-width:0;padding-right:10px;border-right:1px solid var(--line);}
+#decision-rail .decision-eyebrow{font-size:var(--fs-micro);font-weight:900;letter-spacing:.13em;color:var(--success);text-transform:uppercase;}
+#decision-rail .decision-title{margin-top:4px;font-size:var(--fs-title);font-weight:900;color:var(--ink);}
+#decision-rail .decision-sub{margin-top:3px;font-size:var(--fs-caption);line-height:var(--lh-normal);color:var(--ink-muted);}
+#decision-rail .decision-metric{display:flex;flex-direction:column;justify-content:center;min-width:0;padding:2px 8px;}
+#decision-rail .decision-metric span{font-size:var(--fs-micro);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
+#decision-rail .decision-metric strong{margin-top:5px;font-size:var(--fs-body);line-height:var(--lh-tight);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#decision-rail .decision-metric strong[data-tone="success"]{color:var(--success);}
+#decision-rail .decision-metric strong[data-tone="warn"]{color:var(--warn);}
+#decision-rail .decision-metric strong[data-tone="accent"]{color:var(--accent);}
 #map-svg{width:100%;height:100%;display:block;}
 #tip{position:absolute;pointer-events:none;display:none;background:var(--tooltip-bg);border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:7px 11px;font-size:var(--fs-caption);color:var(--ink);box-shadow:var(--shadow-2);z-index:200;max-width:230px;line-height:1.55;}
 #map-leg{position:absolute;bottom:16px;right:16px;background:var(--overlay-bg);border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:9px 12px;backdrop-filter:blur(10px);}
@@ -744,7 +766,7 @@ button{font-family:inherit;cursor:pointer;}
 .map-hit{cursor:pointer;}
 @media (max-width:640px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
 /* ── Stats bar ── */
-#statsbar{padding:7px 18px;border-top:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
+#statsbar{margin:10px 18px 12px;padding:8px 12px;border:1px solid var(--line);border-radius:var(--rad-md);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--surface);}
 .si{font-size:var(--fs-caption);color:var(--ink-muted);}
 .si strong{color:var(--ink-muted);font-weight:700;}
 
@@ -764,7 +786,7 @@ button{font-family:inherit;cursor:pointer;}
 
   /* Map on top */
   #main{order:1;flex:none;width:100%;height:44vw;min-height:220px;position:relative;}
-  #map-wrap{width:100%;height:100%;}
+  #map-wrap{width:100%;height:100%;margin:0!important;border:0!important;border-radius:0!important;box-shadow:none!important;}
   #statsbar{display:none!important;}
 
   /* Sidebar below map */
@@ -779,6 +801,10 @@ button{font-family:inherit;cursor:pointer;}
 
   /* Meetup strip wraps on mobile */
   #meetup-strip{flex-wrap:wrap;padding:10px 14px;gap:8px;}
+  #decision-rail{grid-template-columns:1fr 1fr;gap:8px;margin:10px 12px 0;padding:10px;}
+  #decision-rail .decision-copy{grid-column:1/-1;padding-right:0;padding-bottom:8px;border-right:0;border-bottom:1px solid var(--line);}
+  #decision-rail .decision-metric{padding:4px 6px;}
+  #decision-rail .decision-metric strong{font-size:var(--fs-caption);}
   .ms-best{min-width:100%;flex:1 1 100%;}
   .ms-sep{display:none;}
   .ms-ranks{flex-wrap:wrap;gap:6px;}
@@ -1032,6 +1058,17 @@ button{font-family:inherit;cursor:pointer;}
   </div>
 
   <div id="meetup-strip"></div>
+
+  <section id="decision-rail" aria-label="Trip decision summary">
+    <div class="decision-copy">
+      <div class="decision-eyebrow">At a glance</div>
+      <div class="decision-title" id="decision-title">Family meetup workspace</div>
+      <div class="decision-sub" id="decision-sub">Choose dates to compare the total family cost.</div>
+    </div>
+    <div class="decision-metric"><span id="decision-primary-label">Best hub</span><strong id="decision-primary">—</strong></div>
+    <div class="decision-metric"><span>Family total</span><strong id="decision-total" data-tone="success">—</strong></div>
+    <div class="decision-metric"><span>Signal</span><strong id="decision-signal" data-tone="accent">—</strong></div>
+  </section>
 
   <div id="map-wrap">
     <svg id="map-svg"></svg>
@@ -2004,6 +2041,72 @@ function getNextHoliday() {
   return next;
 }
 
+// ── DECISION RAIL (IA revamp) ─────────────────────────────────────
+function renderDecisionRail() {
+  var rail = document.getElementById('decision-rail');
+  if (!rail) return;
+  var title = document.getElementById('decision-title');
+  var sub = document.getElementById('decision-sub');
+  var primaryLabel = document.getElementById('decision-primary-label');
+  var primary = document.getElementById('decision-primary');
+  var total = document.getElementById('decision-total');
+  var signal = document.getElementById('decision-signal');
+  var app = document.getElementById('app');
+  var view = (app && app.dataset.view) || 'meetup';
+  var isRT = S.tripType === 'round';
+  var fareLabel = isRT ? 'RT' : 'OW';
+  if (view === 'watchlist') {
+    var wl = (typeof WATCHLIST !== 'undefined' && Array.isArray(WATCHLIST)) ? WATCHLIST : [];
+    var active = wl.filter(function(t){ return t.stage === 'watching' || t.stage === 'planning'; }).length;
+    var booked = wl.filter(function(t){ return t.stage === 'booked'; }).length;
+    title.textContent = 'Trip ideas, ready when you are';
+    sub.textContent = active ? active + ' active trip' + (active === 1 ? '' : 's') + ' need a next move.' : 'Save a trip from Family Plan to keep its dates, hub, and actions together.';
+    primaryLabel.textContent = 'Active ideas';
+    primary.textContent = String(active);
+    total.textContent = booked + ' booked';
+    signal.textContent = active ? 'Pick a next move' : 'Add a trip';
+    signal.dataset.tone = active ? 'accent' : 'warn';
+    return;
+  }
+  if (view === 'map') {
+    title.textContent = 'Route context';
+    sub.textContent = 'Use the map to compare geography after the trip decision is clear.';
+    primaryLabel.textContent = 'Map view';
+    primary.textContent = S.mapView === 'world' ? 'World' : 'United States';
+    total.textContent = S.mode === 'meetup' ? 'Family routes' : 'Solo routes';
+    signal.textContent = 'Tap a route';
+    signal.dataset.tone = 'accent';
+    return;
+  }
+  if (S.mode === 'meetup') {
+    var ranking = computeRanking();
+    var hub = getActiveHub(ranking);
+    var row = ranking.filter(function(r){ return r.dest === hub; })[0] || ranking[0];
+    var info = row && AIRPORTS[row.dest];
+    var city = row ? (row.isORD ? 'Chicago' : (info ? info.name.split(',')[0] : row.dest)) : '—';
+    var dateText = S.depDate ? dateFmt(S.depDate) + (S.retDate && isRT ? ' → ' + dateFmt(S.retDate) : '') : 'Choose dates or a holiday preset';
+    title.textContent = 'Family meetup decision';
+    sub.textContent = dateText;
+    primaryLabel.textContent = 'Recommended hub';
+    primary.textContent = row ? city + ' · ' + row.dest : '—';
+    total.textContent = row ? '≈ $' + row.total + ' ' + fareLabel : '—';
+    signal.textContent = row && row.savings > 0 ? 'Save ≈ $' + row.savings : (S.depDate ? 'Compare routes' : 'Pick a weekend');
+    signal.dataset.tone = row && row.savings > 0 ? 'success' : 'accent';
+    return;
+  }
+  var soloDest = S.soloFocus || (dests()[0] || null);
+  var soloPrice = soloDest && S.prices[S.home + '-' + soloDest];
+  if (!soloPrice && soloDest) soloPrice = getMock(S.home, soloDest);
+  var soloInfo = soloDest && AIRPORTS[soloDest];
+  title.textContent = 'Solo weekend decision';
+  sub.textContent = S.depDate ? dateFmt(S.depDate) + (S.retDate && isRT ? ' → ' + dateFmt(S.retDate) : '') : 'Pick a weekend from the fare cards below.';
+  primaryLabel.textContent = 'Route';
+  primary.textContent = soloDest ? S.home + ' → ' + soloDest : '—';
+  total.textContent = soloPrice ? '≈ $' + (isRT ? (soloPrice.rt || soloPrice.ow) : soloPrice.ow) + ' ' + fareLabel : '—';
+  signal.textContent = soloInfo ? 'Best weekend below' : 'Not modeled';
+  signal.dataset.tone = soloInfo ? 'accent' : 'warn';
+}
+
 // ── MEETUP STRIP (compact hero + rank chips) ─────────────────────
 function renderMeetupStrip() {
   var strip = document.getElementById('meetup-strip');
@@ -2083,9 +2186,12 @@ function renderMeetupStrip() {
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:5px 8px;background:var(--accent-soft);border:1px dashed var(--accent);border-radius:var(--rad-md);">' + datePillsHtml + stayTxt + '</div>' +
         '<div class="ms-sub" style="margin-top:4px;">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
+         meetupWatchlistActionHtml(activeHub) +
       '</div>' +
     '</div>';
   strip.innerHTML = bestHtml + completedTripMarker();
+  wireMeetupWatchlistAction();
+  renderDecisionRail();
   renderMeetupRoutes();
 }
 
@@ -3467,6 +3573,30 @@ function setBarFocus(dest, weekend) {
   if (S.mode === 'solo') redrawMap();
 }
 
+function updateDesktopShellChrome() {
+  var titleEl = document.getElementById('tb-title');
+  var subEl = document.getElementById('tb-sub');
+  var strip = document.getElementById('meetup-strip');
+  var view = (typeof _activeView === 'string') ? _activeView : 'meetup';
+  var isPlanner = view === 'meetup';
+  var isMeetup = S.mode === 'meetup';
+  if (strip) strip.style.display = (isPlanner && isMeetup) ? '' : 'none';
+  if (!titleEl || !subEl) return;
+  if (view === 'watchlist') {
+    titleEl.textContent = 'Trip Ideas';
+    subEl.textContent = 'Saved plans, next actions, and decision context';
+  } else if (view === 'map') {
+    titleEl.textContent = 'Route Map';
+    subEl.textContent = 'Geographic context for your selected family or solo routes';
+  } else if (isMeetup) {
+    titleEl.textContent = 'Family Meetup';
+    subEl.textContent = AIRPORTS[S.home].full + ' · compare the total cost to gather';
+  } else {
+    titleEl.textContent = 'Routes from ' + AIRPORTS[S.home].code;
+    subEl.textContent = AIRPORTS[S.home].full + ' → ' + dests().join(', ');
+  }
+}
+
 function setMode(mode) {
   S.mode = mode;
   updateRoutePicker();
@@ -3499,6 +3629,8 @@ function setMode(mode) {
   }
   rebuildLegend();
   updateRoutePicker();
+  updateDesktopShellChrome();
+  renderDecisionRail();
   syncURL();
 }
 
@@ -8120,12 +8252,66 @@ function saveSoloTrip(dest, depISO, retISO){
 }
 // Snapshot the CURRENT dashboard view as a new watched trip. Defaults to a
 // Thursday→Sunday weekend when no dates are set (per Ashwin's Thu-night→Sun-night rule).
+function currentWatchlistDates(){
+  var dep = S.depDate, ret = S.retDate;
+  if (!dep) {
+    var d = new Date(today), toThu = (4 - d.getDay() + 7) % 7 || 7;
+    dep = new Date(d); dep.setDate(d.getDate() + toThu);
+    ret = new Date(dep); ret.setDate(dep.getDate() + 3);
+  }
+  if (S.tripType === 'one') ret = null;
+  return { dep: fmtISO(dep), ret: ret ? fmtISO(ret) : null };
+}
+function activeFamilyWatchlistItem(hub, dates){
+  if (!hub || typeof WATCHLIST === 'undefined' || !Array.isArray(WATCHLIST)) return null;
+  return WATCHLIST.find(function(t){
+    return t.mode === 'family' && t.hub === hub && t.stage !== 'booked' && t.stage !== 'completed' &&
+      (!dates || (t.dep === dates.dep && (t.ret || '') === (dates.ret || '')));
+  }) || null;
+}
+function meetupWatchlistActionHtml(hub){
+  var dates = currentWatchlistDates(), item = activeFamilyWatchlistItem(hub, dates);
+  var exact = !!item;
+  var label = exact ? '✓ In Trip Ideas' : '☆ Add to Trip Ideas';
+  var title = exact ? 'This family meetup is already in Trip Ideas' : 'Save this selected family meetup to Trip Ideas';
+  return '<div class="meetup-wl-row"><button type="button" id="meetup-save-btn" class="meetup-wl-btn' + (exact ? ' saved' : '') + '" aria-pressed="' + (exact ? 'true' : 'false') + '" title="' + title + '">' + label + '</button><span class="meetup-wl-note">Keeps the hub and dates together.</span></div>';
+}
+function wireMeetupWatchlistAction(){
+  var btn = document.getElementById('meetup-save-btn');
+  if (btn) btn.addEventListener('click', function(e){ e.stopPropagation(); saveCurrentFamilyToWatchlist(); });
+}
+function saveCurrentFamilyToWatchlist(){
+  if (S.mode !== 'meetup') return;
+  var ranking = computeRanking(), hub = getActiveHub(ranking);
+  if (!hub) { showShareToast('Choose a family meetup hub first'); return; }
+  var dates = currentWatchlistDates(), item = activeFamilyWatchlistItem(hub, dates);
+  var routeTxt = 'Family → ' + hub;
+  if (item) {
+    item.origin = S.home; item.hub = hub; item.dest = null;
+    item.title = routeTxt; item.routeTxt = routeTxt;
+    item.dep = dates.dep; item.ret = dates.ret;
+    item.gf = { from: S.home, to: hub };
+    saveWatchlist(); renderWatchlist(); renderMeetupStrip();
+    showShareToast('↻ Updated ' + routeTxt + ' in Trip Ideas');
+    return;
+  }
+  WATCHLIST.push({
+    id:'w'+Date.now(), _added:true, key:null, mode:'family', title:routeTxt,
+    routeTxt:routeTxt, hub:hub, origin:S.home, dest:null, dep:dates.dep, ret:dates.ret,
+    stage:'watching', notes:'', reminders:[], nextAction:'', blockers:[],
+    gf:{ from:S.home, to:hub }
+  });
+  saveWatchlist(); renderWatchlist(); renderMeetupStrip();
+  showShareToast('✓ Added ' + routeTxt + ' to Trip Ideas');
+}
+
 function addCurrentToWatchlist(){
   var dep = S.depDate, ret = S.retDate;
   if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
   var isFam = (S.mode === 'meetup');
-  var hub = isFam ? getActiveHub(computeRanking()) : null;
-  var dest = !isFam ? (S.soloFocus || (dests()[0]||null)) : null;
+  if (isFam) { saveCurrentFamilyToWatchlist(); return; }
+  var hub = null;
+  var dest = S.soloFocus || (dests()[0]||null);
   var routeTxt = isFam ? ('Family → ' + (hub||'?')) : (S.home + ' → ' + (dest||'?'));
   var item = {
     id:'w'+Date.now(), _added:true, key:null, mode:isFam?'family':'solo', title:routeTxt,
@@ -8568,6 +8754,8 @@ var _activeView = 'watchlist';
 function setView(view) {
   if (view === 'calendar') { openCal('dep'); return; } // launcher, not a surface
   _activeView = view;
+  var app = document.getElementById('app');
+  if (app) app.dataset.view = view;
   var sb = document.getElementById('sb');
   var pw = document.getElementById('panel-watchlist');
   var pp = document.getElementById('panel-planner');
@@ -8578,6 +8766,8 @@ function setView(view) {
   if (pw) pw.style.display = (view === 'watchlist') ? '' : 'none';
   if (pp) pp.style.display = (view === 'meetup') ? '' : 'none';
   document.querySelectorAll('.nav-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.view === view); });
+  updateDesktopShellChrome();
+  renderDecisionRail();
   redrawMap(); // sidebar visibility changes the map container width (bails safely pre-geo)
 }
 document.querySelectorAll('.nav-tab').forEach(function(b){

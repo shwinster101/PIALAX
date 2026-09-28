@@ -916,6 +916,25 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
   animation: stripBorder var(--dur-strip) ease-in-out infinite;
 }
 #meetup-strip.no-date { background: var(--warn-dim); }
+
+.meetup-wl-row{display:flex;align-items:center;gap:7px;margin-top:7px;}
+.meetup-wl-btn{min-height:40px;padding:7px 11px;border:1px solid var(--accent);border-radius:var(--rad-md);background:var(--accent-soft);color:var(--accent);font:inherit;font-size:var(--fs-tiny);font-weight:900;cursor:pointer;}
+.meetup-wl-btn.saved{border-color:var(--success);background:var(--success-dim);color:var(--success);}
+.meetup-wl-note{font-size:var(--fs-micro);color:var(--ink-muted);}
+
+/* Decision rail: make the family-cost decision legible before route detail. */
+#decision-rail{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:10px 0 2px;padding:10px;background:linear-gradient(135deg,var(--surface) 0%,var(--surface-2) 100%);border:1px solid var(--line-strong);border-radius:var(--rad-lg);box-shadow:var(--shadow-1);}
+#decision-rail .decision-copy{grid-column:1/-1;padding-bottom:8px;border-bottom:1px solid var(--line);}
+#decision-rail .decision-eyebrow{font-size:var(--fs-micro);font-weight:900;letter-spacing:.13em;color:var(--success);text-transform:uppercase;}
+#decision-rail .decision-title{margin-top:3px;font-size:var(--fs-body);font-weight:900;color:var(--ink);}
+#decision-rail .decision-sub{margin-top:3px;font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink-muted);}
+#decision-rail .decision-metric{display:flex;flex-direction:column;gap:3px;padding:7px 8px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--rad-sm);min-width:0;}
+#decision-rail .decision-metric span{font-size:var(--fs-micro);font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
+#decision-rail .decision-metric strong{font-size:var(--fs-caption);line-height:var(--lh-tight);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+#decision-rail .decision-metric strong[data-tone="success"]{color:var(--success);}
+#decision-rail .decision-metric strong[data-tone="warn"]{color:var(--warn);}
+#decision-rail .decision-metric strong[data-tone="accent"]{color:var(--accent);}
+
 @keyframes stripBorder {
   0%,100% { box-shadow: inset 0 -1px 0 0 rgba(16,185,129,.2) }
   50% { box-shadow: inset 0 -1px 0 0 rgba(16,185,129,.55), 0 1px 12px rgba(16,185,129,.07) }
@@ -1261,6 +1280,49 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 #route-picker.is-meetup .rp-slot:first-child{cursor:default;}
 .map-hit{cursor:pointer;}
 @media (max-width:640px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
+
+/* ── PIA-067 mobile density pass ───────────────────────────────────────────
+   Trips is a scan surface, not a carousel. Map controls live in normal flow so
+   a tap never lands on an overlay stack or a stale tooltip. */
+#tab-watchlist #watchlist-section{margin:0!important;}
+#tab-watchlist .wl-list{display:block;overflow:visible;padding:2px 0 4px;}
+#tab-watchlist .wl-list>.wl-card{display:block;width:auto;flex:none;margin-bottom:7px;}
+#tab-watchlist .wl-list>.wl-stage-hdr{display:flex;}
+#tab-watchlist .wl-actions{display:flex;gap:6px;margin-top:8px;}
+#tab-watchlist .wl-actions>*{min-width:0;}
+
+#tab-plan .card{margin-left:12px;margin-right:12px;padding:14px;}
+#tab-plan .step-label{margin-bottom:7px;}
+#tab-cal .card{margin-left:12px;margin-right:12px;padding:14px;}
+#tab-cal #cal-months{gap:12px;}
+
+#tab-map .map-control-card{padding:13px 12px;margin-left:12px;margin-right:12px;}
+.map-topline{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.map-context-title{font-size:var(--fs-body);font-weight:900;color:var(--ink);line-height:1.2;}
+.map-context-sub{margin-top:3px;font-size:var(--fs-micro);line-height:1.35;color:var(--ink-muted);}
+#tab-map .map-toggle-btn{width:auto;flex:0 0 auto;padding:8px 10px;min-height:40px;font-size:var(--fs-tiny);}
+.map-tool-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:10px;}
+#tab-map #map-toggle{position:static;z-index:auto;width:max-content;max-width:100%;}
+#tab-map #route-picker{position:static;width:100%;max-width:none;margin-top:9px;padding:9px 0 0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;box-shadow:none;backdrop-filter:none;}
+#tab-map #route-picker .rp-line{gap:6px;}
+#tab-map #route-picker .rp-slot{min-height:48px;}
+#tab-map .map-canvas-shell{margin:0 12px 8px;}
+#tab-map #map-wrap{height:0;border:1px solid var(--line-strong);border-radius:var(--rad-lg);background:var(--map-bg);}
+#tab-map #map-wrap.open{height:min(72vw,320px);min-height:280px;max-height:360px;}
+#tab-map #map-leg{position:static;display:flex;flex-wrap:wrap;gap:5px 10px;margin-top:7px;padding:7px 9px;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--rad-md);}
+#tab-map #map-leg .ml{margin:0;font-size:var(--fs-micro);}
+#tab-map #tip{display:none!important;}
+#map-route-list{margin:0 12px 10px;padding:10px 11px;background:var(--surface);border:1px solid var(--line);border-radius:var(--rad-lg);}
+.map-route-hd{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-bottom:7px;}
+.map-route-hd strong{font-size:var(--fs-body-s);font-weight:900;color:var(--ink);}
+.map-route-hd span{font-size:var(--fs-micro);color:var(--ink-muted);}
+.map-route-rows{display:flex;gap:6px;overflow-x:auto;padding:1px 1px 3px;scrollbar-width:none;}
+.map-route-rows::-webkit-scrollbar{display:none;}
+.map-route-btn{flex:0 0 auto;min-height:44px;padding:7px 10px;border:1px solid var(--line-strong);border-radius:var(--rad-md);background:var(--surface-2);color:var(--ink);text-align:left;font:inherit;cursor:pointer;}
+.map-route-btn strong{display:block;font-size:var(--fs-tiny);font-weight:900;white-space:nowrap;}
+.map-route-btn span{display:block;margin-top:2px;font-size:var(--fs-micro);color:var(--ink-muted);white-space:nowrap;}
+.map-route-btn.selected{border-color:var(--accent);background:var(--accent-dim);box-shadow:0 0 0 2px var(--accent-dim);}
+.map-route-empty{font-size:var(--fs-tiny);color:var(--ink-muted);line-height:1.4;}
 /* ── Calendar popup (bottom sheet on mobile — PIA-033: sheet chrome → tokens) ── */
 #cal-bd { position: fixed; inset: 0; z-index: 900; display: none; background: var(--backdrop); }
 #cal-bd.open { display: block; }
@@ -1611,6 +1673,17 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
       <!-- Meetup strip -->
       <div id="meetup-strip"></div>
 
+      <section id="decision-rail" aria-label="Trip decision summary">
+        <div class="decision-copy">
+          <div class="decision-eyebrow">At a glance</div>
+          <div class="decision-title" id="decision-title">Family meetup workspace</div>
+          <div class="decision-sub" id="decision-sub">Choose dates to compare the total family cost.</div>
+        </div>
+        <div class="decision-metric"><span id="decision-primary-label">Best hub</span><strong id="decision-primary">—</strong></div>
+        <div class="decision-metric"><span>Family total</span><strong id="decision-total" data-tone="success">—</strong></div>
+        <div class="decision-metric"><span>Signal</span><strong id="decision-signal" data-tone="accent">—</strong></div>
+      </section>
+
       <!-- Meetup route breakdown -->
       <div id="meetup-routes-section" style="display:none">
         <div class="lbl" style="display:flex;justify-content:space-between;align-items:baseline;gap:6px;flex-wrap:wrap;">
@@ -1644,37 +1717,45 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
     <!-- ═══ PIA-033 TAB: Map ═══ -->
     <section class="nav-tab-page" data-tab="map" id="tab-map">
 
-    <!-- Map toggle (existing collapse behavior — nav controller reuses this path) -->
-    <div class="card">
-      <div class="step-label">Route Map</div>
-      <button class="map-toggle-btn" id="map-toggle-btn" type="button">🗺 Show Route Map</button>
-    </div>
-
-    <!-- Map (collapsed) -->
-    <div style="margin:0 var(--space-md) var(--space-sm);">
-      <div id="map-wrap">
-        <svg id="map-svg"></svg>
-        <div id="map-toggle">
+    <!-- PIA-067: map controls are in normal flow; the canvas is the only overlay. -->
+    <div class="card map-control-card">
+      <div class="map-topline">
+        <div>
+          <div class="step-label">Route Map</div>
+          <div class="map-context-title" id="map-context-title">Family meetup · choose a hub</div>
+          <div class="map-context-sub" id="map-context-sub">Chicago is the current best estimate; tap another hub to compare.</div>
+        </div>
+        <button class="map-toggle-btn" id="map-toggle-btn" type="button">🗺 Show map</button>
+      </div>
+      <div class="map-tool-row">
+        <div id="map-toggle" aria-label="Map region">
           <button class="mt-btn on" data-view="us" aria-pressed="true" aria-label="US map view">🇺🇸 US</button>
           <button class="mt-btn" data-view="world" aria-pressed="false" aria-label="World map view">🌍 World</button>
         </div>
-        <div id="route-picker" aria-label="Basic route picker">
-      <div class="rp-kicker" id="rp-kicker">Basic route</div>
-      <div class="rp-line">
-        <button type="button" class="rp-slot" id="rp-from" aria-label="Choose origin">
-          <span id="rp-from-label">From</span><strong id="rp-from-code">—</strong>
-        </button>
-        <span class="rp-arrow" aria-hidden="true">→</span>
-        <button type="button" class="rp-slot" id="rp-to" aria-label="Choose destination">
-          <span id="rp-to-label">To</span><strong id="rp-to-code">Choose</strong>
-        </button>
-        <button type="button" class="rp-clear" id="rp-clear" aria-label="Reset route picker">Reset</button>
       </div>
-      <div id="rp-hint">Tap an airport dot to choose your destination.</div>
-    </div>    <div id="tip"></div>
-        <div id="map-leg"></div>
+      <div id="route-picker" aria-label="Basic route picker">
+        <div class="rp-kicker" id="rp-kicker">Basic route</div>
+        <div class="rp-line">
+          <button type="button" class="rp-slot" id="rp-from" aria-label="Choose origin">
+            <span id="rp-from-label">From</span><strong id="rp-from-code">—</strong>
+          </button>
+          <span class="rp-arrow" aria-hidden="true">→</span>
+          <button type="button" class="rp-slot" id="rp-to" aria-label="Choose destination">
+            <span id="rp-to-label">To</span><strong id="rp-to-code">Choose</strong>
+          </button>
+          <button type="button" class="rp-clear" id="rp-clear" aria-label="Reset route picker">Reset</button>
+        </div>
+        <div id="rp-hint">Tap a highlighted airport or route below.</div>
       </div>
     </div>
+    <div class="map-canvas-shell">
+      <div id="map-wrap">
+        <svg id="map-svg"></svg>
+        <div id="tip"></div>
+      </div>
+      <div id="map-leg"></div>
+    </div>
+    <div id="map-route-list" aria-label="Selectable routes"></div>
 
     </section><!-- /tab-map -->
 
@@ -2620,6 +2701,72 @@ function getNextHoliday() {
   return next;
 }
 
+// ── DECISION RAIL (IA revamp) ─────────────────────────────────────
+function renderDecisionRail() {
+  var rail = document.getElementById('decision-rail');
+  if (!rail) return;
+  var title = document.getElementById('decision-title');
+  var sub = document.getElementById('decision-sub');
+  var primaryLabel = document.getElementById('decision-primary-label');
+  var primary = document.getElementById('decision-primary');
+  var total = document.getElementById('decision-total');
+  var signal = document.getElementById('decision-signal');
+  var app = document.getElementById('app');
+  var view = (app && app.dataset.view) || 'meetup';
+  var isRT = S.tripType === 'round';
+  var fareLabel = isRT ? 'RT' : 'OW';
+  if (view === 'watchlist') {
+    var wl = (typeof WATCHLIST !== 'undefined' && Array.isArray(WATCHLIST)) ? WATCHLIST : [];
+    var active = wl.filter(function(t){ return t.stage === 'watching' || t.stage === 'planning'; }).length;
+    var booked = wl.filter(function(t){ return t.stage === 'booked'; }).length;
+    title.textContent = 'Trip ideas, ready when you are';
+    sub.textContent = active ? active + ' active trip' + (active === 1 ? '' : 's') + ' need a next move.' : 'Save a trip from Family Plan to keep its dates, hub, and actions together.';
+    primaryLabel.textContent = 'Active ideas';
+    primary.textContent = String(active);
+    total.textContent = booked + ' booked';
+    signal.textContent = active ? 'Pick a next move' : 'Add a trip';
+    signal.dataset.tone = active ? 'accent' : 'warn';
+    return;
+  }
+  if (view === 'map') {
+    title.textContent = 'Route context';
+    sub.textContent = 'Use the map to compare geography after the trip decision is clear.';
+    primaryLabel.textContent = 'Map view';
+    primary.textContent = S.mapView === 'world' ? 'World' : 'United States';
+    total.textContent = S.mode === 'meetup' ? 'Family routes' : 'Solo routes';
+    signal.textContent = 'Tap a route';
+    signal.dataset.tone = 'accent';
+    return;
+  }
+  if (S.mode === 'meetup') {
+    var ranking = computeRanking();
+    var hub = getActiveHub(ranking);
+    var row = ranking.filter(function(r){ return r.dest === hub; })[0] || ranking[0];
+    var info = row && AIRPORTS[row.dest];
+    var city = row ? (row.isORD ? 'Chicago' : (info ? info.name.split(',')[0] : row.dest)) : '—';
+    var dateText = S.depDate ? dateFmt(S.depDate) + (S.retDate && isRT ? ' → ' + dateFmt(S.retDate) : '') : 'Choose dates or a holiday preset';
+    title.textContent = 'Family meetup decision';
+    sub.textContent = dateText;
+    primaryLabel.textContent = 'Recommended hub';
+    primary.textContent = row ? city + ' · ' + row.dest : '—';
+    total.textContent = row ? '≈ $' + row.total + ' ' + fareLabel : '—';
+    signal.textContent = row && row.savings > 0 ? 'Save ≈ $' + row.savings : (S.depDate ? 'Compare routes' : 'Pick a weekend');
+    signal.dataset.tone = row && row.savings > 0 ? 'success' : 'accent';
+    return;
+  }
+  var soloDest = S.soloFocus || (dests()[0] || null);
+  var soloPrice = soloDest && S.prices[S.home + '-' + soloDest];
+  if (!soloPrice && soloDest) soloPrice = getMock(S.home, soloDest);
+  var soloInfo = soloDest && AIRPORTS[soloDest];
+  title.textContent = 'Solo weekend decision';
+  sub.textContent = S.depDate ? dateFmt(S.depDate) + (S.retDate && isRT ? ' → ' + dateFmt(S.retDate) : '') : 'Pick a weekend from the fare cards below.';
+  primaryLabel.textContent = 'Route';
+  primary.textContent = soloDest ? S.home + ' → ' + soloDest : '—';
+  total.textContent = soloPrice ? '≈ $' + (isRT ? (soloPrice.rt || soloPrice.ow) : soloPrice.ow) + ' ' + fareLabel : '—';
+  signal.textContent = soloInfo ? 'Best weekend below' : 'Not modeled';
+  signal.dataset.tone = soloInfo ? 'accent' : 'warn';
+}
+
 // ── MEETUP STRIP (compact hero + rank chips) ─────────────────────
 function renderMeetupStrip() {
   var strip = document.getElementById('meetup-strip');
@@ -2687,9 +2834,12 @@ function renderMeetupStrip() {
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:6px;padding:5px 8px;background:var(--accent-soft);border:1px dashed var(--accent);border-radius:var(--rad-md);">' + datePillsHtml + stayTxt + '</div>' +
         '<div class="ms-sub" style="margin-top:4px;">' + activeR.parts.join(' · ') + (activeR.isORD ? ' · 🚗 PIA drives' : '') + '</div>' +
+         meetupWatchlistActionHtml(activeHub) +
       '</div>' +
     '</div>';
   strip.innerHTML = bestHtml + completedTripMarker();
+  wireMeetupWatchlistAction();
+  renderDecisionRail();
   renderMeetupRoutes();
   updateStatus();
 }
@@ -4937,7 +5087,18 @@ function updateRoutePicker() {
   if (meetup) hint.textContent = 'Tap a highlighted airport to choose the meetup hub.';
   else if (S.routePickStep === 'origin') hint.textContent = 'Tap a highlighted airport to set your home airport.';
   else if (S.routePickTo) hint.textContent = 'Route selected. Tap another airport or reset to change it.';
-  else hint.textContent = 'Tap a highlighted airport to choose your destination.';
+  else hint.textContent = 'Tap a highlighted airport or route below.';
+  var contextTitle = document.getElementById('map-context-title');
+  var contextSub = document.getElementById('map-context-sub');
+  if (contextTitle && contextSub) {
+    if (meetup) {
+      contextTitle.textContent = 'Family meetup · choose a hub';
+      contextSub.textContent = hub ? ((hub === 'ORD' ? 'Chicago' : routePickerName(hub)) + ' is selected; tap another hub to compare.') : 'Tap a highlighted hub to compare.';
+    } else {
+      contextTitle.textContent = 'Solo route · choose a destination';
+      contextSub.textContent = S.routePickTo ? (S.home + ' → ' + S.routePickTo + ' selected.') : ('From ' + S.home + ' · choose a highlighted destination.');
+    }
+  }
 }
 function routePickerSetStep(step) {
   if (S.mode === 'meetup') return;
@@ -5106,8 +5267,47 @@ function rebuildLegend() {
   leg.innerHTML=html;
 }
 
+function renderMapRouteList() {
+  var el = document.getElementById('map-route-list');
+  if (!el) return;
+  var meetup = S.mode === 'meetup', rows = [], selected = null;
+  try {
+    selected = meetup ? routePickerHub() : (S.routePickTo || S.soloFocus);
+    if (meetup) {
+      rows = computeRanking().slice(0, 6).map(function(r){
+        var info = AIRPORTS[r.dest];
+        return { code:r.dest, title:r.dest, sub:(info ? info.name.split(',')[0] : r.dest) + (r.rank === 1 ? ' · best estimate' : '') };
+      });
+    } else {
+      rows = dests().map(function(code){
+        var info = AIRPORTS[code], p = S.prices[S.home+'-'+code] || getMock(S.home, code), fare = S.tripType === 'one' ? p.ow : p.rt;
+        return { code:code, title:S.home + ' → ' + code, sub:(info ? info.name.split(',')[0] : code) + (fare ? ' · ≈ $' + fare : '') };
+      });
+    }
+  } catch (e) { rows = []; }
+  var heading = meetup ? 'Meetup hubs' : 'Routes from ' + S.home;
+  var hint = meetup ? 'Tap a hub to make it the plan focus.' : 'Tap a route to focus the planner.';
+  var html = '<div class="map-route-hd"><strong>' + heading + '</strong><span>' + hint + '</span></div>';
+  if (!rows.length) {
+    el.innerHTML = html + '<div class="map-route-empty">No selectable routes are available for this setup yet.</div>';
+    return;
+  }
+  html += '<div class="map-route-rows">' + rows.map(function(r){
+    return '<button type="button" class="map-route-btn' + (r.code === selected ? ' selected' : '') + '" data-map-code="' + esc(r.code) + '" aria-pressed="' + (r.code === selected ? 'true' : 'false') + '"><strong>' + esc(r.title) + '</strong><span>' + esc(r.sub) + '</span></button>';
+  }).join('') + '</div>';
+  el.innerHTML = html;
+  el.querySelectorAll('.map-route-btn').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var code = btn.getAttribute('data-map-code');
+      if (S.mode !== 'meetup') S.routePickStep = 'destination';
+      handleMapAirportTap(code);
+    });
+  });
+}
+
 function redrawMap() {
   updateRoutePicker();
+  renderMapRouteList();
   // PIA-058: the map is a progressive enhancement. If the d3 CDN load failed
   // (outage, SRI hash break, offline) every caller — boot, tab switches, mode
   // switches — must keep working; only the map itself goes dark.
@@ -8368,12 +8568,66 @@ function saveSoloTrip(dest, depISO, retISO){
     showShareToast('✓ Saved ' + dest + ' to watchlist');
   }
 }
+function currentWatchlistDates(){
+  var dep = S.depDate, ret = S.retDate;
+  if (!dep) {
+    var d = new Date(today), toThu = (4 - d.getDay() + 7) % 7 || 7;
+    dep = new Date(d); dep.setDate(d.getDate() + toThu);
+    ret = new Date(dep); ret.setDate(dep.getDate() + 3);
+  }
+  if (S.tripType === 'one') ret = null;
+  return { dep: fmtISO(dep), ret: ret ? fmtISO(ret) : null };
+}
+function activeFamilyWatchlistItem(hub, dates){
+  if (!hub || typeof WATCHLIST === 'undefined' || !Array.isArray(WATCHLIST)) return null;
+  return WATCHLIST.find(function(t){
+    return t.mode === 'family' && t.hub === hub && t.stage !== 'booked' && t.stage !== 'completed' &&
+      (!dates || (t.dep === dates.dep && (t.ret || '') === (dates.ret || '')));
+  }) || null;
+}
+function meetupWatchlistActionHtml(hub){
+  var dates = currentWatchlistDates(), item = activeFamilyWatchlistItem(hub, dates);
+  var exact = !!item;
+  var label = exact ? '✓ In Trip Ideas' : '☆ Add to Trip Ideas';
+  var title = exact ? 'This family meetup is already in Trip Ideas' : 'Save this selected family meetup to Trip Ideas';
+  return '<div class="meetup-wl-row"><button type="button" id="meetup-save-btn" class="meetup-wl-btn' + (exact ? ' saved' : '') + '" aria-pressed="' + (exact ? 'true' : 'false') + '" title="' + title + '">' + label + '</button><span class="meetup-wl-note">Keeps the hub and dates together.</span></div>';
+}
+function wireMeetupWatchlistAction(){
+  var btn = document.getElementById('meetup-save-btn');
+  if (btn) btn.addEventListener('click', function(e){ e.stopPropagation(); saveCurrentFamilyToWatchlist(); });
+}
+function saveCurrentFamilyToWatchlist(){
+  if (S.mode !== 'meetup') return;
+  var ranking = computeRanking(), hub = getActiveHub(ranking);
+  if (!hub) { showShareToast('Choose a family meetup hub first'); return; }
+  var dates = currentWatchlistDates(), item = activeFamilyWatchlistItem(hub, dates);
+  var routeTxt = 'Family → ' + hub;
+  if (item) {
+    item.origin = S.home; item.hub = hub; item.dest = null;
+    item.title = routeTxt; item.routeTxt = routeTxt;
+    item.dep = dates.dep; item.ret = dates.ret;
+    item.gf = { from: S.home, to: hub };
+    saveWatchlist(); renderWatchlist(); renderMeetupStrip();
+    showShareToast('↻ Updated ' + routeTxt + ' in Trip Ideas');
+    return;
+  }
+  WATCHLIST.push({
+    id:'w'+Date.now(), _added:true, key:null, mode:'family', title:routeTxt,
+    routeTxt:routeTxt, hub:hub, origin:S.home, dest:null, dep:dates.dep, ret:dates.ret,
+    stage:'watching', notes:'', reminders:[], nextAction:'', blockers:[],
+    gf:{ from:S.home, to:hub }
+  });
+  saveWatchlist(); renderWatchlist(); renderMeetupStrip();
+  showShareToast('✓ Added ' + routeTxt + ' to Trip Ideas');
+}
+
 function addCurrentToWatchlist(){
   var dep = S.depDate, ret = S.retDate;
   if (!dep) { var d=new Date(today); var toThu=(4-d.getDay()+7)%7||7; dep=new Date(d); dep.setDate(d.getDate()+toThu); ret=new Date(dep); ret.setDate(dep.getDate()+3); }
   var isFam = (S.mode === 'meetup');
-  var hub = isFam ? getActiveHub(computeRanking()) : null;
-  var dest = !isFam ? (S.soloFocus || (dests()[0]||null)) : null;
+  if (isFam) { saveCurrentFamilyToWatchlist(); return; }
+  var hub = null;
+  var dest = S.soloFocus || (dests()[0]||null);
   var routeTxt = isFam ? ('Family → ' + (hub||'?')) : (S.home + ' → ' + (dest||'?'));
   var item = {
     id:'w'+Date.now(), _added:true, key:null, mode:isFam?'family':'solo', title:routeTxt,
@@ -8649,7 +8903,7 @@ function renderWatchlist(){
       '</div>' +
     '</div>';
   } else {
-    addBtn = '<div style="display:flex;gap:6px;">' +
+    addBtn = '<div class="wl-actions">' +
       '<button id="wl-newtrip">＋ New trip</button>' +
       '<button id="wl-share" title="Copy a shareable summary + link of the whole plan">🔗 Share</button>' +
     '</div>';
@@ -8876,7 +9130,9 @@ function updateMobileChips() {
 }
 
 function ensureMapRendersOnMobile() {
-  // Map starts collapsed; no need to force render
+  updateMapToggle();
+  updateRoutePicker();
+  renderMapRouteList();
 }
 
 // ── PIA-033: APP-SHELL NAV CONTROLLER (thin glue — show/hide only) ──
@@ -8887,6 +9143,9 @@ function ensureMapRendersOnMobile() {
 var NAV_TABS = ['watchlist', 'plan', 'map', 'cal'];
 function setActiveTab(tab) {
   if (NAV_TABS.indexOf(tab) === -1) tab = 'watchlist';
+  document.documentElement.dataset.activeTab = tab;
+  var app = document.getElementById('app');
+  if (app) app.dataset.view = tab === 'plan' ? 'meetup' : tab;
   // PIA-061: stamp the active tab on <body> — the tab-scoped chrome CSS keys
   // off these classes (planner prompts/diagnostics on plan, settings on home).
   NAV_TABS.forEach(function(t){ document.body.classList.toggle('tab-' + t, t === tab); });
@@ -8914,6 +9173,7 @@ function setActiveTab(tab) {
       setTimeout(function(){ redrawMap(); }, 350);
     }
   }
+  if (tab === 'plan' && typeof renderDecisionRail === 'function') renderDecisionRail();
 }
 function initialTab() {
   // Deep links restore exactly as before (restoreFromURL untouched); a link
