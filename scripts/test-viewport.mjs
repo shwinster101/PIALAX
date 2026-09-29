@@ -122,6 +122,61 @@ for (const file of FILES) {
       });
       await page.waitForTimeout(400);
 
+      if (file === 'pialax-mobile.html') {
+        const sheet = await page.evaluate(() => {
+          const el = document.querySelector('.wl-sheet-open');
+          const close = el && el.querySelector('.wl-sheet-close');
+          const scroll = el && el.querySelector('.wl-sheet-scroll');
+          if (!el || !close || !scroll) return null;
+          const box = el.getBoundingClientRect();
+          const button = close.getBoundingClientRect();
+          const tab = document.querySelector('.tabbar-btn');
+          const tabBox = tab && tab.getBoundingClientRect();
+          const cover = tabBox && document.elementFromPoint(tabBox.left + tabBox.width / 2, tabBox.top + tabBox.height / 2);
+          return { top:box.top, bottom:box.bottom, width:box.width, height:innerHeight,
+            closeVisible:button.top >= 0 && button.bottom <= innerHeight && button.height >= 44,
+            scrollable:getComputedStyle(scroll).overflowY === 'auto' && scroll.clientHeight > 0,
+            coversTab:!!(cover && el.contains(cover)), locked:document.body.classList.contains('trip-sheet-active'),
+            dialog:el.getAttribute('role') === 'dialog' && el.getAttribute('aria-modal') === 'true',
+            closeFocused:document.activeElement === close };
+        });
+        if (sheet && sheet.top <= 1 && sheet.bottom >= vp.height - 1 && sheet.width >= vp.width - 1 &&
+            sheet.closeVisible && sheet.coversTab && sheet.locked && sheet.scrollable && sheet.dialog && sheet.closeFocused)
+          ok(`${label} — trip details fill screen, scroll independently, and cover navigation`);
+        else bad(`${label} — trip sheet geometry/scroll failed: ${JSON.stringify(sheet)}`);
+
+        // Keyboard focus stays in the modal, and opening its trip clears the
+        // overlay and body lock before the planner tab becomes visible.
+        await page.keyboard.press('Shift+Tab');
+        const trapped = await page.evaluate(() => {
+          const el = document.querySelector('.wl-sheet-open');
+          return !!(el && el.contains(document.activeElement));
+        });
+        if (trapped) ok(`${label} — keyboard focus stays in trip details`);
+        else bad(`${label} — keyboard focus escaped behind trip details`);
+        await page.keyboard.press('Escape');
+        const dismissed = await page.evaluate(() => ({
+          locked:document.body.classList.contains('trip-sheet-active'),
+          sheet:!!document.querySelector('.wl-sheet-open'),
+          rowFocused:!!(document.activeElement && document.activeElement.classList.contains('wl-row')),
+        }));
+        if (!dismissed.locked && !dismissed.sheet && dismissed.rowFocused)
+          ok(`${label} — Escape closes details and restores focus to its trip`);
+        else bad(`${label} — Escape did not restore the trip row: ${JSON.stringify(dismissed)}`);
+        await page.locator('.wl-row').first().click();
+        await page.locator('.wl-sheet-open .wl-open').click();
+        await page.waitForTimeout(200);
+        const opened = await page.evaluate(() => ({
+          locked:document.body.classList.contains('trip-sheet-active'),
+          sheet:!!document.querySelector('.wl-sheet-open'),
+          tab:document.documentElement.dataset.activeTab,
+        }));
+        if (!opened.locked && !opened.sheet && opened.tab === 'plan')
+          ok(`${label} — Open switches to the planner without leaving a locked sheet`);
+        else bad(`${label} — Open left the sheet active: ${JSON.stringify(opened)}`);
+        await page.locator('.tabbar-btn[data-tab="watchlist"]').click();
+      }
+
       // ---- 1. no page-level horizontal overflow -------------------------
       const overflow = await page.evaluate(() => ({
         scrollWidth: document.documentElement.scrollWidth,
