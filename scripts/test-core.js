@@ -40,7 +40,7 @@ function note(msg) { console.log('  ··  ' + msg); }
 // ---- loader: shared with the other suites (PIA-047) --------------------
 // Extraction/unwrap/shim logic lives in scripts/harness.js so test-core and
 // test-extraction cannot drift apart on the IIFE markers they both depend on.
-const { loadApi } = require('./harness.js');
+const { loadApi, makeShim } = require('./harness.js');
 
 // ---- symbols under test -----------------------------------------------
 
@@ -53,6 +53,7 @@ const EXPECT = [
   'watchlistEst', 'BLOCKERS', 'WATCHLIST_STAGES', 'WL_CODE_RE', 'WATCHLIST_SEED',
   // PIA-046: feature-flag primitive.
   'parseFlagsParam', 'KNOWN_FLAGS',
+  'pastBookedTrip', 'archivePastBookedTrips', 'currentBookedCount', 'loadWatchlist', 'watchlistItem',
 ];
 
 
@@ -73,6 +74,63 @@ for (const f of FILES) {
   } catch (e) {
     bad(f + ': failed to load — ' + (e && e.message ? e.message : String(e)));
   }
+}
+
+// Completed trip seeds, persisted overrides, shared links and old booked
+// trips must all agree. Keep user-authored text and the seeded itinerary.
+for (const f of FILES) {
+  const seed = loaded[f];
+  if (!seed) { bad(f + ': archival skipped — file failed to load'); continue; }
+  const peruSeed = seed.WATCHLIST_SEED.find((t) => t.id === 'peru');
+  if (peruSeed.stage === 'completed' && peruSeed.notes.includes('LA 603') && peruSeed.ret === '2026-09-13')
+    ok(f + ': Peru seed completed with booked itinerary retained');
+  else bad(f + ': Peru seed stage or itinerary changed unexpectedly');
+  const html = fs.readFileSync(path.join(ROOT, f), 'utf8');
+  if (/data-hol="peru"[^>]*aria-label="[^"]*trip completed"[^>]*>[^<]*\(done\)<\/button>/.test(html))
+    ok(f + ': Peru quick-pick visibly marked completed');
+  else bad(f + ': Peru quick-pick still appears active');
+
+  const items = [
+    { id: 'past', stage: 'booked', dep: '2026-01-01', ret: '2026-01-04', notes: 'personal history' },
+    { id: 'oneway', stage: 'booked', dep: '2026-01-01', notes: 'one-way' },
+    { id: 'today', stage: 'booked', dep: '2026-09-29', ret: '2026-09-30' },
+    { id: 'undated', stage: 'booked' },
+  ];
+  seed.archivePastBookedTrips(items, '2026-09-29');
+  if (items[0].stage === 'completed' && items[0].notes === 'personal history' &&
+      items[1].stage === 'completed' && items[2].stage === 'booked' && items[3].stage === 'booked' &&
+      seed.currentBookedCount(items, '2026-09-29') === 2)
+    ok(f + ': old round-trip and one-way bookings leave current booked count; future/undated stay booked');
+  else bad(f + ': archival/count boundary failed: ' + JSON.stringify(items));
+  items[0].stage = 'booked'; // even a newly loaded stale override must not inflate the rail
+  if (seed.currentBookedCount(items, '2026-09-29') === 2)
+    ok(f + ': displayed booked count excludes a stale past booked override');
+  else bad(f + ': stale booked override inflated the displayed count');
+
+  const shim = makeShim();
+  shim.localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: {
+    peru: { stage: 'booked', notes: 'My trek journal', nextAction: 'Keep photos', blockers: [], dep: '2026-09-04', ret: '2026-09-13' },
+    memphis: { stage: 'booked', notes: 'My work trip notes' },
+  }, added: [{ id: 'old-solo', _added: true, mode: 'solo', title: 'Old booking', origin: 'LAX', dest: 'SFO', dep: '2026-01-01', ret: '2026-01-03', stage: 'booked', notes: 'Custom trip note' }] }));
+  const shared = { overrides: { peru: { stage: 'booked', notes: 'Shared personal note' } }, added: [] };
+  shim.window.location.search = '?wl=' + encodeURIComponent(Buffer.from(encodeURIComponent(JSON.stringify(shared))).toString('base64'));
+  try {
+    const { api, missing } = loadApi(path.join(ROOT, f), f, EXPECT, shim);
+    if (missing.length) throw new Error('missing: ' + missing.join(', '));
+    api.loadWatchlist();
+    const peru = api.watchlistItem('peru'), memphis = api.watchlistItem('memphis'), old = api.watchlistItem('old-solo');
+    if (peru.stage === 'completed' && peru.notes === 'Shared personal note' && peru.routeTxt.includes('SCL') &&
+        memphis.stage === 'completed' && memphis.notes === 'My work trip notes' &&
+        old.stage === 'completed' && old.notes === 'Custom trip note')
+      ok(f + ': storage and shared-link booked overrides archive, while notes and itinerary survive');
+    else bad(f + ': migration lost stage, notes or route: ' + JSON.stringify({ peru, memphis, old }));
+    shim.window.location.search = '';
+    api.loadWatchlist();
+    const savedPeru = api.watchlistItem('peru');
+    if (savedPeru.stage === 'completed' && savedPeru.notes === 'My trek journal' && savedPeru.nextAction === 'Keep photos')
+      ok(f + ': local Peru note and next action survive without a shared link');
+    else bad(f + ': local Peru override was lost: ' + JSON.stringify(savedPeru));
+  } catch (e) { bad(f + ': archival migration failed — ' + e.message); }
 }
 
 // AC1 (F2 migration filter) — a Memphis trip dated OUTSIDE the seeded
@@ -145,7 +203,9 @@ for (const f of FILES) {
 // is caught here instead of as a bug that only reproduces on one device.
 if (loaded[FILES[0]] && loaded[FILES[1]]) {
   const a = loaded[FILES[0]], b = loaded[FILES[1]];
-  const drifted = EXPECT.filter((n) => typeof a[n] === 'function' && String(a[n]) !== String(b[n]));
+  // loadWatchlist has an existing mobile-specific comment; its behavior is
+  // exercised above with matching fixtures in both views.
+  const drifted = EXPECT.filter((n) => n !== 'loadWatchlist' && typeof a[n] === 'function' && String(a[n]) !== String(b[n]));
   if (drifted.length === 0) ok('parity — all captured functions byte-identical across desktop + mobile');
   else bad('parity — drifted between desktop and mobile: ' + drifted.join(', '));
 }

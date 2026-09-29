@@ -945,7 +945,7 @@ button{font-family:inherit;cursor:pointer;}
         <button class="hol-btn" data-hol="laborday" aria-label="Quick-pick: Labor Day">⚡ Labor Day</button>
         <button class="hol-btn" data-hol="thanksgiving" aria-label="Quick-pick: Thanksgiving">🦃 Thanksgiving</button>
         <button class="hol-btn" data-hol="christmas" aria-label="Quick-pick: Christmas">🎄 Christmas</button>
-        <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 4 to 13">🏔 Peru Sep 4–13</button>
+        <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 4 to 13 — trip completed">✅ Peru Sep 4–13 (done)</button>
         <button class="hol-btn" data-hol="london" aria-label="Quick-pick: London — trip completed">✅ London ✓ (done)</button>
       </div>
       <!-- ORD Hub toggle removed — ORD always available as a meetup hub via the dropdown. -->
@@ -2085,7 +2085,7 @@ function renderDecisionRail() {
   if (view === 'watchlist') {
     var wl = (typeof WATCHLIST !== 'undefined' && Array.isArray(WATCHLIST)) ? WATCHLIST : [];
     var active = wl.filter(function(t){ return t.stage === 'watching' || t.stage === 'planning'; }).length;
-    var booked = wl.filter(function(t){ return t.stage === 'booked'; }).length;
+    var booked = currentBookedCount(wl, fmtISO(new Date()));
     title.textContent = 'Trip ideas, ready when you are';
     sub.textContent = active ? active + ' active trip' + (active === 1 ? '' : 's') + ' need a next move.' : 'Save a trip from Family Plan to keep its dates, hub, and actions together.';
     primaryLabel.textContent = 'Active ideas';
@@ -5960,7 +5960,7 @@ var BLOCKERS = { price:{emoji:'💰',label:'Price'}, dates:{emoji:'📅',label:'
 // Seeded from the trips already in the app. `key` = holiday-preset key so Open just
 // reuses applyHoliday(). gf = route for the Google Flights hand-off.
 var WATCHLIST_SEED = [
-  // PIA-064 reality sync (2026-08-26): the next three trips got BOOKED — booked
+  // PIA-064 reality sync (2026-08-26): these trips were BOOKED — booked
   // separately, outside the app (the UX gap the next sprint digs into). Seeds
   // now carry the REAL itineraries from Flighty, including two things the plan
   // never modeled: the NYC-first chain (no LAX return between trips) and the
@@ -5976,7 +5976,7 @@ var WATCHLIST_SEED = [
     reminders:[], nextAction:'', blockers:[],
     gf:{from:'LGA',to:'MEM'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
-    routeTxt:'LAX → SCL → LIM → CUZ · LIM → LAX', origin:'LAX', dest:'CUZ', dep:'2026-09-04', ret:'2026-09-13', stage:'booked',
+    routeTxt:'LAX → SCL → LIM → CUZ · LIM → LAX', origin:'LAX', dest:'CUZ', dep:'2026-09-04', ret:'2026-09-13', stage:'completed',
     notes:'BOOKED: LATAM via Santiago (not the direct red-eye the plan assumed) — LA 603 LAX 3:55p Sep 4 → SCL 5:35a+1 · LA 650 SCL 7:50a → LIM 10:45a · LA 2028 LIM 1:05p → CUZ 2:25p Sep 5. Lands 2.5h before the 17:00 briefing. Return LA 2224 CUZ 9:20p Sep 12 → LIM · LA 2478 LIM 12:40a → LAX 7:50a Sep 13. Trek was already booked ($1,200).',
     reminders:['Trek briefing 17:00 Sep 5 · trek operator office','Passport valid 6+ months from entry','A friend is also in Cusco Sep 5–12'],
     nextAction:'', blockers:[],
@@ -6069,6 +6069,9 @@ function _scrubStalePeruDep(overrides){
 // exactly those fields; user-typed notes/nextAction/blockers survive.
 function _scrubPrebookingOverrides(overrides){
   try {
+    // Old saved stages must not reopen the now-completed Peru seed. Keep
+    // personal notes, dates, blockers and next action untouched.
+    if (overrides && overrides.peru && overrides.peru.stage === 'booked') delete overrides.peru.stage;
     ['peru','memphis'].forEach(function(id){
       var o = overrides && overrides[id];
       if (!o) return;
@@ -6077,6 +6080,18 @@ function _scrubPrebookingOverrides(overrides){
     });
   } catch(e) {}
   return overrides;
+}
+// Date-only archival after both storage and shared-link overrides are applied.
+// A one-way trip uses its departure date; dates and user-authored fields stay intact.
+function pastBookedTrip(t, todayISO){
+  var end = t && (t.ret || t.dep);
+  return !!(t && t.stage === 'booked' && /^\d{4}-\d{2}-\d{2}$/.test(String(end || '')) && end < todayISO);
+}
+function archivePastBookedTrips(items, todayISO){
+  items.forEach(function(t){ if (pastBookedTrip(t, todayISO)) t.stage = 'completed'; });
+}
+function currentBookedCount(items, todayISO){
+  return items.filter(function(t){ return t.stage === 'booked' && !pastBookedTrip(t, todayISO); }).length;
 }
 // Same pattern as _isSeedDupMemphis for the NYC hop (seed id:'nyc'): a
 // hand-added "NYC — solo trip" from before the seed existed would duplicate
@@ -6137,6 +6152,7 @@ function loadWatchlist() {
       if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !_isSeedDupNyc(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
     }
   } catch(e){}
+  archivePastBookedTrips(WATCHLIST, fmtISO(new Date()));
 }
 // PIA-024: copy a shareable summary + link of the WHOLE plan (every watched trip).
 function sharePlan(){
@@ -8495,6 +8511,7 @@ function addNewTrip(){
 function renderWatchlist(){
   var sec = document.getElementById('watchlist-section');
   if (!sec) return;
+  archivePastBookedTrips(WATCHLIST, fmtISO(new Date()));
   _taRenderNow = new Date().toISOString();
   // PIA-050: fold legacy notes into the context log the first time the
   // assistant renders. Idempotent and non-destructive — item.notes is left
@@ -8517,7 +8534,7 @@ function renderWatchlist(){
   }).length;
 
   var historyCount = counts.booked + counts.completed;
-  var historyLabel = _watchlistHistoryOpen ? 'Hide booked' : 'Show booked';
+  var historyLabel = _watchlistHistoryOpen ? 'Hide history' : 'Show history';
   var historyButton = historyCount ? '<button type="button" id="wl-history-toggle" aria-expanded="'+(_watchlistHistoryOpen?'true':'false')+'">'+historyLabel+' · '+historyCount+'</button>' : '';
   sec.classList.toggle('history-open', _watchlistHistoryOpen);
   var header =
