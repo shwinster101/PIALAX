@@ -33,7 +33,7 @@ const EXPECT = [
   'computeRecommendation', 'typicalRangeFor', 'constraintViolationsFor',
   'buildHandoffUrl', 'buildHandoffResult', 'buildReviewLine', 'taIsRoundTrip',
   'normalizeHandoffIntent', 'handoffLinksForIntent', 'handoffResultForIntent',
-  'handoffIntentsForWatchlistItem',
+  'handoffIntentsForWatchlistItem', 'watchlistGFLinks',
   // PIA-051 alerts
   'buildAlertEvent', 'alertDedupeKey', 'sanitizeAlertSettings',
   'TA_GAZETTEER_PLACEHOLDER',
@@ -536,6 +536,23 @@ for (const f of FILES) {
   } else {
     bad(`${f}: family watchlist expansion incorrect: ${JSON.stringify(famIntents)}`);
   }
+  const placeOnly = { id: 'cary', _added: true, mode: 'family', dest: 'Cary',
+    hub: null, gf: { from: 'LAX', to: 'Cary' }, dep: null, ret: null, stage: 'watching' };
+  if (api.watchlistGFLinks(placeOnly).length === 0) ok(`${f}: free-text trip place cannot become a flight destination`);
+  else bad(`${f}: free-text place generated a misleading Google Flights link`);
+  const flexible = { ...placeOnly, hub: 'RDU', gf: { from: 'LAX', to: 'RDU' } };
+  const flexibleLinks = api.watchlistGFLinks(flexible);
+  if (flexibleLinks.length === 3 && flexibleLinks.every((l) => l.kind === 'flexible' &&
+      l.url.startsWith('https://www.google.com/travel/flights?q=') &&
+      decodeURIComponent(l.url).includes('to RDU') && !decodeURIComponent(l.url).includes('Cary'))) {
+    ok(`${f}: undated family idea yields three airport-specific flexible searches`);
+  } else bad(`${f}: flexible family handoff incorrect: ${JSON.stringify(flexibleLinks)}`);
+  const dated = { ...flexible, dep: '2026-11-25', ret: '2026-11-29' };
+  const datedLinks = api.watchlistGFLinks(dated);
+  if (datedLinks.length === 3 && datedLinks.every((l) => l.kind === 'round-trip' &&
+      decodeURIComponent(l.url).includes('2026-11-25') && decodeURIComponent(l.url).includes('2026-11-29'))) {
+    ok(`${f}: confirmed family airport and dates yield member round-trip searches`);
+  } else bad(`${f}: dated family handoff incorrect: ${JSON.stringify(datedLinks)}`);
 }
 
 // ---- 4e. alerts (PIA-051) ---------------------------------------------------

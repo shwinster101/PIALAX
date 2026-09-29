@@ -879,6 +879,11 @@ body.trip-sheet-active{overflow:hidden;}
 .nt-input{width:100%;box-sizing:border-box;font-size:var(--fs-tiny);font-family:inherit;color:var(--ink);
   background:var(--surface-2);border:1px solid var(--line-strong);border-radius:var(--rad-sm);padding:8px;min-height:36px;}
 .nt-input:focus{outline:none;border-color:var(--accent);}.nt-help{font-size:var(--fs-tiny);color:var(--ink-muted);line-height:1.4;}
+.wl-flight-edit{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:8px;align-items:end;}
+.wl-flight-edit label{min-width:0;font-size:var(--fs-tiny);font-weight:700;color:var(--ink-muted);}
+.wl-flight-edit label:first-child,.wl-flight-save{grid-column:1/-1;}
+.wl-flight-edit .nt-input{margin-top:4px;min-width:0;}
+.wl-flight-save{background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent);cursor:pointer;min-height:44px;}
 .nt-more{border-top:1px solid var(--line);padding-top:7px;margin-top:2px;}
 .nt-more summary{cursor:pointer;font-size:var(--fs-tiny);font-weight:800;color:var(--accent);}
 #nt-save{flex:1;font-size:var(--fs-tiny);font-weight:800;background:var(--accent);color:var(--ink-on-accent);
@@ -8541,14 +8546,23 @@ function watchlistSoloItem(dest){ return WATCHLIST.find(function(t){ return t.mo
 // Build atomic provider intents from a legacy watchlist item. A family item
 // is a coordination container, so it expands to one search per effective
 // member/origin instead of pretending that multiple travelers share one fare.
+function watchlistFlightAirport(t){
+  var code = String((t && t.gf && t.gf.to) || '').toUpperCase();
+  return /^[A-Z]{3}$/.test(code) ? code : '';
+}
 function handoffIntentsForWatchlistItem(t){
   if(!t) return [];
+  // A place is not necessarily an airport. Older quick-added items put the
+  // free-text destination into gf.to; only a confirmed IATA-shaped code may
+  // leave PIALAX as a flight-search destination.
+  var addedAirport = t._added ? watchlistFlightAirport(t) : '';
+  if(t._added && !addedAirport) return [];
   if(t.mode !== 'family'){
     return [{
       tripId: t.id,
       scope: 'solo',
       from: t.origin || (t.gf && t.gf.from),
-      to: t.dest || (t.gf && t.gf.to),
+      to: t._added ? addedAirport : (t.dest || (t.gf && t.gf.to)),
       depISO: t.dep,
       retISO: t.ret,
       isRT: !!t.ret,
@@ -8558,9 +8572,9 @@ function handoffIntentsForWatchlistItem(t){
       source: 'watchlist'
     }];
   }
-  var hub = t.hub || (t.gf && t.gf.to);
+  var hub = t._added ? addedAirport : (t.hub || (t.gf && t.gf.to));
   if(!hub) return [];
-  var members = familyForDate(t.dep || null);
+  var members = familyForDate(t.dep || fmtISO(new Date()));
   return members.filter(function(from){ return from !== hub; }).map(function(from){
     return {
       tripId: t.id,
@@ -8579,6 +8593,17 @@ function handoffIntentsForWatchlistItem(t){
 function watchlistGFLinks(t){
   var links = [];
   handoffIntentsForWatchlistItem(t).forEach(function(raw){
+    if(!raw.depISO){
+      // Google Flights accepts a route search without dates; the user chooses
+      // flexible dates and enables price tracking in Google Flights itself.
+      var from = String(raw.from || '').toUpperCase(), to = String(raw.to || '').toUpperCase();
+      if(/^[A-Z]{3}$/.test(from) && /^[A-Z]{3}$/.test(to)) links.push({
+        label: (raw.traveler && raw.traveler.label ? raw.traveler.label + ' · ' : '') + from + ' → ' + to + ' · flexible dates',
+        url: 'https://www.google.com/travel/flights?q=' + encodeURIComponent('Flights from ' + from + ' to ' + to),
+        kind: 'flexible', cta: 'Explore flexible dates'
+      });
+      return;
+    }
     var result = handoffResultForIntent(raw);
     var traveler = raw.traveler && raw.traveler.label ? raw.traveler.label + ' · ' : '';
     result.links.forEach(function(link){
@@ -8595,7 +8620,7 @@ function watchlistGFLinks(t){
 function watchlistEst(t){
   if (t.stage === 'completed') return null;
   try {
-    if (t.mode === 'family' && t.hub) return estimateMeetupTotalFor(new Date(t.dep + 'T12:00:00'), t.hub);
+    if (t.mode === 'family' && t.hub && t.dep && AIRPORTS[t.hub]) return estimateMeetupTotalFor(new Date(t.dep + 'T12:00:00'), t.hub);
     // PIA-061: getMock returns {ow:0, rt:0} for unmodeled routes — a 0 here
     // painted a bogus "≈ $0" on the card. No fare data → no estimate ("—").
     if (t.mode === 'solo' && t.origin && t.dest) { var m = getMock(t.origin, t.dest); var f = m ? (m.rt || m.ow) : 0; return f || null; }
@@ -8679,7 +8704,7 @@ function openWatchlistTrip(id){
   closeTripSheet(false);
   var t = watchlistItem(id); if (!t) return;
   if (t.key) { applyHoliday(t.key, { dep: t.dep, ret: t.ret, skipToggle: true }); return; }
-  var customFamilyIdea = t.mode === 'family' && !t.hub;
+  var customFamilyIdea = t.mode === 'family' && (!t.hub || !AIRPORTS[t.hub]);
   if (t.mode === 'solo') {
     S.home = t.origin || S.home; var hs=document.getElementById('home-sel'); if (hs) hs.value=S.home;
     // PIA-031: a dest the app doesn't model as a route (e.g. Memphis) won't be in
@@ -8818,6 +8843,7 @@ function setNewTripThanksgiving(){
 }
 function addNewTrip(){
   var destEl = document.getElementById('nt-dest');
+  var flightEl = document.getElementById('nt-flight-to');
   var depEl = document.getElementById('nt-dep');
   var retEl = document.getElementById('nt-ret');
   var noteEl = document.getElementById('nt-note');
@@ -8829,16 +8855,20 @@ function addNewTrip(){
   // Preserve readable event destinations (e.g. North Carolina) only for family ideas.
   var dest = /^[A-Za-z]{3}$/.test(rawDest) ? rawDest.toUpperCase() : (mode === 'family' ? rawDest.replace(/[^A-Za-z0-9 &'.,-]/g, '').replace(/\s+/g, ' ').trim().slice(0, 48) : rawDest.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32));
   if (!dest) { showShareToast('Enter a valid destination'); return; }
+  var flightTo = flightEl && flightEl.value.trim() ? flightEl.value.trim().toUpperCase() : (/^[A-Z]{3}$/.test(dest) ? dest : '');
+  if (flightTo && !/^[A-Z]{3}$/.test(flightTo)) { showShareToast('Use a 3-letter airport or city code'); if (flightEl) flightEl.focus(); return; }
   // PIA-059: origin comes from the form's From selector, not silently from S.home.
   var fromEl = document.getElementById('nt-from');
   var origin = (fromEl && AIRPORTS[fromEl.value]) ? fromEl.value : S.home;
   var dep = (depEl && depEl.value) ? new Date(depEl.value + 'T12:00:00') : null;
   var ret = (dep && retEl && retEl.value) ? new Date(retEl.value + 'T12:00:00') : null;
+  if (retEl && retEl.value && !dep) { showShareToast('Add a departure date before a return date'); depEl.focus(); return; }
+  if (dep && ret && ret < dep) { showShareToast('Return must be after departure'); retEl.focus(); return; }
   var item = {
-    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest, hub:(mode==='family' && AIRPORTS[dest] ? dest : null),
+    id:'w'+Date.now(), _added:true, mode:mode, origin:origin, dest:dest, hub:(mode==='family' ? (flightTo || null) : null),
     dep:fmtISO(dep), ret:ret?fmtISO(ret):null, stage:'watching',
     title:(dest+' — '+(mode==='family'?'family meetup idea':'solo trip')), routeTxt:(origin+' → '+dest),
-    gf:{ from:origin, to:dest },
+    gf:{ from:origin, to:flightTo || null },
     notes:noteEl ? noteEl.value.trim() : '', eventDate:eventEl && /^\d{4}-\d{2}-\d{2}$/.test(eventEl.value) ? eventEl.value : null, reminders:[], nextAction:'', blockers:[]
   };
   WATCHLIST.push(item); saveWatchlist();
@@ -8856,8 +8886,30 @@ function addNewTrip(){
     if (S.extraSoloDests.indexOf(dest) === -1) S.extraSoloDests.push(dest);
   }
   _watchlistAdding = false;
+  _watchlistOpenId = item.id;
   renderWatchlist();
   if (S.mode === 'solo') renderSoloCards();
+}
+function saveWatchlistFlightSearch(id, card){
+  var t = watchlistItem(id);
+  if (!t || !t._added || !card) return;
+  var airportEl = card.querySelector('.wl-flight-to');
+  var depEl = card.querySelector('.wl-flight-dep');
+  var retEl = card.querySelector('.wl-flight-ret');
+  var airport = airportEl ? airportEl.value.trim().toUpperCase() : '';
+  var dep = depEl ? depEl.value : '';
+  var ret = retEl ? retEl.value : '';
+  if (airport && !/^[A-Z]{3}$/.test(airport)) { showShareToast('Use a 3-letter airport or city code'); if (airportEl) airportEl.focus(); return; }
+  if (ret && !dep) { showShareToast('Add a departure date before a return date'); if (depEl) depEl.focus(); return; }
+  if (ret && ret < dep) { showShareToast('Return must be after departure'); if (retEl) retEl.focus(); return; }
+  t.gf = t.gf || {};
+  t.gf.to = airport || null;
+  if (t.mode === 'family') t.hub = airport || null;
+  t.dep = dep || null;
+  t.ret = ret || null;
+  saveWatchlist();
+  renderWatchlist();
+  showShareToast('Flight search updated');
 }
 function renderWatchlist(){
   var sec = document.getElementById('watchlist-section');
@@ -8977,7 +9029,7 @@ function renderWatchlist(){
     }
         var eventLine = '';
     if (t.eventDate && /^\d{4}-\d{2}-\d{2}$/.test(String(t.eventDate))) {
-      var eventPlace = t.hub === 'RDU' ? ' · Cary, NC' : '';
+      var eventPlace = t.id === 'tgiving' ? ' · Cary, NC' : '';
       eventLine = '<div style="font-size:var(--fs-micro);font-weight:800;color:var(--accent);margin-top:2px;padding-left:22px;">📅 event ' + dateFmt(new Date(t.eventDate+'T12:00:00'),'long') + eventPlace + '</div>';
     }
 var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open?'true':'false')+'" aria-label="'+esc(t.title)+' — '+(open?'collapse':'expand')+' trip details" data-wl-id="'+t.id+'">' +
@@ -8999,6 +9051,17 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
       var modeChip = '<span style="font-size:var(--fs-micro);font-weight:900;background:'+(t.mode==='family'?'#a855f7':'#2e7cf6')+'22;color:'+(t.mode==='family'?'var(--mode-family)':'var(--mode-solo)')+';border:1px solid '+(t.mode==='family'?'var(--mode-family)':'var(--mode-solo)')+';padding:1px 5px;border-radius:var(--rad-xs);">'+(t.mode==='family'?'FAMILY':'SOLO')+'</span>';
       var remind = (t.reminders && t.reminders.length) ? '<div style="margin-top:5px;font-size:var(--fs-micro);color:var(--ink-muted);line-height:1.5;">' + t.reminders.map(function(r){ return '🔔 '+esc(r); }).join('<br/>') + '</div>' : '';
       var gfLinks = (t.stage === 'booked' || t.stage === 'completed') ? [] : watchlistGFLinks(t);
+      var flightSearchHtml = '';
+      if (t.stage === 'watching' || t.stage === 'planning') {
+        flightSearchHtml = '<div class="wl-detail-label">Google Flights search</div>' +
+          '<div class="nt-help">'+(gfLinks.length ? 'Search each route in Google Flights. Choose Track prices there if you want alerts; tracking stays in your Google account.' : 'Confirm the flight airport or city code to search. Your trip place can be different from the airport.')+'</div>' +
+          (t._added ? '<div class="wl-flight-edit">' +
+            '<label>Flight airport / city code<input class="wl-flight-to nt-input" aria-label="Flight airport or city code" maxlength="3" placeholder="e.g. RDU" value="'+esc(watchlistFlightAirport(t))+'"/></label>' +
+            '<label>Depart<input class="wl-flight-dep nt-input" aria-label="Flight departure date" type="date" value="'+esc(t.dep || '')+'"/></label>' +
+            '<label>Return<input class="wl-flight-ret nt-input" aria-label="Flight return date" type="date" value="'+esc(t.ret || '')+'"/></label>' +
+            '<button type="button" class="wl-flight-save wl-act" data-id="'+t.id+'">Update search</button></div>' : '') +
+          (gfLinks.length && !t.dep ? '<div class="nt-help">Dates flexible? Choose “Any dates” in Google Flights and turn on Track prices there.</div>' : '');
+      }
       // PIA-030: next-action input + blocker chips — hidden for completed trips
       // (nothing left to decide).
       var nextActionHtml = '';
@@ -9023,7 +9086,7 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
           ((t.eventDate || (t.calendarEvents && t.calendarEvents.length)) ? '<button type="button" class="wl-calendar wl-act" data-id="'+t.id+'" style="color:var(--success);border:1px solid var(--success);">📅 Add to calendar</button>' : '') +
           bookedTripHtml +
           gfLinks.map(function(l){
-            return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Search final options in Google Flights; set an alert there if you choose">🔎 '+(l.label ? esc(l.label) : 'Search route')+' ↗</a>';
+            return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);" title="Open a flight search in Google Flights">🔎 '+(l.label ? esc(l.label) : 'Search route')+' ↗</a>';
           }).join('') +
           // PIA-046 (audit defect): Flighty owns POST-booking ops — showing it on a
           // trip that isn't booked yet advertises a tool the user can't use for it.
@@ -9040,6 +9103,7 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
         '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
         (nextActionHtml ? '<div class="wl-detail-label">Next move</div>' : '') +
         nextActionHtml +
+        flightSearchHtml +
         '<div class="wl-detail-label">Trip actions</div>' + actions +
         '<details class="wl-more-section"><summary>Notes, alerts &amp; trip details</summary>' +
         (taView ? renderFactChips(taView) : '') +
@@ -9083,6 +9147,7 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
     addBtn = '<div id="nt-form">' +
       '<div class="nt-help">Save the idea now. Add dates and details only if you know them.</div>' +
       '<input id="nt-dest" class="nt-input" type="text" placeholder="Where do you want to go? e.g. Memphis / MEM" value="'+esc(ntPrefillDest)+'" autofocus/>' +
+      '<input id="nt-flight-to" class="nt-input" type="text" maxlength="3" aria-label="Flight airport or city code (optional)" placeholder="Flight airport or city code, e.g. RDU (optional)" value="'+(/^[A-Z]{3}$/.test(ntPrefillDest)?ntPrefillDest:'')+'"/>' +
       '<div style="display:flex;gap:5px;">' +
         '<input id="nt-dep" class="nt-input" type="date" aria-label="Departure date (optional)" value="'+ntPrefillDep+'" style="flex:1;"/>' +
         '<input id="nt-ret" class="nt-input" type="date" aria-label="Return date (optional)" value="'+ntPrefillRet+'" style="flex:1;"/>' +
@@ -9137,6 +9202,7 @@ var hdr = sec.querySelector('#wl-hdr');
   sec.querySelectorAll('.wl-stage').forEach(function(el){ el.addEventListener('change', function(){ setWatchlistStage(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-notes').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNotes(el.getAttribute('data-id'), el.value); }); });
   sec.querySelectorAll('.wl-next').forEach(function(el){ el.addEventListener('blur', function(){ setWatchlistNextAction(el.getAttribute('data-id'), el.value); }); });
+  sec.querySelectorAll('.wl-flight-save').forEach(function(el){ el.addEventListener('click', function(){ saveWatchlistFlightSearch(el.getAttribute('data-id'), el.closest('.wl-card')); }); });
   // ── PIA-050 assistant handlers ──
   sec.querySelectorAll('.ta-add-note').forEach(function(el){
     el.addEventListener('click', function(e){
