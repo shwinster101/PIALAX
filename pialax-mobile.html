@@ -813,12 +813,28 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 .wl-list::-webkit-scrollbar{display:none;}
 .wl-list>.wl-card{flex:0 0 calc(100% - 18px);scroll-snap-align:start;margin-bottom:0;}
 .wl-list>.wl-stage-hdr{display:none;}
-.wl-card.wl-sheet-open{position:fixed;z-index:1200;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom));
-  max-height:min(78vh,620px);overflow-y:auto;margin:0;background:var(--surface);
-  box-shadow:0 -120vh 0 120vh rgba(2,6,23,.68),0 12px 40px rgba(0,0,0,.45);
-  animation:wlSheetIn .18s ease-out;}
+.wl-card.wl-sheet-open{position:fixed;z-index:1200;inset:0;width:100%;height:100vh;height:100dvh;
+  box-sizing:border-box;margin:0;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 12px);
+  border:0;border-radius:0;background:var(--surface)!important;display:flex!important;flex-direction:column;
+  overflow:hidden;box-shadow:0 0 0 100vmax rgba(2,6,23,.68);animation:wlSheetIn .18s ease-out;}
+body.trip-sheet-active{overflow:hidden;}
+.wl-sheet-head{flex:none;padding-bottom:12px;border-bottom:1px solid var(--line);}
+.wl-sheet-top{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:44px;}
+.wl-sheet-kicker{font-size:var(--fs-micro);font-weight:900;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-muted);}
+.wl-sheet-scroll{flex:1;min-height:0;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  padding:12px 1px 20px;}
+.wl-sheet-open .wl-row{padding:8px 0 0;cursor:default;}
+.wl-sheet-open .wl-title{white-space:normal;overflow:visible;text-overflow:clip;font-size:var(--fs-body);line-height:1.25;}
+.wl-sheet-open .wl-caret{display:none;}
+.wl-detail-label{font-size:var(--fs-micro);font-weight:900;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-muted);margin:18px 0 7px;}
+.wl-trip-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:6px;}
+.wl-trip-actions .wl-act{min-width:0;min-height:44px;display:flex;align-items:center;justify-content:center;text-align:center;
+  white-space:normal;overflow-wrap:anywhere;padding:8px;box-sizing:border-box;}
+.wl-trip-actions .wl-open{grid-column:1/-1;}
+.wl-sheet-open .wl-swipe-actions{display:none!important;}
 @keyframes wlSheetIn{from{transform:translateY(18px);opacity:.7}to{transform:translateY(0);opacity:1}}
-.wl-sheet-close{float:right;min-height:36px;padding:6px 10px;border:1px solid var(--line-strong);
+.wl-sheet-close{min-height:44px;padding:8px 12px;border:1px solid var(--line-strong);
   border-radius:var(--rad-pill);background:var(--surface-2);color:var(--ink-muted);
   font-size:var(--fs-tiny);font-weight:800;cursor:pointer;}
 .wl-sheet-close:hover{color:var(--ink);border-color:var(--accent);}
@@ -830,7 +846,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 .wl-swipe-actions button{min-height:36px;padding:6px 10px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);
   background:var(--surface-2);color:var(--ink);font-size:var(--fs-tiny);font-weight:800;cursor:pointer;}
 .wl-swipe-actions button:hover{border-color:var(--accent);color:var(--accent);}
-.trip-ideas-intro{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin:2px 0 8px;}
+.trip-ideas-intro{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 0 8px;min-height:44px;}
 .trip-ideas-intro strong{font-size:var(--fs-body);font-weight:900;color:var(--ink);}
 .trip-ideas-intro span{font-size:var(--fs-tiny);color:var(--ink-muted);line-height:1.35;text-align:right;}
 .wl-row{cursor:pointer;padding:5px 0;min-height:32px;}
@@ -1292,7 +1308,8 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
 #tab-watchlist .wl-history-card,#tab-watchlist .wl-history-header{display:none;}
 #tab-watchlist #watchlist-section.history-open .wl-history-card{display:block;}
 #tab-watchlist #watchlist-section.history-open .wl-history-header{display:flex;}
-#wl-history-toggle{border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink-muted);border-radius:var(--rad-pill);padding:3px 8px;font:inherit;font-size:var(--fs-micro);font-weight:800;cursor:pointer;}
+#wl-history-toggle{border:1px solid var(--line-strong);background:var(--surface-2);color:var(--ink-muted);border-radius:var(--rad-pill);padding:3px 8px;min-height:44px;font:inherit;font-size:var(--fs-micro);font-weight:800;cursor:pointer;}
+#nt-thanksgiving{min-height:44px;}
 #wl-history-toggle:hover{border-color:var(--accent);color:var(--accent);}
 #tab-watchlist .wl-list{display:block;overflow:visible;padding:2px 0 4px;}
 #tab-watchlist .wl-list>.wl-card{display:block;width:auto;flex:none;margin-bottom:7px;}
@@ -1661,7 +1678,7 @@ button { font-family: inherit; cursor: pointer; -webkit-tap-highlight-color: tra
           <button class="hol-btn" data-hol="laborday" aria-label="Quick-pick: Labor Day">⚡ Labor Day</button>
           <button class="hol-btn" data-hol="thanksgiving" aria-label="Quick-pick: Thanksgiving">🦃 Thanksgiving</button>
           <button class="hol-btn" data-hol="christmas" aria-label="Quick-pick: Christmas">🎄 Christmas</button>
-          <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 4 to 13">🏔 Peru Sep 4–13</button>
+          <button class="hol-btn" data-hol="peru" aria-label="Quick-pick: Peru, September 4 to 13 — trip completed">✅ Peru Sep 4–13 (done)</button>
           <button class="hol-btn" data-hol="london" aria-label="Quick-pick: London — trip completed">✅ London ✓ (done)</button>
         </div>
         </div>
@@ -2745,7 +2762,7 @@ function renderDecisionRail() {
   if (view === 'watchlist') {
     var wl = (typeof WATCHLIST !== 'undefined' && Array.isArray(WATCHLIST)) ? WATCHLIST : [];
     var active = wl.filter(function(t){ return t.stage === 'watching' || t.stage === 'planning'; }).length;
-    var booked = wl.filter(function(t){ return t.stage === 'booked'; }).length;
+    var booked = currentBookedCount(wl, fmtISO(new Date()));
     title.textContent = 'Trip ideas, ready when you are';
     sub.textContent = active ? active + ' active trip' + (active === 1 ? '' : 's') + ' need a next move.' : 'Save a trip from Family Plan to keep its dates, hub, and actions together.';
     primaryLabel.textContent = 'Active ideas';
@@ -6283,7 +6300,7 @@ var WATCHLIST_STAGES = {
 var BLOCKERS = { price:{emoji:'💰',label:'Price'}, dates:{emoji:'📅',label:'Dates'},
   companion:{emoji:'🧑‍🤝‍🧑',label:'Companion'}, pto:{emoji:'🏖',label:'PTO'}, deciding:{emoji:'🤔',label:'Deciding'} };
 var WATCHLIST_SEED = [
-  // PIA-064 reality sync (2026-08-26): the next three trips got BOOKED — booked
+  // PIA-064 reality sync (2026-08-26): these trips were BOOKED — booked
   // separately, outside the app (the UX gap the next sprint digs into). Seeds
   // now carry the REAL itineraries from Flighty, including two things the plan
   // never modeled: the NYC-first chain (no LAX return between trips) and the
@@ -6299,7 +6316,7 @@ var WATCHLIST_SEED = [
     reminders:[], nextAction:'', blockers:[],
     gf:{from:'LGA',to:'MEM'} },
   { id:'peru', key:'peru', mode:'solo', title:'Peru — Machu Picchu (solo)',
-    routeTxt:'LAX → SCL → LIM → CUZ · LIM → LAX', origin:'LAX', dest:'CUZ', dep:'2026-09-04', ret:'2026-09-13', stage:'booked',
+    routeTxt:'LAX → SCL → LIM → CUZ · LIM → LAX', origin:'LAX', dest:'CUZ', dep:'2026-09-04', ret:'2026-09-13', stage:'completed',
     notes:'BOOKED: LATAM via Santiago (not the direct red-eye the plan assumed) — LA 603 LAX 3:55p Sep 4 → SCL 5:35a+1 · LA 650 SCL 7:50a → LIM 10:45a · LA 2028 LIM 1:05p → CUZ 2:25p Sep 5. Lands 2.5h before the 17:00 briefing. Return LA 2224 CUZ 9:20p Sep 12 → LIM · LA 2478 LIM 12:40a → LAX 7:50a Sep 13. Trek was already booked ($1,200).',
     reminders:['Trek briefing 17:00 Sep 5 · trek operator office','Passport valid 6+ months from entry','A friend is also in Cusco Sep 5–12'],
     nextAction:'', blockers:[],
@@ -6390,6 +6407,9 @@ function _scrubStalePeruDep(overrides){
 // exactly those fields; user-typed notes/nextAction/blockers survive.
 function _scrubPrebookingOverrides(overrides){
   try {
+    // Old saved stages must not reopen the now-completed Peru seed. Keep
+    // personal notes, dates, blockers and next action untouched.
+    if (overrides && overrides.peru && overrides.peru.stage === 'booked') delete overrides.peru.stage;
     ['peru','memphis'].forEach(function(id){
       var o = overrides && overrides[id];
       if (!o) return;
@@ -6398,6 +6418,18 @@ function _scrubPrebookingOverrides(overrides){
     });
   } catch(e) {}
   return overrides;
+}
+// Date-only archival after both storage and shared-link overrides are applied.
+// A one-way trip uses its departure date; dates and user-authored fields stay intact.
+function pastBookedTrip(t, todayISO){
+  var end = t && (t.ret || t.dep);
+  return !!(t && t.stage === 'booked' && /^\d{4}-\d{2}-\d{2}$/.test(String(end || '')) && end < todayISO);
+}
+function archivePastBookedTrips(items, todayISO){
+  items.forEach(function(t){ if (pastBookedTrip(t, todayISO)) t.stage = 'completed'; });
+}
+function currentBookedCount(items, todayISO){
+  return items.filter(function(t){ return t.stage === 'booked' && !pastBookedTrip(t, todayISO); }).length;
 }
 // Same pattern as _isSeedDupMemphis for the NYC hop (seed id:'nyc'): a
 // hand-added "NYC — solo trip" from before the seed existed would duplicate
@@ -6457,6 +6489,7 @@ function loadWatchlist() {
       if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !_isSeedDupNyc(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
     }
   } catch(e){}
+  archivePastBookedTrips(WATCHLIST, fmtISO(new Date()));
 }
 function sharePlan(){
   var payload = { overrides:{}, added:[] };
@@ -8577,17 +8610,22 @@ function setWatchlistNextAction(id, text){ var t=watchlistItem(id); if (t){ t.ne
 function toggleWatchlistBlocker(id, key){ var t=watchlistItem(id); if (!t||!BLOCKERS[key])return; t.blockers=t.blockers||[];
   var i=t.blockers.indexOf(key); if (i>-1) t.blockers.splice(i,1); else t.blockers.push(key); saveWatchlist(); renderWatchlist(); }
 function removeWatchlistItem(id){ var t=watchlistItem(id); if (t && t._added) { WATCHLIST=WATCHLIST.filter(function(x){return x.id!==id;}); saveWatchlist(); renderWatchlist(); } }
-function closeTripSheet(){
+function closeTripSheet(restoreFocus){
   if (_watchlistOpenId == null) return;
+  var id = _watchlistOpenId;
   _watchlistOpenId = null;
   _taPreviewFor = null;
   renderWatchlist();
+  var row = document.querySelector('.wl-row[data-wl-id="'+id+'"]');
+  if (row && restoreFocus !== false) row.focus({ preventScroll:true });
 }
 function openTripSheet(id){
   if (!watchlistItem(id)) return;
   _watchlistOpenId = id;
   _taPreviewFor = null;
   renderWatchlist();
+  var close = document.querySelector('.wl-sheet-close');
+  if (close) close.focus({ preventScroll:true });
 }
 function wireTripGestures(sec){
   sec.querySelectorAll('.wl-card').forEach(function(card){
@@ -8618,10 +8656,27 @@ function wireTripGestures(sec){
   });
 }
 document.addEventListener('keydown', function(e){
-  if (e.key === 'Escape' && _watchlistOpenId != null) closeTripSheet();
+  if (_watchlistOpenId == null) return;
+  if (e.key === 'Escape') { closeTripSheet(); return; }
+  if (e.key !== 'Tab') return;
+  var sheet = document.querySelector('.wl-sheet-open');
+  if (!sheet) return;
+  var focusable = Array.prototype.filter.call(
+    sheet.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex="0"]'),
+    function(el){ return el.getClientRects().length > 0; }
+  );
+  if (!focusable.length) return;
+  var first = focusable[0], last = focusable[focusable.length - 1];
+  if (e.shiftKey && (document.activeElement === first || !sheet.contains(document.activeElement))) {
+    e.preventDefault(); last.focus();
+  } else if (!e.shiftKey && (document.activeElement === last || !sheet.contains(document.activeElement))) {
+    e.preventDefault(); first.focus();
+  }
 });
 function openWatchlistTrip(id){
-  _watchlistOpenId = null;
+  // Leave the full-screen sheet before switching to the planner. Clearing only
+  // the id would leave its rendered overlay and body scroll lock behind.
+  closeTripSheet(false);
   var t = watchlistItem(id); if (!t) return;
   if (t.key) { applyHoliday(t.key, { dep: t.dep, ret: t.ret, skipToggle: true }); return; }
   var customFamilyIdea = t.mode === 'family' && !t.hub;
@@ -8807,6 +8862,10 @@ function addNewTrip(){
 function renderWatchlist(){
   var sec = document.getElementById('watchlist-section');
   if (!sec) return;
+  var priorScroll = sec.querySelector('.wl-sheet-scroll');
+  var scrollTop = priorScroll ? priorScroll.scrollTop : 0;
+  document.body.classList.toggle('trip-sheet-active', !!_watchlistOpenId);
+  archivePastBookedTrips(WATCHLIST, fmtISO(new Date()));
   _taRenderNow = new Date().toISOString();
   // PIA-050: fold legacy notes into the context log the first time the
   // assistant renders. Idempotent and non-destructive — item.notes is left
@@ -8829,7 +8888,7 @@ function renderWatchlist(){
   }).length;
 
   var historyCount = counts.booked + counts.completed;
-  var historyLabel = _watchlistHistoryOpen ? 'Hide booked' : 'Show booked';
+  var historyLabel = _watchlistHistoryOpen ? 'Hide history' : 'Show history';
   var historyButton = historyCount ? '<button type="button" id="wl-history-toggle" aria-expanded="'+(_watchlistHistoryOpen?'true':'false')+'">'+historyLabel+' · '+historyCount+'</button>' : '';
   sec.classList.toggle('history-open', _watchlistHistoryOpen);
   var header =
@@ -8958,7 +9017,7 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
         ? '<span class="wl-act" style="color:var(--success);border:1px solid var(--success);">✓ Booked</span>'
         : '';
       var actions =
-        '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
+        '<div class="wl-trip-actions">' +
           '<button class="wl-open wl-act" data-id="'+t.id+'" style="background:'+col+';color:var(--ink-on-warn);border:none;cursor:pointer;">Open ↗</button>' +
           (t._added ? '<button type="button" class="wl-share-trip wl-act" data-id="'+t.id+'" style="color:var(--accent);border:1px solid var(--accent);">🔗 Share idea</button>' : '') +
           ((t.eventDate || (t.calendarEvents && t.calendarEvents.length)) ? '<button type="button" class="wl-calendar wl-act" data-id="'+t.id+'" style="color:var(--success);border:1px solid var(--success);">📅 Add to calendar</button>' : '') +
@@ -8975,11 +9034,13 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
       // notes textarea is replaced by the append-only context log. The item's
       // `notes` field is NOT deleted — flipping the flag off restores the old
       // editor with its content intact.
-      body = '<div>' + (open ? '<button class="wl-sheet-close" type="button" data-wl-close="'+t.id+'">Close</button>' : '') +
+      body = '<div class="wl-sheet-content">' +
         (taView ? renderDecisionCard(taView) : '') +
         '<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:4px;">' + stageSel + modeChip + '</div>' +
         '<div style="font-size:var(--fs-micro);color:var(--ink-muted);margin-top:3px;">'+esc(t.routeTxt)+' · '+esc(t.dep)+(t.ret?' → '+esc(t.ret):'')+'</div>' +
+        (nextActionHtml ? '<div class="wl-detail-label">Next move</div>' : '') +
         nextActionHtml +
+        '<div class="wl-detail-label">Trip actions</div>' + actions +
         '<details class="wl-more-section"><summary>Notes, alerts &amp; trip details</summary>' +
         (taView ? renderFactChips(taView) : '') +
         (taView ? renderContextLog(t, taView)
@@ -8987,7 +9048,6 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
         (taView ? renderAlertSettings(t, taView, _taPreviewFor === t.id) : '') +
         remind +
         '</details>' +
-        actions +
       '</div>';
     }
     var cardStyle = (urgency === 'red')
@@ -8995,8 +9055,11 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
       : (urgency === 'amber')
       ? 'border-color:var(--warn,#f59e0b);border-left-color:var(--warn,#f59e0b);background:'+col+'0f;'
       : 'border-color:'+col+'55;border-left-color:'+col+';background:'+col+'0f;';
-    return groupHdr + '<div class="wl-card'+((t.stage==='booked'||t.stage==='completed')?' wl-history-card':'')+(open?' wl-sheet-open':'')+'" style="' + cardStyle + '">' +
-      row + body + '<div class="wl-swipe-actions" data-id="'+t.id+'">' +
+    var sheetHead = open ? '<div class="wl-sheet-head"><div class="wl-sheet-top"><span class="wl-sheet-kicker">Trip details</span>' +
+      '<button class="wl-sheet-close" type="button" data-wl-close="'+t.id+'" aria-label="Close trip details">✕ Close</button></div>' + row + '</div>' : row;
+    var dialogAttrs = open ? ' role="dialog" aria-modal="true" aria-label="Trip details: '+esc(t.title)+'"' : '';
+    return groupHdr + '<div class="wl-card'+((t.stage==='booked'||t.stage==='completed')?' wl-history-card':'')+(open?' wl-sheet-open':'')+'"'+dialogAttrs+' style="' + cardStyle + '">' +
+      sheetHead + (open ? '<div class="wl-sheet-scroll">'+body+'</div>' : body) + '<div class="wl-swipe-actions" data-id="'+t.id+'">' +
         '<button type="button" class="wl-swipe-done" data-id="'+t.id+'">Mark done</button>' +
         '<button type="button" class="wl-swipe-share" data-id="'+t.id+'">Share</button>' +
       '</div>' +
@@ -9048,6 +9111,8 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
   }
   sec.innerHTML = header + '<div class="wl-list" style="margin-top:6px;">' + cards + '</div>' + addBtn;
   wireWatchlist(sec);
+  var currentScroll = sec.querySelector('.wl-sheet-scroll');
+  if (currentScroll) currentScroll.scrollTop = scrollTop;
   // PIA-063: after each settle, drain the outbox + sync watches (no-ops
   // without the assistant surface, a proxy, or a recipient email).
   if (flagOn('assistant')) scheduleAlertMaintenance();
@@ -9284,6 +9349,7 @@ function ensureMapRendersOnMobile() {
 var NAV_TABS = ['watchlist', 'plan', 'map', 'cal'];
 function setActiveTab(tab) {
   if (NAV_TABS.indexOf(tab) === -1) tab = 'watchlist';
+  if (tab !== 'watchlist' && _watchlistOpenId != null) closeTripSheet(false);
   document.documentElement.dataset.activeTab = tab;
   var app = document.getElementById('app');
   if (app) app.dataset.view = tab === 'plan' ? 'meetup' : tab;
