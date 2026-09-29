@@ -54,6 +54,10 @@ const EXPECT = [
   // PIA-046: feature-flag primitive.
   'parseFlagsParam', 'KNOWN_FLAGS',
   'pastBookedTrip', 'archivePastBookedTrips', 'currentBookedCount', 'loadWatchlist', 'watchlistItem',
+  'createTripIdeaBuilderState', 'normalizeTripIdeaBuilderState', 'resolveTripIdeaCity',
+  'generateTripIdeaDatePairs', 'tripIdeaScore', 'rankTripIdeaRecommendations',
+  'buildTripIdeaRecommendations', 'serializeTripIdeaSharePayload', 'restoreTripIdeaSharePayload',
+  'tripIdeaFlexibilityLabel', 'createTripIdeaWatchlistItem',
 ];
 
 
