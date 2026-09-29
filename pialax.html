@@ -744,6 +744,35 @@ button{font-family:inherit;cursor:pointer;}
 #decision-rail .decision-metric strong[data-tone="success"]{color:var(--success);}
 #decision-rail .decision-metric strong[data-tone="warn"]{color:var(--warn);}
 #decision-rail .decision-metric strong[data-tone="accent"]{color:var(--accent);}
+/* PIA-068: hub comparison + map focus hierarchy */
+#hub-compare{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:10px 18px 0;}
+.hub-focus-card{position:relative;display:flex;flex-direction:column;gap:3px;min-width:0;padding:9px 10px;text-align:left;background:var(--surface);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--rad-md);cursor:pointer;transition:border-color var(--t-quick),background var(--t-quick),box-shadow var(--t-quick),transform var(--t-quick);font:inherit;}
+.hub-focus-card:hover{border-color:var(--accent);transform:translateY(-1px);}
+.hub-focus-card:focus-visible{outline:none;box-shadow:var(--focus-ring);}
+.hub-focus-card.selected{border-color:var(--accent);background:linear-gradient(135deg,var(--accent-dim),var(--surface));box-shadow:0 0 0 2px var(--accent-dim);}
+.hub-focus-card .hub-focus-kicker{font-size:var(--fs-micro);font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
+.hub-focus-card .hub-focus-title{font-size:var(--fs-body-s);font-weight:900;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hub-focus-card .hub-focus-price{font-size:var(--fs-body);font-weight:950;color:var(--success);white-space:nowrap;}
+.hub-focus-card .hub-focus-sub,.hub-focus-card .hub-focus-status{font-size:var(--fs-micro);line-height:1.25;color:var(--ink-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.hub-focus-card .hub-focus-check{position:absolute;top:8px;right:9px;font-size:var(--fs-micro);font-weight:900;color:var(--accent);}
+.hub-compare-heading{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 2px -2px;font-size:var(--fs-micro);font-weight:900;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-muted);}
+.hub-compare-heading span:last-child{max-width:70%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-transform:none;letter-spacing:0;font-weight:700;text-align:right;}
+#map-focus-chip{position:absolute;top:12px;right:14px;z-index:115;max-width:min(220px,calc(100% - 28px));padding:6px 9px;background:var(--overlay-bg);border:1px solid var(--line-strong);border-radius:var(--rad-pill);backdrop-filter:blur(10px);color:var(--ink);font-size:var(--fs-micro);font-weight:900;line-height:1.2;pointer-events:none;box-shadow:var(--shadow-1);}
+#map-focus-chip .map-focus-chip-muted{display:block;margin-top:2px;color:var(--ink-muted);font-weight:700;}
+.map-leader{fill:none;stroke-width:1.2;stroke-dasharray:2,3;opacity:.72;pointer-events:none;}
+.map-pivot-layer{pointer-events:none;}
+.map-pivot-layer .pivot-line{fill:none;stroke:var(--co-ord);stroke-width:2.5;stroke-dasharray:5,4;opacity:.9;}
+.map-pivot-layer .pivot-label{font-family:system-ui,sans-serif;font-weight:900;paint-order:stroke;stroke:var(--map-bg);stroke-width:4;stroke-linejoin:round;}
+.map-pivot-layer .pivot-note{font-family:system-ui,sans-serif;font-weight:900;}
+@media (max-width:640px){
+  #hub-compare{grid-template-columns:repeat(3,minmax(156px,1fr));overflow-x:auto;margin:8px 0 0;padding:0 12px 2px;scrollbar-width:none;}
+  #hub-compare::-webkit-scrollbar{display:none;}
+  .hub-focus-card{min-height:88px;padding:8px 9px;}
+  .hub-focus-card .hub-focus-title{font-size:var(--fs-caption);}
+  .hub-focus-card .hub-focus-price{font-size:var(--fs-body-s);}
+  #map-focus-chip{top:10px;right:10px;max-width:170px;}
+}
+
 #map-svg{width:100%;height:100%;display:block;}
 #tip{position:absolute;pointer-events:none;display:none;background:var(--tooltip-bg);border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:7px 11px;font-size:var(--fs-caption);color:var(--ink);box-shadow:var(--shadow-2);z-index:200;max-width:230px;line-height:1.55;}
 #map-leg{position:absolute;bottom:16px;right:16px;background:var(--overlay-bg);border:1px solid var(--line-strong);border-radius:var(--rad-md);padding:9px 12px;backdrop-filter:blur(10px);}
@@ -1083,6 +1112,7 @@ button{font-family:inherit;cursor:pointer;}
     <div class="decision-metric"><span>Family total</span><strong id="decision-total" data-tone="success">—</strong></div>
     <div class="decision-metric"><span>Signal</span><strong id="decision-signal" data-tone="accent">—</strong></div>
   </section>
+  <section id="hub-compare" aria-label="Hub comparison and map focus"></section>
 
   <div id="map-wrap">
     <svg id="map-svg"></svg>
@@ -1103,7 +1133,8 @@ button{font-family:inherit;cursor:pointer;}
         <button type="button" class="rp-clear" id="rp-clear" aria-label="Reset route picker">Reset</button>
       </div>
       <div id="rp-hint">Tap an airport dot to choose your destination.</div>
-    </div>    <div id="tip"></div>
+    </div>    <div id="map-focus-chip" aria-live="polite"></div>
+    <div id="tip"></div>
     <div id="map-leg"></div>
   </div>
 
@@ -1477,6 +1508,7 @@ var S = {
   // burning SerpAPI quota (each new lock = 1 fetch).
   soloPreview: null,
   soloBarPrices:{}, apiCalls:0, includeORD:true, includeLHR:true, meetupHubOverride:null,
+  mapHubFocus:'PIA_ORD',
   // USA is the planning context; Global is an explicit expansion for international trips.
   mapView:'us', worldGeo:null, worldGeoFallback:false,
   _booting:true,
@@ -2063,6 +2095,111 @@ function pickMeetupHub(code) {
   syncURL();
 }
 
+
+// ── HUB FOCUS + MAP READABILITY (PIA-068) ───────────────────────
+var HUB_FOCUS_OPTIONS = [
+  { key:'LAX', code:'LAX', title:'LAX', kicker:'West Coast hub', sub:'Direct West Coast option' },
+  { key:'PIA_ORD', code:'PIA', title:'PIA / ORD', kicker:'Central pivot', sub:'PIA host · ORD drive fallback' },
+  { key:'LGA', code:'LGA', title:'LGA', kicker:'New York hub', sub:'Direct NYC option' }
+];
+function mapHubOption(key){
+  for (var i=0;i<HUB_FOCUS_OPTIONS.length;i++) if (HUB_FOCUS_OPTIONS[i].key === key) return HUB_FOCUS_OPTIONS[i];
+  return HUB_FOCUS_OPTIONS[1];
+}
+function mapHubFocusKey(){
+  var override = S.meetupHubOverride;
+  if (override === 'LAX') return 'LAX';
+  if (override === 'LGA' || override === 'JFK') return 'LGA';
+  if (override === 'PIA' || override === 'ORD' || override === 'RDU') return 'PIA_ORD';
+  return mapHubOption(S.mapHubFocus || 'PIA_ORD').key;
+}
+function mapHubCodeForFocus(key){ return mapHubOption(key).code; }
+function mapHubRankingRow(ranking, key){
+  var code = mapHubCodeForFocus(key), row = null;
+  (ranking || []).forEach(function(r){ if (r.dest === code) row = r; });
+  if (!row && key === 'PIA_ORD') (ranking || []).forEach(function(r){ if (r.dest === 'ORD') row = r; });
+  return row;
+}
+function activeTripIdeaForMap(){
+  try {
+    if (typeof WATCHLIST === 'undefined' || !Array.isArray(WATCHLIST)) return null;
+    if (typeof _watchlistOpenId !== 'undefined' && _watchlistOpenId) {
+      var open = watchlistItem(_watchlistOpenId); if (open && open.mode === 'family') return open;
+    }
+    return WATCHLIST.filter(function(t){ return t.mode === 'family' && (t.stage === 'watching' || t.stage === 'planning'); })
+      .sort(function(a,b){ return (b.eventDate ? 1 : 0) - (a.eventDate ? 1 : 0); })[0] || null;
+  } catch(e) { return null; }
+}
+function renderMapFocusChip(){
+  var el = document.getElementById('map-focus-chip'); if (!el) return;
+  if (S.mode !== 'meetup') { el.style.display='none'; return; }
+  var key = mapHubFocusKey(), opt = mapHubOption(key), idea = activeTripIdeaForMap();
+  el.style.display='';
+  el.innerHTML = 'Focus: ' + esc(opt.title) + '<span class="map-focus-chip-muted">' + esc(idea ? idea.title : opt.sub) + '</span>';
+}
+function renderHubCompare(){
+  var el = document.getElementById('hub-compare'); if (!el) return;
+  if (S.mode !== 'meetup') { el.innerHTML=''; el.style.display='none'; renderMapFocusChip(); return; }
+  el.style.display='';
+  var ranking = [];
+  try { ranking = computeRanking(); } catch(e) { ranking = []; }
+  var selected = mapHubFocusKey(), isRT = S.tripType === 'round', fareLabel = isRT ? 'RT' : 'OW';
+  var idea = activeTripIdeaForMap();
+  var html = '<div class="hub-compare-heading"><span>Map focus</span><span>' + esc(idea ? idea.title : 'Compare hub options') + '</span></div>';
+  html += HUB_FOCUS_OPTIONS.map(function(opt){
+    var row = mapHubRankingRow(ranking, opt.key), selectedCls = opt.key === selected ? ' selected' : '';
+    var price = (S.depDate && row) ? '≈ $' + row.total + ' ' + fareLabel : 'Pick dates';
+    var status = S.depDate ? 'family estimate' : 'dates needed';
+    var cue = opt.key === 'PIA_ORD' ? 'PIA host + ORD pivot' : opt.sub;
+    return '<button type="button" class="hub-focus-card' + selectedCls + '" data-map-hub="' + opt.key + '" aria-pressed="' + (opt.key === selected ? 'true' : 'false') + '" aria-label="Focus map on ' + esc(opt.title) + ' hub option">' +
+      (opt.key === selected ? '<span class="hub-focus-check">✓ selected</span>' : '') +
+      '<span class="hub-focus-kicker">' + esc(opt.kicker) + '</span>' +
+      '<span class="hub-focus-title">' + esc(opt.title) + '</span>' +
+      '<span class="hub-focus-price">' + price + '</span>' +
+      '<span class="hub-focus-sub">' + esc(cue) + '</span>' +
+      '<span class="hub-focus-status">' + status + '</span>' +
+      '</button>';
+  }).join('');
+  el.innerHTML = html;
+  el.querySelectorAll('.hub-focus-card').forEach(function(btn){
+    btn.addEventListener('click', function(){ selectMapHubFocus(btn.getAttribute('data-map-hub')); });
+  });
+  renderMapFocusChip();
+}
+function selectMapHubFocus(key){
+  var opt = mapHubOption(key); S.mapHubFocus = opt.key;
+  S.meetupHubOverride = opt.code;
+  renderHubCompare(); renderMeetupStrip(); renderMeetupRoutes(); redrawMap(); syncURL();
+}
+function mapLabelLane(from, hub){
+  var lane = { LAX:[-28,-24], LGA:[28,24], JFK:[26,8], PIA:[-22,22], JAX:[-24,14] }[from] || [0,-20];
+  if (hub === 'LAX' && from === 'PIA') lane = [-30,24];
+  if (hub === 'LGA' && from === 'LAX') lane = [-28,-24];
+  if (hub === 'PIA' && from === 'LGA') lane = [30,24];
+  return lane;
+}
+function renderMapFareCallout(svg, w, h, from, hub, x1, y1, x2, y2, price, color){
+  var lane = mapLabelLane(from, hub), mx=(x1+x2)/2, my=(y1+y2)/2, ax=Math.max(82,Math.min(w-82,mx+lane[0])), ay=Math.max(48,Math.min(h-48,my+lane[1]));
+  var title = price ? (S.depDate ? '$' : '≈ $') + price + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') : 'Fare pending';
+  var sub = from + ' → ' + hub, boxW = Math.max(98, Math.max(title.length * 7.1, sub.length * 6.1) + 18), boxH = 38;
+  svg.append('path').attr('class','map-leader').attr('d','M'+mx+','+my+' L'+ax+','+ay).attr('stroke',color);
+  var g = svg.append('g').attr('class','map-price-tag').attr('role','img').attr('aria-label',sub+' '+title);
+  g.append('rect').attr('x',ax-boxW/2).attr('y',ay-boxH/2).attr('width',boxW).attr('height',boxH).attr('rx',9).attr('fill',color).attr('opacity',.98).attr('stroke','#ffffff').attr('stroke-opacity',.32);
+  g.append('text').attr('x',ax).attr('y',ay-2).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',12.5).attr('font-weight',950).attr('font-family','system-ui,sans-serif').text(title);
+  g.append('text').attr('x',ax).attr('y',ay+13).attr('text-anchor','middle').attr('fill','#ffffff').attr('opacity',.9).attr('font-size',9.5).attr('font-weight',800).attr('font-family','system-ui,sans-serif').text(sub);
+}
+function renderMapPivotPair(svg, proj, w, h){
+  var pia = AIRPORTS.PIA, ord = AIRPORTS.ORD, p = proj([pia.lon,pia.lat]), o = proj([ord.lon,ord.lat]);
+  if (!p || !o) return;
+  var mx=(p[0]+o[0])/2, my=(p[1]+o[1])/2;
+  var g = svg.append('g').attr('class','map-pivot-layer');
+  g.append('path').attr('class','pivot-line').attr('d','M'+p[0]+','+p[1]+' L'+o[0]+','+o[1]);
+  g.append('text').attr('class','pivot-label').attr('x',o[0]+13).attr('y',o[1]-10).attr('fill','var(--co-ord)').attr('font-size',14).text('ORD');
+  var label = '🚗 PIA → ORD · pivot', bw = 132, bh = 22, bx=Math.max(bw/2+10,Math.min(w-bw/2-10,mx)), by=Math.max(bh/2+12,Math.min(h-bh/2-12,my+28));
+  g.append('rect').attr('x',bx-bw/2).attr('y',by-bh/2).attr('width',bw).attr('height',bh).attr('rx',11).attr('fill','var(--overlay-bg)').attr('stroke','var(--co-ord)').attr('stroke-opacity',.7);
+  g.append('text').attr('class','pivot-note').attr('x',bx).attr('y',by+4).attr('text-anchor','middle').attr('fill','var(--ink)').attr('font-size',10.5).text(label);
+}
+
 function getNextHoliday() {
   var labels = { memday:'Memorial Day', july4:'July 4th', laborday:'Labor Day', thanksgiving:'Thanksgiving', christmas:'Christmas', london:'London Trip' };
   var next = null;
@@ -2075,6 +2212,7 @@ function getNextHoliday() {
 
 // ── DECISION RAIL (IA revamp) ─────────────────────────────────────
 function renderDecisionRail() {
+  renderHubCompare();
   var rail = document.getElementById('decision-rail');
   if (!rail) return;
   var title = document.getElementById('decision-title');
@@ -5031,7 +5169,7 @@ function redrawMap() {
   if (S.mode === 'meetup') {
     // ── MEETUP: arcs from each family member → active hub ──
     var ranking = computeRanking();
-    var meetupHub = getActiveHub(ranking);
+    var meetupHub = mapHubCodeForFocus(mapHubFocusKey()) || getActiveHub(ranking);
     if (meetupHub) {
       var hubXY = S.proj([AIRPORTS[meetupHub].lon, AIRPORTS[meetupHub].lat]);
       if (hubXY) {
@@ -5052,19 +5190,16 @@ function redrawMap() {
           rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',10).attr('opacity',0.05);
           rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',2.2)
             .attr('stroke-dasharray', isPiaDriving ? '4,4' : '10,6').attr('class','ra').attr('opacity',0.88);
-          var dist = Math.hypot(hubXY[0]-fromXY[0], hubXY[1]-fromXY[1]);
-          var bx = (fromXY[0]+hubXY[0])/2, by = (fromXY[1]+hubXY[1])/2 - dist*.2 - 10;
-          var meetupShift = { LAX:[-10,-8], PIA:[18,12], ORD:[-4,-18], LGA:[16,12], JFK:[-18,-4] }[from] || [0,0];
-          bx += meetupShift[0]; by += meetupShift[1];
-          var lbl = isPiaDriving ? ('🚗 $'+ORD_DRIVE_TAX) : (price ? '$'+price+(S.tripType==='round'?' RT':' OW') : '…');
-          var tagW = Math.max(78, lbl.length * 7 + 22);
-          svg.append('g').attr('class','map-price-tag').call(function(bg){
-            bg.append('rect').attr('x',bx-tagW/2).attr('y',by-15).attr('width',tagW).attr('height',26).attr('rx',13).attr('fill',fromCol).attr('opacity',0.96).attr('stroke','#ffffff').attr('stroke-opacity',0.24);
-            bg.append('text').attr('x',bx).attr('y',by+3).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',12.5).attr('font-weight',900).attr('font-family','system-ui,sans-serif').text(lbl);
-          });
+          if (isPiaDriving) {
+            // PIA → ORD is represented by the shared pivot badge, not a fare pill.
+          } else {
+            renderMapFareCallout(svg, w, h, from, meetupHub, fromXY[0], fromXY[1], hubXY[0], hubXY[1], price, fromCol);
+          }
         });
       }
     }
+
+    if (mapHubFocusKey() === 'PIA_ORD') renderMapPivotPair(svg, S.proj, w, h);
 
     // Airport dots — meetup mode
     var ag = svg.append('g');
@@ -8372,6 +8507,7 @@ function openWatchlistTrip(id){
   if (customFamilyIdea) {
     _watchlistOpenId = t.id;
     renderWatchlist();
+    updateDateUI(); renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); renderDecisionRail(); redrawMap();
     showShareToast('Family idea loaded — review the event details');
     return;
   }
