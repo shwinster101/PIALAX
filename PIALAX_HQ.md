@@ -226,7 +226,7 @@ After each substantial ship cycle (≥3 tickets or any cross-team friction worth
 That phase has no home today. Google Flights tracks **one trip's price at a time**; Flighty covers trips **already booked or completed**. The gap between "idea" and "purchased" — a **watchlist of trips under consideration**, across solo + family, with notes, reminders, group cost, and the cheapest-week-to-gather signal — is PIALAX's high-leverage territory. Everything we build must make PIALAX the best possible home for that phase.
 
 **Hand off, don't rebuild:**
-- **Google Flights** — expanded flight options, live pricing, booking, and **price alerts**. Every watched trip deep-links to a GF search prefilled with its route + dates. We do NOT try to out-search or out-track GF on a single itinerary.
+- **Google Flights** — expanded flight options, live pricing, booking, and **price alerts**. A watched trip opens a traveler-specific GF search after its flight airport or city code is confirmed; dates are included when known, while flexible ideas open a route search. The user chooses “Any dates” and enables price tracking in Google Flights. A saved PIALAX idea is not a synced Google trip or tracked-price subscription. We do NOT try to out-search or out-track GF on a single itinerary.
 - **Flighty** — passport wallet, day-of tracking, and **past/booked flight stats**. Once a trip is booked/flown, we point to Flighty rather than duplicating tracking.
 
 **Test for every new ticket:** it must either (a) deepen the watchlist/consideration phase (group economics, cheapest-week, notes/reminders, coordination), or (b) improve a hand-off to GF/Flighty. If it merely re-implements single-trip search (GF) or post-booking tracking (Flighty), it is out of scope — link out instead.

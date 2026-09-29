@@ -275,6 +275,59 @@ for (const file of FILES) {
       } else if (a11y.small.length) {
         console.log(`  ··  ${label} — ${a11y.small.length} sub-28px targets (desktop layout, not gated)`);
       }
+      if (file === 'pialax-mobile.html' && vp.width === 360) {
+        await page.evaluate(() => {
+          if (!document.getElementById('nt-form')) document.getElementById('wl-newtrip').click();
+          document.getElementById('nt-dest').value = 'Cary';
+          document.getElementById('nt-flight-to').value = '';
+          document.getElementById('nt-dep').value = '';
+          document.getElementById('nt-ret').value = '';
+          document.querySelector('#nt-mode [data-v="family"]').click();
+          document.getElementById('nt-save').click();
+        });
+        const unconfirmed = await page.evaluate(() => ({
+          open: !!document.querySelector('.wl-sheet-open .wl-flight-to'),
+          links: document.querySelectorAll('.wl-sheet-open .wl-gf').length,
+        }));
+        if (unconfirmed.open && unconfirmed.links === 0)
+          ok(`${label} — place-only family idea saves without inventing a flight route`);
+        else bad(`${label} — unconfirmed family route incorrect: ${JSON.stringify(unconfirmed)}`);
+
+        await page.locator('.wl-sheet-open .wl-flight-to').fill('RDU');
+        await page.locator('.wl-sheet-open .wl-flight-save').click();
+        const flexible = await page.evaluate(() => [...document.querySelectorAll('.wl-sheet-open .wl-gf')]
+          .map((a) => ({ label:a.textContent, query:decodeURIComponent(a.href) })));
+        if (flexible.length === 3 && flexible.every((l) => l.label.includes('flexible dates') && l.query.includes('to RDU')))
+          ok(`${label} — confirmed RDU yields three flexible-date family searches`);
+        else bad(`${label} — flexible-date links incorrect: ${JSON.stringify(flexible)}`);
+
+        await page.locator('.wl-sheet-open .wl-flight-dep').fill('2026-11-25');
+        await page.locator('.wl-sheet-open .wl-flight-ret').fill('2026-11-29');
+        await page.locator('.wl-sheet-open .wl-flight-save').click();
+        const dated = await page.evaluate(() => ({
+          links: [...document.querySelectorAll('.wl-sheet-open .wl-gf')].map((a) => decodeURIComponent(a.href)),
+          stored: JSON.parse(localStorage.getItem('pialax_watchlist_v1') || '{}').added || [],
+        }));
+        const saved = dated.stored.find((t) => t.dest === 'Cary');
+        if (dated.links.length === 3 && dated.links.every((u) => u.includes('2026-11-25') && u.includes('2026-11-29')) &&
+            saved && saved.gf.to === 'RDU' && saved.dep === '2026-11-25' && saved.ret === '2026-11-29')
+          ok(`${label} — dated searches and confirmed airport persist on the trip idea`);
+        else bad(`${label} — dated handoff or persistence incorrect: ${JSON.stringify(dated)}`);
+        await page.reload({ waitUntil: 'load' });
+        await page.locator('.tabbar-btn[data-tab="watchlist"]').click();
+        await page.waitForSelector('.wl-row');
+        const restored = await page.evaluate(() => {
+          const row = [...document.querySelectorAll('.wl-row')].find((el) => el.textContent.includes('Cary — family meetup idea'));
+          if (!row) return null;
+          row.click();
+          return { airport:document.querySelector('.wl-sheet-open .wl-flight-to')?.value,
+            links:[...document.querySelectorAll('.wl-sheet-open .wl-gf')].map((a) => decodeURIComponent(a.href)) };
+        });
+        if (restored && restored.airport === 'RDU' && restored.links.length === 3 &&
+            restored.links.every((u) => u.includes('2026-11-25') && u.includes('2026-11-29')))
+          ok(`${label} — confirmed handoff survives page reload`);
+        else bad(`${label} — restored handoff incorrect: ${JSON.stringify(restored)}`);
+      }
     } catch (e) {
       bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
     } finally {
