@@ -9877,6 +9877,8 @@ function ensureMapRendersOnMobile() {
 // visibility of existing containers only; no state, logic, or render-function
 // changes. URL params stay frozen — the landing tab is DERIVED from the
 // restored state, never serialized.
+var DEFAULT_HOME_TAB = 'watchlist';
+var DEFAULT_MAP_VIEW = 'us';
 var NAV_TABS = ['watchlist', 'plan', 'map', 'cal'];
 function setActiveTab(tab) {
   if (NAV_TABS.indexOf(tab) === -1) tab = 'watchlist';
@@ -9928,7 +9930,8 @@ function initialTab() {
       if (sp.get(tripParams[i]) != null) return 'plan';
     }
   } catch(e) {}
-  return 'watchlist';
+  S.mapView = DEFAULT_MAP_VIEW;
+  return DEFAULT_HOME_TAB;
 }
 document.querySelectorAll('.tabbar-btn').forEach(function(b){
   b.addEventListener('click', function(){ setActiveTab(b.getAttribute('data-tab')); });

@@ -9449,7 +9449,9 @@ function initTripIdeaBuilder(){
 // wrappers (#panel-watchlist / #panel-planner) and the sidebar itself, then
 // calls existing entry points (openCal, setMode, redrawMap). It owns no
 // pricing, quota, date, or URL logic — those contracts are untouched.
-var _activeView = 'watchlist';
+var DEFAULT_HOME_VIEW = 'watchlist';
+var DEFAULT_MAP_VIEW = 'us';
+var _activeView = DEFAULT_HOME_VIEW;
 function setView(view) {
   if (view === 'calendar') { openCal('dep'); return; } // launcher, not a surface
   _activeView = view;
@@ -9493,8 +9495,9 @@ function initShellView() {
     var sp = new URLSearchParams(window.location.search);
     if (sp.get('wl') != null) { setView('watchlist'); return; }
     var deep = ['hub','trip','mode','dep','ret','mhub','md','pia','ms','ord','lhr'].some(function(k){ return sp.get(k) != null; });
-    setView(deep ? 'meetup' : 'watchlist');
-  } catch(e) { setView('watchlist'); }
+    if (!deep) { S.mapView = DEFAULT_MAP_VIEW; setView(DEFAULT_HOME_VIEW); return; }
+    setView('meetup');
+  } catch(e) { S.mapView = DEFAULT_MAP_VIEW; setView(DEFAULT_HOME_VIEW); }
 }
 
 // ── INIT ─────────────────────────────────────────────────────────
