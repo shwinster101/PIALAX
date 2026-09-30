@@ -3804,12 +3804,6 @@ function setMode(mode) {
   if (isMeetup) {
     S.barFocus = null;
     if (titleEl) titleEl.textContent = 'Family Meetup';
-    // Auto-enable LHR + world map when entering meetup mode
-    if (S.includeLHR && S.mapView !== 'world') {
-      S.mapView = 'world';
-      updateMapToggle();
-      if (!S.worldGeo) { loadWorldGeo().then(function(){ redrawMap(); }); }
-    }
     renderMeetupStrip(); renderMeetupRoutes(); renderMeetupFinder(); redrawMap();
     // Auto-refresh prices when switching to meetup with dates set (skip during boot — boot() calls loadPrices itself)
     if (!S._booting && S.depDate && (S.tripType === 'one' || S.retDate)) loadPrices();
