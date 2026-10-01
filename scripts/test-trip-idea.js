@@ -10,9 +10,10 @@ const EXPECT = [
   'rankTripIdeaRecommendations', 'buildTripIdeaRecommendations',
   'serializeTripIdeaSharePayload', 'encodeTripIdeaSharePayload',
   'restoreTripIdeaSharePayload', 'tripIdeaFlexibilityLabel',
-  'createTripIdeaWatchlistItem',
+  'createTripIdeaWatchlistItem', '_tripIdeaInputsHtml',
 ];
 let failures = 0;
+const formMarkup = {};
 function check(ok, message) {
   console.log((ok ? '  OK  ' : '  XX  ') + message);
   if (!ok) failures++;
@@ -61,7 +62,20 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     restored.notes === 'family event', `${file}: versioned share payload round trip`);
   check(api.tripIdeaFlexibilityLabel({ dates: { flexibilityDays: 2 } }) === 'Independent dates ±2 days',
     `${file}: flexibility label is explicit`);
+  formMarkup[file] = api._tripIdeaInputsHtml();
+  check(formMarkup[file].includes('type="date"') && formMarkup[file].includes('id="trip-idea-departure"') && formMarkup[file].includes('id="trip-idea-return"'),
+    `${file}: native calendar controls remain the primary date picker`);
+  check(formMarkup[file].includes('Dates can shift') && formMarkup[file].includes('±1 day') && formMarkup[file].includes('±2 days'),
+    `${file}: fixed dates offer a simple ±day margin`);
+  check(formMarkup[file].includes('Where to? <span>Optional</span>') && formMarkup[file].includes('More planning options <span>Optional</span>') &&
+    !formMarkup[file].match(/<details class="trip-idea-options" open/),
+    `${file}: destination is optional and extra preferences are collapsed`);
+  check(formMarkup[file].includes('Earliest departure') && formMarkup[file].includes('Latest departure') &&
+    formMarkup[file].includes('Trip length <span>Optional</span>') && formMarkup[file].includes('data-trip-date-mode="window"'),
+    `${file}: search window and optional trip length exist only as flexible-date mode`);
 }
+
+check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
 
 if (failures) process.exit(1);
 console.log('all Trip Idea Builder checks passing');

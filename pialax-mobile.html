@@ -1614,6 +1614,9 @@ body.trip-sheet-active{overflow:hidden;}
 .trip-idea-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.trip-idea-grid label{display:flex;flex-direction:column;gap:5px;font-size:var(--fs-tiny);font-weight:800}.trip-idea-grid input,.trip-idea-grid select,.trip-idea-grid textarea{box-sizing:border-box;width:100%;min-height:38px;padding:8px 9px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--bg);color:var(--ink);font:inherit}.trip-idea-grid small{font-size:var(--fs-micro);color:var(--ink-muted);font-weight:500}.trip-idea-check{flex-direction:row!important;align-items:center;gap:8px!important;padding-top:25px}.trip-idea-check input{width:18px!important;min-height:18px}.trip-idea-notes{grid-column:1/-1}.trip-idea-results-summary{display:flex;justify-content:space-between;gap:10px;align-items:baseline;margin-bottom:10px;font-size:var(--fs-tiny)}.trip-idea-results-summary span{color:var(--ink-muted);text-align:right}.trip-idea-results{display:grid;gap:8px}.trip-idea-result{display:flex;flex-direction:column;gap:5px;text-align:left;padding:12px;border:1px solid var(--line-strong);border-radius:var(--rad-md);background:var(--surface-2);color:var(--ink);font:inherit;cursor:pointer}.trip-idea-result.selected{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-dim);background:linear-gradient(135deg,var(--accent-dim),var(--surface-2))}.trip-idea-result-head{display:flex;justify-content:space-between;gap:10px;font-size:var(--fs-body)}.trip-idea-result-head b{color:var(--success)}.trip-idea-result>span:not(.trip-idea-result-head){font-size:var(--fs-tiny);color:var(--ink-muted)}.trip-idea-badges{display:flex;flex-wrap:wrap;gap:5px}.trip-idea-badges em{font-size:var(--fs-micro);font-style:normal;padding:2px 6px;border-radius:var(--rad-pill);background:var(--accent-dim);color:var(--accent)}.trip-idea-map-summary{display:flex;flex-direction:column;gap:3px;margin-top:12px;padding:11px;border:1px dashed var(--accent);border-radius:var(--rad-md);background:var(--accent-dim)}.trip-idea-map-summary span,.trip-idea-map-summary small{font-size:var(--fs-tiny);color:var(--ink-muted)}.trip-idea-result-actions{display:flex;gap:8px;margin-top:10px}.trip-idea-result-actions button,.trip-idea-footer button{min-height:38px;padding:8px 12px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface-2);color:var(--ink);font:inherit;font-weight:800;cursor:pointer}.trip-idea-empty{padding:18px;border:1px dashed var(--line-strong);color:var(--ink-muted);text-align:center}.trip-idea-footer{display:flex;justify-content:flex-end;gap:8px;padding:12px 20px;border-top:1px solid var(--line)}.trip-idea-footer .trip-idea-primary{border-color:var(--accent);background:var(--accent);color:#fff}.trip-idea-footer button[hidden]{display:none}
 @media(max-width:640px){#trip-idea-builder-bd{padding:0;place-items:stretch}#trip-idea-builder{width:100%;height:100%;max-height:none;border:0;border-radius:0}.trip-idea-header{padding:16px}.trip-idea-intents,.trip-idea-grid{grid-template-columns:1fr}.trip-idea-grid .trip-idea-check{padding-top:0}.trip-idea-result-actions{flex-direction:column}.trip-idea-footer{position:sticky;bottom:0;background:var(--surface);padding:10px 16px}.trip-idea-footer button{flex:1}.trip-idea-footer .trip-idea-close-footer{display:none}}
 </style>
+<style>
+.trip-idea-plan{display:grid;gap:12px}.trip-idea-plan label{display:flex;min-width:0;flex-direction:column;gap:5px;font-size:var(--fs-tiny);font-weight:800}.trip-idea-plan label>span,.trip-idea-date-heading span,.trip-idea-date-mode button{font-size:var(--fs-micro);font-weight:600;color:var(--ink-muted)}.trip-idea-plan input,.trip-idea-plan select,.trip-idea-plan textarea{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:9px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--bg);color:var(--ink);font:inherit}.trip-idea-plan input[type=checkbox]{width:18px;min-height:18px}.trip-idea-destination small{font-size:var(--fs-micro);font-weight:500;color:var(--ink-muted)}.trip-idea-date-heading{display:flex;flex-direction:column;gap:2px}.trip-idea-date-mode{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.trip-idea-date-mode button{min-height:42px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface-2);font:inherit;font-weight:800;cursor:pointer}.trip-idea-date-mode button.selected{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}.trip-idea-date-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.trip-idea-date-fields[hidden]{display:none}.trip-idea-date-fields .trip-idea-margin{grid-column:1/-1}.trip-idea-options{padding-top:9px;border-top:1px solid var(--line)}.trip-idea-options summary{min-height:40px;display:flex;align-items:center;justify-content:space-between;color:var(--accent);font-size:var(--fs-tiny);font-weight:800;cursor:pointer}.trip-idea-options summary span{color:var(--ink-muted);font-size:var(--fs-micro);font-weight:600}.trip-idea-options .trip-idea-grid{margin-top:10px}.trip-idea-options .trip-idea-check{padding-top:22px}.trip-idea-plan .trip-idea-notes{grid-column:1/-1}#trip-idea-builder-primary:disabled{opacity:.55;cursor:not-allowed}@media(max-width:640px){.trip-idea-date-fields{grid-template-columns:1fr}.trip-idea-date-fields .trip-idea-margin{grid-column:auto}.trip-idea-options .trip-idea-check{padding-top:0}}
+</style>
 </head>
 <!-- PIA-046: default tab is Watchlist, which hides the fare CTA — start in that
      state so the CTA doesn't flash in before setActiveTab() runs. Deep links
@@ -9640,7 +9643,7 @@ function createTripIdeaWatchlistItem(builder, recommendation, options) {
 }
 
 var tripIdeaBuilder = createTripIdeaBuilderState();
-var _tripIdeaBuilderStage = 'intent', _tripIdeaBuilderOpen = false, _tripIdeaBuilderReadOnly = false, _tripIdeaBuilderLaunch = null;
+var _tripIdeaBuilderStage = 'inputs', _tripIdeaBuilderOpen = false, _tripIdeaBuilderReadOnly = false, _tripIdeaBuilderLaunch = null, _tripIdeaDateMode = 'specific';
 
 function _tripIdeaEl(id){ return document.getElementById(id); }
 function _tripIdeaEsc(v){ return typeof esc === 'function' ? esc(v) : String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -9652,11 +9655,12 @@ function _tripIdeaShow(){ _tripIdeaBuilderOpen=true; var bd=_tripIdeaEl('trip-id
 function _tripIdeaHide(){ _tripIdeaBuilderOpen=false; var bd=_tripIdeaEl('trip-idea-builder-bd'), sheet=_tripIdeaEl('trip-idea-builder'); if(bd) bd.hidden=true; if(sheet){sheet.hidden=true;sheet.setAttribute('aria-hidden','true');} document.body.classList.remove('trip-idea-open'); }
 function tripIdeaBuilderOpen(mode){
   _tripIdeaBuilderLaunch = document.activeElement;
-  _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'intent';
+  _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'inputs';
   tripIdeaBuilder = createTripIdeaBuilderState(tripIdeaBuilder);
+  _tripIdeaDateMode = !tripIdeaBuilder.dates.departure && !tripIdeaBuilder.dates.return && (tripIdeaBuilder.dates.searchStart || tripIdeaBuilder.dates.searchEnd) ? 'window' : 'specific';
   if (mode === 'dates-first' || mode === 'city-first' || mode === 'spontaneous') tripIdeaBuilder.mode = mode;
   _tripIdeaShow(); renderTripIdeaBuilder();
-  setTimeout(function(){ var x=_tripIdeaEl('trip-idea-intent-'+tripIdeaBuilder.mode); if(x) x.focus(); },0);
+  setTimeout(function(){ var x=_tripIdeaEl('trip-idea-city'); if(x) x.focus(); },0);
 }
 function tripIdeaBuilderClose(){ _tripIdeaHide(); if(_tripIdeaBuilderLaunch && _tripIdeaBuilderLaunch.focus) _tripIdeaBuilderLaunch.focus(); }
 function _tripIdeaSetStage(stage){ _tripIdeaBuilderStage=stage; renderTripIdeaBuilder(); }
@@ -9665,37 +9669,41 @@ function _tripIdeaCitySuggestions(){
 }
 function _tripIdeaInputsHtml(){
   var s=tripIdeaBuilder, d=s.dates, c=s.constraints;
-  return '<div class="trip-idea-grid">' +
-    '<label>Destination city or airport<input id="trip-idea-city" list="trip-idea-city-list" value="'+_tripIdeaEsc(s.destination.city || s.destination.airport)+'" placeholder="Cary, RDU, NYC…"><datalist id="trip-idea-city-list">'+_tripIdeaCitySuggestions()+'</datalist><small>Saved cities and nearby airports are ranked first.</small></label>' +
-    '<label>Base hub<select id="trip-idea-hub"><option value="all">All base hubs</option>'+TRIP_IDEA_HUBS.map(function(h){return '<option value="'+h.key+'"'+(s.baseHub===h.key?' selected':'')+'>'+h.label+' · '+h.description+'</option>';}).join('')+'</select></label>' +
-    '<label>Departure<input id="trip-idea-departure" type="date" value="'+d.departure+'"></label>' +
-    '<label>Return<input id="trip-idea-return" type="date" value="'+d.return+'"></label>' +
-    '<label>Search window start<input id="trip-idea-search-start" type="date" value="'+d.searchStart+'"></label>' +
-    '<label>Search window end<input id="trip-idea-search-end" type="date" value="'+d.searchEnd+'"></label>' +
-    '<label>Flexibility<select id="trip-idea-flex"><option value="0"'+(!d.flexibilityDays?' selected':'')+'>Exact dates</option><option value="1"'+(d.flexibilityDays===1?' selected':'')+'>±1 day, independent</option><option value="2"'+(d.flexibilityDays===2?' selected':'')+'>±2 days, independent</option></select></label>' +
-    '<label>Trip length (nights)<input id="trip-idea-length" type="number" min="1" max="30" value="'+(c.tripLength || '')+'" placeholder="3"></label>' +
-    '<label>Event date (optional)<input id="trip-idea-event" type="date" value="'+c.eventDate+'"></label>' +
-    '<label class="trip-idea-check"><input id="trip-idea-nonstop" type="checkbox"'+(c.nonstopPreferred?' checked':'')+'> Prefer nonstop</label>' +
-    '<label class="trip-idea-notes">Notes or family context<textarea id="trip-idea-notes" rows="2" placeholder="Event, companions, lodging…"></textarea></label>' +
-    '</div>';
+  return '<div class="trip-idea-plan">' +
+    '<label class="trip-idea-destination">Where to? <span>Optional</span><input id="trip-idea-city" list="trip-idea-city-list" value="'+_tripIdeaEsc(s.destination.city || s.destination.airport)+'" placeholder="City or airport, e.g. Cary or RDU"><datalist id="trip-idea-city-list">'+_tripIdeaCitySuggestions()+'</datalist><small>Saved cities and nearby airports are ranked first.</small></label>' +
+    '<div class="trip-idea-date-heading"><strong>When?</strong><span>Choose dates or a flexible window</span></div>' +
+    '<div class="trip-idea-date-mode" role="group" aria-label="Date search type"><button type="button" data-trip-date-mode="specific" aria-pressed="'+(_tripIdeaDateMode==='specific'?'true':'false')+'"'+(_tripIdeaDateMode==='specific'?' class="selected"':'')+'>I know my dates</button><button type="button" data-trip-date-mode="window" aria-pressed="'+(_tripIdeaDateMode==='window'?'true':'false')+'"'+(_tripIdeaDateMode==='window'?' class="selected"':'')+'>I’m flexible</button></div>' +
+    '<div class="trip-idea-date-fields"'+(_tripIdeaDateMode==='specific'?'':' hidden')+'><label>Departure<input id="trip-idea-departure" type="date" value="'+d.departure+'"></label><label>Return<input id="trip-idea-return" type="date" value="'+d.return+'"></label><label class="trip-idea-margin">Dates can shift<select id="trip-idea-flex"><option value="0"'+(!d.flexibilityDays?' selected':'')+'>Exact dates</option><option value="1"'+(d.flexibilityDays===1?' selected':'')+'>±1 day</option><option value="2"'+(d.flexibilityDays===2?' selected':'')+'>±2 days</option></select></label></div>' +
+    '<div class="trip-idea-date-fields"'+(_tripIdeaDateMode==='window'?'':' hidden')+'><label>Earliest departure<input id="trip-idea-search-start" type="date" value="'+d.searchStart+'"></label><label>Latest departure<input id="trip-idea-search-end" type="date" value="'+d.searchEnd+'"></label><label>Trip length <span>Optional</span><input id="trip-idea-length" type="number" min="1" max="30" value="'+(c.tripLength || '')+'" placeholder="Any length"></label></div>' +
+    '<details class="trip-idea-options"><summary>More planning options <span>Optional</span></summary><div class="trip-idea-grid"><label>Starting hub <span>Optional</span><select id="trip-idea-hub"><option value="all">All base hubs</option>'+TRIP_IDEA_HUBS.map(function(h){return '<option value="'+h.key+'"'+(s.baseHub===h.key?' selected':'')+'>'+h.label+' · '+h.description+'</option>';}).join('')+'</select></label><label>Event date <span>Optional</span><input id="trip-idea-event" type="date" value="'+c.eventDate+'"></label><label class="trip-idea-check"><input id="trip-idea-nonstop" type="checkbox"'+(c.nonstopPreferred?' checked':'')+'> Prefer nonstop</label><label class="trip-idea-notes">Notes or family context <span>Optional</span><textarea id="trip-idea-notes" rows="2" placeholder="Anything else that matters"></textarea></label></div></details></div>';
 }
 function renderTripIdeaBuilder(){
   var body=_tripIdeaEl('trip-idea-builder-body'), title=_tripIdeaEl('trip-idea-builder-title'), step=_tripIdeaEl('trip-idea-builder-step'), primary=_tripIdeaEl('trip-idea-builder-primary');
   if(!body) return;
   if(title) title.textContent=_tripIdeaBuilderReadOnly?'Shared trip idea':'Build a trip idea';
-  if(step) step.textContent=_tripIdeaBuilderReadOnly?'Read-only proposal':'Stage '+(_tripIdeaBuilderStage==='intent'?1:_tripIdeaBuilderStage==='inputs'?2:3)+' of 3';
+  if(step) step.textContent=_tripIdeaBuilderReadOnly?'Read-only proposal':(_tripIdeaBuilderStage==='results'?'Compare options':'Choose a place or dates');
   if(primary) primary.textContent=_tripIdeaBuilderStage==='intent'?'Continue':(_tripIdeaBuilderStage==='inputs'?'Find recommendations':'Save selected idea');
   if(_tripIdeaBuilderStage==='intent'){
     body.innerHTML='<p class="trip-idea-lead">Start with what you know. PIALAX will keep exact inputs, flexible combinations, and estimated pricing separate.</p><div class="trip-idea-intents">'+
       [['dates-first','📅 Dates first','Choose dates; rank destination cities.'],['city-first','📍 City first','Choose a destination; find the best dates in the next 90 days.'],['spontaneous','✨ Feeling spontaneous','Choose a window; find a low-fare suitable destination.']].map(function(x){return '<button type="button" class="trip-idea-intent'+(tripIdeaBuilder.mode===x[0]?' selected':'')+'" id="trip-idea-intent-'+x[0]+'" data-trip-mode="'+x[0]+'"><strong>'+x[1]+'</strong><span>'+x[2]+'</span></button>';}).join('')+'</div>';
   } else if(_tripIdeaBuilderStage==='inputs'){
-    body.innerHTML='<div class="trip-idea-mode-note"><strong>'+_tripIdeaEsc(tripIdeaBuilder.mode.replace('-',' '))+'</strong> · USA-first · '+_tripIdeaEsc(tripIdeaFlexibilityLabel(tripIdeaBuilder))+'</div>'+_tripIdeaInputsHtml();
+    body.innerHTML='<p class="trip-idea-lead">Start with what you know. Add a destination, dates, or both; everything else is optional.</p>'+_tripIdeaInputsHtml();
     var notes=_tripIdeaEl('trip-idea-notes'); if(notes && tripIdeaBuilder._notes) notes.value=tripIdeaBuilder._notes;
   } else {
     renderTripIdeaResults(body);
   }
   if(_tripIdeaBuilderReadOnly && _tripIdeaBuilderStage==='intent') _tripIdeaBuilderStage='results';
   _tripIdeaWireStage();
+  _tripIdeaSyncPrimary();
+}
+function _tripIdeaSyncPrimary(){
+  var primary=_tripIdeaEl('trip-idea-builder-primary');
+  if(!primary || _tripIdeaBuilderStage!=='inputs' || _tripIdeaBuilderReadOnly) return;
+  var city=(_tripIdeaEl('trip-idea-city')||{}).value || '';
+  var ids=_tripIdeaDateMode==='window'?['trip-idea-search-start','trip-idea-search-end']:['trip-idea-departure','trip-idea-return'];
+  var hasDates=ids.some(function(id){return !!((_tripIdeaEl(id)||{}).value);});
+  primary.disabled=!city.trim() && !hasDates;
+  primary.textContent=primary.disabled?'Choose a destination or date':'Find recommendations';
 }
 function _tripIdeaReadInputs(){
   var city=(_tripIdeaEl('trip-idea-city')||{}).value || '', resolved=resolveTripIdeaCity(city,_tripIdeaSavedCities());
@@ -9707,14 +9715,13 @@ function _tripIdeaReadInputs(){
   tripIdeaBuilder.constraints.eventDate=(_tripIdeaEl('trip-idea-event')||{}).value || '';
   tripIdeaBuilder.constraints.nonstopPreferred=!!((_tripIdeaEl('trip-idea-nonstop')||{}).checked);
   tripIdeaBuilder._notes=(_tripIdeaEl('trip-idea-notes')||{}).value || '';
-  if(tripIdeaBuilder.mode==='city-first' && !tripIdeaBuilder.dates.searchStart && !tripIdeaBuilder.dates.searchEnd){
-    var now=new Date(), end=new Date(now.getTime()); end.setDate(end.getDate()+90);
-    tripIdeaBuilder.dates.searchStart=_tripIdeaISO(now); tripIdeaBuilder.dates.searchEnd=_tripIdeaISO(end);
-  }
   tripIdeaBuilder=normalizeTripIdeaBuilderState(tripIdeaBuilder);
 }
 function tripIdeaRunSearch(){
   _tripIdeaReadInputs();
+  if(_tripIdeaDateMode==='window'){tripIdeaBuilder.dates.departure='';tripIdeaBuilder.dates.return='';tripIdeaBuilder.dates.flexibilityDays=0;}
+  else{tripIdeaBuilder.dates.searchStart='';tripIdeaBuilder.dates.searchEnd='';tripIdeaBuilder.constraints.tripLength=null;}
+  if(!tripIdeaBuilder.destination.city && !tripIdeaBuilder.destination.airport && !tripIdeaBuilder.dates.departure && !tripIdeaBuilder.dates.return && !tripIdeaBuilder.dates.searchStart && !tripIdeaBuilder.dates.searchEnd){showShareToast('Add a destination or date to start');return;}
   var destinations=TRIP_IDEA_DESTINATIONS.map(function(c){var x=Object.assign({},c); var saved=_tripIdeaSavedCities().some(function(s){return String(s.city||'').toLowerCase().indexOf(c.city.toLowerCase())>=0 || String(s.dest||'').toUpperCase()===c.airport;}); x.saved=saved; return x;});
   var rows=buildTripIdeaRecommendations(tripIdeaBuilder,destinations);
   if(tripIdeaBuilder.mode==='spontaneous') rows=rows.sort(function(a,b){return a.totalFare-b.totalFare || b.scoreBreakdown.score-a.scoreBreakdown.score;});
@@ -9752,7 +9759,7 @@ function _tripIdeaShare(){
 }
 function _tripIdeaOpenShared(payload){
   if(!payload || !payload.builder) return;
-  tripIdeaBuilder=createTripIdeaBuilderState(payload.builder); tripIdeaBuilder.recommendation=payload.recommendation || null; tripIdeaBuilder._results=payload.recommendation ? [payload.recommendation] : []; tripIdeaBuilder._notes=payload.notes || ''; _tripIdeaBuilderReadOnly=true; _tripIdeaBuilderStage='results'; _tripIdeaShow(); renderTripIdeaBuilder();
+  tripIdeaBuilder=createTripIdeaBuilderState(payload.builder); _tripIdeaDateMode=!tripIdeaBuilder.dates.departure && !tripIdeaBuilder.dates.return && (tripIdeaBuilder.dates.searchStart || tripIdeaBuilder.dates.searchEnd)?'window':'specific'; tripIdeaBuilder.recommendation=payload.recommendation || null; tripIdeaBuilder._results=payload.recommendation ? [payload.recommendation] : []; tripIdeaBuilder._notes=payload.notes || ''; _tripIdeaBuilderReadOnly=true; _tripIdeaBuilderStage='results'; _tripIdeaShow(); renderTripIdeaBuilder();
 }
 function _tripIdeaWireStage(){
   var sheet=_tripIdeaEl('trip-idea-builder'); if(!sheet) return;
@@ -9760,11 +9767,13 @@ function _tripIdeaWireStage(){
   var copyBtn = _tripIdeaEl('trip-idea-builder-copy'), editBtn = _tripIdeaEl('trip-idea-builder-edit'), shareBtn = _tripIdeaEl('trip-idea-builder-share'), saveBtn = _tripIdeaEl('trip-idea-builder-save');
   var calendarBtn = _tripIdeaEl('trip-idea-builder-calendar');
   if (copyBtn) copyBtn.hidden = !(resultsStage && _tripIdeaBuilderReadOnly);
-  if (editBtn) editBtn.hidden = !(resultsStage && _tripIdeaBuilderReadOnly);
+  if (editBtn) { editBtn.hidden = !resultsStage; editBtn.textContent = _tripIdeaBuilderReadOnly ? 'Edit search' : 'Change search'; }
   if (shareBtn) shareBtn.hidden = !resultsStage;
   if (saveBtn) saveBtn.hidden = !resultsStage;
   if (calendarBtn) calendarBtn.hidden = !resultsStage;
   sheet.querySelectorAll('[data-trip-mode]').forEach(function(b){b.onclick=function(){tripIdeaBuilder.mode=b.getAttribute('data-trip-mode');renderTripIdeaBuilder();};});
+  sheet.querySelectorAll('[data-trip-date-mode]').forEach(function(b){b.onclick=function(){_tripIdeaReadInputs();_tripIdeaDateMode=b.getAttribute('data-trip-date-mode')==='window'?'window':'specific';renderTripIdeaBuilder();};});
+  ['trip-idea-city','trip-idea-departure','trip-idea-return','trip-idea-search-start','trip-idea-search-end'].forEach(function(id){var input=_tripIdeaEl(id);if(input){input.addEventListener('input',_tripIdeaSyncPrimary);input.addEventListener('change',_tripIdeaSyncPrimary);}});
   sheet.querySelectorAll('[data-trip-result]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-trip-result'), r=(tripIdeaBuilder._results||[]).filter(function(x){return x.id===id;})[0]; if(r){tripIdeaBuilder.recommendation=r;renderTripIdeaResults(_tripIdeaEl('trip-idea-builder-body'));tripIdeaFocusMap(r);}};});
   sheet.querySelectorAll('[data-trip-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-trip-action');if(a==='refresh'){tripIdeaRunSearch();}if(a==='provider'){var r=tripIdeaBuilder.recommendation||{};var u=typeof gflightsUrl==='function'?gflightsUrl(r.hub,r.airport,r.departure,r.return):'https://www.google.com/travel/flights';window.open(u,'_blank','noopener');}};});
   var primary=_tripIdeaEl('trip-idea-builder-primary'); if(primary) primary.onclick=function(){if(_tripIdeaBuilderReadOnly){_tripIdeaBuilderReadOnly=false;_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='intent'){_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='inputs'){tripIdeaRunSearch();return;} _tripIdeaSave();};
