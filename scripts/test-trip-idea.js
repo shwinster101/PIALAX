@@ -11,6 +11,7 @@ const EXPECT = [
   'serializeTripIdeaSharePayload', 'encodeTripIdeaSharePayload',
   'restoreTripIdeaSharePayload', 'tripIdeaFlexibilityLabel',
   'createTripIdeaWatchlistItem', '_tripIdeaInputsHtml',
+  'resolveTripIdeaSearchDates', '_tripIdeaSamplePairs',
 ];
 let failures = 0;
 const formMarkup = {};
@@ -73,9 +74,53 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   check(formMarkup[file].includes('Earliest departure') && formMarkup[file].includes('Latest departure') &&
     formMarkup[file].includes('Trip length <span>Optional</span>') && formMarkup[file].includes('data-trip-date-mode="window"'),
     `${file}: search window and optional trip length exist only as flexible-date mode`);
+
+  // PIA-068: date resolution gaps found after PIA-067.
+  const TODAY = '2026-10-01';
+  const cityOnly = api.resolveTripIdeaSearchDates({ destination: { city: 'Raleigh-Durham', airport: 'RDU' } }, 'specific', TODAY);
+  check(!cityOnly.error && cityOnly.mode === 'window' && cityOnly.state.dates.searchStart === TODAY &&
+    cityOnly.state.dates.searchEnd === '2026-12-30' && cityOnly.state.dates.autoWindow === true,
+    `${file}: destination-only search defaults to the next 90 days`);
+  const cityRows = api.buildTripIdeaRecommendations(cityOnly.state);
+  check(cityRows.length && cityRows.every((r) => r.departure && r.return),
+    `${file}: destination-only results always carry dates`);
+  check(api.tripIdeaFlexibilityLabel(cityOnly.state) === 'Next 90 days',
+    `${file}: destination-only label is not "Exact dates"`);
+  const deps = new Set(cityRows.map((r) => r.departure));
+  check(deps.size > 1 && [...deps].some((x) => x > '2026-12-01'),
+    `${file}: long windows are sampled across their whole span`);
+  check(api.resolveTripIdeaSearchDates({ dates: { departure: '2026-11-09', return: '2026-11-06' } }, 'specific', TODAY).error === 'Return must be after departure',
+    `${file}: reversed specific dates are rejected`);
+  check(api.resolveTripIdeaSearchDates({ dates: { return: '2026-11-06' } }, 'specific', TODAY).error === 'Add a departure date',
+    `${file}: return-only search asks for a departure`);
+  check(api.resolveTripIdeaSearchDates({ dates: { searchStart: '2026-11-30', searchEnd: '2026-11-01' } }, 'window', TODAY).error.startsWith('Latest departure'),
+    `${file}: reversed window is rejected`);
+  const openEnd = api.resolveTripIdeaSearchDates({ dates: { searchStart: '2026-11-01' } }, 'window', TODAY);
+  check(!openEnd.error && openEnd.state.dates.searchEnd === '2026-12-01',
+    `${file}: window with only a start gets a 30-day end`);
+  check(api.resolveTripIdeaSearchDates({}, 'specific', TODAY).error === 'Add a destination or date to start',
+    `${file}: empty search is rejected`);
+  const win = api.generateTripIdeaDatePairs({ dates: { searchStart: '2026-11-01', searchEnd: '2026-11-30' }, constraints: { tripLength: 3 } });
+  check(win.length === 30 && win[win.length - 1].departure === '2026-11-30',
+    `${file}: "Latest departure" bounds departure, not return`);
+  check(api._tripIdeaSamplePairs([1, 2, 3], 8).length === 3 && api._tripIdeaSamplePairs(win, 8)[7] === win[29],
+    `${file}: sampler keeps short lists and the last date of long ones`);
 }
 
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
+
+// PIA-068: scripts/trip-idea-builder.js is the reviewable copy of the block
+// mirrored into both HTML files; it drifted in PIA-067. Keep all three equal.
+function builderBlock(text) {
+  const a = text.indexOf('// Trip Idea Builder (shared by pialax.html and pialax-mobile.html).');
+  const i = text.indexOf('\nfunction initTripIdeaBuilder(){', a);
+  return a < 0 || i < 0 ? null : text.slice(a, text.indexOf('\n}\n', i) + 3);
+}
+const sharedCopy = fs.readFileSync(path.join(ROOT, 'scripts/trip-idea-builder.js'), 'utf8');
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  check(builderBlock(fs.readFileSync(path.join(ROOT, file), 'utf8')) === sharedCopy,
+    `${file}: Trip Idea block matches scripts/trip-idea-builder.js`);
+}
 
 if (failures) process.exit(1);
 console.log('all Trip Idea Builder checks passing');

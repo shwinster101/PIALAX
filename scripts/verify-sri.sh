@@ -19,7 +19,9 @@ fail=0
 for entry in "${EXPECTED[@]}"; do
   url="${entry%%|*}"
   want="${entry##*|}"
-  got="$(curl -fsSL "$url" | openssl dgst -sha512 -binary | base64)"
+  # GNU base64 wraps at 76 cols (BSD/macOS doesn't); strip newlines so the
+  # 88-char sha512 compares equal on Linux too (PIA-068).
+  got="$(curl -fsSL "$url" | openssl dgst -sha512 -binary | base64 | tr -d '\n')"
   if [[ "$got" == "$want" ]]; then
     printf "OK    %s\n" "$url"
   else
