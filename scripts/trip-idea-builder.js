@@ -41,6 +41,7 @@ function normalizeTripIdeaBuilderState(value) {
   });
   s.dates.flexibilityDays = Math.max(0, Math.min(2, Number(s.dates.flexibilityDays) || 0));
   s.dates.flexibilityMode = s.dates.flexibilityMode === 'independent' ? 'independent' : 'independent';
+  s.dates.autoWindow = !!s.dates.autoWindow;
   s.constraints.tripLength = s.constraints.tripLength == null || s.constraints.tripLength === '' ? null : Math.max(1, Math.min(30, Number(s.constraints.tripLength) || 1));
   s.constraints.nonstopPreferred = !!s.constraints.nonstopPreferred;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(s.constraints.eventDate || ''))) s.constraints.eventDate = '';
@@ -101,8 +102,9 @@ function generateTripIdeaDatePairs(state) {
   if (start && end) {
     var wanted = Number(s.constraints.tripLength) || 3, cursor = _tripIdeaDate(start), finish = _tripIdeaDate(end);
     while (cursor && finish && cursor <= finish) {
+      // searchEnd is the latest DEPARTURE (UI: "Latest departure"), not the latest return.
       var d0 = _tripIdeaISO(cursor), r0 = _tripIdeaAddDays(d0, wanted);
-      if (r0 <= _tripIdeaISO(finish)) out.push({departure:d0, return:r0, tripLength:wanted, changedIndependently:false});
+      out.push({departure:d0, return:r0, tripLength:wanted, changedIndependently:false});
       cursor.setDate(cursor.getDate() + 1);
     }
   }
@@ -137,7 +139,7 @@ function buildTripIdeaRecommendations(state, destinations) {
   if (!pairs.length) pairs = [{departure:s.dates.departure || s.dates.searchStart || '', return:s.dates.return || s.dates.searchEnd || '', tripLength:Number(s.constraints.tripLength) || null, changedIndependently:false}];
   var hubs = s.baseHub === 'all' ? TRIP_IDEA_HUBS : TRIP_IDEA_HUBS.filter(function(h){ return h.key === s.baseHub; });
   var out = [];
-  match.slice(0, 8).forEach(function(city, ci){ hubs.forEach(function(hub, hi){ pairs.slice(0, 8).forEach(function(pair, pi){
+  match.slice(0, 8).forEach(function(city, ci){ hubs.forEach(function(hub, hi){ _tripIdeaSamplePairs(pairs, 8).forEach(function(pair, pi){
     var fare = 145 + ci * 31 + hi * 24 + (pair.tripLength || 3) * 9 + (s.mode === 'spontaneous' ? ci * 7 : 0);
     var same = hub.airports.indexOf(city.airport) >= 0;
     if (same) fare = 0;
@@ -162,8 +164,46 @@ function restoreTripIdeaSharePayload(value) {
   try { var payload = JSON.parse(text); return payload && (payload.version === TRIP_IDEA_BUILDER_VERSION || payload.version === 'trip-idea-v0') ? payload : null; } catch(e2) { return null; }
 }
 function tripIdeaFlexibilityLabel(state) {
-  var n = normalizeTripIdeaBuilderState(state).dates.flexibilityDays;
+  var s = normalizeTripIdeaBuilderState(state), d = s.dates, n = d.flexibilityDays;
+  if (!d.departure && !d.return) {
+    if (d.searchStart && d.searchEnd) return (d.autoWindow ? 'Next ' + (_tripIdeaDays(d.searchStart, d.searchEnd) || 0) + ' days' : 'Flexible window ' + d.searchStart + ' → ' + d.searchEnd) + (s.constraints.tripLength ? ' · ' + s.constraints.tripLength + ' nights' : '');
+    if (!n) return 'Any dates';
+  }
   return n ? 'Independent dates ±' + n + ' day' + (n === 1 ? '' : 's') : 'Exact dates';
+}
+// Spread a long date list evenly (always keeps first and last) so a 30–90 day
+// window is scored across its whole span, not just its first `max` departures.
+function _tripIdeaSamplePairs(pairs, max) {
+  if (pairs.length <= max) return pairs.slice();
+  var out = [], step = (pairs.length - 1) / (max - 1);
+  for (var i = 0; i < max; i++) out.push(pairs[Math.round(i * step)]);
+  return out;
+}
+var TRIP_IDEA_DEFAULT_WINDOW_DAYS = 90, TRIP_IDEA_OPEN_END_WINDOW_DAYS = 30;
+// PIA-068: one place that turns raw form state + date mode into a searchable
+// state, or an error the user can act on. Pure (today is injectable) for tests.
+function resolveTripIdeaSearchDates(state, mode, todayIso) {
+  var s = normalizeTripIdeaBuilderState(state), d = s.dates, today = todayIso || _tripIdeaISO(new Date(new Date().setHours(12,0,0,0))); // local date, not UTC
+  var hasDestination = !!(s.destination.city || s.destination.airport);
+  d.autoWindow = false;
+  if (mode === 'window') { d.departure = ''; d.return = ''; d.flexibilityDays = 0; }
+  else { d.searchStart = ''; d.searchEnd = ''; s.constraints.tripLength = null; }
+  if (!hasDestination && !d.departure && !d.return && !d.searchStart && !d.searchEnd) return {state:s, mode:mode, error:'Add a destination or date to start'};
+  if (mode === 'window') {
+    if (!d.searchStart && d.searchEnd) d.searchStart = today < d.searchEnd ? today : d.searchEnd;
+    if (d.searchStart && !d.searchEnd) d.searchEnd = _tripIdeaAddDays(d.searchStart, TRIP_IDEA_OPEN_END_WINDOW_DAYS);
+    if (d.searchEnd < d.searchStart) return {state:s, mode:mode, error:'Latest departure must be on or after earliest departure'};
+    return {state:s, mode:mode, error:''};
+  }
+  if (d.departure && d.return && d.return <= d.departure) return {state:s, mode:mode, error:'Return must be after departure'};
+  if (!d.departure && d.return) return {state:s, mode:mode, error:'Add a departure date'};
+  if (!d.departure && !d.return) {
+    // Destination only: search the next 90 days instead of returning dateless results.
+    d.searchStart = today; d.searchEnd = _tripIdeaAddDays(today, TRIP_IDEA_DEFAULT_WINDOW_DAYS);
+    d.autoWindow = true;
+    return {state:s, mode:'window', error:''};
+  }
+  return {state:s, mode:mode, error:''};
 }
 function createTripIdeaWatchlistItem(builder, recommendation, options) {
   var s = normalizeTripIdeaBuilderState(builder), r = recommendation || s.recommendation || {};
@@ -172,7 +212,7 @@ function createTripIdeaWatchlistItem(builder, recommendation, options) {
 }
 
 var tripIdeaBuilder = createTripIdeaBuilderState();
-var _tripIdeaBuilderStage = 'intent', _tripIdeaBuilderOpen = false, _tripIdeaBuilderReadOnly = false, _tripIdeaBuilderLaunch = null;
+var _tripIdeaBuilderStage = 'inputs', _tripIdeaBuilderOpen = false, _tripIdeaBuilderReadOnly = false, _tripIdeaBuilderLaunch = null, _tripIdeaDateMode = 'specific';
 
 function _tripIdeaEl(id){ return document.getElementById(id); }
 function _tripIdeaEsc(v){ return typeof esc === 'function' ? esc(v) : String(v == null ? '' : v).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -184,11 +224,12 @@ function _tripIdeaShow(){ _tripIdeaBuilderOpen=true; var bd=_tripIdeaEl('trip-id
 function _tripIdeaHide(){ _tripIdeaBuilderOpen=false; var bd=_tripIdeaEl('trip-idea-builder-bd'), sheet=_tripIdeaEl('trip-idea-builder'); if(bd) bd.hidden=true; if(sheet){sheet.hidden=true;sheet.setAttribute('aria-hidden','true');} document.body.classList.remove('trip-idea-open'); }
 function tripIdeaBuilderOpen(mode){
   _tripIdeaBuilderLaunch = document.activeElement;
-  _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'intent';
+  _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'inputs';
   tripIdeaBuilder = createTripIdeaBuilderState(tripIdeaBuilder);
+  _tripIdeaDateMode = !tripIdeaBuilder.dates.departure && !tripIdeaBuilder.dates.return && (tripIdeaBuilder.dates.searchStart || tripIdeaBuilder.dates.searchEnd) ? 'window' : 'specific';
   if (mode === 'dates-first' || mode === 'city-first' || mode === 'spontaneous') tripIdeaBuilder.mode = mode;
   _tripIdeaShow(); renderTripIdeaBuilder();
-  setTimeout(function(){ var x=_tripIdeaEl('trip-idea-intent-'+tripIdeaBuilder.mode); if(x) x.focus(); },0);
+  setTimeout(function(){ var x=_tripIdeaEl('trip-idea-city'); if(x) x.focus(); },0);
 }
 function tripIdeaBuilderClose(){ _tripIdeaHide(); if(_tripIdeaBuilderLaunch && _tripIdeaBuilderLaunch.focus) _tripIdeaBuilderLaunch.focus(); }
 function _tripIdeaSetStage(stage){ _tripIdeaBuilderStage=stage; renderTripIdeaBuilder(); }
@@ -197,37 +238,41 @@ function _tripIdeaCitySuggestions(){
 }
 function _tripIdeaInputsHtml(){
   var s=tripIdeaBuilder, d=s.dates, c=s.constraints;
-  return '<div class="trip-idea-grid">' +
-    '<label>Destination city or airport<input id="trip-idea-city" list="trip-idea-city-list" value="'+_tripIdeaEsc(s.destination.city || s.destination.airport)+'" placeholder="Cary, RDU, NYC…"><datalist id="trip-idea-city-list">'+_tripIdeaCitySuggestions()+'</datalist><small>Saved cities and nearby airports are ranked first.</small></label>' +
-    '<label>Base hub<select id="trip-idea-hub"><option value="all">All base hubs</option>'+TRIP_IDEA_HUBS.map(function(h){return '<option value="'+h.key+'"'+(s.baseHub===h.key?' selected':'')+'>'+h.label+' · '+h.description+'</option>';}).join('')+'</select></label>' +
-    '<label>Departure<input id="trip-idea-departure" type="date" value="'+d.departure+'"></label>' +
-    '<label>Return<input id="trip-idea-return" type="date" value="'+d.return+'"></label>' +
-    '<label>Search window start<input id="trip-idea-search-start" type="date" value="'+d.searchStart+'"></label>' +
-    '<label>Search window end<input id="trip-idea-search-end" type="date" value="'+d.searchEnd+'"></label>' +
-    '<label>Flexibility<select id="trip-idea-flex"><option value="0"'+(!d.flexibilityDays?' selected':'')+'>Exact dates</option><option value="1"'+(d.flexibilityDays===1?' selected':'')+'>±1 day, independent</option><option value="2"'+(d.flexibilityDays===2?' selected':'')+'>±2 days, independent</option></select></label>' +
-    '<label>Trip length (nights)<input id="trip-idea-length" type="number" min="1" max="30" value="'+(c.tripLength || '')+'" placeholder="3"></label>' +
-    '<label>Event date (optional)<input id="trip-idea-event" type="date" value="'+c.eventDate+'"></label>' +
-    '<label class="trip-idea-check"><input id="trip-idea-nonstop" type="checkbox"'+(c.nonstopPreferred?' checked':'')+'> Prefer nonstop</label>' +
-    '<label class="trip-idea-notes">Notes or family context<textarea id="trip-idea-notes" rows="2" placeholder="Event, companions, lodging…"></textarea></label>' +
-    '</div>';
+  return '<div class="trip-idea-plan">' +
+    '<label class="trip-idea-destination">Where to? <span>Optional</span><input id="trip-idea-city" list="trip-idea-city-list" value="'+_tripIdeaEsc(s.destination.city || s.destination.airport)+'" placeholder="City or airport, e.g. Cary or RDU"><datalist id="trip-idea-city-list">'+_tripIdeaCitySuggestions()+'</datalist><small>Saved cities and nearby airports are ranked first.</small></label>' +
+    '<div class="trip-idea-date-heading"><strong>When?</strong><span>Choose dates or a flexible window</span></div>' +
+    '<div class="trip-idea-date-mode" role="group" aria-label="Date search type"><button type="button" data-trip-date-mode="specific" aria-pressed="'+(_tripIdeaDateMode==='specific'?'true':'false')+'"'+(_tripIdeaDateMode==='specific'?' class="selected"':'')+'>I know my dates</button><button type="button" data-trip-date-mode="window" aria-pressed="'+(_tripIdeaDateMode==='window'?'true':'false')+'"'+(_tripIdeaDateMode==='window'?' class="selected"':'')+'>I’m flexible</button></div>' +
+    '<div class="trip-idea-date-fields"'+(_tripIdeaDateMode==='specific'?'':' hidden')+'><label>Departure<input id="trip-idea-departure" type="date" value="'+d.departure+'"></label><label>Return<input id="trip-idea-return" type="date" value="'+d.return+'"></label><label class="trip-idea-margin">Dates can shift<select id="trip-idea-flex"><option value="0"'+(!d.flexibilityDays?' selected':'')+'>Exact dates</option><option value="1"'+(d.flexibilityDays===1?' selected':'')+'>±1 day</option><option value="2"'+(d.flexibilityDays===2?' selected':'')+'>±2 days</option></select></label></div>' +
+    '<div class="trip-idea-date-fields"'+(_tripIdeaDateMode==='window'?'':' hidden')+'><label>Earliest departure<input id="trip-idea-search-start" type="date" value="'+d.searchStart+'"></label><label>Latest departure<input id="trip-idea-search-end" type="date" value="'+d.searchEnd+'"></label><label>Trip length <span>Optional</span><input id="trip-idea-length" type="number" min="1" max="30" value="'+(c.tripLength || '')+'" placeholder="Any length"></label></div>' +
+    '<details class="trip-idea-options"><summary>More planning options <span>Optional</span></summary><div class="trip-idea-grid"><label>Starting hub <span>Optional</span><select id="trip-idea-hub"><option value="all">All base hubs</option>'+TRIP_IDEA_HUBS.map(function(h){return '<option value="'+h.key+'"'+(s.baseHub===h.key?' selected':'')+'>'+h.label+' · '+h.description+'</option>';}).join('')+'</select></label><label>Event date <span>Optional</span><input id="trip-idea-event" type="date" value="'+c.eventDate+'"></label><label class="trip-idea-check"><input id="trip-idea-nonstop" type="checkbox"'+(c.nonstopPreferred?' checked':'')+'> Prefer nonstop</label><label class="trip-idea-notes">Notes or family context <span>Optional</span><textarea id="trip-idea-notes" rows="2" placeholder="Anything else that matters"></textarea></label></div></details></div>';
 }
 function renderTripIdeaBuilder(){
   var body=_tripIdeaEl('trip-idea-builder-body'), title=_tripIdeaEl('trip-idea-builder-title'), step=_tripIdeaEl('trip-idea-builder-step'), primary=_tripIdeaEl('trip-idea-builder-primary');
   if(!body) return;
   if(title) title.textContent=_tripIdeaBuilderReadOnly?'Shared trip idea':'Build a trip idea';
-  if(step) step.textContent=_tripIdeaBuilderReadOnly?'Read-only proposal':'Stage '+(_tripIdeaBuilderStage==='intent'?1:_tripIdeaBuilderStage==='inputs'?2:3)+' of 3';
+  if(step) step.textContent=_tripIdeaBuilderReadOnly?'Read-only proposal':(_tripIdeaBuilderStage==='results'?'Compare options':'Choose a place or dates');
   if(primary) primary.textContent=_tripIdeaBuilderStage==='intent'?'Continue':(_tripIdeaBuilderStage==='inputs'?'Find recommendations':'Save selected idea');
   if(_tripIdeaBuilderStage==='intent'){
     body.innerHTML='<p class="trip-idea-lead">Start with what you know. PIALAX will keep exact inputs, flexible combinations, and estimated pricing separate.</p><div class="trip-idea-intents">'+
       [['dates-first','📅 Dates first','Choose dates; rank destination cities.'],['city-first','📍 City first','Choose a destination; find the best dates in the next 90 days.'],['spontaneous','✨ Feeling spontaneous','Choose a window; find a low-fare suitable destination.']].map(function(x){return '<button type="button" class="trip-idea-intent'+(tripIdeaBuilder.mode===x[0]?' selected':'')+'" id="trip-idea-intent-'+x[0]+'" data-trip-mode="'+x[0]+'"><strong>'+x[1]+'</strong><span>'+x[2]+'</span></button>';}).join('')+'</div>';
   } else if(_tripIdeaBuilderStage==='inputs'){
-    body.innerHTML='<div class="trip-idea-mode-note"><strong>'+_tripIdeaEsc(tripIdeaBuilder.mode.replace('-',' '))+'</strong> · USA-first · '+_tripIdeaEsc(tripIdeaFlexibilityLabel(tripIdeaBuilder))+'</div>'+_tripIdeaInputsHtml();
+    body.innerHTML='<p class="trip-idea-lead">Start with what you know. Add a destination, dates, or both; everything else is optional.</p>'+_tripIdeaInputsHtml();
     var notes=_tripIdeaEl('trip-idea-notes'); if(notes && tripIdeaBuilder._notes) notes.value=tripIdeaBuilder._notes;
   } else {
     renderTripIdeaResults(body);
   }
   if(_tripIdeaBuilderReadOnly && _tripIdeaBuilderStage==='intent') _tripIdeaBuilderStage='results';
   _tripIdeaWireStage();
+  _tripIdeaSyncPrimary();
+}
+function _tripIdeaSyncPrimary(){
+  var primary=_tripIdeaEl('trip-idea-builder-primary');
+  if(!primary || _tripIdeaBuilderStage!=='inputs' || _tripIdeaBuilderReadOnly) return;
+  var city=(_tripIdeaEl('trip-idea-city')||{}).value || '';
+  var ids=_tripIdeaDateMode==='window'?['trip-idea-search-start','trip-idea-search-end']:['trip-idea-departure','trip-idea-return'];
+  var hasDates=ids.some(function(id){return !!((_tripIdeaEl(id)||{}).value);});
+  primary.disabled=!city.trim() && !hasDates;
+  primary.textContent=primary.disabled?'Choose a destination or date':'Find recommendations';
 }
 function _tripIdeaReadInputs(){
   var city=(_tripIdeaEl('trip-idea-city')||{}).value || '', resolved=resolveTripIdeaCity(city,_tripIdeaSavedCities());
@@ -239,14 +284,13 @@ function _tripIdeaReadInputs(){
   tripIdeaBuilder.constraints.eventDate=(_tripIdeaEl('trip-idea-event')||{}).value || '';
   tripIdeaBuilder.constraints.nonstopPreferred=!!((_tripIdeaEl('trip-idea-nonstop')||{}).checked);
   tripIdeaBuilder._notes=(_tripIdeaEl('trip-idea-notes')||{}).value || '';
-  if(tripIdeaBuilder.mode==='city-first' && !tripIdeaBuilder.dates.searchStart && !tripIdeaBuilder.dates.searchEnd){
-    var now=new Date(), end=new Date(now.getTime()); end.setDate(end.getDate()+90);
-    tripIdeaBuilder.dates.searchStart=_tripIdeaISO(now); tripIdeaBuilder.dates.searchEnd=_tripIdeaISO(end);
-  }
-  tripIdeaBuilder=normalizeTripIdeaBuilderState(tripIdeaBuilder);
+  var notes=tripIdeaBuilder._notes; tripIdeaBuilder=normalizeTripIdeaBuilderState(tripIdeaBuilder); tripIdeaBuilder._notes=notes; // normalize drops _-prefixed fields
 }
 function tripIdeaRunSearch(){
   _tripIdeaReadInputs();
+  var notes=tripIdeaBuilder._notes, resolved=resolveTripIdeaSearchDates(tripIdeaBuilder,_tripIdeaDateMode);
+  if(resolved.error){showShareToast(resolved.error);return;}
+  tripIdeaBuilder=resolved.state; tripIdeaBuilder._notes=notes; _tripIdeaDateMode=resolved.mode;
   var destinations=TRIP_IDEA_DESTINATIONS.map(function(c){var x=Object.assign({},c); var saved=_tripIdeaSavedCities().some(function(s){return String(s.city||'').toLowerCase().indexOf(c.city.toLowerCase())>=0 || String(s.dest||'').toUpperCase()===c.airport;}); x.saved=saved; return x;});
   var rows=buildTripIdeaRecommendations(tripIdeaBuilder,destinations);
   if(tripIdeaBuilder.mode==='spontaneous') rows=rows.sort(function(a,b){return a.totalFare-b.totalFare || b.scoreBreakdown.score-a.scoreBreakdown.score;});
@@ -284,7 +328,7 @@ function _tripIdeaShare(){
 }
 function _tripIdeaOpenShared(payload){
   if(!payload || !payload.builder) return;
-  tripIdeaBuilder=createTripIdeaBuilderState(payload.builder); tripIdeaBuilder.recommendation=payload.recommendation || null; tripIdeaBuilder._results=payload.recommendation ? [payload.recommendation] : []; tripIdeaBuilder._notes=payload.notes || ''; _tripIdeaBuilderReadOnly=true; _tripIdeaBuilderStage='results'; _tripIdeaShow(); renderTripIdeaBuilder();
+  tripIdeaBuilder=createTripIdeaBuilderState(payload.builder); _tripIdeaDateMode=!tripIdeaBuilder.dates.departure && !tripIdeaBuilder.dates.return && (tripIdeaBuilder.dates.searchStart || tripIdeaBuilder.dates.searchEnd)?'window':'specific'; tripIdeaBuilder.recommendation=payload.recommendation || null; tripIdeaBuilder._results=payload.recommendation ? [payload.recommendation] : []; tripIdeaBuilder._notes=payload.notes || ''; _tripIdeaBuilderReadOnly=true; _tripIdeaBuilderStage='results'; _tripIdeaShow(); renderTripIdeaBuilder();
 }
 function _tripIdeaWireStage(){
   var sheet=_tripIdeaEl('trip-idea-builder'); if(!sheet) return;
@@ -292,11 +336,13 @@ function _tripIdeaWireStage(){
   var copyBtn = _tripIdeaEl('trip-idea-builder-copy'), editBtn = _tripIdeaEl('trip-idea-builder-edit'), shareBtn = _tripIdeaEl('trip-idea-builder-share'), saveBtn = _tripIdeaEl('trip-idea-builder-save');
   var calendarBtn = _tripIdeaEl('trip-idea-builder-calendar');
   if (copyBtn) copyBtn.hidden = !(resultsStage && _tripIdeaBuilderReadOnly);
-  if (editBtn) editBtn.hidden = !(resultsStage && _tripIdeaBuilderReadOnly);
+  if (editBtn) { editBtn.hidden = !resultsStage; editBtn.textContent = _tripIdeaBuilderReadOnly ? 'Edit search' : 'Change search'; }
   if (shareBtn) shareBtn.hidden = !resultsStage;
   if (saveBtn) saveBtn.hidden = !resultsStage;
   if (calendarBtn) calendarBtn.hidden = !resultsStage;
   sheet.querySelectorAll('[data-trip-mode]').forEach(function(b){b.onclick=function(){tripIdeaBuilder.mode=b.getAttribute('data-trip-mode');renderTripIdeaBuilder();};});
+  sheet.querySelectorAll('[data-trip-date-mode]').forEach(function(b){b.onclick=function(){_tripIdeaReadInputs();_tripIdeaDateMode=b.getAttribute('data-trip-date-mode')==='window'?'window':'specific';renderTripIdeaBuilder();};});
+  ['trip-idea-city','trip-idea-departure','trip-idea-return','trip-idea-search-start','trip-idea-search-end'].forEach(function(id){var input=_tripIdeaEl(id);if(input){input.addEventListener('input',_tripIdeaSyncPrimary);input.addEventListener('change',_tripIdeaSyncPrimary);}});
   sheet.querySelectorAll('[data-trip-result]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-trip-result'), r=(tripIdeaBuilder._results||[]).filter(function(x){return x.id===id;})[0]; if(r){tripIdeaBuilder.recommendation=r;renderTripIdeaResults(_tripIdeaEl('trip-idea-builder-body'));tripIdeaFocusMap(r);}};});
   sheet.querySelectorAll('[data-trip-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-trip-action');if(a==='refresh'){tripIdeaRunSearch();}if(a==='provider'){var r=tripIdeaBuilder.recommendation||{};var u=typeof gflightsUrl==='function'?gflightsUrl(r.hub,r.airport,r.departure,r.return):'https://www.google.com/travel/flights';window.open(u,'_blank','noopener');}};});
   var primary=_tripIdeaEl('trip-idea-builder-primary'); if(primary) primary.onclick=function(){if(_tripIdeaBuilderReadOnly){_tripIdeaBuilderReadOnly=false;_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='intent'){_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='inputs'){tripIdeaRunSearch();return;} _tripIdeaSave();};
