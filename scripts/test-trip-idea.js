@@ -12,6 +12,8 @@ const EXPECT = [
   'restoreTripIdeaSharePayload', 'tripIdeaFlexibilityLabel',
   'createTripIdeaWatchlistItem', '_tripIdeaInputsHtml',
   'resolveTripIdeaSearchDates', '_tripIdeaSamplePairs',
+  'tripIdeaFareFor', 'tripIdeaHubHeadcount', 'tripIdeaPriceSummary',
+  'TRIP_IDEA_HUBS', 'S', '_flightCache', '_cacheKey', 'FLIGHT_CACHE_TTL_MS',
 ];
 let failures = 0;
 const formMarkup = {};
@@ -105,6 +107,80 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     `${file}: "Latest departure" bounds departure, not return`);
   check(api._tripIdeaSamplePairs([1, 2, 3], 8).length === 3 && api._tripIdeaSamplePairs(win, 8)[7] === win[29],
     `${file}: sampler keeps short lists and the last date of long ones`);
+
+  // PIA-070: rank from cached fares the dashboard already holds (zero quota).
+  const DEP = '2026-11-06', RET = '2026-11-09';
+  const hub = (k) => api.TRIP_IDEA_HUBS.find((h) => h.key === k);
+  const RDU = { city: 'Raleigh-Durham', airport: 'RDU', alternatives: [] };
+  const seed = (from, to, data, ageMs) => {
+    api._flightCache[api._cacheKey(from, to, DEP, RET)] = { data, ts: Date.now() - (ageMs || 0) };
+  };
+  const clearCache = () => Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+  clearCache();
+
+  const est = api.tripIdeaFareFor(hub('LAX'), RDU, DEP, RET);
+  check(est.status === 'estimated' && est.perTicket === 438 && est.from === 'LAX',
+    `${file}: no cache → labelled sample fare (LAX-RDU rt 438)`);
+  seed('LAX', 'RDU', { rt: 199, live: true, lastVerified: '2026-10-01T12:00:00Z' });
+  const hit = api.tripIdeaFareFor(hub('LAX'), RDU, DEP, RET);
+  check(hit.status === 'cached' && hit.perTicket === 199 && hit.lastVerified,
+    `${file}: fresh dated cache entry prices the row as cached`);
+  check(api.tripIdeaFareFor(hub('LAX'), RDU, '2026-11-07', RET).status === 'estimated',
+    `${file}: a cached fare for other dates is not reused`);
+  seed('LAX', 'RDU', { rt: 199, live: true }, api.FLIGHT_CACHE_TTL_MS + 1000);
+  check(api.tripIdeaFareFor(hub('LAX'), RDU, DEP, RET).status === 'estimated',
+    `${file}: stale (>24h) cache entry falls back to estimate`);
+
+  clearCache();
+  const piaEst = api.tripIdeaFareFor(hub('PIA_ORD'), RDU, DEP, RET);
+  check(piaEst.from === 'ORD' && piaEst.perTicket === 230, `${file}: hub picks its cheapest airport (ORD 230 < PIA 280)`);
+  seed('PIA', 'RDU', { rt: 300, live: true });
+  check(api.tripIdeaFareFor(hub('PIA_ORD'), RDU, DEP, RET).from === 'PIA',
+    `${file}: a real cached fare beats a cheaper sample estimate`);
+  check(api.tripIdeaHubHeadcount(hub('PIA_ORD'), DEP) === 2 && api.tripIdeaHubHeadcount(hub('LAX'), DEP) === 1 &&
+    api.tripIdeaHubHeadcount(hub('LGA_JFK'), DEP) === 1, `${file}: hub headcount PIA_ORD=2, LAX=1, LGA_JFK=1`);
+
+  clearCache();
+  api.S.depDate = new Date(DEP + 'T12:00:00'); api.S.retDate = new Date(RET + 'T12:00:00');
+  api.S.prices = { 'LGA-RDU': { rt: 150, cached: true } };
+  check(api.tripIdeaFareFor(hub('LGA_JFK'), RDU, DEP, RET).status === 'cached',
+    `${file}: planner S.prices used when dates match the planner`);
+  check(api.tripIdeaFareFor(hub('LGA_JFK'), RDU, '2026-11-13', '2026-11-16').status === 'estimated',
+    `${file}: planner S.prices ignored for other dates`);
+  api.S.prices = {}; api.S.depDate = null; api.S.retDate = null;
+
+  seed('LAX', 'RDU', { rt: 199, live: true });
+  const priced = api.buildTripIdeaRecommendations(api.createTripIdeaBuilderState({
+    destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: DEP, return: RET },
+  }));
+  const laxRow = priced.find((r) => r.hub === 'LAX'), piaRow = priced.find((r) => r.hub === 'PIA_ORD');
+  check(laxRow && laxRow.priceStatus === 'cached' && laxRow.totalFare === 199,
+    `${file}: recommendation row carries the cached fare`);
+  check(piaRow && piaRow.totalFare === piaRow.perTicketFare * 2 && piaRow.headcount === 2,
+    `${file}: PIA_ORD row total = per-ticket × 2 travelers`);
+  check(/1 of 3 from cached fares/.test(api.tripIdeaPriceSummary(priced)) && /no quota used/.test(api.tripIdeaPriceSummary(priced)),
+    `${file}: summary counts cached vs estimated rows`);
+
+  const memRows = api.buildTripIdeaRecommendations(api.createTripIdeaBuilderState({
+    destination: { city: 'Memphis', airport: 'MEM' }, dates: { departure: DEP, return: RET },
+  }));
+  check(memRows.length && memRows.every((r) => r.priceStatus === 'unavailable' && r.totalFare === null && r.scoreBreakdown.fareScore === 0),
+    `${file}: route with no fare is "unavailable" and scores 0 for fare, not 100`);
+  clearCache();
+}
+
+// PIA-070: pricing a search must never spend SerpAPI quota.
+{
+  let fetchCalls = 0;
+  const spy = () => { fetchCalls++; return Promise.reject(new Error('fetch must not be called')); };
+  const { api } = loadApi(path.join(ROOT, 'pialax.html'), 'pialax.html', EXPECT, { fetch: spy });
+  const before = fetchCalls;
+  for (const k of ['LAX', 'PIA_ORD', 'LGA_JFK']) {
+    api.buildTripIdeaRecommendations(api.createTripIdeaBuilderState({
+      baseHub: k, dates: { searchStart: '2026-11-01', searchEnd: '2026-12-15' }, constraints: { tripLength: 4 },
+    }));
+  }
+  check(fetchCalls === before, 'building recommendations makes zero network calls');
 }
 
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');

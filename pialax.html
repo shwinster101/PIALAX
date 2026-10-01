@@ -9235,8 +9235,8 @@ function generateTripIdeaDatePairs(state) {
 }
 
 function tripIdeaScore(result, context) {
-  var r = result || {}, c = context || {}, fare = Number(r.totalFare);
-  var fareScore = isFinite(fare) ? Math.max(0, Math.min(100, 100 - fare / 12)) : 0;
+  var r = result || {}, c = context || {}, fare = r.totalFare == null || r.totalFare === '' ? NaN : Number(r.totalFare);
+  var fareScore = isFinite(fare) ? Math.max(0, Math.min(100, 100 - fare / 12)) : 0; // no fare → 0, not 100
   var convenienceScore = Math.max(0, Math.min(100, (r.nonstop ? 92 : 64) - Math.max(0, Number(r.durationHours || 0) - 5) * 2));
   var wanted = Number(c.tripLength);
   var lengthFit = wanted ? Math.max(0, 100 - Math.abs(Number(r.tripLength || 0) - wanted) * 18) : 82;
@@ -9250,7 +9250,11 @@ function tripIdeaScore(result, context) {
 function rankTripIdeaRecommendations(results, context) {
   return (Array.isArray(results) ? results : []).map(function(r){
     var copy = Object.assign({}, r); copy.scoreBreakdown = tripIdeaScore(copy, context); return copy;
-  }).sort(function(a,b){ return b.scoreBreakdown.score - a.scoreBreakdown.score || Number(a.totalFare || Infinity) - Number(b.totalFare || Infinity); });
+  }).sort(function(a,b){ return b.scoreBreakdown.score - a.scoreBreakdown.score || _tripIdeaStatusRank(a) - _tripIdeaStatusRank(b) || Number(a.totalFare || Infinity) - Number(b.totalFare || Infinity); });
+}
+// Equal score: a real (cached/live) fare outranks a sample estimate.
+function _tripIdeaStatusRank(r) {
+  var s = r && r.priceStatus; return s === 'live' || s === 'cached' || s === 'host' ? 0 : s === 'estimated' ? 1 : 2;
 }
 
 function buildTripIdeaRecommendations(state, destinations) {
@@ -9263,12 +9267,55 @@ function buildTripIdeaRecommendations(state, destinations) {
   var hubs = s.baseHub === 'all' ? TRIP_IDEA_HUBS : TRIP_IDEA_HUBS.filter(function(h){ return h.key === s.baseHub; });
   var out = [];
   match.slice(0, 8).forEach(function(city, ci){ hubs.forEach(function(hub, hi){ _tripIdeaSamplePairs(pairs, 8).forEach(function(pair, pi){
-    var fare = 145 + ci * 31 + hi * 24 + (pair.tripLength || 3) * 9 + (s.mode === 'spontaneous' ? ci * 7 : 0);
     var same = hub.airports.indexOf(city.airport) >= 0;
-    if (same) fare = 0;
-    out.push({id:'trip-'+ci+'-'+hi+'-'+pi, city:city.city, airport:city.airport, alternatives:(city.alternatives || []).slice(), hub:hub.key, departure:pair.departure, return:pair.return, tripLength:pair.tripLength, changedIndependently:pair.changedIndependently, totalFare:fare, nonstop:!same && (city.airport === 'RDU' || city.airport === 'LAX'), durationHours:same ? 0 : 4.5 + hi, savedCity:!!city.saved, priceStatus:s.priceStatus || 'estimated'});
+    var price = same ? {perTicket:0, from:city.airport, to:city.airport, status:'host', lastVerified:null} : tripIdeaFareFor(hub, city, pair.departure, pair.return);
+    var headcount = tripIdeaHubHeadcount(hub, pair.departure);
+    var total = price.perTicket == null ? null : price.perTicket * headcount;
+    out.push({id:'trip-'+ci+'-'+hi+'-'+pi, city:city.city, airport:city.airport, alternatives:(city.alternatives || []).slice(), hub:hub.key, departure:pair.departure, return:pair.return, tripLength:pair.tripLength, changedIndependently:pair.changedIndependently, totalFare:total, perTicketFare:price.perTicket, headcount:headcount, fareFrom:price.from, fareTo:price.to, lastVerified:price.lastVerified, nonstop:!same && (city.airport === 'RDU' || city.airport === 'LAX'), durationHours:same ? 0 : 4.5 + hi, savedCity:!!city.saved, priceStatus:same ? 'host' : price.status});
   }); }); });
   return rankTripIdeaRecommendations(out, s).slice(0, 12);
+}
+
+// PIA-070: price a (hub → city) pair from fares the dashboard already holds.
+// Read-only — never calls fetchFlights, so it costs zero SerpAPI quota.
+// Order per origin/dest: dated 24h cache (_flightCache) → S.prices when the
+// dates equal the planner's → sample table (getMock). Any cached fare beats
+// any estimate; within a tier the cheapest wins. Returns a per-ticket fare.
+// S.depDate/S.retDate are Date objects (or null); builder dates are ISO strings.
+function _tripIdeaIsoOf(v) {
+  if (!v) return '';
+  if (typeof v === 'string') return v;
+  return typeof fmtISO === 'function' ? fmtISO(v) : _tripIdeaISO(v);
+}
+function _tripIdeaPickFare(p, ret) {
+  var v = p ? (ret ? (p.rt || p.ow) : p.ow) : 0;
+  return Number(v) > 0 ? Number(v) : 0;
+}
+function tripIdeaFareFor(hub, city, dep, ret) {
+  var origins = (hub && hub.airports) || [], dests = [city && city.airport].concat((city && city.alternatives) || []).filter(Boolean);
+  var cache = typeof _flightCache === 'object' && _flightCache ? _flightCache : {};
+  var ttl = typeof FLIGHT_CACHE_TTL_MS === 'number' ? FLIGHT_CACHE_TTL_MS : 0, now = Date.now();
+  var planner = typeof S === 'object' && S && dep && _tripIdeaIsoOf(S.depDate) === dep && _tripIdeaIsoOf(S.retDate) === (ret || '') ? (S.prices || {}) : null;
+  var best = {cached:null, estimated:null};
+  origins.forEach(function(o){ dests.forEach(function(d){
+    if (o === d) return;
+    var fare = 0, status = 'cached', verified = null;
+    var hit = typeof _cacheKey === 'function' ? cache[_cacheKey(o, d, dep, ret)] : null;
+    if (hit && hit.data && now - hit.ts < ttl) { fare = _tripIdeaPickFare(hit.data, ret); verified = hit.data.lastVerified || null; }
+    if (!fare && planner) { var p = planner[o + '-' + d]; if (p && (p.live || p.cached) && !p.rateLimited) { fare = _tripIdeaPickFare(p, ret); verified = p.lastVerified || null; } }
+    if (!fare && typeof getMock === 'function') { fare = _tripIdeaPickFare(getMock(o, d), ret); status = 'estimated'; verified = null; }
+    if (!fare) return;
+    var cur = best[status];
+    if (!cur || fare < cur.perTicket) best[status] = {perTicket:fare, from:o, to:d, status:status, lastVerified:verified};
+  }); });
+  return best.cached || best.estimated || {perTicket:null, from:origins[0] || '', to:dests[0] || '', status:'unavailable', lastVerified:null};
+}
+// Travelers who fly from this hub on the departure date (PIA_ORD = Mom & Dad = 2).
+function tripIdeaHubHeadcount(hub, dep) {
+  var airports = (hub && hub.airports) || [], n = 0;
+  var members = typeof familyForDate === 'function' ? familyForDate(dep || undefined) : [];
+  (members || []).forEach(function(code){ if (airports.indexOf(code) >= 0) n += typeof headcountFor === 'function' ? (Number(headcountFor(code)) || 1) : 1; });
+  return n || 1;
 }
 
 function serializeTripIdeaSharePayload(builder, recommendation, options) {
@@ -9331,7 +9378,7 @@ function resolveTripIdeaSearchDates(state, mode, todayIso) {
 function createTripIdeaWatchlistItem(builder, recommendation, options) {
   var s = normalizeTripIdeaBuilderState(builder), r = recommendation || s.recommendation || {};
   var stamp = (options && options.timestamp) || new Date().toISOString();
-  return {id:'builder-'+Date.now().toString(36), _added:true, mode:'solo', title:(r.city || s.destination.city || 'Trip idea') + ' · Trip idea', routeTxt:(r.hub || s.baseHub) + ' → ' + (r.airport || s.destination.airport || 'TBD'), origin:(r.hub === 'LAX' ? 'LAX' : 'PIA'), dest:r.airport || s.destination.airport || 'TBD', dep:r.departure || s.dates.departure || null, ret:r.return || s.dates.return || null, stage:'watching', notes:String(options && options.notes || ''), reminders:[], nextAction:'Refresh pricing before booking', blockers:[], builderMetadata:{version:TRIP_IDEA_BUILDER_VERSION,mode:s.mode,baseHub:s.baseHub,destination:s.destination,dates:s.dates,constraints:s.constraints,recommendation:r,priceStatus:s.priceStatus,recommendationTimestamp:stamp,wishlistDestinationPriority:!!r.savedCity,eventContext:s.constraints.eventDate || ''}, gf:{from:r.hub || 'LAX',to:r.airport || ''}};
+  return {id:'builder-'+Date.now().toString(36), _added:true, mode:'solo', title:(r.city || s.destination.city || 'Trip idea') + ' · Trip idea', routeTxt:(r.hub || s.baseHub) + ' → ' + (r.airport || s.destination.airport || 'TBD'), origin:(r.hub === 'LAX' ? 'LAX' : 'PIA'), dest:r.airport || s.destination.airport || 'TBD', dep:r.departure || s.dates.departure || null, ret:r.return || s.dates.return || null, stage:'watching', notes:String(options && options.notes || ''), reminders:[], nextAction:'Refresh pricing before booking', blockers:[], builderMetadata:{version:TRIP_IDEA_BUILDER_VERSION,mode:s.mode,baseHub:s.baseHub,destination:s.destination,dates:s.dates,constraints:s.constraints,recommendation:r,priceStatus:s.priceStatus,recommendationTimestamp:stamp,wishlistDestinationPriority:!!r.savedCity,eventContext:s.constraints.eventDate || ''}, gf:{from:r.fareFrom || (r.hub === 'PIA_ORD' ? 'PIA' : r.hub === 'LGA_JFK' ? 'LGA' : r.hub) || 'LAX',to:r.fareTo || r.airport || ''}};
 }
 
 var tripIdeaBuilder = createTripIdeaBuilderState();
@@ -9416,19 +9463,28 @@ function tripIdeaRunSearch(){
   tripIdeaBuilder=resolved.state; tripIdeaBuilder._notes=notes; _tripIdeaDateMode=resolved.mode;
   var destinations=TRIP_IDEA_DESTINATIONS.map(function(c){var x=Object.assign({},c); var saved=_tripIdeaSavedCities().some(function(s){return String(s.city||'').toLowerCase().indexOf(c.city.toLowerCase())>=0 || String(s.dest||'').toUpperCase()===c.airport;}); x.saved=saved; return x;});
   var rows=buildTripIdeaRecommendations(tripIdeaBuilder,destinations);
-  if(tripIdeaBuilder.mode==='spontaneous') rows=rows.sort(function(a,b){return a.totalFare-b.totalFare || b.scoreBreakdown.score-a.scoreBreakdown.score;});
-  tripIdeaBuilder.recommendation=rows[0] || null; tripIdeaBuilder.priceStatus='estimated'; tripIdeaBuilder._results=rows;
+  if(tripIdeaBuilder.mode==='spontaneous') rows=rows.sort(function(a,b){var fa=a.totalFare==null?Infinity:a.totalFare, fb=b.totalFare==null?Infinity:b.totalFare;return (fa===fb?0:fa<fb?-1:1) || b.scoreBreakdown.score-a.scoreBreakdown.score;});
+  tripIdeaBuilder.recommendation=rows[0] || null; tripIdeaBuilder.priceStatus=rows.some(function(r){return r.priceStatus==='cached'||r.priceStatus==='live';})?'cached':'estimated'; tripIdeaBuilder._results=rows;
   _tripIdeaBuilderStage='results'; renderTripIdeaBuilder(); tripIdeaFocusMap(rows[0]);
 }
 function renderTripIdeaResults(target){
   var rows=tripIdeaBuilder._results || (tripIdeaBuilder.recommendation ? [tripIdeaBuilder.recommendation] : []);
   if(!rows.length){target.innerHTML='<div class="trip-idea-empty">No suitable combinations yet. Adjust the window or destination.</div>';return;}
-  target.innerHTML='<div class="trip-idea-results-summary"><strong>'+rows.length+' recommendations</strong><span>'+_tripIdeaEsc(tripIdeaFlexibilityLabel(tripIdeaBuilder))+' · estimates until a provider refresh</span></div><div class="trip-idea-results">'+rows.map(function(r,i){
+  target.innerHTML='<div class="trip-idea-results-summary"><strong>'+rows.length+' recommendations</strong><span>'+_tripIdeaEsc(tripIdeaFlexibilityLabel(tripIdeaBuilder))+' · '+_tripIdeaEsc(tripIdeaPriceSummary(rows))+'</span></div><div class="trip-idea-results">'+rows.map(function(r,i){
     var selected=tripIdeaBuilder.recommendation && tripIdeaBuilder.recommendation.id===r.id;
     var status=r.priceStatus||'estimated', dates=(r.departure||'Dates TBD')+(r.return?' → '+r.return:'');
-    return '<button type="button" class="trip-idea-result'+(selected?' selected':'')+'" data-trip-result="'+_tripIdeaEsc(r.id)+'"><span class="trip-idea-result-head"><strong>'+_tripIdeaEsc(r.city)+'</strong><b>'+(r.totalFare?'$'+r.totalFare:'Provider handoff')+'</b></span><span>'+_tripIdeaEsc(r.hub)+' → '+_tripIdeaEsc(r.airport)+' · '+_tripIdeaEsc(dates)+'</span><span>'+_tripIdeaEsc((r.tripLength || '—')+' nights')+' · '+(r.changedIndependently?'dates changed independently · ':'')+_tripIdeaEsc(tripIdeaFlexibilityLabel(tripIdeaBuilder))+'</span><span class="trip-idea-badges">'+(r.savedCity?'<em>Saved city</em> ':'')+'<em>'+_tripIdeaEsc(status)+'</em><em>Score '+r.scoreBreakdown.score+'/100</em></span></button>';
+    var fareTxt=status==='host'?'Home base':r.totalFare?'$'+r.totalFare:'No fare yet';
+    var perTxt=r.totalFare&&r.headcount>1?' · $'+r.perTicketFare+' × '+r.headcount:'';
+    return '<button type="button" class="trip-idea-result'+(selected?' selected':'')+'" data-trip-result="'+_tripIdeaEsc(r.id)+'"><span class="trip-idea-result-head"><strong>'+_tripIdeaEsc(r.city)+'</strong><b>'+_tripIdeaEsc(fareTxt)+'</b></span><span>'+_tripIdeaEsc(r.fareFrom||r.hub)+' → '+_tripIdeaEsc(r.fareTo||r.airport)+_tripIdeaEsc(perTxt)+' · '+_tripIdeaEsc(dates)+'</span><span>'+_tripIdeaEsc((r.tripLength || '—')+' nights')+' · '+(r.changedIndependently?'dates changed independently · ':'')+_tripIdeaEsc(tripIdeaFlexibilityLabel(tripIdeaBuilder))+'</span><span class="trip-idea-badges">'+(r.savedCity?'<em>Saved city</em> ':'')+'<em>'+_tripIdeaEsc(status)+'</em><em>Score '+r.scoreBreakdown.score+'/100</em></span></button>';
   }).join('')+'</div><div id="trip-idea-map-summary" class="trip-idea-map-summary"></div><div class="trip-idea-result-actions"><button type="button" data-trip-action="refresh">↻ Refresh pricing</button><button type="button" data-trip-action="provider">Open provider handoff</button></div>';
   tripIdeaFocusMap(tripIdeaBuilder.recommendation);
+}
+// PIA-070: say how many rows carry real cached fares vs sample estimates.
+function tripIdeaPriceSummary(rows){
+  var list=Array.isArray(rows)?rows:[], real=list.filter(function(r){return r.priceStatus==='cached'||r.priceStatus==='live';}).length;
+  var priced=list.filter(function(r){return r.priceStatus!=='host';}).length;
+  if(!priced) return 'no quota used';
+  return (real?real+' of '+priced+' from cached fares'+(real<priced?' · rest are sample estimates':''):'sample estimates — refresh the dashboard to cache real fares')+' · no quota used';
 }
 function tripIdeaFocusMap(r){
   if(!r) return;
@@ -9467,7 +9523,7 @@ function _tripIdeaWireStage(){
   sheet.querySelectorAll('[data-trip-date-mode]').forEach(function(b){b.onclick=function(){_tripIdeaReadInputs();_tripIdeaDateMode=b.getAttribute('data-trip-date-mode')==='window'?'window':'specific';renderTripIdeaBuilder();};});
   ['trip-idea-city','trip-idea-departure','trip-idea-return','trip-idea-search-start','trip-idea-search-end'].forEach(function(id){var input=_tripIdeaEl(id);if(input){input.addEventListener('input',_tripIdeaSyncPrimary);input.addEventListener('change',_tripIdeaSyncPrimary);}});
   sheet.querySelectorAll('[data-trip-result]').forEach(function(b){b.onclick=function(){var id=b.getAttribute('data-trip-result'), r=(tripIdeaBuilder._results||[]).filter(function(x){return x.id===id;})[0]; if(r){tripIdeaBuilder.recommendation=r;renderTripIdeaResults(_tripIdeaEl('trip-idea-builder-body'));tripIdeaFocusMap(r);}};});
-  sheet.querySelectorAll('[data-trip-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-trip-action');if(a==='refresh'){tripIdeaRunSearch();}if(a==='provider'){var r=tripIdeaBuilder.recommendation||{};var u=typeof gflightsUrl==='function'?gflightsUrl(r.hub,r.airport,r.departure,r.return):'https://www.google.com/travel/flights';window.open(u,'_blank','noopener');}};});
+  sheet.querySelectorAll('[data-trip-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-trip-action');if(a==='refresh'){tripIdeaRunSearch();}if(a==='provider'){var r=tripIdeaBuilder.recommendation||{};var u=typeof gflightsUrl==='function'?gflightsUrl(r.fareFrom||r.hub,r.fareTo||r.airport,r.departure,r.return):'https://www.google.com/travel/flights';window.open(u,'_blank','noopener');}};});
   var primary=_tripIdeaEl('trip-idea-builder-primary'); if(primary) primary.onclick=function(){if(_tripIdeaBuilderReadOnly){_tripIdeaBuilderReadOnly=false;_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='intent'){_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='inputs'){tripIdeaRunSearch();return;} _tripIdeaSave();};
   var share=_tripIdeaEl('trip-idea-builder-share');if(share)share.onclick=_tripIdeaShare;
   var save=_tripIdeaEl('trip-idea-builder-save');if(save)save.onclick=_tripIdeaSave;
