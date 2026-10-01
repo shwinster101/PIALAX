@@ -27,6 +27,10 @@ There is no build step. Verification is `bash scripts/preflight.sh` (exit 0 = GO
 
 Shipping is envelope-based (see `PIALAX_HQ.md` §2.4): write `scripts/messages/<PIA-id>.msg` (conventional-commit message) and `<PIA-id>.files` (path manifest, must include both envelope files), then `bash scripts/ship.sh <PIA-id>` runs preflight, stages exactly the manifest, commits, and pushes.
 
+## Versioning
+
+SemVer git tags on `main` (`v1.0.0` = first baseline, 2026-10-01); rules and history in `CHANGELOG.md`. Each ticket adds a line under **Unreleased** in its own commit. To release: rename **Unreleased** to `[X.Y.Z] — date`, merge, then `git tag -a vX.Y.Z -m "..." <merge-sha> && git push origin vX.Y.Z`.
+
 ## Process conventions (from PIALAX_HQ.md — the operating playbook)
 
 - Work is ticketed as `PIA-NNN` with intent-level (not implementation-level) acceptance criteria; one ticket = one commit. Backlog lives in `backlog.md`; closed items in `MITIGATED.md` (auditors must not re-flag them).
