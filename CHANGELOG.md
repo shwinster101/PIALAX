@@ -12,6 +12,17 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-070)
+- Trip Idea results are priced from fares the dashboard already cached (24h dated cache, then
+  planner `S.prices` when dates match), falling back to labelled sample fares. Zero SerpAPI calls.
+- Each row = per-ticket fare from the hub's cheapest airport × that hub's travelers
+  (PIA/ORD = 2); a real cached fare beats a cheaper estimate.
+- Results summary says how many rows use cached fares vs estimates.
+
+### Fixed (PIA-070)
+- A route with no fare scored 100 for price (`Number(null)`); now scores 0 and shows "No fare yet".
+- Google Flights handoff from the builder uses a real airport (e.g. `ORD`), not the hub key `PIA_ORD`.
+
 ## [1.0.0] — 2026-10-01
 
 First tagged release: baseline of everything shipped through PIA-068.
