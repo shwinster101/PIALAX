@@ -412,6 +412,111 @@ const VALID_EXTRACTION = {
     }
   }
 
+  // ---- 11. Shared trip ideas — PIA-071 storage · PIA-072 RSVP · PIA-073 decision ----
+  {
+    const IDEA = {
+      title: 'Cary baby shower', destination: { city: 'Raleigh-Durham', airport: 'RDU' },
+      dates: { departure: '2026-11-06', return: '2026-11-09' },
+      recommendation: { city: 'Raleigh-Durham', airport: 'RDU', hub: 'PIA_ORD', fareFrom: 'ORD', fareTo: 'RDU', departure: '2026-11-06', return: '2026-11-09', totalFare: 460, perTicketFare: 230, headcount: 2, priceStatus: 'cached' },
+      notes: 'Shower is Saturday',
+      members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX', headcount: 1 }, { code: 'LGA', label: 'Anjo', airport: 'LGA', headcount: 1 }],
+    };
+    const noKv = await call(req('POST', 'https://w.dev/idea', { idea: IDEA }), {});
+    const jNo = await readJson(noKv);
+    if (noKv.status === 501 && jNo && jNo.code === 'no_kv') ok('/idea without IDEAS binding -> 501 no_kv (client keeps read-only links)');
+    else bad(`/idea no KV: ${noKv.status}/${jNo && jNo.code}`);
+
+    const env = { IDEAS: mockKV() };
+    const created = await call(req('POST', 'https://w.dev/idea', { idea: IDEA }), env);
+    const c = await readJson(created);
+    const id = c && c.id, key = c && c.edit_key;
+    if (created.status === 201 && /^[A-Za-z0-9_-]{22}$/.test(id || '') && /^[A-Za-z0-9_-]{43}$/.test(key || '')) ok('POST /idea -> 201 with 128-bit id and 256-bit edit key');
+    else bad('create: ' + created.status + ' ' + JSON.stringify(c));
+    const stored = JSON.parse(env.IDEAS._m.get('idea:' + id) || 'null');
+    if (stored && stored.edit_hash && !JSON.stringify(stored).includes(key) && !('edit_hash' in c.doc)) ok('edit key stored only as a hash and never returned in doc');
+    else bad('edit key leak or missing hash');
+    if (c.doc.idea.members.length === 3 && c.doc.decision.stage === 'proposed') ok('created doc keeps members and starts at proposed');
+    else bad('create doc shape: ' + JSON.stringify(c.doc));
+
+    const badIdeas = [
+      ['no members', Object.assign({}, IDEA, { members: [] })],
+      ['nine members', Object.assign({}, IDEA, { members: Array.from({ length: 9 }, (_, i) => ({ code: 'M' + i })) })],
+      ['duplicate member', Object.assign({}, IDEA, { members: [{ code: 'PIA' }, { code: 'PIA' }] })],
+    ];
+    let rejected = 0;
+    for (const [, idea] of badIdeas) { const r = await call(req('POST', 'https://w.dev/idea', { idea }), env); if (r.status === 400) rejected++; }
+    if (rejected === badIdeas.length) ok('malformed ideas rejected whole (no members / too many / duplicates)');
+    else bad(`malformed ideas: ${rejected}/${badIdeas.length} rejected`);
+    const sanitized = await readJson(await call(req('POST', 'https://w.dev/idea', { idea: Object.assign({}, IDEA, { title: '<b>x</b>'.repeat(40), destination: { airport: 'not-iata' } }) }), env));
+    if (sanitized && sanitized.doc.idea.title.length <= 80 && sanitized.doc.idea.destination.airport === '') ok('over-long text clipped, non-IATA airport dropped');
+    else bad('sanitize: ' + JSON.stringify(sanitized && sanitized.doc.idea));
+
+    const got = await call(req('GET', 'https://w.dev/idea?id=' + id), env);
+    const g = await readJson(got);
+    if (got.status === 200 && g.doc.id === id && !('edit_hash' in g.doc)) ok('GET /idea returns the public doc');
+    else bad('get: ' + got.status);
+    const miss = await call(req('GET', 'https://w.dev/idea?id=' + 'A'.repeat(22)), env);
+    const malformed = await call(req('GET', 'https://w.dev/idea?id=../etc'), env);
+    if (miss.status === 404 && malformed.status === 400) ok('unknown id -> 404, malformed id -> 400');
+    else bad(`get miss/malformed: ${miss.status}/${malformed.status}`);
+
+    // RSVP (PIA-072)
+    const rsvp = await call(req('POST', 'https://w.dev/idea/respond?id=' + id, { member: 'LAX', status: 'maybe', available_from: '2026-11-05', available_to: '2026-11-10', note: 'Work trip that week' }), env);
+    const rj = await readJson(rsvp);
+    const lax = rj && rj.doc.responses.LAX;
+    if (rsvp.status === 200 && lax && lax.status === 'maybe' && lax.origin === 'LAX' && lax.available_to === '2026-11-10') ok('RSVP stored per member; origin defaults to member airport');
+    else bad('rsvp: ' + rsvp.status + ' ' + JSON.stringify(rj));
+    await call(req('POST', 'https://w.dev/idea/respond?id=' + id, { member: 'LAX', status: 'in' }), env);
+    const after = await readJson(await call(req('GET', 'https://w.dev/idea?id=' + id), env));
+    if (after.doc.responses.LAX.status === 'in' && Object.keys(after.doc.responses).length === 1) ok('a second RSVP from the same member replaces the first');
+    else bad('rsvp replace: ' + JSON.stringify(after.doc.responses));
+    const badRsvps = [
+      { member: 'BOS', status: 'in' }, { member: 'PIA', status: 'yes' },
+      { member: 'PIA', status: 'in', available_from: '2026-11-10', available_to: '2026-11-01' },
+    ];
+    let rsvpRejected = 0;
+    for (const b of badRsvps) { const r = await call(req('POST', 'https://w.dev/idea/respond?id=' + id, b), env); if (r.status === 400) rsvpRejected++; }
+    if (rsvpRejected === badRsvps.length) ok('RSVP rejects unknown member, unknown status, reversed availability');
+    else bad(`bad rsvps: ${rsvpRejected}/${badRsvps.length}`);
+
+    // Organizer update + decision (PIA-073)
+    const wrongKey = await call(req('POST', 'https://w.dev/idea/update?id=' + id, { edit_key: 'x'.repeat(43), decision: { stage: 'chosen' } }), env);
+    const noKey = await call(req('POST', 'https://w.dev/idea/update?id=' + id, { decision: { stage: 'chosen' } }), env);
+    if (wrongKey.status === 403 && noKey.status === 403) ok('organizer update requires the matching edit key');
+    else bad(`update auth: ${wrongKey.status}/${noKey.status}`);
+    const earlyBook = await call(req('POST', 'https://w.dev/idea/update?id=' + id, { edit_key: key, decision: { stage: 'booked', actual_total: 500 } }), env);
+    if (earlyBook.status === 400) ok('cannot mark booked before choosing');
+    else bad('early book: ' + earlyBook.status);
+    const chose = await readJson(await call(req('POST', 'https://w.dev/idea/update?id=' + id, { edit_key: key, decision: { stage: 'chosen' } }), env));
+    if (chose && chose.doc.decision.stage === 'chosen' && chose.doc.decision.estimate_total === 460) ok('choose records the estimate ($460)');
+    else bad('choose: ' + JSON.stringify(chose));
+    const booked = await readJson(await call(req('POST', 'https://w.dev/idea/update?id=' + id, { edit_key: key, decision: { stage: 'booked', actual_total: 506 } }), env));
+    const dec = booked && booked.doc.decision;
+    if (dec && dec.stage === 'booked' && dec.actual_total === 506 && dec.delta_pct === 10) ok('booked records actual $506 and +10% vs estimate');
+    else bad('book: ' + JSON.stringify(dec));
+    {
+      const famIdea = Object.assign({}, IDEA, { recommendation: Object.assign({}, IDEA.recommendation, { familyTotal: 1116, familyStatus: 'estimated' }) });
+      const c2 = await readJson(await call(req('POST', 'https://w.dev/idea', { idea: famIdea }), env));
+      const ch2 = await readJson(await call(req('POST', 'https://w.dev/idea/update?id=' + c2.id, { edit_key: c2.edit_key, decision: { stage: 'chosen' } }), env));
+      if (ch2 && ch2.doc.decision.estimate_total === 1116) ok('choose uses the whole-family estimate when the idea carries one');
+      else bad('family estimate: ' + JSON.stringify(ch2 && ch2.doc.decision));
+    }
+    const closed = await call(req('POST', 'https://w.dev/idea/respond?id=' + id, { member: 'PIA', status: 'in' }), env);
+    if (closed.status === 409) ok('RSVPs closed once the idea is booked');
+    else bad('closed rsvp: ' + closed.status);
+    const logEvents = booked.doc.log.map((l) => l.event).join(',');
+    if (/created/.test(logEvents) && /rsvp:maybe/.test(logEvents) && /decision:chosen/.test(logEvents) && /decision:booked/.test(logEvents)) ok('decision log records created → rsvp → chosen → booked');
+    else bad('log: ' + logEvents);
+    const editResp = await readJson(await call(req('POST', 'https://w.dev/idea/update?id=' + id, { edit_key: key, idea: Object.assign({}, IDEA, { members: [IDEA.members[0]] }) }), env));
+    if (editResp && !editResp.doc.responses.LAX) ok('editing members drops RSVPs from removed members');
+    else bad('edit members: ' + JSON.stringify(editResp && editResp.doc.responses));
+    const opts = [];
+    const ttlEnv = { IDEAS: { get: async () => null, put: async (k, v, o) => { opts.push(o); } } };
+    await call(req('POST', 'https://w.dev/idea', { idea: IDEA }), ttlEnv);
+    if (opts.length === 1 && opts[0] && opts[0].expirationTtl >= 365 * 86400) ok('KV writes expire (≥ 1 year TTL) instead of living forever');
+    else bad('ttl: ' + JSON.stringify(opts));
+  }
+
   fs.rmSync(tmpDir, { recursive: true, force: true });
   finish();
 })().catch((e) => {

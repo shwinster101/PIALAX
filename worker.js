@@ -56,6 +56,11 @@ export default {
       if (pathname === '/extract' || pathname === '/extract/') {
         return handleExtract(request, env);
       }
+      // PIA-071..073: shared trip ideas (create · RSVP · organizer update)
+      {
+        const p = pathname.replace(/\/+$/, '');
+        if (p === '/idea' || p === '/idea/respond' || p === '/idea/update') return handleIdea(request, env, p);
+      }
       // PIA-063: real fare alerts — send one AlertEvent now (client-drained outbox)
       if (pathname === '/alert' || pathname === '/alert/') {
         return handleAlertSend(request, env);
@@ -78,6 +83,7 @@ export default {
       if (pathname === '/alerts/status' || pathname === '/alerts/status/') {
         return handleAlertsStatus(request, env);
       }
+      if (pathname === '/idea' || pathname === '/idea/') return handleIdea(request, env, '/idea');
     }
 
     // ── Validate API key is configured ──
@@ -815,4 +821,206 @@ async function runAlertCron(env) {
       await env.ALERTS.put('alerts:last_run', JSON.stringify(summary));
     } catch (e2) { /* KV write failed too — nothing left to do */ }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// Shared trip ideas — PIA-071 (storage) · PIA-072 (RSVP) · PIA-073 (decision)
+// ═══════════════════════════════════════════════════════════════════════════
+// One KV record per trip idea, addressed by an unguessable id (128 random
+// bits). The link IS the capability: anyone holding ?idea=<id> can read the
+// proposal and add an RSVP for one of its listed members — the same trust
+// model as the family sharing a Google Doc link. Organizer-only changes
+// (editing the proposal, recording the decision) also need the edit key that
+// POST /idea returned once; only its SHA-256 lives in KV, so a leaked record
+// or a GET never reveals it.
+//
+//   POST /idea                 {idea}                 → {id, edit_key, doc}
+//   GET  /idea?id=…                                   → {doc}
+//   POST /idea/respond?id=…    {member, status, …}    → {doc}
+//   POST /idea/update?id=…     {edit_key, idea?, decision?} → {doc}
+//
+// No IDEAS binding → 501 no_kv, which the client reads as "shared ideas not
+// set up" and falls back to its read-only ?tripIdea= link.
+
+const IDEA_ID_RE = /^[A-Za-z0-9_-]{22}$/;
+const IDEA_KEY_RE = /^[A-Za-z0-9_-]{32,64}$/;
+const IDEA_TTL_SECONDS = 400 * 86400;          // a year of planning + a margin
+const IDEA_MAX_MEMBERS = 8;
+const IDEA_MAX_LOG = 50;
+const IDEA_STATUSES = { in: 1, maybe: 1, out: 1 };
+const IDEA_STAGES = { proposed: 1, chosen: 1, booked: 1, dropped: 1 };
+
+function ideaRandom(bytes) {
+  const a = new Uint8Array(bytes);
+  crypto.getRandomValues(a);
+  return btoa(String.fromCharCode.apply(null, a)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+async function ideaHash(key) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(key));
+  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+const ideaStr = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+const ideaIata = (v) => { const s = typeof v === 'string' ? v.trim().toUpperCase() : ''; return IATA_RE.test(s) ? s : ''; };
+const ideaDate = (v) => (typeof v === 'string' && ISO_DATE_RE.test(v) ? v : '');
+const ideaMoney = (v) => (typeof v === 'number' && isFinite(v) && v >= 0 && v < 1000000 ? Math.round(v) : null);
+
+// Strict allowlist — anything off-shape is dropped field by field; a proposal
+// with no members is rejected whole (nobody could RSVP to it).
+function validateIdea(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const dest = raw.destination && typeof raw.destination === 'object' ? raw.destination : {};
+  const dates = raw.dates && typeof raw.dates === 'object' ? raw.dates : {};
+  const r = raw.recommendation && typeof raw.recommendation === 'object' ? raw.recommendation : null;
+  if (!Array.isArray(raw.members) || !raw.members.length || raw.members.length > IDEA_MAX_MEMBERS) return null;
+  const members = [];
+  for (const m of raw.members) {
+    if (!m || typeof m !== 'object' || !CODE_RE.test(String(m.code || ''))) return null;
+    if (members.some((x) => x.code === m.code)) return null;
+    const hc = Number(m.headcount);
+    members.push({ code: m.code, label: ideaStr(m.label, 40) || m.code, airport: ideaIata(m.airport), headcount: hc >= 1 && hc <= 9 ? Math.round(hc) : 1 });
+  }
+  return {
+    title: ideaStr(raw.title, 80) || 'Trip idea',
+    destination: { city: ideaStr(dest.city, 60), airport: ideaIata(dest.airport) },
+    dates: { departure: ideaDate(dates.departure), return: ideaDate(dates.return), searchStart: ideaDate(dates.searchStart), searchEnd: ideaDate(dates.searchEnd) },
+    recommendation: r ? {
+      city: ideaStr(r.city, 60), airport: ideaIata(r.airport), hub: ideaStr(r.hub, 16),
+      fareFrom: ideaIata(r.fareFrom), fareTo: ideaIata(r.fareTo),
+      departure: ideaDate(r.departure), return: ideaDate(r.return),
+      totalFare: ideaMoney(r.totalFare), perTicketFare: ideaMoney(r.perTicketFare),
+      headcount: Number(r.headcount) >= 1 && Number(r.headcount) <= 9 ? Math.round(Number(r.headcount)) : 1,
+      priceStatus: ['live', 'cached', 'estimated', 'unavailable', 'host'].indexOf(r.priceStatus) >= 0 ? r.priceStatus : 'estimated',
+      // PIA-073: whole-family estimate (all hubs × travelers) — the number compared with the actual total.
+      familyTotal: ideaMoney(r.familyTotal),
+      familyStatus: ['cached', 'estimated', 'partial'].indexOf(r.familyStatus) >= 0 ? r.familyStatus : null,
+    } : null,
+    notes: ideaStr(raw.notes, 500),
+    members,
+  };
+}
+
+function validateResponse(raw, members) {
+  if (!raw || typeof raw !== 'object') return null;
+  const member = members.find((m) => m.code === raw.member);
+  if (!member || !IDEA_STATUSES[raw.status]) return null;
+  const from = ideaDate(raw.available_from), to = ideaDate(raw.available_to);
+  if (from && to && to < from) return null;
+  return {
+    member: member.code,
+    status: raw.status,
+    origin: ideaIata(raw.origin) || member.airport,
+    available_from: from, available_to: to,
+    note: ideaStr(raw.note, 280),
+    updated_at: new Date().toISOString(),
+  };
+}
+
+// Organizer decision transitions. `booked` needs a prior choice and an actual
+// total — that pairing (estimate vs what was paid) is the point of the log.
+function applyDecision(doc, raw) {
+  if (!raw || typeof raw !== 'object' || !IDEA_STAGES[raw.stage]) return 'Unknown decision stage';
+  const now = new Date().toISOString(), d = doc.decision;
+  if (raw.stage === 'chosen') {
+    const chosen = validateIdea({ members: doc.idea.members, recommendation: raw.chosen || doc.idea.recommendation }).recommendation;
+    if (!chosen) return 'Nothing to choose — the proposal has no recommendation';
+    const estimate = chosen.familyTotal != null ? chosen.familyTotal : chosen.totalFare;
+    doc.decision = { stage: 'chosen', chosen, chosen_at: now, estimate_total: estimate, actual_total: null, booked_at: null, delta_pct: null };
+  } else if (raw.stage === 'booked') {
+    if (!d.chosen) return 'Choose an option before marking it booked';
+    const actual = ideaMoney(raw.actual_total);
+    if (actual == null || actual === 0) return 'actual_total must be a positive number';
+    const est = d.estimate_total;
+    d.stage = 'booked'; d.actual_total = actual; d.booked_at = now;
+    d.delta_pct = est ? Math.round(((actual - est) / est) * 1000) / 10 : null;
+  } else if (raw.stage === 'dropped') {
+    d.stage = 'dropped';
+  } else {
+    doc.decision = { stage: 'proposed', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+  }
+  return '';
+}
+
+function ideaPublic(doc) {
+  const out = Object.assign({}, doc);
+  delete out.edit_hash;
+  return out;
+}
+function ideaLog(doc, event, by) {
+  doc.log = (doc.log || []).concat([{ at: new Date().toISOString(), event, by: by || null }]).slice(-IDEA_MAX_LOG);
+}
+async function ideaRead(env, id) {
+  try { return JSON.parse((await env.IDEAS.get('idea:' + id)) || 'null'); } catch (e) { return null; }
+}
+async function ideaWrite(env, doc) {
+  doc.updated_at = new Date().toISOString();
+  await env.IDEAS.put('idea:' + doc.id, JSON.stringify(doc), { expirationTtl: IDEA_TTL_SECONDS });
+}
+const ideaOk = (request, payload, status) => new Response(JSON.stringify(Object.assign({ ok: true }, payload)), { status: status || 200, headers: alertsCors(request) });
+
+async function handleIdea(request, env, pathname) {
+  if (!env.IDEAS) return jsonError('Shared trip ideas not configured on this Worker (no IDEAS KV binding)', 501, request, 'no_kv');
+  const id = new URL(request.url).searchParams.get('id') || '';
+
+  if (request.method === 'GET') {
+    if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
+    const doc = await ideaRead(env, id);
+    return doc ? ideaOk(request, { doc: ideaPublic(doc) }) : jsonError('Trip idea not found', 404, request, 'not_found');
+  }
+
+  let parsed;
+  try { parsed = await readJsonBody(request); } catch (e) { return jsonError('Could not read request body', 400, request, 'bad_body'); }
+  if (parsed.err) return jsonError(parsed.err.msg, parsed.err.status, request, parsed.err.code);
+  const body = parsed.body || {};
+
+  if (pathname === '/idea') {
+    const idea = validateIdea(body.idea);
+    if (!idea) return jsonError('Invalid trip idea', 400, request, 'bad_body');
+    const editKey = ideaRandom(32);
+    const doc = {
+      v: 1, id: ideaRandom(16), created_at: new Date().toISOString(), updated_at: null,
+      edit_hash: await ideaHash(editKey), idea, responses: {},
+      decision: { stage: 'proposed', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null },
+      log: [],
+    };
+    ideaLog(doc, 'created');
+    await ideaWrite(env, doc);
+    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc) }, 201);
+  }
+
+  if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
+  const doc = await ideaRead(env, id);
+  if (!doc) return jsonError('Trip idea not found', 404, request, 'not_found');
+
+  if (pathname === '/idea/respond') {
+    if (doc.decision && (doc.decision.stage === 'booked' || doc.decision.stage === 'dropped')) {
+      return jsonError('This trip idea is closed', 409, request, 'closed');
+    }
+    const resp = validateResponse(body, doc.idea.members);
+    if (!resp) return jsonError('Invalid response', 400, request, 'bad_body');
+    doc.responses[resp.member] = resp;
+    ideaLog(doc, 'rsvp:' + resp.status, resp.member);
+    await ideaWrite(env, doc);
+    return ideaOk(request, { doc: ideaPublic(doc) });
+  }
+
+  if (pathname === '/idea/update') {
+    if (typeof body.edit_key !== 'string' || !IDEA_KEY_RE.test(body.edit_key) || (await ideaHash(body.edit_key)) !== doc.edit_hash) {
+      return jsonError('Edit key does not match this trip idea', 403, request, 'forbidden');
+    }
+    if (body.idea) {
+      const idea = validateIdea(body.idea);
+      if (!idea) return jsonError('Invalid trip idea', 400, request, 'bad_body');
+      doc.idea = idea;
+      Object.keys(doc.responses).forEach((k) => { if (!idea.members.some((m) => m.code === k)) delete doc.responses[k]; });
+      ideaLog(doc, 'edited', 'organizer');
+    }
+    if (body.decision) {
+      const err = applyDecision(doc, body.decision);
+      if (err) return jsonError(err, 400, request, 'bad_decision');
+      ideaLog(doc, 'decision:' + doc.decision.stage, 'organizer');
+    }
+    await ideaWrite(env, doc);
+    return ideaOk(request, { doc: ideaPublic(doc) });
+  }
+  return jsonError('Not found', 404, request);
 }

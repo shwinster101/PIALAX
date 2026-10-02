@@ -14,7 +14,11 @@ const EXPECT = [
   'resolveTripIdeaSearchDates', '_tripIdeaSamplePairs',
   'tripIdeaFareFor', 'tripIdeaHubHeadcount', 'tripIdeaPriceSummary',
   'TRIP_IDEA_HUBS', 'S', '_flightCache', '_cacheKey', 'FLIGHT_CACHE_TTL_MS',
+  'tripIdeaBuilder', '_tripIdeaShare', '_tripIdeaOpenRemote', '_tripIdeaKeys', 'tripIdeaMembersFor',
+  'summarizeIdeaResponses', 'ideaCommonWindow', 'ideaDecisionStage', 'buildSharedIdeaPayload', 'tripIdeaSharedState',
 ];
+EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
+const OPTIONAL = [];
 let failures = 0;
 const formMarkup = {};
 function check(ok, message) {
@@ -198,5 +202,98 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     `${file}: Trip Idea block matches scripts/trip-idea-builder.js`);
 }
 
-if (failures) process.exit(1);
-console.log('all Trip Idea Builder checks passing');
+// PIA-072/073: shared ideas end to end — the client's fetch is routed into the
+// real worker.js (loaded as ESM) backed by an in-memory KV, so the payload the
+// browser sends is checked against the validation the Worker enforces.
+async function sharedIdeaSuite() {
+  const os = require('os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-idea-'));
+  fs.writeFileSync(path.join(tmp, 'worker.mjs'), fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8'));
+  const worker = (await import('file://' + path.join(tmp, 'worker.mjs'))).default;
+  fs.rmSync(tmp, { recursive: true, force: true });
+  const kvMap = new Map();
+  const kv = { get: async (k) => (kvMap.has(k) ? kvMap.get(k) : null), put: async (k, v) => { kvMap.set(k, v); } };
+  const makeFetch = (env) => async (url, opts) => {
+    const o = opts || {};
+    const res = await worker.fetch(new Request(String(url), { method: o.method || 'GET', headers: o.headers, body: o.body }), env);
+    return res;
+  };
+
+  for (const file of ['pialax.html', 'pialax-mobile.html']) {
+    // No IDEAS binding: share falls back to the read-only ?tripIdea= link.
+    {
+      const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { fetch: makeFetch({}) });
+      api.tripIdeaBuilder.recommendation = { id: 'r1', city: 'Raleigh-Durham', airport: 'RDU', hub: 'LAX', fareFrom: 'LAX', fareTo: 'RDU', departure: '2026-11-06', return: '2026-11-09', totalFare: 199, perTicketFare: 199, headcount: 1, priceStatus: 'cached' };
+      const url = await api._tripIdeaShare();
+      check(typeof url === 'string' && url.includes('tripIdea=') && !/[?&]idea=/.test(url),
+        `${file}: no IDEAS binding → share falls back to read-only ?tripIdea= link`);
+    }
+
+    const env = { IDEAS: kv };
+    const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { fetch: makeFetch(env) });
+    const members = api.tripIdeaMembersFor('2026-11-06');
+    check(members.length === 3 && members[0].code === 'PIA' && members[0].headcount === 2 && members.some((m) => m.code === 'LGA'),
+      `${file}: members for Nov 2026 are PIA(2), LAX, LGA (date-aware family)`);
+    const rec = { id: 'r1', city: 'Raleigh-Durham', airport: 'RDU', hub: 'PIA_ORD', fareFrom: 'ORD', fareTo: 'RDU', departure: '2026-11-06', return: '2026-11-09', totalFare: 460, perTicketFare: 230, headcount: 2, priceStatus: 'cached' };
+    api.tripIdeaBuilder.recommendation = rec;
+    api.tripIdeaBuilder._notes = 'Shower is Saturday';
+    const url = await api._tripIdeaShare();
+    const id = url && (url.match(/[?&]idea=([A-Za-z0-9_-]{22})/) || [])[1];
+    check(!!id && !/tripIdea=/.test(url), `${file}: with IDEAS bound, share creates an RSVP link ?idea=<id>`);
+    const keys = api._tripIdeaKeys();
+    check(keys[id] && /^[A-Za-z0-9_-]{43}$/.test(keys[id].edit_key), `${file}: organizer edit key kept on this device only`);
+
+    await api._tripIdeaOpenRemote(id);
+    const doc = api.tripIdeaSharedState().doc;
+    check(doc && doc.idea.recommendation.totalFare === 460 && doc.idea.notes === 'Shower is Saturday' && doc.idea.members.length === 3,
+      `${file}: the worker accepted the client payload unchanged (fare, notes, members)`);
+    // Family estimate = LAX 438×1 + ORD 230×2 + LGA 218×1 (sample fares, no cache) = 1116.
+    const fam = api.tripIdeaFamilyEstimate(rec);
+    check(fam.total === 1116 && fam.status === 'estimated' && fam.parts.length === 3,
+      `${file}: family estimate sums every hub × travelers ($1,116), not one row`);
+    check(doc.idea.recommendation.familyTotal === 1116, `${file}: shared idea carries the family estimate`);
+    const hostFam = api.tripIdeaFamilyEstimate(Object.assign({}, rec, { airport: 'LAX' }));
+    check(hostFam.parts.some((p) => p.hub === 'LAX' && p.status === 'host' && p.perTicket === 0),
+      `${file}: a hub that is the destination counts as home base ($0)`);
+    check(api.ideaDecisionStage(doc) === 'proposed', `${file}: new shared idea is "proposed"`);
+
+    const respond = (body) => makeFetch(env)('https://w.dev/idea/respond?id=' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    await respond({ member: 'PIA', status: 'in', available_from: '2026-11-05', available_to: '2026-11-10' });
+    await respond({ member: 'LAX', status: 'maybe', available_from: '2026-11-06', available_to: '2026-11-12' });
+    await api._tripIdeaOpenRemote(id);
+    const after = api.tripIdeaSharedState().doc;
+    const sum = api.summarizeIdeaResponses(after);
+    check(sum.counts.in === 1 && sum.counts.maybe === 1 && sum.counts.pending === 1 && sum.travelersIn === 2,
+      `${file}: summary counts 1 in (2 travelers) · 1 maybe · 1 waiting`);
+    check(api.ideaDecisionStage(after) === 'answered', `${file}: stage becomes "answered" once anyone RSVPs`);
+    const win = api.ideaCommonWindow(after);
+    check(win && win.overlaps && win.from === '2026-11-06' && win.to === '2026-11-10',
+      `${file}: common window is the overlap of in/maybe dates (Nov 6 → Nov 10)`);
+    check(api.ideaCommonWindow({ idea: after.idea, responses: { PIA: { status: 'in', available_from: '2026-11-01', available_to: '2026-11-03' }, LAX: { status: 'in', available_from: '2026-11-05', available_to: '2026-11-08' } } }).overlaps === false,
+      `${file}: non-overlapping availability is reported, not hidden`);
+
+    // PIA-073: organizer decision flow through the client.
+    {
+      await api.tripIdeaDecisionAction('choose');
+      check(api.tripIdeaSharedState().doc.decision.stage === 'chosen' && api.tripIdeaSharedState().doc.decision.estimate_total === 1116,
+        `${file}: organizer "choose" records the $1,116 family estimate`);
+      await api.tripIdeaDecisionAction('book', '$1,228');
+      const d = api.tripIdeaSharedState().doc.decision;
+      check(d.stage === 'booked' && d.actual_total === 1228 && d.delta_pct === 10, `${file}: organizer "booked" records actual $1,228 (+10%)`);
+      const log = api.tripIdeaDecisionLog();
+      const entry = log.filter((e) => e.id === id)[0];
+      check(entry && entry.stage === 'booked' && entry.estimate_total === 1116 && entry.actual_total === 1228,
+        `${file}: local decision history keeps estimate vs actual`);
+      const stats = api.tripIdeaDecisionStats(log);
+      check(stats.booked === 1 && stats.avgDeltaPct === 10, `${file}: history stats: 1 booked, estimates ran 10% low`);
+      api.tripIdeaSharedState().editKey = '';
+      const r = await api.tripIdeaDecisionAction('drop');
+      check(r === null && api.tripIdeaSharedState().doc.decision.stage === 'booked', `${file}: without the edit key, decision actions do nothing`);
+    }
+  }
+}
+
+sharedIdeaSuite().catch((e) => check(false, 'shared idea suite threw: ' + (e && e.stack || e))).then(() => {
+  if (failures) process.exit(1);
+  console.log('all Trip Idea Builder checks passing');
+});

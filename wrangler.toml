@@ -48,3 +48,13 @@ crons = ["0 15 * * *"]
 # ALERT_CRON_MAX (max SerpAPI fetches per cron run; default 8 ≈ 240/month
 # worst-case against the 1000/month plan — real usage is far lower because
 # cache hits are free).
+
+# PIA-071: shared trip ideas (RSVP links + decision log). Without this binding
+# the app keeps working with read-only ?tripIdea= links. One-time:
+#   1. wrangler kv namespace create IDEAS
+#      → copy the printed id into the block below, then un-comment it
+#   2. wrangler deploy
+#
+# [[kv_namespaces]]
+# binding = "IDEAS"
+# id = "PASTE_NAMESPACE_ID_HERE"
