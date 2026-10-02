@@ -23,7 +23,7 @@ ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 #   wrangler secret put ANTHROPIC_API_KEY
 #   wrangler deploy
 
-# ── PIA-063: real fare alerts ────────────────────────────────────────────────
+# ── PIA-063: real fare alerts ────────────────────────────────────────────────────
 # Daily cron re-prices the synced watches (through the same 24h edge cache the
 # browser uses) and emails on a real drop or an approaching departure.
 # 15:00 UTC ≈ 10am Central / 8am Pacific.
@@ -55,6 +55,6 @@ crons = ["0 15 * * *"]
 #      → copy the printed id into the block below, then un-comment it
 #   2. wrangler deploy
 #
-# [[kv_namespaces]]
-# binding = "IDEAS"
-# id = "PASTE_NAMESPACE_ID_HERE"
+[[kv_namespaces]]
+binding = "IDEAS"
+id = "e328e84ab0b34e8aa45c9ffa8b65bf3b"
