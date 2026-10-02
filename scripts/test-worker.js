@@ -494,6 +494,13 @@ const VALID_EXTRACTION = {
     const dec = booked && booked.doc.decision;
     if (dec && dec.stage === 'booked' && dec.actual_total === 506 && dec.delta_pct === 10) ok('booked records actual $506 and +10% vs estimate');
     else bad('book: ' + JSON.stringify(dec));
+    {
+      const famIdea = Object.assign({}, IDEA, { recommendation: Object.assign({}, IDEA.recommendation, { familyTotal: 1116, familyStatus: 'estimated' }) });
+      const c2 = await readJson(await call(req('POST', 'https://w.dev/idea', { idea: famIdea }), env));
+      const ch2 = await readJson(await call(req('POST', 'https://w.dev/idea/update?id=' + c2.id, { edit_key: c2.edit_key, decision: { stage: 'chosen' } }), env));
+      if (ch2 && ch2.doc.decision.estimate_total === 1116) ok('choose uses the whole-family estimate when the idea carries one');
+      else bad('family estimate: ' + JSON.stringify(ch2 && ch2.doc.decision));
+    }
     const closed = await call(req('POST', 'https://w.dev/idea/respond?id=' + id, { member: 'PIA', status: 'in' }), env);
     if (closed.status === 409) ok('RSVPs closed once the idea is booked');
     else bad('closed rsvp: ' + closed.status);

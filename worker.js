@@ -890,6 +890,9 @@ function validateIdea(raw) {
       totalFare: ideaMoney(r.totalFare), perTicketFare: ideaMoney(r.perTicketFare),
       headcount: Number(r.headcount) >= 1 && Number(r.headcount) <= 9 ? Math.round(Number(r.headcount)) : 1,
       priceStatus: ['live', 'cached', 'estimated', 'unavailable', 'host'].indexOf(r.priceStatus) >= 0 ? r.priceStatus : 'estimated',
+      // PIA-073: whole-family estimate (all hubs × travelers) — the number compared with the actual total.
+      familyTotal: ideaMoney(r.familyTotal),
+      familyStatus: ['cached', 'estimated', 'partial'].indexOf(r.familyStatus) >= 0 ? r.familyStatus : null,
     } : null,
     notes: ideaStr(raw.notes, 500),
     members,
@@ -920,7 +923,8 @@ function applyDecision(doc, raw) {
   if (raw.stage === 'chosen') {
     const chosen = validateIdea({ members: doc.idea.members, recommendation: raw.chosen || doc.idea.recommendation }).recommendation;
     if (!chosen) return 'Nothing to choose — the proposal has no recommendation';
-    doc.decision = { stage: 'chosen', chosen, chosen_at: now, estimate_total: chosen.totalFare, actual_total: null, booked_at: null, delta_pct: null };
+    const estimate = chosen.familyTotal != null ? chosen.familyTotal : chosen.totalFare;
+    doc.decision = { stage: 'chosen', chosen, chosen_at: now, estimate_total: estimate, actual_total: null, booked_at: null, delta_pct: null };
   } else if (raw.stage === 'booked') {
     if (!d.chosen) return 'Choose an option before marking it booked';
     const actual = ideaMoney(raw.actual_total);

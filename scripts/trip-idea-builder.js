@@ -305,7 +305,7 @@ function renderTripIdeaBuilder(){
   } else if(_tripIdeaBuilderStage==='shared'){
     renderTripIdeaShared(body);
   } else if(_tripIdeaBuilderStage==='inputs'){
-    body.innerHTML='<p class="trip-idea-lead">Start with what you know. Add a destination, dates, or both; everything else is optional.</p>'+_tripIdeaInputsHtml();
+    body.innerHTML='<p class="trip-idea-lead">Start with what you know. Add a destination, dates, or both; everything else is optional.</p>'+_tripIdeaInputsHtml()+tripIdeaHistoryHtml();
     var notes=_tripIdeaEl('trip-idea-notes'); if(notes && tripIdeaBuilder._notes) notes.value=tripIdeaBuilder._notes;
   } else {
     renderTripIdeaResults(body);
@@ -392,6 +392,7 @@ function _tripIdeaWireStage(){
   if (saveBtn) saveBtn.hidden = !resultsStage;
   if (calendarBtn) calendarBtn.hidden = !resultsStage;
   var primaryBtn = _tripIdeaEl('trip-idea-builder-primary'); if (primaryBtn) primaryBtn.hidden = _tripIdeaBuilderStage === 'shared';
+  sheet.querySelectorAll('[data-idea-open]').forEach(function(b){b.onclick=function(){_tripIdeaOpenRemote(b.getAttribute('data-idea-open'));};});
   sheet.querySelectorAll('[data-idea-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-idea-action');if(a==='respond')_tripIdeaRespond();else if(typeof tripIdeaDecisionAction==='function')tripIdeaDecisionAction(a);};});
   sheet.querySelectorAll('[data-trip-mode]').forEach(function(b){b.onclick=function(){tripIdeaBuilder.mode=b.getAttribute('data-trip-mode');renderTripIdeaBuilder();};});
   sheet.querySelectorAll('[data-trip-date-mode]').forEach(function(b){b.onclick=function(){_tripIdeaReadInputs();_tripIdeaDateMode=b.getAttribute('data-trip-date-mode')==='window'?'window':'specific';renderTripIdeaBuilder();};});
@@ -422,10 +423,27 @@ function tripIdeaMembersFor(dep) {
       headcount:typeof headcountFor === 'function' ? (Number(headcountFor(code)) || 1) : 1};
   });
 }
+// Whole-family estimate for one destination + dates: every hub's fare × its
+// travelers (a hub that IS the destination is home base, $0). This — not the
+// selected row's single-hub fare — is what gets compared with the actual total.
+function tripIdeaFamilyEstimate(rec) {
+  var r = rec || {}, city = {airport:r.airport, alternatives:r.alternatives || []}, total = 0, missing = 0, cached = 0, priced = 0;
+  var parts = TRIP_IDEA_HUBS.map(function(hub){
+    var hc = tripIdeaHubHeadcount(hub, r.departure);
+    if (hub.airports.indexOf(r.airport) >= 0) return {hub:hub.key, from:r.airport, perTicket:0, headcount:hc, status:'host'};
+    var p = tripIdeaFareFor(hub, city, r.departure, r.return);
+    if (p.perTicket == null) { missing++; return {hub:hub.key, from:p.from, perTicket:null, headcount:hc, status:'unavailable'}; }
+    priced++; if (p.status === 'cached' || p.status === 'live') cached++;
+    total += p.perTicket * hc;
+    return {hub:hub.key, from:p.from, perTicket:p.perTicket, headcount:hc, status:p.status};
+  });
+  return {total:missing ? null : total, status:missing ? 'partial' : priced && cached === priced ? 'cached' : 'estimated', parts:parts};
+}
 function buildSharedIdeaPayload(builder, recommendation, notes, members) {
   var s = normalizeTripIdeaBuilderState(builder), r = recommendation || s.recommendation || null;
   var pick = r ? {city:r.city, airport:r.airport, hub:r.hub, fareFrom:r.fareFrom, fareTo:r.fareTo, departure:r.departure, return:r.return,
     totalFare:r.totalFare == null ? null : r.totalFare, perTicketFare:r.perTicketFare == null ? null : r.perTicketFare, headcount:r.headcount || 1, priceStatus:r.priceStatus || 'estimated'} : null;
+  if (pick) { var fam = tripIdeaFamilyEstimate(r); pick.familyTotal = fam.total; pick.familyStatus = fam.status; }
   return {title:((r && r.city) || s.destination.city || 'Trip idea') + ' trip', destination:{city:s.destination.city, airport:s.destination.airport},
     dates:{departure:s.dates.departure, return:s.dates.return, searchStart:s.dates.searchStart, searchEnd:s.dates.searchEnd},
     recommendation:pick, notes:String(notes || '').slice(0, 500), members:members || tripIdeaMembersFor((r && r.departure) || s.dates.departure)};
@@ -538,7 +556,8 @@ function renderTripIdeaShared(target) {
   var doc = sh.doc, idea = doc.idea || {}, r = idea.recommendation || {}, sum = summarizeIdeaResponses(doc), win = ideaCommonWindow(doc);
   var closed = sum.stage === 'booked' || sum.stage === 'dropped';
   var dates = (r.departure || idea.dates && idea.dates.departure || 'Dates TBD') + (r.return ? ' → ' + r.return : '');
-  var fare = r.totalFare ? '$' + r.totalFare + ' ' + (r.priceStatus === 'cached' || r.priceStatus === 'live' ? 'cached fare' : 'estimate') + (r.headcount > 1 ? ' · $' + r.perTicketFare + ' × ' + r.headcount : '') + ' from ' + (r.fareFrom || r.hub || '') : 'Fare not priced yet';
+  var fare = (r.familyTotal != null ? 'Whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') + ' (' + (r.familyStatus === 'cached' ? 'cached fares' : 'estimate') + ') · ' : '') +
+    (r.totalFare ? '$' + r.totalFare + (r.headcount > 1 ? ' ($' + r.perTicketFare + ' × ' + r.headcount + ')' : '') + ' from ' + (r.fareFrom || r.hub || '') : 'Fare not priced yet');
   var html = '<div class="trip-idea-results-summary"><strong>' + _tripIdeaEsc(idea.title || 'Trip idea') + '</strong><span class="trip-idea-stage trip-idea-stage-' + sum.stage + '">' + _tripIdeaEsc(sum.stage) + '</span></div>' +
     '<div class="trip-idea-result selected"><span class="trip-idea-result-head"><strong>' + _tripIdeaEsc(r.city || idea.destination && idea.destination.city || 'Destination TBD') + '</strong><b>' + _tripIdeaEsc(dates) + '</b></span><span>' + _tripIdeaEsc(fare) + '</span>' + (idea.notes ? '<span>' + _tripIdeaEsc(idea.notes) + '</span>' : '') + '</div>' +
     '<div class="trip-idea-rsvp-summary"><strong>' + sum.counts.in + ' in · ' + sum.counts.maybe + ' maybe · ' + sum.counts.out + ' out · ' + sum.counts.pending + ' waiting</strong><span>' + sum.travelersIn + ' traveler' + (sum.travelersIn === 1 ? '' : 's') + ' confirmed' +
@@ -562,6 +581,82 @@ function renderTripIdeaShared(target) {
   target.innerHTML = html;
   var sel = _tripIdeaEl('trip-idea-rsvp-member'), origin = _tripIdeaEl('trip-idea-rsvp-origin');
   if (sel && origin) sel.onchange = function(){ var x = sum.rows.filter(function(m){ return m.code === sel.value; })[0]; if (x && !origin.value) origin.value = x.origin || ''; };
+}
+
+// ── PIA-073: decision log — proposed → answered → chosen → booked (actual) ──
+// The Worker record is the source of truth; this device also keeps a compact
+// history of the ideas it organized so "how good were our estimates?" can be
+// answered across trips (estimate at choice time vs what was actually paid).
+var TRIP_IDEA_DECISIONS_STORAGE = 'pialax_decision_log_v1';
+function tripIdeaDecisionEntry(doc) {
+  var d = (doc && doc.decision) || {}, idea = (doc && doc.idea) || {}, r = idea.recommendation || {};
+  return {id:doc && doc.id, title:idea.title || 'Trip idea', city:r.city || (idea.destination && idea.destination.city) || '',
+    stage:ideaDecisionStage(doc), estimate_total:d.estimate_total == null ? (r.familyTotal != null ? r.familyTotal : r.totalFare == null ? null : r.totalFare) : d.estimate_total,
+    actual_total:d.actual_total == null ? null : d.actual_total, delta_pct:d.delta_pct == null ? null : d.delta_pct,
+    updated_at:(doc && (doc.updated_at || doc.created_at)) || new Date().toISOString()};
+}
+function tripIdeaDecisionLog() {
+  var map = {}; try { map = JSON.parse(localStorage.getItem(TRIP_IDEA_DECISIONS_STORAGE)) || {}; } catch (e) {}
+  return Object.keys(map).map(function(k){ return map[k]; }).sort(function(a,b){ return String(b.updated_at).localeCompare(String(a.updated_at)); });
+}
+function tripIdeaRecordDecision(doc) {
+  if (!doc || !doc.id) return null;
+  var map = {}; try { map = JSON.parse(localStorage.getItem(TRIP_IDEA_DECISIONS_STORAGE)) || {}; } catch (e) {}
+  var entry = tripIdeaDecisionEntry(doc); map[doc.id] = entry;
+  try { localStorage.setItem(TRIP_IDEA_DECISIONS_STORAGE, JSON.stringify(map)); } catch (e) {}
+  return entry;
+}
+function tripIdeaDecisionStats(entries) {
+  var list = Array.isArray(entries) ? entries : [], booked = list.filter(function(e){ return e.stage === 'booked'; });
+  var deltas = booked.map(function(e){ return e.delta_pct; }).filter(function(x){ return typeof x === 'number' && isFinite(x); });
+  var avg = deltas.length ? Math.round(deltas.reduce(function(a,b){ return a + b; }, 0) / deltas.length * 10) / 10 : null;
+  return {count:list.length, booked:booked.length, dropped:list.filter(function(e){ return e.stage === 'dropped'; }).length, avgDeltaPct:avg};
+}
+function tripIdeaDecisionAction(action, amount) {
+  var sh = _tripIdeaShared;
+  if (!sh || !sh.doc || !sh.editKey) return Promise.resolve(null);
+  var decision = action === 'choose' ? {stage:'chosen'} : action === 'drop' ? {stage:'dropped'} : action === 'reopen' ? {stage:'proposed'} : null;
+  if (action === 'book') {
+    var raw = amount != null ? amount : (_tripIdeaEl('trip-idea-actual') || {}).value;
+    var actual = Math.round(Number(String(raw == null ? '' : raw).replace(/[$,\s]/g, '')));
+    if (!(actual > 0)) { showShareToast('Enter what the trip actually cost in total'); return Promise.resolve(null); }
+    decision = {stage:'booked', actual_total:actual};
+  }
+  if (!decision) return Promise.resolve(null);
+  return _tripIdeaApi('POST', '/idea/update?id=' + encodeURIComponent(sh.id), {edit_key:sh.editKey, decision:decision}).then(function(res){
+    if (res.ok && res.json && res.json.doc) {
+      sh.doc = res.json.doc; tripIdeaRecordDecision(sh.doc);
+      showShareToast(action === 'book' ? '✓ Booked — estimate vs actual saved' : action === 'choose' ? '✓ Option chosen' : action === 'drop' ? '✓ Idea dropped' : '✓ Reopened');
+      if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
+      return sh.doc;
+    }
+    showShareToast(res.status === 403 ? 'Only the organizer can change the decision' : (res.json && res.json.error) || 'Could not save the decision');
+    return null;
+  });
+}
+function _tripIdeaMoney(v) { return v == null ? '—' : '$' + Number(v).toLocaleString('en-US'); }
+function renderTripIdeaDecisionPanel(doc, isOrganizer) {
+  var d = (doc && doc.decision) || {}, stage = ideaDecisionStage(doc), est = tripIdeaDecisionEntry(doc).estimate_total;
+  var outcome = stage === 'booked' ? '<span>Booked for <strong>' + _tripIdeaMoney(d.actual_total) + '</strong> · estimate was ' + _tripIdeaMoney(est) +
+    (d.delta_pct == null ? '' : ' · ' + (d.delta_pct > 0 ? '+' : '') + d.delta_pct + '% vs estimate') + '</span>' :
+    stage === 'chosen' ? '<span>Chosen · estimate ' + _tripIdeaMoney(est) + ' — book each traveler in Google Flights, then record the total here.</span>' :
+    stage === 'dropped' ? '<span>Dropped — kept in history.</span>' : '';
+  if (!isOrganizer) return outcome ? '<div class="trip-idea-decision"><strong>Decision</strong>' + outcome + '</div>' : '';
+  var btn = function(a, label, secondary){ return '<button type="button"' + (secondary ? ' class="secondary"' : '') + ' data-idea-action="' + a + '">' + _tripIdeaEsc(label) + '</button>'; };
+  var controls = stage === 'proposed' || stage === 'answered' ? btn('choose', 'Choose this option') + btn('drop', 'Drop idea', true) :
+    stage === 'chosen' ? '<label>Actual total paid<input id="trip-idea-actual" inputmode="numeric" placeholder="e.g. 1240"></label>' + btn('book', 'Mark booked') + btn('reopen', 'Reopen', true) :
+    btn('reopen', 'Reopen', true);
+  return '<div class="trip-idea-decision"><strong>Organizer decision</strong>' + outcome + '<div class="trip-idea-decision-row">' + controls + '</div></div>';
+}
+function tripIdeaHistoryHtml() {
+  var log = tripIdeaDecisionLog(); if (!log.length) return '';
+  var st = tripIdeaDecisionStats(log);
+  return '<details class="trip-idea-options trip-idea-history"><summary>Past family decisions <span>' + st.count + ' idea' + (st.count === 1 ? '' : 's') +
+    (st.avgDeltaPct == null ? '' : ' · actual vs estimate ' + (st.avgDeltaPct > 0 ? '+' : '') + st.avgDeltaPct + '%') + '</span></summary><ul>' +
+    log.slice(0, 12).map(function(e){
+      return '<li><button type="button" data-idea-open="' + _tripIdeaEsc(e.id) + '"><strong>' + _tripIdeaEsc(e.title) + '</strong> · ' + _tripIdeaEsc(e.stage) +
+        ' · est ' + _tripIdeaEsc(_tripIdeaMoney(e.estimate_total)) + (e.actual_total == null ? '' : ' → paid ' + _tripIdeaEsc(_tripIdeaMoney(e.actual_total))) + '</button></li>';
+    }).join('') + '</ul></details>';
 }
 
 function initTripIdeaBuilder(){

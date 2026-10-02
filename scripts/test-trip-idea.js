@@ -17,7 +17,8 @@ const EXPECT = [
   'tripIdeaBuilder', '_tripIdeaShare', '_tripIdeaOpenRemote', '_tripIdeaKeys', 'tripIdeaMembersFor',
   'summarizeIdeaResponses', 'ideaCommonWindow', 'ideaDecisionStage', 'buildSharedIdeaPayload', 'tripIdeaSharedState',
 ];
-const OPTIONAL = ['tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats'];
+EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
+const OPTIONAL = [];
 let failures = 0;
 const formMarkup = {};
 function check(ok, message) {
@@ -246,6 +247,14 @@ async function sharedIdeaSuite() {
     const doc = api.tripIdeaSharedState().doc;
     check(doc && doc.idea.recommendation.totalFare === 460 && doc.idea.notes === 'Shower is Saturday' && doc.idea.members.length === 3,
       `${file}: the worker accepted the client payload unchanged (fare, notes, members)`);
+    // Family estimate = LAX 438×1 + ORD 230×2 + LGA 218×1 (sample fares, no cache) = 1116.
+    const fam = api.tripIdeaFamilyEstimate(rec);
+    check(fam.total === 1116 && fam.status === 'estimated' && fam.parts.length === 3,
+      `${file}: family estimate sums every hub × travelers ($1,116), not one row`);
+    check(doc.idea.recommendation.familyTotal === 1116, `${file}: shared idea carries the family estimate`);
+    const hostFam = api.tripIdeaFamilyEstimate(Object.assign({}, rec, { airport: 'LAX' }));
+    check(hostFam.parts.some((p) => p.hub === 'LAX' && p.status === 'host' && p.perTicket === 0),
+      `${file}: a hub that is the destination counts as home base ($0)`);
     check(api.ideaDecisionStage(doc) === 'proposed', `${file}: new shared idea is "proposed"`);
 
     const respond = (body) => makeFetch(env)('https://w.dev/idea/respond?id=' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -264,16 +273,16 @@ async function sharedIdeaSuite() {
       `${file}: non-overlapping availability is reported, not hidden`);
 
     // PIA-073: organizer decision flow through the client.
-    if (typeof api.tripIdeaDecisionAction === 'function') {
+    {
       await api.tripIdeaDecisionAction('choose');
-      check(api.tripIdeaSharedState().doc.decision.stage === 'chosen' && api.tripIdeaSharedState().doc.decision.estimate_total === 460,
-        `${file}: organizer "choose" records the $460 estimate`);
-      await api.tripIdeaDecisionAction('book', 506);
+      check(api.tripIdeaSharedState().doc.decision.stage === 'chosen' && api.tripIdeaSharedState().doc.decision.estimate_total === 1116,
+        `${file}: organizer "choose" records the $1,116 family estimate`);
+      await api.tripIdeaDecisionAction('book', '$1,228');
       const d = api.tripIdeaSharedState().doc.decision;
-      check(d.stage === 'booked' && d.actual_total === 506 && d.delta_pct === 10, `${file}: organizer "booked" records actual $506 (+10%)`);
+      check(d.stage === 'booked' && d.actual_total === 1228 && d.delta_pct === 10, `${file}: organizer "booked" records actual $1,228 (+10%)`);
       const log = api.tripIdeaDecisionLog();
       const entry = log.filter((e) => e.id === id)[0];
-      check(entry && entry.stage === 'booked' && entry.estimate_total === 460 && entry.actual_total === 506,
+      check(entry && entry.stage === 'booked' && entry.estimate_total === 1116 && entry.actual_total === 1228,
         `${file}: local decision history keeps estimate vs actual`);
       const stats = api.tripIdeaDecisionStats(log);
       check(stats.booked === 1 && stats.avgDeltaPct === 10, `${file}: history stats: 1 booked, estimates ran 10% low`);

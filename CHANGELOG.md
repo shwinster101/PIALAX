@@ -12,6 +12,18 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-073)
+- Decision log: shared ideas move proposed → answered → chosen → booked (or dropped). The organizer
+  (edit key on their device) chooses the option, then records the actual total paid; the Worker
+  stores estimate vs actual and the % difference. "Past family decisions" in the builder lists
+  this device's ideas with the average actual-vs-estimate gap.
+- Shared ideas carry a whole-family estimate (every hub's fare × its travelers, home base = $0);
+  that — not one hub's fare — is what the actual total is compared with.
+
+### Fixed (PIA-073)
+- Mobile had no Trip Idea Builder dialog or button, so shared links (and RSVP links) opened
+  nothing on phones. Markup now matches desktop.
+
 ### Added (PIA-072)
 - "Share proposal" creates an RSVP link (`?idea=<id>`) when the Worker has `IDEAS`; each family
   member answers in / maybe / out with their airport, the dates that work and a note. The idea
