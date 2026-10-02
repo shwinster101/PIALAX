@@ -27,8 +27,15 @@ ANTHROPIC_MODEL = "claude-haiku-4-5-20251001"
 # Daily cron re-prices the synced watches (through the same 24h edge cache the
 # browser uses) and emails on a real drop or an approaching departure.
 # 15:00 UTC ≈ 10am Central / 8am Pacific.
+#
+# PIA-074: OFF for now. The Cloudflare account is at the free plan's limit of
+# 5 cron triggers, so this schedule could not attach (2026-10-02) and alerts
+# aren't set up anyway (ALERTS KV below is still commented out). An explicit
+# empty list keeps `wrangler deploy` from trying to claim a 6th slot.
+# To turn alerts on: free a cron slot elsewhere (or move to Workers Paid),
+# finish the ALERTS steps below, then restore:  crons = ["0 15 * * *"]
 [triggers]
-crons = ["0 15 * * *"]
+crons = []
 
 # One-time, to enable alerts (the app works without them — the Alerts panel
 # stays in preview-only mode until the Worker is configured):

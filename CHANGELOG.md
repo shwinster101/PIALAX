@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+## [1.1.0] — 2026-10-02
+
+Group decisions: trip ideas are priced from real cached fares, shared as RSVP links each
+traveler answers for themselves, and closed out with estimate vs actual cost. Live on the
+Worker since `0a9a42b` (IDEAS KV namespace bound and deployed).
+
+### Changed (PIA-074)
+- `wrangler.toml`: cron triggers set to `[]`. The account is at the free plan's 5-cron limit, so the
+  daily alert schedule could not attach; alerts stay off until a slot is freed and `ALERTS` is set up.
+
 ### Added (PIA-073)
 - Decision log: shared ideas move proposed → answered → chosen → booked (or dropped). The organizer
   (edit key on their device) chooses the option, then records the actual total paid; the Worker
