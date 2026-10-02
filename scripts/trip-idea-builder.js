@@ -296,12 +296,14 @@ function _tripIdeaInputsHtml(){
 function renderTripIdeaBuilder(){
   var body=_tripIdeaEl('trip-idea-builder-body'), title=_tripIdeaEl('trip-idea-builder-title'), step=_tripIdeaEl('trip-idea-builder-step'), primary=_tripIdeaEl('trip-idea-builder-primary');
   if(!body) return;
-  if(title) title.textContent=_tripIdeaBuilderReadOnly?'Shared trip idea':'Build a trip idea';
-  if(step) step.textContent=_tripIdeaBuilderReadOnly?'Read-only proposal':(_tripIdeaBuilderStage==='results'?'Compare options':'Choose a place or dates');
+  if(title) title.textContent=_tripIdeaBuilderStage==='shared'?'Family trip idea':_tripIdeaBuilderReadOnly?'Shared trip idea':'Build a trip idea';
+  if(step) step.textContent=_tripIdeaBuilderStage==='shared'?'Who’s in? Answer below':_tripIdeaBuilderReadOnly?'Read-only proposal':(_tripIdeaBuilderStage==='results'?'Compare options':'Choose a place or dates');
   if(primary) primary.textContent=_tripIdeaBuilderStage==='intent'?'Continue':(_tripIdeaBuilderStage==='inputs'?'Find recommendations':'Save selected idea');
   if(_tripIdeaBuilderStage==='intent'){
     body.innerHTML='<p class="trip-idea-lead">Start with what you know. PIALAX will keep exact inputs, flexible combinations, and estimated pricing separate.</p><div class="trip-idea-intents">'+
       [['dates-first','📅 Dates first','Choose dates; rank destination cities.'],['city-first','📍 City first','Choose a destination; find the best dates in the next 90 days.'],['spontaneous','✨ Feeling spontaneous','Choose a window; find a low-fare suitable destination.']].map(function(x){return '<button type="button" class="trip-idea-intent'+(tripIdeaBuilder.mode===x[0]?' selected':'')+'" id="trip-idea-intent-'+x[0]+'" data-trip-mode="'+x[0]+'"><strong>'+x[1]+'</strong><span>'+x[2]+'</span></button>';}).join('')+'</div>';
+  } else if(_tripIdeaBuilderStage==='shared'){
+    renderTripIdeaShared(body);
   } else if(_tripIdeaBuilderStage==='inputs'){
     body.innerHTML='<p class="trip-idea-lead">Start with what you know. Add a destination, dates, or both; everything else is optional.</p>'+_tripIdeaInputsHtml();
     var notes=_tripIdeaEl('trip-idea-notes'); if(notes && tripIdeaBuilder._notes) notes.value=tripIdeaBuilder._notes;
@@ -375,13 +377,6 @@ function _tripIdeaSave(){
   if(typeof WATCHLIST!=='undefined'){ WATCHLIST.push(item); if(typeof saveWatchlist==='function') saveWatchlist(); if(typeof renderWatchlist==='function') renderWatchlist(); }
   showShareToast('✓ Saved to Trip Ideas'); return item;
 }
-function _tripIdeaShare(){
-  var payload=serializeTripIdeaSharePayload(tripIdeaBuilder,tripIdeaBuilder.recommendation,{fareStatus:tripIdeaBuilder.priceStatus,notes:tripIdeaBuilder._notes});
-  var code=encodeTripIdeaSharePayload(payload), sp=new URLSearchParams(window.location.search); sp.set('tripIdea',code);
-  var url=window.location.origin+window.location.pathname+'?'+sp.toString();
-  if(typeof copyRouteText==='function') copyRouteText('✈️ Shared Trip Idea\\n'+url); else if(navigator.clipboard) navigator.clipboard.writeText(url);
-  showShareToast('✓ Read-only proposal link copied'); return url;
-}
 function _tripIdeaOpenShared(payload){
   if(!payload || !payload.builder) return;
   tripIdeaBuilder=createTripIdeaBuilderState(payload.builder); _tripIdeaDateMode=!tripIdeaBuilder.dates.departure && !tripIdeaBuilder.dates.return && (tripIdeaBuilder.dates.searchStart || tripIdeaBuilder.dates.searchEnd)?'window':'specific'; tripIdeaBuilder.recommendation=payload.recommendation || null; tripIdeaBuilder._results=payload.recommendation ? [payload.recommendation] : []; tripIdeaBuilder._notes=payload.notes || ''; _tripIdeaBuilderReadOnly=true; _tripIdeaBuilderStage='results'; _tripIdeaShow(); renderTripIdeaBuilder();
@@ -396,6 +391,8 @@ function _tripIdeaWireStage(){
   if (shareBtn) shareBtn.hidden = !resultsStage;
   if (saveBtn) saveBtn.hidden = !resultsStage;
   if (calendarBtn) calendarBtn.hidden = !resultsStage;
+  var primaryBtn = _tripIdeaEl('trip-idea-builder-primary'); if (primaryBtn) primaryBtn.hidden = _tripIdeaBuilderStage === 'shared';
+  sheet.querySelectorAll('[data-idea-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-idea-action');if(a==='respond')_tripIdeaRespond();else if(typeof tripIdeaDecisionAction==='function')tripIdeaDecisionAction(a);};});
   sheet.querySelectorAll('[data-trip-mode]').forEach(function(b){b.onclick=function(){tripIdeaBuilder.mode=b.getAttribute('data-trip-mode');renderTripIdeaBuilder();};});
   sheet.querySelectorAll('[data-trip-date-mode]').forEach(function(b){b.onclick=function(){_tripIdeaReadInputs();_tripIdeaDateMode=b.getAttribute('data-trip-date-mode')==='window'?'window':'specific';renderTripIdeaBuilder();};});
   ['trip-idea-city','trip-idea-departure','trip-idea-return','trip-idea-search-start','trip-idea-search-end'].forEach(function(id){var input=_tripIdeaEl(id);if(input){input.addEventListener('input',_tripIdeaSyncPrimary);input.addEventListener('change',_tripIdeaSyncPrimary);}});
@@ -409,11 +406,170 @@ function _tripIdeaWireStage(){
   var copy=_tripIdeaEl('trip-idea-builder-copy');if(copy)copy.onclick=function(){_tripIdeaBuilderReadOnly=false;_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();};
   sheet.querySelectorAll('[data-trip-close]').forEach(function(b){b.onclick=tripIdeaBuilderClose;});
 }
+// ── PIA-072: shared trip ideas with RSVP (Worker /idea, KV-backed) ─────────
+// "Share proposal" stores the idea on the Worker and copies a ?idea=<id> link.
+// Anyone with the link picks who they are and answers in / maybe / out, with
+// their airport and the dates that work. No IDEAS binding (501) or no proxy →
+// fall back to the read-only ?tripIdea= link, exactly as before.
+var TRIP_IDEA_KEYS_STORAGE = 'pialax_idea_keys_v1';
+var TRIP_IDEA_RSVP_LABELS = {in:'✅ In', maybe:'🤔 Maybe', out:'❌ Out', pending:'⏳ No answer yet'};
+var _tripIdeaShared = null; // {id, doc, editKey, error}
+
+function tripIdeaMembersFor(dep) {
+  var codes = typeof familyForDate === 'function' ? familyForDate(dep || undefined) : [];
+  return (codes || []).map(function(code){
+    return {code:code, label:typeof labelFor === 'function' ? labelFor(code) : code, airport:code,
+      headcount:typeof headcountFor === 'function' ? (Number(headcountFor(code)) || 1) : 1};
+  });
+}
+function buildSharedIdeaPayload(builder, recommendation, notes, members) {
+  var s = normalizeTripIdeaBuilderState(builder), r = recommendation || s.recommendation || null;
+  var pick = r ? {city:r.city, airport:r.airport, hub:r.hub, fareFrom:r.fareFrom, fareTo:r.fareTo, departure:r.departure, return:r.return,
+    totalFare:r.totalFare == null ? null : r.totalFare, perTicketFare:r.perTicketFare == null ? null : r.perTicketFare, headcount:r.headcount || 1, priceStatus:r.priceStatus || 'estimated'} : null;
+  return {title:((r && r.city) || s.destination.city || 'Trip idea') + ' trip', destination:{city:s.destination.city, airport:s.destination.airport},
+    dates:{departure:s.dates.departure, return:s.dates.return, searchStart:s.dates.searchStart, searchEnd:s.dates.searchEnd},
+    recommendation:pick, notes:String(notes || '').slice(0, 500), members:members || tripIdeaMembersFor((r && r.departure) || s.dates.departure)};
+}
+function ideaDecisionStage(doc) {
+  var d = doc && doc.decision, st = d && d.stage;
+  if (st === 'chosen' || st === 'booked' || st === 'dropped') return st;
+  return doc && doc.responses && Object.keys(doc.responses).length ? 'answered' : 'proposed';
+}
+function summarizeIdeaResponses(doc) {
+  var members = (doc && doc.idea && doc.idea.members) || [], resp = (doc && doc.responses) || {};
+  var counts = {in:0, maybe:0, out:0, pending:0}, travelersIn = 0;
+  var rows = members.map(function(m){
+    var r = resp[m.code] || null, status = r ? r.status : 'pending';
+    counts[status] = (counts[status] || 0) + 1;
+    if (status === 'in') travelersIn += Number(m.headcount) || 1;
+    return {code:m.code, label:m.label || m.code, headcount:Number(m.headcount) || 1, status:status,
+      origin:(r && r.origin) || m.airport || '', available_from:(r && r.available_from) || '', available_to:(r && r.available_to) || '', note:(r && r.note) || ''};
+  });
+  return {rows:rows, counts:counts, travelersIn:travelersIn, stage:ideaDecisionStage(doc)};
+}
+// Dates every in/maybe responder said work: latest "from" to earliest "to".
+function ideaCommonWindow(doc) {
+  var from = '', to = '', n = 0;
+  summarizeIdeaResponses(doc).rows.forEach(function(r){
+    if ((r.status !== 'in' && r.status !== 'maybe') || (!r.available_from && !r.available_to)) return;
+    n++;
+    if (r.available_from && (!from || r.available_from > from)) from = r.available_from;
+    if (r.available_to && (!to || r.available_to < to)) to = r.available_to;
+  });
+  if (!n) return null;
+  return {from:from, to:to, people:n, overlaps:!(from && to && to < from)};
+}
+function tripIdeaSharedState() { return _tripIdeaShared; } // read accessor (tests, debugging)
+function _tripIdeaKeys() {
+  try { return JSON.parse(localStorage.getItem(TRIP_IDEA_KEYS_STORAGE)) || {}; } catch (e) { return {}; }
+}
+function _tripIdeaSaveKey(id, editKey, title) {
+  var keys = _tripIdeaKeys(); keys[id] = {edit_key:editKey, title:title || '', created_at:new Date().toISOString()};
+  try { localStorage.setItem(TRIP_IDEA_KEYS_STORAGE, JSON.stringify(keys)); } catch (e) {}
+}
+function _tripIdeaApi(method, path, body) {
+  var base = typeof PROXY_URL === 'string' ? PROXY_URL.replace(/\/+$/, '') : '';
+  if (!base) return Promise.resolve({ok:false, status:0, json:null});
+  var opts = {method:method, headers:{'Content-Type':'application/json'}};
+  if (body) opts.body = JSON.stringify(body);
+  return fetch(base + path, opts).then(function(res){
+    return res.text().then(function(t){ var j = null; try { j = JSON.parse(t); } catch (e) {} return {ok:res.ok, status:res.status, json:j}; });
+  }).catch(function(){ return {ok:false, status:0, json:null}; });
+}
+function _tripIdeaShareUrl(params) {
+  var sp = new URLSearchParams(); Object.keys(params).forEach(function(k){ sp.set(k, params[k]); });
+  return window.location.origin + window.location.pathname + '?' + sp.toString();
+}
+function _tripIdeaCopy(text) {
+  if (typeof copyRouteText === 'function') copyRouteText(text); else if (navigator.clipboard) navigator.clipboard.writeText(text);
+}
+function _tripIdeaShareReadOnly(note) {
+  var payload = serializeTripIdeaSharePayload(tripIdeaBuilder, tripIdeaBuilder.recommendation, {fareStatus:tripIdeaBuilder.priceStatus, notes:tripIdeaBuilder._notes});
+  var url = _tripIdeaShareUrl({tripIdea:encodeTripIdeaSharePayload(payload)});
+  _tripIdeaCopy('✈️ Shared Trip Idea\n' + url);
+  showShareToast(note || '✓ Read-only proposal link copied'); return url;
+}
+function _tripIdeaShare(){
+  if (!tripIdeaBuilder.recommendation) { showShareToast('Select a recommendation first'); return Promise.resolve(null); }
+  var payload = buildSharedIdeaPayload(tripIdeaBuilder, tripIdeaBuilder.recommendation, tripIdeaBuilder._notes);
+  return _tripIdeaApi('POST', '/idea', {idea:payload}).then(function(res){
+    if (!res.ok || !res.json || !res.json.id) {
+      return _tripIdeaShareReadOnly(res.status === 501 || res.status === 404 || res.status === 405 || res.status === 0
+        ? '✓ Read-only link copied (RSVP storage not set up yet)' : '✓ Read-only link copied (could not create RSVP link)');
+    }
+    _tripIdeaSaveKey(res.json.id, res.json.edit_key, payload.title);
+    if (typeof tripIdeaRecordDecision === 'function') tripIdeaRecordDecision(res.json.doc);
+    var url = _tripIdeaShareUrl({idea:res.json.id});
+    _tripIdeaCopy('✈️ ' + payload.title + ' — are you in? Tap to answer:\n' + url);
+    showShareToast('✓ RSVP link copied — family can answer in / maybe / out');
+    return url;
+  });
+}
+function _tripIdeaOpenRemote(id) {
+  var keys = _tripIdeaKeys();
+  _tripIdeaShared = {id:id, doc:null, editKey:(keys[id] && keys[id].edit_key) || '', error:''};
+  _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'shared';
+  _tripIdeaShow(); renderTripIdeaBuilder();
+  return _tripIdeaApi('GET', '/idea?id=' + encodeURIComponent(id)).then(function(res){
+    if (!_tripIdeaShared || _tripIdeaShared.id !== id) return;
+    if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
+    else _tripIdeaShared.error = res.status === 404 ? 'This trip idea was not found — it may have expired.' : res.status === 501 || res.status === 0 ? 'Shared trip ideas are not available right now.' : 'Could not load this trip idea.';
+    if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
+  });
+}
+function _tripIdeaRespond() {
+  var sh = _tripIdeaShared; if (!sh || !sh.doc) return Promise.resolve(null);
+  var val = function(id){ return ((_tripIdeaEl(id) || {}).value || '').trim(); };
+  var checked = document.querySelector('input[name="trip-idea-rsvp-status"]:checked');
+  var body = {member:val('trip-idea-rsvp-member'), status:checked ? checked.value : '', origin:val('trip-idea-rsvp-origin').toUpperCase(),
+    available_from:val('trip-idea-rsvp-from'), available_to:val('trip-idea-rsvp-to'), note:val('trip-idea-rsvp-note')};
+  if (!body.member || !body.status) { showShareToast('Pick who you are and in / maybe / out'); return Promise.resolve(null); }
+  if (body.available_from && body.available_to && body.available_to < body.available_from) { showShareToast('"Free until" must be after "Free from"'); return Promise.resolve(null); }
+  return _tripIdeaApi('POST', '/idea/respond?id=' + encodeURIComponent(sh.id), body).then(function(res){
+    if (res.ok && res.json && res.json.doc) { sh.doc = res.json.doc; showShareToast('✓ Answer saved — thanks!'); renderTripIdeaBuilder(); return res.json.doc; }
+    showShareToast(res.status === 409 ? 'This trip is already decided' : 'Could not save your answer — try again');
+    return null;
+  });
+}
+function renderTripIdeaShared(target) {
+  var sh = _tripIdeaShared;
+  if (!sh || (!sh.doc && !sh.error)) { target.innerHTML = '<div class="trip-idea-empty">Loading trip idea…</div>'; return; }
+  if (!sh.doc) { target.innerHTML = '<div class="trip-idea-empty">' + _tripIdeaEsc(sh.error) + '</div>'; return; }
+  var doc = sh.doc, idea = doc.idea || {}, r = idea.recommendation || {}, sum = summarizeIdeaResponses(doc), win = ideaCommonWindow(doc);
+  var closed = sum.stage === 'booked' || sum.stage === 'dropped';
+  var dates = (r.departure || idea.dates && idea.dates.departure || 'Dates TBD') + (r.return ? ' → ' + r.return : '');
+  var fare = r.totalFare ? '$' + r.totalFare + ' ' + (r.priceStatus === 'cached' || r.priceStatus === 'live' ? 'cached fare' : 'estimate') + (r.headcount > 1 ? ' · $' + r.perTicketFare + ' × ' + r.headcount : '') + ' from ' + (r.fareFrom || r.hub || '') : 'Fare not priced yet';
+  var html = '<div class="trip-idea-results-summary"><strong>' + _tripIdeaEsc(idea.title || 'Trip idea') + '</strong><span class="trip-idea-stage trip-idea-stage-' + sum.stage + '">' + _tripIdeaEsc(sum.stage) + '</span></div>' +
+    '<div class="trip-idea-result selected"><span class="trip-idea-result-head"><strong>' + _tripIdeaEsc(r.city || idea.destination && idea.destination.city || 'Destination TBD') + '</strong><b>' + _tripIdeaEsc(dates) + '</b></span><span>' + _tripIdeaEsc(fare) + '</span>' + (idea.notes ? '<span>' + _tripIdeaEsc(idea.notes) + '</span>' : '') + '</div>' +
+    '<div class="trip-idea-rsvp-summary"><strong>' + sum.counts.in + ' in · ' + sum.counts.maybe + ' maybe · ' + sum.counts.out + ' out · ' + sum.counts.pending + ' waiting</strong><span>' + sum.travelersIn + ' traveler' + (sum.travelersIn === 1 ? '' : 's') + ' confirmed' +
+    (win ? ' · ' + (win.overlaps ? 'everyone who gave dates is free ' + _tripIdeaEsc((win.from || '…') + ' → ' + (win.to || '…')) : 'no dates work for everyone yet') : '') + '</span></div>' +
+    '<ul class="trip-idea-rsvp-list">' + sum.rows.map(function(x){
+      return '<li><strong>' + _tripIdeaEsc(x.label) + (x.headcount > 1 ? ' (' + x.headcount + ')' : '') + '</strong><span>' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[x.status] || x.status) + (x.origin ? ' · from ' + _tripIdeaEsc(x.origin) : '') +
+        (x.available_from || x.available_to ? ' · free ' + _tripIdeaEsc((x.available_from || '…') + ' → ' + (x.available_to || '…')) : '') + '</span>' + (x.note ? '<small>' + _tripIdeaEsc(x.note) + '</small>' : '') + '</li>';
+    }).join('') + '</ul>';
+  if (!closed) {
+    html += '<form class="trip-idea-plan trip-idea-rsvp-form" onsubmit="return false"><strong>Your answer</strong><div class="trip-idea-grid">' +
+      '<label>Who are you?<select id="trip-idea-rsvp-member"><option value="">Choose…</option>' + sum.rows.map(function(x){ return '<option value="' + _tripIdeaEsc(x.code) + '">' + _tripIdeaEsc(x.label) + '</option>'; }).join('') + '</select></label>' +
+      '<label>Flying from<input id="trip-idea-rsvp-origin" maxlength="3" placeholder="e.g. LAX" autocapitalize="characters"></label></div>' +
+      '<div class="trip-idea-date-mode" role="radiogroup" aria-label="Are you in?">' + ['in','maybe','out'].map(function(st){ return '<label class="trip-idea-rsvp-choice"><input type="radio" name="trip-idea-rsvp-status" value="' + st + '"> ' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[st]) + '</label>'; }).join('') + '</div>' +
+      '<div class="trip-idea-date-fields"><label>Free from <span>Optional</span><input id="trip-idea-rsvp-from" type="date"></label><label>Free until <span>Optional</span><input id="trip-idea-rsvp-to" type="date"></label></div>' +
+      '<label class="trip-idea-notes">Note <span>Optional</span><textarea id="trip-idea-rsvp-note" rows="2" maxlength="280" placeholder="Anything the group should know"></textarea></label>' +
+      '<button type="button" class="trip-idea-rsvp-send" data-idea-action="respond">Send my answer</button></form>';
+  } else {
+    html += '<div class="trip-idea-empty">This trip is ' + _tripIdeaEsc(sum.stage) + ' — answers are closed.</div>';
+  }
+  if (typeof renderTripIdeaDecisionPanel === 'function') html += renderTripIdeaDecisionPanel(doc, !!sh.editKey);
+  target.innerHTML = html;
+  var sel = _tripIdeaEl('trip-idea-rsvp-member'), origin = _tripIdeaEl('trip-idea-rsvp-origin');
+  if (sel && origin) sel.onchange = function(){ var x = sum.rows.filter(function(m){ return m.code === sel.value; })[0]; if (x && !origin.value) origin.value = x.origin || ''; };
+}
+
 function initTripIdeaBuilder(){
   var c=_tripIdeaEl('build-trip-idea-btn'); if(c) c.onclick=function(){tripIdeaBuilderOpen();};
   var bd=_tripIdeaEl('trip-idea-builder-bd');if(bd)bd.onclick=function(e){if(e.target===bd)tripIdeaBuilderClose();};
   document.addEventListener('keydown',function(e){if(e.key==='Escape' && _tripIdeaBuilderOpen)tripIdeaBuilderClose();});
-  var raw=''; try{raw=new URLSearchParams(window.location.search).get('tripIdea')||'';}catch(e){}
-  if(raw){var payload=restoreTripIdeaSharePayload(raw);if(payload){_tripIdeaOpenShared(payload);}}
+  var raw='', ideaId=''; try{var q=new URLSearchParams(window.location.search);raw=q.get('tripIdea')||'';ideaId=q.get('idea')||'';}catch(e){}
+  if(/^[A-Za-z0-9_-]{22}$/.test(ideaId)){_tripIdeaOpenRemote(ideaId);}
+  else if(raw){var payload=restoreTripIdeaSharePayload(raw);if(payload){_tripIdeaOpenShared(payload);}}
   window.tripIdeaBuilder=tripIdeaBuilder;
 }

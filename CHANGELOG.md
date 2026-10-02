@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-072)
+- "Share proposal" creates an RSVP link (`?idea=<id>`) when the Worker has `IDEAS`; each family
+  member answers in / maybe / out with their airport, the dates that work and a note. The idea
+  shows who's in, travelers confirmed, and the date window that works for everyone.
+  Falls back to the read-only `?tripIdea=` link when shared storage isn't set up.
+
 ### Added (PIA-071)
 - Worker: shared trip ideas in KV (`IDEAS` binding). `POST /idea` returns an unguessable id
   and a one-time organizer edit key (stored only as a SHA-256 hash); `GET /idea`,
