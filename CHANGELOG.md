@@ -12,6 +12,10 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-074)
+- `wrangler.toml`: cron triggers set to `[]`. The account is at the free plan's 5-cron limit, so the
+  daily alert schedule could not attach; alerts stay off until a slot is freed and `ALERTS` is set up.
+
 ### Added (PIA-073)
 - Decision log: shared ideas move proposed → answered → chosen → booked (or dropped). The organizer
   (edit key on their device) chooses the option, then records the actual total paid; the Worker
