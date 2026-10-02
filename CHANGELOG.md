@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-071)
+- Worker: shared trip ideas in KV (`IDEAS` binding). `POST /idea` returns an unguessable id
+  and a one-time organizer edit key (stored only as a SHA-256 hash); `GET /idea`,
+  `POST /idea/respond` (RSVP per listed member), `POST /idea/update` (organizer only).
+  Strict field allowlists, 1-year expiry, 501 `no_kv` when not configured.
+
 ### Added (PIA-070)
 - Trip Idea results are priced from fares the dashboard already cached (24h dated cache, then
   planner `S.prices` when dates match), falling back to labelled sample fares. Zero SerpAPI calls.
