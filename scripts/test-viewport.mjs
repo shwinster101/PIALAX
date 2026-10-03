@@ -736,6 +736,17 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.reload({ waitUntil: 'load' });
     await page.waitForSelector('.trip-idea-mine', { timeout: 8000 });
     const card = (await page.locator('.trip-idea-mine').innerText()).replace(/\s+/g, ' ');
+    // PIA-105: "Find my flight" on the card; "Book for these dates" lists each traveler's own search.
+    await page.locator('.trip-idea-book summary').click();
+    const book = await page.evaluate(() => ({
+      mine: (document.querySelector('.trip-idea-findflight') || {}).href || '',
+      rows: [...document.querySelectorAll('.trip-idea-book li')].map((li) => ({ text: li.innerText.replace(/\s+/g, ' '), href: (li.querySelector('a') || {}).href || '' })),
+      over: document.documentElement.scrollWidth > innerWidth }));
+    const dq = (u) => decodeURIComponent(u.replace(/\+/g, ' '));
+    if (/google\.com\/travel\/flights\?q=/.test(book.mine) && /LGA to PIA on 2026-11-26 through 2026-11-30/.test(dq(book.mine)) && book.rows.length === 2 &&
+        /on 2026-11-21 through 2026-11-29/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && !book.over)
+      ok(`${label} — "✈️ Find my flight" opens LGA→PIA Nov 26–30; "Book for these dates" lists each traveler on their own dates`);
+    else bad(`${label} — book step wrong: ${JSON.stringify(book)}`);
     // PIA-102: with Ashwin Nov 21–29 and Anjo Nov 26–30, everyone overlaps Nov 26–29; the strip shows both plus the hosts.
     const win = await page.evaluate(() => ({ text: (document.querySelector('.trip-idea-window') || {}).textContent || '',
       rows: document.querySelectorAll('.trip-idea-strip .trip-idea-strip-name').length, over: document.documentElement.scrollWidth > innerWidth,

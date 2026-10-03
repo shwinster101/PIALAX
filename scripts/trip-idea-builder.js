@@ -546,6 +546,32 @@ function ideaBestWindow(doc) {
   return {from:best.from, to:best.to, nights:_tripIdeaNights(best.from, best.to), there:best.codes.length, total:coming.length,
     everyone:best.codes.length === coming.length, codes:best.codes, missing:missing, span:{from:lo, to:hi}};
 }
+// ── PIA-105: from overlap to booking — one Google Flights search per person ──
+// Each traveler searches their own airport, their own dates, their own seats:
+// a multi-passenger search sells every seat at one fare class (often dearer),
+// and each origin is its own booking anyway. Hosts don't fly.
+function tripIdeaFlightUrl(from, to, dep, ret, adults) {
+  if (!/^[A-Z]{3}$/.test(from || '') || !/^[A-Z]{3}$/.test(to || '') || from === to || !/^\d{4}-\d{2}-\d{2}$/.test(dep || '')) return '';
+  var q = 'Flights from ' + from + ' to ' + to + ' on ' + dep + (ret && ret >= dep ? ' through ' + ret : ' one way') + (adults > 1 ? ' for ' + adults + ' adults' : '');
+  return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
+}
+function tripIdeaBookRows(doc) {
+  var dest = _tripIdeaDestAirport(doc);
+  return summarizeIdeaResponses(doc).rows.filter(function(x){ return !x.host && (x.status === 'in' || x.status === 'maybe'); }).map(function(x){
+    var from = String(x.origin || '').toUpperCase();
+    return {code:x.code, label:x.label, from:from, to:dest, dep:x.available_from, ret:x.available_to, headcount:x.headcount, status:x.status, booked:!!x.booked,
+      url:x.available_from ? tripIdeaFlightUrl(from, dest, x.available_from, x.available_to, x.headcount) : ''};
+  });
+}
+function tripIdeaBookPanelHtml(sh) {
+  var rows = tripIdeaBookRows(sh.doc);
+  if (!rows.length) return '';
+  return '<details class="trip-idea-book"' + (sh.bookOpen ? ' open' : '') + '><summary>✈️ Book for these dates</summary><ul>' + rows.map(function(r){
+    return '<li><div><strong>' + _tripIdeaEsc(_tripIdeaName(r.label)) + (r.headcount > 1 ? ' (' + r.headcount + ')' : '') + '</strong><span>' +
+      _tripIdeaEsc(r.dep ? r.from + ' → ' + r.to + ' · ' + tripIdeaDateRange(r.dep, r.ret) : 'no dates yet') + '</span></div>' +
+      (r.url ? '<a class="trip-idea-book-go" href="' + _tripIdeaEsc(r.url) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(r.code) + '">Search ↗</a>' : '') + '</li>';
+  }).join('') + '</ul><small>One search per person, on their own dates.</small></details>';
+}
 function tripIdeaWindowText(win) {
   if (!win) return 'No dates picked yet';
   if (win.total < 2) return 'Dates so far: ' + tripIdeaDateRange(win.from, win.to);
@@ -742,7 +768,7 @@ function renderTripIdeaShared(target) {
   var html = '<div class="trip-idea-results-summary"><strong>' + _tripIdeaEsc(idea.title || 'Trip idea') + '</strong><span class="trip-idea-stage trip-idea-stage-' + sum.stage + '">' + _tripIdeaEsc(sum.stage) + '</span></div>' +
     '<div class="trip-idea-result selected"><span class="trip-idea-result-head"><strong>' + _tripIdeaEsc(r.city || idea.destination && idea.destination.city || 'Destination TBD') + '</strong><b>' + _tripIdeaEsc(dates) + '</b></span>' + (fare ? '<span>' + _tripIdeaEsc(fare) + '</span>' : '') + (idea.notes ? '<span>' + _tripIdeaEsc(idea.notes) + '</span>' : '') + '</div>' +
     '<div class="trip-idea-rsvp-summary"><strong>' + sum.counts.in + ' in · ' + sum.counts.maybe + ' maybe · ' + sum.counts.out + ' out · ' + sum.counts.pending + ' waiting</strong><span>' + sum.travelersIn + ' traveler' + (sum.travelersIn === 1 ? '' : 's') + ' confirmed</span>' +
-    '<b class="trip-idea-window' + (win && win.everyone && win.total > 1 ? ' all' : '') + '">' + _tripIdeaEsc(tripIdeaWindowText(win)) + '</b>' + tripIdeaDayStripHtml(doc, win) + '</div>' +
+    '<b class="trip-idea-window' + (win && win.everyone && win.total > 1 ? ' all' : '') + '">' + _tripIdeaEsc(tripIdeaWindowText(win)) + '</b>' + tripIdeaDayStripHtml(doc, win) + tripIdeaBookPanelHtml(sh) + '</div>' +
     '<ul class="trip-idea-rsvp-list">' + sum.rows.map(function(x){
       var canAnswerFor = sh.editKey && !closed && !_tripIdeaIsOrganizer(x.label);
       return '<li' + (canAnswerFor ? ' class="has-edit"' : '') + '><strong>' + _tripIdeaEsc(_tripIdeaName(x.label)) + (x.headcount > 1 ? ' (' + x.headcount + ')' : '') + '</strong>' +
@@ -783,7 +809,7 @@ function _tripIdeaAnswerHtml(sh, sum, closed) {
     if (row.origin && !row.host) bits.push('from ' + row.origin);
     return '<div class="trip-idea-mine"><span>Your answer' + (name !== 'You' ? ' · ' + _tripIdeaEsc(name) : '') + '</span><strong>' + _tripIdeaEsc(row.host ? '🏠 Hosting' : (TRIP_IDEA_RSVP_LABELS[row.status] || row.status)) + '</strong>' +
       (bits.length ? '<span>' + _tripIdeaEsc(bits.join(' · ')) + '</span>' : '') + (row.note ? '<small>' + _tripIdeaEsc(row.note) + '</small>' : '') +
-      '<div class="trip-idea-mine-actions"><button type="button" data-idea-edit>Change my answer</button>' + (sh.editKey ? '' : '<button type="button" class="trip-idea-linkish" data-idea-notme>Not ' + _tripIdeaEsc(row.label) + '?</button>') + '</div></div>';
+      '<div class="trip-idea-mine-actions">' + _tripIdeaFindFlightHtml(sh, row) + '<button type="button" data-idea-edit>Change my answer</button>' + (sh.editKey ? '' : '<button type="button" class="trip-idea-linkish" data-idea-notme>Not ' + _tripIdeaEsc(row.label) + '?</button>') + '</div></div>';
   }
   sh.formOpen = true; sh.formHost = row.host; sh.formName = row.label;
   var mine = (sh.doc.responses && sh.doc.responses[row.code]) || {};
@@ -802,7 +828,13 @@ function _tripIdeaAnswerHtml(sh, sum, closed) {
   html += '<label class="trip-idea-notes">Note <span>Optional</span><textarea id="trip-idea-rsvp-note" rows="2" maxlength="280" placeholder="Anything the group should know">' + _tripIdeaEsc(mine.note || '') + '</textarea></label></form>';
   return html;
 }
+function _tripIdeaFindFlightHtml(sh, row) {
+  if (row.host || (row.status !== 'in' && row.status !== 'maybe') || !row.available_from) return '';
+  var url = tripIdeaFlightUrl(String(row.origin || '').toUpperCase(), _tripIdeaDestAirport(sh.doc), row.available_from, row.available_to, row.headcount);
+  return url ? '<a class="trip-idea-findflight" href="' + _tripIdeaEsc(url) + '" target="_blank" rel="noopener">✈️ Find my flight</a>' : '';
+}
 function _tripIdeaWireShared(target, sh) {
+  target.querySelectorAll('details.trip-idea-book').forEach(function(d){ d.addEventListener('toggle', function(){ sh.bookOpen = d.open; }); });
   var on = function(sel, fn){ target.querySelectorAll(sel).forEach(function(el){ el.onclick = function(e){ e.preventDefault(); fn(el); }; }); };
   on('[data-idea-who]', function(el){ sh.picked = el.getAttribute('data-idea-who'); sh.editing = true; renderTripIdeaBuilder(); });
   on('[data-idea-edit]', function(){ sh.editing = true; sh.cal = null; renderTripIdeaBuilder(); });

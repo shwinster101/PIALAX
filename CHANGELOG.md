@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-105)
+- RSVP → booking: under the family window, **✈️ Book for these dates** opens one Google Flights
+  search per traveler, from their airport, on their own dates, for their own seats. Hosts are
+  skipped. Searching one traveler at a time usually shows the lowest fare.
+- Each family member's answer card has **✈️ Find my flight** for their own search.
+
 ## [1.2.0] — 2026-10-03
 
 iPhone UI and family RSVP.
