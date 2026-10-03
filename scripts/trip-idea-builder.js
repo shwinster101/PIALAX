@@ -397,7 +397,7 @@ function _tripIdeaWireStage(){
   if (calendarBtn) calendarBtn.hidden = !resultsStage;
   var primaryBtn = _tripIdeaEl('trip-idea-builder-primary'); if (primaryBtn) primaryBtn.hidden = _tripIdeaBuilderStage === 'shared';
   sheet.querySelectorAll('[data-idea-open]').forEach(function(b){b.onclick=function(){_tripIdeaOpenRemote(b.getAttribute('data-idea-open'));};});
-  sheet.querySelectorAll('[data-idea-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-idea-action');if(a==='respond')_tripIdeaRespond();else if(typeof tripIdeaDecisionAction==='function')tripIdeaDecisionAction(a);};});
+  sheet.querySelectorAll('[data-idea-action]').forEach(function(b){b.onclick=function(){var a=b.getAttribute('data-idea-action');if(a==='respond')_tripIdeaRespond();else if(a==='nudge'&&_tripIdeaShared)tripIdeaNudge(_tripIdeaShared.id);else if(typeof tripIdeaDecisionAction==='function')tripIdeaDecisionAction(a);};});
   sheet.querySelectorAll('[data-trip-mode]').forEach(function(b){b.onclick=function(){tripIdeaBuilder.mode=b.getAttribute('data-trip-mode');renderTripIdeaBuilder();};});
   sheet.querySelectorAll('[data-trip-date-mode]').forEach(function(b){b.onclick=function(){_tripIdeaReadInputs();_tripIdeaDateMode=b.getAttribute('data-trip-date-mode')==='window'?'window':'specific';renderTripIdeaBuilder();};});
   ['trip-idea-city','trip-idea-departure','trip-idea-return','trip-idea-search-start','trip-idea-search-end'].forEach(function(id){var input=_tripIdeaEl(id);if(input){input.addEventListener('input',_tripIdeaSyncPrimary);input.addEventListener('change',_tripIdeaSyncPrimary);}});
@@ -581,6 +581,7 @@ function renderTripIdeaShared(target) {
   } else {
     html += '<div class="trip-idea-empty">This trip is ' + _tripIdeaEsc(sum.stage) + ' — answers are closed.</div>';
   }
+  if (!closed && sum.counts.pending && sh.editKey) html += '<div class="trip-idea-decision-row" style="margin-top:10px"><button type="button" class="secondary trip-idea-rsvp-send" data-idea-action="nudge">📣 Nudge ' + sum.counts.pending + ' waiting</button></div>';
   if (typeof renderTripIdeaDecisionPanel === 'function') html += renderTripIdeaDecisionPanel(doc, !!sh.editKey);
   target.innerHTML = html;
   var sel = _tripIdeaEl('trip-idea-rsvp-member'), origin = _tripIdeaEl('trip-idea-rsvp-origin');
@@ -737,24 +738,80 @@ function tripIdeaAskFamily(itemId) {
     return res.json.id;
   });
 }
-// Placeholder distribution until PIA-078: copy the link.
-function tripIdeaSendInvite(doc) {
+// ── PIA-078: distribution to the family group text ─────────────────────────
+// Phones open the native share sheet (iMessage / WhatsApp / etc.); anything
+// without navigator.share copies the same text + link. Text and url are passed
+// separately so Messages renders one link preview instead of a duplicate.
+var TRIP_IDEA_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+function tripIdeaDateRange(dep, ret) {
+  var p = function(s){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? {m:+m[2] - 1, d:+m[3]} : null; };
+  var a = p(dep), b = p(ret);
+  if (!a) return 'dates TBD';
+  if (!b) return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d;
+  return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d + '–' + (b.m === a.m ? '' : TRIP_IDEA_MONTHS[b.m] + ' ') + b.d;
+}
+function tripIdeaShareText(doc, kind) {
+  var idea = (doc && doc.idea) || {}, r = idea.recommendation || {}, d = idea.dates || {};
+  var title = String(idea.title || 'Trip idea').replace(/\s+trip$/i, '') + ' trip';
+  var when = tripIdeaDateRange(r.departure || d.departure || d.searchStart, r.return || d.return || d.searchEnd);
+  if (kind === 'nudge') {
+    var waiting = summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending'; }).map(function(x){ return x.label; });
+    return '✈️ ' + title + ' (' + when + ') — still need an answer from ' + (waiting.length ? waiting.join(' and ') : 'everyone') + '. In / maybe / out?';
+  }
+  var cost = r.familyTotal != null ? ' — whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') : '';
+  return '✈️ ' + title + ' ' + when + cost + '. Are you in? Tap to answer in / maybe / out:';
+}
+function tripIdeaDistribute(title, text, url) {
+  var nav = typeof navigator !== 'undefined' ? navigator : null;
+  var copy = function(){ _tripIdeaCopy(text + '\n' + url); showShareToast('✓ Copied — paste it into the family group text'); return 'copied'; };
+  if (nav && typeof nav.share === 'function') {
+    return Promise.resolve().then(function(){ return nav.share({title:title, text:text, url:url}); })
+      .then(function(){ showShareToast('✓ Sent'); return 'shared'; })
+      .catch(function(err){ return err && err.name === 'AbortError' ? 'cancelled' : copy(); });
+  }
+  return Promise.resolve(copy());
+}
+function tripIdeaSendInvite(doc, kind) {
   var url = _tripIdeaShareUrl({idea:doc.id});
-  _tripIdeaCopy('✈️ ' + ((doc.idea && doc.idea.title) || 'Trip idea') + ' — are you in? Tap to answer:\n' + url);
-  showShareToast('✓ RSVP link copied — family can answer in / maybe / out');
-  return Promise.resolve(url);
+  return tripIdeaDistribute((doc.idea && doc.idea.title) || 'Trip idea', tripIdeaShareText(doc, kind || 'invite'), url).then(function(){ return url; });
+}
+function tripIdeaNudge(id) {
+  var doc = tripIdeaCachedDoc(id) || (_tripIdeaShared && _tripIdeaShared.id === id ? _tripIdeaShared.doc : null);
+  if (!doc) return Promise.resolve(null);
+  return tripIdeaSendInvite(doc, 'nudge');
+}
+// Calendar hold for the proposed dates, with the RSVP link inside the event.
+function tripIdeaHoldDates(itemId) {
+  var item = typeof watchlistItem === 'function' ? watchlistItem(itemId) : null;
+  if (!item || !item.sharedIdeaId) return null;
+  var doc = tripIdeaCachedDoc(item.sharedIdeaId), r = (doc && doc.idea && doc.idea.recommendation) || {};
+  var dep = item.dep || r.departure, ret = item.ret || r.return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dep || ''))) { showShareToast('Add trip dates first'); return null; }
+  var url = _tripIdeaShareUrl({idea:item.sharedIdeaId});
+  if (!(Array.isArray(item.calendarEvents) && item.calendarEvents.length)) {
+    item.calendarEvents = [{title:'✈️ ' + String(item.title || 'Family trip').replace(/\s*·\s*Trip idea$/, '') + ' (proposed — RSVP)', start:dep,
+      end:typeof _wlNextDay === 'function' ? _wlNextDay(ret || dep) : (ret || dep), location:(r.city || item.hub || ''), notes:'Are you in? Answer here: ' + url}];
+    if (typeof saveWatchlist === 'function') saveWatchlist();
+  }
+  if (typeof addWatchlistTripToCalendar === 'function') addWatchlistTripToCalendar(item.id);
+  return item.calendarEvents;
 }
 // Card actions (expanded card). Family trips and builder ideas can ask the family.
 function tripIdeaCardActionsHtml(item) {
   if (!item || item.stage === 'completed') return '';
   var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
-  if (item.sharedIdeaId) return b('wl-idea-open', '👥 See answers');
+  if (item.sharedIdeaId) {
+    var doc = tripIdeaCachedDoc(item.sharedIdeaId), pending = doc ? summarizeIdeaResponses(doc).counts.pending : 0;
+    return b('wl-idea-open', '👥 See answers') + (pending ? b('wl-idea-nudge', '📣 Nudge ' + pending + ' waiting') : '') + b('wl-idea-hold', '📅 Hold the dates');
+  }
   if (item.mode === 'family' || item.builderMetadata) return b('wl-idea-ask', '👥 Ask the family');
   return '';
 }
 function tripIdeaWireCardActions(root) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('.wl-idea-open').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) _tripIdeaOpenRemote(t.sharedIdeaId); }); });
+  root.querySelectorAll('.wl-idea-nudge').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaNudge(t.sharedIdeaId); }); });
+  root.querySelectorAll('.wl-idea-hold').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaHoldDates(el.getAttribute('data-id')); }); });
   root.querySelectorAll('.wl-idea-ask').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaAskFamily(el.getAttribute('data-id')); }); });
 }
 

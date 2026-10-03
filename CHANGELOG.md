@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-078)
+- RSVP links go where the family talks: on phones "Share proposal" / "Ask the family" open the native
+  share sheet (iMessage etc.) with "Cary shower trip Nov 6–9 — whole family ≈ $1,116. Are you in?";
+  elsewhere the same text + link is copied. "📣 Nudge N waiting" names who hasn't answered.
+  "📅 Hold the dates" downloads a calendar event for the proposed dates with the RSVP link inside.
+
 ### Added (PIA-077)
 - Family Plan uses the family's own answers: opening a linked Trip Ideas card applies in / maybe / out
   from the RSVP link (maybe = tentative), so "out" members drop out of the total. Per-person selectors

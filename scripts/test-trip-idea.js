@@ -19,6 +19,7 @@ const EXPECT = [
 ];
 EXPECT.push('WATCHLIST', 'watchlistItem', 'sanitizeWatchlistItem', 'tripIdeaRsvpChipHtml', 'tripIdeaAskFamily', 'tripIdeaPayloadFromItem', 'tripIdeaCardActionsHtml', '_tripIdeaSave'); // PIA-076
 EXPECT.push('memberStatusFromIdea', 'tripIdeaApplyLinkedRsvp', 'tripIdeaLinkedStatusHtml', 'tripIdeaLinkedNoteHtml'); // PIA-077
+EXPECT.push('tripIdeaShareText', 'tripIdeaDistribute', 'tripIdeaDateRange', 'tripIdeaHoldDates', 'tripIdeaNudge'); // PIA-078
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -292,6 +293,34 @@ async function sharedIdeaSuite() {
     const moved = api.memberStatusFromIdea({ responses: { LGA: { status: 'out' } } }, new Date('2026-08-01T12:00:00'));
     check(moved.JAX === 'out' && !moved.LGA, `${file}: an answer follows the person across a home move (LGA answer → JAX before Sep 1)`);
     api.S.linkedIdeaId = null; api.S.memberStatus = {}; api.S.tentativeMembers = [];
+
+    // PIA-078: group-text distribution.
+    const inviteTxt = api.tripIdeaShareText(after, 'invite');
+    check(/Nov 6–9/.test(inviteTxt) && /whole family ≈ \$1,116/.test(inviteTxt) && /Are you in\?/.test(inviteTxt) && !/https?:/.test(inviteTxt),
+      `${file}: invite text has dates, family estimate, the ask — and no URL (passed separately)`);
+    check(/still need an answer from Anjo/.test(api.tripIdeaShareText(after, 'nudge')), `${file}: nudge names who is still waiting`);
+    check(api.tripIdeaDateRange('2026-10-30', '2026-11-02') === 'Oct 30–Nov 2' && api.tripIdeaDateRange('', '') === 'dates TBD',
+      `${file}: date ranges read naturally across months`);
+    {
+      const calls = [];
+      const navOk = { userAgent: 'iPhone', clipboard: { writeText: () => Promise.resolve() }, share: async (d) => { calls.push(d); } };
+      const navCancel = { userAgent: 'iPhone', clipboard: { writeText: () => Promise.resolve() }, share: async () => { const e = new Error('x'); e.name = 'AbortError'; throw e; } };
+      const navFail = { userAgent: 'iPhone', clipboard: { writeText: () => Promise.resolve() }, share: async () => { throw new Error('NotAllowed'); } };
+      const p1 = loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { fetch: makeFetch(env), navigator: navOk }).api;
+      const r1 = await p1.tripIdeaDistribute('T', 'Are you in?', 'https://x/?idea=' + id);
+      check(r1 === 'shared' && calls.length === 1 && calls[0].url.endsWith(id) && calls[0].text === 'Are you in?',
+        `${file}: phones use the native share sheet with text and url separate`);
+      const r2 = await loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { navigator: navCancel }).api.tripIdeaDistribute('T', 't', 'u');
+      const r3 = await loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { navigator: navFail }).api.tripIdeaDistribute('T', 't', 'u');
+      check(r2 === 'cancelled' && r3 === 'copied', `${file}: cancel stays quiet; a share failure falls back to copy`);
+    }
+    {
+      let ev = null;
+      try { ev = api.tripIdeaHoldDates(linked[0].id); } catch (e) { ev = api.watchlistItem(linked[0].id).calendarEvents; }
+      ev = ev || api.watchlistItem(linked[0].id).calendarEvents;
+      check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('?idea=' + id),
+        `${file}: "Hold the dates" calendar event spans Nov 6–9 and carries the RSVP link`);
+    }
     const tg = api.watchlistItem('tgiving');
     check(tg && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)), `${file}: unlinked family card offers "Ask the family"`);
     const tgPayload = api.tripIdeaPayloadFromItem(tg);
