@@ -744,7 +744,7 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
       over: document.documentElement.scrollWidth > innerWidth }));
     const dq = (u) => decodeURIComponent(u.replace(/\+/g, ' '));
     if (/google\.com\/travel\/flights\?q=/.test(book.mine) && /LGA to PIA on 2026-11-26 through 2026-11-30/.test(dq(book.mine)) && book.rows.length === 2 &&
-        /on 2026-11-21 through 2026-11-29/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && !book.over)
+        /on 2026-11-21 through 2026-11-29/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && /ORD ↗/.test(book.rows[1].text) && !book.over)
       ok(`${label} — "✈️ Find my flight" opens LGA→PIA Nov 26–30; "Book for these dates" lists each traveler on their own dates`);
     else bad(`${label} — book step wrong: ${JSON.stringify(book)}`);
     // PIA-106: "I booked ✓" → the card, the strip and "1 of 2 booked" all show it, after a reload too.

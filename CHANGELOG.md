@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-108)
+- Flight searches cover the whole hub. Peoria trips give every traveler two buttons, **PIA ↗**
+  and **ORD ↗**, for flying into O'Hare and driving. Both use that person's own dates. New York
+  works the same way (LGA ↔ JFK). "Find my flight · PIA" also offers "or ORD ↗".
+
 ### Changed (PIA-107)
 - A trip linked to a family RSVP now leads with two buttons instead of eight:
   - **👥 Family RSVP** opens answers, the overlap, "Book for these dates" and organizer tools;

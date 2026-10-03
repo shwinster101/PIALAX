@@ -32,6 +32,7 @@ EXPECT.push('tripIdeaInviteUrl'); // PIA-104
 EXPECT.push('tripIdeaFlightUrl', 'tripIdeaBookRows'); // PIA-105
 EXPECT.push('tripIdeaBookedCount', 'tripIdeaCanBook'); // PIA-106
 EXPECT.push('tripIdeaCardMoreHtml', 'tripIdeaShareCard'); // PIA-107
+EXPECT.push('tripIdeaAltAirports'); // PIA-108
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -111,6 +112,10 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     const rows = api.tripIdeaBookRows(doc);
     check(rows.map((r) => r.code).join() === 'LAX,LGA' && rows[1].from === 'JFK' && /on 2026-11-26 through 2026-11-30/.test(decodeURIComponent(rows[1].url)) && /on 2026-11-21 through 2026-11-29/.test(decodeURIComponent(rows[0].url)),
       `${file}: book rows — travelers only (no hosts, no "out"), each from their own airport on their own dates`);
+    // PIA-108: Peoria is the PIA/ORD hub — every traveler also gets an O'Hare search, on the same own dates.
+    check(rows[0].alts.length === 1 && rows[0].alts[0].to === 'ORD' && /LAX to ORD on 2026-11-21 through 2026-11-29/.test(decodeURIComponent(rows[0].alts[0].url)) &&
+      api.tripIdeaAltAirports('LGA').join() === 'JFK' && api.tripIdeaAltAirports('RDU').length === 0,
+      `${file}: hub airports — PIA trips also search ORD (LGA ↔ JFK); single-airport cities get no alternative`);
   }
   // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
   check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',

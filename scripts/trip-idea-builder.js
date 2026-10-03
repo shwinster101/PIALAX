@@ -556,12 +556,20 @@ function tripIdeaFlightUrl(from, to, dep, ret, adults) {
   var q = 'Flights from ' + from + ' to ' + to + ' on ' + dep + (ret && ret >= dep ? ' through ' + ret : ' one way') + (adults > 1 ? ' for ' + adults + ' adults' : '');
   return 'https://www.google.com/travel/flights?q=' + encodeURIComponent(q);
 }
+// PIA-108: a hub has more than one airport — Peoria's family also flies into
+// O'Hare and drives (PIA/ORD); New York is LGA or JFK. Each traveler gets the
+// other airport as a second search.
+function tripIdeaAltAirports(dest) {
+  var hub = TRIP_IDEA_HUBS.filter(function(h){ return h.airports.indexOf(dest) >= 0; })[0];
+  return hub ? hub.airports.filter(function(a){ return a !== dest; }) : [];
+}
 function tripIdeaBookRows(doc) {
-  var dest = _tripIdeaDestAirport(doc);
+  var dest = _tripIdeaDestAirport(doc), alts = tripIdeaAltAirports(dest);
   return summarizeIdeaResponses(doc).rows.filter(function(x){ return !x.host && (x.status === 'in' || x.status === 'maybe'); }).map(function(x){
     var from = String(x.origin || '').toUpperCase();
     return {code:x.code, label:x.label, from:from, to:dest, dep:x.available_from, ret:x.available_to, headcount:x.headcount, status:x.status, booked:!!x.booked,
-      url:x.available_from ? tripIdeaFlightUrl(from, dest, x.available_from, x.available_to, x.headcount) : ''};
+      url:x.available_from ? tripIdeaFlightUrl(from, dest, x.available_from, x.available_to, x.headcount) : '',
+      alts:x.available_from ? alts.filter(function(a){ return a !== from; }).map(function(a){ return {to:a, url:tripIdeaFlightUrl(from, a, x.available_from, x.available_to, x.headcount)}; }).filter(function(a){ return a.url; }) : []};
   });
 }
 function tripIdeaBookPanelHtml(sh) {
@@ -570,9 +578,10 @@ function tripIdeaBookPanelHtml(sh) {
   return '<details class="trip-idea-book"' + (sh.bookOpen ? ' open' : '') + '><summary>✈️ Book for these dates</summary><ul>' + rows.map(function(r){
     return '<li><div><strong>' + _tripIdeaEsc(_tripIdeaName(r.label)) + (r.headcount > 1 ? ' (' + r.headcount + ')' : '') + '</strong><span>' +
       _tripIdeaEsc(r.dep ? r.from + ' → ' + r.to + ' · ' + tripIdeaDateRange(r.dep, r.ret) : 'no dates yet') + '</span></div>' +
-      (r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.url ? '<a class="trip-idea-book-go" href="' + _tripIdeaEsc(r.url) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(r.code) + '">Search ↗</a>' : '') +
+      (r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.url ? '<span class="trip-idea-book-btns"><a class="trip-idea-book-go" href="' + _tripIdeaEsc(r.url) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(r.code) + '">' + _tripIdeaEsc(r.to) + ' ↗</a>' +
+        r.alts.map(function(a){ return '<a class="trip-idea-book-alt" href="' + _tripIdeaEsc(a.url) + '" target="_blank" rel="noopener" data-book-alt="' + _tripIdeaEsc(a.to) + '">' + _tripIdeaEsc(a.to) + ' ↗</a>'; }).join('') + '</span>' : '') +
       (sh.editKey && tripIdeaCanBook() ? '<button type="button" class="trip-idea-linkish" data-idea-booked="' + _tripIdeaEsc(r.code) + '" data-booked-to="' + (r.booked ? '0' : '1') + '">' + (r.booked ? 'Undo' : 'Mark booked') + '</button>' : '') + '</li>';
-  }).join('') + '</ul><small>One search per person, on their own dates.</small></details>';
+  }).join('') + '</ul><small>One search per person, on their own dates' + (tripIdeaAltAirports(_tripIdeaDestAirport(sh.doc)).length ? ' — into either ' + _tripIdeaEsc([_tripIdeaDestAirport(sh.doc)].concat(tripIdeaAltAirports(_tripIdeaDestAirport(sh.doc))).join(' or ')) : '') + '.</small></details>';
 }
 // ── PIA-106: who's booked ───────────────────────────────────────────────────
 // Shown only once the Worker says it stores it (can_book), so nothing appears
@@ -861,8 +870,11 @@ function _tripIdeaBookedLineHtml(doc) {
 }
 function _tripIdeaFindFlightHtml(sh, row) {
   if (row.host || (row.status !== 'in' && row.status !== 'maybe') || !row.available_from) return '';
-  var url = tripIdeaFlightUrl(String(row.origin || '').toUpperCase(), _tripIdeaDestAirport(sh.doc), row.available_from, row.available_to, row.headcount);
-  return url ? '<a class="trip-idea-findflight" href="' + _tripIdeaEsc(url) + '" target="_blank" rel="noopener">✈️ Find my flight</a>' : '';
+  var from = String(row.origin || '').toUpperCase(), dest = _tripIdeaDestAirport(sh.doc);
+  var url = tripIdeaFlightUrl(from, dest, row.available_from, row.available_to, row.headcount);
+  var alts = tripIdeaAltAirports(dest).filter(function(a){ return a !== from; }).map(function(a){ return {to:a, url:tripIdeaFlightUrl(from, a, row.available_from, row.available_to, row.headcount)}; }).filter(function(a){ return a.url; });
+  return url ? '<a class="trip-idea-findflight" href="' + _tripIdeaEsc(url) + '" target="_blank" rel="noopener">✈️ Find my flight · ' + _tripIdeaEsc(dest) + '</a>' +
+    alts.map(function(a){ return '<a class="trip-idea-book-alt" href="' + _tripIdeaEsc(a.url) + '" target="_blank" rel="noopener">or ' + _tripIdeaEsc(a.to) + ' ↗</a>'; }).join('') : '';
 }
 function _tripIdeaWireShared(target, sh) {
   target.querySelectorAll('details.trip-idea-book').forEach(function(d){ d.addEventListener('toggle', function(){ sh.bookOpen = d.open; }); });
