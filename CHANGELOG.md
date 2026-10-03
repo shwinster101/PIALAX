@@ -12,6 +12,13 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-101)
+- RSVP dates are picked on a month calendar that opens on the trip's month (November for
+  Thanksgiving) with nothing preselected. Tap the day you'd arrive, then the day you'd leave
+  ("Nov 26–30 · 4 nights"). Past days are greyed out, and dots under a day show how many others
+  already said they're there. It replaces the two date boxes, whose iPhone picker opened on
+  today's month.
+
 ### Added (PIA-099, PIA-100)
 - Family members who open an RSVP link get the RSVP as their whole page: no dashboard, settings,
   trips or close button behind it. "Open full PIALAX" at the bottom is the way out. The organizer's

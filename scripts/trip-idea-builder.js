@@ -595,7 +595,7 @@ function _tripIdeaRespond() {
       sh.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(sh.doc);
       if (!sh.answerFor) tripIdeaSetMe(sh.id, body.member);
       showShareToast(sh.answerFor ? '✓ Saved for ' + ((me && me.label) || body.member) : '✓ Answer saved — thanks!');
-      sh.answerFor = ''; sh.picked = ''; sh.editing = false; renderTripIdeaBuilder(); return res.json.doc;
+      sh.answerFor = ''; sh.picked = ''; sh.editing = false; sh.cal = null; renderTripIdeaBuilder(); return res.json.doc;
     }
     showShareToast(res.status === 409 ? 'This trip is already decided' : 'Could not save your answer — try again');
     return null;
@@ -690,7 +690,7 @@ function _tripIdeaAnswerHtml(sh, sum, closed) {
     html += '<p class="trip-idea-host-note">🏠 ' + _tripIdeaEsc(name === 'You' ? 'You’re' : row.label + ' —') + ' hosting at home — no flights or dates needed. Add a note if you like.</p>';
   } else {
     html += '<div class="trip-idea-date-mode" role="radiogroup" aria-label="Are you in?">' + ['in','maybe','out'].map(function(st){ return '<label class="trip-idea-rsvp-choice"><input type="radio" name="trip-idea-rsvp-status" value="' + st + '"' + (mine.status === st ? ' checked' : '') + '> ' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[st]) + '</label>'; }).join('') + '</div>' +
-      '<div class="trip-idea-date-fields trip-idea-rsvp-travel"><label>I’d arrive<input id="trip-idea-rsvp-from" type="date" value="' + _tripIdeaEsc(mine.available_from || '') + '"></label><label>I’d leave<input id="trip-idea-rsvp-to" type="date" value="' + _tripIdeaEsc(mine.available_to || '') + '"></label></div>' +
+      '<div class="trip-idea-rsvp-travel"><strong class="trip-idea-cal-title">When would you be there?</strong><div id="trip-idea-rsvp-cal-wrap">' + _tripIdeaCalHtml(sh, row, mine) + '</div></div>' +
       '<div class="trip-idea-grid"><label class="trip-idea-rsvp-travel">Flying from<input id="trip-idea-rsvp-origin" maxlength="3" value="' + _tripIdeaEsc(mine.origin || row.origin || '') + '" placeholder="e.g. LAX" autocapitalize="characters"></label></div>';
   }
   html += '<label class="trip-idea-notes">Note <span>Optional</span><textarea id="trip-idea-rsvp-note" rows="2" maxlength="280" placeholder="Anything the group should know">' + _tripIdeaEsc(mine.note || '') + '</textarea></label></form>';
@@ -699,10 +699,79 @@ function _tripIdeaAnswerHtml(sh, sum, closed) {
 function _tripIdeaWireShared(target, sh) {
   var on = function(sel, fn){ target.querySelectorAll(sel).forEach(function(el){ el.onclick = function(e){ e.preventDefault(); fn(el); }; }); };
   on('[data-idea-who]', function(el){ sh.picked = el.getAttribute('data-idea-who'); sh.editing = true; renderTripIdeaBuilder(); });
-  on('[data-idea-edit]', function(){ sh.editing = true; renderTripIdeaBuilder(); });
-  on('[data-idea-cancel]', function(){ sh.editing = false; sh.answerFor = ''; renderTripIdeaBuilder(); });
+  on('[data-idea-edit]', function(){ sh.editing = true; sh.cal = null; renderTripIdeaBuilder(); });
+  on('[data-idea-cancel]', function(){ sh.editing = false; sh.answerFor = ''; sh.cal = null; renderTripIdeaBuilder(); });
   on('[data-idea-notme]', function(){ tripIdeaSetMe(sh.id, ''); sh.picked = ''; sh.editing = false; renderTripIdeaBuilder(); });
   on('[data-idea-leave]', function(){ tripIdeaLeaveGuest(); });
+  _tripIdeaWireCal(sh);
+}
+// ── PIA-101: arrive/leave calendar ──────────────────────────────────────────
+// Opens on the proposal's month with nothing picked (a native date input opens
+// on today's month). Tap the arrive day, then the leave day. Dots show how many
+// others already said they're there that day. Writes the same available_from /
+// available_to the Worker stores (hidden inputs read by _tripIdeaRespond).
+var TRIP_IDEA_MONTHS_LONG = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function _tripIdeaIsoAdd(iso, days) { var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + days); return d.toISOString().slice(0, 10); }
+function _tripIdeaTodayIso() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function _tripIdeaNights(from, to) { return Math.round((Date.parse(to + 'T12:00:00Z') - Date.parse(from + 'T12:00:00Z')) / 86400000); }
+function tripIdeaCalendarStartMonth(doc, mine) {
+  var idea = (doc && doc.idea) || {}, r = idea.recommendation || {}, d = idea.dates || {};
+  var iso = (mine && mine.available_from) || r.departure || d.departure || d.searchStart || '';
+  return (/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso : _tripIdeaTodayIso()).slice(0, 7);
+}
+// People (not seats) who said they're there each day, excluding one member.
+function tripIdeaDayCounts(doc, exceptCode) {
+  var out = {};
+  summarizeIdeaResponses(doc).rows.forEach(function(x){
+    if (x.code === exceptCode || x.host || (x.status !== 'in' && x.status !== 'maybe') || !x.available_from) return;
+    var to = x.available_to && x.available_to >= x.available_from ? x.available_to : x.available_from;
+    for (var d = x.available_from, i = 0; d <= to && i < 90; d = _tripIdeaIsoAdd(d, 1), i++) out[d] = (out[d] || 0) + 1;
+  });
+  return out;
+}
+function tripIdeaRangeCalendarHtml(month, from, to, counts, todayIso) {
+  var y = +month.slice(0, 4), m = +month.slice(5, 7), first = new Date(Date.UTC(y, m - 1, 1)), days = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  var cells = ['S','M','T','W','T','F','S'].map(function(w){ return '<span class="trip-idea-cal-wd" aria-hidden="true">' + w + '</span>'; });
+  for (var b = 0; b < first.getUTCDay(); b++) cells.push('<span></span>');
+  var any = false;
+  for (var day = 1; day <= days; day++) {
+    var iso = month + '-' + ('0' + day).slice(-2), n = (counts && counts[iso]) || 0, past = !!todayIso && iso < todayIso;
+    var cls = 'trip-idea-cal-day' + (iso === from ? ' is-start' : '') + (iso === to ? ' is-end' : '') + (from && to && iso > from && iso < to ? ' is-in' : '') + (n ? ' has-others' : '');
+    if (n) any = true;
+    cells.push('<button type="button" class="' + cls + '" data-cal-day="' + iso + '"' + (past ? ' disabled' : '') + ' aria-pressed="' + (iso === from || iso === to || (from && to && iso > from && iso < to) ? 'true' : 'false') + '" aria-label="' + TRIP_IDEA_MONTHS[m - 1] + ' ' + day + (n ? ', ' + n + ' other' + (n === 1 ? '' : 's') + ' there' : '') + '"><span>' + day + '</span>' + (n ? '<i>' + new Array(Math.min(n, 3) + 1).join('•') + '</i>' : '') + '</button>');
+  }
+  var sel = !from ? 'Tap the day you’d arrive.' : !to ? 'Arrive ' + tripIdeaDateRange(from) + ' — now tap the day you’d leave.'
+    : tripIdeaDateRange(from, to) + ' · ' + _tripIdeaNights(from, to) + ' night' + (_tripIdeaNights(from, to) === 1 ? '' : 's');
+  return '<div class="trip-idea-cal" id="trip-idea-rsvp-cal"><div class="trip-idea-cal-head"><button type="button" data-cal-nav="-1" aria-label="Previous month">‹</button><strong>' + TRIP_IDEA_MONTHS_LONG[m - 1] + ' ' + y + '</strong><button type="button" data-cal-nav="1" aria-label="Next month">›</button></div>' +
+    '<div class="trip-idea-cal-grid">' + cells.join('') + '</div>' +
+    '<p class="trip-idea-cal-sel" aria-live="polite"><span>' + _tripIdeaEsc(sel) + '</span>' + (from ? '<button type="button" class="trip-idea-linkish" data-cal-clear>Clear</button>' : '') + '</p>' +
+    (any ? '<small class="trip-idea-cal-key">• = someone else is there that day</small>' : '') + '</div>';
+}
+function _tripIdeaCalHtml(sh, row, mine) {
+  if (!sh.cal || sh.cal.code !== row.code) sh.cal = {code:row.code, month:tripIdeaCalendarStartMonth(sh.doc, mine), from:mine.available_from || '', to:mine.available_to || ''};
+  var c = sh.cal;
+  return tripIdeaRangeCalendarHtml(c.month, c.from, c.to, tripIdeaDayCounts(sh.doc, row.code), _tripIdeaTodayIso()) +
+    '<input type="hidden" id="trip-idea-rsvp-from" value="' + _tripIdeaEsc(c.from) + '"><input type="hidden" id="trip-idea-rsvp-to" value="' + _tripIdeaEsc(c.to) + '">';
+}
+// Tap 1 = arrive, tap 2 = leave (a day before arrive restarts there), tap 3 starts over.
+function tripIdeaCalendarTap(cal, iso) {
+  if (!cal.from || cal.to || iso < cal.from) { cal.from = iso; cal.to = ''; }
+  else cal.to = iso;
+  return cal;
+}
+function _tripIdeaWireCal(sh) {
+  var wrap = _tripIdeaEl('trip-idea-rsvp-cal-wrap'); if (!wrap || !sh.cal) return;
+  var redraw = function(){
+    var row = summarizeIdeaResponses(sh.doc).rows.filter(function(x){ return x.code === sh.cal.code; })[0];
+    if (!row) return;
+    wrap.innerHTML = _tripIdeaCalHtml(sh, row, {}); _tripIdeaWireCal(sh);
+  };
+  wrap.querySelectorAll('[data-cal-day]').forEach(function(b){ b.onclick = function(){ tripIdeaCalendarTap(sh.cal, b.getAttribute('data-cal-day')); redraw(); }; });
+  wrap.querySelectorAll('[data-cal-nav]').forEach(function(b){ b.onclick = function(){
+    var y = +sh.cal.month.slice(0, 4), m = +sh.cal.month.slice(5, 7) - 1 + Number(b.getAttribute('data-cal-nav'));
+    var d = new Date(Date.UTC(y, m, 1)); sh.cal.month = d.toISOString().slice(0, 7); redraw();
+  }; });
+  wrap.querySelectorAll('[data-cal-clear]').forEach(function(b){ b.onclick = function(){ sh.cal.from = ''; sh.cal.to = ''; redraw(); }; });
 }
 // ── PIA-073: decision log — proposed → answered → chosen → booked (actual) ──
 // The Worker record is the source of truth; this device also keeps a compact

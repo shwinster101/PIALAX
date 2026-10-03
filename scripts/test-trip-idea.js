@@ -27,6 +27,7 @@ EXPECT.push('handoffIntentsForWatchlistItem', 'tripIdeaAnswerDates', 'tripIdeaMe
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 EXPECT.push('mapHubOption'); // PIA-091
 EXPECT.push('tripIdeaLooseWhen'); // PIA-098
+EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
 const formMarkup = {};
@@ -42,6 +43,35 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
 
   const rdu = api.resolveTripIdeaCity('Cary', []);
   check(rdu && rdu.airport === 'RDU', `${file}: Cary resolves to nearby RDU`);
+  // PIA-100: this device remembers who answered, per idea; the organizer device defaults to "Me".
+  {
+    const doc = { id: 'x', idea: { members: [{ code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] } };
+    api.tripIdeaSetMe('idea-1', 'LGA');
+    check(api.tripIdeaMe('idea-1') === 'LGA' && api.tripIdeaWho({ id: 'idea-1', doc }) === 'LGA' && api.tripIdeaWho({ id: 'idea-2', doc }) === '' &&
+      api.tripIdeaWho({ id: 'idea-2', doc, editKey: 'k' }) === 'LAX' && api.tripIdeaWho({ id: 'idea-1', doc, answerFor: 'LAX' }) === 'LAX',
+      `${file}: who answers — remembered per idea, organizer device defaults to Me, "answer for" wins`);
+    api.tripIdeaSetMe('idea-1', '');
+    check(api.tripIdeaMe('idea-1') === '', `${file}: "Not you?" forgets the remembered name`);
+  }
+  // PIA-101: the calendar opens on the proposal's month; tap arrive, then leave.
+  {
+    const doc = { idea: { recommendation: { departure: '2026-11-25' }, members: [{ code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }, { code: 'PIA', label: 'Mom & Dad', airport: 'PIA' }], destination: { airport: 'PIA' } },
+      responses: { LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-23' }, LGA: { status: 'out', available_from: '2026-11-22', available_to: '2026-11-24' } } };
+    check(api.tripIdeaCalendarStartMonth(doc, {}) === '2026-11' && api.tripIdeaCalendarStartMonth(doc, { available_from: '2026-12-02' }) === '2026-12',
+      `${file}: calendar opens on the proposal month (or your own earlier answer's month)`);
+    const c = { from: '', to: '' };
+    api.tripIdeaCalendarTap(c, '2026-11-24'); api.tripIdeaCalendarTap(c, '2026-11-29');
+    const c2 = api.tripIdeaCalendarTap({ from: '2026-11-24', to: '' }, '2026-11-20');
+    const c3 = api.tripIdeaCalendarTap({ from: '2026-11-24', to: '2026-11-29' }, '2026-11-26');
+    check(c.from === '2026-11-24' && c.to === '2026-11-29' && c2.from === '2026-11-20' && c2.to === '' && c3.from === '2026-11-26' && c3.to === '',
+      `${file}: calendar taps — arrive then leave; an earlier day restarts; a third tap starts over`);
+    const counts = api.tripIdeaDayCounts(doc, 'LGA');
+    check(counts['2026-11-21'] === 1 && counts['2026-11-23'] === 1 && !counts['2026-11-24'] && !counts['2026-11-20'],
+      `${file}: day dots count others who are in/maybe (not "out", not yourself, not hosts)`);
+    const html = api.tripIdeaRangeCalendarHtml('2026-11', '2026-11-24', '2026-11-29', counts, '2026-11-22');
+    check(/November 2026/.test(html) && /data-cal-day="2026-11-21"[^>]*disabled/.test(html) && /is-start/.test(html) && /Nov 24–29 · 5 nights/.test(html),
+      `${file}: calendar marks past days, the picked range and its nights`);
+  }
   // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
   check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',
     `${file}: map focus from the builder's LGA_JFK hub lands on New York, not PIA/ORD`);

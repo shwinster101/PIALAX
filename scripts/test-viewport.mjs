@@ -671,11 +671,14 @@ const rsvp = await (async () => {
   const env = { IDEAS: { get: async (k) => (kv.has(k) ? kv.get(k) : null), put: async (k, v) => { kv.set(k, v); } } };
   const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
   const post = async (p, body) => (await worker.fetch(new Request(W + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://shwinster101.github.io' }, body: JSON.stringify(body) }), env)).json();
+  const newIdea = async () => {
   const made = await post('/idea', { idea: { title: '🦃 Thanksgiving at home — Peoria', destination: { city: 'Peoria', airport: 'PIA' }, dates: { departure: '2026-11-25', return: '2026-11-29' },
     recommendation: { city: 'Peoria', airport: 'PIA', hub: 'PIA_ORD', departure: '2026-11-25', return: '2026-11-29', totalFare: 640, perTicketFare: 320, headcount: 2, familyTotal: 900, familyStatus: 'estimated' },
     members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX', headcount: 1 }, { code: 'LGA', label: 'Anjo', airport: 'LGA', headcount: 1 }] } });
   await post('/idea/respond?id=' + made.id, { member: 'LAX', status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' });
-  const context = async (vp, opts = {}) => {
+  return { id: made.id, key: made.edit_key, url: (hash) => pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href + '?idea=' + made.id + (hash || '') };
+  };
+  const context = async (vp, idea, opts = {}) => {
     const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
     await ctx.route(/^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//, (r) => r.fulfill({ status: 404, body: '' }));
     await ctx.route(W + '/**', async (route) => {
@@ -685,20 +688,21 @@ const rsvp = await (async () => {
       h['access-control-allow-origin'] = '*'; h['access-control-allow-headers'] = 'Content-Type, X-Idea-Key';
       return route.fulfill({ status: res.status, headers: h, body: await res.text() });
     });
-    if (opts.admin) await ctx.addInitScript(([id, key]) => { localStorage.setItem('pialax_idea_keys_v1', JSON.stringify({ [id]: { edit_key: key, title: 'T' } })); }, [made.id, made.edit_key]);
+    if (opts.admin) await ctx.addInitScript(([id, key]) => { localStorage.setItem('pialax_idea_keys_v1', JSON.stringify({ [id]: { edit_key: key, title: 'T' } })); }, [idea.id, idea.key]);
     return ctx;
   };
-  return { id: made.id, key: made.edit_key, context, url: (hash) => pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href + '?idea=' + made.id + (hash || '') };
+  return { newIdea, context, post, worker, env, W };
 })();
 
 // PIA-099/100: the family gets an RSVP-only page; this phone remembers who answered.
 for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
-  const ctx = await rsvp.context(vp);
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context(vp, idea);
   const label = `pialax-mobile.html RSVP guest @ ${vp.width}x${vp.height}`;
   try {
     const page = await ctx.newPage();
     const errors = []; page.on('pageerror', (e) => errors.push(e.message));
-    await page.goto(rsvp.url(), { waitUntil: 'load' });
+    await page.goto(idea.url(), { waitUntil: 'load' });
     await page.waitForSelector('[data-idea-who]', { timeout: 8000 });
     const first = await page.evaluate(() => {
       const bar = document.querySelector('.tabbar-btn') && document.querySelector('.tabbar-btn').parentElement;
@@ -714,6 +718,16 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
 
     await page.locator('[data-idea-who="LGA"]').click();
     await page.locator('input[name="trip-idea-rsvp-status"][value="in"]').check({ force: true });
+    // PIA-101: the calendar opens on the trip's month with nothing picked; two taps make the range.
+    const cal = await page.evaluate(() => ({ month: (document.querySelector('.trip-idea-cal-head strong') || {}).textContent,
+      picked: document.querySelectorAll('.trip-idea-cal-day.is-start,.trip-idea-cal-day.is-end').length,
+      minCell: Math.min(...[...document.querySelectorAll('.trip-idea-cal-day')].map((b) => Math.min(b.getBoundingClientRect().width, b.getBoundingClientRect().height))) }));
+    await page.locator('[data-cal-day="2026-11-26"]').click();
+    await page.locator('[data-cal-day="2026-11-30"]').click();
+    const range = await page.locator('.trip-idea-cal-sel span').innerText();
+    if (cal.month === 'November 2026' && cal.picked === 0 && cal.minCell >= 44 && /Nov 26–30 · 4 nights/.test(range))
+      ok(`${label} — calendar opens on ${cal.month} with nothing picked, day cells ≥44px (${Math.round(cal.minCell)}), two taps → "${range}"`);
+    else bad(`${label} — calendar wrong: ${JSON.stringify(cal)} range "${range}"`);
     const send = page.locator('#trip-idea-builder-primary');
     const sendBox = await send.boundingBox();
     const sendOk = !!sendBox && sendBox.y + sendBox.height <= vp.height && sendBox.height >= 44 && /Send my answer/.test(await send.innerText());
@@ -722,7 +736,7 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.reload({ waitUntil: 'load' });
     await page.waitForSelector('.trip-idea-mine', { timeout: 8000 });
     const card = (await page.locator('.trip-idea-mine').innerText()).replace(/\s+/g, ' ');
-    if (sendOk && /Anjo/.test(card) && /In/.test(card) && /Change my answer/.test(card) && !errors.length)
+    if (sendOk && /Anjo/.test(card) && /In/.test(card) && /Nov 26–30/.test(card) && /Change my answer/.test(card) && !errors.length)
       ok(`${label} — "Send my answer" on screen (≥44px); after saving, a reload opens straight to "${card.slice(0, 40)}…"`);
     else bad(`${label} — answer/remember failed: send ${JSON.stringify(sendBox)} card "${card}" errors ${JSON.stringify(errors)}`);
   } catch (e) {
@@ -732,11 +746,12 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
   }
 }
 {
-  const ctx = await rsvp.context({ width: 390, height: 844 }, { admin: true });
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context({ width: 390, height: 844 }, idea, { admin: true });
   const label = 'pialax-mobile.html RSVP organizer @ 390x844';
   try {
     const page = await ctx.newPage();
-    await page.goto(rsvp.url(), { waitUntil: 'load' });
+    await page.goto(idea.url(), { waitUntil: 'load' });
     await page.waitForSelector('.trip-idea-mine, .trip-idea-rsvp-form', { timeout: 8000 });
     const a = await page.evaluate(() => ({ guest: document.body.classList.contains('idea-guest'), close: !!document.querySelector('.trip-idea-close') && document.querySelector('.trip-idea-close').offsetParent !== null,
       body: document.getElementById('trip-idea-builder-body').innerText }));
