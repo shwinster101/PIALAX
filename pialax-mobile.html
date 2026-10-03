@@ -8789,7 +8789,8 @@ function watchlistEst(t){
   } catch(e){}
   return null;
 }
-function setWatchlistStage(id, stage){ var t=watchlistItem(id); if (t && WATCHLIST_STAGES[stage]) { t.stage=stage; saveWatchlist(); renderWatchlist(); } }
+function setWatchlistStage(id, stage){ var t=watchlistItem(id); if (t && WATCHLIST_STAGES[stage]) { var was=t.stage; t.stage=stage; saveWatchlist(); renderWatchlist();
+  if (stage === 'booked' && was !== 'booked' && t.sharedIdeaId && typeof tripIdeaPromptActual === 'function') tripIdeaPromptActual(t); } } // PIA-080
 function setWatchlistNotes(id, notes){ var t=watchlistItem(id); if (t) { t.notes=notes; saveWatchlist(); } }
 // PIA-030: next action saves on blur without a re-render (like notes); a blocker
 // toggle re-renders so the chip on/off state + row hint update immediately.
@@ -10411,6 +10412,37 @@ function tripIdeaMarkSeen(doc) {
   if (!last || seen[doc.id] === last) return;
   seen[doc.id] = last;
   try { localStorage.setItem(TRIP_IDEA_SEEN_STORAGE, JSON.stringify(seen)); } catch (e) {}
+}
+
+// ── PIA-080: close the loop at booking ──────────────────────────────────────
+// Moving a linked card to "booked" asks once for the whole-trip total and
+// records it on the shared idea (choosing the proposal first if needed), so
+// the decision log fills without reopening the builder. Organizer device only.
+function tripIdeaUpdateDecision(id, editKey, decision) {
+  return _tripIdeaApi('POST', '/idea/update?id=' + encodeURIComponent(id), {edit_key:editKey, decision:decision}).then(function(res){
+    if (res.ok && res.json && res.json.doc) { tripIdeaStoreDoc(res.json.doc); tripIdeaRecordDecision(res.json.doc); return res.json.doc; }
+    return null;
+  });
+}
+function tripIdeaPromptActual(item, amount) {
+  if (!item || !item.sharedIdeaId) return Promise.resolve(null);
+  var id = item.sharedIdeaId, key = (_tripIdeaKeys()[id] || {}).edit_key;
+  if (!key) { showShareToast('✓ Booked — record the total from the organizer’s device'); return Promise.resolve(null); }
+  var raw = amount;
+  if (raw == null && typeof window !== 'undefined' && typeof window.prompt === 'function') raw = window.prompt('What did the whole trip cost for everyone? (Leave blank to skip)', '');
+  var actual = Math.round(Number(String(raw == null ? '' : raw).replace(/[$,\s]/g, '')));
+  if (!(actual > 0)) return Promise.resolve(null);
+  return tripIdeaFetchDoc(id, true).then(function(doc){
+    var stage = doc ? ideaDecisionStage(doc) : 'proposed';
+    return stage === 'chosen' || stage === 'booked' ? doc : tripIdeaUpdateDecision(id, key, {stage:'chosen'});
+  }).then(function(doc){
+    if (!doc) { showShareToast('Could not record the total — try again from See answers'); return null; }
+    return tripIdeaUpdateDecision(id, key, {stage:'booked', actual_total:actual}).then(function(done){
+      if (done) { var d = done.decision || {}; showShareToast('✓ Recorded $' + actual.toLocaleString('en-US') + (d.delta_pct == null ? '' : ' · ' + (d.delta_pct > 0 ? '+' : '') + d.delta_pct + '% vs estimate')); }
+      if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {}
+      return done;
+    });
+  });
 }
 
 function initTripIdeaBuilder(){

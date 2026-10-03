@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-080)
+- Marking a linked Trip Ideas card "booked" (on the organizer's device) asks once for the whole-trip
+  total and records it on the shared idea — choosing the proposal first if needed — so the decision
+  log fills without reopening the builder. Blank skips; other devices just get a reminder.
+
 ### Added (PIA-079)
 - The trip assistant reads RSVP answers: on linked cards, family members become companions
   (in → confirmed, maybe / no answer → tentative, out → out; the organizer is excluded), so its

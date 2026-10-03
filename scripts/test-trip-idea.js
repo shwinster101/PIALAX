@@ -21,6 +21,7 @@ EXPECT.push('WATCHLIST', 'watchlistItem', 'sanitizeWatchlistItem', 'tripIdeaRsvp
 EXPECT.push('memberStatusFromIdea', 'tripIdeaApplyLinkedRsvp', 'tripIdeaLinkedStatusHtml', 'tripIdeaLinkedNoteHtml'); // PIA-077
 EXPECT.push('tripIdeaShareText', 'tripIdeaDistribute', 'tripIdeaDateRange', 'tripIdeaHoldDates', 'tripIdeaNudge'); // PIA-078
 EXPECT.push('tripStateFor', 'computeRecommendation', 'tripIdeaHasNewAnswers', 'tripIdeaMarkSeen'); // PIA-079
+EXPECT.push('tripIdeaPromptActual', 'setWatchlistStage'); // PIA-080
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -340,7 +341,16 @@ async function sharedIdeaSuite() {
     const tgPayload = api.tripIdeaPayloadFromItem(tg);
     check(tgPayload.recommendation && tgPayload.recommendation.airport === 'RDU' && tgPayload.recommendation.departure === '2026-11-26' &&
       tgPayload.recommendation.familyTotal > 0 && tgPayload.members.length === 3, `${file}: family card → payload with RDU dates and a family estimate`);
+    // PIA-080 runs on its own idea below; keep this one open for the PIA-073 flow.
     const tgId = await api.tripIdeaAskFamily('tgiving');
+    // PIA-080: marking the linked card booked records the whole-trip total (choosing first).
+    const tgDone = await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '$1,300');
+    const tgDec = tgDone && tgDone.decision;
+    check(tgDec && tgDec.stage === 'booked' && tgDec.actual_total === 1300 && tgDec.estimate_total > 0 && typeof tgDec.delta_pct === 'number',
+      `${file}: booking a linked card records actual vs estimate (chosen automatically first)`);
+    check(api.tripIdeaDecisionLog().some((e) => e.id === tgId && e.actual_total === 1300),
+      `${file}: the decision log gets the booked total without opening the builder`);
+    check((await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '')) === null, `${file}: a blank total is skipped, nothing recorded`);
     check(/^[A-Za-z0-9_-]{22}$/.test(tgId || '') && api.watchlistItem('tgiving').sharedIdeaId === tgId,
       `${file}: "Ask the family" on a seed card creates and links a shared idea`);
     const win = api.ideaCommonWindow(after);
@@ -362,7 +372,10 @@ async function sharedIdeaSuite() {
       check(entry && entry.stage === 'booked' && entry.estimate_total === 1116 && entry.actual_total === 1228,
         `${file}: local decision history keeps estimate vs actual`);
       const stats = api.tripIdeaDecisionStats(log);
-      check(stats.booked === 1 && stats.avgDeltaPct === 10, `${file}: history stats: 1 booked, estimates ran 10% low`);
+      const bookedDeltas = log.filter((e) => e.stage === 'booked').map((e) => e.delta_pct);
+      const expectAvg = Math.round(bookedDeltas.reduce((x, y) => x + y, 0) / bookedDeltas.length * 10) / 10;
+      check(stats.booked === 2 && bookedDeltas.includes(10) && stats.avgDeltaPct === expectAvg,
+        `${file}: history stats average actual-vs-estimate across booked ideas (2 booked)`);
       api.tripIdeaSharedState().editKey = '';
       const r = await api.tripIdeaDecisionAction('drop');
       check(r === null && api.tripIdeaSharedState().doc.decision.stage === 'booked', `${file}: without the edit key, decision actions do nothing`);
