@@ -6488,18 +6488,21 @@ var WATCHLIST_SEED = [
   // PIA-065: Thanksgiving — Cary, NC baby-shower proposal. Keep the staged
   // PIA meetup plan prominent while the family compares it with direct RDU
   // options. This card is the one the watchlist exists to not miss.
-  { id:'tgiving', key:null, mode:'family', title:'🦃 Cary baby shower — RDU family meetup',
-    routeTxt:'Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU', hub:'RDU', dep:'2026-11-26', ret:'2026-11-29', eventDate:'2026-11-28', stage:'planning',
-    notes:'Cousin’s baby shower in Cary, NC on Nov 28. Staging plan: Ashwin arrives PIA Sat Nov 21; Anjo arrives PIA Tue Nov 24; family flies together to RDU for the shower. Compare this against direct RDU flights before booking.',
-    reminders:['Confirm shower timing and Cary lodging','Compare PIA staging against direct RDU travel','Thanksgiving-week fares may rise quickly'],
-    nextAction:'Price the PIA staging plan vs direct RDU flights', blockers:['dates'],
+  // PIA-082: Thanksgiving at Mom & Dad's is the family RSVP test (Cary postponed).
+  { id:'thanksgiving', key:null, mode:'family', title:'🦃 Thanksgiving at home — Peoria',
+    routeTxt:'Ashwin (LAX) + Anjo (LGA) → PIA · Mom & Dad host', hub:'PIA', dep:'2026-11-25', ret:'2026-11-29', eventDate:'2026-11-26', stage:'planning',
+    notes:'Thanksgiving at Mom & Dad’s in Peoria. Arrivals can be staggered — everyone picks their own arrive / leave dates on the RSVP link.',
+    reminders:['Send the RSVP link to the family group text','Thanksgiving-week fares rise fast — book soon after everyone answers'],
+    nextAction:'Ask the family — everyone picks arrive / leave', blockers:['dates'],
     calendarEvents:[
-      { title:'Arrive PIA — Ashwin', start:'2026-11-21', end:'2026-11-22', location:'Peoria, IL', notes:'LAX → PIA staging for family meetup' },
-      { title:'Arrive PIA — Anjo', start:'2026-11-24', end:'2026-11-25', location:'Peoria, IL', notes:'LGA → PIA staging for family meetup' },
-      { title:'Family flight PIA → RDU', start:'2026-11-26', end:'2026-11-27', location:'Raleigh-Durham International Airport', notes:'Family travels together to Cary, NC' },
-      { title:'Cousin’s baby shower', start:'2026-11-28', end:'2026-11-29', location:'Cary, NC', notes:'Family event' },
-      { title:'Return from RDU', start:'2026-11-29', end:'2026-11-30', location:'Raleigh-Durham International Airport', notes:'Return travel window' }
+      { title:'Thanksgiving dinner — Peoria', start:'2026-11-26', end:'2026-11-27', location:'Peoria, IL', notes:'At Mom & Dad’s' }
     ],
+    gf:{from:'LAX',to:'PIA'} },
+  // PIA-082: postponed 2026-10-03 — archived to history; revive by moving it back to planning.
+  { id:'tgiving', key:null, mode:'family', title:'🦃 Cary baby shower — postponed',
+    routeTxt:'Was: Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU', hub:'RDU', dep:'2026-11-26', ret:'2026-11-29', eventDate:null, stage:'completed',
+    notes:'Postponed — the shower is being rescheduled. Kept in history; move back to Planning with new dates when it is set.',
+    reminders:[], nextAction:'Postponed — revive when the shower is rescheduled', blockers:[],
     gf:{from:'LGA',to:'RDU'} },
   { id:'london', key:'london', mode:'family', title:'London — Family trip',
     routeTxt:'PIA + LAX + JAX → LHR', hub:'LHR', dep:'2026-06-25', ret:'2026-07-03', stage:'completed',
@@ -6573,6 +6576,10 @@ function _scrubStalePeruDep(overrides){
 // exactly those fields; user-typed notes/nextAction/blockers survive.
 function _scrubPrebookingOverrides(overrides){
   try {
+    // PIA-082: Cary is postponed and archived — old saved planning state must not
+    // reopen it. Personal notes and a shared-idea link are kept.
+    var tg = overrides && overrides.tgiving;
+    if (tg) { delete tg.stage; delete tg.dep; delete tg.ret; delete tg.eventDate; delete tg.nextAction; delete tg.blockers; }
     // Old saved stages must not reopen the now-completed Peru seed. Keep
     // personal notes, dates, blockers and next action untouched.
     if (overrides && overrides.peru && overrides.peru.stage === 'booked') delete overrides.peru.stage;
@@ -9197,7 +9204,7 @@ function renderWatchlist(){
     }
         var eventLine = '';
     if (t.eventDate && /^\d{4}-\d{2}-\d{2}$/.test(String(t.eventDate))) {
-      var eventPlace = t.id === 'tgiving' ? ' · Cary, NC' : '';
+      var eventPlace = t.id === 'tgiving' ? ' · Cary, NC' : t.id === 'thanksgiving' ? ' · Peoria, IL' : '';
       eventLine = '<div style="font-size:var(--fs-micro);font-weight:800;color:var(--accent);margin-top:2px;padding-left:22px;">📅 event ' + dateFmt(new Date(t.eventDate+'T12:00:00'),'long') + eventPlace + '</div>';
     }
 var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open?'true':'false')+'" aria-label="'+esc(t.title)+' — '+(open?'collapse':'expand')+' trip details" data-wl-id="'+t.id+'">' +

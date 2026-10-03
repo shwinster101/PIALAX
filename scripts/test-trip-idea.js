@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { loadApi } = require('./harness.js');
+const { loadApi, makeLocalStorage } = require('./harness.js');
 
 const ROOT = process.argv[2] || process.cwd();
 const EXPECT = [
@@ -22,6 +22,7 @@ EXPECT.push('memberStatusFromIdea', 'tripIdeaApplyLinkedRsvp', 'tripIdeaLinkedSt
 EXPECT.push('tripIdeaShareText', 'tripIdeaDistribute', 'tripIdeaDateRange', 'tripIdeaHoldDates', 'tripIdeaNudge'); // PIA-078
 EXPECT.push('tripStateFor', 'computeRecommendation', 'tripIdeaHasNewAnswers', 'tripIdeaMarkSeen'); // PIA-079
 EXPECT.push('tripIdeaPromptActual', 'setWatchlistStage'); // PIA-080
+EXPECT.push('watchlistGFLinks'); // PIA-082
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -207,6 +208,16 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     `${file}: Trip Idea block matches scripts/trip-idea-builder.js`);
 }
 
+// PIA-082: an old saved "planning" override must not reopen the archived Cary card.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const ls = makeLocalStorage();
+  ls.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { tgiving: { stage: 'planning', dep: '2026-11-26', ret: '2026-11-29', nextAction: 'old', notes: 'my note' } }, added: [] }));
+  const { api } = loadApi(path.join(ROOT, file), file, ['watchlistItem'], { localStorage: ls });
+  const t = api.watchlistItem('tgiving');
+  check(t && t.stage === 'completed' && t.nextAction !== 'old' && t.notes === 'my note',
+    `${file}: stale Cary overrides are scrubbed (stays archived, keeps personal notes)`);
+}
+
 // PIA-072/073: shared ideas end to end — the client's fetch is routed into the
 // real worker.js (loaded as ESM) backed by an in-memory KV, so the payload the
 // browser sends is checked against the validation the Worker enforces.
@@ -339,22 +350,30 @@ async function sharedIdeaSuite() {
       check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('?idea=' + id),
         `${file}: "Hold the dates" calendar event spans Nov 6–9 and carries the RSVP link`);
     }
-    const tg = api.watchlistItem('tgiving');
-    check(tg && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)), `${file}: unlinked family card offers "Ask the family"`);
+    // PIA-082: Thanksgiving at Mom & Dad's (PIA) is the family RSVP card; Cary is archived.
+    check(api.watchlistItem('tgiving') && api.watchlistItem('tgiving').stage === 'completed' &&
+      api.tripIdeaCardActionsHtml(api.watchlistItem('tgiving')) === '', `${file}: postponed Cary card is archived (no RSVP actions)`);
+    const tg = api.watchlistItem('thanksgiving');
+    check(tg && tg.hub === 'PIA' && tg.dep === '2026-11-25' && tg.ret === '2026-11-29' && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)),
+      `${file}: Thanksgiving card (PIA, Nov 25–29) offers "Ask the family"`);
+    const tgLinks = api.watchlistGFLinks(tg).map((l) => l.label + ' ' + l.url);
+    check(tgLinks.length === 2 && tgLinks.some((l) => /^Me · /.test(l) && /LAX/.test(l)) && tgLinks.some((l) => /^Anjo · /.test(l) && /LGA/.test(l)) &&
+      !tgLinks.some((l) => /Mom/.test(l)), `${file}: Thanksgiving card links one flight search per traveler; Mom & Dad host`);
     const tgPayload = api.tripIdeaPayloadFromItem(tg);
-    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'RDU' && tgPayload.recommendation.departure === '2026-11-26' &&
-      tgPayload.recommendation.familyTotal > 0 && tgPayload.members.length === 3, `${file}: family card → payload with RDU dates and a family estimate`);
-    // PIA-080 runs on its own idea below; keep this one open for the PIA-073 flow.
-    const tgId = await api.tripIdeaAskFamily('tgiving');
+    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'PIA' && tgPayload.recommendation.departure === '2026-11-25' &&
+      tgPayload.recommendation.familyTotal === 704 && tgPayload.members.length === 3,
+      `${file}: Thanksgiving payload: PIA, Nov 25, family ≈ $704 (LAX 362 + LGA 342, hosts $0)`);
+    // PIA-080 runs on its own idea below; keep the earlier one open for the PIA-073 flow.
+    const tgId = await api.tripIdeaAskFamily('thanksgiving');
     // PIA-080: marking the linked card booked records the whole-trip total (choosing first).
-    const tgDone = await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '$1,300');
+    const tgDone = await api.tripIdeaPromptActual(api.watchlistItem('thanksgiving'), '$1,300');
     const tgDec = tgDone && tgDone.decision;
     check(tgDec && tgDec.stage === 'booked' && tgDec.actual_total === 1300 && tgDec.estimate_total > 0 && typeof tgDec.delta_pct === 'number',
       `${file}: booking a linked card records actual vs estimate (chosen automatically first)`);
     check(api.tripIdeaDecisionLog().some((e) => e.id === tgId && e.actual_total === 1300),
       `${file}: the decision log gets the booked total without opening the builder`);
-    check((await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '')) === null, `${file}: a blank total is skipped, nothing recorded`);
-    check(/^[A-Za-z0-9_-]{22}$/.test(tgId || '') && api.watchlistItem('tgiving').sharedIdeaId === tgId,
+    check((await api.tripIdeaPromptActual(api.watchlistItem('thanksgiving'), '')) === null, `${file}: a blank total is skipped, nothing recorded`);
+    check(/^[A-Za-z0-9_-]{22}$/.test(tgId || '') && api.watchlistItem('thanksgiving').sharedIdeaId === tgId,
       `${file}: "Ask the family" on a seed card creates and links a shared idea`);
     const win = api.ideaCommonWindow(after);
     check(win && win.overlaps && win.from === '2026-11-06' && win.to === '2026-11-10',

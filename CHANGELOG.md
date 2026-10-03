@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-082)
+- Trip Ideas: new **🦃 Thanksgiving at home — Peoria** card (PIA, Nov 25–29, Mom & Dad host) as the
+  family RSVP test, with a flight search each for Ashwin (LAX) and Anjo (LGA). The Cary baby shower
+  is postponed and archived to history; old saved "planning" state can't reopen it.
+
 ### Fixed (PIA-081)
 - The organizer no longer shows as "waiting" on their own idea: creating a shared idea answers
   "in" for "Me" automatically (not counted as news, doesn't make the idea "answered"), and nudges
