@@ -12,6 +12,60 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-104) — needs `wrangler deploy`
+- RSVP links get a real iMessage preview. The Worker serves `/i/<id>`:
+  - chat-app link fetchers get "🦃 Thanksgiving at home — Peoria · Late Nov · Tap to say in /
+    maybe / out and pick your dates", with no price and no exact dates, instead of
+    "PIALAX — Family Flight Dashboard";
+  - people tapping it go straight to the RSVP page.
+- Prices are now withheld by the Worker, not just hidden on screen. Family members' requests get
+  no fares; only requests carrying the organizer's key (`X-Idea-Key`) do. A device whose
+  organizer key doesn't match is shown the family view.
+- Safe before deploy: the app keeps sharing its own `?idea=` link and never sends the key header
+  until the Worker announces the new features.
+
+### Fixed (PIA-104)
+- Worker: RSVP status and decision stage checks no longer accept `Object.prototype` names such
+  as "toString".
+
+### Added (PIA-103)
+- Organizer: every family row on the RSVP has "✎ Answer for". When someone just texts "In",
+  record it for them, e.g. "Save for Mom & Dad". It's tagged "(entered by Ashwin)" and doesn't
+  change who your own phone answers as. Hosts who confirmed read "🏠 Hosting — confirmed".
+- "🔑 Copy organizer link" (RSVP page and Trips card) lets you manage the trip from another
+  phone or computer. The key travels in the link's `#k=` part, which never reaches a server or a
+  link preview. It's removed from the address bar once saved, and it's only for you, not the
+  family.
+
+### Added (PIA-102)
+- The RSVP shows when the family is actually together. With full overlap it says "Everyone's
+  there Nov 26–29". Otherwise it shows the days most people are there and who's missing why:
+  "Best window Nov 24–28 · 2 of 3 there (Kiran: here Nov 29–30)".
+- A day strip under it has one row per person across the answered days, with hosts as a full
+  🏠 bar and the best window outlined. Everyone sees it.
+- Organizer: "📅 Hold Nov 26–29" puts the family window on the calendar, replacing the hold for
+  the proposed dates. The organizer's header now reads "Proposed Nov 25–29" instead of raw dates.
+
+### Added (PIA-101)
+- RSVP dates are picked on a month calendar that opens on the trip's month (November for
+  Thanksgiving) with nothing preselected. Tap the day you'd arrive, then the day you'd leave
+  ("Nov 26–30 · 4 nights"). Past days are greyed out, and dots under a day show how many others
+  already said they're there. It replaces the two date boxes, whose iPhone picker opened on
+  today's month.
+
+### Added (PIA-099, PIA-100)
+- Family members who open an RSVP link get the RSVP as their whole page: no dashboard, settings,
+  trips or close button behind it. "Open full PIALAX" at the bottom is the way out. The organizer's
+  device (it holds the edit key) still opens it over the dashboard, with exact dates and the cost.
+- "Who are you?" is a row of names to tap, and the phone remembers it. Next time the link opens
+  straight to "Your answer · Anjo — ✅ In · here Nov 26–30 · from LGA" with **Change my answer**.
+  Changing prefills the earlier answer. "Not Anjo?" forgets the name on that phone.
+- Hosts (Mom & Dad for Peoria) get "🏠 hosting at home — no flights or dates needed" and a
+  **Confirm we're hosting** button. Family members see the organizer as "Ashwin", not "Me".
+- **Send my answer** sits in the sticky footer, so it's always on screen.
+- An RSVP-only link no longer counts as a shared trip link, so the organizer's saved home and
+  dates aren't skipped when they open their own link.
+
 ### Changed (PIA-098)
 - RSVP invites and nudges no longer include a price or exact dates. They give a rough time
   ("🦃 Thanksgiving at home — Peoria · late Nov. Come and go on your own dates — tap to say

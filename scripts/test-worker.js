@@ -510,6 +510,45 @@ const VALID_EXTRACTION = {
     const editResp = await readJson(await call(req('POST', 'https://w.dev/idea/update?id=' + id, { edit_key: key, idea: Object.assign({}, IDEA, { members: [IDEA.members[0]] }) }), env));
     if (editResp && !editResp.doc.responses.LAX) ok('editing members drops RSVPs from removed members');
     else bad('edit members: ' + JSON.stringify(editResp && editResp.doc.responses));
+    // PIA-104: prices only for the organizer's key; link previews for chat apps.
+    {
+      const c3 = await readJson(await call(req('POST', 'https://w.dev/idea', { idea: Object.assign({}, IDEA, { title: '🦃 Thanksgiving <at> home', recommendation: Object.assign({}, IDEA.recommendation, { departure: '2026-11-25', familyTotal: 900 }) }) }), env));
+      const withKey = (u, k, ua) => new Request(u, { method: 'GET', headers: Object.assign({ Origin: ORIGIN }, k ? { 'X-Idea-Key': k } : {}, ua ? { 'User-Agent': ua } : {}) });
+      const guest = await readJson(await call(withKey('https://w.dev/idea?id=' + c3.id), env));
+      const org = await readJson(await call(withKey('https://w.dev/idea?id=' + c3.id, c3.edit_key), env));
+      const wrong = await readJson(await call(withKey('https://w.dev/idea?id=' + c3.id, 'y'.repeat(43)), env));
+      const gr = guest.doc.idea.recommendation, orr = org.doc.idea.recommendation;
+      if (gr.totalFare === null && gr.familyTotal === null && gr.perTicketFare === null && gr.departure === '2026-11-25' && guest.organizer === false && guest.preview === true &&
+          orr.familyTotal === 900 && orr.totalFare === 460 && org.organizer === true && wrong.organizer === false && wrong.doc.idea.recommendation.familyTotal === null &&
+          !JSON.stringify(guest).includes('900'))
+        ok('GET /idea: family gets no prices (dates kept); the X-Idea-Key organizer gets them; a wrong key gets none');
+      else bad('fare stripping: ' + JSON.stringify({ gr, orr, organizer: [guest.organizer, org.organizer, wrong.organizer] }));
+      const gResp = await readJson(await call(req('POST', 'https://w.dev/idea/respond?id=' + c3.id, { member: 'LGA', status: 'in' }), env));
+      if (gResp.doc.idea.recommendation.familyTotal === null && gResp.organizer === false) ok('RSVP answers return the family view (no prices) too');
+      else bad('respond view: ' + JSON.stringify(gResp.doc.idea.recommendation));
+      const pre = await call(new Request('https://w.dev/', { method: 'OPTIONS', headers: { Origin: ORIGIN } }), env);
+      if (/X-Idea-Key/.test(pre.headers.get('Access-Control-Allow-Headers') || '')) ok('CORS preflight allows the X-Idea-Key header');
+      else bad('cors headers: ' + pre.headers.get('Access-Control-Allow-Headers'));
+
+      const IMESSAGE_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_1) AppleWebKit/601.2.4 (KHTML, like Gecko) Version/9.0.1 Safari/601.2.4 facebookexternalhit/1.1 Facebot Twitterbot/1.0';
+      const bot = await call(withKey('https://w.dev/i/' + c3.id, '', IMESSAGE_UA), env);
+      const html = await bot.text();
+      if (bot.status === 200 && /text\/html/.test(bot.headers.get('Content-Type') || '') && html.includes('og:title" content="🦃 Thanksgiving &lt;at&gt; home"') &&
+          html.includes('Late Nov · Tap to say in / maybe / out') && !/\$|460|900|2026-11-25/.test(html) && html.includes('PIALAX/?idea=' + c3.id) && /noindex/.test(html))
+        ok('GET /i/<id> for iMessage: escaped og:title + "Late Nov · Tap to say in / maybe / out", no price or exact date');
+      else bad('preview html: ' + bot.status + ' ' + html.slice(0, 400));
+      const human = await call(withKey('https://w.dev/i/' + c3.id, '', 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Mobile/15E148 Safari/604.1'), env);
+      if (human.status === 302 && human.headers.get('Location') === 'https://shwinster101.github.io/PIALAX/?idea=' + c3.id) ok('GET /i/<id> for a person: 302 straight to the app RSVP page');
+      else bad('preview redirect: ' + human.status + ' ' + human.headers.get('Location'));
+      const gone = await call(withKey('https://w.dev/i/' + 'B'.repeat(22), '', IMESSAGE_UA), env);
+      const broken = await call(withKey('https://w.dev/i/..%2Fx', '', IMESSAGE_UA), env);
+      if (gone.status === 404 && broken.status === 400) ok('GET /i/: unknown id -> 404 page, malformed id -> 400 page');
+      else bad(`preview miss/malformed: ${gone.status}/${broken.status}`);
+      const proto = await call(req('POST', 'https://w.dev/idea/respond?id=' + c3.id, { member: 'LGA', status: 'toString' }), env);
+      const protoStage = await call(req('POST', 'https://w.dev/idea/update?id=' + c3.id, { edit_key: c3.edit_key, decision: { stage: 'constructor' } }), env);
+      if (proto.status === 400 && protoStage.status === 400) ok('status/stage lookups ignore Object.prototype names ("toString", "constructor")');
+      else bad(`prototype lookups: ${proto.status}/${protoStage.status}`);
+    }
     const opts = [];
     const ttlEnv = { IDEAS: { get: async () => null, put: async (k, v, o) => { opts.push(o); } } };
     await call(req('POST', 'https://w.dev/idea', { idea: IDEA }), ttlEnv);

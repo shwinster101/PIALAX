@@ -27,6 +27,9 @@ EXPECT.push('handoffIntentsForWatchlistItem', 'tripIdeaAnswerDates', 'tripIdeaMe
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 EXPECT.push('mapHubOption'); // PIA-091
 EXPECT.push('tripIdeaLooseWhen'); // PIA-098
+EXPECT.push('ideaBestWindow', 'tripIdeaWindowText', 'tripIdeaDayStripHtml'); // PIA-102
+EXPECT.push('tripIdeaInviteUrl'); // PIA-104
+EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
 const formMarkup = {};
@@ -42,6 +45,57 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
 
   const rdu = api.resolveTripIdeaCity('Cary', []);
   check(rdu && rdu.airport === 'RDU', `${file}: Cary resolves to nearby RDU`);
+  // PIA-100: this device remembers who answered, per idea; the organizer device defaults to "Me".
+  {
+    const doc = { id: 'x', idea: { members: [{ code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] } };
+    api.tripIdeaSetMe('idea-1', 'LGA');
+    check(api.tripIdeaMe('idea-1') === 'LGA' && api.tripIdeaWho({ id: 'idea-1', doc }) === 'LGA' && api.tripIdeaWho({ id: 'idea-2', doc }) === '' &&
+      api.tripIdeaWho({ id: 'idea-2', doc, editKey: 'k' }) === 'LAX' && api.tripIdeaWho({ id: 'idea-1', doc, answerFor: 'LAX' }) === 'LAX',
+      `${file}: who answers — remembered per idea, organizer device defaults to Me, "answer for" wins`);
+    api.tripIdeaSetMe('idea-1', '');
+    check(api.tripIdeaMe('idea-1') === '', `${file}: "Not you?" forgets the remembered name`);
+  }
+  // PIA-101: the calendar opens on the proposal's month; tap arrive, then leave.
+  {
+    const doc = { idea: { recommendation: { departure: '2026-11-25' }, members: [{ code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }, { code: 'PIA', label: 'Mom & Dad', airport: 'PIA' }], destination: { airport: 'PIA' } },
+      responses: { LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-23' }, LGA: { status: 'out', available_from: '2026-11-22', available_to: '2026-11-24' } } };
+    check(api.tripIdeaCalendarStartMonth(doc, {}) === '2026-11' && api.tripIdeaCalendarStartMonth(doc, { available_from: '2026-12-02' }) === '2026-12',
+      `${file}: calendar opens on the proposal month (or your own earlier answer's month)`);
+    const c = { from: '', to: '' };
+    api.tripIdeaCalendarTap(c, '2026-11-24'); api.tripIdeaCalendarTap(c, '2026-11-29');
+    const c2 = api.tripIdeaCalendarTap({ from: '2026-11-24', to: '' }, '2026-11-20');
+    const c3 = api.tripIdeaCalendarTap({ from: '2026-11-24', to: '2026-11-29' }, '2026-11-26');
+    check(c.from === '2026-11-24' && c.to === '2026-11-29' && c2.from === '2026-11-20' && c2.to === '' && c3.from === '2026-11-26' && c3.to === '',
+      `${file}: calendar taps — arrive then leave; an earlier day restarts; a third tap starts over`);
+    const counts = api.tripIdeaDayCounts(doc, 'LGA');
+    check(counts['2026-11-21'] === 1 && counts['2026-11-23'] === 1 && !counts['2026-11-24'] && !counts['2026-11-20'],
+      `${file}: day dots count others who are in/maybe (not "out", not yourself, not hosts)`);
+    const html = api.tripIdeaRangeCalendarHtml('2026-11', '2026-11-24', '2026-11-29', counts, '2026-11-22');
+    check(/November 2026/.test(html) && /data-cal-day="2026-11-21"[^>]*disabled/.test(html) && /is-start/.test(html) && /Nov 24–29 · 5 nights/.test(html),
+      `${file}: calendar marks past days, the picked range and its nights`);
+  }
+  // PIA-102: best-coverage window — everyone, partial (who's missing and why), hosts never limit it.
+  {
+    const members = [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }, { code: 'RDU', label: 'Kiran', airport: 'RDU' }];
+    const mk = (responses) => ({ idea: { members, destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' } }, responses });
+    const all = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-30' }, RDU: { status: 'maybe', available_from: '2026-11-25', available_to: '2026-11-28' } }));
+    check(all && all.everyone && all.from === '2026-11-25' && all.to === '2026-11-28' && all.there === 3 && /Everyone’s there Nov 25–28/.test(api.tripIdeaWindowText(all)),
+      `${file}: everyone overlaps → "Everyone’s there Nov 25–28" (hosts don't limit it)`);
+    const part = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-28' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-28' }, RDU: { status: 'in', available_from: '2026-11-29', available_to: '2026-11-30' } }));
+    const txt = api.tripIdeaWindowText(part);
+    check(part && !part.everyone && part.from === '2026-11-24' && part.to === '2026-11-28' && part.there === 2 && part.total === 3 && /Best window Nov 24–28 · 2 of 3 there \(Kiran: here Nov 29–30\)/.test(txt),
+      `${file}: partial overlap → best window, "2 of 3 there", and who's missing why`);
+    const nodates = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'maybe' } }));
+    check(nodates && nodates.total === 2 && nodates.missing[0].why === 'no dates yet' && api.ideaBestWindow(mk({})) === null && api.tripIdeaWindowText(null) === 'No dates picked yet',
+      `${file}: people without dates are listed as "no dates yet"; nobody → "No dates picked yet"`);
+    const strip = api.tripIdeaDayStripHtml(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-30' } }), all);
+    check(/🏠 Mom &amp; Dad/.test(strip) && /class="on win"/.test(strip) && (strip.match(/<i /g) || []).length === 3 * 10,
+      `${file}: day strip — one row per person (hosts as 🏠), the window shaded`);
+  }
+  // PIA-104: until the Worker has said it serves previews, invites keep the app's own ?idea= link
+  // (so nothing breaks before `wrangler deploy`).
+  check(/[?&]idea=AAAAAAAAAAAAAAAAAAAAAA$/.test(api.tripIdeaInviteUrl('AAAAAAAAAAAAAAAAAAAAAA')),
+    `${file}: before the Worker announces previews, the invite link is the app's ?idea= page`);
   // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
   check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',
     `${file}: map focus from the builder's LGA_JFK hub lands on New York, not PIA/ORD`);
@@ -260,8 +314,10 @@ async function sharedIdeaSuite() {
     api.tripIdeaBuilder.recommendation = rec;
     api.tripIdeaBuilder._notes = 'Shower is Saturday';
     const url = await api._tripIdeaShare();
-    const id = url && (url.match(/[?&]idea=([A-Za-z0-9_-]{22})/) || [])[1];
-    check(!!id && !/tripIdea=/.test(url), `${file}: with IDEAS bound, share creates an RSVP link ?idea=<id>`);
+    // PIA-104: a Worker that serves previews (it says preview:true) gets the /i/<id> link.
+    const id = url && (url.match(/\/i\/([A-Za-z0-9_-]{22})$/) || [])[1];
+    check(!!id && !/tripIdea=/.test(url) && url.startsWith('https://pialax-proxy.ashwinyedavalli.workers.dev/i/'),
+      `${file}: with IDEAS bound, share creates an RSVP link (the Worker's /i/<id> preview link)`);
     // PIA-076: the shared idea lives on exactly one Trip Ideas card.
     const linked = api.WATCHLIST.filter((t) => t.sharedIdeaId === id);
     check(linked.length === 1 && linked[0].mode === 'family' && linked[0].hub === 'RDU',
@@ -357,7 +413,7 @@ async function sharedIdeaSuite() {
       let ev = null;
       try { ev = api.tripIdeaHoldDates(linked[0].id); } catch (e) { ev = api.watchlistItem(linked[0].id).calendarEvents; }
       ev = ev || api.watchlistItem(linked[0].id).calendarEvents;
-      check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('?idea=' + id),
+      check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('/i/' + id),
         `${file}: "Hold the dates" calendar event spans Nov 6–9 and carries the RSVP link`);
     }
     // PIA-082: Thanksgiving at Mom & Dad's (PIA) is the family RSVP card; Cary is archived.
