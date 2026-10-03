@@ -743,9 +743,10 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
       rows: [...document.querySelectorAll('.trip-idea-book li')].map((li) => ({ text: li.innerText.replace(/\s+/g, ' '), href: (li.querySelector('a') || {}).href || '' })),
       over: document.documentElement.scrollWidth > innerWidth }));
     const dq = (u) => decodeURIComponent(u.replace(/\+/g, ' '));
-    if (/google\.com\/travel\/flights\?q=/.test(book.mine) && /LGA to PIA on 2026-11-26 through 2026-11-30/.test(dq(book.mine)) && book.rows.length === 2 &&
-        /on 2026-11-21 through 2026-11-29/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && /ORD ↗/.test(book.rows[1].text) && !book.over)
-      ok(`${label} — "✈️ Find my flight" opens LGA→PIA Nov 26–30; "Book for these dates" lists each traveler on their own dates`);
+    // PIA-109: Peoria → fly in to PIA, home from ORD (one-ways).
+    if (/google\.com\/travel\/flights\?q=/.test(book.mine) && /LGA to PIA on 2026-11-26 one way/.test(dq(book.mine)) && book.rows.length === 2 &&
+        /LAX to PIA on 2026-11-21 one way/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && /In PIA ↗/.test(book.rows[1].text) && /Home ORD ↗/.test(book.rows[1].text) && !book.over)
+      ok(`${label} — "✈️ Fly in · PIA" opens LGA→PIA Nov 26; the Book panel gives each traveler In PIA + Home ORD on their own dates`);
     else bad(`${label} — book step wrong: ${JSON.stringify(book)}`);
     // PIA-106: "I booked ✓" → the card, the strip and "1 of 2 booked" all show it, after a reload too.
     await page.locator('.trip-idea-ibooked').click();

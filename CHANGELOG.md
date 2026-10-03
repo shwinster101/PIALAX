@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-109)
+- Thanksgiving plan (Dad wants the Peoria parade): fly in direct to **PIA Fri Nov 20**, fly home
+  from **ORD Sun Nov 29**, booked as two one-ways. The Trips card's flight links are now per
+  traveler: "Outbound · LAX → PIA" (Nov 20) and "Return · ORD → LAX" (Nov 29), and the same for
+  Anjo.
+- RSVP for Peoria trips: the primary search is now **In PIA ↗ + Home ORD ↗** (one-ways on each
+  person's own dates), on the Book panel and on "✈️ Fly in · PIA / 🏠 Fly home · ORD".
+  Round trips into PIA or ORD remain as a one-line fallback.
+- A device that saved the old Nov 25 start picks up Nov 20.
+
 ### Changed (PIA-108)
 - Flight searches cover the whole hub. Peoria trips give every traveler two buttons, **PIA ↗**
   and **ORD ↗**, for flying into O'Hare and driving. Both use that person's own dates. New York
