@@ -31,6 +31,7 @@ EXPECT.push('ideaBestWindow', 'tripIdeaWindowText', 'tripIdeaDayStripHtml'); // 
 EXPECT.push('tripIdeaInviteUrl'); // PIA-104
 EXPECT.push('tripIdeaFlightUrl', 'tripIdeaBookRows'); // PIA-105
 EXPECT.push('tripIdeaBookedCount', 'tripIdeaCanBook'); // PIA-106
+EXPECT.push('tripIdeaCardMoreHtml', 'tripIdeaShareCard'); // PIA-107
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -357,7 +358,12 @@ async function sharedIdeaSuite() {
     check(api.sanitizeWatchlistItem({ id: 'x1', mode: 'solo', sharedIdeaId: '../../etc' }).sharedIdeaId === undefined &&
       api.sanitizeWatchlistItem({ id: 'x2', mode: 'solo', sharedIdeaId: id }).sharedIdeaId === id,
       `${file}: stored sharedIdeaId is validated on load`);
-    check(/See answers/.test(api.tripIdeaCardActionsHtml(linked[0])), `${file}: linked card offers "See answers"`);
+    // PIA-107: a linked card leads with exactly two buttons; Hold / Organizer link fold under More.
+    {
+      const main = api.tripIdeaCardActionsHtml(linked[0]), more = api.tripIdeaCardMoreHtml(linked[0]);
+      check((main.match(/<button/g) || []).length === 2 && /Family RSVP/.test(main) && /📤 (Share invite|Nudge \d+ (waiting|to book))/.test(main) && /Hold the dates/.test(more) && /Organizer link/.test(more) && !/Hold the dates/.test(main),
+        `${file}: linked card leads with "👥 Family RSVP" + one "📤" share button; hold & organizer link fold under More`);
+    }
     const keys = api._tripIdeaKeys();
     check(keys[id] && /^[A-Za-z0-9_-]{43}$/.test(keys[id].edit_key), `${file}: organizer edit key kept on this device only`);
 

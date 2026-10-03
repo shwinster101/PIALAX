@@ -12,6 +12,14 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-107)
+- A trip linked to a family RSVP now leads with two buttons instead of eight:
+  - **👥 Family RSVP** opens answers, the overlap, "Book for these dates" and organizer tools;
+  - **📤 Share** says what it will send: "Share invite", "Nudge 1 waiting" or "Nudge 2 to book".
+- Open, each person's Google Flights search, Add to calendar, Hold the dates and Organizer link
+  move under **More actions**. The Google Flights help text is gone for these trips, since the
+  searches live in the RSVP's Book panel.
+
 ### Added (PIA-106) — needs `wrangler deploy`
 - Who's booked: after searching, each person taps **I booked ✓**. Everyone then sees "✈️ booked"
   on their row, their days turn green on the strip, and the page says "✈️ 1 of 2 booked". The

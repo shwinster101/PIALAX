@@ -1200,17 +1200,36 @@ function tripIdeaCardActionsHtml(item) {
   var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
   if (item.sharedIdeaId) {
     var doc = tripIdeaCachedDoc(item.sharedIdeaId), pending = doc ? summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).length : 0;
-    var hasKey = !!(_tripIdeaKeys()[item.sharedIdeaId] || {}).edit_key;
-    return b('wl-idea-open', '👥 See answers') + (pending ? b('wl-idea-nudge', '📣 Nudge ' + pending + ' waiting') : '') + b('wl-idea-hold', '📅 Hold the dates') + (hasKey ? b('wl-idea-key', '🔑 Organizer link') : '');
+    // PIA-107: two buttons lead — the RSVP (answers, overlap, booking) and one
+    // Share that says what it will send. The rest lives in tripIdeaCardMoreHtml.
+    var unbooked = doc && tripIdeaCanBook() ? tripIdeaBookedCount(doc).unbooked.length : 0;
+    var shareLbl = pending ? '📤 Nudge ' + pending + ' waiting' : unbooked ? '📤 Nudge ' + unbooked + ' to book' : '📤 Share invite';
+    return b('wl-idea-open wl-idea-main', '👥 Family RSVP') + b('wl-idea-share', shareLbl);
   }
   if (item.mode === 'family' || item.builderMetadata) return b('wl-idea-ask', '👥 Ask the family');
   return '';
+}
+function tripIdeaCardMoreHtml(item) {
+  if (!item || !item.sharedIdeaId || item.stage === 'completed') return '';
+  var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
+  var hasKey = !!(_tripIdeaKeys()[item.sharedIdeaId] || {}).edit_key;
+  return b('wl-idea-hold', '📅 Hold the dates') + (hasKey ? b('wl-idea-key', '🔑 Organizer link') : '');
+}
+// Share = the right message for where things stand: who hasn't answered, then
+// who hasn't booked, else the plain invite.
+function tripIdeaShareCard(id) {
+  var doc = tripIdeaCachedDoc(id);
+  if (!doc) return Promise.resolve(null);
+  var waiting = summarizeIdeaResponses(doc).rows.some(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); });
+  var unbooked = tripIdeaCanBook() && tripIdeaBookedCount(doc).unbooked.length;
+  return tripIdeaSendInvite(doc, waiting || unbooked ? 'nudge' : 'invite');
 }
 function tripIdeaWireCardActions(root) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('.wl-idea-open').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) _tripIdeaOpenRemote(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-nudge').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaNudge(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-hold').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaHoldDates(el.getAttribute('data-id')); }); });
+  root.querySelectorAll('.wl-idea-share').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaShareCard(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-key').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaCopyOrganizerLink(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-ask').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaAskFamily(el.getAttribute('data-id')); }); });
 }

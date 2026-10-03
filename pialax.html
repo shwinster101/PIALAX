@@ -490,6 +490,9 @@ button{font-family:inherit;cursor:pointer;}
   border-radius:var(--rad-pill);background:var(--surface-2);color:var(--ink-muted);
   font-size:var(--fs-tiny);font-weight:800;cursor:pointer;}
 .wl-sheet-close:hover{color:var(--ink);border-color:var(--accent);}
+.wl-idea-main{background:var(--accent)!important;color:#fff!important;}
+.wl-more-actions{margin-top:6px;}
+.wl-more-actions summary{cursor:pointer;color:var(--accent);font-size:var(--fs-tiny);font-weight:800;}
 .wl-more-section{margin-top:8px;border-top:1px solid var(--line);padding-top:7px;}
 .wl-more-section summary{cursor:pointer;color:var(--accent);font-size:var(--fs-tiny);font-weight:800;}
 .wl-card.wl-swipe-left{transform:translateX(-34px);opacity:.72;}
@@ -9000,6 +9003,20 @@ var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open
           (t.stage === 'booked' ? '<a class="wl-flighty wl-act" href="https://www.flighty.com/" target="_blank" rel="noopener noreferrer" style="color:var(--ink-muted);border:1px solid var(--line-strong);" title="Passport wallet + past/booked flight stats in Flighty">🛂 Open Flighty ↗</a>' : '') +
           (t._added ? '<button class="wl-del wl-act" data-id="'+t.id+'" title="Remove" aria-label="Remove '+esc(t.title)+' from the watchlist" style="background:none;border:none;color:var(--ink-muted);cursor:pointer;">✕</button>' : '') +
         '</div>';
+      // PIA-107: a trip linked to a family RSVP leads with two buttons — Family
+      // RSVP (answers, overlap, per-person booking) and Share — and folds the
+      // rest (Google Flights, calendar, hold, organizer link) under More.
+      if (t.sharedIdeaId && t.stage !== 'completed' && typeof tripIdeaCardActionsHtml === 'function') {
+        actions = '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' + tripIdeaCardActionsHtml(t) + bookedTripHtml + '</div>' +
+          '<details class="wl-more-actions"><summary>More actions</summary>' + '<div style="display:flex;gap:5px;flex-wrap:wrap;margin-top:7px;align-items:center;">' +
+            '<button class="wl-open wl-act" data-id="'+t.id+'" style="color:var(--ink);border:1px solid var(--line-strong);background:none;cursor:pointer;">Open ↗</button>' +
+            ((t.eventDate || (t.calendarEvents && t.calendarEvents.length)) ? '<button type="button" class="wl-calendar wl-act" data-id="'+t.id+'" style="color:var(--success);border:1px solid var(--success);">📅 Add to calendar</button>' : '') +
+            gfLinks.map(function(l){ return '<a class="wl-gf wl-act" href="'+l.url+'" target="_blank" rel="noopener noreferrer" style="color:var(--accent);border:1px solid var(--accent);">🔎 '+(l.label ? esc(l.label) : 'Search route')+' ↗</a>'; }).join('') +
+            (typeof tripIdeaCardMoreHtml === 'function' ? tripIdeaCardMoreHtml(t) : '') +
+            (t._added ? '<button class="wl-del wl-act" data-id="'+t.id+'" aria-label="Remove '+esc(t.title)+' from the watchlist" style="background:none;border:1px solid var(--line-strong);color:var(--ink-muted);cursor:pointer;">✕ Remove</button>' : '') +
+          '</div></details>';
+        flightSearchHtml = t._added ? flightSearchHtml.replace(/<div class="nt-help">[^<]*<\/div>/g, '') : '';
+      }
       // PIA-050: with the assistant on, the decision leads and the freeform
       // notes textarea is replaced by the append-only context log. The item's
       // `notes` field is NOT deleted — flipping the flag off restores the old
@@ -10428,17 +10445,36 @@ function tripIdeaCardActionsHtml(item) {
   var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
   if (item.sharedIdeaId) {
     var doc = tripIdeaCachedDoc(item.sharedIdeaId), pending = doc ? summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).length : 0;
-    var hasKey = !!(_tripIdeaKeys()[item.sharedIdeaId] || {}).edit_key;
-    return b('wl-idea-open', '👥 See answers') + (pending ? b('wl-idea-nudge', '📣 Nudge ' + pending + ' waiting') : '') + b('wl-idea-hold', '📅 Hold the dates') + (hasKey ? b('wl-idea-key', '🔑 Organizer link') : '');
+    // PIA-107: two buttons lead — the RSVP (answers, overlap, booking) and one
+    // Share that says what it will send. The rest lives in tripIdeaCardMoreHtml.
+    var unbooked = doc && tripIdeaCanBook() ? tripIdeaBookedCount(doc).unbooked.length : 0;
+    var shareLbl = pending ? '📤 Nudge ' + pending + ' waiting' : unbooked ? '📤 Nudge ' + unbooked + ' to book' : '📤 Share invite';
+    return b('wl-idea-open wl-idea-main', '👥 Family RSVP') + b('wl-idea-share', shareLbl);
   }
   if (item.mode === 'family' || item.builderMetadata) return b('wl-idea-ask', '👥 Ask the family');
   return '';
+}
+function tripIdeaCardMoreHtml(item) {
+  if (!item || !item.sharedIdeaId || item.stage === 'completed') return '';
+  var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
+  var hasKey = !!(_tripIdeaKeys()[item.sharedIdeaId] || {}).edit_key;
+  return b('wl-idea-hold', '📅 Hold the dates') + (hasKey ? b('wl-idea-key', '🔑 Organizer link') : '');
+}
+// Share = the right message for where things stand: who hasn't answered, then
+// who hasn't booked, else the plain invite.
+function tripIdeaShareCard(id) {
+  var doc = tripIdeaCachedDoc(id);
+  if (!doc) return Promise.resolve(null);
+  var waiting = summarizeIdeaResponses(doc).rows.some(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); });
+  var unbooked = tripIdeaCanBook() && tripIdeaBookedCount(doc).unbooked.length;
+  return tripIdeaSendInvite(doc, waiting || unbooked ? 'nudge' : 'invite');
 }
 function tripIdeaWireCardActions(root) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('.wl-idea-open').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) _tripIdeaOpenRemote(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-nudge').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaNudge(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-hold').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaHoldDates(el.getAttribute('data-id')); }); });
+  root.querySelectorAll('.wl-idea-share').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaShareCard(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-key').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaCopyOrganizerLink(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-ask').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaAskFamily(el.getAttribute('data-id')); }); });
 }
