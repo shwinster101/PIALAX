@@ -1648,6 +1648,34 @@ body.trip-sheet-active #share-toast.show,body.trip-idea-open #share-toast.show{t
 details.advanced{margin-left:max(var(--space-md),calc((100% - 398px)/2));margin-right:max(var(--space-md),calc((100% - 398px)/2))}
 /* The "sample fares" notice points at Advanced Settings, which only exists on Trips. */
 body:not(.tab-watchlist) #quota-warning-banner[data-tier="mock"]{display:none!important}
+
+/* ── PIA-087: Trip Idea Builder on iPhone ─────────────────────────────────── */
+/* It sat at z 500 — under the tab bar (600), which covered its Save / Share
+   footer. 1300 clears the tab bar, fare CTA and the trip sheet (1200, which
+   opens it via "See answers"); toasts (2000) still show on top. */
+#trip-idea-builder-bd{z-index:1300}
+html:has(body.trip-idea-open),body.trip-idea-open{overflow:hidden}
+#trip-idea-builder-body{-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.trip-idea-close{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;margin:-10px -12px 0 0;border-radius:var(--rad-sm)}
+#build-trip-idea-btn{min-height:48px}
+@media (max-width:640px),(orientation:landscape) and (max-height:500px){
+  #trip-idea-builder-bd{padding:0;place-items:stretch}
+  #trip-idea-builder{width:100%;height:100%;max-height:none;border:0;border-radius:0}
+  .trip-idea-header{padding:calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left))}
+  #trip-idea-builder-body{flex:1 1 auto;min-height:0;padding:16px calc(16px + env(safe-area-inset-right)) 16px calc(16px + env(safe-area-inset-left))}
+  /* Footer: primary action first and full width, the rest two-up at 44px —
+     the results stage has five buttons, which used to squeeze into one row. */
+  .trip-idea-footer{position:sticky;bottom:0;flex-wrap:wrap;gap:8px;background:var(--surface);padding:10px calc(16px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
+  .trip-idea-footer button{flex:1 1 calc(50% - 4px);min-height:44px}
+  .trip-idea-footer .trip-idea-primary{order:-1;flex-basis:100%}
+  .trip-idea-footer .trip-idea-close-footer{display:none}
+  .trip-idea-intents,.trip-idea-grid{grid-template-columns:1fr}
+  .trip-idea-result-actions{flex-direction:column}
+}
+/* Short landscape: three across so the footer takes two rows, not three. */
+@media (orientation:landscape) and (max-height:500px){
+  .trip-idea-footer button,.trip-idea-footer .trip-idea-primary{flex:1 1 calc(33.33% - 6px)}
+}
 </style>
 </head>
 <!-- PIA-046: default tab is Watchlist, which hides the fare CTA — start in that

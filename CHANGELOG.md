@@ -12,6 +12,13 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-087)
+- iPhone: the Trip Idea Builder now opens above the tab bar. Before, the tab bar covered its
+  footer — on an iPhone SE "Find recommendations" couldn't be tapped at all. The footer puts
+  the main action first at full width with the rest two-up (three-up in landscape) at 44px,
+  respects the home-indicator and notch insets, the page behind no longer scrolls, the ✕ is a
+  44px target, and it also goes full-screen in landscape.
+
 ### Fixed (PIA-086)
 - iPhone shell: status bar / browser chrome follow the app colours (theme-color, color-scheme),
   booking numbers no longer turn into phone links, Home Screen launch is full-screen, and the

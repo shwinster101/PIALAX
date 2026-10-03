@@ -423,6 +423,49 @@ for (const vp of [{ name: '390x844', width: 390, height: 844 }, { name: '844x390
   }
 }
 
+// ---- PIA-087: Trip Idea Builder on iPhone — footer reachable, not covered ----
+for (const vp of [{ name: '375x667', width: 375, height: 667 }, { name: '844x390', width: 844, height: 390 }]) {
+  const ctx = await browser.newContext({
+    viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
+  });
+  const label = `pialax-mobile.html @ ${vp.name} builder`;
+  const footerCheck = () => {
+    const btns = [...document.querySelectorAll('.trip-idea-footer button')].filter((b) => !b.hidden && b.getBoundingClientRect().height > 0);
+    const bad = btns.filter((b) => {
+      const r = b.getBoundingClientRect();
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+      return r.height < 44 || r.top < 0 || r.bottom > innerHeight || r.left < 0 || r.right > innerWidth || !(hit && b.contains(hit));
+    }).map((b) => (b.id || b.className) + '@' + Math.round(b.getBoundingClientRect().height) + 'px');
+    const close = document.querySelector('.trip-idea-close').getBoundingClientRect();
+    return { count: btns.length, bad, locked: getComputedStyle(document.body).overflow === 'hidden',
+      close: Math.min(close.width, close.height) >= 44 };
+  };
+  try {
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('#build-trip-idea-btn', { state: 'visible', timeout: 5000 });
+    await page.locator('#build-trip-idea-btn').click();
+    await page.waitForTimeout(300);
+    const inputs = await page.evaluate(footerCheck);
+    if (inputs.count >= 1 && !inputs.bad.length && inputs.locked && inputs.close)
+      ok(`${label} — inputs stage: footer tappable above the tab bar, page scroll-locked, close ≥44px`);
+    else bad(`${label} — inputs stage footer/lock wrong: ${JSON.stringify(inputs)}`);
+    await page.locator('#trip-idea-city').fill('RDU');
+    await page.locator('#trip-idea-departure').fill('2026-11-25');
+    await page.locator('#trip-idea-return').fill('2026-11-29');
+    await page.locator('#trip-idea-builder-primary').click();
+    await page.waitForTimeout(300);
+    const results = await page.evaluate(footerCheck);
+    if (results.count >= 4 && !results.bad.length)
+      ok(`${label} — results stage: all ${results.count} footer buttons ≥44px, on screen and uncovered`);
+    else bad(`${label} — results stage footer wrong: ${JSON.stringify(results)}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser.close();
 
 console.log('');
