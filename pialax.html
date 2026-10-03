@@ -6147,18 +6147,21 @@ var WATCHLIST_SEED = [
   // PIA-065: Thanksgiving — Cary, NC baby-shower proposal. Keep the staged
   // PIA meetup plan prominent while the family compares it with direct RDU
   // options. This card is the one the watchlist exists to not miss.
-  { id:'tgiving', key:null, mode:'family', title:'🦃 Cary baby shower — RDU family meetup',
-    routeTxt:'Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU', hub:'RDU', dep:'2026-11-26', ret:'2026-11-29', eventDate:'2026-11-28', stage:'planning',
-    notes:'Cousin’s baby shower in Cary, NC on Nov 28. Staging plan: Ashwin arrives PIA Sat Nov 21; Anjo arrives PIA Tue Nov 24; family flies together to RDU for the shower. Compare this against direct RDU flights before booking.',
-    reminders:['Confirm shower timing and Cary lodging','Compare PIA staging against direct RDU travel','Thanksgiving-week fares may rise quickly'],
-    nextAction:'Price the PIA staging plan vs direct RDU flights', blockers:['dates'],
+  // PIA-082: Thanksgiving at Mom & Dad's is the family RSVP test (Cary postponed).
+  { id:'thanksgiving', key:null, mode:'family', title:'🦃 Thanksgiving at home — Peoria',
+    routeTxt:'Ashwin (LAX) + Anjo (LGA) → PIA · Mom & Dad host', hub:'PIA', dep:'2026-11-25', ret:'2026-11-29', eventDate:'2026-11-26', stage:'planning',
+    notes:'Thanksgiving at Mom & Dad’s in Peoria. Arrivals can be staggered — everyone picks their own arrive / leave dates on the RSVP link.',
+    reminders:['Send the RSVP link to the family group text','Thanksgiving-week fares rise fast — book soon after everyone answers'],
+    nextAction:'Ask the family — everyone picks arrive / leave', blockers:['dates'],
     calendarEvents:[
-      { title:'Arrive PIA — Ashwin', start:'2026-11-21', end:'2026-11-22', location:'Peoria, IL', notes:'LAX → PIA staging for family meetup' },
-      { title:'Arrive PIA — Anjo', start:'2026-11-24', end:'2026-11-25', location:'Peoria, IL', notes:'LGA → PIA staging for family meetup' },
-      { title:'Family flight PIA → RDU', start:'2026-11-26', end:'2026-11-27', location:'Raleigh-Durham International Airport', notes:'Family travels together to Cary, NC' },
-      { title:'Cousin’s baby shower', start:'2026-11-28', end:'2026-11-29', location:'Cary, NC', notes:'Family event' },
-      { title:'Return from RDU', start:'2026-11-29', end:'2026-11-30', location:'Raleigh-Durham International Airport', notes:'Return travel window' }
+      { title:'Thanksgiving dinner — Peoria', start:'2026-11-26', end:'2026-11-27', location:'Peoria, IL', notes:'At Mom & Dad’s' }
     ],
+    gf:{from:'LAX',to:'PIA'} },
+  // PIA-082: postponed 2026-10-03 — archived to history; revive by moving it back to planning.
+  { id:'tgiving', key:null, mode:'family', title:'🦃 Cary baby shower — postponed',
+    routeTxt:'Was: Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU', hub:'RDU', dep:'2026-11-26', ret:'2026-11-29', eventDate:null, stage:'completed',
+    notes:'Postponed — the shower is being rescheduled. Kept in history; move back to Planning with new dates when it is set.',
+    reminders:[], nextAction:'Postponed — revive when the shower is rescheduled', blockers:[],
     gf:{from:'LGA',to:'RDU'} },
   { id:'london', key:'london', mode:'family', title:'London — Family trip',
     routeTxt:'PIA + LAX + JAX → LHR', hub:'LHR', dep:'2026-06-25', ret:'2026-07-03', stage:'completed',
@@ -6234,6 +6237,10 @@ function _scrubStalePeruDep(overrides){
 // exactly those fields; user-typed notes/nextAction/blockers survive.
 function _scrubPrebookingOverrides(overrides){
   try {
+    // PIA-082: Cary is postponed and archived — old saved planning state must not
+    // reopen it. Personal notes and a shared-idea link are kept.
+    var tg = overrides && overrides.tgiving;
+    if (tg) { delete tg.stage; delete tg.dep; delete tg.ret; delete tg.eventDate; delete tg.nextAction; delete tg.blockers; }
     // Old saved stages must not reopen the now-completed Peru seed. Keep
     // personal notes, dates, blockers and next action untouched.
     if (overrides && overrides.peru && overrides.peru.stage === 'booked') delete overrides.peru.stage;
@@ -8404,15 +8411,18 @@ function handoffIntentsForWatchlistItem(t){
   if(!hub) return [];
   var members = familyForDate(t.dep || fmtISO(new Date()));
   return members.filter(function(from){ return from !== hub; }).map(function(from){
+    // PIA-083: a traveler's own RSVP arrive/leave dates (staggered arrivals) win over the trip's.
+    var own = typeof tripIdeaMemberTravel === 'function' ? tripIdeaMemberTravel(t, from) : null;
+    var dep = own ? own.dep : t.dep, ret = own ? own.ret : t.ret;
     return {
       tripId: t.id,
       scope: 'family-member',
-      traveler: { id: from, label: labelFor(from) },
+      traveler: { id: from, label: labelFor(from) + (own && typeof tripIdeaDateRange === 'function' ? ' (' + tripIdeaDateRange(dep, ret) + ')' : '') },
       from: from,
       to: hub,
-      depISO: t.dep,
-      retISO: t.ret,
-      isRT: !!t.ret,
+      depISO: dep,
+      retISO: ret,
+      isRT: !!ret,
       status: t.stage,
       source: 'watchlist'
     };
@@ -8843,7 +8853,7 @@ function renderWatchlist(){
     }
         var eventLine = '';
     if (t.eventDate && /^\d{4}-\d{2}-\d{2}$/.test(String(t.eventDate))) {
-      var eventPlace = t.id === 'tgiving' ? ' · Cary, NC' : '';
+      var eventPlace = t.id === 'tgiving' ? ' · Cary, NC' : t.id === 'thanksgiving' ? ' · Peoria, IL' : '';
       eventLine = '<div style="font-size:var(--fs-micro);font-weight:800;color:var(--accent);margin-top:2px;padding-left:22px;">📅 event ' + dateFmt(new Date(t.eventDate+'T12:00:00'),'long') + eventPlace + '</div>';
     }
 var row = '<div class="wl-row" role="button" tabindex="0" aria-expanded="'+(open?'true':'false')+'" aria-label="'+esc(t.title)+' — '+(open?'collapse':'expand')+' trip details" data-wl-id="'+t.id+'">' +
@@ -9555,7 +9565,7 @@ function _tripIdeaWireStage(){
 // their airport and the dates that work. No IDEAS binding (501) or no proxy →
 // fall back to the read-only ?tripIdea= link, exactly as before.
 var TRIP_IDEA_KEYS_STORAGE = 'pialax_idea_keys_v1';
-var TRIP_IDEA_RSVP_LABELS = {in:'✅ In', maybe:'🤔 Maybe', out:'❌ Out', pending:'⏳ No answer yet'};
+var TRIP_IDEA_RSVP_LABELS = {in:'✅ In', maybe:'🤔 Maybe', out:'❌ Out', pending:'⏳ No answer yet', hosting:'🏠 Hosting'};
 var _tripIdeaShared = null; // {id, doc, editKey, error}
 
 function tripIdeaMembersFor(dep) {
@@ -9568,12 +9578,16 @@ function tripIdeaMembersFor(dep) {
 // Whole-family estimate for one destination + dates: every hub's fare × its
 // travelers (a hub that IS the destination is home base, $0). This — not the
 // selected row's single-hub fare — is what gets compared with the actual total.
-function tripIdeaFamilyEstimate(rec) {
+function tripIdeaFamilyEstimate(rec, datesByPerson) {
   var r = rec || {}, city = {airport:r.airport, alternatives:r.alternatives || []}, total = 0, missing = 0, cached = 0, priced = 0;
+  var members = typeof familyForDate === 'function' ? familyForDate(r.departure || undefined) : [];
   var parts = TRIP_IDEA_HUBS.map(function(hub){
     var hc = tripIdeaHubHeadcount(hub, r.departure);
     if (hub.airports.indexOf(r.airport) >= 0) return {hub:hub.key, from:r.airport, perTicket:0, headcount:hc, status:'host'};
-    var p = tripIdeaFareFor(hub, city, r.departure, r.return);
+    // PIA-083: price this hub on its traveler's own dates when they gave them.
+    var own = null;
+    (members || []).forEach(function(code){ var d = datesByPerson && datesByPerson[_tripIdeaPersonBase(code)]; if (!own && d && hub.airports.indexOf(code) >= 0) own = d; });
+    var p = tripIdeaFareFor(hub, city, own ? own.dep : r.departure, own ? (own.ret || r.return) : r.return);
     if (p.perTicket == null) { missing++; return {hub:hub.key, from:p.from, perTicket:null, headcount:hc, status:'unavailable'}; }
     priced++; if (p.status === 'cached' || p.status === 'live') cached++;
     total += p.perTicket * hc;
@@ -9597,14 +9611,20 @@ function ideaDecisionStage(doc) {
   var org = {}; ((doc && doc.idea && doc.idea.members) || []).forEach(function(m){ if (m.label === 'Me') org[m.code] = true; });
   return doc && doc.responses && Object.keys(doc.responses).some(function(k){ return !org[k]; }) ? 'answered' : 'proposed';
 }
+// PIA-083: a member whose home airport IS the destination hosts (Mom & Dad for
+// PIA). With no answer they read "hosting" — never "waiting", never nudged.
+function _tripIdeaDestAirport(doc) {
+  var idea = (doc && doc.idea) || {};
+  return (idea.recommendation && idea.recommendation.airport) || (idea.destination && idea.destination.airport) || '';
+}
 function summarizeIdeaResponses(doc) {
-  var members = (doc && doc.idea && doc.idea.members) || [], resp = (doc && doc.responses) || {};
-  var counts = {in:0, maybe:0, out:0, pending:0}, travelersIn = 0;
+  var members = (doc && doc.idea && doc.idea.members) || [], resp = (doc && doc.responses) || {}, dest = _tripIdeaDestAirport(doc);
+  var counts = {in:0, maybe:0, out:0, pending:0, hosting:0}, travelersIn = 0;
   var rows = members.map(function(m){
-    var r = resp[m.code] || null, status = r ? r.status : 'pending';
+    var r = resp[m.code] || null, host = !!dest && m.airport === dest, status = r ? r.status : (host ? 'hosting' : 'pending');
     counts[status] = (counts[status] || 0) + 1;
-    if (status === 'in') travelersIn += Number(m.headcount) || 1;
-    return {code:m.code, label:m.label || m.code, headcount:Number(m.headcount) || 1, status:status,
+    if (status === 'in' && !host) travelersIn += Number(m.headcount) || 1;
+    return {code:m.code, label:m.label || m.code, headcount:Number(m.headcount) || 1, status:status, host:host,
       origin:(r && r.origin) || m.airport || '', available_from:(r && r.available_from) || '', available_to:(r && r.available_to) || '', note:(r && r.note) || ''};
   });
   return {rows:rows, counts:counts, travelersIn:travelersIn, stage:ideaDecisionStage(doc)};
@@ -9686,12 +9706,39 @@ function _tripIdeaRespond() {
   var body = {member:val('trip-idea-rsvp-member'), status:checked ? checked.value : '', origin:val('trip-idea-rsvp-origin').toUpperCase(),
     available_from:val('trip-idea-rsvp-from'), available_to:val('trip-idea-rsvp-to'), note:val('trip-idea-rsvp-note')};
   if (!body.member || !body.status) { showShareToast('Pick who you are and in / maybe / out'); return Promise.resolve(null); }
-  if (body.available_from && body.available_to && body.available_to < body.available_from) { showShareToast('"Free until" must be after "Free from"'); return Promise.resolve(null); }
+  var me = summarizeIdeaResponses(sh.doc).rows.filter(function(x){ return x.code === body.member; })[0];
+  if (me && me.host) { body.available_from = ''; body.available_to = ''; body.origin = ''; }
+  if (body.available_from && body.available_to && body.available_to < body.available_from) { showShareToast('“I’d leave” must be on or after “I’d arrive”'); return Promise.resolve(null); }
   return _tripIdeaApi('POST', '/idea/respond?id=' + encodeURIComponent(sh.id), body).then(function(res){
     if (res.ok && res.json && res.json.doc) { sh.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(sh.doc); showShareToast('✓ Answer saved — thanks!'); renderTripIdeaBuilder(); return res.json.doc; }
     showShareToast(res.status === 409 ? 'This trip is already decided' : 'Could not save your answer — try again');
     return null;
   });
+}
+// PIA-083: each person's answer carries their own travel dates (stored in the
+// Worker's available_from / available_to — no Worker change). Keyed by person,
+// so an answer survives the JAX → LGA move.
+function tripIdeaAnswerDates(doc) {
+  var out = {}, resp = (doc && doc.responses) || {};
+  Object.keys(resp).forEach(function(code){
+    var r = resp[code];
+    if (!r || (r.status !== 'in' && r.status !== 'maybe') || !r.available_from) return;
+    out[_tripIdeaPersonBase(code)] = {dep:r.available_from, ret:r.available_to || ''};
+  });
+  return out;
+}
+function tripIdeaMemberTravel(item, code) {
+  if (!item || !item.sharedIdeaId) return null;
+  var ans = tripIdeaAnswerDates(tripIdeaCachedDoc(item.sharedIdeaId))[_tripIdeaPersonBase(code)];
+  if (!ans || (ans.dep === item.dep && (ans.ret || null) === (item.ret || null))) return null;
+  return {dep:ans.dep, ret:ans.ret || item.ret || null, custom:true};
+}
+// The chosen option re-estimated with everyone's own dates (falls back to the stored estimate).
+function tripIdeaChosenWithAnswers(doc) {
+  var rec = doc && doc.idea && doc.idea.recommendation;
+  if (!rec) return null;
+  var fam = tripIdeaFamilyEstimate(rec, tripIdeaAnswerDates(doc));
+  return fam.total == null ? Object.assign({}, rec) : Object.assign({}, rec, {familyTotal:fam.total, familyStatus:fam.status});
 }
 function renderTripIdeaShared(target) {
   var sh = _tripIdeaShared;
@@ -9699,23 +9746,24 @@ function renderTripIdeaShared(target) {
   if (!sh.doc) { target.innerHTML = '<div class="trip-idea-empty">' + _tripIdeaEsc(sh.error) + '</div>'; return; }
   var doc = sh.doc, idea = doc.idea || {}, r = idea.recommendation || {}, sum = summarizeIdeaResponses(doc), win = ideaCommonWindow(doc);
   var closed = sum.stage === 'booked' || sum.stage === 'dropped';
+  var tripDep = r.departure || (idea.dates && idea.dates.departure) || '', tripRet = r.return || (idea.dates && idea.dates.return) || '';
   var dates = (r.departure || idea.dates && idea.dates.departure || 'Dates TBD') + (r.return ? ' → ' + r.return : '');
   var fare = (r.familyTotal != null ? 'Whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') + ' (' + (r.familyStatus === 'cached' ? 'cached fares' : 'estimate') + ') · ' : '') +
     (r.totalFare ? '$' + r.totalFare + (r.headcount > 1 ? ' ($' + r.perTicketFare + ' × ' + r.headcount + ')' : '') + ' from ' + (r.fareFrom || r.hub || '') : 'Fare not priced yet');
   var html = '<div class="trip-idea-results-summary"><strong>' + _tripIdeaEsc(idea.title || 'Trip idea') + '</strong><span class="trip-idea-stage trip-idea-stage-' + sum.stage + '">' + _tripIdeaEsc(sum.stage) + '</span></div>' +
     '<div class="trip-idea-result selected"><span class="trip-idea-result-head"><strong>' + _tripIdeaEsc(r.city || idea.destination && idea.destination.city || 'Destination TBD') + '</strong><b>' + _tripIdeaEsc(dates) + '</b></span><span>' + _tripIdeaEsc(fare) + '</span>' + (idea.notes ? '<span>' + _tripIdeaEsc(idea.notes) + '</span>' : '') + '</div>' +
     '<div class="trip-idea-rsvp-summary"><strong>' + sum.counts.in + ' in · ' + sum.counts.maybe + ' maybe · ' + sum.counts.out + ' out · ' + sum.counts.pending + ' waiting</strong><span>' + sum.travelersIn + ' traveler' + (sum.travelersIn === 1 ? '' : 's') + ' confirmed' +
-    (win ? ' · ' + (win.overlaps ? 'everyone who gave dates is free ' + _tripIdeaEsc((win.from || '…') + ' → ' + (win.to || '…')) : 'no dates work for everyone yet') : '') + '</span></div>' +
+    (win ? ' · ' + (win.overlaps ? 'everyone’s there ' + _tripIdeaEsc(tripIdeaDateRange(win.from, win.to)) : 'no overlap yet — someone leaves before another arrives') : '') + '</span></div>' +
     '<ul class="trip-idea-rsvp-list">' + sum.rows.map(function(x){
-      return '<li><strong>' + _tripIdeaEsc(x.label) + (x.headcount > 1 ? ' (' + x.headcount + ')' : '') + '</strong><span>' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[x.status] || x.status) + (x.origin ? ' · from ' + _tripIdeaEsc(x.origin) : '') +
-        (x.available_from || x.available_to ? ' · free ' + _tripIdeaEsc((x.available_from || '…') + ' → ' + (x.available_to || '…')) : '') + '</span>' + (x.note ? '<small>' + _tripIdeaEsc(x.note) + '</small>' : '') + '</li>';
+      return '<li><strong>' + _tripIdeaEsc(x.label) + (x.headcount > 1 ? ' (' + x.headcount + ')' : '') + '</strong><span>' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[x.status] || x.status) + (x.origin && !x.host ? ' · from ' + _tripIdeaEsc(x.origin) : '') +
+        (x.available_from && !x.host ? ' · here ' + _tripIdeaEsc(tripIdeaDateRange(x.available_from, x.available_to)) : '') + '</span>' + (x.note ? '<small>' + _tripIdeaEsc(x.note) + '</small>' : '') + '</li>';
     }).join('') + '</ul>';
   if (!closed) {
     html += '<form class="trip-idea-plan trip-idea-rsvp-form" onsubmit="return false"><strong>Your answer</strong><div class="trip-idea-grid">' +
       '<label>Who are you?<select id="trip-idea-rsvp-member"><option value="">Choose…</option>' + sum.rows.map(function(x){ return '<option value="' + _tripIdeaEsc(x.code) + '">' + _tripIdeaEsc(x.label) + '</option>'; }).join('') + '</select></label>' +
-      '<label>Flying from<input id="trip-idea-rsvp-origin" maxlength="3" placeholder="e.g. LAX" autocapitalize="characters"></label></div>' +
+      '<label class="trip-idea-rsvp-travel">Flying from<input id="trip-idea-rsvp-origin" maxlength="3" placeholder="e.g. LAX" autocapitalize="characters"></label></div>' +
       '<div class="trip-idea-date-mode" role="radiogroup" aria-label="Are you in?">' + ['in','maybe','out'].map(function(st){ return '<label class="trip-idea-rsvp-choice"><input type="radio" name="trip-idea-rsvp-status" value="' + st + '"> ' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[st]) + '</label>'; }).join('') + '</div>' +
-      '<div class="trip-idea-date-fields"><label>Free from <span>Optional</span><input id="trip-idea-rsvp-from" type="date"></label><label>Free until <span>Optional</span><input id="trip-idea-rsvp-to" type="date"></label></div>' +
+      '<div class="trip-idea-date-fields trip-idea-rsvp-travel"><label>I’d arrive<input id="trip-idea-rsvp-from" type="date" value="' + _tripIdeaEsc(tripDep) + '"></label><label>I’d leave<input id="trip-idea-rsvp-to" type="date" value="' + _tripIdeaEsc(tripRet) + '"></label></div>' +
       '<label class="trip-idea-notes">Note <span>Optional</span><textarea id="trip-idea-rsvp-note" rows="2" maxlength="280" placeholder="Anything the group should know"></textarea></label>' +
       '<button type="button" class="trip-idea-rsvp-send" data-idea-action="respond">Send my answer</button></form>';
   } else {
@@ -9726,7 +9774,13 @@ function renderTripIdeaShared(target) {
   if (typeof renderTripIdeaDecisionPanel === 'function') html += renderTripIdeaDecisionPanel(doc, !!sh.editKey);
   target.innerHTML = html;
   var sel = _tripIdeaEl('trip-idea-rsvp-member'), origin = _tripIdeaEl('trip-idea-rsvp-origin');
-  if (sel && origin) sel.onchange = function(){ var x = sum.rows.filter(function(m){ return m.code === sel.value; })[0]; if (x && !origin.value) origin.value = x.origin || ''; };
+  if (sel && origin) sel.onchange = function(){
+    var x = sum.rows.filter(function(m){ return m.code === sel.value; })[0], from = _tripIdeaEl('trip-idea-rsvp-from'), to = _tripIdeaEl('trip-idea-rsvp-to');
+    if (x && !origin.value) origin.value = x.origin || '';
+    // Prefill with this person's earlier answer; hosts don't travel, so hide the travel fields.
+    if (x && x.available_from && from) { from.value = x.available_from; if (to) to.value = x.available_to || ''; }
+    target.querySelectorAll('.trip-idea-rsvp-travel').forEach(function(el){ el.hidden = !!(x && x.host); });
+  };
 }
 
 // ── PIA-073: decision log — proposed → answered → chosen → booked (actual) ──
@@ -9761,7 +9815,7 @@ function tripIdeaDecisionStats(entries) {
 function tripIdeaDecisionAction(action, amount) {
   var sh = _tripIdeaShared;
   if (!sh || !sh.doc || !sh.editKey) return Promise.resolve(null);
-  var decision = action === 'choose' ? {stage:'chosen'} : action === 'drop' ? {stage:'dropped'} : action === 'reopen' ? {stage:'proposed'} : null;
+  var decision = action === 'choose' ? {stage:'chosen', chosen:tripIdeaChosenWithAnswers(sh.doc) || undefined} : action === 'drop' ? {stage:'dropped'} : action === 'reopen' ? {stage:'proposed'} : null;
   if (action === 'book') {
     var raw = amount != null ? amount : (_tripIdeaEl('trip-idea-actual') || {}).value;
     var actual = Math.round(Number(String(raw == null ? '' : raw).replace(/[$,\s]/g, '')));
@@ -10003,6 +10057,15 @@ function tripIdeaApplyLinkedRsvp() {
     Object.keys(st).forEach(function(c){ if (st[c] !== 'in') ms[c] = st[c]; });
     S.memberStatus = ms;
     S.tentativeMembers = Object.keys(ms).filter(function(k){ return ms[k] === 'tentative'; });
+    // PIA-083: each person's own travel dates → S.memberDates (effectiveDatesFor prices them).
+    var ad = tripIdeaAnswerDates(doc), md = {}, cur = typeof familyForDate === 'function' ? familyForDate(S.depDate || undefined) : [];
+    var tripDep = S.depDate && typeof fmtISO === 'function' ? fmtISO(S.depDate) : '', tripRet = S.retDate && typeof fmtISO === 'function' ? fmtISO(S.retDate) : '';
+    (cur || []).forEach(function(code){
+      var d = ad[_tripIdeaPersonBase(code)];
+      if (d && (d.dep !== tripDep || (d.ret || '') !== tripRet)) md[code] = {dep:new Date(d.dep + 'T12:00:00'), ret:d.ret ? new Date(d.ret + 'T12:00:00') : null};
+    });
+    S.memberDates = md;
+    try { if (typeof loadPrices === 'function') loadPrices(); } catch (e) {} // cache-only: zero quota
     try { if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap(); } catch (e) {}
     return ms;
   };
@@ -10029,7 +10092,7 @@ function tripIdeaLinkedNoteHtml() {
 function tripIdeaWireLinkedNote(panel) {
   if (!panel || !panel.querySelectorAll) return;
   panel.querySelectorAll('.gc-unlink').forEach(function(b){ b.addEventListener('click', function(){
-    S.linkedIdeaId = null; S.memberStatus = {}; S.tentativeMembers = [];
+    S.linkedIdeaId = null; S.memberStatus = {}; S.tentativeMembers = []; S.memberDates = {};
     if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap();
     showShareToast('What-if mode — set in / maybe / out yourself');
   }); });
@@ -10044,7 +10107,7 @@ var TRIP_IDEA_SEEN_STORAGE = 'pialax_idea_seen_v1';
 function tripIdeaCompanionsFromDoc(doc) {
   if (!doc) return [];
   return summarizeIdeaResponses(doc).rows.filter(function(r){ return r.label !== 'Me'; }).map(function(r){
-    var status = r.status === 'in' ? 'confirmed' : r.status === 'out' ? 'out' : 'tentative';
+    var status = r.status === 'in' || r.status === 'hosting' ? 'confirmed' : r.status === 'out' ? 'out' : 'tentative';
     return {label:r.label, status:status, confidence:1, is_inferred:false,
       source_text:r.status === 'pending' ? 'No answer yet on the family RSVP link' : 'Answered "' + r.status + '" on the family RSVP link'};
   });
@@ -10095,7 +10158,7 @@ function tripIdeaPromptActual(item, amount) {
   if (!(actual > 0)) return Promise.resolve(null);
   return tripIdeaFetchDoc(id, true).then(function(doc){
     var stage = doc ? ideaDecisionStage(doc) : 'proposed';
-    return stage === 'chosen' || stage === 'booked' ? doc : tripIdeaUpdateDecision(id, key, {stage:'chosen'});
+    return stage === 'chosen' || stage === 'booked' ? doc : tripIdeaUpdateDecision(id, key, {stage:'chosen', chosen:tripIdeaChosenWithAnswers(doc) || undefined});
   }).then(function(doc){
     if (!doc) { showShareToast('Could not record the total — try again from See answers'); return null; }
     return tripIdeaUpdateDecision(id, key, {stage:'booked', actual_total:actual}).then(function(done){

@@ -12,6 +12,20 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-083)
+- One family trip, staggered arrivals: each person's RSVP has **I'd arrive / I'd leave** (prefilled
+  with the trip dates). Their Google Flights link on the card uses their own dates
+  ("Me (Nov 21–29) · LAX ⇄ PIA", "Anjo (Nov 24–29) · LGA ⇄ PIA"), Family Plan prices them on their
+  own dates, and the estimate at "choose" re-prices each traveler on their dates.
+- Hosts (members whose home airport is the destination — Mom & Dad for PIA) show "🏠 Hosting",
+  skip the travel fields, and are never counted as waiting or nudged.
+- The RSVP summary says when everyone overlaps ("everyone's there Nov 24–29").
+
+### Changed (PIA-082)
+- Trip Ideas: new **🦃 Thanksgiving at home — Peoria** card (PIA, Nov 25–29, Mom & Dad host) as the
+  family RSVP test, with a flight search each for Ashwin (LAX) and Anjo (LGA). The Cary baby shower
+  is postponed and archived to history; old saved "planning" state can't reopen it.
+
 ### Fixed (PIA-081)
 - The organizer no longer shows as "waiting" on their own idea: creating a shared idea answers
   "in" for "Me" automatically (not counted as news, doesn't make the idea "answered"), and nudges

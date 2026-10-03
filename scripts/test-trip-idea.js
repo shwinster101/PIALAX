@@ -1,7 +1,7 @@
 'use strict';
 const fs = require('fs');
 const path = require('path');
-const { loadApi } = require('./harness.js');
+const { loadApi, makeLocalStorage } = require('./harness.js');
 
 const ROOT = process.argv[2] || process.cwd();
 const EXPECT = [
@@ -22,6 +22,8 @@ EXPECT.push('memberStatusFromIdea', 'tripIdeaApplyLinkedRsvp', 'tripIdeaLinkedSt
 EXPECT.push('tripIdeaShareText', 'tripIdeaDistribute', 'tripIdeaDateRange', 'tripIdeaHoldDates', 'tripIdeaNudge'); // PIA-078
 EXPECT.push('tripStateFor', 'computeRecommendation', 'tripIdeaHasNewAnswers', 'tripIdeaMarkSeen'); // PIA-079
 EXPECT.push('tripIdeaPromptActual', 'setWatchlistStage'); // PIA-080
+EXPECT.push('watchlistGFLinks'); // PIA-082
+EXPECT.push('handoffIntentsForWatchlistItem', 'tripIdeaAnswerDates', 'tripIdeaMemberTravel', 'tripIdeaChosenWithAnswers', 'tripIdeaFetchDoc'); // PIA-083
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -207,6 +209,16 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     `${file}: Trip Idea block matches scripts/trip-idea-builder.js`);
 }
 
+// PIA-082: an old saved "planning" override must not reopen the archived Cary card.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const ls = makeLocalStorage();
+  ls.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { tgiving: { stage: 'planning', dep: '2026-11-26', ret: '2026-11-29', nextAction: 'old', notes: 'my note' } }, added: [] }));
+  const { api } = loadApi(path.join(ROOT, file), file, ['watchlistItem'], { localStorage: ls });
+  const t = api.watchlistItem('tgiving');
+  check(t && t.stage === 'completed' && t.nextAction !== 'old' && t.notes === 'my note',
+    `${file}: stale Cary overrides are scrubbed (stays archived, keeps personal notes)`);
+}
+
 // PIA-072/073: shared ideas end to end — the client's fetch is routed into the
 // real worker.js (loaded as ESM) backed by an in-memory KV, so the payload the
 // browser sends is checked against the validation the Worker enforces.
@@ -339,22 +351,30 @@ async function sharedIdeaSuite() {
       check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('?idea=' + id),
         `${file}: "Hold the dates" calendar event spans Nov 6–9 and carries the RSVP link`);
     }
-    const tg = api.watchlistItem('tgiving');
-    check(tg && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)), `${file}: unlinked family card offers "Ask the family"`);
+    // PIA-082: Thanksgiving at Mom & Dad's (PIA) is the family RSVP card; Cary is archived.
+    check(api.watchlistItem('tgiving') && api.watchlistItem('tgiving').stage === 'completed' &&
+      api.tripIdeaCardActionsHtml(api.watchlistItem('tgiving')) === '', `${file}: postponed Cary card is archived (no RSVP actions)`);
+    const tg = api.watchlistItem('thanksgiving');
+    check(tg && tg.hub === 'PIA' && tg.dep === '2026-11-25' && tg.ret === '2026-11-29' && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)),
+      `${file}: Thanksgiving card (PIA, Nov 25–29) offers "Ask the family"`);
+    const tgLinks = api.watchlistGFLinks(tg).map((l) => l.label + ' ' + l.url);
+    check(tgLinks.length === 2 && tgLinks.some((l) => /^Me · /.test(l) && /LAX/.test(l)) && tgLinks.some((l) => /^Anjo · /.test(l) && /LGA/.test(l)) &&
+      !tgLinks.some((l) => /Mom/.test(l)), `${file}: Thanksgiving card links one flight search per traveler; Mom & Dad host`);
     const tgPayload = api.tripIdeaPayloadFromItem(tg);
-    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'RDU' && tgPayload.recommendation.departure === '2026-11-26' &&
-      tgPayload.recommendation.familyTotal > 0 && tgPayload.members.length === 3, `${file}: family card → payload with RDU dates and a family estimate`);
-    // PIA-080 runs on its own idea below; keep this one open for the PIA-073 flow.
-    const tgId = await api.tripIdeaAskFamily('tgiving');
+    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'PIA' && tgPayload.recommendation.departure === '2026-11-25' &&
+      tgPayload.recommendation.familyTotal === 704 && tgPayload.members.length === 3,
+      `${file}: Thanksgiving payload: PIA, Nov 25, family ≈ $704 (LAX 362 + LGA 342, hosts $0)`);
+    // PIA-080 runs on its own idea below; keep the earlier one open for the PIA-073 flow.
+    const tgId = await api.tripIdeaAskFamily('thanksgiving');
     // PIA-080: marking the linked card booked records the whole-trip total (choosing first).
-    const tgDone = await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '$1,300');
+    const tgDone = await api.tripIdeaPromptActual(api.watchlistItem('thanksgiving'), '$1,300');
     const tgDec = tgDone && tgDone.decision;
     check(tgDec && tgDec.stage === 'booked' && tgDec.actual_total === 1300 && tgDec.estimate_total > 0 && typeof tgDec.delta_pct === 'number',
       `${file}: booking a linked card records actual vs estimate (chosen automatically first)`);
     check(api.tripIdeaDecisionLog().some((e) => e.id === tgId && e.actual_total === 1300),
       `${file}: the decision log gets the booked total without opening the builder`);
-    check((await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '')) === null, `${file}: a blank total is skipped, nothing recorded`);
-    check(/^[A-Za-z0-9_-]{22}$/.test(tgId || '') && api.watchlistItem('tgiving').sharedIdeaId === tgId,
+    check((await api.tripIdeaPromptActual(api.watchlistItem('thanksgiving'), '')) === null, `${file}: a blank total is skipped, nothing recorded`);
+    check(/^[A-Za-z0-9_-]{22}$/.test(tgId || '') && api.watchlistItem('thanksgiving').sharedIdeaId === tgId,
       `${file}: "Ask the family" on a seed card creates and links a shared idea`);
     const win = api.ideaCommonWindow(after);
     check(win && win.overlaps && win.from === '2026-11-06' && win.to === '2026-11-10',
@@ -386,7 +406,65 @@ async function sharedIdeaSuite() {
   }
 }
 
-sharedIdeaSuite().catch((e) => check(false, 'shared idea suite threw: ' + (e && e.stack || e))).then(() => {
+// PIA-083: Thanksgiving in Peoria with staggered arrivals — one trip, one link,
+// each traveler's own dates driving their flight search, Family Plan and estimate.
+async function staggeredArrivalsSuite() {
+  const os = require('os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-pia-'));
+  fs.writeFileSync(path.join(tmp, 'worker.mjs'), fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8'));
+  const worker = (await import('file://' + path.join(tmp, 'worker.mjs'))).default;
+  fs.rmSync(tmp, { recursive: true, force: true });
+  const kvMap = new Map();
+  const env = { IDEAS: { get: async (k) => (kvMap.has(k) ? kvMap.get(k) : null), put: async (k, v) => { kvMap.set(k, v); } } };
+  const fetchW = async (url, opts) => { const o = opts || {}; return worker.fetch(new Request(String(url), { method: o.method || 'GET', headers: o.headers, body: o.body }), env); };
+  const respond = (id, body) => fetchW('https://w.dev/idea/respond?id=' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+  for (const file of ['pialax.html', 'pialax-mobile.html']) {
+    const { api } = loadApi(path.join(ROOT, file), file, EXPECT, { fetch: fetchW });
+    const id = await api.tripIdeaAskFamily('thanksgiving');
+    let doc = await api.tripIdeaFetchDoc(id, true);
+    let sum = api.summarizeIdeaResponses(doc);
+    const row = (code) => sum.rows.find((r) => r.code === code);
+    check(row('PIA').status === 'hosting' && row('LAX').status === 'in' && row('LGA').status === 'pending' && sum.counts.pending === 1,
+      `${file}: Thanksgiving starts with Mom & Dad hosting, Me in, Anjo waiting`);
+    check(/still need an answer from Anjo\./.test(api.tripIdeaShareText(doc, 'nudge')), `${file}: nudge names only Anjo — never the hosts or the organizer`);
+
+    await respond(id, { member: 'LAX', status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' });
+    await respond(id, { member: 'LGA', status: 'maybe', available_from: '2026-11-24', available_to: '2026-11-29' });
+    doc = await api.tripIdeaFetchDoc(id, true);
+    sum = api.summarizeIdeaResponses(doc);
+    check(sum.counts.pending === 0 && sum.travelersIn === 1, `${file}: nobody left waiting once both travelers answer`);
+
+    const item = api.watchlistItem('thanksgiving');
+    const intents = api.handoffIntentsForWatchlistItem(item);
+    const lax = intents.find((x) => x.from === 'LAX'), lga = intents.find((x) => x.from === 'LGA');
+    check(intents.length === 2 && lax.depISO === '2026-11-21' && lax.retISO === '2026-11-29' && lga.depISO === '2026-11-24' && lga.retISO === '2026-11-29' &&
+      !intents.some((x) => x.from === 'PIA'), `${file}: each traveler's flight search uses their own dates (LAX Nov 21, LGA Nov 24); hosts get none`);
+    const labels = api.watchlistGFLinks(item).map((l) => l.label);
+    check(labels.some((l) => /^Me \(Nov 21–29\)/.test(l)) && labels.some((l) => /^Anjo \(Nov 24–29\)/.test(l)),
+      `${file}: flight links are labelled with each person's dates`);
+
+    api.S.linkedIdeaId = id; api.S.depDate = new Date('2026-11-25T12:00:00'); api.S.retDate = new Date('2026-11-29T12:00:00');
+    await api.tripIdeaApplyLinkedRsvp();
+    const md = api.S.memberDates || {};
+    const iso = (d) => d && d.toISOString().slice(0, 10);
+    check(iso(md.LAX && md.LAX.dep) === '2026-11-21' && iso(md.LGA && md.LGA.dep) === '2026-11-24' && !md.PIA && api.S.memberStatus.LGA === 'tentative',
+      `${file}: Family Plan gets per-person dates (LAX Nov 21, LGA Nov 24) and Anjo's maybe`);
+    api.S.linkedIdeaId = null; api.S.memberDates = {}; api.S.memberStatus = {};
+
+    // Estimate on each person's own dates: a cached LAX→PIA fare for Nov 21–29 is used.
+    api._flightCache[api._cacheKey('LAX', 'PIA', '2026-11-21', '2026-11-29')] = { data: { rt: 250, live: true }, ts: Date.now() };
+    const chosen = api.tripIdeaChosenWithAnswers(doc);
+    check(chosen && chosen.familyTotal === 592, `${file}: estimate uses each traveler's dates (LAX $250 cached for Nov 21–29 + LGA $342) = $592`);
+    const booked = await api.tripIdeaPromptActual(api.watchlistItem('thanksgiving'), '$900');
+    check(booked && booked.decision.estimate_total === 592 && booked.decision.actual_total === 900,
+      `${file}: booking compares the actual $900 with the per-person estimate $592`);
+    Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+  }
+}
+
+sharedIdeaSuite().catch((e) => check(false, 'shared idea suite threw: ' + (e && e.stack || e)))
+  .then(() => staggeredArrivalsSuite()).catch((e) => check(false, 'staggered arrivals suite threw: ' + (e && e.stack || e))).then(() => {
   if (failures) process.exit(1);
   console.log('all Trip Idea Builder checks passing');
 });
