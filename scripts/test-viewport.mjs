@@ -772,6 +772,49 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
   }
 }
 
+// PIA-103: the organizer records a texted answer ("Mom & Dad: In") and carries
+// their organizer role to another device with the #k= link.
+{
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context({ width: 390, height: 844 }, idea, { admin: true });
+  const label = 'pialax-mobile.html RSVP organizer tools @ 390x844';
+  try {
+    const page = await ctx.newPage();
+    await page.goto(idea.url(), { waitUntil: 'load' });
+    await page.waitForSelector('[data-idea-answer-for]', { timeout: 8000 });
+    const targets = await page.$$eval('[data-idea-answer-for]', (bs) => bs.map((b) => b.getAttribute('data-idea-answer-for')));
+    await page.locator('[data-idea-answer-for="PIA"]').click();
+    const head = await page.locator('.trip-idea-form-head strong').innerText();
+    const btn = await page.locator('#trip-idea-builder-primary').innerText();
+    await page.locator('#trip-idea-builder-primary').click();
+    await page.waitForSelector('.trip-idea-mine', { timeout: 5000 });
+    const after = await page.evaluate(() => ({ list: document.querySelector('.trip-idea-rsvp-list').innerText, mine: document.querySelector('.trip-idea-mine').innerText }));
+    if (targets.join() === 'PIA,LGA' && /Answering for Mom & Dad/.test(head) && /Save for Mom & Dad/.test(btn) && /Hosting — confirmed/.test(after.list) && /entered by Ashwin/.test(after.list) && /Your answer/.test(after.mine) && !/Mom/.test(after.mine))
+      ok(`${label} — "✎ Answer for" records Mom & Dad's texted reply (tagged "entered by Ashwin"); the organizer's own answer card is unchanged`);
+    else bad(`${label} — answer-for wrong: ${JSON.stringify({ targets, head, btn, after })}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+  const ctx2 = await rsvp.context({ width: 390, height: 844 }, idea);
+  const label2 = 'pialax-mobile.html organizer link on a new device @ 390x844';
+  try {
+    const page = await ctx2.newPage();
+    await page.goto(idea.url('#k=' + idea.key), { waitUntil: 'load' });
+    await page.waitForSelector('.trip-idea-mine, .trip-idea-rsvp-form', { timeout: 8000 });
+    const st = await page.evaluate((id) => ({ guest: document.body.classList.contains('idea-guest'), hash: location.hash,
+      key: !!(JSON.parse(localStorage.getItem('pialax_idea_keys_v1') || '{}')[id] || {}).edit_key, body: document.getElementById('trip-idea-builder-body').innerText }), idea.id);
+    if (!st.guest && !st.hash && st.key && /Whole family/.test(st.body) && /Copy organizer link/.test(st.body))
+      ok(`${label2} — #k= link makes this device the organizer (admin view), and the key is wiped from the address bar`);
+    else bad(`${label2} — organizer link wrong: ${JSON.stringify({ guest: st.guest, hash: st.hash, key: st.key })}`);
+  } catch (e) {
+    bad(`${label2} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx2.close();
+  }
+}
+
 await browser.close();
 
 console.log('');

@@ -574,6 +574,28 @@ function tripIdeaDayStripHtml(doc, win) {
   return '<div class="trip-idea-strip" style="' + cols + '" role="img" aria-label="' + _tripIdeaEsc(tripIdeaWindowText(win)) + '">' + head + body + '</div>';
 }
 function tripIdeaSharedState() { return _tripIdeaShared; } // read accessor (tests, debugging)
+// PIA-103: the organizer's edit key, portable to their other devices. It rides
+// in the URL hash (#k=), which never reaches a server or a link preview, and
+// is stripped from the address bar as soon as it's saved. Links to the site
+// root so the device lands on its own (desktop / phone) page.
+function tripIdeaOrganizerLink(id) {
+  var k = _tripIdeaKeys()[id];
+  if (!k || !k.edit_key) return '';
+  return window.location.origin + window.location.pathname.replace(/[^\/]*$/, '') + '?idea=' + encodeURIComponent(id) + '#k=' + encodeURIComponent(k.edit_key);
+}
+function tripIdeaCopyOrganizerLink(id) {
+  var url = tripIdeaOrganizerLink(id);
+  if (!url) { showShareToast('Only the organizer’s device has this link'); return ''; }
+  _tripIdeaCopy(url); showShareToast('🔑 Organizer link copied — open it on your other phone or computer. Don’t send it to the family.');
+  return url;
+}
+function _tripIdeaTakeHashKey(id) {
+  var m = /(?:^#|&)k=([A-Za-z0-9_-]{32,64})(?:&|$)/.exec((window.location && window.location.hash) || '');
+  if (!m) return false;
+  var keys = _tripIdeaKeys(); if (!(keys[id] && keys[id].edit_key === m[1])) _tripIdeaSaveKey(id, m[1], '');
+  try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
+  return true;
+}
 function _tripIdeaKeys() {
   try { return JSON.parse(localStorage.getItem(TRIP_IDEA_KEYS_STORAGE)) || {}; } catch (e) { return {}; }
 }
@@ -641,6 +663,8 @@ function _tripIdeaRespond() {
   if (!body.member) { showShareToast('Tap your name first'); return Promise.resolve(null); }
   if (!body.status) { showShareToast('Pick in / maybe / out'); return Promise.resolve(null); }
   if (me && me.host) { body.available_from = ''; body.available_to = ''; body.origin = ''; }
+  if (sh.answerFor && body.note.indexOf('(entered by ') < 0) body.note = (body.note ? body.note + ' ' : '') + '(entered by ' + TRIP_IDEA_ORGANIZER_NAME + ')';
+  body.note = body.note.slice(0, 280);
   if (body.available_from && body.available_to && body.available_to < body.available_from) { showShareToast('“I’d leave” must be on or after “I’d arrive”'); return Promise.resolve(null); }
   return _tripIdeaApi('POST', '/idea/respond?id=' + encodeURIComponent(sh.id), body).then(function(res){
     if (res.ok && res.json && res.json.doc) {
@@ -696,11 +720,15 @@ function renderTripIdeaShared(target) {
     '<div class="trip-idea-rsvp-summary"><strong>' + sum.counts.in + ' in · ' + sum.counts.maybe + ' maybe · ' + sum.counts.out + ' out · ' + sum.counts.pending + ' waiting</strong><span>' + sum.travelersIn + ' traveler' + (sum.travelersIn === 1 ? '' : 's') + ' confirmed</span>' +
     '<b class="trip-idea-window' + (win && win.everyone && win.total > 1 ? ' all' : '') + '">' + _tripIdeaEsc(tripIdeaWindowText(win)) + '</b>' + tripIdeaDayStripHtml(doc, win) + '</div>' +
     '<ul class="trip-idea-rsvp-list">' + sum.rows.map(function(x){
-      return '<li><strong>' + _tripIdeaEsc(_tripIdeaName(x.label)) + (x.headcount > 1 ? ' (' + x.headcount + ')' : '') + '</strong><span>' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[x.status] || x.status) + (x.origin && !x.host ? ' · from ' + _tripIdeaEsc(x.origin) : '') +
+      var canAnswerFor = sh.editKey && !closed && !_tripIdeaIsOrganizer(x.label);
+      return '<li' + (canAnswerFor ? ' class="has-edit"' : '') + '><strong>' + _tripIdeaEsc(_tripIdeaName(x.label)) + (x.headcount > 1 ? ' (' + x.headcount + ')' : '') + '</strong>' +
+        (canAnswerFor ? '<button type="button" class="trip-idea-row-edit" data-idea-answer-for="' + _tripIdeaEsc(x.code) + '" aria-label="Answer for ' + _tripIdeaEsc(x.label) + '">✎ Answer for</button>' : '') +
+        '<span>' + _tripIdeaEsc(x.host && x.status === 'in' ? '🏠 Hosting — confirmed' : (TRIP_IDEA_RSVP_LABELS[x.status] || x.status)) + (x.origin && !x.host ? ' · from ' + _tripIdeaEsc(x.origin) : '') +
         (x.available_from && !x.host ? ' · here ' + _tripIdeaEsc(tripIdeaDateRange(x.available_from, x.available_to)) : '') + '</span>' + (x.note ? '<small>' + _tripIdeaEsc(x.note) + '</small>' : '') + '</li>';
     }).join('') + '</ul>';
   html += _tripIdeaAnswerHtml(sh, sum, closed);
   var othersWaiting = sum.rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).length;
+  if (sh.editKey) html += '<div class="trip-idea-decision-row trip-idea-admin-row"><button type="button" class="secondary trip-idea-rsvp-send" data-idea-orglink>🔑 Copy organizer link</button></div>';
   if (!closed && sh.editKey && (othersWaiting || (win && win.total > 1))) html += '<div class="trip-idea-decision-row trip-idea-admin-row">' +
     (othersWaiting ? '<button type="button" class="secondary trip-idea-rsvp-send" data-idea-action="nudge">📣 Nudge ' + othersWaiting + ' waiting</button>' : '') +
     (win && win.total > 1 ? '<button type="button" class="secondary trip-idea-rsvp-send" data-idea-hold>📅 Hold ' + _tripIdeaEsc(tripIdeaDateRange(win.from, win.to)) + '</button>' : '') + '</div>';
@@ -709,7 +737,7 @@ function renderTripIdeaShared(target) {
   if (_tripIdeaGuest) html += '<p class="trip-idea-guest-exit"><button type="button" class="trip-idea-linkish" data-idea-leave>Open full PIALAX</button></p>';
   target.innerHTML = html;
   var primary = _tripIdeaEl('trip-idea-builder-primary');
-  if (primary && sh.formOpen) { primary.disabled = false; primary.textContent = sh.formHost ? 'Confirm we’re hosting' : 'Send my answer'; }
+  if (primary && sh.formOpen) { primary.disabled = false; primary.textContent = sh.answerFor ? 'Save for ' + sh.formName : sh.formHost ? 'Confirm we’re hosting' : 'Send my answer'; }
   _tripIdeaWireShared(target, sh);
 }
 // PIA-100: the answer area is one of three states — pick your name (first
@@ -733,7 +761,7 @@ function _tripIdeaAnswerHtml(sh, sum, closed) {
       (bits.length ? '<span>' + _tripIdeaEsc(bits.join(' · ')) + '</span>' : '') + (row.note ? '<small>' + _tripIdeaEsc(row.note) + '</small>' : '') +
       '<div class="trip-idea-mine-actions"><button type="button" data-idea-edit>Change my answer</button>' + (sh.editKey ? '' : '<button type="button" class="trip-idea-linkish" data-idea-notme>Not ' + _tripIdeaEsc(row.label) + '?</button>') + '</div></div>';
   }
-  sh.formOpen = true; sh.formHost = row.host;
+  sh.formOpen = true; sh.formHost = row.host; sh.formName = row.label;
   var mine = (sh.doc.responses && sh.doc.responses[row.code]) || {};
   var head = forOther ? 'Answering for ' + _tripIdeaEsc(row.label) + ' <small>(entered by you)</small>' : name === 'You' ? 'Your answer' : 'Answering as ' + _tripIdeaEsc(row.label);
   var aside = forOther ? '<button type="button" class="trip-idea-linkish" data-idea-cancel>Cancel</button>'
@@ -758,6 +786,11 @@ function _tripIdeaWireShared(target, sh) {
   on('[data-idea-notme]', function(){ tripIdeaSetMe(sh.id, ''); sh.picked = ''; sh.editing = false; renderTripIdeaBuilder(); });
   on('[data-idea-leave]', function(){ tripIdeaLeaveGuest(); });
   on('[data-idea-hold]', function(){ var w = ideaBestWindow(sh.doc); if (w) tripIdeaHoldWindow(sh.id, w); });
+  on('[data-idea-orglink]', function(){ tripIdeaCopyOrganizerLink(sh.id); });
+  on('[data-idea-answer-for]', function(el){
+    sh.answerFor = el.getAttribute('data-idea-answer-for'); sh.editing = true; sh.cal = null; renderTripIdeaBuilder();
+    var f = target.querySelector('.trip-idea-rsvp-form'); if (f && f.scrollIntoView) f.scrollIntoView({block:'start'});
+  });
   _tripIdeaWireCal(sh);
 }
 // ── PIA-101: arrive/leave calendar ──────────────────────────────────────────
@@ -1075,7 +1108,8 @@ function tripIdeaCardActionsHtml(item) {
   var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
   if (item.sharedIdeaId) {
     var doc = tripIdeaCachedDoc(item.sharedIdeaId), pending = doc ? summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).length : 0;
-    return b('wl-idea-open', '👥 See answers') + (pending ? b('wl-idea-nudge', '📣 Nudge ' + pending + ' waiting') : '') + b('wl-idea-hold', '📅 Hold the dates');
+    var hasKey = !!(_tripIdeaKeys()[item.sharedIdeaId] || {}).edit_key;
+    return b('wl-idea-open', '👥 See answers') + (pending ? b('wl-idea-nudge', '📣 Nudge ' + pending + ' waiting') : '') + b('wl-idea-hold', '📅 Hold the dates') + (hasKey ? b('wl-idea-key', '🔑 Organizer link') : '');
   }
   if (item.mode === 'family' || item.builderMetadata) return b('wl-idea-ask', '👥 Ask the family');
   return '';
@@ -1085,6 +1119,7 @@ function tripIdeaWireCardActions(root) {
   root.querySelectorAll('.wl-idea-open').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) _tripIdeaOpenRemote(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-nudge').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaNudge(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-hold').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaHoldDates(el.getAttribute('data-id')); }); });
+  root.querySelectorAll('.wl-idea-key').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) tripIdeaCopyOrganizerLink(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-ask').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaAskFamily(el.getAttribute('data-id')); }); });
 }
 
@@ -1236,7 +1271,7 @@ function initTripIdeaBuilder(){
   var bd=_tripIdeaEl('trip-idea-builder-bd');if(bd)bd.onclick=function(e){if(e.target===bd)tripIdeaBuilderClose();};
   document.addEventListener('keydown',function(e){if(e.key==='Escape' && _tripIdeaBuilderOpen)tripIdeaBuilderClose();});
   var raw='', ideaId=''; try{var q=new URLSearchParams(window.location.search);raw=q.get('tripIdea')||'';ideaId=q.get('idea')||'';}catch(e){}
-  if(/^[A-Za-z0-9_-]{22}$/.test(ideaId)){ var k=_tripIdeaKeys(); tripIdeaSetGuest(!(k[ideaId] && k[ideaId].edit_key)); _tripIdeaOpenRemote(ideaId); }
+  if(/^[A-Za-z0-9_-]{22}$/.test(ideaId)){ var took=_tripIdeaTakeHashKey(ideaId), k=_tripIdeaKeys(); tripIdeaSetGuest(!(k[ideaId] && k[ideaId].edit_key)); _tripIdeaOpenRemote(ideaId); if(took) showShareToast('🔑 This device can now manage this trip'); }
   else if(raw){var payload=restoreTripIdeaSharePayload(raw);if(payload){_tripIdeaOpenShared(payload);}}
   window.tripIdeaBuilder=tripIdeaBuilder;
 }

@@ -12,6 +12,15 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-103)
+- Organizer: every family row on the RSVP has "✎ Answer for". When someone just texts "In",
+  record it for them, e.g. "Save for Mom & Dad". It's tagged "(entered by Ashwin)" and doesn't
+  change who your own phone answers as. Hosts who confirmed read "🏠 Hosting — confirmed".
+- "🔑 Copy organizer link" (RSVP page and Trips card) lets you manage the trip from another
+  phone or computer. The key travels in the link's `#k=` part, which never reaches a server or a
+  link preview. It's removed from the address bar once saved, and it's only for you, not the
+  family.
+
 ### Added (PIA-102)
 - The RSVP shows when the family is actually together. With full overlap it says "Everyone's
   there Nov 26–29". Otherwise it shows the days most people are there and who's missing why:
