@@ -599,11 +599,14 @@ function renderTripIdeaShared(target) {
   var doc = sh.doc, idea = doc.idea || {}, r = idea.recommendation || {}, sum = summarizeIdeaResponses(doc), win = ideaCommonWindow(doc);
   var closed = sum.stage === 'booked' || sum.stage === 'dropped';
   var tripDep = r.departure || (idea.dates && idea.dates.departure) || '', tripRet = r.return || (idea.dates && idea.dates.return) || '';
-  var dates = (r.departure || idea.dates && idea.dates.departure || 'Dates TBD') + (r.return ? ' → ' + r.return : '');
-  var fare = (r.familyTotal != null ? 'Whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') + ' (' + (r.familyStatus === 'cached' ? 'cached fares' : 'estimate') + ') · ' : '') +
+  // PIA-098: guests see a rough time and pick their own days; only the organizer
+  // (edit key on this device) sees the exact proposal dates and the cost.
+  var dates = sh.editKey ? (r.departure || idea.dates && idea.dates.departure || 'Dates TBD') + (r.return ? ' → ' + r.return : '')
+    : (tripIdeaLooseWhen(tripDep) ? tripIdeaLooseWhen(tripDep).replace(/^./, function(c){ return c.toUpperCase(); }) + ' · pick your own dates' : 'Pick your own dates');
+  var fare = !sh.editKey ? '' : (r.familyTotal != null ? 'Whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') + ' (' + (r.familyStatus === 'cached' ? 'cached fares' : 'estimate') + ') · ' : '') +
     (r.totalFare ? '$' + r.totalFare + (r.headcount > 1 ? ' ($' + r.perTicketFare + ' × ' + r.headcount + ')' : '') + ' from ' + (r.fareFrom || r.hub || '') : 'Fare not priced yet');
   var html = '<div class="trip-idea-results-summary"><strong>' + _tripIdeaEsc(idea.title || 'Trip idea') + '</strong><span class="trip-idea-stage trip-idea-stage-' + sum.stage + '">' + _tripIdeaEsc(sum.stage) + '</span></div>' +
-    '<div class="trip-idea-result selected"><span class="trip-idea-result-head"><strong>' + _tripIdeaEsc(r.city || idea.destination && idea.destination.city || 'Destination TBD') + '</strong><b>' + _tripIdeaEsc(dates) + '</b></span><span>' + _tripIdeaEsc(fare) + '</span>' + (idea.notes ? '<span>' + _tripIdeaEsc(idea.notes) + '</span>' : '') + '</div>' +
+    '<div class="trip-idea-result selected"><span class="trip-idea-result-head"><strong>' + _tripIdeaEsc(r.city || idea.destination && idea.destination.city || 'Destination TBD') + '</strong><b>' + _tripIdeaEsc(dates) + '</b></span>' + (fare ? '<span>' + _tripIdeaEsc(fare) + '</span>' : '') + (idea.notes ? '<span>' + _tripIdeaEsc(idea.notes) + '</span>' : '') + '</div>' +
     '<div class="trip-idea-rsvp-summary"><strong>' + sum.counts.in + ' in · ' + sum.counts.maybe + ' maybe · ' + sum.counts.out + ' out · ' + sum.counts.pending + ' waiting</strong><span>' + sum.travelersIn + ' traveler' + (sum.travelersIn === 1 ? '' : 's') + ' confirmed' +
     (win ? ' · ' + (win.overlaps ? 'everyone’s there ' + _tripIdeaEsc(tripIdeaDateRange(win.from, win.to)) : 'no overlap yet — someone leaves before another arrives') : '') + '</span></div>' +
     '<ul class="trip-idea-rsvp-list">' + sum.rows.map(function(x){
@@ -615,7 +618,7 @@ function renderTripIdeaShared(target) {
       '<label>Who are you?<select id="trip-idea-rsvp-member"><option value="">Choose…</option>' + sum.rows.map(function(x){ return '<option value="' + _tripIdeaEsc(x.code) + '">' + _tripIdeaEsc(x.label) + '</option>'; }).join('') + '</select></label>' +
       '<label class="trip-idea-rsvp-travel">Flying from<input id="trip-idea-rsvp-origin" maxlength="3" placeholder="e.g. LAX" autocapitalize="characters"></label></div>' +
       '<div class="trip-idea-date-mode" role="radiogroup" aria-label="Are you in?">' + ['in','maybe','out'].map(function(st){ return '<label class="trip-idea-rsvp-choice"><input type="radio" name="trip-idea-rsvp-status" value="' + st + '"> ' + _tripIdeaEsc(TRIP_IDEA_RSVP_LABELS[st]) + '</label>'; }).join('') + '</div>' +
-      '<div class="trip-idea-date-fields trip-idea-rsvp-travel"><label>I’d arrive<input id="trip-idea-rsvp-from" type="date" value="' + _tripIdeaEsc(tripDep) + '"></label><label>I’d leave<input id="trip-idea-rsvp-to" type="date" value="' + _tripIdeaEsc(tripRet) + '"></label></div>' +
+      '<div class="trip-idea-date-fields trip-idea-rsvp-travel"><label>I’d arrive<input id="trip-idea-rsvp-from" type="date" value="' + _tripIdeaEsc(sh.editKey ? tripDep : '') + '"></label><label>I’d leave<input id="trip-idea-rsvp-to" type="date" value="' + _tripIdeaEsc(sh.editKey ? tripRet : '') + '"></label></div>' +
       '<label class="trip-idea-notes">Note <span>Optional</span><textarea id="trip-idea-rsvp-note" rows="2" maxlength="280" placeholder="Anything the group should know"></textarea></label>' +
       '<button type="button" class="trip-idea-rsvp-send" data-idea-action="respond">Send my answer</button></form>';
   } else {
@@ -813,16 +816,26 @@ function tripIdeaDateRange(dep, ret) {
   if (!b) return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d;
   return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d + '–' + (b.m === a.m ? '' : TRIP_IDEA_MONTHS[b.m] + ' ') + b.d;
 }
+// PIA-098: a rough time of month ("late Nov"), never exact days — each person
+// picks their own arrive/leave dates in the RSVP.
+function tripIdeaLooseWhen(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return '';
+  var day = +m[3];
+  return (day <= 10 ? 'early ' : day <= 20 ? 'mid-' : 'late ') + TRIP_IDEA_MONTHS[+m[2] - 1];
+}
+// PIA-098: the group text carries no price and no exact dates — people come and
+// go on their own dates, and the cost is the organizer's to weigh.
 function tripIdeaShareText(doc, kind) {
   var idea = (doc && doc.idea) || {}, r = idea.recommendation || {}, d = idea.dates || {};
-  var title = String(idea.title || 'Trip idea').replace(/\s+trip$/i, '') + ' trip';
-  var when = tripIdeaDateRange(r.departure || d.departure || d.searchStart, r.return || d.return || d.searchEnd);
+  var title = String(idea.title || 'Trip idea').replace(/\s+trip$/i, '');
+  if (/^[A-Za-z0-9]/.test(title)) title = '✈️ ' + title; // titles that open with their own emoji keep it
+  var when = tripIdeaLooseWhen(r.departure || d.departure || d.searchStart);
   if (kind === 'nudge') {
     var waiting = summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).map(function(x){ return x.label; });
-    return '✈️ ' + title + ' (' + when + ') — still need an answer from ' + (waiting.length ? waiting.join(' and ') : 'everyone') + '. In / maybe / out?';
+    return title + (when ? ' (' + when + ')' : '') + ' — still need an answer from ' + (waiting.length ? waiting.join(' and ') : 'everyone') + '. In / maybe / out, and your dates?';
   }
-  var cost = r.familyTotal != null ? ' — whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') : '';
-  return '✈️ ' + title + ' ' + when + cost + '. Are you in? Tap to answer in / maybe / out:';
+  return title + (when ? ' · ' + when : '') + '. Come and go on your own dates — tap to say in / maybe / out and when you’d be there:';
 }
 function tripIdeaDistribute(title, text, url) {
   var nav = typeof navigator !== 'undefined' ? navigator : null;
