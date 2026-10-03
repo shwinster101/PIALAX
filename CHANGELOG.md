@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-081)
+- The organizer no longer shows as "waiting" on their own idea: creating a shared idea answers
+  "in" for "Me" automatically (not counted as news, doesn't make the idea "answered"), and nudges
+  never name the organizer.
+
 ### Added (PIA-080)
 - Marking a linked Trip Ideas card "booked" (on the organizer's device) asks once for the whole-trip
   total and records it on the shared idea — choosing the proposal first if needed — so the decision

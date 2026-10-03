@@ -455,7 +455,9 @@ function buildSharedIdeaPayload(builder, recommendation, notes, members) {
 function ideaDecisionStage(doc) {
   var d = doc && doc.decision, st = d && d.stage;
   if (st === 'chosen' || st === 'booked' || st === 'dropped') return st;
-  return doc && doc.responses && Object.keys(doc.responses).length ? 'answered' : 'proposed';
+  // PIA-081: the organizer's own automatic "in" doesn't make an idea "answered".
+  var org = {}; ((doc && doc.idea && doc.idea.members) || []).forEach(function(m){ if (m.label === 'Me') org[m.code] = true; });
+  return doc && doc.responses && Object.keys(doc.responses).some(function(k){ return !org[k]; }) ? 'answered' : 'proposed';
 }
 function summarizeIdeaResponses(doc) {
   var members = (doc && doc.idea && doc.idea.members) || [], resp = (doc && doc.responses) || {};
@@ -524,7 +526,7 @@ function _tripIdeaShare(){
     // PIA-076: the shared idea lives on a Trip Ideas card (saved now if it wasn't).
     if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc);
     var item = _tripIdeaSave(true); if (item && typeof tripIdeaLinkItem === 'function') { tripIdeaLinkItem(item, res.json.id); if (typeof renderWatchlist === 'function') renderWatchlist(); }
-    return tripIdeaSendInvite(res.json.doc);
+    return _tripIdeaAnswerAsOrganizer(res.json.doc).then(function(doc){ if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {} return tripIdeaSendInvite(doc); });
   });
 }
 function _tripIdeaOpenRemote(id) {
@@ -581,7 +583,8 @@ function renderTripIdeaShared(target) {
   } else {
     html += '<div class="trip-idea-empty">This trip is ' + _tripIdeaEsc(sum.stage) + ' — answers are closed.</div>';
   }
-  if (!closed && sum.counts.pending && sh.editKey) html += '<div class="trip-idea-decision-row" style="margin-top:10px"><button type="button" class="secondary trip-idea-rsvp-send" data-idea-action="nudge">📣 Nudge ' + sum.counts.pending + ' waiting</button></div>';
+  var othersWaiting = sum.rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).length;
+  if (!closed && othersWaiting && sh.editKey) html += '<div class="trip-idea-decision-row" style="margin-top:10px"><button type="button" class="secondary trip-idea-rsvp-send" data-idea-action="nudge">📣 Nudge ' + othersWaiting + ' waiting</button></div>';
   if (typeof renderTripIdeaDecisionPanel === 'function') html += renderTripIdeaDecisionPanel(doc, !!sh.editKey);
   target.innerHTML = html;
   var sel = _tripIdeaEl('trip-idea-rsvp-member'), origin = _tripIdeaEl('trip-idea-rsvp-origin');
@@ -664,6 +667,20 @@ function tripIdeaHistoryHtml() {
     }).join('') + '</ul></details>';
 }
 
+// PIA-081: the organizer ("Me" in FAMILY_INFO) proposed the trip, so they are
+// "in" from the start — they never show as waiting and are never nudged.
+function _tripIdeaIsOrganizer(label) { return label === 'Me'; }
+function _tripIdeaAnswerAsOrganizer(doc) {
+  var me = ((doc && doc.idea && doc.idea.members) || []).filter(function(m){ return _tripIdeaIsOrganizer(m.label); })[0];
+  if (!me || (doc.responses && doc.responses[me.code])) return Promise.resolve(doc);
+  return _tripIdeaApi('POST', '/idea/respond?id=' + encodeURIComponent(doc.id), {member:me.code, status:'in'}).then(function(res){
+    var next = res.ok && res.json && res.json.doc ? res.json.doc : doc;
+    if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(next);
+    if (typeof tripIdeaMarkSeen === 'function') tripIdeaMarkSeen(next); // your own "in" isn't news
+    return next;
+  });
+}
+
 // ── PIA-076: shared ideas ↔ Trip Ideas cards ────────────────────────────────
 // A watchlist item carries `sharedIdeaId` once the family has been asked. The
 // card shows a live RSVP chip (cached GET /idea, ≤ 1 fetch per idea per 5 min)
@@ -733,9 +750,11 @@ function tripIdeaAskFamily(itemId) {
     _tripIdeaSaveKey(res.json.id, res.json.edit_key, payload.title);
     tripIdeaStoreDoc(res.json.doc); tripIdeaRecordDecision(res.json.doc);
     tripIdeaLinkItem(item, res.json.id);
-    tripIdeaSendInvite(res.json.doc);
-    if (typeof renderWatchlist === 'function') renderWatchlist();
-    return res.json.id;
+    return _tripIdeaAnswerAsOrganizer(res.json.doc).then(function(doc){
+      if (typeof renderWatchlist === 'function') renderWatchlist();
+      tripIdeaSendInvite(doc);
+      return res.json.id;
+    });
   });
 }
 // ── PIA-078: distribution to the family group text ─────────────────────────
@@ -755,7 +774,7 @@ function tripIdeaShareText(doc, kind) {
   var title = String(idea.title || 'Trip idea').replace(/\s+trip$/i, '') + ' trip';
   var when = tripIdeaDateRange(r.departure || d.departure || d.searchStart, r.return || d.return || d.searchEnd);
   if (kind === 'nudge') {
-    var waiting = summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending'; }).map(function(x){ return x.label; });
+    var waiting = summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).map(function(x){ return x.label; });
     return '✈️ ' + title + ' (' + when + ') — still need an answer from ' + (waiting.length ? waiting.join(' and ') : 'everyone') + '. In / maybe / out?';
   }
   var cost = r.familyTotal != null ? ' — whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') : '';
@@ -801,7 +820,7 @@ function tripIdeaCardActionsHtml(item) {
   if (!item || item.stage === 'completed') return '';
   var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
   if (item.sharedIdeaId) {
-    var doc = tripIdeaCachedDoc(item.sharedIdeaId), pending = doc ? summarizeIdeaResponses(doc).counts.pending : 0;
+    var doc = tripIdeaCachedDoc(item.sharedIdeaId), pending = doc ? summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).length : 0;
     return b('wl-idea-open', '👥 See answers') + (pending ? b('wl-idea-nudge', '📣 Nudge ' + pending + ' waiting') : '') + b('wl-idea-hold', '📅 Hold the dates');
   }
   if (item.mode === 'family' || item.builderMetadata) return b('wl-idea-ask', '👥 Ask the family');

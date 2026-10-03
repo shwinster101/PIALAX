@@ -272,6 +272,9 @@ async function sharedIdeaSuite() {
     check(hostFam.parts.some((p) => p.hub === 'LAX' && p.status === 'host' && p.perTicket === 0),
       `${file}: a hub that is the destination counts as home base ($0)`);
     check(api.ideaDecisionStage(doc) === 'proposed', `${file}: new shared idea is "proposed"`);
+    check(doc.responses.LAX && doc.responses.LAX.status === 'in' && Object.keys(doc.responses).length === 1,
+      `${file}: the organizer ("Me") is counted in automatically`);
+    check(!/Me/.test(api.tripIdeaShareText(doc, 'nudge').replace('Mom', '')), `${file}: nudges never ask the organizer`);
 
     const respond = (body) => makeFetch(env)('https://w.dev/idea/respond?id=' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     await respond({ member: 'PIA', status: 'in', available_from: '2026-11-05', available_to: '2026-11-10' });
