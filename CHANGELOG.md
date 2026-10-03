@@ -12,6 +12,14 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-098)
+- RSVP invites and nudges no longer include a price or exact dates. They give a rough time
+  ("🦃 Thanksgiving at home — Peoria · late Nov. Come and go on your own dates — tap to say
+  in / maybe / out and when you’d be there:"), since each person can arrive and leave on their own days.
+- The RSVP page now shows guests "Late Nov · pick your own dates" with empty arrive/leave fields.
+  The organizer (the device holding the edit key) still sees the exact proposal dates, the family
+  cost and prefilled dates.
+
 ### Changed (PIA-091)
 - iPhone map labels no longer overlap. Airport codes, city names, fare tags and the PIA → ORD
   drive badge are placed together, clear of each other, of every labelled airport and of the

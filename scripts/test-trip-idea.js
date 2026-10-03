@@ -26,6 +26,7 @@ EXPECT.push('watchlistGFLinks'); // PIA-082
 EXPECT.push('handoffIntentsForWatchlistItem', 'tripIdeaAnswerDates', 'tripIdeaMemberTravel', 'tripIdeaChosenWithAnswers', 'tripIdeaFetchDoc'); // PIA-083
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 EXPECT.push('mapHubOption'); // PIA-091
+EXPECT.push('tripIdeaLooseWhen'); // PIA-098
 const OPTIONAL = [];
 let failures = 0;
 const formMarkup = {};
@@ -330,8 +331,12 @@ async function sharedIdeaSuite() {
     check(api.tripIdeaHasNewAnswers(newer) === false, `${file}: opening the answers clears the new-answers dot`);
     // PIA-078: group-text distribution.
     const inviteTxt = api.tripIdeaShareText(after, 'invite');
-    check(/Nov 6–9/.test(inviteTxt) && /whole family ≈ \$1,116/.test(inviteTxt) && /Are you in\?/.test(inviteTxt) && !/https?:/.test(inviteTxt),
-      `${file}: invite text has dates, family estimate, the ask — and no URL (passed separately)`);
+    // PIA-098: no price and no exact days — a rough time, own dates, the ask; URL passed separately.
+    check(/early Nov/.test(inviteTxt) && !/\$/.test(inviteTxt) && !/\d/.test(inviteTxt.replace('✈️', '')) && /own dates/.test(inviteTxt) && /in \/ maybe \/ out/.test(inviteTxt) && !/https?:/.test(inviteTxt),
+      `${file}: invite text has a rough time and the ask — no price, no exact dates, no URL`);
+    check(!/\$|\d/.test(api.tripIdeaShareText(after, 'nudge')), `${file}: nudge has no price or exact dates either`);
+    check(api.tripIdeaLooseWhen('2026-11-25') === 'late Nov' && api.tripIdeaLooseWhen('2026-11-15') === 'mid-Nov' && api.tripIdeaLooseWhen('') === '',
+      `${file}: loose time of month (early / mid- / late)`);
     check(/still need an answer from Anjo/.test(api.tripIdeaShareText(after, 'nudge')), `${file}: nudge names who is still waiting`);
     check(api.tripIdeaDateRange('2026-10-30', '2026-11-02') === 'Oct 30–Nov 2' && api.tripIdeaDateRange('', '') === 'dates TBD',
       `${file}: date ranges read naturally across months`);
