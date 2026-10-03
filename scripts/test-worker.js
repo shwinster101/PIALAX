@@ -549,6 +549,28 @@ const VALID_EXTRACTION = {
       if (proto.status === 400 && protoStage.status === 400) ok('status/stage lookups ignore Object.prototype names ("toString", "constructor")');
       else bad(`prototype lookups: ${proto.status}/${protoStage.status}`);
     }
+    // PIA-106: who's booked.
+    {
+      const c4 = await readJson(await call(req('POST', 'https://w.dev/idea', { idea: IDEA }), env));
+      const post = async (p, b) => { const r = await call(req('POST', 'https://w.dev' + p + '?id=' + c4.id, b), env); return { status: r.status, j: await readJson(r) }; };
+      const early = await post('/idea/booked', { member: 'LGA', booked: true });
+      await post('/idea/respond', { member: 'LGA', status: 'in', available_from: '2026-11-06', available_to: '2026-11-09', note: 'yay' });
+      const set = await post('/idea/booked', { member: 'LGA', booked: true });
+      const lga = set.j && set.j.doc.responses.LGA;
+      if (early.status === 400 && early.j.code === 'answer_first' && set.status === 200 && lga.booked === true && lga.booked_at && lga.note === 'yay' && lga.available_to === '2026-11-09' && set.j.can_book === true)
+        ok('/idea/booked: needs an in/maybe answer first; sets booked and keeps the rest of the answer');
+      else bad('booked set: ' + JSON.stringify({ early, set: set.j && set.j.doc.responses }));
+      const changed = await post('/idea/respond', { member: 'LGA', status: 'maybe', available_from: '2026-11-07', available_to: '2026-11-09' });
+      const out = await post('/idea/respond', { member: 'LGA', status: 'out' });
+      if (changed.j.doc.responses.LGA.booked === true && !out.j.doc.responses.LGA.booked) ok('changing an answer keeps "booked"; answering out clears it');
+      else bad('booked keep/clear: ' + JSON.stringify([changed.j.doc.responses.LGA, out.j.doc.responses.LGA]));
+      const badM = await post('/idea/booked', { member: 'BOS', booked: true });
+      const badB = await post('/idea/booked', { member: 'LGA', booked: 'yes' });
+      await call(req('POST', 'https://w.dev/idea/update?id=' + c4.id, { edit_key: c4.edit_key, decision: { stage: 'dropped' } }), env);
+      const closedB = await post('/idea/booked', { member: 'LGA', booked: false });
+      if (badM.status === 400 && badB.status === 400 && closedB.status === 409) ok('/idea/booked rejects unknown members and non-boolean flags; dropped trips are closed');
+      else bad(`booked errors: ${badM.status}/${badB.status}/${closedB.status}`);
+    }
     const opts = [];
     const ttlEnv = { IDEAS: { get: async () => null, put: async (k, v, o) => { opts.push(o); } } };
     await call(req('POST', 'https://w.dev/idea', { idea: IDEA }), ttlEnv);

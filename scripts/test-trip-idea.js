@@ -29,6 +29,8 @@ EXPECT.push('mapHubOption'); // PIA-091
 EXPECT.push('tripIdeaLooseWhen'); // PIA-098
 EXPECT.push('ideaBestWindow', 'tripIdeaWindowText', 'tripIdeaDayStripHtml'); // PIA-102
 EXPECT.push('tripIdeaInviteUrl'); // PIA-104
+EXPECT.push('tripIdeaFlightUrl', 'tripIdeaBookRows'); // PIA-105
+EXPECT.push('tripIdeaBookedCount', 'tripIdeaCanBook'); // PIA-106
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -96,6 +98,19 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   // (so nothing breaks before `wrangler deploy`).
   check(/[?&]idea=AAAAAAAAAAAAAAAAAAAAAA$/.test(api.tripIdeaInviteUrl('AAAAAAAAAAAAAAAAAAAAAA')),
     `${file}: before the Worker announces previews, the invite link is the app's ?idea= page`);
+  // PIA-105: one Google Flights search per traveler, on their own dates; hosts and "out" skipped.
+  {
+    const q = (u) => decodeURIComponent((u.split('?q=')[1] || '').replace(/\+/g, ' '));
+    check(q(api.tripIdeaFlightUrl('LGA', 'PIA', '2026-11-26', '2026-11-30', 1)) === 'Flights from LGA to PIA on 2026-11-26 through 2026-11-30' &&
+      q(api.tripIdeaFlightUrl('PIA', 'RDU', '2026-11-06', '', 2)) === 'Flights from PIA to RDU on 2026-11-06 one way for 2 adults' &&
+      api.tripIdeaFlightUrl('PIA', 'PIA', '2026-11-06', '', 1) === '' && api.tripIdeaFlightUrl('LGA', 'PIA', '', '', 1) === '',
+      `${file}: flight search links — round trip, one way, "for 2 adults", none without dates or to your own airport`);
+    const doc = { idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' }, members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }, { code: 'RDU', label: 'Kiran', airport: 'RDU' }] },
+      responses: { PIA: { status: 'in' }, LAX: { status: 'in', origin: 'LAX', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'maybe', origin: 'JFK', available_from: '2026-11-26', available_to: '2026-11-30' }, RDU: { status: 'out' } } };
+    const rows = api.tripIdeaBookRows(doc);
+    check(rows.map((r) => r.code).join() === 'LAX,LGA' && rows[1].from === 'JFK' && /on 2026-11-26 through 2026-11-30/.test(decodeURIComponent(rows[1].url)) && /on 2026-11-21 through 2026-11-29/.test(decodeURIComponent(rows[0].url)),
+      `${file}: book rows — travelers only (no hosts, no "out"), each from their own airport on their own dates`);
+  }
   // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
   check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',
     `${file}: map focus from the builder's LGA_JFK hub lands on New York, not PIA/ORD`);
@@ -251,6 +266,20 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     }));
   }
   check(fetchCalls === before, 'building recommendations makes zero network calls');
+}
+
+// PIA-106: who's booked — counts, and the nudge turns to booking once everyone answered.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const ls = makeLocalStorage();
+  const { api } = loadApi(path.join(ROOT, file), file, EXPECT, { localStorage: ls });
+  const doc = { id: 'x', idea: { title: 'Thanksgiving', destination: { airport: 'PIA' }, recommendation: { airport: 'PIA', departure: '2026-11-25' },
+    members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+    responses: { PIA: { status: 'in' }, LAX: { status: 'in', booked: true, available_from: '2026-11-21' }, LGA: { status: 'in', available_from: '2026-11-26' } } };
+  const c = api.tripIdeaBookedCount(doc);
+  check(c.booked === 1 && c.total === 2 && c.unbooked.join() === 'Anjo', `${file}: booked count — 1 of 2 travelers (hosts don't count); Anjo still to book`);
+  check(!/booked/.test(api.tripIdeaShareText(doc, 'nudge')), `${file}: before the Worker supports it, nudges don't mention booking`);
+  ls.setItem('pialax_idea_booked_v1', '1');
+  check(api.tripIdeaCanBook() && /Anjo, have you booked\?/.test(api.tripIdeaShareText(doc, 'nudge')), `${file}: once everyone answered, the nudge asks who hasn't booked`);
 }
 
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');

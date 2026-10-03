@@ -12,6 +12,32 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-106) — needs `wrangler deploy`
+- Who's booked: after searching, each person taps **I booked ✓**. Everyone then sees "✈️ booked"
+  on their row, their days turn green on the strip, and the page says "✈️ 1 of 2 booked". The
+  Trips card chip adds "· ✈️ N booked".
+- The organizer can **Mark booked** for anyone in the Book list (e.g. after booking for Mom &
+  Dad). Once everyone has answered, **Nudge** asks the people who haven't booked yet
+  ("Anjo, have you booked?").
+- Changing an answer keeps "booked"; answering "out" clears it. Nothing booking-related appears
+  until the Worker supports it.
+
+### Added (PIA-105)
+- RSVP → booking: under the family window, **✈️ Book for these dates** opens one Google Flights
+  search per traveler, from their airport, on their own dates, for their own seats. Hosts are
+  skipped. Searching one traveler at a time usually shows the lowest fare.
+- Each family member's answer card has **✈️ Find my flight** for their own search.
+
+## [1.2.0] — 2026-10-03
+
+iPhone UI and family RSVP.
+- **iPhone UI:** instant Trips, app shell, Trip Idea Builder above the tab bar, smooth map and clear labels.
+- **Family RSVP:**
+  - a page of its own for family members, and each phone remembers who is answering;
+  - a calendar that opens on the trip's month, plus the best-overlap window;
+  - organizer tools ("answer for", portable organizer link);
+  - iMessage link previews, and prices withheld from family members by the Worker (deployed as version `2999c587`).
+
 ### Added (PIA-104) — needs `wrangler deploy`
 - RSVP links get a real iMessage preview. The Worker serves `/i/<id>`:
   - chat-app link fetchers get "🦃 Thanksgiving at home — Peoria · Late Nov · Tap to say in /

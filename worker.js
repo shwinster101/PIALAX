@@ -59,7 +59,7 @@ export default {
       // PIA-071..073: shared trip ideas (create · RSVP · organizer update)
       {
         const p = pathname.replace(/\/+$/, '');
-        if (p === '/idea' || p === '/idea/respond' || p === '/idea/update') return handleIdea(request, env, p);
+        if (p === '/idea' || p === '/idea/respond' || p === '/idea/update' || p === '/idea/booked') return handleIdea(request, env, p);
       }
       // PIA-063: real fare alerts — send one AlertEvent now (client-drained outbox)
       if (pathname === '/alert' || pathname === '/alert/') {
@@ -964,7 +964,7 @@ function ideaGuestView(doc) {
 }
 async function ideaView(request, doc) {
   const organizer = await ideaIsOrganizer(request, doc);
-  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true };
+  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true, can_book: true };
 }
 function ideaLog(doc, event, by) {
   doc.log = (doc.log || []).concat([{ at: new Date().toISOString(), event, by: by || null }]).slice(-IDEA_MAX_LOG);
@@ -1048,7 +1048,7 @@ async function handleIdea(request, env, pathname) {
     };
     ideaLog(doc, 'created');
     await ideaWrite(env, doc);
-    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true }, 201);
+    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true, can_book: true }, 201);
   }
 
   if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
@@ -1061,8 +1061,26 @@ async function handleIdea(request, env, pathname) {
     }
     const resp = validateResponse(body, doc.idea.members);
     if (!resp) return jsonError('Invalid response', 400, request, 'bad_body');
+    // PIA-106: changing an answer keeps "booked" — unless they're now out.
+    const prev = doc.responses[resp.member];
+    if (prev && prev.booked && resp.status !== 'out') { resp.booked = true; resp.booked_at = prev.booked_at || null; }
     doc.responses[resp.member] = resp;
     ideaLog(doc, 'rsvp:' + resp.status, resp.member);
+    await ideaWrite(env, doc);
+    return ideaOk(request, await ideaView(request, doc));
+  }
+
+  // PIA-106: "I booked ✓" — flips one traveler's booked flag, nothing else.
+  // Same trust as an RSVP (the link is the capability); a trip that was
+  // dropped is closed. The person must have answered in/maybe first.
+  if (pathname === '/idea/booked') {
+    if (doc.decision && doc.decision.stage === 'dropped') return jsonError('This trip idea is closed', 409, request, 'closed');
+    const member = doc.idea.members.find((m) => m.code === body.member);
+    const r = member && doc.responses[member.code];
+    if (!member || typeof body.booked !== 'boolean') return jsonError('Invalid booked update', 400, request, 'bad_body');
+    if (!r || (r.status !== 'in' && r.status !== 'maybe')) return jsonError('Answer in or maybe first', 400, request, 'answer_first');
+    r.booked = body.booked; r.booked_at = body.booked ? new Date().toISOString() : null;
+    ideaLog(doc, (body.booked ? 'booked:' : 'unbooked:') + member.code, member.code);
     await ideaWrite(env, doc);
     return ideaOk(request, await ideaView(request, doc));
   }
@@ -1084,7 +1102,7 @@ async function handleIdea(request, env, pathname) {
       ideaLog(doc, 'decision:' + doc.decision.stage, 'organizer');
     }
     await ideaWrite(env, doc);
-    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true });
+    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true, can_book: true });
   }
   return jsonError('Not found', 404, request);
 }
