@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-106) — needs `wrangler deploy`
+- Who's booked: after searching, each person taps **I booked ✓**. Everyone then sees "✈️ booked"
+  on their row, their days turn green on the strip, and the page says "✈️ 1 of 2 booked". The
+  Trips card chip adds "· ✈️ N booked".
+- The organizer can **Mark booked** for anyone in the Book list (e.g. after booking for Mom &
+  Dad). Once everyone has answered, **Nudge** asks the people who haven't booked yet
+  ("Anjo, have you booked?").
+- Changing an answer keeps "booked"; answering "out" clears it. Nothing booking-related appears
+  until the Worker supports it.
+
 ### Added (PIA-105)
 - RSVP → booking: under the family window, **✈️ Book for these dates** opens one Google Flights
   search per traveler, from their airport, on their own dates, for their own seats. Hosts are

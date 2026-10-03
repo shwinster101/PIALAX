@@ -747,6 +747,16 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
         /on 2026-11-21 through 2026-11-29/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && !book.over)
       ok(`${label} — "✈️ Find my flight" opens LGA→PIA Nov 26–30; "Book for these dates" lists each traveler on their own dates`);
     else bad(`${label} — book step wrong: ${JSON.stringify(book)}`);
+    // PIA-106: "I booked ✓" → the card, the strip and "1 of 2 booked" all show it, after a reload too.
+    await page.locator('.trip-idea-ibooked').click();
+    await page.waitForSelector('.trip-idea-mine .trip-idea-booked-tag', { timeout: 5000 });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.trip-idea-mine', { timeout: 8000 });
+    const booked = await page.evaluate(() => ({ tag: !!document.querySelector('.trip-idea-mine .trip-idea-booked-tag'), line: (document.querySelector('.trip-idea-booked-line') || {}).textContent || '',
+      green: document.querySelectorAll('.trip-idea-strip i.booked').length, list: document.querySelector('.trip-idea-rsvp-list').innerText }));
+    if (booked.tag && /1 of 2 booked/.test(booked.line) && booked.green === 5 && /✈️ booked/.test(booked.list))
+      ok(`${label} — "I booked ✓" sticks: ✈️ Booked on the card, "${booked.line.trim()}", Anjo's 5 days green on the strip`);
+    else bad(`${label} — booked wrong: ${JSON.stringify(booked)}`);
     // PIA-102: with Ashwin Nov 21–29 and Anjo Nov 26–30, everyone overlaps Nov 26–29; the strip shows both plus the hosts.
     const win = await page.evaluate(() => ({ text: (document.querySelector('.trip-idea-window') || {}).textContent || '',
       rows: document.querySelectorAll('.trip-idea-strip .trip-idea-strip-name').length, over: document.documentElement.scrollWidth > innerWidth,

@@ -30,6 +30,7 @@ EXPECT.push('tripIdeaLooseWhen'); // PIA-098
 EXPECT.push('ideaBestWindow', 'tripIdeaWindowText', 'tripIdeaDayStripHtml'); // PIA-102
 EXPECT.push('tripIdeaInviteUrl'); // PIA-104
 EXPECT.push('tripIdeaFlightUrl', 'tripIdeaBookRows'); // PIA-105
+EXPECT.push('tripIdeaBookedCount', 'tripIdeaCanBook'); // PIA-106
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -265,6 +266,20 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     }));
   }
   check(fetchCalls === before, 'building recommendations makes zero network calls');
+}
+
+// PIA-106: who's booked — counts, and the nudge turns to booking once everyone answered.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const ls = makeLocalStorage();
+  const { api } = loadApi(path.join(ROOT, file), file, EXPECT, { localStorage: ls });
+  const doc = { id: 'x', idea: { title: 'Thanksgiving', destination: { airport: 'PIA' }, recommendation: { airport: 'PIA', departure: '2026-11-25' },
+    members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+    responses: { PIA: { status: 'in' }, LAX: { status: 'in', booked: true, available_from: '2026-11-21' }, LGA: { status: 'in', available_from: '2026-11-26' } } };
+  const c = api.tripIdeaBookedCount(doc);
+  check(c.booked === 1 && c.total === 2 && c.unbooked.join() === 'Anjo', `${file}: booked count — 1 of 2 travelers (hosts don't count); Anjo still to book`);
+  check(!/booked/.test(api.tripIdeaShareText(doc, 'nudge')), `${file}: before the Worker supports it, nudges don't mention booking`);
+  ls.setItem('pialax_idea_booked_v1', '1');
+  check(api.tripIdeaCanBook() && /Anjo, have you booked\?/.test(api.tripIdeaShareText(doc, 'nudge')), `${file}: once everyone answered, the nudge asks who hasn't booked`);
 }
 
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
