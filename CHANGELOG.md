@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-10-03
+
+iPhone UI and family RSVP.
+- **iPhone UI:** instant Trips, app shell, Trip Idea Builder above the tab bar, smooth map and clear labels.
+- **Family RSVP:**
+  - a page of its own for family members, and each phone remembers who is answering;
+  - a calendar that opens on the trip's month, plus the best-overlap window;
+  - organizer tools ("answer for", portable organizer link);
+  - iMessage link previews, and prices withheld from family members by the Worker (deployed as version `2999c587`).
+
 ### Added (PIA-104) — needs `wrangler deploy`
 - RSVP links get a real iMessage preview. The Worker serves `/i/<id>`:
   - chat-app link fetchers get "🦃 Thanksgiving at home — Peoria · Late Nov · Tap to say in /
