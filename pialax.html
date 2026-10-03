@@ -2127,6 +2127,7 @@ var HUB_FOCUS_OPTIONS = [
   { key:'LGA', code:'LGA', title:'LGA', kicker:'New York hub', sub:'Direct NYC option' }
 ];
 function mapHubOption(key){
+  if (key === 'LGA_JFK') key = 'LGA'; // PIA-091: the builder's hub key (TRIP_IDEA_HUBS) for the New York base
   for (var i=0;i<HUB_FOCUS_OPTIONS.length;i++) if (HUB_FOCUS_OPTIONS[i].key === key) return HUB_FOCUS_OPTIONS[i];
   return HUB_FOCUS_OPTIONS[1];
 }

@@ -559,6 +559,106 @@ if (haveCdn) {
   }
 }
 
+// ---- PIA-091: map labels never collide; a tap picks the nearest airport ----
+// Measured as drawn: every code/city label, fare tag and badge (.map-lbl) must
+// sit inside the map, clear of every other label and of every airport dot. The
+// one allowed exception is the engine's last resort — a minor unlabelled dot
+// hidden wholly under a fare tag. A text label's box is the font's full
+// ascent/descent rather than ink, so 1px of it top and bottom may touch.
+const mapLabelReport = () => {
+  const svg = document.getElementById('map-svg'), W = svg.clientWidth, H = svg.clientHeight;
+  const labels = [...svg.querySelectorAll('.map-lbl')].map((g) => {
+    const b = g.getBBox(), tag = !!g.querySelector('rect'), inset = tag ? 0 : 1, first = g.querySelector('text');
+    return { kind: g.getAttribute('data-kind'), tag, text: g.textContent, code: first ? first.textContent : '',
+      x: b.x, y: b.y + inset, w: b.width, h: Math.max(0, b.height - inset * 2) };
+  });
+  const dots = [...svg.querySelectorAll('.map-airports .map-dot')].map((c) => {
+    const g = c.closest('[data-code]'), m = /translate\(([^,]+),([^)]+)\)/.exec(g.getAttribute('transform')), r = +c.getAttribute('r');
+    return { code: g.getAttribute('data-code'), x: +m[1] - r, y: +m[2] - r, w: r * 2, h: r * 2 };
+  });
+  const hits = (a, b) => Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x) > 0.01 && Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y) > 0.01;
+  const within = (a, b) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
+  const labelled = new Set(labels.filter((l) => l.kind === 'airport').map((l) => l.code));
+  const problems = [];
+  labels.forEach((a, i) => {
+    if (!within(a, { x: 0, y: 0, w: W, h: H })) problems.push(`"${a.text}" spills outside the map`);
+    labels.slice(i + 1).forEach((b) => { if (hits(a, b)) problems.push(`"${a.text}" overlaps "${b.text}"`); });
+    dots.forEach((d) => {
+      if (!hits(a, d) || (a.tag && !labelled.has(d.code) && within(d, a))) return;
+      problems.push(`"${a.text}" covers the ${d.code} dot`);
+    });
+  });
+  const small = [...svg.querySelectorAll('text')].filter((t) => parseFloat(getComputedStyle(t).fontSize) < 11).map((t) => t.textContent);
+  return { W, H, kinds: labels.map((l) => l.kind), problems, small };
+};
+if (haveCdn) {
+  for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
+    for (const mode of ['meetup', 'solo']) {
+      const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+      const label = `pialax-mobile.html map labels (${mode}) @ ${vp.width}x${vp.height}`;
+      try {
+        await serveCdn(ctx);
+        const page = await ctx.newPage();
+        // A trip-state link (solo) lands on the Family tab, so wait for the tab bar.
+        await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href + (mode === 'solo' ? '?mode=solo&hub=LAX' : ''), { waitUntil: 'load' });
+        await page.waitForSelector('.tabbar-btn[data-tab="map"]', { state: 'visible', timeout: 6000 });
+        await openMapTab(page);
+        const r = await page.evaluate(mapLabelReport);
+        const airports = r.kinds.filter((k) => k === 'airport').length, tags = r.kinds.filter((k) => k === 'callout').length;
+        const enough = mode === 'meetup' ? airports >= 3 && tags >= 1 : airports >= 2;
+        if (enough && !r.problems.length && !r.small.length)
+          ok(`${label} — ${r.kinds.length} labels (${airports} airports, ${tags} fares) placed clear of each other and every dot, all text ≥11px`);
+        else bad(`${label} — ${enough ? '' : `too few labels ${JSON.stringify(r.kinds)}; `}${r.problems.join('; ')}${r.small.length ? `; text under 11px: ${JSON.stringify(r.small)}` : ''}`);
+      } catch (e) {
+        bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+      } finally {
+        await ctx.close();
+      }
+    }
+  }
+
+  // PIA and ORD dots are ~12px apart on a phone and LGA/JFK ~1px; overlapping
+  // per-airport tap circles used to hand both to whichever was drawn last.
+  // Meetup: the hub picked is what the share link records (mhub=). Solo: the
+  // route picked is spelled out under the map ("Route: LAX → JFK").
+  for (const mode of ['meetup', 'solo']) {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    const label = `pialax-mobile.html map taps (${mode}) @ 390x844`;
+    try {
+      await serveCdn(ctx);
+      const page = await ctx.newPage();
+      await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href + (mode === 'solo' ? '?mode=solo&hub=LAX' : ''), { waitUntil: 'load' });
+      await page.waitForSelector('.tabbar-btn[data-tab="map"]', { state: 'visible', timeout: 6000 });
+      await openMapTab(page);
+      const picked = () => page.evaluate((solo) => solo
+        ? ((/→\s*([A-Z]{3})/.exec(document.getElementById('map-context-sub').textContent) || [])[1] || null)
+        : new URLSearchParams(location.search).get('mhub'), mode === 'solo');
+      // Tap `code`'s dot, nudged `away` px from `other` along the line through both.
+      const tapAt = async (code, other, away) => {
+        const c = await page.evaluate((codes) => codes.map((k) => {
+          const r = document.querySelector(`#map-svg [data-code="${k}"] .map-dot`).getBoundingClientRect();
+          return [r.left + r.width / 2, r.top + r.height / 2];
+        }), [code, other]);
+        const [a, b] = c, len = Math.hypot(a[0] - b[0], a[1] - b[1]) || 1;
+        await page.touchscreen.tap(a[0] + (a[0] - b[0]) / len * away, a[1] + (a[1] - b[1]) / len * away);
+        await page.waitForTimeout(120);
+        return picked();
+      };
+      const got = { PIA: await tapAt('PIA', 'ORD', 0), ORD: await tapAt('ORD', 'PIA', 0) };
+      // In meetup mode New York isn't a hub choice until trip dates are set, so
+      // LGA vs JFK is checked on the solo map, where both are destinations.
+      if (mode === 'solo') { got.LGA = await tapAt('LGA', 'JFK', 6); got.JFK = await tapAt('JFK', 'LGA', 6); }
+      const wrong = Object.keys(got).filter((k) => got[k] !== k);
+      if (!wrong.length) ok(`${label} — tapping ${Object.keys(got).join(' / ')} picks the airport tapped`);
+      else bad(`${label} — wrong airport picked: ${wrong.map((k) => `tapped ${k} → ${got[k]}`).join(', ')}`);
+    } catch (e) {
+      bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+    } finally {
+      await ctx.close();
+    }
+  }
+}
+
 await browser.close();
 
 console.log('');

@@ -1343,7 +1343,8 @@ body.trip-sheet-active{overflow:hidden;}
 .rp-clear:hover{color:var(--ink);border-color:var(--accent);}
 #rp-hint{margin-top:5px;font-size:var(--fs-micro);line-height:1.35;color:var(--ink-muted);}
 #route-picker.is-meetup .rp-slot:first-child{cursor:default;}
-.map-hit{cursor:pointer;}
+#map-svg [data-code]{outline:none;}
+#map-svg [data-code]:focus-visible .map-dot{stroke:var(--accent)!important;stroke-width:3;}
 @media (max-width:640px), (orientation:landscape) and (max-height:500px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
 
 /* ── PIA-067 mobile density pass ───────────────────────────────────────────
@@ -2863,6 +2864,7 @@ var HUB_FOCUS_OPTIONS = [
   { key:'LGA', code:'LGA', title:'LGA', kicker:'New York hub', sub:'Direct NYC option' }
 ];
 function mapHubOption(key){
+  if (key === 'LGA_JFK') key = 'LGA'; // PIA-091: the builder's hub key (TRIP_IDEA_HUBS) for the New York base
   for (var i=0;i<HUB_FOCUS_OPTIONS.length;i++) if (HUB_FOCUS_OPTIONS[i].key === key) return HUB_FOCUS_OPTIONS[i];
   return HUB_FOCUS_OPTIONS[1];
 }
@@ -2938,26 +2940,202 @@ function mapLabelLane(from, hub){
   if (hub === 'PIA' && from === 'LGA') lane = [30,24];
   return lane;
 }
-function renderMapFareCallout(svg, w, h, from, hub, x1, y1, x2, y2, price, color){
-  var lane = mapLabelLane(from, hub), mx=(x1+x2)/2, my=(y1+y2)/2, ax=Math.max(82,Math.min(w-82,mx+lane[0])), ay=Math.max(48,Math.min(h-48,my+lane[1]));
-  var title = price ? (S.depDate ? '$' : '≈ $') + price + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') : 'Fare pending';
-  var sub = from + ' → ' + hub, boxW = Math.max(98, Math.max(title.length * 7.1, sub.length * 6.1) + 18), boxH = 38;
-  svg.append('path').attr('class','map-leader').attr('d','M'+mx+','+my+' L'+ax+','+ay).attr('stroke',color);
-  var g = svg.append('g').attr('class','map-price-tag').attr('role','img').attr('aria-label',sub+' '+title);
-  g.append('rect').attr('x',ax-boxW/2).attr('y',ay-boxH/2).attr('width',boxW).attr('height',boxH).attr('rx',9).attr('fill',color).attr('opacity',.98).attr('stroke','#ffffff').attr('stroke-opacity',.32);
-  g.append('text').attr('x',ax).attr('y',ay-2).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',12.5).attr('font-weight',950).attr('font-family','system-ui,sans-serif').text(title);
-  g.append('text').attr('x',ax).attr('y',ay+13).attr('text-anchor','middle').attr('fill','#ffffff').attr('opacity',.9).attr('font-size',9.5).attr('font-weight',800).attr('font-family','system-ui,sans-serif').text(sub);
+// ── PIA-091: map labels that never overlap ─────────────────────────────────
+var MAP_TAP_RADIUS = 30;  // px from an airport's centre that still counts as tapping it
+var MAP_FONT = 'system-ui,-apple-system,sans-serif';
+var _mapMeasure = null;
+function mapTextWidth(text, size, weight) {
+  var t = String(text == null ? '' : text), fallback = t.length * size * 0.62;
+  try {
+    if (!_mapMeasure) _mapMeasure = document.createElement('canvas').getContext('2d');
+    _mapMeasure.font = (weight || 800) + ' ' + size + 'px ' + MAP_FONT;
+    var m = _mapMeasure.measureText(t), w = m && m.width;
+    return (typeof w === 'number' && isFinite(w) && w > 0) ? w : fallback;
+  } catch (e) { return fallback; }
 }
-function renderMapPivotPair(svg, proj, w, h){
-  var pia = AIRPORTS.PIA, ord = AIRPORTS.ORD, p = proj([pia.lon,pia.lat]), o = proj([ord.lon,ord.lat]);
-  if (!p || !o) return;
-  var mx=(p[0]+o[0])/2, my=(p[1]+o[1])/2;
-  var g = svg.append('g').attr('class','map-pivot-layer');
-  g.append('path').attr('class','pivot-line').attr('d','M'+p[0]+','+p[1]+' L'+o[0]+','+o[1]);
-  g.append('text').attr('class','pivot-label').attr('x',o[0]+13).attr('y',o[1]-10).attr('fill','var(--co-ord)').attr('font-size',14).text('ORD');
-  var label = '🚗 PIA → ORD · pivot', bw = 132, bh = 22, bx=Math.max(bw/2+10,Math.min(w-bw/2-10,mx)), by=Math.max(bh/2+12,Math.min(h-bh/2-12,my+28));
-  g.append('rect').attr('x',bx-bw/2).attr('y',by-bh/2).attr('width',bw).attr('height',bh).attr('rx',11).attr('fill','var(--overlay-bg)').attr('stroke','var(--co-ord)').attr('stroke-opacity',.7);
-  g.append('text').attr('class','pivot-note').attr('x',bx).attr('y',by+4).attr('text-anchor','middle').attr('fill','var(--ink)').attr('font-size',10.5).text(label);
+function mapOverlap(a, b) {
+  var x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return x > 0 && y > 0 ? x * y : 0;
+}
+// Distance from a point to the nearest edge of a rect (0 if inside).
+function mapRectDist(x, y, r) {
+  var dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h));
+  return Math.hypot(dx, dy);
+}
+// A label pushed away from its anchor gets a thin leader back to it.
+function mapLeader(ctx, ax, ay, rect, color) {
+  var nx = Math.max(rect.x, Math.min(ax, rect.x + rect.w)), ny = Math.max(rect.y, Math.min(ay, rect.y + rect.h));
+  ctx.leaders.append('path').attr('class', 'map-leader').attr('d', 'M' + ax + ',' + ay + ' L' + nx + ',' + ny).style('stroke', color);
+}
+// Greedy placement in priority order. Each label tries its preferred spots,
+// then rings of spots further out around its anchor (up to `reach` px), and
+// takes the first that clears everything already placed (airport dots, earlier
+// labels, the focus chip) by 1px while staying 4px inside the map. A label with
+// a shorter form (code without its city name) tries that next. Only then does
+// it settle for the least-bad spot: covering a small unlabelled airport dot
+// (`soft` obstacle — tags draw above dots, so it hides rather than shows
+// through) beats touching any label or a labelled dot. A droppable label that
+// would touch one is left out instead.
+function mapRingSpots(ax, ay, w, h, reach) {
+  var spots = [];
+  for (var rad = 14; rad <= reach; rad += 10) {
+    for (var k = 0; k < 16; k++) {
+      var t = k / 16 * Math.PI * 2;
+      spots.push({ x: ax + Math.cos(t) * rad - w / 2, y: ay + Math.sin(t) * rad - h / 2 });
+    }
+  }
+  return spots;
+}
+function placeMapLabels(items, W, H, obstacles) {
+  var taken = (obstacles || []).slice(), out = [];
+  items.slice().sort(function(a, b){ return b.priority - a.priority; }).forEach(function(it){
+    var zero = null, least = null;
+    for (var v = 0; v < it.variants.length && !zero; v++) {
+      var vv = it.variants[v], zeroClamped = null;
+      var spots = vv.anchor ? vv.candidates.concat(mapRingSpots(vv.anchor[0], vv.anchor[1], vv.w, vv.h, vv.reach || 30)) : vv.candidates;
+      for (var i = 0; i < spots.length; i++) {
+        var c = spots[i], r = { x: c.x, y: c.y, w: vv.w, h: vv.h }, clamped = false;
+        if (r.x < 4) { r.x = 4; clamped = true; }
+        if (r.y < 4) { r.y = 4; clamped = true; }
+        if (r.x + r.w > W - 4) { r.x = W - 4 - r.w; clamped = true; }
+        if (r.y + r.h > H - 4) { r.y = H - 4 - r.h; clamped = true; }
+        var gap = { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }, hard = 0, soft = 0;
+        for (var k = 0; k < taken.length; k++) {
+          var t = taken[k], o = mapOverlap(gap, t);
+          if (!o) continue;
+          if (!t.soft) { hard += o; continue; }
+          // A dot wholly under a tag just disappears; one half-covered pokes out
+          // of the tag's edge, so that costs more.
+          var whole = t.x >= r.x && t.y >= r.y && t.x + t.w <= r.x + r.w && t.y + t.h <= r.y + r.h;
+          soft += whole ? t.w * t.h : t.w * t.h * 3;
+        }
+        var hit = { rect: r, variant: vv, hard: hard, cost: hard * 1000 + soft * 10 + i + v * 40 + (clamped ? 3 : 0) };
+        if (hard + soft === 0 && !clamped) { zero = hit; break; }
+        if (hard + soft === 0 && !zeroClamped) zeroClamped = hit;
+        if (!least || hit.cost < least.cost) least = hit;
+      }
+      if (!zero && zeroClamped) zero = zeroClamped;
+    }
+    var best = zero || least;
+    if (!best || (best.hard > 0 && it.droppable)) return;
+    taken.push(best.rect);
+    out.push({ item: it, rect: best.rect, variant: best.variant, hard: best.hard });
+  });
+  return out;
+}
+// Fare tags share one style per map: if any two-line tag had to fall back to
+// the one-line form, place them all one-line so the map reads consistently.
+function placeMapLabelsUniform(items, W, H, obstacles) {
+  var placed = placeMapLabels(items, W, H, obstacles);
+  var mixed = placed.some(function(p){ return p.item.kind === 'callout' && p.variant !== p.item.variants[0]; });
+  if (!mixed) return placed;
+  return placeMapLabels(items.map(function(it){
+    return it.kind === 'callout' ? Object.assign({}, it, { variants: it.variants.slice(1) }) : it;
+  }), W, H, obstacles);
+}
+// Spots around a dot, nearest first: above, right, left, below, then diagonals.
+function mapAroundSpots(x, y, r, w, h) {
+  var g = 4, d = r * 0.72;
+  return [
+    { x: x - w / 2, y: y - r - g - h }, { x: x + r + g, y: y - h / 2 }, { x: x - r - g - w, y: y - h / 2 },
+    { x: x - w / 2, y: y + r + g }, { x: x + d + g, y: y - d - g - h }, { x: x - d - g - w, y: y - d - g - h },
+    { x: x + d + g, y: y + d + g }, { x: x - d - g - w, y: y + d + g }
+  ];
+}
+function mapHaloText(layer, x, y, text, size, weight) {
+  return layer.append('text').attr('x', x).attr('y', y).attr('text-anchor', 'middle')
+    .attr('font-size', size).attr('font-weight', weight).attr('font-family', MAP_FONT)
+    .style('stroke', 'var(--map-bg)').attr('stroke-width', size >= 13 ? 4 : 3).attr('paint-order', 'stroke').attr('stroke-linejoin', 'round')
+    .text(text);
+}
+// Airport code (+ city line); falls back to the code alone if the city won't fit.
+function mapAirportLabelItem(code, x, y, r, o) {
+  var cs = o.codeSize, ss = 11, codeW = mapTextWidth(code, cs, 900), subW = o.sub ? mapTextWidth(o.sub, ss, o.subWeight) : 0;
+  function variant(withSub) {
+    var w = Math.ceil(Math.max(codeW, withSub ? subW : 0)) + 8, h = withSub ? cs + 14 : cs + 3;
+    return { w: w, h: h, candidates: mapAroundSpots(x, y, r, w, h), anchor: [x, y], reach: 36, draw: function(ctx, rect){
+      var cx = rect.x + rect.w / 2, g = ctx.labels.append('g').attr('class', 'map-lbl').attr('data-kind', 'airport');
+      if (mapRectDist(x, y, rect) > r + 10) mapLeader(ctx, x, y, rect, o.codeFill);
+      mapHaloText(g, cx, rect.y + Math.round(cs * 0.82) + 1, code, cs, 900).style('fill', o.codeFill);
+      if (withSub) mapHaloText(g, cx, rect.y + cs + 12, o.sub, ss, o.subWeight).style('fill', o.subFill);
+    } };
+  }
+  return { kind: 'airport', code: code, priority: o.priority, droppable: false,
+    variants: o.sub ? [variant(true), variant(false)] : [variant(false)] };
+}
+// Point on the arcPath() curve (quadratic, control point lifted by 20% of the chord).
+function mapQuadPoint(x1, y1, x2, y2, t) {
+  var d = Math.hypot(x2 - x1, y2 - y1), cx = (x1 + x2) / 2, cy = (y1 + y2) / 2 - d * .2, u = 1 - t;
+  return [u*u*x1 + 2*u*t*cx + t*t*x2, u*u*y1 + 2*u*t*cy + t*t*y2];
+}
+// Fare tag for one family leg. First choice is the hand-tuned lane offset
+// (mapLabelLane); then its mirror, then off the arc either side, then along it,
+// then rings out to 60px. If the two-line tag can't sit near its arc, a
+// one-line tag (fare only — the arc and tag share the origin's colour) tries
+// again out to 120px, with a leader back to the arc when it lands off it.
+function mapCalloutItem(from, hub, a, b, price, color) {
+  var title = price ? (S.depDate ? '$' : '≈ $') + price + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') : 'Fare pending';
+  var sub = from + ' → ' + hub;
+  var mid = mapQuadPoint(a[0], a[1], b[0], b[1], .5), lane = mapLabelLane(from, hub);
+  var dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+  var centers = [[mid[0] + lane[0], mid[1] + lane[1]], [mid[0] - lane[0], mid[1] - lane[1]]];
+  [36, -36, 58, -58].forEach(function(o){ centers.push([mid[0] + nx * o, mid[1] + ny * o]); });
+  [.3, .7].forEach(function(t){ var q = mapQuadPoint(a[0], a[1], b[0], b[1], t); centers.push([q[0] + lane[0], q[1] + lane[1]], [q[0] - lane[0], q[1] - lane[1]]); });
+  function variant(twoLine) {
+    var w = Math.ceil(Math.max(mapTextWidth(title, 13, 900), twoLine ? mapTextWidth(sub, 11, 800) : 0)) + (twoLine ? 20 : 16), h = twoLine ? 40 : 24;
+    return { w: w, h: h, anchor: mid, reach: twoLine ? 60 : 120,
+      candidates: centers.map(function(c){ return { x: c[0] - w / 2, y: c[1] - h / 2 }; }),
+      draw: function(ctx, rect){
+        var cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+        var inside = mid[0] >= rect.x && mid[0] <= rect.x + rect.w && mid[1] >= rect.y && mid[1] <= rect.y + rect.h;
+        if (!inside) ctx.leaders.append('path').attr('class', 'map-leader').attr('d', 'M' + mid[0] + ',' + mid[1] + ' L' + cx + ',' + cy).style('stroke', color);
+        var g = ctx.tags.append('g').attr('class', 'map-lbl map-price-tag').attr('data-kind', 'callout').attr('role', 'img').attr('aria-label', sub + ' ' + title);
+        g.append('rect').attr('x', rect.x).attr('y', rect.y).attr('width', rect.w).attr('height', rect.h).attr('rx', twoLine ? 10 : 12).style('fill', color).attr('opacity', .98).style('stroke', '#ffffff').attr('stroke-opacity', .32);
+        g.append('text').attr('x', cx).attr('y', rect.y + (twoLine ? 18 : 17)).attr('text-anchor', 'middle').style('fill', '#ffffff').attr('font-size', 13).attr('font-weight', 900).attr('font-family', MAP_FONT).text(title);
+        if (twoLine) g.append('text').attr('x', cx).attr('y', rect.y + 33).attr('text-anchor', 'middle').style('fill', '#ffffff').attr('opacity', .92).attr('font-size', 11).attr('font-weight', 800).attr('font-family', MAP_FONT).text(sub);
+      } };
+  }
+  return { kind: 'callout', code: from, priority: 60, droppable: false, variants: [variant(true), variant(false)] };
+}
+// PIA ↔ ORD drive line (drawn now) plus its badge and ORD label (placed with the
+// rest). The badge stays within 60px of the line; past that it shortens to
+// "🚗 drive" (PIA and ORD are labelled at either end, the key spells it out).
+function mapPivotItems(layer, proj) {
+  var pia = AIRPORTS.PIA, ord = AIRPORTS.ORD, p = proj([pia.lon, pia.lat]), o = proj([ord.lon, ord.lat]);
+  if (!p || !o) return [];
+  layer.append('g').attr('class', 'map-pivot-layer').append('path').attr('class', 'pivot-line').attr('d', 'M' + p[0] + ',' + p[1] + ' L' + o[0] + ',' + o[1]);
+  var mx = (p[0] + o[0]) / 2, my = (p[1] + o[1]) / 2;
+  var ordW = Math.ceil(mapTextWidth('ORD', 14, 900)) + 8, ordH = 17;
+  function badge(label, reach) {
+    var bw = Math.ceil(mapTextWidth(label, 12, 900)) + 22, bh = 24;
+    var spots = [[mx, my + 30], [mx, my - 30], [mx + bw / 2 + 14, my + 14], [mx - bw / 2 - 14, my + 14], [mx, my + 56], [mx, my - 56], [mx + bw / 2 + 14, my - 20], [mx - bw / 2 - 14, my - 20]];
+    return { w: bw, h: bh, anchor: [mx, my], reach: reach,
+      candidates: spots.map(function(c){ return { x: c[0] - bw / 2, y: c[1] - bh / 2 }; }),
+      draw: function(ctx, rect){
+        if (mapRectDist(mx, my, rect) > 34) mapLeader(ctx, mx, my, rect, 'var(--co-ord)');
+        var t = ctx.tags.append('g').attr('class', 'map-lbl map-pivot-layer').attr('data-kind', 'pivot').attr('role', 'img').attr('aria-label', 'Drive PIA to ORD');
+        t.append('rect').attr('x', rect.x).attr('y', rect.y).attr('width', rect.w).attr('height', rect.h).attr('rx', 12).style('fill', 'var(--overlay-bg)').style('stroke', 'var(--co-ord)').attr('stroke-opacity', .7);
+        t.append('text').attr('class', 'pivot-note').attr('x', rect.x + rect.w / 2).attr('y', rect.y + 16.5).attr('text-anchor', 'middle').style('fill', 'var(--ink)').attr('font-size', 12).text(label);
+      } };
+  }
+  return [
+    { kind: 'pivot', code: 'ORD', priority: 50, droppable: false, variants: [badge('🚗 PIA → ORD · pivot', 60), badge('🚗 drive', 120)] },
+    { kind: 'ord', code: 'ORD', priority: 70, droppable: true, variants: [{ w: ordW, h: ordH, anchor: o, reach: 30,
+      candidates: mapAroundSpots(o[0], o[1], 5, ordW, ordH),
+      draw: function(ctx, rect){
+        var g = ctx.labels.append('g').attr('class', 'map-lbl').attr('data-kind', 'airport');
+        mapHaloText(g, rect.x + rect.w / 2, rect.y + 13, 'ORD', 14, 900).style('fill', 'var(--co-ord)');
+      } }] }
+  ];
+}
+// Nearest drawn airport to a tap, within MAP_TAP_RADIUS.
+function nearestMapAirport(x, y) {
+  var best = null, pts = _map.hitPoints || [];
+  for (var i = 0; i < pts.length; i++) {
+    var d = Math.hypot(pts[i].x - x, pts[i].y - y);
+    if (d <= MAP_TAP_RADIUS && (!best || d < best.d)) best = { code: pts[i].code, d: d };
+  }
+  return best ? best.code : null;
 }
 
 function getNextHoliday() {
@@ -5464,14 +5642,14 @@ function handleMapAirportTap(code) {
 }
 function wireMapAirportInteraction(g, code) {
   var ap = AIRPORTS[code] || { code:code };
-  g.attr('role', 'button').attr('tabindex', 0).attr('aria-label', ap.code + ' airport route action')
-    .on('click.routePicker', function(e){ e.stopPropagation(); handleMapAirportTap(code); })
+  // PIA-091: pointer taps arrive through the map's hit layer (nearest airport);
+  // each airport stays a keyboard target.
+  g.attr('data-code', code).attr('role', 'button').attr('tabindex', 0).attr('aria-label', ap.code + ' airport route action')
     .on('keydown.routePicker', function(e){
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
         e.preventDefault(); e.stopPropagation(); handleMapAirportTap(code);
       }
     });
-  g.append('circle').attr('class','map-hit').attr('r',22).attr('fill','transparent').attr('stroke','none');
 }
 // ── MAP ──────────────────────────────────────────────────────────
 var GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
@@ -5568,7 +5746,11 @@ function renderMapRouteList() {
     } else {
       rows = dests().map(function(code){
         var info = AIRPORTS[code], p = S.prices[S.home+'-'+code] || getMock(S.home, code), fare = S.tripType === 'one' ? p.ow : p.rt;
-        return { code:code, title:S.home + ' → ' + code, sub:(info ? info.name.split(',')[0] : code) + (fare ? ' · ≈ $' + fare : '') };
+        // PIA-091: the price the in-map panel used to show — picked weekend, else best weekend.
+        var picked = S.barFocus && S.barFocus.dest === code ? S.barFocus.weekend.price : null;
+        var bw = picked ? [] : computeBestWeekends(S.home, code, 13), best = bw[0] ? bw[0].price : null;
+        var shown = picked || best || fare, tag = picked ? ' · picked wknd' : (best ? ' · best wknd' : '');
+        return { code:code, title:S.home + ' → ' + code, sub:(info ? info.name.split(',')[0] : code) + (shown ? ' · ≈ $' + shown + tag : '') };
       });
     }
   } catch (e) { rows = []; }
@@ -5649,7 +5831,17 @@ function mapLayers(svg) {
     callouts: root.append('g').attr('class', 'map-callouts'),
     pivot: root.append('g').attr('class', 'map-pivot'),
     panel: root.append('g').attr('class', 'map-panel'),
-    airports: root.append('g').attr('class', 'map-airports') };
+    airports: root.append('g').attr('class', 'map-airports'),
+    labels: root.append('g').attr('class', 'map-labels').attr('pointer-events', 'none'),
+    // PIA-091: one transparent layer takes every tap and hands it to the nearest
+    // airport within MAP_TAP_RADIUS (overlapping per-airport hit circles made
+    // PIA/ORD and LGA/JFK taps land on whichever was drawn last).
+    hit: root.append('rect').attr('class', 'map-hit-layer').style('fill', 'transparent').style('cursor', 'pointer') };
+  L.callouts.attr('pointer-events', 'none'); L.pivot.attr('pointer-events', 'none');
+  L.hit.on('click', function(e){
+    var pt = d3.pointer(e, root.node()), code = nearestMapAirport(pt[0], pt[1]);
+    if (code) handleMapAirportTap(code);
+  });
   _map.landKey = ''; _map.landSrc = null; _map.markersKey = '';
   return L;
 }
@@ -5677,8 +5869,8 @@ function drawMapNow(w, h) {
         .attr('d',pg).attr('fill','none').style('stroke','var(--map-outline)').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
     } else {
       L.land.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
-        .style('fill','var(--line-strong)').attr('font-size',10).attr('font-family','system-ui,sans-serif')
-        .text('Borders load from internet · airport positions and routes are accurate');
+        .style('fill','var(--line-strong)').attr('font-size',11).attr('font-family','system-ui,sans-serif')
+        .text('Borders load from internet · airports and routes are accurate');
     }
   }
   var markersKey = dests().join(',');
@@ -5691,12 +5883,16 @@ function drawMapNow(w, h) {
         .append('polygon').attr('points','0 0,8 3,0 6').attr('fill',c).attr('opacity',.9);
     });
   }
-  [L.routes, L.callouts, L.pivot, L.panel, L.airports].forEach(function(g){ g.selectAll('*').remove(); });
+  // PIA-091: keep keyboard focus on the same airport across a redraw.
+  var ae = document.activeElement, focusCode = (ae && ae.getAttribute && ae.closest && ae.closest('#map-svg')) ? ae.getAttribute('data-code') : null;
+  [L.routes, L.callouts, L.pivot, L.panel, L.airports, L.labels].forEach(function(g){ g.selectAll('*').remove(); });
 
   var homeXY = S.proj([AIRPORTS[S.home].lon, AIRPORTS[S.home].lat]);
   if (!homeXY) return;
 
-  var rg = L.routes;
+  var rg = L.routes, ag = L.airports;
+  var dots = [];        // every drawn airport: label obstacle + tap target
+  var labelItems = [];  // codes, city names, fare tags, pivot badge — placed together below
   if (S.mode === 'meetup') {
     var ranking = computeRanking();
     var meetupHub = mapHubCodeForFocus(mapHubFocusKey()) || getActiveHub(ranking);
@@ -5719,41 +5915,42 @@ function drawMapNow(w, h) {
           rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',10).attr('opacity',0.05);
           rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',2.2)
             .attr('stroke-dasharray', isPiaDriving ? '4,4' : '10,6').attr('class','ra').attr('opacity',0.88);
-          if (isPiaDriving) {
-            // PIA → ORD is represented by the shared pivot badge, not a fare pill.
-          } else {
-            renderMapFareCallout(L.callouts, w, h, from, meetupHub, fromXY[0], fromXY[1], hubXY[0], hubXY[1], price, fromCol);
-          }
+          // PIA → ORD is represented by the shared pivot badge, not a fare pill.
+          if (!isPiaDriving) labelItems.push(mapCalloutItem(from, meetupHub, fromXY, hubXY, price, fromCol));
         });
       }
     }
 
-    if (mapHubFocusKey() === 'PIA_ORD') renderMapPivotPair(L.pivot, S.proj, w, h);
+    var pivotShown = mapHubFocusKey() === 'PIA_ORD';
+    if (pivotShown) labelItems = labelItems.concat(mapPivotItems(L.pivot, S.proj));
 
-    var ag = L.airports;
+    // NYC transition fix: family dots use the date-effective list
+    var effectiveFamily = familyForDate(S.depDate || today);
     Object.values(AIRPORTS).forEach(function(ap){
       var xy = S.proj([ap.lon, ap.lat]);
       if (!xy) return;
       var isHub    = ap.code === meetupHub;
-      // NYC transition fix: family-dot uses date-effective list
-      var effectiveFamily = familyForDate(S.depDate || today);
       var isMember = effectiveFamily.indexOf(ap.code) > -1;
       var isOther  = !isHub && !isMember;
-      var col = isHub ? '#ffffff' : (isMember ? (DC[ap.code]||'#888') : '#1e3550');
+      var col = isMember ? (DC[ap.code]||'#888') : '#1e3550';
       var r   = isHub ? 10 : (isMember ? 7 : 3);
       var g   = ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
       wireMapAirportInteraction(g, ap.code);
       if (isHub) g.append('circle').attr('class','hp');
-      g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer');
-      if (!isOther) {
-        var labelY = isHub ? -26 : -20;
-        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',col).attr('font-size',isHub?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHub?'var(--map-label)':'var(--map-label-dim)').attr('font-size',isHub?10:9).attr('font-weight',isHub?800:600).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',3).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(isHub?'★ MEETUP':ap.name.split(',')[0]);
-      }
+      var dot = g.append('circle').attr('class','map-dot').attr('r',r).style('stroke','#060e1a').attr('stroke-width',2);
+      if (isHub) dot.style('fill','var(--map-hub-dot)'); else dot.attr('fill',col);
+      // Small unlabelled dots may sit under a fare tag as a last resort; ORD
+      // stays clear while it is the PIA drive pivot.
+      dots.push({ code: ap.code, x: xy[0], y: xy[1], r: r, soft: isOther && !(pivotShown && ap.code === 'ORD') });
+      if (!isOther) labelItems.push(mapAirportLabelItem(ap.code, xy[0], xy[1], isHub ? 14 : r + 1, {
+        codeSize: isHub ? 16 : 14, codeFill: isHub ? 'var(--map-hub-dot)' : col,
+        sub: isHub ? '★ MEETUP' : ap.name.split(',')[0], subFill: isHub ? 'var(--map-label)' : 'var(--map-label-dim)',
+        subWeight: isHub ? 800 : 600, priority: isHub ? 100 : 80 }));
     });
 
   } else {
-    var routeRows = [];
+    // PIA-091: the in-map route price panel (8px text) is gone — the same
+    // best-weekend price now shows in the route list under the map.
     dests().forEach(function(code){
       var ap=AIRPORTS[code], xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
@@ -5763,45 +5960,10 @@ function drawMapNow(w, h) {
       var arcAlpha = routeSelected ? 1.0 : (focused ? (barHover ? 1.0 : 0.9) : 0.1);
       var glowAlpha = routeSelected ? 0.16 : (focused ? (barHover ? 0.1 : 0.04) : 0.01);
       var col=DC[code]||'#888', d=arcPath(homeXY[0],homeXY[1],xy[0],xy[1]);
-      var pd=S.prices[S.home+'-'+code]||getMock(S.home,code);
-      var price=S.tripType==='one'?pd.ow:pd.rt;
-      if (S.barFocus && S.barFocus.dest === code) {
-        price = S.barFocus.weekend.price;
-      } else {
-        var bw = computeBestWeekends(S.home, code, 13);
-        if (bw[0]) price = bw[0].price;
-      }
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',12).attr('opacity',glowAlpha);
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',routeSelected?3.8:2.2).attr('stroke-dasharray','10,6').attr('class','ra').attr('marker-end','url(#arr-'+code+')').attr('opacity',arcAlpha);
-      routeRows.push({ code:code, price:price, col:col, focused:focused });
     });
 
-    if (routeRows.length) {
-      var fareLbl = S.tripType==='round' ? 'RT' : 'OW';
-      var panelW = 96, rowH = 12, padX = 7, padY = 5, headerH = 11, gap = 3;
-      var panelH = padY + headerH + gap + routeRows.length*rowH + padY;
-      var px = 8, py = h - panelH - 8;
-      var panel = L.panel.append('g').attr('class','route-price-panel').attr('pointer-events','none');
-      // PIA-036 (mobile-only panel): one-off hexes swept onto tokens via style()
-      // (#0b1726→--surface-2, #1f3350→--line-strong, #6e93bd→--ink-muted, #d6e0ec→--ink).
-      panel.append('rect').attr('x',px).attr('y',py).attr('width',panelW).attr('height',panelH)
-        .attr('rx',5).style('fill','var(--surface-2)').style('stroke','var(--line-strong)').attr('stroke-width',1).attr('opacity',0.9);
-      panel.append('text').attr('x',px+padX).attr('y',py+padY+headerH-1).style('fill','var(--ink-muted)').attr('font-size',8)
-        .attr('font-weight',700).attr('font-family','system-ui,sans-serif').attr('letter-spacing','.06em').text(S.home + ' ROUTES');
-      routeRows.forEach(function(r, i){
-        var ry = py + padY + headerH + gap + i*rowH + 8;
-        var op = r.focused ? 1 : 0.35;
-        panel.append('circle').attr('cx',px+padX+1).attr('cy',ry-2).attr('r',2).attr('fill',r.col).attr('opacity',op);
-        panel.append('text').attr('x',px+padX+8).attr('y',ry).style('fill','var(--ink)').attr('font-size',8.5)
-          .attr('font-weight',600).attr('font-family','system-ui,sans-serif').attr('opacity',op)
-          .text(S.home + '>' + r.code);
-        panel.append('text').attr('x',px+panelW-padX).attr('y',ry).attr('text-anchor','end')
-          .attr('fill',r.col).attr('font-size',8.5).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',op)
-          .text(r.price ? ('$'+r.price+' '+fareLbl) : '—');
-      });
-    }
-
-    var ag = L.airports;
     Object.values(AIRPORTS).forEach(function(ap){
       var xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
@@ -5813,13 +5975,34 @@ function drawMapNow(w, h) {
       var g=ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
       wireMapAirportInteraction(g, ap.code);
       if (isHome) g.append('circle').attr('class','hp');
-      g.append('circle').attr('r',r).attr('fill',col).attr('stroke',routeSelected?'#ffffff':'#060e1a').attr('stroke-width',routeSelected?3:2).style('cursor','pointer');
-      if (!isOther) {
-        var labelY=isHome?-26:-20;
-        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',isHome?'#10b981':col).attr('font-size',isHome?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHome?'var(--map-label-home)':'var(--map-label-dim)').attr('font-size',isHome?10:9).attr('font-weight',isHome?800:600).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',3).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(isHome?'⌂ HOME':ap.name.split(',')[0]);
-      }
+      var sdot = g.append('circle').attr('class','map-dot').attr('r',r).style('stroke',routeSelected?'#ffffff':'#060e1a').attr('stroke-width',routeSelected?3:2);
+      // The picked destination uses the hub token (white in dark, navy in light) so it shows on both maps.
+      if (routeSelected) sdot.style('fill','var(--map-hub-dot)'); else sdot.attr('fill',col);
+      dots.push({ code: ap.code, x: xy[0], y: xy[1], r: r, soft: isOther });
+      if (!isOther) labelItems.push(mapAirportLabelItem(ap.code, xy[0], xy[1], isHome ? 14 : r + 1, {
+        codeSize: isHome ? 16 : 14, codeFill: isHome ? '#10b981' : (routeSelected ? 'var(--map-hub-dot)' : col),
+        sub: isHome ? '⌂ HOME' : ap.name.split(',')[0], subFill: isHome ? 'var(--map-label-home)' : 'var(--map-label-dim)',
+        subWeight: isHome ? 800 : 600, priority: isHome ? 100 : (routeSelected ? 90 : (isDest ? 70 : 60)) }));
     });
+  }
+
+  // PIA-091: place every label at once so none overlaps another label, an
+  // airport dot or the focus chip — then draw them where they landed.
+  var obstacles = dots.map(function(d){ var rr = d.r + 1; return { x: d.x - rr, y: d.y - rr, w: rr * 2, h: rr * 2, soft: d.soft }; });
+  var chip = document.getElementById('map-focus-chip');
+  if (chip && chip.textContent.trim() && getComputedStyle(chip).display !== 'none') {
+    var cr = chip.getBoundingClientRect(), sr = svg.node().getBoundingClientRect();
+    if (cr.width && cr.height) obstacles.push({ x: cr.left - sr.left - 4, y: cr.top - sr.top - 4, w: cr.width + 8, h: cr.height + 8 });
+  }
+  // Leaders run under the dots; fare tags and badges sit above them.
+  var drawCtx = { leaders: L.callouts.append('g'), tags: L.labels.append('g'), labels: L.labels };
+  placeMapLabelsUniform(labelItems, w, h, obstacles).forEach(function(p){ p.variant.draw(drawCtx, p.rect); });
+
+  _map.hitPoints = dots;
+  L.hit.attr('width', w).attr('height', h);
+  if (focusCode) {
+    var again = L.airports.select('[data-code="' + focusCode + '"]').node();
+    if (again && again.focus) { try { again.focus({ preventScroll: true }); } catch (e) { again.focus(); } }
   }
 }
 

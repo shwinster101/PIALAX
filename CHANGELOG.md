@@ -12,6 +12,25 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-091)
+- iPhone map labels no longer overlap. Airport codes, city names, fare tags and the PIA → ORD
+  drive badge are placed together, clear of each other, of every labelled airport and of the
+  focus chip. A label moved away from its spot gets a thin leader line back. When two-line fare
+  tags can't sit by their routes (every phone width on the Thanksgiving map), all tags switch to
+  one line ("≈ $342 RT") in the traveler's colour, and the badge shortens to "🚗 drive".
+  Map text is now at least 11px (some was 8px).
+- A tap goes to the nearest airport within 30px. Tapping the PIA dot no longer picks ORD (their
+  tap circles overlapped), and LGA vs JFK follow the side tapped. Each airport is still a keyboard
+  target, with a focus ring.
+- Solo map: the in-map price box (8px text) is gone. Its best-weekend price now shows in the
+  route list under the map.
+- Light mode: the meetup hub and the picked destination were white on the light map; they now
+  use the hub colour, so they show in both themes.
+
+### Fixed (PIA-091)
+- Opening the map from a New York (LGA/JFK) trip idea focused PIA/ORD instead of New York.
+  Desktop has the same fix.
+
 ### Changed (PIA-090)
 - iPhone map renders smoothly: it opens at its final size (no jump), re-fits correctly after
   rotating (it used to end up mis-sized and shrink ~7% after landscape → portrait), and price
