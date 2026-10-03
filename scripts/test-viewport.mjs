@@ -659,6 +659,97 @@ if (haveCdn) {
   }
 }
 
+// ---- PIA-099…104: family RSVP page, end to end against the real Worker ----
+// worker.js runs in-process (as in test-worker.js) behind the page's PROXY_URL,
+// with an in-memory KV, so answers really save and reload.
+const rsvp = await (async () => {
+  const fs = await import('node:fs'), os = await import('node:os');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-rsvp-'));
+  fs.copyFileSync(path.join(ROOT, 'worker.js'), path.join(dir, 'worker.mjs'));
+  const worker = (await import(pathToFileURL(path.join(dir, 'worker.mjs')).href)).default;
+  const kv = new Map();
+  const env = { IDEAS: { get: async (k) => (kv.has(k) ? kv.get(k) : null), put: async (k, v) => { kv.set(k, v); } } };
+  const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+  const post = async (p, body) => (await worker.fetch(new Request(W + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://shwinster101.github.io' }, body: JSON.stringify(body) }), env)).json();
+  const made = await post('/idea', { idea: { title: '🦃 Thanksgiving at home — Peoria', destination: { city: 'Peoria', airport: 'PIA' }, dates: { departure: '2026-11-25', return: '2026-11-29' },
+    recommendation: { city: 'Peoria', airport: 'PIA', hub: 'PIA_ORD', departure: '2026-11-25', return: '2026-11-29', totalFare: 640, perTicketFare: 320, headcount: 2, familyTotal: 900, familyStatus: 'estimated' },
+    members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX', headcount: 1 }, { code: 'LGA', label: 'Anjo', airport: 'LGA', headcount: 1 }] } });
+  await post('/idea/respond?id=' + made.id, { member: 'LAX', status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' });
+  const context = async (vp, opts = {}) => {
+    const ctx = await browser.newContext({ viewport: vp, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+    await ctx.route(/^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//, (r) => r.fulfill({ status: 404, body: '' }));
+    await ctx.route(W + '/**', async (route) => {
+      const q = route.request();
+      const res = await worker.fetch(new Request(q.url(), { method: q.method(), headers: q.headers(), body: ['GET', 'HEAD', 'OPTIONS'].includes(q.method()) ? undefined : q.postData() }), env);
+      const h = Object.fromEntries(res.headers);
+      h['access-control-allow-origin'] = '*'; h['access-control-allow-headers'] = 'Content-Type, X-Idea-Key';
+      return route.fulfill({ status: res.status, headers: h, body: await res.text() });
+    });
+    if (opts.admin) await ctx.addInitScript(([id, key]) => { localStorage.setItem('pialax_idea_keys_v1', JSON.stringify({ [id]: { edit_key: key, title: 'T' } })); }, [made.id, made.edit_key]);
+    return ctx;
+  };
+  return { id: made.id, key: made.edit_key, context, url: (hash) => pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href + '?idea=' + made.id + (hash || '') };
+})();
+
+// PIA-099/100: the family gets an RSVP-only page; this phone remembers who answered.
+for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
+  const ctx = await rsvp.context(vp);
+  const label = `pialax-mobile.html RSVP guest @ ${vp.width}x${vp.height}`;
+  try {
+    const page = await ctx.newPage();
+    const errors = []; page.on('pageerror', (e) => errors.push(e.message));
+    await page.goto(rsvp.url(), { waitUntil: 'load' });
+    await page.waitForSelector('[data-idea-who]', { timeout: 8000 });
+    const first = await page.evaluate(() => {
+      const bar = document.querySelector('.tabbar-btn') && document.querySelector('.tabbar-btn').parentElement;
+      const r = bar ? bar.getBoundingClientRect() : null;
+      const top = r && r.height ? document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2) : null;
+      const body = document.getElementById('trip-idea-builder-body').innerText;
+      return { guest: document.body.classList.contains('idea-guest'), closeShown: [...document.querySelectorAll('[data-trip-close]')].some((b) => b.offsetParent !== null),
+        dashCovered: !top || !!top.closest('#trip-idea-builder-bd'), price: /\$/.test(body), me: /\bMe\b/.test(body), who: [...document.querySelectorAll('[data-idea-who]')].map((b) => b.getAttribute('data-idea-who')) };
+    });
+    if (first.guest && !first.closeShown && first.dashCovered && !first.price && !first.me && first.who.join() === 'PIA,LGA')
+      ok(`${label} — RSVP-only page: dashboard covered, no close, no prices, organizer by name, names to tap (${first.who.join(', ')})`);
+    else bad(`${label} — guest page wrong: ${JSON.stringify(first)}`);
+
+    await page.locator('[data-idea-who="LGA"]').click();
+    await page.locator('input[name="trip-idea-rsvp-status"][value="in"]').check({ force: true });
+    const send = page.locator('#trip-idea-builder-primary');
+    const sendBox = await send.boundingBox();
+    const sendOk = !!sendBox && sendBox.y + sendBox.height <= vp.height && sendBox.height >= 44 && /Send my answer/.test(await send.innerText());
+    await send.click();
+    await page.waitForSelector('.trip-idea-mine', { timeout: 5000 });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.trip-idea-mine', { timeout: 8000 });
+    const card = (await page.locator('.trip-idea-mine').innerText()).replace(/\s+/g, ' ');
+    if (sendOk && /Anjo/.test(card) && /In/.test(card) && /Change my answer/.test(card) && !errors.length)
+      ok(`${label} — "Send my answer" on screen (≥44px); after saving, a reload opens straight to "${card.slice(0, 40)}…"`);
+    else bad(`${label} — answer/remember failed: send ${JSON.stringify(sendBox)} card "${card}" errors ${JSON.stringify(errors)}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+{
+  const ctx = await rsvp.context({ width: 390, height: 844 }, { admin: true });
+  const label = 'pialax-mobile.html RSVP organizer @ 390x844';
+  try {
+    const page = await ctx.newPage();
+    await page.goto(rsvp.url(), { waitUntil: 'load' });
+    await page.waitForSelector('.trip-idea-mine, .trip-idea-rsvp-form', { timeout: 8000 });
+    const a = await page.evaluate(() => ({ guest: document.body.classList.contains('idea-guest'), close: !!document.querySelector('.trip-idea-close') && document.querySelector('.trip-idea-close').offsetParent !== null,
+      body: document.getElementById('trip-idea-builder-body').innerText }));
+    if (!a.guest && a.close && /Whole family ≈ \$900/.test(a.body) && /2026-11-25/.test(a.body))
+      ok(`${label} — organizer device keeps the dashboard (✕), exact dates and the family cost`);
+    else bad(`${label} — organizer view wrong: ${JSON.stringify({ guest: a.guest, close: a.close, body: a.body.slice(0, 200) })}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser.close();
 
 console.log('');

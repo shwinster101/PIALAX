@@ -12,6 +12,19 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-099, PIA-100)
+- Family members who open an RSVP link get the RSVP as their whole page: no dashboard, settings,
+  trips or close button behind it. "Open full PIALAX" at the bottom is the way out. The organizer's
+  device (it holds the edit key) still opens it over the dashboard, with exact dates and the cost.
+- "Who are you?" is a row of names to tap, and the phone remembers it. Next time the link opens
+  straight to "Your answer · Anjo — ✅ In · here Nov 26–30 · from LGA" with **Change my answer**.
+  Changing prefills the earlier answer. "Not Anjo?" forgets the name on that phone.
+- Hosts (Mom & Dad for Peoria) get "🏠 hosting at home — no flights or dates needed" and a
+  **Confirm we're hosting** button. Family members see the organizer as "Ashwin", not "Me".
+- **Send my answer** sits in the sticky footer, so it's always on screen.
+- An RSVP-only link no longer counts as a shared trip link, so the organizer's saved home and
+  dates aren't skipped when they open their own link.
+
 ### Changed (PIA-098)
 - RSVP invites and nudges no longer include a price or exact dates. They give a rough time
   ("🦃 Thanksgiving at home — Peoria · late Nov. Come and go on your own dates — tap to say
