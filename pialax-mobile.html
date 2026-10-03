@@ -5424,12 +5424,22 @@ var WORLD_GEO_FALLBACK = {
   }]
 };
 
+// PIA-084: a slow or blocked CDN must never hold the app hostage. Map borders
+// are decoration, so give up after GEO_TIMEOUT_MS and use the offline outline.
+var GEO_TIMEOUT_MS = 4000;
+function fetchJsonWithTimeout(url, ms) {
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null, timer = null;
+  return new Promise(function(resolve, reject){
+    timer = setTimeout(function(){ try { if (ctrl) ctrl.abort(); } catch (e) {} reject(new Error('timed out after ' + ms + 'ms')); }, ms);
+    fetch(url, ctrl ? { signal: ctrl.signal } : undefined)
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(j){ clearTimeout(timer); resolve(j); }, function(e){ clearTimeout(timer); reject(e); });
+  });
+}
 async function loadWorldGeo() {
   if (S.worldGeo) return;
   try {
-    var r = await fetch(WORLD_GEO_URL);
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    var topo = await r.json();
+    var topo = await fetchJsonWithTimeout(WORLD_GEO_URL, GEO_TIMEOUT_MS);
     S.worldGeo = topojson.feature(topo, topo.objects.countries);
     S.worldGeoFallback = false;
   } catch(e) {
@@ -10539,24 +10549,26 @@ function initTripIdeaBuilder(){
 
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
+  // PIA-084: globals used by inline onclick handlers exist before anything is tappable
+  // (they used to be assigned only after the map download and price load finished).
+  window.shareThePlan = shareThePlan;
+  window.openCal = openCal;
+  window.openMemberCal = openMemberCal;
+  window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
+  window.setPiaRoute = setPiaRoute;
+  window.setMeetupHub = setMeetupHub;
+  window.pickMeetupHub = pickMeetupHub;
+  window.copyRouteText = copyRouteText;
+  window.setMode      = setMode;
   restoreFromURL();
   if (!_urlStateLoaded) restoreSoloPrefs(); // PIA-057: shared links win; otherwise reopen with the saved setup
   loadWatchlist();
   initTripIdeaBuilder(); // PIA-027: hydrate the trip watchlist
   rehydrateFlightCache(); // PIA-005 AC4: restore prior session's cached prices before any render
-  document.getElementById('tb-sub').textContent='Loading…';
-  try {
-    var r = await fetch(GEO_URL);
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    var topo = await r.json();
-    S.geoData    = topojson.feature(topo, topo.objects.states);
-    S.geoFallback = false;
-  } catch(e) {
-    console.warn('TopoJSON CDN unavailable (expected on file://). Using offline fallback.', e.message);
-    S.geoData    = GEO_FALLBACK;
-    S.geoFallback = true;
-  }
-  if (S.mapView === 'world') await loadWorldGeo();
+  // PIA-084: decide where we land BEFORE any network wait. Trips used to show
+  // "Loading…" for 4–6s while the map borders downloaded, then the late
+  // setActiveTab() overrode whatever tab the person had already tapped.
+  var landing = initialTab();
   // Family meetup defaults to just the FAMILY HOME AIRPORTS (neutral, mobile mirror)
   // when no URL state — no specific trip preloaded. Cheapest-week finder surfaces
   // the best weekend to gather; a specific trip is opened from its chip / the
@@ -10564,6 +10576,9 @@ async function boot() {
   if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
     S.mapView = 'us';
   }
+  // Offline outline until the real borders arrive (or the download gives up).
+  S.geoData = GEO_FALLBACK;
+  S.geoFallback = true;
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
@@ -10575,20 +10590,23 @@ async function boot() {
   renderWatchlist(); // PIA-027: paint the watchlist home
   try { setMode(S.mode); } catch(e) { console.warn('[PIALAX] planner init failed — watchlist home unaffected', e); }
   S._booting = false;
-  if (PROXY_URL) syncSerpApiAccount();
-  await loadPrices();
-  window.shareThePlan = shareThePlan;
-  window.openCal = openCal;
-  window.openMemberCal = openMemberCal;
-  window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
-  window.setPiaRoute = setPiaRoute;
-  window.setMeetupHub = setMeetupHub;
-  window.pickMeetupHub = pickMeetupHub;
-  window.copyRouteText = copyRouteText;
-  window.setMode      = setMode;
+  // PIA-033: land on the derived tab (trip-state deep links → plan) — unless the
+  // person already tapped a tab while we were starting up; their choice wins.
+  if (!_userPickedTab) setActiveTab(landing, { auto: true });
   initMobileControls();
   ensureMapRendersOnMobile();
-  setActiveTab(initialTab()); // PIA-033: land on the derived tab (trip-state deep links → plan)
+  if (PROXY_URL) syncSerpApiAccount();
+  var pricesLoaded = loadPrices(); // cache-only at boot (no SerpAPI calls)
+  try {
+    var topo = await fetchJsonWithTimeout(GEO_URL, GEO_TIMEOUT_MS);
+    S.geoData    = topojson.feature(topo, topo.objects.states);
+    S.geoFallback = false;
+  } catch(e) {
+    console.warn('TopoJSON CDN unavailable (expected on file://). Using offline fallback.', e.message);
+  }
+  if (S.mapView === 'world') await loadWorldGeo();
+  redrawMap(); // real borders (or confirmed fallback) — no-op while the map is hidden
+  await pricesLoaded;
 }
 
 // ── MOBILE CONTROLS ──────────────────────────────────────────────
@@ -10628,7 +10646,10 @@ function ensureMapRendersOnMobile() {
 var DEFAULT_HOME_TAB = 'watchlist';
 var DEFAULT_MAP_VIEW = 'us';
 var NAV_TABS = ['watchlist', 'plan', 'map', 'cal'];
-function setActiveTab(tab) {
+// PIA-084: true once the person (not boot) has picked a tab — boot never overrides it.
+var _userPickedTab = false;
+function setActiveTab(tab, opts) {
+  if (!(opts && opts.auto)) _userPickedTab = true;
   if (NAV_TABS.indexOf(tab) === -1) tab = 'watchlist';
   if (tab !== 'watchlist' && _watchlistOpenId != null) closeTripSheet(false);
   document.documentElement.dataset.activeTab = tab;

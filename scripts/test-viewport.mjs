@@ -336,6 +336,45 @@ for (const file of FILES) {
   }
 }
 
+// ---- PIA-084: boot paints Trips at once and never overrides a tab tap ----
+// The map-border download is hung on purpose: before PIA-084, boot awaited it
+// with no timeout before painting the watchlist, and its late setActiveTab()
+// overrode whatever tab the person had already tapped.
+{
+  const ctx = await browser.newContext({
+    viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
+  });
+  const label = 'pialax-mobile.html @ 390x844 boot';
+  const base = pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href;
+  try {
+    await ctx.route('**/states-10m.json', () => { /* never answer: a hung CDN */ });
+    const page = await ctx.newPage();
+    await page.goto(base, { waitUntil: 'domcontentloaded' });
+    const globals = await page.evaluate(() => typeof window.openCal === 'function' && typeof window.setMode === 'function');
+    if (globals) ok(`${label} — inline-handler globals exist as soon as the page parses`);
+    else bad(`${label} — window.openCal / setMode missing at DOMContentLoaded`);
+    try {
+      await page.waitForSelector('.wl-row', { state: 'visible', timeout: 1500 });
+      ok(`${label} — Trips rows paint within 1.5s while the map download hangs`);
+    } catch {
+      bad(`${label} — Trips rows not visible within 1.5s (boot still waiting on the map download?)`);
+    }
+    // A trip-state link lands on Family; the person taps Trips before the
+    // download gives up (4s). Their tab must still be showing afterwards.
+    await page.goto(base + '?mode=meetup&hub=PIA&dep=2026-11-25&ret=2026-11-29', { waitUntil: 'domcontentloaded' });
+    const landed = await page.evaluate(() => document.documentElement.dataset.activeTab);
+    await page.locator('.tabbar-btn[data-tab="watchlist"]').click();
+    await page.waitForTimeout(4800);
+    const after = await page.evaluate(() => document.documentElement.dataset.activeTab);
+    if (landed === 'plan' && after === 'watchlist') ok(`${label} — deep link lands on Family, and a Trips tap during startup sticks`);
+    else bad(`${label} — tab override: landed ${landed}, after boot ${after}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser.close();
 
 console.log('');

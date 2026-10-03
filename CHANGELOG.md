@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-084)
+- iPhone: Trips paints immediately instead of showing "Loading…" for 4–6s while map borders
+  download; a tab tapped during startup is no longer overridden; inline-button globals exist
+  as soon as the page loads. Map-border downloads give up after 4s and use the offline outline
+  (desktop gets the same timeout).
+
 ### Added (PIA-083)
 - One family trip, staggered arrivals: each person's RSVP has **I'd arrive / I'd leave** (prefilled
   with the trip dates). Their Google Flights link on the card uses their own dates
