@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-090)
+- iPhone map renders smoothly: it opens at its final size (no jump), re-fits correctly after
+  rotating (it used to end up mis-sized and shrink ~7% after landscape → portrait), and price
+  updates or the browser toolbar collapsing no longer rebuild the whole map. Redraws are
+  coalesced to one per frame and skipped while the Map tab is hidden.
+
 ### Fixed (PIA-087)
 - iPhone: the Trip Idea Builder now opens above the tab bar. Before, the tab bar covered its
   footer — on an iPhone SE "Find recommendations" couldn't be tapped at all. The footer puts

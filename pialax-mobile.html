@@ -1249,7 +1249,7 @@ body.trip-sheet-active{overflow:hidden;}
   overflow: hidden;
   width: 100%;
   height: 0;
-  transition: height .3s var(--ease);
+  /* PIA-090: no height animation — redraws used to fit the map to a half-open size */
 }
 #map-wrap.open {
   height: 60vw;
@@ -5535,7 +5535,6 @@ function posTip(e){
 document.getElementById('map-wrap').addEventListener('mousemove', function(e){ if(tipEl.style.display==='block') posTip(e); });
 
 function arcPath(x1,y1,x2,y2){ var d=Math.hypot(x2-x1,y2-y1); return 'M'+x1+','+y1+' Q'+((x1+x2)/2)+','+(((y1+y2)/2)-d*.2)+' '+x2+','+y2; }
-var rTimer; window.addEventListener('resize', function(){ clearTimeout(rTimer); rTimer=setTimeout(redrawMap,100); });
 
 function rebuildLegend() {
   var leg=document.getElementById('map-leg');
@@ -5593,56 +5592,111 @@ function renderMapRouteList() {
   });
 }
 
+// ── PIA-090: map render scheduler ──────────────────────────────────────────
+// redrawMap() is called from ~40 places — state changes, every price that
+// lands, bar hovers. It used to tear down and rebuild the whole SVG on every
+// call (even while the Map tab was hidden), and opening / rotating added timed
+// redraws that read a mid-animation height — the map visibly jumped and could
+// end up mis-fitted. Now it only marks the map dirty and asks for one frame:
+// the frame refreshes the route picker/list once and redraws the SVG only when
+// the map is visible. Size changes (opening the map, showing the tab, rotating)
+// arrive from a ResizeObserver on #map-wrap.
+var _map = { raf: 0, dirty: true, size: '', layers: null, landKey: '', landSrc: null, markersKey: '' };
 function redrawMap() {
+  _map.dirty = true;
+  if (_map.raf) return;
+  if (typeof requestAnimationFrame !== 'function') { flushMap(); return; }
+  _map.raf = requestAnimationFrame(function(){ _map.raf = 0; flushMap(); });
+}
+function flushMap() {
   updateRoutePicker();
   renderMapRouteList();
   // PIA-058: the map is a progressive enhancement. If the d3 CDN load failed
   // (outage, SRI hash break, offline) every caller — boot, tab switches, mode
   // switches — must keep working; only the map itself goes dark.
-  if (typeof d3 === 'undefined') return;
+  if (!_map.dirty || typeof d3 === 'undefined') return;
+  var wrap = document.getElementById('map-wrap'), w = wrap ? wrap.clientWidth : 0, h = wrap ? wrap.clientHeight : 0;
+  if (!w || !h) return; // hidden: stay dirty — the ResizeObserver brings us back when it shows
+  _map.dirty = false;
+  drawMapNow(w, h);
+}
+(function observeMapSize(){
+  var wrap = document.getElementById('map-wrap');
+  if (!wrap) return;
+  if (typeof ResizeObserver !== 'function') { window.addEventListener('resize', redrawMap); return; }
+  // Only schedules a frame — never touches layout inside the callback (no RO loop).
+  new ResizeObserver(function(entries){
+    var r = entries[0].contentRect, key = Math.round(r.width) + 'x' + Math.round(r.height);
+    if (key === _map.size) return;
+    _map.size = key;
+    if (r.width && r.height) redrawMap();
+  }).observe(wrap);
+})();
+var MAP_SVG_STYLE = '@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd var(--dur-arc,1.8s) linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse var(--dur-pulse,2.6s) ease-in-out infinite;fill:var(--map-home-dot,#10b981)}.sp{fill:var(--map-land,#132134);stroke:var(--surface-3,#1e3550);stroke-width:.5}';
+// Layers are created once. Land is re-projected only when the size, view or
+// geography changes, so a price update repaints just routes, callouts and dots.
+function mapLayers(svg) {
+  var L = _map.layers;
+  if (L && L.root.node().parentNode === svg.node()) return L;
+  svg.selectAll('*').remove();
+  var defs = svg.append('defs');
+  defs.append('style').text(MAP_SVG_STYLE);
+  var root = svg.append('g').attr('class', 'map-root');
+  L = _map.layers = { defs: defs, root: root,
+    bg: root.append('rect').attr('class', 'map-bg').style('fill', 'var(--map-bg)'),
+    land: root.append('g').attr('class', 'map-land'),
+    routes: root.append('g').attr('class', 'map-routes'),
+    callouts: root.append('g').attr('class', 'map-callouts'),
+    pivot: root.append('g').attr('class', 'map-pivot'),
+    panel: root.append('g').attr('class', 'map-panel'),
+    airports: root.append('g').attr('class', 'map-airports') };
+  _map.landKey = ''; _map.landSrc = null; _map.markersKey = '';
+  return L;
+}
+function drawMapNow(w, h) {
   var isWorld = (S.mapView === 'world');
   var geoSrc = isWorld ? (S.worldGeo || S.geoData) : S.geoData;
   if (!geoSrc) return;
-  var wrap=document.getElementById('map-wrap'), w=wrap.clientWidth, h=wrap.clientHeight;
-  if (!w || !h) return;
-  var svg=d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
-  svg.selectAll('*').remove();
-
-  if (isWorld) {
-    S.proj = d3.geoNaturalEarth1().fitExtent([[20,20],[w-20,h-20]], geoSrc);
-  } else {
-    S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], geoSrc);
-  }
-  var pg = d3.geoPath().projection(S.proj);
+  var svg = d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
+  var L = mapLayers(svg);
+  L.bg.attr('width', w).attr('height', h);
   var geoFallback = isWorld ? S.worldGeoFallback : S.geoFallback;
-
-  var defs=svg.append('defs');
-  defs.append('style').text('@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd var(--dur-arc,1.8s) linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse var(--dur-pulse,2.6s) ease-in-out infinite;fill:var(--map-home-dot,#10b981)}.sp{fill:var(--map-land,#132134);stroke:var(--surface-3,#1e3550);stroke-width:.5;transition:fill var(--t-quick,.15s)}.sp:hover{fill:var(--map-land-hover,#1a2f48)}');
-  dests().forEach(function(code){
-    var c=DC[code]||'#888';
-    defs.append('marker').attr('id','arr-'+code).attr('markerWidth',8).attr('markerHeight',8).attr('refX',7).attr('refY',3).attr('orient','auto')
-      .append('polygon').attr('points','0 0,8 3,0 6').attr('fill',c).attr('opacity',.9);
-  });
-
-  svg.append('rect').attr('width',w).attr('height',h).style('fill','var(--map-bg)');
-
-  if (!geoFallback) {
-    svg.append('g').selectAll('path').data(geoSrc.features).enter().append('path').attr('class','sp').attr('d',pg)
-      .on('mouseenter', function(e,d){ showTip(e,'<strong>'+(d.properties&&d.properties.name||'Region')+'</strong>'); })
-      .on('mouseleave', hideTip);
-    svg.append('path').datum({type:'FeatureCollection',features:geoSrc.features})
-      .attr('d',pg).attr('fill','none').style('stroke','var(--map-outline)').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
-  } else {
-    svg.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
-      .style('fill','var(--line-strong)').attr('font-size',10).attr('font-family','system-ui,sans-serif')
-      .text('Borders load from internet · airport positions and routes are accurate');
+  var landKey = (isWorld ? 'world' : 'us') + '|' + w + 'x' + h + '|' + (geoFallback ? 'fallback' : 'geo');
+  if (landKey !== _map.landKey || geoSrc !== _map.landSrc) {
+    _map.landKey = landKey; _map.landSrc = geoSrc;
+    if (isWorld) {
+      S.proj = d3.geoNaturalEarth1().fitExtent([[20,20],[w-20,h-20]], geoSrc);
+    } else {
+      S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], geoSrc);
+    }
+    var pg = d3.geoPath().projection(S.proj);
+    L.land.selectAll('*').remove();
+    if (!geoFallback) {
+      L.land.append('g').selectAll('path').data(geoSrc.features).enter().append('path').attr('class','sp').attr('d',pg);
+      L.land.append('path').datum({type:'FeatureCollection',features:geoSrc.features})
+        .attr('d',pg).attr('fill','none').style('stroke','var(--map-outline)').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
+    } else {
+      L.land.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
+        .style('fill','var(--line-strong)').attr('font-size',10).attr('font-family','system-ui,sans-serif')
+        .text('Borders load from internet · airport positions and routes are accurate');
+    }
   }
+  var markersKey = dests().join(',');
+  if (markersKey !== _map.markersKey) {
+    _map.markersKey = markersKey;
+    L.defs.selectAll('marker').remove();
+    dests().forEach(function(code){
+      var c=DC[code]||'#888';
+      L.defs.append('marker').attr('id','arr-'+code).attr('markerWidth',8).attr('markerHeight',8).attr('refX',7).attr('refY',3).attr('orient','auto')
+        .append('polygon').attr('points','0 0,8 3,0 6').attr('fill',c).attr('opacity',.9);
+    });
+  }
+  [L.routes, L.callouts, L.pivot, L.panel, L.airports].forEach(function(g){ g.selectAll('*').remove(); });
 
   var homeXY = S.proj([AIRPORTS[S.home].lon, AIRPORTS[S.home].lat]);
   if (!homeXY) return;
 
-  var rg = svg.append('g');
-
+  var rg = L.routes;
   if (S.mode === 'meetup') {
     var ranking = computeRanking();
     var meetupHub = mapHubCodeForFocus(mapHubFocusKey()) || getActiveHub(ranking);
@@ -5668,15 +5722,15 @@ function redrawMap() {
           if (isPiaDriving) {
             // PIA → ORD is represented by the shared pivot badge, not a fare pill.
           } else {
-            renderMapFareCallout(svg, w, h, from, meetupHub, fromXY[0], fromXY[1], hubXY[0], hubXY[1], price, fromCol);
+            renderMapFareCallout(L.callouts, w, h, from, meetupHub, fromXY[0], fromXY[1], hubXY[0], hubXY[1], price, fromCol);
           }
         });
       }
     }
 
-    if (mapHubFocusKey() === 'PIA_ORD') renderMapPivotPair(svg, S.proj, w, h);
+    if (mapHubFocusKey() === 'PIA_ORD') renderMapPivotPair(L.pivot, S.proj, w, h);
 
-    var ag = svg.append('g');
+    var ag = L.airports;
     Object.values(AIRPORTS).forEach(function(ap){
       var xy = S.proj([ap.lon, ap.lat]);
       if (!xy) return;
@@ -5690,19 +5744,7 @@ function redrawMap() {
       var g   = ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
       wireMapAirportInteraction(g, ap.code);
       if (isHub) g.append('circle').attr('class','hp');
-      g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
-        .on('mouseenter', function(e){
-          var h = '<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--ink-muted);font-size:var(--fs-tiny)">'+ap.name+'</span>';
-          if (isHub) h += '<br/><span style="color:var(--success);font-size:var(--fs-tiny)">★ Best Meetup Hub</span>';
-          if (isMember && !isHub && meetupHub) {
-            var fkey = ap.code+'-'+meetupHub;
-            var fp = S.prices[fkey]||getMock(ap.code,meetupHub);
-            var fprice = S.tripType==='round' ? (fp.rt||fp.ow) : fp.ow;
-            if (fprice) h += '<br/>To '+meetupHub+': <strong style="color:'+(DC[ap.code]||col)+'">$'+fprice+(S.tripType==='round'?' RT':' OW')+'</strong>';
-          }
-          showTip(e,h);
-        })
-        .on('mouseleave', hideTip);
+      g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer');
       if (!isOther) {
         var labelY = isHub ? -26 : -20;
         g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',col).attr('font-size',isHub?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
@@ -5739,7 +5781,7 @@ function redrawMap() {
       var panelW = 96, rowH = 12, padX = 7, padY = 5, headerH = 11, gap = 3;
       var panelH = padY + headerH + gap + routeRows.length*rowH + padY;
       var px = 8, py = h - panelH - 8;
-      var panel = svg.append('g').attr('class','route-price-panel').attr('pointer-events','none');
+      var panel = L.panel.append('g').attr('class','route-price-panel').attr('pointer-events','none');
       // PIA-036 (mobile-only panel): one-off hexes swept onto tokens via style()
       // (#0b1726→--surface-2, #1f3350→--line-strong, #6e93bd→--ink-muted, #d6e0ec→--ink).
       panel.append('rect').attr('x',px).attr('y',py).attr('width',panelW).attr('height',panelH)
@@ -5759,7 +5801,7 @@ function redrawMap() {
       });
     }
 
-    var ag=svg.append('g');
+    var ag = L.airports;
     Object.values(AIRPORTS).forEach(function(ap){
       var xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
@@ -5771,15 +5813,7 @@ function redrawMap() {
       var g=ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
       wireMapAirportInteraction(g, ap.code);
       if (isHome) g.append('circle').attr('class','hp');
-      g.append('circle').attr('r',r).attr('fill',col).attr('stroke',routeSelected?'#ffffff':'#060e1a').attr('stroke-width',routeSelected?3:2).style('cursor','pointer')
-        .on('mouseenter', function(e){
-          var key=isDest?S.home+'-'+ap.code:null;
-          var p=key?(S.prices[key]||getMock(S.home,ap.code)):null;
-          var h='<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--ink-muted);font-size:var(--fs-tiny)">'+ap.name+'</span>';
-          if (p&&p.ow) h+='<br/>From <strong style="color:'+col+'">$'+p.ow+' OW</strong> · $'+p.rt+' RT';
-          showTip(e,h);
-        })
-        .on('mouseleave', hideTip);
+      g.append('circle').attr('r',r).attr('fill',col).attr('stroke',routeSelected?'#ffffff':'#060e1a').attr('stroke-width',routeSelected?3:2).style('cursor','pointer');
       if (!isOther) {
         var labelY=isHome?-26:-20;
         g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',isHome?'#10b981':col).attr('font-size',isHome?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
@@ -6288,10 +6322,7 @@ document.getElementById('map-toggle-btn').addEventListener('click', function() {
   var isOpen = wrap.classList.toggle('open');
   btn.textContent = isOpen ? '🗺 Hide Route Map' : '🗺 Show Route Map';
   btn.classList.toggle('open', isOpen);
-  if (isOpen) {
-    setTimeout(function() { redrawMap(); }, 50);
-    setTimeout(function() { redrawMap(); }, 350);
-  }
+  if (isOpen) redrawMap(); // PIA-090: the ResizeObserver also redraws once the new size lands
 });
 
 // ══ PIA-021 · TRIP BINDER (mobile mirror) ════════════════════════
@@ -10702,8 +10733,7 @@ function updateMobileChips() {
 
 function ensureMapRendersOnMobile() {
   updateMapToggle();
-  updateRoutePicker();
-  renderMapRouteList();
+  redrawMap(); // PIA-090: route picker + list refresh in the same frame
 }
 
 // ── PIA-033: APP-SHELL NAV CONTROLLER (thin glue — show/hide only) ──
@@ -10738,17 +10768,12 @@ function setActiveTab(tab, opts) {
     if (isOn) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
   if (tab === 'map') {
-    // Reuse the existing #map-toggle-btn open path (keeps its double-redraw
-    // layout-settle guard intact); if the map is already open it was hidden by
-    // the previous tab (zero-size → redrawMap bailed), so redraw the same way.
+    // Open the map via its toggle the first time; PIA-090: after that the
+    // ResizeObserver redraws when the tab's map gets its size back.
     var wrap = document.getElementById('map-wrap');
     var btn = document.getElementById('map-toggle-btn');
-    if (wrap && btn && !wrap.classList.contains('open')) {
-      btn.click();
-    } else if (wrap && wrap.classList.contains('open')) {
-      setTimeout(function(){ redrawMap(); }, 50);
-      setTimeout(function(){ redrawMap(); }, 350);
-    }
+    if (wrap && btn && !wrap.classList.contains('open')) btn.click();
+    else redrawMap();
   }
   if (tab === 'plan' && typeof renderDecisionRail === 'function') renderDecisionRail();
 }
@@ -10814,14 +10839,6 @@ document.addEventListener('click', function(e){
   if (e.target && e.target.closest && e.target.closest('.wl-open')) { var openId = e.target.closest('.wl-open').getAttribute('data-id'); var openTrip = watchlistItem(openId); setActiveTab(openTrip && openTrip.mode === 'family' && !openTrip.hub ? 'watchlist' : 'plan'); }
 });
 
-window.addEventListener('orientationchange', function() {
-  setTimeout(function() {
-    var wrap = document.getElementById('map-wrap');
-    if (wrap && wrap.classList.contains('open')) {
-      redrawMap();
-    }
-  }, 100);
-});
 
 (function wireAlertEmail(){
   var inp = document.getElementById('ta-alert-email');
