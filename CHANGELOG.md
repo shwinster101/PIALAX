@@ -12,6 +12,40 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-081)
+- The organizer no longer shows as "waiting" on their own idea: creating a shared idea answers
+  "in" for "Me" automatically (not counted as news, doesn't make the idea "answered"), and nudges
+  never name the organizer.
+
+### Added (PIA-080)
+- Marking a linked Trip Ideas card "booked" (on the organizer's device) asks once for the whole-trip
+  total and records it on the shared idea — choosing the proposal first if needed — so the decision
+  log fills without reopening the builder. Blank skips; other devices just get a reminder.
+
+### Added (PIA-079)
+- The trip assistant reads RSVP answers: on linked cards, family members become companions
+  (in → confirmed, maybe / no answer → tentative, out → out; the organizer is excluded), so its
+  decision says "Confirm Anjo before booking" from real answers. Cards show "● new" when answers
+  arrived since the organizer last opened them.
+
+### Added (PIA-078)
+- RSVP links go where the family talks: on phones "Share proposal" / "Ask the family" open the native
+  share sheet (iMessage etc.) with "Cary shower trip Nov 6–9 — whole family ≈ $1,116. Are you in?";
+  elsewhere the same text + link is copied. "📣 Nudge N waiting" names who hasn't answered.
+  "📅 Hold the dates" downloads a calendar event for the proposed dates with the RSVP link inside.
+
+### Added (PIA-077)
+- Family Plan uses the family's own answers: opening a linked Trip Ideas card applies in / maybe / out
+  from the RSVP link (maybe = tentative), so "out" members drop out of the total. Per-person selectors
+  become read-only "answered" / "waiting" labels, with a "switch to what-if" escape. Answers follow a
+  person across a home move (JAX → LGA) and are never written into the `ms=` URL.
+
+### Added (PIA-076)
+- Trip Ideas cards link to shared ideas (`sharedIdeaId`): sharing from the builder saves the card
+  (no duplicates) and links it; the card shows live RSVP counts ("2 in · 1 maybe · 1 waiting") and
+  "See answers". Family cards without a link get "Ask the family", built from the card's dates/airport
+  with a whole-family estimate.
+
 ## [1.1.0] — 2026-10-02
 
 Group decisions: trip ideas are priced from real cached fares, shared as RSVP links each

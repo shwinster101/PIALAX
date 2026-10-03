@@ -17,6 +17,11 @@ const EXPECT = [
   'tripIdeaBuilder', '_tripIdeaShare', '_tripIdeaOpenRemote', '_tripIdeaKeys', 'tripIdeaMembersFor',
   'summarizeIdeaResponses', 'ideaCommonWindow', 'ideaDecisionStage', 'buildSharedIdeaPayload', 'tripIdeaSharedState',
 ];
+EXPECT.push('WATCHLIST', 'watchlistItem', 'sanitizeWatchlistItem', 'tripIdeaRsvpChipHtml', 'tripIdeaAskFamily', 'tripIdeaPayloadFromItem', 'tripIdeaCardActionsHtml', '_tripIdeaSave'); // PIA-076
+EXPECT.push('memberStatusFromIdea', 'tripIdeaApplyLinkedRsvp', 'tripIdeaLinkedStatusHtml', 'tripIdeaLinkedNoteHtml'); // PIA-077
+EXPECT.push('tripIdeaShareText', 'tripIdeaDistribute', 'tripIdeaDateRange', 'tripIdeaHoldDates', 'tripIdeaNudge'); // PIA-078
+EXPECT.push('tripStateFor', 'computeRecommendation', 'tripIdeaHasNewAnswers', 'tripIdeaMarkSeen'); // PIA-079
+EXPECT.push('tripIdeaPromptActual', 'setWatchlistStage'); // PIA-080
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -240,6 +245,17 @@ async function sharedIdeaSuite() {
     const url = await api._tripIdeaShare();
     const id = url && (url.match(/[?&]idea=([A-Za-z0-9_-]{22})/) || [])[1];
     check(!!id && !/tripIdea=/.test(url), `${file}: with IDEAS bound, share creates an RSVP link ?idea=<id>`);
+    // PIA-076: the shared idea lives on exactly one Trip Ideas card.
+    const linked = api.WATCHLIST.filter((t) => t.sharedIdeaId === id);
+    check(linked.length === 1 && linked[0].mode === 'family' && linked[0].hub === 'RDU',
+      `${file}: sharing saves one Trip Ideas card linked to the idea (family, hub RDU)`);
+    const again = api._tripIdeaSave(true);
+    check(again && again.id === linked[0].id && api.WATCHLIST.filter((t) => t.sharedIdeaId === id).length === 1,
+      `${file}: saving the same recommendation again does not duplicate the card`);
+    check(api.sanitizeWatchlistItem({ id: 'x1', mode: 'solo', sharedIdeaId: '../../etc' }).sharedIdeaId === undefined &&
+      api.sanitizeWatchlistItem({ id: 'x2', mode: 'solo', sharedIdeaId: id }).sharedIdeaId === id,
+      `${file}: stored sharedIdeaId is validated on load`);
+    check(/See answers/.test(api.tripIdeaCardActionsHtml(linked[0])), `${file}: linked card offers "See answers"`);
     const keys = api._tripIdeaKeys();
     check(keys[id] && /^[A-Za-z0-9_-]{43}$/.test(keys[id].edit_key), `${file}: organizer edit key kept on this device only`);
 
@@ -256,6 +272,9 @@ async function sharedIdeaSuite() {
     check(hostFam.parts.some((p) => p.hub === 'LAX' && p.status === 'host' && p.perTicket === 0),
       `${file}: a hub that is the destination counts as home base ($0)`);
     check(api.ideaDecisionStage(doc) === 'proposed', `${file}: new shared idea is "proposed"`);
+    check(doc.responses.LAX && doc.responses.LAX.status === 'in' && Object.keys(doc.responses).length === 1,
+      `${file}: the organizer ("Me") is counted in automatically`);
+    check(!/Me/.test(api.tripIdeaShareText(doc, 'nudge').replace('Mom', '')), `${file}: nudges never ask the organizer`);
 
     const respond = (body) => makeFetch(env)('https://w.dev/idea/respond?id=' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     await respond({ member: 'PIA', status: 'in', available_from: '2026-11-05', available_to: '2026-11-10' });
@@ -266,6 +285,77 @@ async function sharedIdeaSuite() {
     check(sum.counts.in === 1 && sum.counts.maybe === 1 && sum.counts.pending === 1 && sum.travelersIn === 2,
       `${file}: summary counts 1 in (2 travelers) · 1 maybe · 1 waiting`);
     check(api.ideaDecisionStage(after) === 'answered', `${file}: stage becomes "answered" once anyone RSVPs`);
+    const chip = api.tripIdeaRsvpChipHtml(linked[0]);
+    check(/1 in · 1 maybe · 0 out · 1 waiting/.test(chip), `${file}: card chip shows live RSVP counts`);
+    // PIA-077: shared answers drive Family Plan statuses (maybe → tentative; in = default).
+    api.S.linkedIdeaId = id; api.S.depDate = new Date('2026-11-06T12:00:00');
+    await api.tripIdeaApplyLinkedRsvp();
+    check(JSON.stringify(api.S.memberStatus) === JSON.stringify({ LAX: 'tentative' }) && api.S.tentativeMembers.join() === 'LAX',
+      `${file}: linked trip sets Family Plan statuses from answers (LAX maybe → tentative, PIA in)`);
+    check(/✅ in · answered/.test(api.tripIdeaLinkedStatusHtml('PIA')) && /⏳ waiting/.test(api.tripIdeaLinkedStatusHtml('LGA')),
+      `${file}: Family Plan shows read-only "answered" / "waiting" labels`);
+    check(/switch to what-if/.test(api.tripIdeaLinkedNoteHtml()), `${file}: Family Plan says it is using family answers, with a what-if escape`);
+    const moved = api.memberStatusFromIdea({ responses: { LGA: { status: 'out' } } }, new Date('2026-08-01T12:00:00'));
+    check(moved.JAX === 'out' && !moved.LGA, `${file}: an answer follows the person across a home move (LGA answer → JAX before Sep 1)`);
+    api.S.linkedIdeaId = null; api.S.memberStatus = {}; api.S.tentativeMembers = [];
+
+    // PIA-079: answers feed the trip assistant.
+    const ts = api.tripStateFor(linked[0], [], '2026-10-03T12:00:00Z');
+    const byLabel = Object.fromEntries(ts.companions.map((c) => [c.label, c.status]));
+    check(byLabel['Mom & Dad'] === 'confirmed' && byLabel.Anjo === 'tentative' && !('Me' in byLabel),
+      `${file}: trip state companions come from answers (Mom & Dad confirmed, Anjo no answer → tentative, organizer excluded)`);
+    const recm = api.computeRecommendation(ts, null, '2026-10-03T12:00:00Z');
+    check(recm && recm.state === 'COORDINATE' && /Anjo/.test(recm.headline || ''),
+      `${file}: assistant says to confirm Anjo before booking`);
+    check(api.tripIdeaHasNewAnswers(after) === false, `${file}: answers the organizer already opened are not flagged as new`);
+    const newer = Object.assign({}, after, { log: after.log.concat([{ at: '2099-01-01T00:00:00.000Z', event: 'rsvp:in', by: 'LGA' }]) });
+    check(api.tripIdeaHasNewAnswers(newer) === true, `${file}: a later answer flags the card as new`);
+    api.tripIdeaMarkSeen(newer);
+    check(api.tripIdeaHasNewAnswers(newer) === false, `${file}: opening the answers clears the new-answers dot`);
+    // PIA-078: group-text distribution.
+    const inviteTxt = api.tripIdeaShareText(after, 'invite');
+    check(/Nov 6–9/.test(inviteTxt) && /whole family ≈ \$1,116/.test(inviteTxt) && /Are you in\?/.test(inviteTxt) && !/https?:/.test(inviteTxt),
+      `${file}: invite text has dates, family estimate, the ask — and no URL (passed separately)`);
+    check(/still need an answer from Anjo/.test(api.tripIdeaShareText(after, 'nudge')), `${file}: nudge names who is still waiting`);
+    check(api.tripIdeaDateRange('2026-10-30', '2026-11-02') === 'Oct 30–Nov 2' && api.tripIdeaDateRange('', '') === 'dates TBD',
+      `${file}: date ranges read naturally across months`);
+    {
+      const calls = [];
+      const navOk = { userAgent: 'iPhone', clipboard: { writeText: () => Promise.resolve() }, share: async (d) => { calls.push(d); } };
+      const navCancel = { userAgent: 'iPhone', clipboard: { writeText: () => Promise.resolve() }, share: async () => { const e = new Error('x'); e.name = 'AbortError'; throw e; } };
+      const navFail = { userAgent: 'iPhone', clipboard: { writeText: () => Promise.resolve() }, share: async () => { throw new Error('NotAllowed'); } };
+      const p1 = loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { fetch: makeFetch(env), navigator: navOk }).api;
+      const r1 = await p1.tripIdeaDistribute('T', 'Are you in?', 'https://x/?idea=' + id);
+      check(r1 === 'shared' && calls.length === 1 && calls[0].url.endsWith(id) && calls[0].text === 'Are you in?',
+        `${file}: phones use the native share sheet with text and url separate`);
+      const r2 = await loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { navigator: navCancel }).api.tripIdeaDistribute('T', 't', 'u');
+      const r3 = await loadApi(path.join(ROOT, file), file, EXPECT.concat(OPTIONAL), { navigator: navFail }).api.tripIdeaDistribute('T', 't', 'u');
+      check(r2 === 'cancelled' && r3 === 'copied', `${file}: cancel stays quiet; a share failure falls back to copy`);
+    }
+    {
+      let ev = null;
+      try { ev = api.tripIdeaHoldDates(linked[0].id); } catch (e) { ev = api.watchlistItem(linked[0].id).calendarEvents; }
+      ev = ev || api.watchlistItem(linked[0].id).calendarEvents;
+      check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('?idea=' + id),
+        `${file}: "Hold the dates" calendar event spans Nov 6–9 and carries the RSVP link`);
+    }
+    const tg = api.watchlistItem('tgiving');
+    check(tg && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)), `${file}: unlinked family card offers "Ask the family"`);
+    const tgPayload = api.tripIdeaPayloadFromItem(tg);
+    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'RDU' && tgPayload.recommendation.departure === '2026-11-26' &&
+      tgPayload.recommendation.familyTotal > 0 && tgPayload.members.length === 3, `${file}: family card → payload with RDU dates and a family estimate`);
+    // PIA-080 runs on its own idea below; keep this one open for the PIA-073 flow.
+    const tgId = await api.tripIdeaAskFamily('tgiving');
+    // PIA-080: marking the linked card booked records the whole-trip total (choosing first).
+    const tgDone = await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '$1,300');
+    const tgDec = tgDone && tgDone.decision;
+    check(tgDec && tgDec.stage === 'booked' && tgDec.actual_total === 1300 && tgDec.estimate_total > 0 && typeof tgDec.delta_pct === 'number',
+      `${file}: booking a linked card records actual vs estimate (chosen automatically first)`);
+    check(api.tripIdeaDecisionLog().some((e) => e.id === tgId && e.actual_total === 1300),
+      `${file}: the decision log gets the booked total without opening the builder`);
+    check((await api.tripIdeaPromptActual(api.watchlistItem('tgiving'), '')) === null, `${file}: a blank total is skipped, nothing recorded`);
+    check(/^[A-Za-z0-9_-]{22}$/.test(tgId || '') && api.watchlistItem('tgiving').sharedIdeaId === tgId,
+      `${file}: "Ask the family" on a seed card creates and links a shared idea`);
     const win = api.ideaCommonWindow(after);
     check(win && win.overlaps && win.from === '2026-11-06' && win.to === '2026-11-10',
       `${file}: common window is the overlap of in/maybe dates (Nov 6 → Nov 10)`);
@@ -285,7 +375,10 @@ async function sharedIdeaSuite() {
       check(entry && entry.stage === 'booked' && entry.estimate_total === 1116 && entry.actual_total === 1228,
         `${file}: local decision history keeps estimate vs actual`);
       const stats = api.tripIdeaDecisionStats(log);
-      check(stats.booked === 1 && stats.avgDeltaPct === 10, `${file}: history stats: 1 booked, estimates ran 10% low`);
+      const bookedDeltas = log.filter((e) => e.stage === 'booked').map((e) => e.delta_pct);
+      const expectAvg = Math.round(bookedDeltas.reduce((x, y) => x + y, 0) / bookedDeltas.length * 10) / 10;
+      check(stats.booked === 2 && bookedDeltas.includes(10) && stats.avgDeltaPct === expectAvg,
+        `${file}: history stats average actual-vs-estimate across booked ideas (2 booked)`);
       api.tripIdeaSharedState().editKey = '';
       const r = await api.tripIdeaDecisionAction('drop');
       check(r === null && api.tripIdeaSharedState().doc.decision.stage === 'booked', `${file}: without the edit key, decision actions do nothing`);
