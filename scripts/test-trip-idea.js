@@ -17,6 +17,7 @@ const EXPECT = [
   'tripIdeaBuilder', '_tripIdeaShare', '_tripIdeaOpenRemote', '_tripIdeaKeys', 'tripIdeaMembersFor',
   'summarizeIdeaResponses', 'ideaCommonWindow', 'ideaDecisionStage', 'buildSharedIdeaPayload', 'tripIdeaSharedState',
 ];
+EXPECT.push('WATCHLIST', 'watchlistItem', 'sanitizeWatchlistItem', 'tripIdeaRsvpChipHtml', 'tripIdeaAskFamily', 'tripIdeaPayloadFromItem', 'tripIdeaCardActionsHtml', '_tripIdeaSave'); // PIA-076
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -240,6 +241,17 @@ async function sharedIdeaSuite() {
     const url = await api._tripIdeaShare();
     const id = url && (url.match(/[?&]idea=([A-Za-z0-9_-]{22})/) || [])[1];
     check(!!id && !/tripIdea=/.test(url), `${file}: with IDEAS bound, share creates an RSVP link ?idea=<id>`);
+    // PIA-076: the shared idea lives on exactly one Trip Ideas card.
+    const linked = api.WATCHLIST.filter((t) => t.sharedIdeaId === id);
+    check(linked.length === 1 && linked[0].mode === 'family' && linked[0].hub === 'RDU',
+      `${file}: sharing saves one Trip Ideas card linked to the idea (family, hub RDU)`);
+    const again = api._tripIdeaSave(true);
+    check(again && again.id === linked[0].id && api.WATCHLIST.filter((t) => t.sharedIdeaId === id).length === 1,
+      `${file}: saving the same recommendation again does not duplicate the card`);
+    check(api.sanitizeWatchlistItem({ id: 'x1', mode: 'solo', sharedIdeaId: '../../etc' }).sharedIdeaId === undefined &&
+      api.sanitizeWatchlistItem({ id: 'x2', mode: 'solo', sharedIdeaId: id }).sharedIdeaId === id,
+      `${file}: stored sharedIdeaId is validated on load`);
+    check(/See answers/.test(api.tripIdeaCardActionsHtml(linked[0])), `${file}: linked card offers "See answers"`);
     const keys = api._tripIdeaKeys();
     check(keys[id] && /^[A-Za-z0-9_-]{43}$/.test(keys[id].edit_key), `${file}: organizer edit key kept on this device only`);
 
@@ -266,6 +278,16 @@ async function sharedIdeaSuite() {
     check(sum.counts.in === 1 && sum.counts.maybe === 1 && sum.counts.pending === 1 && sum.travelersIn === 2,
       `${file}: summary counts 1 in (2 travelers) · 1 maybe · 1 waiting`);
     check(api.ideaDecisionStage(after) === 'answered', `${file}: stage becomes "answered" once anyone RSVPs`);
+    const chip = api.tripIdeaRsvpChipHtml(linked[0]);
+    check(/1 in · 1 maybe · 0 out · 1 waiting/.test(chip), `${file}: card chip shows live RSVP counts`);
+    const tg = api.watchlistItem('tgiving');
+    check(tg && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)), `${file}: unlinked family card offers "Ask the family"`);
+    const tgPayload = api.tripIdeaPayloadFromItem(tg);
+    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'RDU' && tgPayload.recommendation.departure === '2026-11-26' &&
+      tgPayload.recommendation.familyTotal > 0 && tgPayload.members.length === 3, `${file}: family card → payload with RDU dates and a family estimate`);
+    const tgId = await api.tripIdeaAskFamily('tgiving');
+    check(/^[A-Za-z0-9_-]{22}$/.test(tgId || '') && api.watchlistItem('tgiving').sharedIdeaId === tgId,
+      `${file}: "Ask the family" on a seed card creates and links a shared idea`);
     const win = api.ideaCommonWindow(after);
     check(win && win.overlaps && win.from === '2026-11-06' && win.to === '2026-11-10',
       `${file}: common window is the overlap of in/maybe dates (Nov 6 → Nov 10)`);

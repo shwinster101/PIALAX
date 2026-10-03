@@ -371,11 +371,15 @@ function tripIdeaFocusMap(r){
   var el=_tripIdeaEl('trip-idea-map-summary'); if(el) el.innerHTML='<strong>Map focus</strong><span>'+_tripIdeaEsc(r.hub)+' → '+_tripIdeaEsc(r.airport)+' · '+_tripIdeaEsc(r.departure || 'dates TBD')+(r.return?' → '+_tripIdeaEsc(r.return):'')+'</span><small>Fare labels show only this selected route · '+_tripIdeaEsc(r.priceStatus || 'estimated')+'</small>';
   try { if(typeof selectMapHubFocus==='function' && (r.hub==='LAX' || r.hub==='PIA_ORD' || r.hub==='LGA_JFK')) selectMapHubFocus(r.hub); else if(typeof redrawMap==='function') redrawMap(); } catch(e) {}
 }
-function _tripIdeaSave(){
+var _tripIdeaSavedFor = {}; // PIA-076: recommendation id → watchlist item id (no duplicate cards)
+function _tripIdeaSave(quiet){
   var r=tripIdeaBuilder.recommendation; if(!r){showShareToast('Select a recommendation first');return null;}
+  var prevId=_tripIdeaSavedFor[r.id], prev=prevId && typeof watchlistItem==='function' ? watchlistItem(prevId) : null;
+  if(prev){ if(!quiet) showShareToast('✓ Already in Trip Ideas'); return prev; }
   var item=createTripIdeaWatchlistItem(tripIdeaBuilder,r,{notes:tripIdeaBuilder._notes});
   if(typeof WATCHLIST!=='undefined'){ WATCHLIST.push(item); if(typeof saveWatchlist==='function') saveWatchlist(); if(typeof renderWatchlist==='function') renderWatchlist(); }
-  showShareToast('✓ Saved to Trip Ideas'); return item;
+  if(r.id) _tripIdeaSavedFor[r.id]=item.id;
+  if(!quiet) showShareToast('✓ Saved to Trip Ideas'); return item;
 }
 function _tripIdeaOpenShared(payload){
   if(!payload || !payload.builder) return;
@@ -402,7 +406,7 @@ function _tripIdeaWireStage(){
   var primary=_tripIdeaEl('trip-idea-builder-primary'); if(primary) primary.onclick=function(){if(_tripIdeaBuilderReadOnly){_tripIdeaBuilderReadOnly=false;_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='intent'){_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();return;}if(_tripIdeaBuilderStage==='inputs'){tripIdeaRunSearch();return;} _tripIdeaSave();};
   var share=_tripIdeaEl('trip-idea-builder-share');if(share)share.onclick=_tripIdeaShare;
   var save=_tripIdeaEl('trip-idea-builder-save');if(save)save.onclick=_tripIdeaSave;
-  if(calendarBtn) calendarBtn.onclick=function(){var item=_tripIdeaSave();if(item && typeof addWatchlistTripToCalendar==='function') addWatchlistTripToCalendar(item.id);};
+  if(calendarBtn) calendarBtn.onclick=function(){var item=_tripIdeaSave(true);if(item && typeof addWatchlistTripToCalendar==='function') addWatchlistTripToCalendar(item.id);};
   var edit=_tripIdeaEl('trip-idea-builder-edit');if(edit)edit.onclick=function(){_tripIdeaBuilderReadOnly=false;_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();};
   var copy=_tripIdeaEl('trip-idea-builder-copy');if(copy)copy.onclick=function(){_tripIdeaBuilderReadOnly=false;_tripIdeaBuilderStage='inputs';renderTripIdeaBuilder();};
   sheet.querySelectorAll('[data-trip-close]').forEach(function(b){b.onclick=tripIdeaBuilderClose;});
@@ -517,10 +521,10 @@ function _tripIdeaShare(){
     }
     _tripIdeaSaveKey(res.json.id, res.json.edit_key, payload.title);
     if (typeof tripIdeaRecordDecision === 'function') tripIdeaRecordDecision(res.json.doc);
-    var url = _tripIdeaShareUrl({idea:res.json.id});
-    _tripIdeaCopy('✈️ ' + payload.title + ' — are you in? Tap to answer:\n' + url);
-    showShareToast('✓ RSVP link copied — family can answer in / maybe / out');
-    return url;
+    // PIA-076: the shared idea lives on a Trip Ideas card (saved now if it wasn't).
+    if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc);
+    var item = _tripIdeaSave(true); if (item && typeof tripIdeaLinkItem === 'function') { tripIdeaLinkItem(item, res.json.id); if (typeof renderWatchlist === 'function') renderWatchlist(); }
+    return tripIdeaSendInvite(res.json.doc);
   });
 }
 function _tripIdeaOpenRemote(id) {
@@ -530,7 +534,7 @@ function _tripIdeaOpenRemote(id) {
   _tripIdeaShow(); renderTripIdeaBuilder();
   return _tripIdeaApi('GET', '/idea?id=' + encodeURIComponent(id)).then(function(res){
     if (!_tripIdeaShared || _tripIdeaShared.id !== id) return;
-    if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
+    if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc); if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
     else _tripIdeaShared.error = res.status === 404 ? 'This trip idea was not found — it may have expired.' : res.status === 501 || res.status === 0 ? 'Shared trip ideas are not available right now.' : 'Could not load this trip idea.';
     if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
   });
@@ -544,7 +548,7 @@ function _tripIdeaRespond() {
   if (!body.member || !body.status) { showShareToast('Pick who you are and in / maybe / out'); return Promise.resolve(null); }
   if (body.available_from && body.available_to && body.available_to < body.available_from) { showShareToast('"Free until" must be after "Free from"'); return Promise.resolve(null); }
   return _tripIdeaApi('POST', '/idea/respond?id=' + encodeURIComponent(sh.id), body).then(function(res){
-    if (res.ok && res.json && res.json.doc) { sh.doc = res.json.doc; showShareToast('✓ Answer saved — thanks!'); renderTripIdeaBuilder(); return res.json.doc; }
+    if (res.ok && res.json && res.json.doc) { sh.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(sh.doc); showShareToast('✓ Answer saved — thanks!'); renderTripIdeaBuilder(); return res.json.doc; }
     showShareToast(res.status === 409 ? 'This trip is already decided' : 'Could not save your answer — try again');
     return null;
   });
@@ -625,7 +629,7 @@ function tripIdeaDecisionAction(action, amount) {
   if (!decision) return Promise.resolve(null);
   return _tripIdeaApi('POST', '/idea/update?id=' + encodeURIComponent(sh.id), {edit_key:sh.editKey, decision:decision}).then(function(res){
     if (res.ok && res.json && res.json.doc) {
-      sh.doc = res.json.doc; tripIdeaRecordDecision(sh.doc);
+      sh.doc = res.json.doc; tripIdeaRecordDecision(sh.doc); tripIdeaStoreDoc(sh.doc);
       showShareToast(action === 'book' ? '✓ Booked — estimate vs actual saved' : action === 'choose' ? '✓ Option chosen' : action === 'drop' ? '✓ Idea dropped' : '✓ Reopened');
       if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
       return sh.doc;
@@ -657,6 +661,101 @@ function tripIdeaHistoryHtml() {
       return '<li><button type="button" data-idea-open="' + _tripIdeaEsc(e.id) + '"><strong>' + _tripIdeaEsc(e.title) + '</strong> · ' + _tripIdeaEsc(e.stage) +
         ' · est ' + _tripIdeaEsc(_tripIdeaMoney(e.estimate_total)) + (e.actual_total == null ? '' : ' → paid ' + _tripIdeaEsc(_tripIdeaMoney(e.actual_total))) + '</button></li>';
     }).join('') + '</ul></details>';
+}
+
+// ── PIA-076: shared ideas ↔ Trip Ideas cards ────────────────────────────────
+// A watchlist item carries `sharedIdeaId` once the family has been asked. The
+// card shows a live RSVP chip (cached GET /idea, ≤ 1 fetch per idea per 5 min)
+// and actions to open answers or ask the family for an unlinked trip.
+var TRIP_IDEA_ID_RE = /^[A-Za-z0-9_-]{22}$/;
+var TRIP_IDEA_DOC_TTL_MS = 5 * 60 * 1000;
+var _tripIdeaDocCache = {}; // id → {doc, ts, pending}
+function tripIdeaCachedDoc(id) { var c = _tripIdeaDocCache[id]; return c && c.doc ? c.doc : null; }
+function tripIdeaFetchDoc(id, force) {
+  if (!TRIP_IDEA_ID_RE.test(String(id || ''))) return Promise.resolve(null);
+  var c = _tripIdeaDocCache[id] || (_tripIdeaDocCache[id] = {doc:null, ts:0, pending:null});
+  if (c.pending) return c.pending;
+  if (!force && c.ts && Date.now() - c.ts < TRIP_IDEA_DOC_TTL_MS) return Promise.resolve(c.doc);
+  c.pending = _tripIdeaApi('GET', '/idea?id=' + encodeURIComponent(id)).then(function(res){
+    var before = c.doc && c.doc.updated_at;
+    c.pending = null; c.ts = Date.now();
+    if (res.ok && res.json && res.json.doc) c.doc = res.json.doc;
+    if (c.doc && c.doc.updated_at !== before && typeof renderWatchlist === 'function') { try { renderWatchlist(); } catch (e) {} }
+    return c.doc;
+  });
+  return c.pending;
+}
+function tripIdeaStoreDoc(doc) { if (doc && doc.id) _tripIdeaDocCache[doc.id] = {doc:doc, ts:Date.now(), pending:null}; }
+function tripIdeaRsvpChipHtml(item) {
+  if (!item || !item.sharedIdeaId) return '';
+  var doc = tripIdeaCachedDoc(item.sharedIdeaId);
+  tripIdeaFetchDoc(item.sharedIdeaId);
+  var txt = '👥 checking answers…';
+  if (doc) {
+    var s = summarizeIdeaResponses(doc);
+    txt = s.stage === 'booked' ? '👥 booked' : s.stage === 'dropped' ? '👥 dropped' :
+      '👥 ' + s.counts.in + ' in · ' + s.counts.maybe + ' maybe · ' + s.counts.out + ' out' + (s.counts.pending ? ' · ' + s.counts.pending + ' waiting' : '');
+  }
+  var fresh = typeof tripIdeaHasNewAnswers === 'function' && doc && tripIdeaHasNewAnswers(doc);
+  return '<div class="wl-rsvp-chip">' + _tripIdeaEsc(txt) + (fresh ? ' <b class="wl-rsvp-new" title="New answers since you last looked">● new</b>' : '') + '</div>';
+}
+// Builder-saved items keep their recommendation; others are rebuilt from card fields.
+function tripIdeaPayloadFromItem(item) {
+  var bm = item.builderMetadata || {}, iata = /^[A-Z]{3}$/;
+  var airport = [item.gf && item.gf.to, item.hub, item.dest].filter(function(x){ return iata.test(String(x || '')); })[0] || '';
+  var rec = bm.recommendation && bm.recommendation.airport ? Object.assign({}, bm.recommendation) :
+    {city:item.title, airport:airport, alternatives:[], hub:'', departure:item.dep || '', return:item.ret || '', totalFare:null, perTicketFare:null, headcount:1, priceStatus:'estimated'};
+  if (item.dep) rec.departure = item.dep;
+  if (item.ret) rec.return = item.ret;
+  var builder = createTripIdeaBuilderState({destination:{city:item.title, airport:airport}, dates:{departure:item.dep || '', return:item.ret || ''}});
+  var payload = buildSharedIdeaPayload(builder, rec.airport ? rec : null, item.notes || '');
+  payload.title = String(item.title || payload.title).replace(/\s*·\s*Trip idea$/, '').slice(0, 80);
+  if (!rec.airport) payload.recommendation = null;
+  return payload;
+}
+function tripIdeaLinkItem(item, id) {
+  if (!item || !TRIP_IDEA_ID_RE.test(String(id || ''))) return;
+  item.sharedIdeaId = id;
+  if (item._added && item.mode !== 'family') {
+    item.mode = 'family';
+    if (!item.hub && /^[A-Z]{3}$/.test(String(item.dest || ''))) item.hub = item.dest;
+  }
+  if (typeof saveWatchlist === 'function') saveWatchlist();
+}
+function tripIdeaAskFamily(itemId) {
+  var item = typeof watchlistItem === 'function' ? watchlistItem(itemId) : null;
+  if (!item) return Promise.resolve(null);
+  if (item.sharedIdeaId) return Promise.resolve(item.sharedIdeaId);
+  var payload = tripIdeaPayloadFromItem(item);
+  return _tripIdeaApi('POST', '/idea', {idea:payload}).then(function(res){
+    if (!res.ok || !res.json || !res.json.id) { showShareToast(res.status === 501 ? 'Shared RSVPs are not set up on the Worker yet' : 'Could not create the RSVP link — try again'); return null; }
+    _tripIdeaSaveKey(res.json.id, res.json.edit_key, payload.title);
+    tripIdeaStoreDoc(res.json.doc); tripIdeaRecordDecision(res.json.doc);
+    tripIdeaLinkItem(item, res.json.id);
+    tripIdeaSendInvite(res.json.doc);
+    if (typeof renderWatchlist === 'function') renderWatchlist();
+    return res.json.id;
+  });
+}
+// Placeholder distribution until PIA-078: copy the link.
+function tripIdeaSendInvite(doc) {
+  var url = _tripIdeaShareUrl({idea:doc.id});
+  _tripIdeaCopy('✈️ ' + ((doc.idea && doc.idea.title) || 'Trip idea') + ' — are you in? Tap to answer:\n' + url);
+  showShareToast('✓ RSVP link copied — family can answer in / maybe / out');
+  return Promise.resolve(url);
+}
+// Card actions (expanded card). Family trips and builder ideas can ask the family.
+function tripIdeaCardActionsHtml(item) {
+  if (!item || item.stage === 'completed') return '';
+  var b = function(cls, label){ return '<button type="button" class="' + cls + ' wl-act" data-id="' + _tripIdeaEsc(item.id) + '" style="color:var(--accent);border:1px solid var(--accent);">' + label + '</button>'; };
+  if (item.sharedIdeaId) return b('wl-idea-open', '👥 See answers');
+  if (item.mode === 'family' || item.builderMetadata) return b('wl-idea-ask', '👥 Ask the family');
+  return '';
+}
+function tripIdeaWireCardActions(root) {
+  if (!root || !root.querySelectorAll) return;
+  root.querySelectorAll('.wl-idea-open').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) _tripIdeaOpenRemote(t.sharedIdeaId); }); });
+  root.querySelectorAll('.wl-idea-ask').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaAskFamily(el.getAttribute('data-id')); }); });
 }
 
 function initTripIdeaBuilder(){

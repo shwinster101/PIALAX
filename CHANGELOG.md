@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-076)
+- Trip Ideas cards link to shared ideas (`sharedIdeaId`): sharing from the builder saves the card
+  (no duplicates) and links it; the card shows live RSVP counts ("2 in · 1 maybe · 1 waiting") and
+  "See answers". Family cards without a link get "Ask the family", built from the card's dates/airport
+  with a whole-family estimate.
+
 ## [1.1.0] — 2026-10-02
 
 Group decisions: trip ideas are priced from real cached fares, shared as RSVP links each
