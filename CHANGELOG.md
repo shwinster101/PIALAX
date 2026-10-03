@@ -12,6 +12,15 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-102)
+- The RSVP shows when the family is actually together. With full overlap it says "Everyone's
+  there Nov 26–29". Otherwise it shows the days most people are there and who's missing why:
+  "Best window Nov 24–28 · 2 of 3 there (Kiran: here Nov 29–30)".
+- A day strip under it has one row per person across the answered days, with hosts as a full
+  🏠 bar and the best window outlined. Everyone sees it.
+- Organizer: "📅 Hold Nov 26–29" puts the family window on the calendar, replacing the hold for
+  the proposed dates. The organizer's header now reads "Proposed Nov 25–29" instead of raw dates.
+
 ### Added (PIA-101)
 - RSVP dates are picked on a month calendar that opens on the trip's month (November for
   Thanksgiving) with nothing preselected. Tap the day you'd arrive, then the day you'd leave

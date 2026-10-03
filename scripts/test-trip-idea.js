@@ -27,6 +27,7 @@ EXPECT.push('handoffIntentsForWatchlistItem', 'tripIdeaAnswerDates', 'tripIdeaMe
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 EXPECT.push('mapHubOption'); // PIA-091
 EXPECT.push('tripIdeaLooseWhen'); // PIA-098
+EXPECT.push('ideaBestWindow', 'tripIdeaWindowText', 'tripIdeaDayStripHtml'); // PIA-102
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -71,6 +72,24 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     const html = api.tripIdeaRangeCalendarHtml('2026-11', '2026-11-24', '2026-11-29', counts, '2026-11-22');
     check(/November 2026/.test(html) && /data-cal-day="2026-11-21"[^>]*disabled/.test(html) && /is-start/.test(html) && /Nov 24–29 · 5 nights/.test(html),
       `${file}: calendar marks past days, the picked range and its nights`);
+  }
+  // PIA-102: best-coverage window — everyone, partial (who's missing and why), hosts never limit it.
+  {
+    const members = [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }, { code: 'RDU', label: 'Kiran', airport: 'RDU' }];
+    const mk = (responses) => ({ idea: { members, destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' } }, responses });
+    const all = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-30' }, RDU: { status: 'maybe', available_from: '2026-11-25', available_to: '2026-11-28' } }));
+    check(all && all.everyone && all.from === '2026-11-25' && all.to === '2026-11-28' && all.there === 3 && /Everyone’s there Nov 25–28/.test(api.tripIdeaWindowText(all)),
+      `${file}: everyone overlaps → "Everyone’s there Nov 25–28" (hosts don't limit it)`);
+    const part = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-28' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-28' }, RDU: { status: 'in', available_from: '2026-11-29', available_to: '2026-11-30' } }));
+    const txt = api.tripIdeaWindowText(part);
+    check(part && !part.everyone && part.from === '2026-11-24' && part.to === '2026-11-28' && part.there === 2 && part.total === 3 && /Best window Nov 24–28 · 2 of 3 there \(Kiran: here Nov 29–30\)/.test(txt),
+      `${file}: partial overlap → best window, "2 of 3 there", and who's missing why`);
+    const nodates = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'maybe' } }));
+    check(nodates && nodates.total === 2 && nodates.missing[0].why === 'no dates yet' && api.ideaBestWindow(mk({})) === null && api.tripIdeaWindowText(null) === 'No dates picked yet',
+      `${file}: people without dates are listed as "no dates yet"; nobody → "No dates picked yet"`);
+    const strip = api.tripIdeaDayStripHtml(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-30' } }), all);
+    check(/🏠 Mom &amp; Dad/.test(strip) && /class="on win"/.test(strip) && (strip.match(/<i /g) || []).length === 3 * 10,
+      `${file}: day strip — one row per person (hosts as 🏠), the window shaded`);
   }
   // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
   check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',
