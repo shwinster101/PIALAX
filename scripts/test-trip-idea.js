@@ -20,6 +20,7 @@ const EXPECT = [
 EXPECT.push('WATCHLIST', 'watchlistItem', 'sanitizeWatchlistItem', 'tripIdeaRsvpChipHtml', 'tripIdeaAskFamily', 'tripIdeaPayloadFromItem', 'tripIdeaCardActionsHtml', '_tripIdeaSave'); // PIA-076
 EXPECT.push('memberStatusFromIdea', 'tripIdeaApplyLinkedRsvp', 'tripIdeaLinkedStatusHtml', 'tripIdeaLinkedNoteHtml'); // PIA-077
 EXPECT.push('tripIdeaShareText', 'tripIdeaDistribute', 'tripIdeaDateRange', 'tripIdeaHoldDates', 'tripIdeaNudge'); // PIA-078
+EXPECT.push('tripStateFor', 'computeRecommendation', 'tripIdeaHasNewAnswers', 'tripIdeaMarkSeen'); // PIA-079
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -294,6 +295,19 @@ async function sharedIdeaSuite() {
     check(moved.JAX === 'out' && !moved.LGA, `${file}: an answer follows the person across a home move (LGA answer → JAX before Sep 1)`);
     api.S.linkedIdeaId = null; api.S.memberStatus = {}; api.S.tentativeMembers = [];
 
+    // PIA-079: answers feed the trip assistant.
+    const ts = api.tripStateFor(linked[0], [], '2026-10-03T12:00:00Z');
+    const byLabel = Object.fromEntries(ts.companions.map((c) => [c.label, c.status]));
+    check(byLabel['Mom & Dad'] === 'confirmed' && byLabel.Anjo === 'tentative' && !('Me' in byLabel),
+      `${file}: trip state companions come from answers (Mom & Dad confirmed, Anjo no answer → tentative, organizer excluded)`);
+    const recm = api.computeRecommendation(ts, null, '2026-10-03T12:00:00Z');
+    check(recm && recm.state === 'COORDINATE' && /Anjo/.test(recm.headline || ''),
+      `${file}: assistant says to confirm Anjo before booking`);
+    check(api.tripIdeaHasNewAnswers(after) === false, `${file}: answers the organizer already opened are not flagged as new`);
+    const newer = Object.assign({}, after, { log: after.log.concat([{ at: '2099-01-01T00:00:00.000Z', event: 'rsvp:in', by: 'LGA' }]) });
+    check(api.tripIdeaHasNewAnswers(newer) === true, `${file}: a later answer flags the card as new`);
+    api.tripIdeaMarkSeen(newer);
+    check(api.tripIdeaHasNewAnswers(newer) === false, `${file}: opening the answers clears the new-answers dot`);
     // PIA-078: group-text distribution.
     const inviteTxt = api.tripIdeaShareText(after, 'invite');
     check(/Nov 6–9/.test(inviteTxt) && /whole family ≈ \$1,116/.test(inviteTxt) && /Are you in\?/.test(inviteTxt) && !/https?:/.test(inviteTxt),

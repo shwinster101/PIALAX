@@ -8506,6 +8506,7 @@ function tripStateFor(item, facts, nowIso) {
     recommendation: null,
     updated_at: String(nowIso || '')
   };
+  if (typeof tripIdeaAugmentTripState === 'function') tripIdeaAugmentTripState(item, st); // PIA-079: RSVP answers → companions
   st.version = taFingerprint([st.segments, st.constraints, st.companions, st.target_price, st.decision_deadline, st.unresolved_conflicts]);
   return st;
 }
@@ -10028,7 +10029,7 @@ function _tripIdeaOpenRemote(id) {
   _tripIdeaShow(); renderTripIdeaBuilder();
   return _tripIdeaApi('GET', '/idea?id=' + encodeURIComponent(id)).then(function(res){
     if (!_tripIdeaShared || _tripIdeaShared.id !== id) return;
-    if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc); if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
+    if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc); if (_tripIdeaShared.editKey && typeof tripIdeaMarkSeen === 'function') { tripIdeaMarkSeen(res.json.doc); if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {} } if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
     else _tripIdeaShared.error = res.status === 404 ? 'This trip idea was not found — it may have expired.' : res.status === 501 || res.status === 0 ? 'Shared trip ideas are not available right now.' : 'Could not load this trip idea.';
     if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
   });
@@ -10370,6 +10371,46 @@ function tripIdeaWireLinkedNote(panel) {
     if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap();
     showShareToast('What-if mode — set in / maybe / out yourself');
   }); });
+}
+
+// ── PIA-079: RSVP answers feed the trip assistant + "new answers" dot ───────
+// Linked cards' trip state gets companions from real answers (in → confirmed,
+// maybe / no answer → tentative, out → out), so the existing COORDINATE step
+// says "Confirm Anjo before booking" from what people actually said. The
+// organizer ("Me") is not their own companion. Pure: reads the cache only.
+var TRIP_IDEA_SEEN_STORAGE = 'pialax_idea_seen_v1';
+function tripIdeaCompanionsFromDoc(doc) {
+  if (!doc) return [];
+  return summarizeIdeaResponses(doc).rows.filter(function(r){ return r.label !== 'Me'; }).map(function(r){
+    var status = r.status === 'in' ? 'confirmed' : r.status === 'out' ? 'out' : 'tentative';
+    return {label:r.label, status:status, confidence:1, is_inferred:false,
+      source_text:r.status === 'pending' ? 'No answer yet on the family RSVP link' : 'Answered "' + r.status + '" on the family RSVP link'};
+  });
+}
+function tripIdeaAugmentTripState(item, st) {
+  if (!item || !item.sharedIdeaId || !st) return st;
+  var doc = tripIdeaCachedDoc(item.sharedIdeaId);
+  if (!doc) return st;
+  var fromIdea = tripIdeaCompanionsFromDoc(doc), have = {};
+  fromIdea.forEach(function(c){ have[String(c.label).toLowerCase()] = true; });
+  st.companions = (st.companions || []).filter(function(c){ return !(c && have[String(c.label || '').toLowerCase()]); }).concat(fromIdea);
+  return st;
+}
+function _tripIdeaSeen() { try { return JSON.parse(localStorage.getItem(TRIP_IDEA_SEEN_STORAGE)) || {}; } catch (e) { return {}; } }
+function _tripIdeaLastAnswerAt(doc) {
+  var last = ''; ((doc && doc.log) || []).forEach(function(l){ if (/^rsvp:/.test(l.event || '') && l.at > last) last = l.at; });
+  return last;
+}
+function tripIdeaHasNewAnswers(doc) {
+  var last = _tripIdeaLastAnswerAt(doc);
+  return !!last && last > (_tripIdeaSeen()[doc.id] || '');
+}
+function tripIdeaMarkSeen(doc) {
+  if (!doc || !doc.id) return;
+  var seen = _tripIdeaSeen(), last = _tripIdeaLastAnswerAt(doc);
+  if (!last || seen[doc.id] === last) return;
+  seen[doc.id] = last;
+  try { localStorage.setItem(TRIP_IDEA_SEEN_STORAGE, JSON.stringify(seen)); } catch (e) {}
 }
 
 function initTripIdeaBuilder(){

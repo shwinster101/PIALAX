@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-079)
+- The trip assistant reads RSVP answers: on linked cards, family members become companions
+  (in → confirmed, maybe / no answer → tentative, out → out; the organizer is excluded), so its
+  decision says "Confirm Anjo before booking" from real answers. Cards show "● new" when answers
+  arrived since the organizer last opened them.
+
 ### Added (PIA-078)
 - RSVP links go where the family talks: on phones "Share proposal" / "Ask the family" open the native
   share sheet (iMessage etc.) with "Cary shower trip Nov 6–9 — whole family ≈ $1,116. Are you in?";
