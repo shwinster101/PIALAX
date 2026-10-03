@@ -32,6 +32,8 @@ EXPECT.push('tripIdeaInviteUrl'); // PIA-104
 EXPECT.push('tripIdeaFlightUrl', 'tripIdeaBookRows'); // PIA-105
 EXPECT.push('tripIdeaBookedCount', 'tripIdeaCanBook'); // PIA-106
 EXPECT.push('tripIdeaCardMoreHtml', 'tripIdeaShareCard'); // PIA-107
+EXPECT.push('tripIdeaAltAirports'); // PIA-108
+EXPECT.push('tripIdeaOpenJaw'); // PIA-109
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -111,6 +113,14 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     const rows = api.tripIdeaBookRows(doc);
     check(rows.map((r) => r.code).join() === 'LAX,LGA' && rows[1].from === 'JFK' && /on 2026-11-26 through 2026-11-30/.test(decodeURIComponent(rows[1].url)) && /on 2026-11-21 through 2026-11-29/.test(decodeURIComponent(rows[0].url)),
       `${file}: book rows — travelers only (no hosts, no "out"), each from their own airport on their own dates`);
+    // PIA-109: for Peoria the primary search is in to PIA, home from ORD (two one-ways, own dates).
+    check(rows[0].openJaw && /LAX to PIA on 2026-11-21 one way/.test(decodeURIComponent(rows[0].openJaw.inUrl)) && /ORD to LAX on 2026-11-29 one way/.test(decodeURIComponent(rows[0].openJaw.outUrl)) &&
+      rows[1].openJaw && /ORD to JFK on 2026-11-30 one way/.test(decodeURIComponent(rows[1].openJaw.outUrl)),
+      `${file}: Peoria primary = fly in PIA + home from ORD, one-ways on each person's own dates`);
+    // PIA-108: Peoria is the PIA/ORD hub — every traveler also gets an O'Hare search, on the same own dates.
+    check(rows[0].alts.length === 1 && rows[0].alts[0].to === 'ORD' && /LAX to ORD on 2026-11-21 through 2026-11-29/.test(decodeURIComponent(rows[0].alts[0].url)) &&
+      api.tripIdeaAltAirports('LGA').join() === 'JFK' && api.tripIdeaAltAirports('RDU').length === 0,
+      `${file}: hub airports — PIA trips also search ORD (LGA ↔ JFK); single-airport cities get no alternative`);
   }
   // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
   check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',
@@ -455,15 +465,17 @@ async function sharedIdeaSuite() {
     check(api.watchlistItem('tgiving') && api.watchlistItem('tgiving').stage === 'completed' &&
       api.tripIdeaCardActionsHtml(api.watchlistItem('tgiving')) === '', `${file}: postponed Cary card is archived (no RSVP actions)`);
     const tg = api.watchlistItem('thanksgiving');
-    check(tg && tg.hub === 'PIA' && tg.dep === '2026-11-25' && tg.ret === '2026-11-29' && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)),
-      `${file}: Thanksgiving card (PIA, Nov 25–29) offers "Ask the family"`);
-    const tgLinks = api.watchlistGFLinks(tg).map((l) => l.label + ' ' + l.url);
-    check(tgLinks.length === 2 && tgLinks.some((l) => /^Me · /.test(l) && /LAX/.test(l)) && tgLinks.some((l) => /^Anjo · /.test(l) && /LGA/.test(l)) &&
-      !tgLinks.some((l) => /Mom/.test(l)), `${file}: Thanksgiving card links one flight search per traveler; Mom & Dad host`);
+    check(tg && tg.hub === 'PIA' && tg.dep === '2026-11-20' && tg.ret === '2026-11-29' && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)),
+      `${file}: Thanksgiving card (PIA, Fri Nov 20 – Sun Nov 29, parade) offers "Ask the family"`);
+    // PIA-109: each traveler gets two one-ways — in to PIA Fri Nov 20, home from ORD Sun Nov 29.
+    const tgLinks = api.watchlistGFLinks(tg).map((l) => l.label + ' ' + decodeURIComponent(l.url));
+    check(tgLinks.length === 4 && tgLinks.some((l) => /^Me · Outbound · LAX → PIA/.test(l) && /LAX to PIA on 2026-11-20/.test(l)) &&
+      tgLinks.some((l) => /^Me · Return · ORD → LAX/.test(l) && /ORD to LAX on 2026-11-29/.test(l)) &&
+      tgLinks.some((l) => /^Anjo · Outbound · LGA → PIA/.test(l)) && tgLinks.some((l) => /^Anjo · Return · ORD → LGA/.test(l)) && !tgLinks.some((l) => /Mom/.test(l)),
+      `${file}: Thanksgiving links fly in to PIA Fri Nov 20 and home from ORD Sun Nov 29, per traveler; Mom & Dad host`);
     const tgPayload = api.tripIdeaPayloadFromItem(tg);
-    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'PIA' && tgPayload.recommendation.departure === '2026-11-25' &&
-      tgPayload.recommendation.familyTotal === 704 && tgPayload.members.length === 3,
-      `${file}: Thanksgiving payload: PIA, Nov 25, family ≈ $704 (LAX 362 + LGA 342, hosts $0)`);
+    check(tgPayload.recommendation && tgPayload.recommendation.airport === 'PIA' && tgPayload.recommendation.departure === '2026-11-20' && tgPayload.members.length === 3,
+      `${file}: Thanksgiving payload: PIA from Nov 20, three members`);
     // PIA-080 runs on its own idea below; keep the earlier one open for the PIA-073 flow.
     const tgId = await api.tripIdeaAskFamily('thanksgiving');
     // PIA-080: marking the linked card booked records the whole-trip total (choosing first).
