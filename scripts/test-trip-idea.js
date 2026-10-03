@@ -25,6 +25,7 @@ EXPECT.push('tripIdeaPromptActual', 'setWatchlistStage'); // PIA-080
 EXPECT.push('watchlistGFLinks'); // PIA-082
 EXPECT.push('handoffIntentsForWatchlistItem', 'tripIdeaAnswerDates', 'tripIdeaMemberTravel', 'tripIdeaChosenWithAnswers', 'tripIdeaFetchDoc'); // PIA-083
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
+EXPECT.push('mapHubOption'); // PIA-091
 const OPTIONAL = [];
 let failures = 0;
 const formMarkup = {};
@@ -40,6 +41,9 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
 
   const rdu = api.resolveTripIdeaCity('Cary', []);
   check(rdu && rdu.airport === 'RDU', `${file}: Cary resolves to nearby RDU`);
+  // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
+  check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',
+    `${file}: map focus from the builder's LGA_JFK hub lands on New York, not PIA/ORD`);
   const lga = api.resolveTripIdeaCity('LGA', []);
   check(lga && lga.airport === 'LGA' && lga.alternatives.includes('JFK'), `${file}: LGA/JFK alternatives remain grouped`);
 

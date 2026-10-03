@@ -12,6 +12,53 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-091)
+- iPhone map labels no longer overlap. Airport codes, city names, fare tags and the PIA → ORD
+  drive badge are placed together, clear of each other, of every labelled airport and of the
+  focus chip. A label moved away from its spot gets a thin leader line back. When two-line fare
+  tags can't sit by their routes (every phone width on the Thanksgiving map), all tags switch to
+  one line ("≈ $342 RT") in the traveler's colour, and the badge shortens to "🚗 drive".
+  Map text is now at least 11px (some was 8px).
+- A tap goes to the nearest airport within 30px. Tapping the PIA dot no longer picks ORD (their
+  tap circles overlapped), and LGA vs JFK follow the side tapped. Each airport is still a keyboard
+  target, with a focus ring.
+- Solo map: the in-map price box (8px text) is gone. Its best-weekend price now shows in the
+  route list under the map.
+- Light mode: the meetup hub and the picked destination were white on the light map; they now
+  use the hub colour, so they show in both themes.
+
+### Fixed (PIA-091)
+- Opening the map from a New York (LGA/JFK) trip idea focused PIA/ORD instead of New York.
+  Desktop has the same fix.
+
+### Changed (PIA-090)
+- iPhone map renders smoothly: it opens at its final size (no jump), re-fits correctly after
+  rotating (it used to end up mis-sized and shrink ~7% after landscape → portrait), and price
+  updates or the browser toolbar collapsing no longer rebuild the whole map. Redraws are
+  coalesced to one per frame and skipped while the Map tab is hidden.
+
+### Fixed (PIA-087)
+- iPhone: the Trip Idea Builder now opens above the tab bar. Before, the tab bar covered its
+  footer — on an iPhone SE "Find recommendations" couldn't be tapped at all. The footer puts
+  the main action first at full width with the rest two-up (three-up in landscape) at 44px,
+  respects the home-indicator and notch insets, the page behind no longer scrolls, the ✕ is a
+  44px target, and it also goes full-screen in landscape.
+
+### Fixed (PIA-086)
+- iPhone shell: status bar / browser chrome follow the app colours (theme-color, color-scheme),
+  booking numbers no longer turn into phone links, Home Screen launch is full-screen, and the
+  missing tab icon is added. Toasts sit just above the tab bar (not mid-screen), wrap long
+  messages, move to the top while a full-screen sheet is open, and no longer get cut short by
+  an older timer. In landscape the tab bar and fare button line up with the content column, and
+  the phone layouts (hub cards, route picker) apply to landscape phones too. The "sample fares"
+  notice shows on Trips only (real quota warnings stay on every tab).
+
+### Fixed (PIA-084)
+- iPhone: Trips paints immediately instead of showing "Loading…" for 4–6s while map borders
+  download; a tab tapped during startup is no longer overridden; inline-button globals exist
+  as soon as the page loads. Map-border downloads give up after 4s and use the offline outline
+  (desktop gets the same timeout).
+
 ### Added (PIA-083)
 - One family trip, staggered arrivals: each person's RSVP has **I'd arrive / I'd leave** (prefilled
   with the trip dates). Their Google Flights link on the card uses their own dates

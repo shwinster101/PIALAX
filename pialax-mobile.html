@@ -3,6 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<!-- PIA-086: iPhone shell — browser chrome / status bar follow the app colours,
+     iOS stops turning booking numbers into phone links, Home Screen launches
+     full-screen, and the tab icon no longer 404s (data: is allowed by img-src). -->
+<meta name="color-scheme" content="dark light"/>
+<meta name="theme-color" content="#07101e" media="(prefers-color-scheme: dark)"/>
+<meta name="theme-color" content="#f2f5f9" media="(prefers-color-scheme: light)"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="PIALAX"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="format-detection" content="telephone=no"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307101e'/%3E%3Cpath d='M14 36l36-14-10 28-7-11z' fill='%233b82f6'/%3E%3C/svg%3E"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://pialax-proxy.ashwinyedavalli.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <!-- Audit finding F-disclosure (2026-08-01): personal family trip tracker, not a
@@ -346,8 +358,8 @@ html {
 }
 body {
   background: var(--bg);
-  min-height: 100svh;
   min-height: 100vh;
+  min-height: 100svh; /* PIA-086: svh last so supporting browsers use it */
   /* PIA-033: safe-area top now lives on the sticky #shell-header; bottom
      reserve covers sticky CTA (72px) + tab bar (56px) + safe-area inset. */
   padding-bottom: calc(env(safe-area-inset-bottom) + 132px);
@@ -975,7 +987,7 @@ body.trip-sheet-active{overflow:hidden;}
 .map-pivot-layer .pivot-line{fill:none;stroke:var(--co-ord);stroke-width:2.5;stroke-dasharray:5,4;opacity:.9;}
 .map-pivot-layer .pivot-label{font-family:system-ui,sans-serif;font-weight:900;paint-order:stroke;stroke:var(--map-bg);stroke-width:4;stroke-linejoin:round;}
 .map-pivot-layer .pivot-note{font-family:system-ui,sans-serif;font-weight:900;}
-@media (max-width:640px){
+@media (max-width:640px), (orientation:landscape) and (max-height:500px){ /* PIA-086: landscape phones too */
   #hub-compare{grid-template-columns:repeat(3,minmax(156px,1fr));overflow-x:auto;margin:8px 0 0;padding:0 12px 2px;scrollbar-width:none;}
   #hub-compare::-webkit-scrollbar{display:none;}
   .hub-focus-card{min-height:88px;padding:8px 9px;}
@@ -1237,7 +1249,7 @@ body.trip-sheet-active{overflow:hidden;}
   overflow: hidden;
   width: 100%;
   height: 0;
-  transition: height .3s var(--ease);
+  /* PIA-090: no height animation — redraws used to fit the map to a half-open size */
 }
 #map-wrap.open {
   height: 60vw;
@@ -1331,8 +1343,9 @@ body.trip-sheet-active{overflow:hidden;}
 .rp-clear:hover{color:var(--ink);border-color:var(--accent);}
 #rp-hint{margin-top:5px;font-size:var(--fs-micro);line-height:1.35;color:var(--ink-muted);}
 #route-picker.is-meetup .rp-slot:first-child{cursor:default;}
-.map-hit{cursor:pointer;}
-@media (max-width:640px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
+#map-svg [data-code]{outline:none;}
+#map-svg [data-code]:focus-visible .map-dot{stroke:var(--accent)!important;stroke-width:3;}
+@media (max-width:640px), (orientation:landscape) and (max-height:500px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
 
 /* ── PIA-067 mobile density pass ───────────────────────────────────────────
    Trips is a scan surface, not a carousel. Map controls live in normal flow so
@@ -1617,6 +1630,53 @@ body.trip-sheet-active{overflow:hidden;}
 <style>
 .trip-idea-plan{display:grid;gap:12px}.trip-idea-plan label{display:flex;min-width:0;flex-direction:column;gap:5px;font-size:var(--fs-tiny);font-weight:800}.trip-idea-plan label>span,.trip-idea-date-heading span,.trip-idea-date-mode button{font-size:var(--fs-micro);font-weight:600;color:var(--ink-muted)}.trip-idea-plan input,.trip-idea-plan select,.trip-idea-plan textarea{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:9px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--bg);color:var(--ink);font:inherit}.trip-idea-plan input[type=checkbox]{width:18px;min-height:18px}.trip-idea-destination small{font-size:var(--fs-micro);font-weight:500;color:var(--ink-muted)}.trip-idea-date-heading{display:flex;flex-direction:column;gap:2px}.trip-idea-date-mode{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.trip-idea-date-mode button{min-height:42px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface-2);font:inherit;font-weight:800;cursor:pointer}.trip-idea-date-mode button.selected{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}.trip-idea-date-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.trip-idea-date-fields[hidden]{display:none}.trip-idea-date-fields .trip-idea-margin{grid-column:1/-1}.trip-idea-options{padding-top:9px;border-top:1px solid var(--line)}.trip-idea-options summary{min-height:40px;display:flex;align-items:center;justify-content:space-between;color:var(--accent);font-size:var(--fs-tiny);font-weight:800;cursor:pointer}.trip-idea-options summary span{color:var(--ink-muted);font-size:var(--fs-micro);font-weight:600}.trip-idea-options .trip-idea-grid{margin-top:10px}.trip-idea-options .trip-idea-check{padding-top:22px}.trip-idea-plan .trip-idea-notes{grid-column:1/-1}#trip-idea-builder-primary:disabled{opacity:.55;cursor:not-allowed}@media(max-width:640px){.trip-idea-date-fields{grid-template-columns:1fr}.trip-idea-date-fields .trip-idea-margin{grid-column:auto}.trip-idea-options .trip-idea-check{padding-top:0}}
 .trip-idea-stage{padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-strong);font-size:var(--fs-micro);font-weight:800;text-transform:capitalize}.trip-idea-stage-booked{border-color:var(--accent);color:var(--accent)}.trip-idea-rsvp-summary{display:flex;flex-direction:column;gap:3px;margin:12px 0 8px;font-size:var(--fs-tiny)}.trip-idea-rsvp-summary span{color:var(--ink-muted)}.trip-idea-rsvp-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:6px}.trip-idea-rsvp-list li{display:flex;flex-direction:column;gap:2px;padding:9px 11px;border:1px solid var(--line);border-radius:var(--rad-sm);background:var(--surface-2);font-size:var(--fs-tiny)}.trip-idea-rsvp-list span,.trip-idea-rsvp-list small{color:var(--ink-muted)}.trip-idea-rsvp-form{padding-top:12px;border-top:1px solid var(--line)}.trip-idea-rsvp-choice{flex-direction:row!important;align-items:center;justify-content:center;gap:6px!important;min-height:42px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface-2);cursor:pointer}.trip-idea-date-mode:has(.trip-idea-rsvp-choice){grid-template-columns:repeat(3,minmax(0,1fr))}.trip-idea-plan .trip-idea-rsvp-choice input[type=radio]{width:18px;min-width:18px;min-height:18px;height:18px;padding:0;margin:0;flex:0 0 auto}.trip-idea-rsvp-send,.trip-idea-decision button{min-height:44px;padding:9px 14px;border:1px solid var(--accent);border-radius:var(--rad-sm);background:var(--accent);color:#fff;font:inherit;font-weight:800;cursor:pointer}.trip-idea-decision{margin-top:16px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:8px;font-size:var(--fs-tiny)}.trip-idea-decision-row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}.trip-idea-decision-row label{display:flex;flex-direction:column;gap:4px;font-weight:800}.trip-idea-decision-row input{min-height:40px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--bg);color:var(--ink);font:inherit;width:9em}.trip-idea-decision .secondary{background:var(--surface-2);color:var(--ink);border-color:var(--line-strong)}.trip-idea-history{margin-top:12px}.trip-idea-history li{list-style:none}.trip-idea-history ul{padding:0;margin:8px 0 0;display:grid;gap:6px}.trip-idea-history button{width:100%;text-align:left;padding:8px 10px;border:1px solid var(--line);border-radius:var(--rad-sm);background:var(--surface-2);color:var(--ink);font:inherit;font-size:var(--fs-tiny);cursor:pointer}.wl-rsvp-chip{font-size:var(--fs-micro);font-weight:800;color:var(--accent);padding-left:22px;margin-top:2px}.wl-rsvp-new{color:var(--danger,#ef4444)}
+</style>
+<!-- PIA-086+: iPhone layer — mobile-only overrides, loaded last so it wins the cascade.
+     The canonical :root tokens and the shared Trip Idea Builder CSS above stay
+     byte-identical with pialax.html; iPhone-specific changes live here only. -->
+<style id="ios-layer">
+/* ── PIA-086: app shell ───────────────────────────────────────────────────── */
+/* Toast: just above whatever bottom chrome the tab actually shows (it used to
+   float ~80px up on every tab), wraps long messages, and drops to the top of
+   the screen while a full-screen sheet is open so it never covers its fields. */
+#share-toast{bottom:calc(env(safe-area-inset-bottom) + 68px);white-space:normal;width:max-content;max-width:min(400px,calc(100vw - 32px));line-height:1.35;padding:10px 18px;border-radius:18px}
+body.tab-plan:not(.no-cta) #share-toast{bottom:calc(env(safe-area-inset-bottom) + 136px)}
+body.trip-sheet-active #share-toast,body.trip-idea-open #share-toast{top:calc(env(safe-area-inset-top) + 12px);bottom:auto;transform:translateX(-50%) translateY(-50px)}
+body.trip-sheet-active #share-toast.show,body.trip-idea-open #share-toast.show{transform:translateX(-50%) translateY(0)}
+/* Fixed bars line up with the 430px content column in every orientation. */
+#tab-bar{padding-left:max(env(safe-area-inset-left),calc((100vw - 430px)/2));padding-right:max(env(safe-area-inset-right),calc((100vw - 430px)/2))}
+.sticky-cta{padding-left:max(calc(var(--sp-5) + env(safe-area-inset-left)),calc((100vw - 430px)/2 + var(--sp-5)));padding-right:max(calc(var(--sp-5) + env(safe-area-inset-right)),calc((100vw - 430px)/2 + var(--sp-5)))}
+details.advanced{margin-left:max(var(--space-md),calc((100% - 398px)/2));margin-right:max(var(--space-md),calc((100% - 398px)/2))}
+/* The "sample fares" notice points at Advanced Settings, which only exists on Trips. */
+body:not(.tab-watchlist) #quota-warning-banner[data-tier="mock"]{display:none!important}
+
+/* ── PIA-087: Trip Idea Builder on iPhone ─────────────────────────────────── */
+/* It sat at z 500 — under the tab bar (600), which covered its Save / Share
+   footer. 1300 clears the tab bar, fare CTA and the trip sheet (1200, which
+   opens it via "See answers"); toasts (2000) still show on top. */
+#trip-idea-builder-bd{z-index:1300}
+html:has(body.trip-idea-open),body.trip-idea-open{overflow:hidden}
+#trip-idea-builder-body{-webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.trip-idea-close{min-width:44px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;margin:-10px -12px 0 0;border-radius:var(--rad-sm)}
+#build-trip-idea-btn{min-height:48px}
+@media (max-width:640px),(orientation:landscape) and (max-height:500px){
+  #trip-idea-builder-bd{padding:0;place-items:stretch}
+  #trip-idea-builder{width:100%;height:100%;max-height:none;border:0;border-radius:0}
+  .trip-idea-header{padding:calc(12px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) 10px calc(16px + env(safe-area-inset-left))}
+  #trip-idea-builder-body{flex:1 1 auto;min-height:0;padding:16px calc(16px + env(safe-area-inset-right)) 16px calc(16px + env(safe-area-inset-left))}
+  /* Footer: primary action first and full width, the rest two-up at 44px —
+     the results stage has five buttons, which used to squeeze into one row. */
+  .trip-idea-footer{position:sticky;bottom:0;flex-wrap:wrap;gap:8px;background:var(--surface);padding:10px calc(16px + env(safe-area-inset-right)) calc(10px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left))}
+  .trip-idea-footer button{flex:1 1 calc(50% - 4px);min-height:44px}
+  .trip-idea-footer .trip-idea-primary{order:-1;flex-basis:100%}
+  .trip-idea-footer .trip-idea-close-footer{display:none}
+  .trip-idea-intents,.trip-idea-grid{grid-template-columns:1fr}
+  .trip-idea-result-actions{flex-direction:column}
+}
+/* Short landscape: three across so the footer takes two rows, not three. */
+@media (orientation:landscape) and (max-height:500px){
+  .trip-idea-footer button,.trip-idea-footer .trip-idea-primary{flex:1 1 calc(33.33% - 6px)}
+}
 </style>
 </head>
 <!-- PIA-046: default tab is Watchlist, which hides the fare CTA — start in that
@@ -2804,6 +2864,7 @@ var HUB_FOCUS_OPTIONS = [
   { key:'LGA', code:'LGA', title:'LGA', kicker:'New York hub', sub:'Direct NYC option' }
 ];
 function mapHubOption(key){
+  if (key === 'LGA_JFK') key = 'LGA'; // PIA-091: the builder's hub key (TRIP_IDEA_HUBS) for the New York base
   for (var i=0;i<HUB_FOCUS_OPTIONS.length;i++) if (HUB_FOCUS_OPTIONS[i].key === key) return HUB_FOCUS_OPTIONS[i];
   return HUB_FOCUS_OPTIONS[1];
 }
@@ -2879,26 +2940,202 @@ function mapLabelLane(from, hub){
   if (hub === 'PIA' && from === 'LGA') lane = [30,24];
   return lane;
 }
-function renderMapFareCallout(svg, w, h, from, hub, x1, y1, x2, y2, price, color){
-  var lane = mapLabelLane(from, hub), mx=(x1+x2)/2, my=(y1+y2)/2, ax=Math.max(82,Math.min(w-82,mx+lane[0])), ay=Math.max(48,Math.min(h-48,my+lane[1]));
-  var title = price ? (S.depDate ? '$' : '≈ $') + price + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') : 'Fare pending';
-  var sub = from + ' → ' + hub, boxW = Math.max(98, Math.max(title.length * 7.1, sub.length * 6.1) + 18), boxH = 38;
-  svg.append('path').attr('class','map-leader').attr('d','M'+mx+','+my+' L'+ax+','+ay).attr('stroke',color);
-  var g = svg.append('g').attr('class','map-price-tag').attr('role','img').attr('aria-label',sub+' '+title);
-  g.append('rect').attr('x',ax-boxW/2).attr('y',ay-boxH/2).attr('width',boxW).attr('height',boxH).attr('rx',9).attr('fill',color).attr('opacity',.98).attr('stroke','#ffffff').attr('stroke-opacity',.32);
-  g.append('text').attr('x',ax).attr('y',ay-2).attr('text-anchor','middle').attr('fill','#ffffff').attr('font-size',12.5).attr('font-weight',950).attr('font-family','system-ui,sans-serif').text(title);
-  g.append('text').attr('x',ax).attr('y',ay+13).attr('text-anchor','middle').attr('fill','#ffffff').attr('opacity',.9).attr('font-size',9.5).attr('font-weight',800).attr('font-family','system-ui,sans-serif').text(sub);
+// ── PIA-091: map labels that never overlap ─────────────────────────────────
+var MAP_TAP_RADIUS = 30;  // px from an airport's centre that still counts as tapping it
+var MAP_FONT = 'system-ui,-apple-system,sans-serif';
+var _mapMeasure = null;
+function mapTextWidth(text, size, weight) {
+  var t = String(text == null ? '' : text), fallback = t.length * size * 0.62;
+  try {
+    if (!_mapMeasure) _mapMeasure = document.createElement('canvas').getContext('2d');
+    _mapMeasure.font = (weight || 800) + ' ' + size + 'px ' + MAP_FONT;
+    var m = _mapMeasure.measureText(t), w = m && m.width;
+    return (typeof w === 'number' && isFinite(w) && w > 0) ? w : fallback;
+  } catch (e) { return fallback; }
 }
-function renderMapPivotPair(svg, proj, w, h){
-  var pia = AIRPORTS.PIA, ord = AIRPORTS.ORD, p = proj([pia.lon,pia.lat]), o = proj([ord.lon,ord.lat]);
-  if (!p || !o) return;
-  var mx=(p[0]+o[0])/2, my=(p[1]+o[1])/2;
-  var g = svg.append('g').attr('class','map-pivot-layer');
-  g.append('path').attr('class','pivot-line').attr('d','M'+p[0]+','+p[1]+' L'+o[0]+','+o[1]);
-  g.append('text').attr('class','pivot-label').attr('x',o[0]+13).attr('y',o[1]-10).attr('fill','var(--co-ord)').attr('font-size',14).text('ORD');
-  var label = '🚗 PIA → ORD · pivot', bw = 132, bh = 22, bx=Math.max(bw/2+10,Math.min(w-bw/2-10,mx)), by=Math.max(bh/2+12,Math.min(h-bh/2-12,my+28));
-  g.append('rect').attr('x',bx-bw/2).attr('y',by-bh/2).attr('width',bw).attr('height',bh).attr('rx',11).attr('fill','var(--overlay-bg)').attr('stroke','var(--co-ord)').attr('stroke-opacity',.7);
-  g.append('text').attr('class','pivot-note').attr('x',bx).attr('y',by+4).attr('text-anchor','middle').attr('fill','var(--ink)').attr('font-size',10.5).text(label);
+function mapOverlap(a, b) {
+  var x = Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x), y = Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y);
+  return x > 0 && y > 0 ? x * y : 0;
+}
+// Distance from a point to the nearest edge of a rect (0 if inside).
+function mapRectDist(x, y, r) {
+  var dx = Math.max(r.x - x, 0, x - (r.x + r.w)), dy = Math.max(r.y - y, 0, y - (r.y + r.h));
+  return Math.hypot(dx, dy);
+}
+// A label pushed away from its anchor gets a thin leader back to it.
+function mapLeader(ctx, ax, ay, rect, color) {
+  var nx = Math.max(rect.x, Math.min(ax, rect.x + rect.w)), ny = Math.max(rect.y, Math.min(ay, rect.y + rect.h));
+  ctx.leaders.append('path').attr('class', 'map-leader').attr('d', 'M' + ax + ',' + ay + ' L' + nx + ',' + ny).style('stroke', color);
+}
+// Greedy placement in priority order. Each label tries its preferred spots,
+// then rings of spots further out around its anchor (up to `reach` px), and
+// takes the first that clears everything already placed (airport dots, earlier
+// labels, the focus chip) by 1px while staying 4px inside the map. A label with
+// a shorter form (code without its city name) tries that next. Only then does
+// it settle for the least-bad spot: covering a small unlabelled airport dot
+// (`soft` obstacle — tags draw above dots, so it hides rather than shows
+// through) beats touching any label or a labelled dot. A droppable label that
+// would touch one is left out instead.
+function mapRingSpots(ax, ay, w, h, reach) {
+  var spots = [];
+  for (var rad = 14; rad <= reach; rad += 10) {
+    for (var k = 0; k < 16; k++) {
+      var t = k / 16 * Math.PI * 2;
+      spots.push({ x: ax + Math.cos(t) * rad - w / 2, y: ay + Math.sin(t) * rad - h / 2 });
+    }
+  }
+  return spots;
+}
+function placeMapLabels(items, W, H, obstacles) {
+  var taken = (obstacles || []).slice(), out = [];
+  items.slice().sort(function(a, b){ return b.priority - a.priority; }).forEach(function(it){
+    var zero = null, least = null;
+    for (var v = 0; v < it.variants.length && !zero; v++) {
+      var vv = it.variants[v], zeroClamped = null;
+      var spots = vv.anchor ? vv.candidates.concat(mapRingSpots(vv.anchor[0], vv.anchor[1], vv.w, vv.h, vv.reach || 30)) : vv.candidates;
+      for (var i = 0; i < spots.length; i++) {
+        var c = spots[i], r = { x: c.x, y: c.y, w: vv.w, h: vv.h }, clamped = false;
+        if (r.x < 4) { r.x = 4; clamped = true; }
+        if (r.y < 4) { r.y = 4; clamped = true; }
+        if (r.x + r.w > W - 4) { r.x = W - 4 - r.w; clamped = true; }
+        if (r.y + r.h > H - 4) { r.y = H - 4 - r.h; clamped = true; }
+        var gap = { x: r.x - 1, y: r.y - 1, w: r.w + 2, h: r.h + 2 }, hard = 0, soft = 0;
+        for (var k = 0; k < taken.length; k++) {
+          var t = taken[k], o = mapOverlap(gap, t);
+          if (!o) continue;
+          if (!t.soft) { hard += o; continue; }
+          // A dot wholly under a tag just disappears; one half-covered pokes out
+          // of the tag's edge, so that costs more.
+          var whole = t.x >= r.x && t.y >= r.y && t.x + t.w <= r.x + r.w && t.y + t.h <= r.y + r.h;
+          soft += whole ? t.w * t.h : t.w * t.h * 3;
+        }
+        var hit = { rect: r, variant: vv, hard: hard, cost: hard * 1000 + soft * 10 + i + v * 40 + (clamped ? 3 : 0) };
+        if (hard + soft === 0 && !clamped) { zero = hit; break; }
+        if (hard + soft === 0 && !zeroClamped) zeroClamped = hit;
+        if (!least || hit.cost < least.cost) least = hit;
+      }
+      if (!zero && zeroClamped) zero = zeroClamped;
+    }
+    var best = zero || least;
+    if (!best || (best.hard > 0 && it.droppable)) return;
+    taken.push(best.rect);
+    out.push({ item: it, rect: best.rect, variant: best.variant, hard: best.hard });
+  });
+  return out;
+}
+// Fare tags share one style per map: if any two-line tag had to fall back to
+// the one-line form, place them all one-line so the map reads consistently.
+function placeMapLabelsUniform(items, W, H, obstacles) {
+  var placed = placeMapLabels(items, W, H, obstacles);
+  var mixed = placed.some(function(p){ return p.item.kind === 'callout' && p.variant !== p.item.variants[0]; });
+  if (!mixed) return placed;
+  return placeMapLabels(items.map(function(it){
+    return it.kind === 'callout' ? Object.assign({}, it, { variants: it.variants.slice(1) }) : it;
+  }), W, H, obstacles);
+}
+// Spots around a dot, nearest first: above, right, left, below, then diagonals.
+function mapAroundSpots(x, y, r, w, h) {
+  var g = 4, d = r * 0.72;
+  return [
+    { x: x - w / 2, y: y - r - g - h }, { x: x + r + g, y: y - h / 2 }, { x: x - r - g - w, y: y - h / 2 },
+    { x: x - w / 2, y: y + r + g }, { x: x + d + g, y: y - d - g - h }, { x: x - d - g - w, y: y - d - g - h },
+    { x: x + d + g, y: y + d + g }, { x: x - d - g - w, y: y + d + g }
+  ];
+}
+function mapHaloText(layer, x, y, text, size, weight) {
+  return layer.append('text').attr('x', x).attr('y', y).attr('text-anchor', 'middle')
+    .attr('font-size', size).attr('font-weight', weight).attr('font-family', MAP_FONT)
+    .style('stroke', 'var(--map-bg)').attr('stroke-width', size >= 13 ? 4 : 3).attr('paint-order', 'stroke').attr('stroke-linejoin', 'round')
+    .text(text);
+}
+// Airport code (+ city line); falls back to the code alone if the city won't fit.
+function mapAirportLabelItem(code, x, y, r, o) {
+  var cs = o.codeSize, ss = 11, codeW = mapTextWidth(code, cs, 900), subW = o.sub ? mapTextWidth(o.sub, ss, o.subWeight) : 0;
+  function variant(withSub) {
+    var w = Math.ceil(Math.max(codeW, withSub ? subW : 0)) + 8, h = withSub ? cs + 14 : cs + 3;
+    return { w: w, h: h, candidates: mapAroundSpots(x, y, r, w, h), anchor: [x, y], reach: 36, draw: function(ctx, rect){
+      var cx = rect.x + rect.w / 2, g = ctx.labels.append('g').attr('class', 'map-lbl').attr('data-kind', 'airport');
+      if (mapRectDist(x, y, rect) > r + 10) mapLeader(ctx, x, y, rect, o.codeFill);
+      mapHaloText(g, cx, rect.y + Math.round(cs * 0.82) + 1, code, cs, 900).style('fill', o.codeFill);
+      if (withSub) mapHaloText(g, cx, rect.y + cs + 12, o.sub, ss, o.subWeight).style('fill', o.subFill);
+    } };
+  }
+  return { kind: 'airport', code: code, priority: o.priority, droppable: false,
+    variants: o.sub ? [variant(true), variant(false)] : [variant(false)] };
+}
+// Point on the arcPath() curve (quadratic, control point lifted by 20% of the chord).
+function mapQuadPoint(x1, y1, x2, y2, t) {
+  var d = Math.hypot(x2 - x1, y2 - y1), cx = (x1 + x2) / 2, cy = (y1 + y2) / 2 - d * .2, u = 1 - t;
+  return [u*u*x1 + 2*u*t*cx + t*t*x2, u*u*y1 + 2*u*t*cy + t*t*y2];
+}
+// Fare tag for one family leg. First choice is the hand-tuned lane offset
+// (mapLabelLane); then its mirror, then off the arc either side, then along it,
+// then rings out to 60px. If the two-line tag can't sit near its arc, a
+// one-line tag (fare only — the arc and tag share the origin's colour) tries
+// again out to 120px, with a leader back to the arc when it lands off it.
+function mapCalloutItem(from, hub, a, b, price, color) {
+  var title = price ? (S.depDate ? '$' : '≈ $') + price + ' ' + (S.tripType === 'round' ? 'RT' : 'OW') : 'Fare pending';
+  var sub = from + ' → ' + hub;
+  var mid = mapQuadPoint(a[0], a[1], b[0], b[1], .5), lane = mapLabelLane(from, hub);
+  var dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy) || 1, nx = -dy / len, ny = dx / len;
+  var centers = [[mid[0] + lane[0], mid[1] + lane[1]], [mid[0] - lane[0], mid[1] - lane[1]]];
+  [36, -36, 58, -58].forEach(function(o){ centers.push([mid[0] + nx * o, mid[1] + ny * o]); });
+  [.3, .7].forEach(function(t){ var q = mapQuadPoint(a[0], a[1], b[0], b[1], t); centers.push([q[0] + lane[0], q[1] + lane[1]], [q[0] - lane[0], q[1] - lane[1]]); });
+  function variant(twoLine) {
+    var w = Math.ceil(Math.max(mapTextWidth(title, 13, 900), twoLine ? mapTextWidth(sub, 11, 800) : 0)) + (twoLine ? 20 : 16), h = twoLine ? 40 : 24;
+    return { w: w, h: h, anchor: mid, reach: twoLine ? 60 : 120,
+      candidates: centers.map(function(c){ return { x: c[0] - w / 2, y: c[1] - h / 2 }; }),
+      draw: function(ctx, rect){
+        var cx = rect.x + rect.w / 2, cy = rect.y + rect.h / 2;
+        var inside = mid[0] >= rect.x && mid[0] <= rect.x + rect.w && mid[1] >= rect.y && mid[1] <= rect.y + rect.h;
+        if (!inside) ctx.leaders.append('path').attr('class', 'map-leader').attr('d', 'M' + mid[0] + ',' + mid[1] + ' L' + cx + ',' + cy).style('stroke', color);
+        var g = ctx.tags.append('g').attr('class', 'map-lbl map-price-tag').attr('data-kind', 'callout').attr('role', 'img').attr('aria-label', sub + ' ' + title);
+        g.append('rect').attr('x', rect.x).attr('y', rect.y).attr('width', rect.w).attr('height', rect.h).attr('rx', twoLine ? 10 : 12).style('fill', color).attr('opacity', .98).style('stroke', '#ffffff').attr('stroke-opacity', .32);
+        g.append('text').attr('x', cx).attr('y', rect.y + (twoLine ? 18 : 17)).attr('text-anchor', 'middle').style('fill', '#ffffff').attr('font-size', 13).attr('font-weight', 900).attr('font-family', MAP_FONT).text(title);
+        if (twoLine) g.append('text').attr('x', cx).attr('y', rect.y + 33).attr('text-anchor', 'middle').style('fill', '#ffffff').attr('opacity', .92).attr('font-size', 11).attr('font-weight', 800).attr('font-family', MAP_FONT).text(sub);
+      } };
+  }
+  return { kind: 'callout', code: from, priority: 60, droppable: false, variants: [variant(true), variant(false)] };
+}
+// PIA ↔ ORD drive line (drawn now) plus its badge and ORD label (placed with the
+// rest). The badge stays within 60px of the line; past that it shortens to
+// "🚗 drive" (PIA and ORD are labelled at either end, the key spells it out).
+function mapPivotItems(layer, proj) {
+  var pia = AIRPORTS.PIA, ord = AIRPORTS.ORD, p = proj([pia.lon, pia.lat]), o = proj([ord.lon, ord.lat]);
+  if (!p || !o) return [];
+  layer.append('g').attr('class', 'map-pivot-layer').append('path').attr('class', 'pivot-line').attr('d', 'M' + p[0] + ',' + p[1] + ' L' + o[0] + ',' + o[1]);
+  var mx = (p[0] + o[0]) / 2, my = (p[1] + o[1]) / 2;
+  var ordW = Math.ceil(mapTextWidth('ORD', 14, 900)) + 8, ordH = 17;
+  function badge(label, reach) {
+    var bw = Math.ceil(mapTextWidth(label, 12, 900)) + 22, bh = 24;
+    var spots = [[mx, my + 30], [mx, my - 30], [mx + bw / 2 + 14, my + 14], [mx - bw / 2 - 14, my + 14], [mx, my + 56], [mx, my - 56], [mx + bw / 2 + 14, my - 20], [mx - bw / 2 - 14, my - 20]];
+    return { w: bw, h: bh, anchor: [mx, my], reach: reach,
+      candidates: spots.map(function(c){ return { x: c[0] - bw / 2, y: c[1] - bh / 2 }; }),
+      draw: function(ctx, rect){
+        if (mapRectDist(mx, my, rect) > 34) mapLeader(ctx, mx, my, rect, 'var(--co-ord)');
+        var t = ctx.tags.append('g').attr('class', 'map-lbl map-pivot-layer').attr('data-kind', 'pivot').attr('role', 'img').attr('aria-label', 'Drive PIA to ORD');
+        t.append('rect').attr('x', rect.x).attr('y', rect.y).attr('width', rect.w).attr('height', rect.h).attr('rx', 12).style('fill', 'var(--overlay-bg)').style('stroke', 'var(--co-ord)').attr('stroke-opacity', .7);
+        t.append('text').attr('class', 'pivot-note').attr('x', rect.x + rect.w / 2).attr('y', rect.y + 16.5).attr('text-anchor', 'middle').style('fill', 'var(--ink)').attr('font-size', 12).text(label);
+      } };
+  }
+  return [
+    { kind: 'pivot', code: 'ORD', priority: 50, droppable: false, variants: [badge('🚗 PIA → ORD · pivot', 60), badge('🚗 drive', 120)] },
+    { kind: 'ord', code: 'ORD', priority: 70, droppable: true, variants: [{ w: ordW, h: ordH, anchor: o, reach: 30,
+      candidates: mapAroundSpots(o[0], o[1], 5, ordW, ordH),
+      draw: function(ctx, rect){
+        var g = ctx.labels.append('g').attr('class', 'map-lbl').attr('data-kind', 'airport');
+        mapHaloText(g, rect.x + rect.w / 2, rect.y + 13, 'ORD', 14, 900).style('fill', 'var(--co-ord)');
+      } }] }
+  ];
+}
+// Nearest drawn airport to a tap, within MAP_TAP_RADIUS.
+function nearestMapAirport(x, y) {
+  var best = null, pts = _map.hitPoints || [];
+  for (var i = 0; i < pts.length; i++) {
+    var d = Math.hypot(pts[i].x - x, pts[i].y - y);
+    if (d <= MAP_TAP_RADIUS && (!best || d < best.d)) best = { code: pts[i].code, d: d };
+  }
+  return best ? best.code : null;
 }
 
 function getNextHoliday() {
@@ -3395,7 +3632,9 @@ function showShareToast(msg) {
   if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 3200);
+  // PIA-086: a new toast restarts the clock — an older timer used to hide it early.
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(function(){ t.classList.remove('show'); }, 3200);
 }
 
 function shareThePlan() {
@@ -4694,9 +4933,13 @@ function updateQuotaWarningBanner() {
   var resetTxt = nextReset.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   var remaining = Math.max(0, q.budget - q.used);
 
+  // PIA-086: data-tier lets CSS keep the advisory "mock" notice on Trips (where
+  // Advanced Settings lives) while real quota warnings stay on every tab.
+  bn.dataset.tier = '';
   if (!PROXY_URL) {
-    bn.innerHTML = '<strong style="color:var(--warn);">📡 Mock data mode</strong><br/>'
-      + '<span style="color:var(--ink-muted);">Connect a SerpAPI proxy in Advanced Settings to see live fare results.</span>';
+    bn.dataset.tier = 'mock';
+    bn.innerHTML = '<strong style="color:var(--warn);">📡 Sample fares</strong> '
+      + '<span style="color:var(--ink-muted);">Connect a fare proxy in ⚙️ Advanced Settings below.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--warn)';
     bn.style.background = 'var(--warn-dim)';
@@ -4708,18 +4951,21 @@ function updateQuotaWarningBanner() {
               + remaining + ' until reset (' + resetTxt + ')';
 
   if (q.exceeded || q.used >= QUOTA_LOCK_AT) {
+    bn.dataset.tier = 'locked';
     bn.innerHTML = '<strong style="color:var(--danger);">⛔ Fetch locked — quota safety cutoff</strong><br/>'
       + '<span style="color:var(--ink-muted);">' + bodyTxt + '. Search disabled until plan resets.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--danger)';
     bn.style.background = 'var(--danger-dim)';
   } else if (q.used >= QUOTA_RED_AT) {
+    bn.dataset.tier = 'red';
     bn.innerHTML = '<strong style="color:var(--danger);">⚠ Approaching cap — under 50 calls left</strong><br/>'
       + '<span style="color:var(--ink-muted);">' + bodyTxt + '.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--danger)';
     bn.style.background = 'var(--danger-dim)';
   } else if (q.used >= QUOTA_AMBER_AT) {
+    bn.dataset.tier = 'amber';
     bn.innerHTML = '<strong style="color:var(--warn);">🟡 SerpAPI usage warning</strong><br/>'
       + '<span style="color:var(--ink-muted);">' + bodyTxt + '.</span>';
     bn.style.display = '';
@@ -5396,14 +5642,14 @@ function handleMapAirportTap(code) {
 }
 function wireMapAirportInteraction(g, code) {
   var ap = AIRPORTS[code] || { code:code };
-  g.attr('role', 'button').attr('tabindex', 0).attr('aria-label', ap.code + ' airport route action')
-    .on('click.routePicker', function(e){ e.stopPropagation(); handleMapAirportTap(code); })
+  // PIA-091: pointer taps arrive through the map's hit layer (nearest airport);
+  // each airport stays a keyboard target.
+  g.attr('data-code', code).attr('role', 'button').attr('tabindex', 0).attr('aria-label', ap.code + ' airport route action')
     .on('keydown.routePicker', function(e){
       if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
         e.preventDefault(); e.stopPropagation(); handleMapAirportTap(code);
       }
     });
-  g.append('circle').attr('class','map-hit').attr('r',22).attr('fill','transparent').attr('stroke','none');
 }
 // ── MAP ──────────────────────────────────────────────────────────
 var GEO_URL = 'https://cdn.jsdelivr.net/npm/us-atlas@3/states-10m.json';
@@ -5424,12 +5670,22 @@ var WORLD_GEO_FALLBACK = {
   }]
 };
 
+// PIA-084: a slow or blocked CDN must never hold the app hostage. Map borders
+// are decoration, so give up after GEO_TIMEOUT_MS and use the offline outline.
+var GEO_TIMEOUT_MS = 4000;
+function fetchJsonWithTimeout(url, ms) {
+  var ctrl = typeof AbortController === 'function' ? new AbortController() : null, timer = null;
+  return new Promise(function(resolve, reject){
+    timer = setTimeout(function(){ try { if (ctrl) ctrl.abort(); } catch (e) {} reject(new Error('timed out after ' + ms + 'ms')); }, ms);
+    fetch(url, ctrl ? { signal: ctrl.signal } : undefined)
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function(j){ clearTimeout(timer); resolve(j); }, function(e){ clearTimeout(timer); reject(e); });
+  });
+}
 async function loadWorldGeo() {
   if (S.worldGeo) return;
   try {
-    var r = await fetch(WORLD_GEO_URL);
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    var topo = await r.json();
+    var topo = await fetchJsonWithTimeout(WORLD_GEO_URL, GEO_TIMEOUT_MS);
     S.worldGeo = topojson.feature(topo, topo.objects.countries);
     S.worldGeoFallback = false;
   } catch(e) {
@@ -5457,7 +5713,6 @@ function posTip(e){
 document.getElementById('map-wrap').addEventListener('mousemove', function(e){ if(tipEl.style.display==='block') posTip(e); });
 
 function arcPath(x1,y1,x2,y2){ var d=Math.hypot(x2-x1,y2-y1); return 'M'+x1+','+y1+' Q'+((x1+x2)/2)+','+(((y1+y2)/2)-d*.2)+' '+x2+','+y2; }
-var rTimer; window.addEventListener('resize', function(){ clearTimeout(rTimer); rTimer=setTimeout(redrawMap,100); });
 
 function rebuildLegend() {
   var leg=document.getElementById('map-leg');
@@ -5491,7 +5746,11 @@ function renderMapRouteList() {
     } else {
       rows = dests().map(function(code){
         var info = AIRPORTS[code], p = S.prices[S.home+'-'+code] || getMock(S.home, code), fare = S.tripType === 'one' ? p.ow : p.rt;
-        return { code:code, title:S.home + ' → ' + code, sub:(info ? info.name.split(',')[0] : code) + (fare ? ' · ≈ $' + fare : '') };
+        // PIA-091: the price the in-map panel used to show — picked weekend, else best weekend.
+        var picked = S.barFocus && S.barFocus.dest === code ? S.barFocus.weekend.price : null;
+        var bw = picked ? [] : computeBestWeekends(S.home, code, 13), best = bw[0] ? bw[0].price : null;
+        var shown = picked || best || fare, tag = picked ? ' · picked wknd' : (best ? ' · best wknd' : '');
+        return { code:code, title:S.home + ' → ' + code, sub:(info ? info.name.split(',')[0] : code) + (shown ? ' · ≈ $' + shown + tag : '') };
       });
     }
   } catch (e) { rows = []; }
@@ -5515,56 +5774,125 @@ function renderMapRouteList() {
   });
 }
 
+// ── PIA-090: map render scheduler ──────────────────────────────────────────
+// redrawMap() is called from ~40 places — state changes, every price that
+// lands, bar hovers. It used to tear down and rebuild the whole SVG on every
+// call (even while the Map tab was hidden), and opening / rotating added timed
+// redraws that read a mid-animation height — the map visibly jumped and could
+// end up mis-fitted. Now it only marks the map dirty and asks for one frame:
+// the frame refreshes the route picker/list once and redraws the SVG only when
+// the map is visible. Size changes (opening the map, showing the tab, rotating)
+// arrive from a ResizeObserver on #map-wrap.
+var _map = { raf: 0, dirty: true, size: '', layers: null, landKey: '', landSrc: null, markersKey: '' };
 function redrawMap() {
+  _map.dirty = true;
+  if (_map.raf) return;
+  if (typeof requestAnimationFrame !== 'function') { flushMap(); return; }
+  _map.raf = requestAnimationFrame(function(){ _map.raf = 0; flushMap(); });
+}
+function flushMap() {
   updateRoutePicker();
   renderMapRouteList();
   // PIA-058: the map is a progressive enhancement. If the d3 CDN load failed
   // (outage, SRI hash break, offline) every caller — boot, tab switches, mode
   // switches — must keep working; only the map itself goes dark.
-  if (typeof d3 === 'undefined') return;
+  if (!_map.dirty || typeof d3 === 'undefined') return;
+  var wrap = document.getElementById('map-wrap'), w = wrap ? wrap.clientWidth : 0, h = wrap ? wrap.clientHeight : 0;
+  if (!w || !h) return; // hidden: stay dirty — the ResizeObserver brings us back when it shows
+  _map.dirty = false;
+  drawMapNow(w, h);
+}
+(function observeMapSize(){
+  var wrap = document.getElementById('map-wrap');
+  if (!wrap) return;
+  if (typeof ResizeObserver !== 'function') { window.addEventListener('resize', redrawMap); return; }
+  // Only schedules a frame — never touches layout inside the callback (no RO loop).
+  new ResizeObserver(function(entries){
+    var r = entries[0].contentRect, key = Math.round(r.width) + 'x' + Math.round(r.height);
+    if (key === _map.size) return;
+    _map.size = key;
+    if (r.width && r.height) redrawMap();
+  }).observe(wrap);
+})();
+var MAP_SVG_STYLE = '@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd var(--dur-arc,1.8s) linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse var(--dur-pulse,2.6s) ease-in-out infinite;fill:var(--map-home-dot,#10b981)}.sp{fill:var(--map-land,#132134);stroke:var(--surface-3,#1e3550);stroke-width:.5}';
+// Layers are created once. Land is re-projected only when the size, view or
+// geography changes, so a price update repaints just routes, callouts and dots.
+function mapLayers(svg) {
+  var L = _map.layers;
+  if (L && L.root.node().parentNode === svg.node()) return L;
+  svg.selectAll('*').remove();
+  var defs = svg.append('defs');
+  defs.append('style').text(MAP_SVG_STYLE);
+  var root = svg.append('g').attr('class', 'map-root');
+  L = _map.layers = { defs: defs, root: root,
+    bg: root.append('rect').attr('class', 'map-bg').style('fill', 'var(--map-bg)'),
+    land: root.append('g').attr('class', 'map-land'),
+    routes: root.append('g').attr('class', 'map-routes'),
+    callouts: root.append('g').attr('class', 'map-callouts'),
+    pivot: root.append('g').attr('class', 'map-pivot'),
+    panel: root.append('g').attr('class', 'map-panel'),
+    airports: root.append('g').attr('class', 'map-airports'),
+    labels: root.append('g').attr('class', 'map-labels').attr('pointer-events', 'none'),
+    // PIA-091: one transparent layer takes every tap and hands it to the nearest
+    // airport within MAP_TAP_RADIUS (overlapping per-airport hit circles made
+    // PIA/ORD and LGA/JFK taps land on whichever was drawn last).
+    hit: root.append('rect').attr('class', 'map-hit-layer').style('fill', 'transparent').style('cursor', 'pointer') };
+  L.callouts.attr('pointer-events', 'none'); L.pivot.attr('pointer-events', 'none');
+  L.hit.on('click', function(e){
+    var pt = d3.pointer(e, root.node()), code = nearestMapAirport(pt[0], pt[1]);
+    if (code) handleMapAirportTap(code);
+  });
+  _map.landKey = ''; _map.landSrc = null; _map.markersKey = '';
+  return L;
+}
+function drawMapNow(w, h) {
   var isWorld = (S.mapView === 'world');
   var geoSrc = isWorld ? (S.worldGeo || S.geoData) : S.geoData;
   if (!geoSrc) return;
-  var wrap=document.getElementById('map-wrap'), w=wrap.clientWidth, h=wrap.clientHeight;
-  if (!w || !h) return;
-  var svg=d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
-  svg.selectAll('*').remove();
-
-  if (isWorld) {
-    S.proj = d3.geoNaturalEarth1().fitExtent([[20,20],[w-20,h-20]], geoSrc);
-  } else {
-    S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], geoSrc);
-  }
-  var pg = d3.geoPath().projection(S.proj);
+  var svg = d3.select('#map-svg').attr('width',w).attr('height',h).attr('viewBox','0 0 '+w+' '+h);
+  var L = mapLayers(svg);
+  L.bg.attr('width', w).attr('height', h);
   var geoFallback = isWorld ? S.worldGeoFallback : S.geoFallback;
-
-  var defs=svg.append('defs');
-  defs.append('style').text('@keyframes rd{to{stroke-dashoffset:-32}}.ra{animation:rd var(--dur-arc,1.8s) linear infinite}@keyframes pulse{0%,100%{r:14;opacity:.18}50%{r:22;opacity:.07}}.hp{animation:pulse var(--dur-pulse,2.6s) ease-in-out infinite;fill:var(--map-home-dot,#10b981)}.sp{fill:var(--map-land,#132134);stroke:var(--surface-3,#1e3550);stroke-width:.5;transition:fill var(--t-quick,.15s)}.sp:hover{fill:var(--map-land-hover,#1a2f48)}');
-  dests().forEach(function(code){
-    var c=DC[code]||'#888';
-    defs.append('marker').attr('id','arr-'+code).attr('markerWidth',8).attr('markerHeight',8).attr('refX',7).attr('refY',3).attr('orient','auto')
-      .append('polygon').attr('points','0 0,8 3,0 6').attr('fill',c).attr('opacity',.9);
-  });
-
-  svg.append('rect').attr('width',w).attr('height',h).style('fill','var(--map-bg)');
-
-  if (!geoFallback) {
-    svg.append('g').selectAll('path').data(geoSrc.features).enter().append('path').attr('class','sp').attr('d',pg)
-      .on('mouseenter', function(e,d){ showTip(e,'<strong>'+(d.properties&&d.properties.name||'Region')+'</strong>'); })
-      .on('mouseleave', hideTip);
-    svg.append('path').datum({type:'FeatureCollection',features:geoSrc.features})
-      .attr('d',pg).attr('fill','none').style('stroke','var(--map-outline)').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
-  } else {
-    svg.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
-      .style('fill','var(--line-strong)').attr('font-size',10).attr('font-family','system-ui,sans-serif')
-      .text('Borders load from internet · airport positions and routes are accurate');
+  var landKey = (isWorld ? 'world' : 'us') + '|' + w + 'x' + h + '|' + (geoFallback ? 'fallback' : 'geo');
+  if (landKey !== _map.landKey || geoSrc !== _map.landSrc) {
+    _map.landKey = landKey; _map.landSrc = geoSrc;
+    if (isWorld) {
+      S.proj = d3.geoNaturalEarth1().fitExtent([[20,20],[w-20,h-20]], geoSrc);
+    } else {
+      S.proj = d3.geoAlbersUsa().fitExtent([[28,28],[w-28,h-28]], geoSrc);
+    }
+    var pg = d3.geoPath().projection(S.proj);
+    L.land.selectAll('*').remove();
+    if (!geoFallback) {
+      L.land.append('g').selectAll('path').data(geoSrc.features).enter().append('path').attr('class','sp').attr('d',pg);
+      L.land.append('path').datum({type:'FeatureCollection',features:geoSrc.features})
+        .attr('d',pg).attr('fill','none').style('stroke','var(--map-outline)').attr('stroke-width', isWorld ? 0.6 : 1.5).attr('opacity',.18);
+    } else {
+      L.land.append('text').attr('x',w/2).attr('y',h-12).attr('text-anchor','middle')
+        .style('fill','var(--line-strong)').attr('font-size',11).attr('font-family','system-ui,sans-serif')
+        .text('Borders load from internet · airports and routes are accurate');
+    }
   }
+  var markersKey = dests().join(',');
+  if (markersKey !== _map.markersKey) {
+    _map.markersKey = markersKey;
+    L.defs.selectAll('marker').remove();
+    dests().forEach(function(code){
+      var c=DC[code]||'#888';
+      L.defs.append('marker').attr('id','arr-'+code).attr('markerWidth',8).attr('markerHeight',8).attr('refX',7).attr('refY',3).attr('orient','auto')
+        .append('polygon').attr('points','0 0,8 3,0 6').attr('fill',c).attr('opacity',.9);
+    });
+  }
+  // PIA-091: keep keyboard focus on the same airport across a redraw.
+  var ae = document.activeElement, focusCode = (ae && ae.getAttribute && ae.closest && ae.closest('#map-svg')) ? ae.getAttribute('data-code') : null;
+  [L.routes, L.callouts, L.pivot, L.panel, L.airports, L.labels].forEach(function(g){ g.selectAll('*').remove(); });
 
   var homeXY = S.proj([AIRPORTS[S.home].lon, AIRPORTS[S.home].lat]);
   if (!homeXY) return;
 
-  var rg = svg.append('g');
-
+  var rg = L.routes, ag = L.airports;
+  var dots = [];        // every drawn airport: label obstacle + tap target
+  var labelItems = [];  // codes, city names, fare tags, pivot badge — placed together below
   if (S.mode === 'meetup') {
     var ranking = computeRanking();
     var meetupHub = mapHubCodeForFocus(mapHubFocusKey()) || getActiveHub(ranking);
@@ -5587,53 +5915,42 @@ function redrawMap() {
           rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',10).attr('opacity',0.05);
           rg.append('path').attr('d',arcD).attr('fill','none').attr('stroke',fromCol).attr('stroke-width',2.2)
             .attr('stroke-dasharray', isPiaDriving ? '4,4' : '10,6').attr('class','ra').attr('opacity',0.88);
-          if (isPiaDriving) {
-            // PIA → ORD is represented by the shared pivot badge, not a fare pill.
-          } else {
-            renderMapFareCallout(svg, w, h, from, meetupHub, fromXY[0], fromXY[1], hubXY[0], hubXY[1], price, fromCol);
-          }
+          // PIA → ORD is represented by the shared pivot badge, not a fare pill.
+          if (!isPiaDriving) labelItems.push(mapCalloutItem(from, meetupHub, fromXY, hubXY, price, fromCol));
         });
       }
     }
 
-    if (mapHubFocusKey() === 'PIA_ORD') renderMapPivotPair(svg, S.proj, w, h);
+    var pivotShown = mapHubFocusKey() === 'PIA_ORD';
+    if (pivotShown) labelItems = labelItems.concat(mapPivotItems(L.pivot, S.proj));
 
-    var ag = svg.append('g');
+    // NYC transition fix: family dots use the date-effective list
+    var effectiveFamily = familyForDate(S.depDate || today);
     Object.values(AIRPORTS).forEach(function(ap){
       var xy = S.proj([ap.lon, ap.lat]);
       if (!xy) return;
       var isHub    = ap.code === meetupHub;
-      // NYC transition fix: family-dot uses date-effective list
-      var effectiveFamily = familyForDate(S.depDate || today);
       var isMember = effectiveFamily.indexOf(ap.code) > -1;
       var isOther  = !isHub && !isMember;
-      var col = isHub ? '#ffffff' : (isMember ? (DC[ap.code]||'#888') : '#1e3550');
+      var col = isMember ? (DC[ap.code]||'#888') : '#1e3550';
       var r   = isHub ? 10 : (isMember ? 7 : 3);
       var g   = ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
       wireMapAirportInteraction(g, ap.code);
       if (isHub) g.append('circle').attr('class','hp');
-      g.append('circle').attr('r',r).attr('fill',col).attr('stroke','#060e1a').attr('stroke-width',2).style('cursor','pointer')
-        .on('mouseenter', function(e){
-          var h = '<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--ink-muted);font-size:var(--fs-tiny)">'+ap.name+'</span>';
-          if (isHub) h += '<br/><span style="color:var(--success);font-size:var(--fs-tiny)">★ Best Meetup Hub</span>';
-          if (isMember && !isHub && meetupHub) {
-            var fkey = ap.code+'-'+meetupHub;
-            var fp = S.prices[fkey]||getMock(ap.code,meetupHub);
-            var fprice = S.tripType==='round' ? (fp.rt||fp.ow) : fp.ow;
-            if (fprice) h += '<br/>To '+meetupHub+': <strong style="color:'+(DC[ap.code]||col)+'">$'+fprice+(S.tripType==='round'?' RT':' OW')+'</strong>';
-          }
-          showTip(e,h);
-        })
-        .on('mouseleave', hideTip);
-      if (!isOther) {
-        var labelY = isHub ? -26 : -20;
-        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',col).attr('font-size',isHub?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHub?'var(--map-label)':'var(--map-label-dim)').attr('font-size',isHub?10:9).attr('font-weight',isHub?800:600).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',3).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(isHub?'★ MEETUP':ap.name.split(',')[0]);
-      }
+      var dot = g.append('circle').attr('class','map-dot').attr('r',r).style('stroke','#060e1a').attr('stroke-width',2);
+      if (isHub) dot.style('fill','var(--map-hub-dot)'); else dot.attr('fill',col);
+      // Small unlabelled dots may sit under a fare tag as a last resort; ORD
+      // stays clear while it is the PIA drive pivot.
+      dots.push({ code: ap.code, x: xy[0], y: xy[1], r: r, soft: isOther && !(pivotShown && ap.code === 'ORD') });
+      if (!isOther) labelItems.push(mapAirportLabelItem(ap.code, xy[0], xy[1], isHub ? 14 : r + 1, {
+        codeSize: isHub ? 16 : 14, codeFill: isHub ? 'var(--map-hub-dot)' : col,
+        sub: isHub ? '★ MEETUP' : ap.name.split(',')[0], subFill: isHub ? 'var(--map-label)' : 'var(--map-label-dim)',
+        subWeight: isHub ? 800 : 600, priority: isHub ? 100 : 80 }));
     });
 
   } else {
-    var routeRows = [];
+    // PIA-091: the in-map route price panel (8px text) is gone — the same
+    // best-weekend price now shows in the route list under the map.
     dests().forEach(function(code){
       var ap=AIRPORTS[code], xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
@@ -5643,45 +5960,10 @@ function redrawMap() {
       var arcAlpha = routeSelected ? 1.0 : (focused ? (barHover ? 1.0 : 0.9) : 0.1);
       var glowAlpha = routeSelected ? 0.16 : (focused ? (barHover ? 0.1 : 0.04) : 0.01);
       var col=DC[code]||'#888', d=arcPath(homeXY[0],homeXY[1],xy[0],xy[1]);
-      var pd=S.prices[S.home+'-'+code]||getMock(S.home,code);
-      var price=S.tripType==='one'?pd.ow:pd.rt;
-      if (S.barFocus && S.barFocus.dest === code) {
-        price = S.barFocus.weekend.price;
-      } else {
-        var bw = computeBestWeekends(S.home, code, 13);
-        if (bw[0]) price = bw[0].price;
-      }
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',12).attr('opacity',glowAlpha);
       rg.append('path').attr('d',d).attr('fill','none').attr('stroke',col).attr('stroke-width',routeSelected?3.8:2.2).attr('stroke-dasharray','10,6').attr('class','ra').attr('marker-end','url(#arr-'+code+')').attr('opacity',arcAlpha);
-      routeRows.push({ code:code, price:price, col:col, focused:focused });
     });
 
-    if (routeRows.length) {
-      var fareLbl = S.tripType==='round' ? 'RT' : 'OW';
-      var panelW = 96, rowH = 12, padX = 7, padY = 5, headerH = 11, gap = 3;
-      var panelH = padY + headerH + gap + routeRows.length*rowH + padY;
-      var px = 8, py = h - panelH - 8;
-      var panel = svg.append('g').attr('class','route-price-panel').attr('pointer-events','none');
-      // PIA-036 (mobile-only panel): one-off hexes swept onto tokens via style()
-      // (#0b1726→--surface-2, #1f3350→--line-strong, #6e93bd→--ink-muted, #d6e0ec→--ink).
-      panel.append('rect').attr('x',px).attr('y',py).attr('width',panelW).attr('height',panelH)
-        .attr('rx',5).style('fill','var(--surface-2)').style('stroke','var(--line-strong)').attr('stroke-width',1).attr('opacity',0.9);
-      panel.append('text').attr('x',px+padX).attr('y',py+padY+headerH-1).style('fill','var(--ink-muted)').attr('font-size',8)
-        .attr('font-weight',700).attr('font-family','system-ui,sans-serif').attr('letter-spacing','.06em').text(S.home + ' ROUTES');
-      routeRows.forEach(function(r, i){
-        var ry = py + padY + headerH + gap + i*rowH + 8;
-        var op = r.focused ? 1 : 0.35;
-        panel.append('circle').attr('cx',px+padX+1).attr('cy',ry-2).attr('r',2).attr('fill',r.col).attr('opacity',op);
-        panel.append('text').attr('x',px+padX+8).attr('y',ry).style('fill','var(--ink)').attr('font-size',8.5)
-          .attr('font-weight',600).attr('font-family','system-ui,sans-serif').attr('opacity',op)
-          .text(S.home + '>' + r.code);
-        panel.append('text').attr('x',px+panelW-padX).attr('y',ry).attr('text-anchor','end')
-          .attr('fill',r.col).attr('font-size',8.5).attr('font-weight',800).attr('font-family','system-ui,sans-serif').attr('opacity',op)
-          .text(r.price ? ('$'+r.price+' '+fareLbl) : '—');
-      });
-    }
-
-    var ag=svg.append('g');
     Object.values(AIRPORTS).forEach(function(ap){
       var xy=S.proj([ap.lon,ap.lat]);
       if (!xy) return;
@@ -5693,21 +5975,34 @@ function redrawMap() {
       var g=ag.append('g').attr('transform','translate('+xy[0]+','+xy[1]+')');
       wireMapAirportInteraction(g, ap.code);
       if (isHome) g.append('circle').attr('class','hp');
-      g.append('circle').attr('r',r).attr('fill',col).attr('stroke',routeSelected?'#ffffff':'#060e1a').attr('stroke-width',routeSelected?3:2).style('cursor','pointer')
-        .on('mouseenter', function(e){
-          var key=isDest?S.home+'-'+ap.code:null;
-          var p=key?(S.prices[key]||getMock(S.home,ap.code)):null;
-          var h='<strong style="color:'+col+'">'+ap.code+'</strong> '+ap.full+'<br/><span style="color:var(--ink-muted);font-size:var(--fs-tiny)">'+ap.name+'</span>';
-          if (p&&p.ow) h+='<br/>From <strong style="color:'+col+'">$'+p.ow+' OW</strong> · $'+p.rt+' RT';
-          showTip(e,h);
-        })
-        .on('mouseleave', hideTip);
-      if (!isOther) {
-        var labelY=isHome?-26:-20;
-        g.append('text').attr('y',labelY).attr('text-anchor','middle').attr('fill',isHome?'#10b981':col).attr('font-size',isHome?16:13).attr('font-weight',900).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',4).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(ap.code);
-        g.append('text').attr('y',labelY+12).attr('text-anchor','middle').style('fill',isHome?'var(--map-label-home)':'var(--map-label-dim)').attr('font-size',isHome?10:9).attr('font-weight',isHome?800:600).attr('font-family','system-ui,sans-serif').attr('stroke','var(--map-bg)').attr('stroke-width',3).attr('paint-order','stroke').attr('stroke-linejoin','round').attr('pointer-events','none').text(isHome?'⌂ HOME':ap.name.split(',')[0]);
-      }
+      var sdot = g.append('circle').attr('class','map-dot').attr('r',r).style('stroke',routeSelected?'#ffffff':'#060e1a').attr('stroke-width',routeSelected?3:2);
+      // The picked destination uses the hub token (white in dark, navy in light) so it shows on both maps.
+      if (routeSelected) sdot.style('fill','var(--map-hub-dot)'); else sdot.attr('fill',col);
+      dots.push({ code: ap.code, x: xy[0], y: xy[1], r: r, soft: isOther });
+      if (!isOther) labelItems.push(mapAirportLabelItem(ap.code, xy[0], xy[1], isHome ? 14 : r + 1, {
+        codeSize: isHome ? 16 : 14, codeFill: isHome ? '#10b981' : (routeSelected ? 'var(--map-hub-dot)' : col),
+        sub: isHome ? '⌂ HOME' : ap.name.split(',')[0], subFill: isHome ? 'var(--map-label-home)' : 'var(--map-label-dim)',
+        subWeight: isHome ? 800 : 600, priority: isHome ? 100 : (routeSelected ? 90 : (isDest ? 70 : 60)) }));
     });
+  }
+
+  // PIA-091: place every label at once so none overlaps another label, an
+  // airport dot or the focus chip — then draw them where they landed.
+  var obstacles = dots.map(function(d){ var rr = d.r + 1; return { x: d.x - rr, y: d.y - rr, w: rr * 2, h: rr * 2, soft: d.soft }; });
+  var chip = document.getElementById('map-focus-chip');
+  if (chip && chip.textContent.trim() && getComputedStyle(chip).display !== 'none') {
+    var cr = chip.getBoundingClientRect(), sr = svg.node().getBoundingClientRect();
+    if (cr.width && cr.height) obstacles.push({ x: cr.left - sr.left - 4, y: cr.top - sr.top - 4, w: cr.width + 8, h: cr.height + 8 });
+  }
+  // Leaders run under the dots; fare tags and badges sit above them.
+  var drawCtx = { leaders: L.callouts.append('g'), tags: L.labels.append('g'), labels: L.labels };
+  placeMapLabelsUniform(labelItems, w, h, obstacles).forEach(function(p){ p.variant.draw(drawCtx, p.rect); });
+
+  _map.hitPoints = dots;
+  L.hit.attr('width', w).attr('height', h);
+  if (focusCode) {
+    var again = L.airports.select('[data-code="' + focusCode + '"]').node();
+    if (again && again.focus) { try { again.focus({ preventScroll: true }); } catch (e) { again.focus(); } }
   }
 }
 
@@ -6210,10 +6505,7 @@ document.getElementById('map-toggle-btn').addEventListener('click', function() {
   var isOpen = wrap.classList.toggle('open');
   btn.textContent = isOpen ? '🗺 Hide Route Map' : '🗺 Show Route Map';
   btn.classList.toggle('open', isOpen);
-  if (isOpen) {
-    setTimeout(function() { redrawMap(); }, 50);
-    setTimeout(function() { redrawMap(); }, 350);
-  }
+  if (isOpen) redrawMap(); // PIA-090: the ResizeObserver also redraws once the new size lands
 });
 
 // ══ PIA-021 · TRIP BINDER (mobile mirror) ════════════════════════
@@ -10539,24 +10831,26 @@ function initTripIdeaBuilder(){
 
 // ── INIT ─────────────────────────────────────────────────────────
 async function boot() {
+  // PIA-084: globals used by inline onclick handlers exist before anything is tappable
+  // (they used to be assigned only after the map download and price load finished).
+  window.shareThePlan = shareThePlan;
+  window.openCal = openCal;
+  window.openMemberCal = openMemberCal;
+  window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
+  window.setPiaRoute = setPiaRoute;
+  window.setMeetupHub = setMeetupHub;
+  window.pickMeetupHub = pickMeetupHub;
+  window.copyRouteText = copyRouteText;
+  window.setMode      = setMode;
   restoreFromURL();
   if (!_urlStateLoaded) restoreSoloPrefs(); // PIA-057: shared links win; otherwise reopen with the saved setup
   loadWatchlist();
   initTripIdeaBuilder(); // PIA-027: hydrate the trip watchlist
   rehydrateFlightCache(); // PIA-005 AC4: restore prior session's cached prices before any render
-  document.getElementById('tb-sub').textContent='Loading…';
-  try {
-    var r = await fetch(GEO_URL);
-    if (!r.ok) throw new Error('HTTP '+r.status);
-    var topo = await r.json();
-    S.geoData    = topojson.feature(topo, topo.objects.states);
-    S.geoFallback = false;
-  } catch(e) {
-    console.warn('TopoJSON CDN unavailable (expected on file://). Using offline fallback.', e.message);
-    S.geoData    = GEO_FALLBACK;
-    S.geoFallback = true;
-  }
-  if (S.mapView === 'world') await loadWorldGeo();
+  // PIA-084: decide where we land BEFORE any network wait. Trips used to show
+  // "Loading…" for 4–6s while the map borders downloaded, then the late
+  // setActiveTab() overrode whatever tab the person had already tapped.
+  var landing = initialTab();
   // Family meetup defaults to just the FAMILY HOME AIRPORTS (neutral, mobile mirror)
   // when no URL state — no specific trip preloaded. Cheapest-week finder surfaces
   // the best weekend to gather; a specific trip is opened from its chip / the
@@ -10564,6 +10858,9 @@ async function boot() {
   if (!_urlStateLoaded && S.mode === 'meetup' && !S.depDate) {
     S.mapView = 'us';
   }
+  // Offline outline until the real borders arrive (or the download gives up).
+  S.geoData = GEO_FALLBACK;
+  S.geoFallback = true;
   document.getElementById('s-hub').textContent   =AIRPORTS[S.home].code;
   document.getElementById('s-routes').textContent=dests().length;
   document.getElementById('tb-sub').textContent  =AIRPORTS[S.home].full+' → '+dests().join(', ');
@@ -10575,20 +10872,23 @@ async function boot() {
   renderWatchlist(); // PIA-027: paint the watchlist home
   try { setMode(S.mode); } catch(e) { console.warn('[PIALAX] planner init failed — watchlist home unaffected', e); }
   S._booting = false;
-  if (PROXY_URL) syncSerpApiAccount();
-  await loadPrices();
-  window.shareThePlan = shareThePlan;
-  window.openCal = openCal;
-  window.openMemberCal = openMemberCal;
-  window.clearMemberDatesAndRefresh = clearMemberDatesAndRefresh;
-  window.setPiaRoute = setPiaRoute;
-  window.setMeetupHub = setMeetupHub;
-  window.pickMeetupHub = pickMeetupHub;
-  window.copyRouteText = copyRouteText;
-  window.setMode      = setMode;
+  // PIA-033: land on the derived tab (trip-state deep links → plan) — unless the
+  // person already tapped a tab while we were starting up; their choice wins.
+  if (!_userPickedTab) setActiveTab(landing, { auto: true });
   initMobileControls();
   ensureMapRendersOnMobile();
-  setActiveTab(initialTab()); // PIA-033: land on the derived tab (trip-state deep links → plan)
+  if (PROXY_URL) syncSerpApiAccount();
+  var pricesLoaded = loadPrices(); // cache-only at boot (no SerpAPI calls)
+  try {
+    var topo = await fetchJsonWithTimeout(GEO_URL, GEO_TIMEOUT_MS);
+    S.geoData    = topojson.feature(topo, topo.objects.states);
+    S.geoFallback = false;
+  } catch(e) {
+    console.warn('TopoJSON CDN unavailable (expected on file://). Using offline fallback.', e.message);
+  }
+  if (S.mapView === 'world') await loadWorldGeo();
+  redrawMap(); // real borders (or confirmed fallback) — no-op while the map is hidden
+  await pricesLoaded;
 }
 
 // ── MOBILE CONTROLS ──────────────────────────────────────────────
@@ -10616,8 +10916,7 @@ function updateMobileChips() {
 
 function ensureMapRendersOnMobile() {
   updateMapToggle();
-  updateRoutePicker();
-  renderMapRouteList();
+  redrawMap(); // PIA-090: route picker + list refresh in the same frame
 }
 
 // ── PIA-033: APP-SHELL NAV CONTROLLER (thin glue — show/hide only) ──
@@ -10628,7 +10927,10 @@ function ensureMapRendersOnMobile() {
 var DEFAULT_HOME_TAB = 'watchlist';
 var DEFAULT_MAP_VIEW = 'us';
 var NAV_TABS = ['watchlist', 'plan', 'map', 'cal'];
-function setActiveTab(tab) {
+// PIA-084: true once the person (not boot) has picked a tab — boot never overrides it.
+var _userPickedTab = false;
+function setActiveTab(tab, opts) {
+  if (!(opts && opts.auto)) _userPickedTab = true;
   if (NAV_TABS.indexOf(tab) === -1) tab = 'watchlist';
   if (tab !== 'watchlist' && _watchlistOpenId != null) closeTripSheet(false);
   document.documentElement.dataset.activeTab = tab;
@@ -10649,17 +10951,12 @@ function setActiveTab(tab) {
     if (isOn) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
   });
   if (tab === 'map') {
-    // Reuse the existing #map-toggle-btn open path (keeps its double-redraw
-    // layout-settle guard intact); if the map is already open it was hidden by
-    // the previous tab (zero-size → redrawMap bailed), so redraw the same way.
+    // Open the map via its toggle the first time; PIA-090: after that the
+    // ResizeObserver redraws when the tab's map gets its size back.
     var wrap = document.getElementById('map-wrap');
     var btn = document.getElementById('map-toggle-btn');
-    if (wrap && btn && !wrap.classList.contains('open')) {
-      btn.click();
-    } else if (wrap && wrap.classList.contains('open')) {
-      setTimeout(function(){ redrawMap(); }, 50);
-      setTimeout(function(){ redrawMap(); }, 350);
-    }
+    if (wrap && btn && !wrap.classList.contains('open')) btn.click();
+    else redrawMap();
   }
   if (tab === 'plan' && typeof renderDecisionRail === 'function') renderDecisionRail();
 }
@@ -10725,14 +11022,6 @@ document.addEventListener('click', function(e){
   if (e.target && e.target.closest && e.target.closest('.wl-open')) { var openId = e.target.closest('.wl-open').getAttribute('data-id'); var openTrip = watchlistItem(openId); setActiveTab(openTrip && openTrip.mode === 'family' && !openTrip.hub ? 'watchlist' : 'plan'); }
 });
 
-window.addEventListener('orientationchange', function() {
-  setTimeout(function() {
-    var wrap = document.getElementById('map-wrap');
-    if (wrap && wrap.classList.contains('open')) {
-      redrawMap();
-    }
-  }, 100);
-});
 
 (function wireAlertEmail(){
   var inp = document.getElementById('ta-alert-email');
