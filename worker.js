@@ -84,6 +84,8 @@ export default {
         return handleAlertsStatus(request, env);
       }
       if (pathname === '/idea' || pathname === '/idea/') return handleIdea(request, env, '/idea');
+      // PIA-104: the link the family taps — a preview card for chat apps, a redirect for people.
+      if (/^\/i\/[^/]*\/?$/.test(pathname)) return handleIdeaPreview(request, env, pathname.split('/')[2] || '');
     }
 
     // ── Validate API key is configured ──
@@ -215,7 +217,7 @@ function corsHeaders(request) {
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Idea-Key',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -587,7 +589,7 @@ function validateAlertPayload(body) {
   if (!e || typeof e !== 'object') return null;
   if (typeof e.id !== 'string' || !ALERT_ID_RE.test(e.id)) return null;
   if (typeof e.trip_id !== 'string' || !ALERT_ID_RE.test(e.trip_id)) return null;
-  if (!ALERT_TYPES[e.type]) return null;
+  if (!Object.prototype.hasOwnProperty.call(ALERT_TYPES, e.type)) return null;
   const subject = typeof e.subject === 'string' ? e.subject.slice(0, 200) : '';
   const bodyText = typeof e.body_text === 'string' ? e.body_text.slice(0, 1000) : '';
   if (!subject.trim() || !bodyText.trim()) return null;
@@ -902,7 +904,7 @@ function validateIdea(raw) {
 function validateResponse(raw, members) {
   if (!raw || typeof raw !== 'object') return null;
   const member = members.find((m) => m.code === raw.member);
-  if (!member || !IDEA_STATUSES[raw.status]) return null;
+  if (!member || !Object.prototype.hasOwnProperty.call(IDEA_STATUSES, raw.status)) return null;
   const from = ideaDate(raw.available_from), to = ideaDate(raw.available_to);
   if (from && to && to < from) return null;
   return {
@@ -918,7 +920,7 @@ function validateResponse(raw, members) {
 // Organizer decision transitions. `booked` needs a prior choice and an actual
 // total — that pairing (estimate vs what was paid) is the point of the log.
 function applyDecision(doc, raw) {
-  if (!raw || typeof raw !== 'object' || !IDEA_STAGES[raw.stage]) return 'Unknown decision stage';
+  if (!raw || typeof raw !== 'object' || !Object.prototype.hasOwnProperty.call(IDEA_STAGES, raw.stage)) return 'Unknown decision stage';
   const now = new Date().toISOString(), d = doc.decision;
   if (raw.stage === 'chosen') {
     const chosen = validateIdea({ members: doc.idea.members, recommendation: raw.chosen || doc.idea.recommendation }).recommendation;
@@ -945,6 +947,25 @@ function ideaPublic(doc) {
   delete out.edit_hash;
   return out;
 }
+// PIA-104: family members don't get prices — only a request carrying the
+// organizer's edit key (X-Idea-Key) does. Dates stay: the RSVP calendar needs
+// the trip's month. `organizer` tells the client whether its key matched;
+// `preview` tells it this Worker serves /i/<id> link previews.
+async function ideaIsOrganizer(request, doc) {
+  const k = request.headers.get('X-Idea-Key') || '';
+  return IDEA_KEY_RE.test(k) && (await ideaHash(k)) === doc.edit_hash;
+}
+function ideaGuestView(doc) {
+  const out = ideaPublic(doc);
+  const strip = (r) => (r ? Object.assign({}, r, { totalFare: null, perTicketFare: null, familyTotal: null, familyStatus: null }) : r);
+  out.idea = Object.assign({}, out.idea, { recommendation: strip(out.idea && out.idea.recommendation) });
+  out.decision = Object.assign({}, out.decision, { chosen: strip(out.decision && out.decision.chosen), estimate_total: null, actual_total: null, delta_pct: null });
+  return out;
+}
+async function ideaView(request, doc) {
+  const organizer = await ideaIsOrganizer(request, doc);
+  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true };
+}
 function ideaLog(doc, event, by) {
   doc.log = (doc.log || []).concat([{ at: new Date().toISOString(), event, by: by || null }]).slice(-IDEA_MAX_LOG);
 }
@@ -957,6 +978,49 @@ async function ideaWrite(env, doc) {
 }
 const ideaOk = (request, payload, status) => new Response(JSON.stringify(Object.assign({ ok: true }, payload)), { status: status || 200, headers: alertsCors(request) });
 
+// ── PIA-104: GET /i/<id> — the RSVP link shared in the family group text ──
+// Chat apps build their link preview from Open Graph tags without running
+// JavaScript, and the static Pages app has none, so iMessage showed a generic
+// "PIALAX — Family Flight Dashboard". Link-preview fetchers get a small page
+// with the trip's title and a loose time (no price, no exact dates — PIA-098);
+// people get a 302 straight to the app's ?idea=<id> page.
+const PREVIEW_BOT_RE = /facebookexternalhit|Facebot|Twitterbot|Slackbot|WhatsApp|TelegramBot|Discordbot|LinkedInBot|Applebot|SkypeUriPreview|Embedly|Iframely|bot\b|crawler|spider|preview/i;
+const IDEA_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const htmlEsc = (v) => String(v == null ? '' : v).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+function ideaLooseWhen(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return '';
+  const day = +m[3];
+  return (day <= 10 ? 'Early ' : day <= 20 ? 'Mid-' : 'Late ') + IDEA_MONTHS[+m[2] - 1];
+}
+async function handleIdeaPreview(request, env, id) {
+  const target = IDEA_ID_RE.test(id) ? DASH_URL + '?idea=' + id : DASH_URL;
+  const isBot = PREVIEW_BOT_RE.test(request.headers.get('User-Agent') || '');
+  const headers = { 'Cache-Control': 'no-store', 'X-Robots-Tag': 'noindex', 'Referrer-Policy': 'no-referrer' };
+  if (!isBot) return new Response(null, { status: 302, headers: Object.assign({ Location: target }, headers) });
+  let title = 'PIALAX — family trip', desc = 'Tap to say in / maybe / out and pick your dates.', status = 200;
+  if (!IDEA_ID_RE.test(id)) { status = 400; desc = 'This RSVP link looks incomplete.'; }
+  else if (env.IDEAS) {
+    const doc = await ideaRead(env, id);
+    if (!doc) { status = 404; title = 'Trip idea not found'; desc = 'This RSVP link may have expired.'; }
+    else {
+      const idea = doc.idea || {}, r = idea.recommendation || {}, d = idea.dates || {};
+      const when = ideaLooseWhen(r.departure || d.departure || d.searchStart);
+      title = idea.title || 'Family trip';
+      desc = (when ? when + ' · ' : '') + desc;
+    }
+  }
+  const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+    '<meta name="robots" content="noindex"><title>' + htmlEsc(title) + '</title>' +
+    '<meta property="og:title" content="' + htmlEsc(title) + '"><meta property="og:description" content="' + htmlEsc(desc) + '">' +
+    '<meta property="og:type" content="website"><meta property="og:site_name" content="PIALAX"><meta property="og:url" content="' + htmlEsc(target) + '">' +
+    '<meta name="twitter:card" content="summary"><meta name="twitter:title" content="' + htmlEsc(title) + '"><meta name="twitter:description" content="' + htmlEsc(desc) + '">' +
+    // A person misread as a fetcher still lands in the app (fetchers don't run scripts).
+    '<script>location.replace(' + JSON.stringify(target).replace(/</g, '\\u003c') + ')</script>' +
+    '</head><body><p><a href="' + htmlEsc(target) + '">' + htmlEsc(title) + ' — ' + htmlEsc(desc) + '</a></p></body></html>';
+  return new Response(html, { status, headers: Object.assign({ 'Content-Type': 'text/html; charset=utf-8' }, headers) });
+}
+
 async function handleIdea(request, env, pathname) {
   if (!env.IDEAS) return jsonError('Shared trip ideas not configured on this Worker (no IDEAS KV binding)', 501, request, 'no_kv');
   const id = new URL(request.url).searchParams.get('id') || '';
@@ -964,7 +1028,7 @@ async function handleIdea(request, env, pathname) {
   if (request.method === 'GET') {
     if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
     const doc = await ideaRead(env, id);
-    return doc ? ideaOk(request, { doc: ideaPublic(doc) }) : jsonError('Trip idea not found', 404, request, 'not_found');
+    return doc ? ideaOk(request, await ideaView(request, doc)) : jsonError('Trip idea not found', 404, request, 'not_found');
   }
 
   let parsed;
@@ -984,7 +1048,7 @@ async function handleIdea(request, env, pathname) {
     };
     ideaLog(doc, 'created');
     await ideaWrite(env, doc);
-    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc) }, 201);
+    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true }, 201);
   }
 
   if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
@@ -1000,7 +1064,7 @@ async function handleIdea(request, env, pathname) {
     doc.responses[resp.member] = resp;
     ideaLog(doc, 'rsvp:' + resp.status, resp.member);
     await ideaWrite(env, doc);
-    return ideaOk(request, { doc: ideaPublic(doc) });
+    return ideaOk(request, await ideaView(request, doc));
   }
 
   if (pathname === '/idea/update') {
@@ -1020,7 +1084,7 @@ async function handleIdea(request, env, pathname) {
       ideaLog(doc, 'decision:' + doc.decision.stage, 'organizer');
     }
     await ideaWrite(env, doc);
-    return ideaOk(request, { doc: ideaPublic(doc) });
+    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true });
   }
   return jsonError('Not found', 404, request);
 }

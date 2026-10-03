@@ -28,6 +28,7 @@ EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisio
 EXPECT.push('mapHubOption'); // PIA-091
 EXPECT.push('tripIdeaLooseWhen'); // PIA-098
 EXPECT.push('ideaBestWindow', 'tripIdeaWindowText', 'tripIdeaDayStripHtml'); // PIA-102
+EXPECT.push('tripIdeaInviteUrl'); // PIA-104
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -91,6 +92,10 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     check(/🏠 Mom &amp; Dad/.test(strip) && /class="on win"/.test(strip) && (strip.match(/<i /g) || []).length === 3 * 10,
       `${file}: day strip — one row per person (hosts as 🏠), the window shaded`);
   }
+  // PIA-104: until the Worker has said it serves previews, invites keep the app's own ?idea= link
+  // (so nothing breaks before `wrangler deploy`).
+  check(/[?&]idea=AAAAAAAAAAAAAAAAAAAAAA$/.test(api.tripIdeaInviteUrl('AAAAAAAAAAAAAAAAAAAAAA')),
+    `${file}: before the Worker announces previews, the invite link is the app's ?idea= page`);
   // PIA-091: the builder's New York hub key (LGA_JFK) used to fall back to PIA/ORD on the map.
   check(api.mapHubOption('LGA_JFK').key === 'LGA' && api.mapHubOption('LAX').key === 'LAX' && api.mapHubOption('PIA_ORD').key === 'PIA_ORD',
     `${file}: map focus from the builder's LGA_JFK hub lands on New York, not PIA/ORD`);
@@ -309,8 +314,10 @@ async function sharedIdeaSuite() {
     api.tripIdeaBuilder.recommendation = rec;
     api.tripIdeaBuilder._notes = 'Shower is Saturday';
     const url = await api._tripIdeaShare();
-    const id = url && (url.match(/[?&]idea=([A-Za-z0-9_-]{22})/) || [])[1];
-    check(!!id && !/tripIdea=/.test(url), `${file}: with IDEAS bound, share creates an RSVP link ?idea=<id>`);
+    // PIA-104: a Worker that serves previews (it says preview:true) gets the /i/<id> link.
+    const id = url && (url.match(/\/i\/([A-Za-z0-9_-]{22})$/) || [])[1];
+    check(!!id && !/tripIdea=/.test(url) && url.startsWith('https://pialax-proxy.ashwinyedavalli.workers.dev/i/'),
+      `${file}: with IDEAS bound, share creates an RSVP link (the Worker's /i/<id> preview link)`);
     // PIA-076: the shared idea lives on exactly one Trip Ideas card.
     const linked = api.WATCHLIST.filter((t) => t.sharedIdeaId === id);
     check(linked.length === 1 && linked[0].mode === 'family' && linked[0].hub === 'RDU',
@@ -406,7 +413,7 @@ async function sharedIdeaSuite() {
       let ev = null;
       try { ev = api.tripIdeaHoldDates(linked[0].id); } catch (e) { ev = api.watchlistItem(linked[0].id).calendarEvents; }
       ev = ev || api.watchlistItem(linked[0].id).calendarEvents;
-      check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('?idea=' + id),
+      check(ev && ev[0].start === '2026-11-06' && ev[0].end === '2026-11-10' && ev[0].notes.includes('/i/' + id),
         `${file}: "Hold the dates" calendar event spans Nov 6–9 and carries the RSVP link`);
     }
     // PIA-082: Thanksgiving at Mom & Dad's (PIA) is the family RSVP card; Cary is archived.

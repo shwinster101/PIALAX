@@ -9815,14 +9815,32 @@ function _tripIdeaSaveKey(id, editKey, title) {
   var keys = _tripIdeaKeys(); keys[id] = {edit_key:editKey, title:title || '', created_at:new Date().toISOString()};
   try { localStorage.setItem(TRIP_IDEA_KEYS_STORAGE, JSON.stringify(keys)); } catch (e) {}
 }
+// PIA-104: a Worker that answers with `preview:true` serves /i/<id> link
+// previews and hides prices from anyone without the organizer's key. Only once
+// that's known does the app send X-Idea-Key (an older Worker's CORS rules would
+// refuse the header) and share /i/ links.
+var TRIP_IDEA_PREVIEW_STORAGE = 'pialax_idea_preview_v1';
+function _tripIdeaWorkerPreview() { try { return localStorage.getItem(TRIP_IDEA_PREVIEW_STORAGE) === '1'; } catch (e) { return false; } }
 function _tripIdeaApi(method, path, body) {
   var base = typeof PROXY_URL === 'string' ? PROXY_URL.replace(/\/+$/, '') : '';
   if (!base) return Promise.resolve({ok:false, status:0, json:null});
   var opts = {method:method, headers:{'Content-Type':'application/json'}};
+  var idm = /[?&]id=([A-Za-z0-9_-]{22})/.exec(path), key = idm && _tripIdeaKeys()[idm[1]];
+  if (key && key.edit_key && _tripIdeaWorkerPreview()) opts.headers['X-Idea-Key'] = key.edit_key;
   if (body) opts.body = JSON.stringify(body);
   return fetch(base + path, opts).then(function(res){
-    return res.text().then(function(t){ var j = null; try { j = JSON.parse(t); } catch (e) {} return {ok:res.ok, status:res.status, json:j}; });
+    return res.text().then(function(t){
+      var j = null; try { j = JSON.parse(t); } catch (e) {}
+      if (j && j.preview === true && !_tripIdeaWorkerPreview()) { try { localStorage.setItem(TRIP_IDEA_PREVIEW_STORAGE, '1'); } catch (e) {} }
+      return {ok:res.ok, status:res.status, json:j, sentKey:!!opts.headers['X-Idea-Key']};
+    });
   }).catch(function(){ return {ok:false, status:0, json:null}; });
+}
+// The link the family taps: the Worker's /i/<id> (a proper iMessage preview)
+// once the Worker serves it, else the app's own ?idea=<id> page.
+function tripIdeaInviteUrl(id) {
+  var base = typeof PROXY_URL === 'string' ? PROXY_URL.replace(/\/+$/, '') : '';
+  return base && _tripIdeaWorkerPreview() ? base + '/i/' + encodeURIComponent(id) : _tripIdeaShareUrl({idea:id});
 }
 function _tripIdeaShareUrl(params) {
   var sp = new URLSearchParams(); Object.keys(params).forEach(function(k){ sp.set(k, params[k]); });
@@ -9859,7 +9877,13 @@ function _tripIdeaOpenRemote(id) {
   _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'shared';
   _tripIdeaShow(); renderTripIdeaBuilder();
   return _tripIdeaApi('GET', '/idea?id=' + encodeURIComponent(id)).then(function(res){
+    // First contact with a price-hiding Worker: ask again with the organizer key.
+    if (res.ok && res.json && res.json.preview && res.json.organizer === false && _tripIdeaShared && _tripIdeaShared.editKey && !res.sentKey) return _tripIdeaApi('GET', '/idea?id=' + encodeURIComponent(id));
+    return res;
+  }).then(function(res){
     if (!_tripIdeaShared || _tripIdeaShared.id !== id) return;
+    // A key the Worker doesn't recognise can't manage the trip: show the family view.
+    if (res.ok && res.json && res.json.preview && res.json.organizer === false && res.sentKey && _tripIdeaShared.editKey) { _tripIdeaShared.editKey = ''; showShareToast('This device’s organizer key doesn’t match this trip'); }
     if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc); if (_tripIdeaShared.editKey && typeof tripIdeaMarkSeen === 'function') { tripIdeaMarkSeen(res.json.doc); if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {} } if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
     else _tripIdeaShared.error = res.status === 404 ? 'This trip idea was not found — it may have expired.' : res.status === 501 || res.status === 0 ? 'Shared trip ideas are not available right now.' : 'Could not load this trip idea.';
     if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
@@ -10283,7 +10307,7 @@ function tripIdeaDistribute(title, text, url) {
   return Promise.resolve(copy());
 }
 function tripIdeaSendInvite(doc, kind) {
-  var url = _tripIdeaShareUrl({idea:doc.id});
+  var url = tripIdeaInviteUrl(doc.id);
   return tripIdeaDistribute((doc.idea && doc.idea.title) || 'Trip idea', tripIdeaShareText(doc, kind || 'invite'), url).then(function(){ return url; });
 }
 function tripIdeaNudge(id) {
@@ -10299,7 +10323,7 @@ function tripIdeaHoldDates(itemId, win) {
   var doc = tripIdeaCachedDoc(item.sharedIdeaId), r = (doc && doc.idea && doc.idea.recommendation) || {};
   var dep = win ? win.from : item.dep || r.departure, ret = win ? win.to : item.ret || r.return;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(dep || ''))) { showShareToast('Add trip dates first'); return null; }
-  var url = _tripIdeaShareUrl({idea:item.sharedIdeaId});
+  var url = tripIdeaInviteUrl(item.sharedIdeaId);
   if (win) item.calendarEvents = [];
   if (!(Array.isArray(item.calendarEvents) && item.calendarEvents.length)) {
     item.calendarEvents = [{title:'✈️ ' + String(item.title || 'Family trip').replace(/\s*·\s*Trip idea$/, '') + (win ? ' (family window)' : ' (proposed — RSVP)'), start:dep,

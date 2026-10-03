@@ -12,6 +12,22 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-104) — needs `wrangler deploy`
+- RSVP links get a real iMessage preview. The Worker serves `/i/<id>`:
+  - chat-app link fetchers get "🦃 Thanksgiving at home — Peoria · Late Nov · Tap to say in /
+    maybe / out and pick your dates", with no price and no exact dates, instead of
+    "PIALAX — Family Flight Dashboard";
+  - people tapping it go straight to the RSVP page.
+- Prices are now withheld by the Worker, not just hidden on screen. Family members' requests get
+  no fares; only requests carrying the organizer's key (`X-Idea-Key`) do. A device whose
+  organizer key doesn't match is shown the family view.
+- Safe before deploy: the app keeps sharing its own `?idea=` link and never sends the key header
+  until the Worker announces the new features.
+
+### Fixed (PIA-104)
+- Worker: RSVP status and decision stage checks no longer accept `Object.prototype` names such
+  as "toString".
+
 ### Added (PIA-103)
 - Organizer: every family row on the RSVP has "✎ Answer for". When someone just texts "In",
   record it for them, e.g. "Save for Mom & Dad". It's tagged "(entered by Ashwin)" and doesn't
