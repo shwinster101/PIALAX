@@ -6170,7 +6170,7 @@ function syncURL() {
         if (prParts.length) sp.set('pia', prParts.join('|'));
       }
       // PIA-023: RSVP status ms=PIA:tentative|LAX:out
-      if (S.memberStatus && Object.keys(S.memberStatus).length) {
+      if (S.memberStatus && !S.linkedIdeaId && Object.keys(S.memberStatus).length) { // PIA-077: family answers are not URL state
         var msParts = [];
         Object.keys(S.memberStatus).forEach(function(c){ if (S.memberStatus[c] && S.memberStatus[c] !== 'in') msParts.push(c + ':' + S.memberStatus[c]); });
         if (msParts.length) sp.set('ms', msParts.join('|'));
@@ -6387,6 +6387,7 @@ function renderGroupCost(){
   var hubCol = DC[hub] || 'var(--accent)';
   var flyerCount = costs.rows.filter(function(r){ return !r.host && !r.drives && r.status !== 'out'; }).length;
   function statusSel(code, status){
+    if (S.linkedIdeaId && typeof tripIdeaLinkedStatusHtml === 'function') return tripIdeaLinkedStatusHtml(code); // PIA-077
     var opts = { in:'✅ in', tentative:'🤔 maybe', out:'✖ out' };
     // PIA-038: selector carries its status color — in=success, maybe=warn, out=danger.
     var stCol = status === 'in' ? 'var(--success)' : (status === 'tentative' ? 'var(--warn)' : (status === 'out' ? 'var(--danger)' : 'var(--ink-muted)'));
@@ -6410,6 +6411,7 @@ function renderGroupCost(){
   var rsvpHtml = '<div style="display:flex;align-items:center;gap:6px;font-size:var(--fs-micro);color:var(--ink-muted);margin-bottom:5px;">' +
     '<span style="font-weight:800;color:var(--ink);">👥 ' + goingN + ' of ' + costs.rows.length + ' in</span>' +
     (tentN ? '<span>· ' + tentN + ' maybe</span>' : '') + (outN ? '<span>· ' + outN + ' out</span>' : '') + '</div>';
+  if (S.linkedIdeaId && typeof tripIdeaLinkedNoteHtml === 'function') rsvpHtml += tripIdeaLinkedNoteHtml(); // PIA-077
   var hist = (readGroupPrices()[priceSig(hub)]) || [];
   var watchHtml;
   if (hist.length >= 1) {
@@ -6444,6 +6446,7 @@ function renderGroupCost(){
   var logBtn = panel.querySelector('#gc-log');
   if (logBtn) logBtn.addEventListener('click', function(){ logMeetupToLedger(hub, costs); renderGroupCost(); if (typeof showShareToast==='function') showShareToast('✓ Logged to fairness ledger'); });
   panel.querySelectorAll('.gc-status').forEach(function(el){ el.addEventListener('change', function(){ setMemberStatus(el.getAttribute('data-code'), el.value); }); }); // PIA-023
+  if (typeof tripIdeaWireLinkedNote === 'function') tripIdeaWireLinkedNote(panel); // PIA-077
 }
 
 // ══ PIA-027 · TRIP WATCHLIST (mobile mirror) ═════════════════════
@@ -8862,6 +8865,9 @@ function openWatchlistTrip(id){
   // the id would leave its rendered overlay and body scroll lock behind.
   closeTripSheet(false);
   var t = watchlistItem(id); if (!t) return;
+  // PIA-077: a card linked to a shared idea brings the family's own answers into Family Plan.
+  S.linkedIdeaId = t.sharedIdeaId || null;
+  if (S.linkedIdeaId && typeof tripIdeaApplyLinkedRsvp === 'function') setTimeout(tripIdeaApplyLinkedRsvp, 0);
   if (t.key) { applyHoliday(t.key, { dep: t.dep, ret: t.ret, skipToggle: true }); return; }
   var customFamilyIdea = t.mode === 'family' && (!t.hub || !AIRPORTS[t.hub]);
   if (t.mode === 'solo') {
@@ -10244,6 +10250,69 @@ function tripIdeaWireCardActions(root) {
   if (!root || !root.querySelectorAll) return;
   root.querySelectorAll('.wl-idea-open').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); var t = watchlistItem(el.getAttribute('data-id')); if (t && t.sharedIdeaId) _tripIdeaOpenRemote(t.sharedIdeaId); }); });
   root.querySelectorAll('.wl-idea-ask').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaAskFamily(el.getAttribute('data-id')); }); });
+}
+
+// ── PIA-077: shared answers drive Family Plan ───────────────────────────────
+// Opening a linked card in Family Plan sets S.linkedIdeaId; the family's own
+// answers then fill S.memberStatus (maybe → 'tentative', the PIA-023 value), so
+// computeRanking / memberCostsFor exclude "out" with no new math. Selectors turn
+// into read-only "answered" labels, and these statuses never go into ms=.
+// A person keeps one identity across a home move (JAX → LGA), so answers are
+// matched by FAMILY base code, then written under the code in use for S.depDate.
+function _tripIdeaPersonBase(code) {
+  var fam = typeof FAMILY !== 'undefined' ? FAMILY : [], info = typeof FAMILY_INFO !== 'undefined' ? FAMILY_INFO : {};
+  for (var i = 0; i < fam.length; i++) { var b = fam[i], x = info[b] || {}; if (code === b || code === x.moveAirport) return b; }
+  return code;
+}
+function memberStatusFromIdea(doc, depDate) {
+  var resp = (doc && doc.responses) || {}, out = {}, current = typeof familyForDate === 'function' ? familyForDate(depDate || undefined) : [];
+  var byBase = {}; (current || []).forEach(function(c){ byBase[_tripIdeaPersonBase(c)] = c; });
+  Object.keys(resp).forEach(function(code){
+    var r = resp[code], target = byBase[_tripIdeaPersonBase(code)];
+    if (!r || !target) return;
+    out[target] = r.status === 'maybe' ? 'tentative' : r.status === 'out' ? 'out' : 'in';
+  });
+  return out;
+}
+function tripIdeaApplyLinkedRsvp() {
+  var id = typeof S === 'object' && S ? S.linkedIdeaId : null;
+  if (!id) return Promise.resolve(null);
+  var apply = function(doc){
+    if (!doc || S.linkedIdeaId !== id) return null;
+    var st = memberStatusFromIdea(doc, S.depDate), ms = {};
+    Object.keys(st).forEach(function(c){ if (st[c] !== 'in') ms[c] = st[c]; });
+    S.memberStatus = ms;
+    S.tentativeMembers = Object.keys(ms).filter(function(k){ return ms[k] === 'tentative'; });
+    try { if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap(); } catch (e) {}
+    return ms;
+  };
+  var cached = tripIdeaCachedDoc(id);
+  if (cached) apply(cached);
+  return tripIdeaFetchDoc(id).then(apply);
+}
+function _tripIdeaLinkedAnswer(code) {
+  var doc = S && S.linkedIdeaId ? tripIdeaCachedDoc(S.linkedIdeaId) : null;
+  if (!doc) return null;
+  var base = _tripIdeaPersonBase(code), resp = doc.responses || {};
+  var hit = Object.keys(resp).filter(function(k){ return _tripIdeaPersonBase(k) === base; })[0];
+  return hit ? resp[hit] : null;
+}
+function tripIdeaLinkedStatusHtml(code) {
+  var r = _tripIdeaLinkedAnswer(code);
+  var txt = !r ? '⏳ waiting' : r.status === 'in' ? '✅ in' : r.status === 'maybe' ? '🤔 maybe' : '✖ out';
+  var col = !r ? 'var(--ink-muted)' : r.status === 'in' ? 'var(--success)' : r.status === 'maybe' ? 'var(--warn)' : 'var(--danger)';
+  return '<span class="gc-status-linked" title="' + (r ? 'Answered on the family RSVP link' : 'No answer yet on the family RSVP link') + '" style="font-size:var(--fs-micro);font-weight:800;color:' + col + ';margin-left:4px;">' + txt + (r ? ' · answered' : '') + '</span>';
+}
+function tripIdeaLinkedNoteHtml() {
+  return '<div class="gc-linked-note" style="font-size:var(--fs-micro);color:var(--ink-muted);margin:-2px 0 6px;">Using the family’s RSVP answers · <button type="button" class="gc-unlink" style="font:inherit;font-weight:800;color:var(--accent);background:none;border:none;padding:0;cursor:pointer;">switch to what-if</button></div>';
+}
+function tripIdeaWireLinkedNote(panel) {
+  if (!panel || !panel.querySelectorAll) return;
+  panel.querySelectorAll('.gc-unlink').forEach(function(b){ b.addEventListener('click', function(){
+    S.linkedIdeaId = null; S.memberStatus = {}; S.tentativeMembers = [];
+    if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap();
+    showShareToast('What-if mode — set in / maybe / out yourself');
+  }); });
 }
 
 function initTripIdeaBuilder(){

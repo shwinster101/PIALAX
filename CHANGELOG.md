@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-077)
+- Family Plan uses the family's own answers: opening a linked Trip Ideas card applies in / maybe / out
+  from the RSVP link (maybe = tentative), so "out" members drop out of the total. Per-person selectors
+  become read-only "answered" / "waiting" labels, with a "switch to what-if" escape. Answers follow a
+  person across a home move (JAX → LGA) and are never written into the `ms=` URL.
+
 ### Added (PIA-076)
 - Trip Ideas cards link to shared ideas (`sharedIdeaId`): sharing from the builder saves the card
   (no duplicates) and links it; the card shows live RSVP counts ("2 in · 1 maybe · 1 waiting") and

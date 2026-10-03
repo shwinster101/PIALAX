@@ -18,6 +18,7 @@ const EXPECT = [
   'summarizeIdeaResponses', 'ideaCommonWindow', 'ideaDecisionStage', 'buildSharedIdeaPayload', 'tripIdeaSharedState',
 ];
 EXPECT.push('WATCHLIST', 'watchlistItem', 'sanitizeWatchlistItem', 'tripIdeaRsvpChipHtml', 'tripIdeaAskFamily', 'tripIdeaPayloadFromItem', 'tripIdeaCardActionsHtml', '_tripIdeaSave'); // PIA-076
+EXPECT.push('memberStatusFromIdea', 'tripIdeaApplyLinkedRsvp', 'tripIdeaLinkedStatusHtml', 'tripIdeaLinkedNoteHtml'); // PIA-077
 EXPECT.push('tripIdeaFamilyEstimate', 'tripIdeaDecisionAction', 'tripIdeaDecisionLog', 'tripIdeaDecisionStats', 'renderTripIdeaDecisionPanel'); // PIA-073: required
 const OPTIONAL = [];
 let failures = 0;
@@ -280,6 +281,17 @@ async function sharedIdeaSuite() {
     check(api.ideaDecisionStage(after) === 'answered', `${file}: stage becomes "answered" once anyone RSVPs`);
     const chip = api.tripIdeaRsvpChipHtml(linked[0]);
     check(/1 in · 1 maybe · 0 out · 1 waiting/.test(chip), `${file}: card chip shows live RSVP counts`);
+    // PIA-077: shared answers drive Family Plan statuses (maybe → tentative; in = default).
+    api.S.linkedIdeaId = id; api.S.depDate = new Date('2026-11-06T12:00:00');
+    await api.tripIdeaApplyLinkedRsvp();
+    check(JSON.stringify(api.S.memberStatus) === JSON.stringify({ LAX: 'tentative' }) && api.S.tentativeMembers.join() === 'LAX',
+      `${file}: linked trip sets Family Plan statuses from answers (LAX maybe → tentative, PIA in)`);
+    check(/✅ in · answered/.test(api.tripIdeaLinkedStatusHtml('PIA')) && /⏳ waiting/.test(api.tripIdeaLinkedStatusHtml('LGA')),
+      `${file}: Family Plan shows read-only "answered" / "waiting" labels`);
+    check(/switch to what-if/.test(api.tripIdeaLinkedNoteHtml()), `${file}: Family Plan says it is using family answers, with a what-if escape`);
+    const moved = api.memberStatusFromIdea({ responses: { LGA: { status: 'out' } } }, new Date('2026-08-01T12:00:00'));
+    check(moved.JAX === 'out' && !moved.LGA, `${file}: an answer follows the person across a home move (LGA answer → JAX before Sep 1)`);
+    api.S.linkedIdeaId = null; api.S.memberStatus = {}; api.S.tentativeMembers = [];
     const tg = api.watchlistItem('tgiving');
     check(tg && /Ask the family/.test(api.tripIdeaCardActionsHtml(tg)), `${file}: unlinked family card offers "Ask the family"`);
     const tgPayload = api.tripIdeaPayloadFromItem(tg);

@@ -758,6 +758,69 @@ function tripIdeaWireCardActions(root) {
   root.querySelectorAll('.wl-idea-ask').forEach(function(el){ el.addEventListener('click', function(e){ e.stopPropagation(); tripIdeaAskFamily(el.getAttribute('data-id')); }); });
 }
 
+// ── PIA-077: shared answers drive Family Plan ───────────────────────────────
+// Opening a linked card in Family Plan sets S.linkedIdeaId; the family's own
+// answers then fill S.memberStatus (maybe → 'tentative', the PIA-023 value), so
+// computeRanking / memberCostsFor exclude "out" with no new math. Selectors turn
+// into read-only "answered" labels, and these statuses never go into ms=.
+// A person keeps one identity across a home move (JAX → LGA), so answers are
+// matched by FAMILY base code, then written under the code in use for S.depDate.
+function _tripIdeaPersonBase(code) {
+  var fam = typeof FAMILY !== 'undefined' ? FAMILY : [], info = typeof FAMILY_INFO !== 'undefined' ? FAMILY_INFO : {};
+  for (var i = 0; i < fam.length; i++) { var b = fam[i], x = info[b] || {}; if (code === b || code === x.moveAirport) return b; }
+  return code;
+}
+function memberStatusFromIdea(doc, depDate) {
+  var resp = (doc && doc.responses) || {}, out = {}, current = typeof familyForDate === 'function' ? familyForDate(depDate || undefined) : [];
+  var byBase = {}; (current || []).forEach(function(c){ byBase[_tripIdeaPersonBase(c)] = c; });
+  Object.keys(resp).forEach(function(code){
+    var r = resp[code], target = byBase[_tripIdeaPersonBase(code)];
+    if (!r || !target) return;
+    out[target] = r.status === 'maybe' ? 'tentative' : r.status === 'out' ? 'out' : 'in';
+  });
+  return out;
+}
+function tripIdeaApplyLinkedRsvp() {
+  var id = typeof S === 'object' && S ? S.linkedIdeaId : null;
+  if (!id) return Promise.resolve(null);
+  var apply = function(doc){
+    if (!doc || S.linkedIdeaId !== id) return null;
+    var st = memberStatusFromIdea(doc, S.depDate), ms = {};
+    Object.keys(st).forEach(function(c){ if (st[c] !== 'in') ms[c] = st[c]; });
+    S.memberStatus = ms;
+    S.tentativeMembers = Object.keys(ms).filter(function(k){ return ms[k] === 'tentative'; });
+    try { if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap(); } catch (e) {}
+    return ms;
+  };
+  var cached = tripIdeaCachedDoc(id);
+  if (cached) apply(cached);
+  return tripIdeaFetchDoc(id).then(apply);
+}
+function _tripIdeaLinkedAnswer(code) {
+  var doc = S && S.linkedIdeaId ? tripIdeaCachedDoc(S.linkedIdeaId) : null;
+  if (!doc) return null;
+  var base = _tripIdeaPersonBase(code), resp = doc.responses || {};
+  var hit = Object.keys(resp).filter(function(k){ return _tripIdeaPersonBase(k) === base; })[0];
+  return hit ? resp[hit] : null;
+}
+function tripIdeaLinkedStatusHtml(code) {
+  var r = _tripIdeaLinkedAnswer(code);
+  var txt = !r ? '⏳ waiting' : r.status === 'in' ? '✅ in' : r.status === 'maybe' ? '🤔 maybe' : '✖ out';
+  var col = !r ? 'var(--ink-muted)' : r.status === 'in' ? 'var(--success)' : r.status === 'maybe' ? 'var(--warn)' : 'var(--danger)';
+  return '<span class="gc-status-linked" title="' + (r ? 'Answered on the family RSVP link' : 'No answer yet on the family RSVP link') + '" style="font-size:var(--fs-micro);font-weight:800;color:' + col + ';margin-left:4px;">' + txt + (r ? ' · answered' : '') + '</span>';
+}
+function tripIdeaLinkedNoteHtml() {
+  return '<div class="gc-linked-note" style="font-size:var(--fs-micro);color:var(--ink-muted);margin:-2px 0 6px;">Using the family’s RSVP answers · <button type="button" class="gc-unlink" style="font:inherit;font-weight:800;color:var(--accent);background:none;border:none;padding:0;cursor:pointer;">switch to what-if</button></div>';
+}
+function tripIdeaWireLinkedNote(panel) {
+  if (!panel || !panel.querySelectorAll) return;
+  panel.querySelectorAll('.gc-unlink').forEach(function(b){ b.addEventListener('click', function(){
+    S.linkedIdeaId = null; S.memberStatus = {}; S.tentativeMembers = [];
+    if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap();
+    showShareToast('What-if mode — set in / maybe / out yourself');
+  }); });
+}
+
 function initTripIdeaBuilder(){
   var c=_tripIdeaEl('build-trip-idea-btn'); if(c) c.onclick=function(){tripIdeaBuilderOpen();};
   var bd=_tripIdeaEl('trip-idea-builder-bd');if(bd)bd.onclick=function(e){if(e.target===bd)tripIdeaBuilderClose();};
