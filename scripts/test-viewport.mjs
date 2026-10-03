@@ -375,6 +375,54 @@ for (const file of FILES) {
   }
 }
 
+// ---- PIA-086: iPhone shell — toast placement/wrap, landscape column, meta ----
+for (const vp of [{ name: '390x844', width: 390, height: 844 }, { name: '844x390', width: 844, height: 390 }]) {
+  const ctx = await browser.newContext({
+    viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true,
+  });
+  const label = `pialax-mobile.html @ ${vp.name} shell`;
+  try {
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('.wl-row', { state: 'visible', timeout: 5000 });
+    const toast = await page.evaluate(async () => {
+      const t = document.getElementById('share-toast');
+      t.textContent = '⛔ Live fares blocked — quota safety cutoff reached for this month. Reset happens on the 1st.';
+      t.classList.add('show');
+      await new Promise((r) => setTimeout(r, 700));
+      const b = t.getBoundingClientRect(), bar = document.getElementById('tab-bar').getBoundingClientRect();
+      return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, height: b.height, barTop: bar.top, w: innerWidth };
+    });
+    if (toast.left >= 0 && toast.right <= toast.w && toast.bottom <= toast.barTop - 4 && toast.barTop - toast.bottom <= 40 && toast.height > 30)
+      ok(`${label} — long toast wraps inside the screen, just above the tab bar`);
+    else bad(`${label} — toast placement/wrap wrong: ${JSON.stringify(toast)}`);
+    const col = await page.evaluate(() => {
+      const r = [...document.querySelectorAll('.tabbar-btn')].map((b) => b.getBoundingClientRect());
+      const left = Math.min(...r.map((x) => x.left)), right = Math.max(...r.map((x) => x.right));
+      const app = document.getElementById('app').getBoundingClientRect();
+      return { left, right, width: right - left, appLeft: app.left, appRight: app.right };
+    });
+    if (col.width <= 431 && Math.abs(col.left - col.appLeft) <= 2 && Math.abs(col.right - col.appRight) <= 2)
+      ok(`${label} — tab bar buttons line up with the content column (${Math.round(col.width)}px)`);
+    else bad(`${label} — tab bar not aligned with content: ${JSON.stringify(col)}`);
+    if (vp.width === 390) {
+      const meta = await page.evaluate(() => ({
+        theme: document.querySelectorAll('meta[name="theme-color"]').length,
+        scheme: !!document.querySelector('meta[name="color-scheme"]'),
+        tel: (document.querySelector('meta[name="format-detection"]') || {}).content,
+        icon: !!document.querySelector('link[rel="icon"]'),
+      }));
+      if (meta.theme === 2 && meta.scheme && meta.tel === 'telephone=no' && meta.icon)
+        ok(`${label} — iPhone meta (theme-color ×2, color-scheme, no phone links, icon) present`);
+      else bad(`${label} — iPhone meta missing: ${JSON.stringify(meta)}`);
+    }
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser.close();
 
 console.log('');

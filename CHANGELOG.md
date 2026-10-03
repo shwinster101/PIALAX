@@ -12,6 +12,15 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-086)
+- iPhone shell: status bar / browser chrome follow the app colours (theme-color, color-scheme),
+  booking numbers no longer turn into phone links, Home Screen launch is full-screen, and the
+  missing tab icon is added. Toasts sit just above the tab bar (not mid-screen), wrap long
+  messages, move to the top while a full-screen sheet is open, and no longer get cut short by
+  an older timer. In landscape the tab bar and fare button line up with the content column, and
+  the phone layouts (hub cards, route picker) apply to landscape phones too. The "sample fares"
+  notice shows on Trips only (real quota warnings stay on every tab).
+
 ### Fixed (PIA-084)
 - iPhone: Trips paints immediately instead of showing "Loading…" for 4–6s while map borders
   download; a tab tapped during startup is no longer overridden; inline-button globals exist

@@ -3,6 +3,18 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<!-- PIA-086: iPhone shell — browser chrome / status bar follow the app colours,
+     iOS stops turning booking numbers into phone links, Home Screen launches
+     full-screen, and the tab icon no longer 404s (data: is allowed by img-src). -->
+<meta name="color-scheme" content="dark light"/>
+<meta name="theme-color" content="#07101e" media="(prefers-color-scheme: dark)"/>
+<meta name="theme-color" content="#f2f5f9" media="(prefers-color-scheme: light)"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-title" content="PIALAX"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="default"/>
+<meta name="format-detection" content="telephone=no"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307101e'/%3E%3Cpath d='M14 36l36-14-10 28-7-11z' fill='%233b82f6'/%3E%3C/svg%3E"/>
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://pialax-proxy.ashwinyedavalli.workers.dev https://serpapi.com https://cdn.jsdelivr.net https://cdnjs.cloudflare.com; font-src 'self' data:;"/>
 <meta name="referrer" content="strict-origin-when-cross-origin"/>
 <!-- Audit finding F-disclosure (2026-08-01): personal family trip tracker, not a
@@ -346,8 +358,8 @@ html {
 }
 body {
   background: var(--bg);
-  min-height: 100svh;
   min-height: 100vh;
+  min-height: 100svh; /* PIA-086: svh last so supporting browsers use it */
   /* PIA-033: safe-area top now lives on the sticky #shell-header; bottom
      reserve covers sticky CTA (72px) + tab bar (56px) + safe-area inset. */
   padding-bottom: calc(env(safe-area-inset-bottom) + 132px);
@@ -975,7 +987,7 @@ body.trip-sheet-active{overflow:hidden;}
 .map-pivot-layer .pivot-line{fill:none;stroke:var(--co-ord);stroke-width:2.5;stroke-dasharray:5,4;opacity:.9;}
 .map-pivot-layer .pivot-label{font-family:system-ui,sans-serif;font-weight:900;paint-order:stroke;stroke:var(--map-bg);stroke-width:4;stroke-linejoin:round;}
 .map-pivot-layer .pivot-note{font-family:system-ui,sans-serif;font-weight:900;}
-@media (max-width:640px){
+@media (max-width:640px), (orientation:landscape) and (max-height:500px){ /* PIA-086: landscape phones too */
   #hub-compare{grid-template-columns:repeat(3,minmax(156px,1fr));overflow-x:auto;margin:8px 0 0;padding:0 12px 2px;scrollbar-width:none;}
   #hub-compare::-webkit-scrollbar{display:none;}
   .hub-focus-card{min-height:88px;padding:8px 9px;}
@@ -1332,7 +1344,7 @@ body.trip-sheet-active{overflow:hidden;}
 #rp-hint{margin-top:5px;font-size:var(--fs-micro);line-height:1.35;color:var(--ink-muted);}
 #route-picker.is-meetup .rp-slot:first-child{cursor:default;}
 .map-hit{cursor:pointer;}
-@media (max-width:640px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
+@media (max-width:640px), (orientation:landscape) and (max-height:500px){#route-picker{top:56px;left:8px;width:min(330px,calc(100% - 16px));}.rp-slot strong{font-size:.78rem;}.rp-clear{padding:6px 8px;}}
 
 /* ── PIA-067 mobile density pass ───────────────────────────────────────────
    Trips is a scan surface, not a carousel. Map controls live in normal flow so
@@ -1617,6 +1629,25 @@ body.trip-sheet-active{overflow:hidden;}
 <style>
 .trip-idea-plan{display:grid;gap:12px}.trip-idea-plan label{display:flex;min-width:0;flex-direction:column;gap:5px;font-size:var(--fs-tiny);font-weight:800}.trip-idea-plan label>span,.trip-idea-date-heading span,.trip-idea-date-mode button{font-size:var(--fs-micro);font-weight:600;color:var(--ink-muted)}.trip-idea-plan input,.trip-idea-plan select,.trip-idea-plan textarea{box-sizing:border-box;width:100%;min-width:0;min-height:44px;padding:9px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--bg);color:var(--ink);font:inherit}.trip-idea-plan input[type=checkbox]{width:18px;min-height:18px}.trip-idea-destination small{font-size:var(--fs-micro);font-weight:500;color:var(--ink-muted)}.trip-idea-date-heading{display:flex;flex-direction:column;gap:2px}.trip-idea-date-mode{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.trip-idea-date-mode button{min-height:42px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface-2);font:inherit;font-weight:800;cursor:pointer}.trip-idea-date-mode button.selected{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}.trip-idea-date-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}.trip-idea-date-fields[hidden]{display:none}.trip-idea-date-fields .trip-idea-margin{grid-column:1/-1}.trip-idea-options{padding-top:9px;border-top:1px solid var(--line)}.trip-idea-options summary{min-height:40px;display:flex;align-items:center;justify-content:space-between;color:var(--accent);font-size:var(--fs-tiny);font-weight:800;cursor:pointer}.trip-idea-options summary span{color:var(--ink-muted);font-size:var(--fs-micro);font-weight:600}.trip-idea-options .trip-idea-grid{margin-top:10px}.trip-idea-options .trip-idea-check{padding-top:22px}.trip-idea-plan .trip-idea-notes{grid-column:1/-1}#trip-idea-builder-primary:disabled{opacity:.55;cursor:not-allowed}@media(max-width:640px){.trip-idea-date-fields{grid-template-columns:1fr}.trip-idea-date-fields .trip-idea-margin{grid-column:auto}.trip-idea-options .trip-idea-check{padding-top:0}}
 .trip-idea-stage{padding:2px 8px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line-strong);font-size:var(--fs-micro);font-weight:800;text-transform:capitalize}.trip-idea-stage-booked{border-color:var(--accent);color:var(--accent)}.trip-idea-rsvp-summary{display:flex;flex-direction:column;gap:3px;margin:12px 0 8px;font-size:var(--fs-tiny)}.trip-idea-rsvp-summary span{color:var(--ink-muted)}.trip-idea-rsvp-list{list-style:none;margin:0 0 14px;padding:0;display:grid;gap:6px}.trip-idea-rsvp-list li{display:flex;flex-direction:column;gap:2px;padding:9px 11px;border:1px solid var(--line);border-radius:var(--rad-sm);background:var(--surface-2);font-size:var(--fs-tiny)}.trip-idea-rsvp-list span,.trip-idea-rsvp-list small{color:var(--ink-muted)}.trip-idea-rsvp-form{padding-top:12px;border-top:1px solid var(--line)}.trip-idea-rsvp-choice{flex-direction:row!important;align-items:center;justify-content:center;gap:6px!important;min-height:42px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface-2);cursor:pointer}.trip-idea-date-mode:has(.trip-idea-rsvp-choice){grid-template-columns:repeat(3,minmax(0,1fr))}.trip-idea-plan .trip-idea-rsvp-choice input[type=radio]{width:18px;min-width:18px;min-height:18px;height:18px;padding:0;margin:0;flex:0 0 auto}.trip-idea-rsvp-send,.trip-idea-decision button{min-height:44px;padding:9px 14px;border:1px solid var(--accent);border-radius:var(--rad-sm);background:var(--accent);color:#fff;font:inherit;font-weight:800;cursor:pointer}.trip-idea-decision{margin-top:16px;padding-top:12px;border-top:1px solid var(--line);display:grid;gap:8px;font-size:var(--fs-tiny)}.trip-idea-decision-row{display:flex;flex-wrap:wrap;gap:8px;align-items:end}.trip-idea-decision-row label{display:flex;flex-direction:column;gap:4px;font-weight:800}.trip-idea-decision-row input{min-height:40px;padding:8px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--bg);color:var(--ink);font:inherit;width:9em}.trip-idea-decision .secondary{background:var(--surface-2);color:var(--ink);border-color:var(--line-strong)}.trip-idea-history{margin-top:12px}.trip-idea-history li{list-style:none}.trip-idea-history ul{padding:0;margin:8px 0 0;display:grid;gap:6px}.trip-idea-history button{width:100%;text-align:left;padding:8px 10px;border:1px solid var(--line);border-radius:var(--rad-sm);background:var(--surface-2);color:var(--ink);font:inherit;font-size:var(--fs-tiny);cursor:pointer}.wl-rsvp-chip{font-size:var(--fs-micro);font-weight:800;color:var(--accent);padding-left:22px;margin-top:2px}.wl-rsvp-new{color:var(--danger,#ef4444)}
+</style>
+<!-- PIA-086+: iPhone layer — mobile-only overrides, loaded last so it wins the cascade.
+     The canonical :root tokens and the shared Trip Idea Builder CSS above stay
+     byte-identical with pialax.html; iPhone-specific changes live here only. -->
+<style id="ios-layer">
+/* ── PIA-086: app shell ───────────────────────────────────────────────────── */
+/* Toast: just above whatever bottom chrome the tab actually shows (it used to
+   float ~80px up on every tab), wraps long messages, and drops to the top of
+   the screen while a full-screen sheet is open so it never covers its fields. */
+#share-toast{bottom:calc(env(safe-area-inset-bottom) + 68px);white-space:normal;width:max-content;max-width:min(400px,calc(100vw - 32px));line-height:1.35;padding:10px 18px;border-radius:18px}
+body.tab-plan:not(.no-cta) #share-toast{bottom:calc(env(safe-area-inset-bottom) + 136px)}
+body.trip-sheet-active #share-toast,body.trip-idea-open #share-toast{top:calc(env(safe-area-inset-top) + 12px);bottom:auto;transform:translateX(-50%) translateY(-50px)}
+body.trip-sheet-active #share-toast.show,body.trip-idea-open #share-toast.show{transform:translateX(-50%) translateY(0)}
+/* Fixed bars line up with the 430px content column in every orientation. */
+#tab-bar{padding-left:max(env(safe-area-inset-left),calc((100vw - 430px)/2));padding-right:max(env(safe-area-inset-right),calc((100vw - 430px)/2))}
+.sticky-cta{padding-left:max(calc(var(--sp-5) + env(safe-area-inset-left)),calc((100vw - 430px)/2 + var(--sp-5)));padding-right:max(calc(var(--sp-5) + env(safe-area-inset-right)),calc((100vw - 430px)/2 + var(--sp-5)))}
+details.advanced{margin-left:max(var(--space-md),calc((100% - 398px)/2));margin-right:max(var(--space-md),calc((100% - 398px)/2))}
+/* The "sample fares" notice points at Advanced Settings, which only exists on Trips. */
+body:not(.tab-watchlist) #quota-warning-banner[data-tier="mock"]{display:none!important}
 </style>
 </head>
 <!-- PIA-046: default tab is Watchlist, which hides the fare CTA — start in that
@@ -3395,7 +3426,9 @@ function showShareToast(msg) {
   if (!t) return;
   t.textContent = msg;
   t.classList.add('show');
-  setTimeout(function(){ t.classList.remove('show'); }, 3200);
+  // PIA-086: a new toast restarts the clock — an older timer used to hide it early.
+  clearTimeout(t._hideTimer);
+  t._hideTimer = setTimeout(function(){ t.classList.remove('show'); }, 3200);
 }
 
 function shareThePlan() {
@@ -4694,9 +4727,13 @@ function updateQuotaWarningBanner() {
   var resetTxt = nextReset.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   var remaining = Math.max(0, q.budget - q.used);
 
+  // PIA-086: data-tier lets CSS keep the advisory "mock" notice on Trips (where
+  // Advanced Settings lives) while real quota warnings stay on every tab.
+  bn.dataset.tier = '';
   if (!PROXY_URL) {
-    bn.innerHTML = '<strong style="color:var(--warn);">📡 Mock data mode</strong><br/>'
-      + '<span style="color:var(--ink-muted);">Connect a SerpAPI proxy in Advanced Settings to see live fare results.</span>';
+    bn.dataset.tier = 'mock';
+    bn.innerHTML = '<strong style="color:var(--warn);">📡 Sample fares</strong> '
+      + '<span style="color:var(--ink-muted);">Connect a fare proxy in ⚙️ Advanced Settings below.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--warn)';
     bn.style.background = 'var(--warn-dim)';
@@ -4708,18 +4745,21 @@ function updateQuotaWarningBanner() {
               + remaining + ' until reset (' + resetTxt + ')';
 
   if (q.exceeded || q.used >= QUOTA_LOCK_AT) {
+    bn.dataset.tier = 'locked';
     bn.innerHTML = '<strong style="color:var(--danger);">⛔ Fetch locked — quota safety cutoff</strong><br/>'
       + '<span style="color:var(--ink-muted);">' + bodyTxt + '. Search disabled until plan resets.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--danger)';
     bn.style.background = 'var(--danger-dim)';
   } else if (q.used >= QUOTA_RED_AT) {
+    bn.dataset.tier = 'red';
     bn.innerHTML = '<strong style="color:var(--danger);">⚠ Approaching cap — under 50 calls left</strong><br/>'
       + '<span style="color:var(--ink-muted);">' + bodyTxt + '.</span>';
     bn.style.display = '';
     bn.style.borderColor = 'var(--danger)';
     bn.style.background = 'var(--danger-dim)';
   } else if (q.used >= QUOTA_AMBER_AT) {
+    bn.dataset.tier = 'amber';
     bn.innerHTML = '<strong style="color:var(--warn);">🟡 SerpAPI usage warning</strong><br/>'
       + '<span style="color:var(--ink-muted);">' + bodyTxt + '.</span>';
     bn.style.display = '';
