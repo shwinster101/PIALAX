@@ -35,6 +35,7 @@ EXPECT.push('tripIdeaCardMoreHtml', 'tripIdeaShareCard'); // PIA-107
 EXPECT.push('tripIdeaAltAirports'); // PIA-108
 EXPECT.push('tripIdeaOpenJaw'); // PIA-109
 EXPECT.push('tripIdeaLegPick', 'tripIdeaLegLinks'); // PIA-111
+EXPECT.push('tripIdeaCountsLine', 'tripIdeaPlanDatesPayload'); // PIA-112
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -118,6 +119,16 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     check(rows[0].openJaw && /LAX to PIA on 2026-11-21 one way/.test(decodeURIComponent(rows[0].openJaw.inUrl)) && /ORD to LAX on 2026-11-29 one way/.test(decodeURIComponent(rows[0].openJaw.outUrl)) &&
       rows[1].openJaw && /ORD to JFK on 2026-11-30 one way/.test(decodeURIComponent(rows[1].openJaw.outUrl)),
       `${file}: Peoria primary = fly in PIA + home from ORD, one-ways on each person's own dates`);
+    // PIA-112: one status line, and the organizer's plan-date edit payload.
+    {
+      const m3 = [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }];
+      const all = { idea: { members: m3, destination: { airport: 'PIA' } }, responses: { PIA: { status: 'in' }, LAX: { status: 'in' }, LGA: { status: 'in' } } };
+      const some = { idea: { members: m3, destination: { airport: 'PIA' } }, responses: { LAX: { status: 'in' } } };
+      const pay = api.tripIdeaPlanDatesPayload({ idea: { title: 'T', members: m3, dates: { departure: '2026-11-25', return: '2026-11-29' }, recommendation: { airport: 'PIA', departure: '2026-11-25', return: '2026-11-29' } } }, '2026-11-20', '2026-11-29');
+      check(api.tripIdeaCountsLine(all) === 'All 3 in' && api.tripIdeaCountsLine(some) === '1 in · 1 waiting' &&
+        pay.dates.departure === '2026-11-20' && pay.recommendation.departure === '2026-11-20' && pay.members.length === 3 && pay.title === 'T',
+        `${file}: status line ("All 3 in" / "1 in · 1 waiting"); plan-date edit keeps the idea, moves dates`);
+    }
     // PIA-111: per-traveler airports — default in PIA / home ORD; same both ways = one round trip.
     {
       const d = api.tripIdeaLegPick('PIA', {}), o = api.tripIdeaLegPick('PIA', { arrive_at: 'ORD', leave_from: 'ORD' }), junk = api.tripIdeaLegPick('PIA', { arrive_at: 'RDU' });

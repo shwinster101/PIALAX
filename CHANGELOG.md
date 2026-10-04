@@ -12,6 +12,18 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-112)
+- The RSVP screen is calmer:
+  - **Header:** one title line, then one plan line ("Plan Fri Nov 20 – Sun Nov 29 · ≈ $704" for
+    the organizer, "Late Nov · pick your own dates" for family).
+  - **Notes:** clipped to two lines; tap to expand. "Fare not priced yet" and the duplicate title
+    card are gone.
+  - **Status:** one line ("All 3 in · 1 of 2 booked").
+  - **Folded:** the answers list ("Answers & notes") and the organizer tools (Nudge, Hold,
+    Organizer link, Choose / Drop) start collapsed.
+- Organizer: **✎** next to the plan dates opens the calendar to fix the proposal's dates (e.g. from
+  the old Nov 25 to Fri Nov 20 – Sun Nov 29) and saves them to the shared trip.
+
 ### Added (PIA-111) — needs `wrangler deploy`
 - Each traveler picks their own airports on their RSVP card: **In [PIA][ORD]** and
   **Home [PIA][ORD]**. One tap saves it. The same airport both ways gives one "Round trip · ORD ↗"
