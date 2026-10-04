@@ -12,6 +12,39 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-113)
+- iPhone Family tab, opened from a trip with a family RSVP: it now leads with the trip, e.g.
+  "🦃 Thanksgiving · Fri Nov 20 – Sun Nov 29 · All 3 in", with **👥 Open RSVP** and **Planner ▸**.
+  Step 1 (mode, holiday quick-picks, home airport) stays folded until you tap Planner. Cheapest
+  week and the fairness ledger become one-line drawers, and the "Last trip" chip and helper text
+  hide. Fares, the cost split and Get Live Fares stay up front.
+
+### Changed (PIA-112)
+- The RSVP screen is calmer:
+  - **Header:** one title line, then one plan line ("Plan Fri Nov 20 – Sun Nov 29 · ≈ $704" for
+    the organizer, "Late Nov · pick your own dates" for family).
+  - **Notes:** clipped to two lines; tap to expand. "Fare not priced yet" and the duplicate title
+    card are gone.
+  - **Status:** one line ("All 3 in · 1 of 2 booked").
+  - **Folded:** the answers list ("Answers & notes") and the organizer tools (Nudge, Hold,
+    Organizer link, Choose / Drop) start collapsed.
+- Organizer: **✎** next to the plan dates opens the calendar to fix the proposal's dates (e.g. from
+  the old Nov 25 to Fri Nov 20 – Sun Nov 29) and saves them to the shared trip.
+
+### Added (PIA-111) — needs `wrangler deploy`
+- Each traveler picks their own airports on their RSVP card: **In [PIA][ORD]** and
+  **Home [PIA][ORD]**. One tap saves it. The same airport both ways gives one "Round trip · ORD ↗"
+  search; different airports give "✈️ In PIA ↗" and "🏠 Home ORD ↗". The Book panel and the Trips
+  card's per-person links follow each person's picks. The default stays in PIA, home ORD.
+- The Worker stores the picks (`arrive_at` / `leave_from`), limited to the destination's hub
+  airports (PIA/ORD, LGA/JFK), and keeps them when someone changes their answer or marks booked.
+  The toggles appear once the Worker supports them.
+
+### Changed (PIA-110)
+- Dates show the weekday: "Fri Nov 20 – Sun Nov 29". This applies on the RSVP (window, answers,
+  calendar range, Book panel), the Trips card's per-person links and the Family tab's date pills.
+  The day strip has a weekday row, with weekends highlighted.
+
 ### Changed (PIA-109)
 - Thanksgiving plan (Dad wants the Peoria parade): fly in direct to **PIA Fri Nov 20**, fly home
   from **ORD Sun Nov 29**, booked as two one-ways. The Trips card's flight links are now per

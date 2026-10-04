@@ -725,7 +725,7 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.locator('[data-cal-day="2026-11-26"]').click();
     await page.locator('[data-cal-day="2026-11-30"]').click();
     const range = await page.locator('.trip-idea-cal-sel span').innerText();
-    if (cal.month === 'November 2026' && cal.picked === 0 && cal.minCell >= 44 && /Nov 26–30 · 4 nights/.test(range))
+    if (cal.month === 'November 2026' && cal.picked === 0 && cal.minCell >= 44 && /Thu Nov 26 – Mon Nov 30 · 4 nights/.test(range))
       ok(`${label} — calendar opens on ${cal.month} with nothing picked, day cells ≥44px (${Math.round(cal.minCell)}), two taps → "${range}"`);
     else bad(`${label} — calendar wrong: ${JSON.stringify(cal)} range "${range}"`);
     const send = page.locator('#trip-idea-builder-primary');
@@ -748,13 +748,25 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
         /LAX to PIA on 2026-11-21 one way/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && /In PIA ↗/.test(book.rows[1].text) && /Home ORD ↗/.test(book.rows[1].text) && !book.over)
       ok(`${label} — "✈️ Fly in · PIA" opens LGA→PIA Nov 26; the Book panel gives each traveler In PIA + Home ORD on their own dates`);
     else bad(`${label} — book step wrong: ${JSON.stringify(book)}`);
+    // PIA-111: In / Home toggles — Home → PIA makes one round-trip search; it's saved with the answer.
+    await page.locator('[data-leg-home="PIA"]').click();
+    await page.waitForSelector('.trip-idea-mine [data-leg="round"]', { timeout: 5000 });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.trip-idea-mine', { timeout: 8000 });
+    const legs = await page.evaluate(() => ({ round: (document.querySelector('.trip-idea-mine [data-leg="round"]') || {}).href || '',
+      pressed: [...document.querySelectorAll('.trip-idea-seg [aria-pressed="true"]')].map((b) => b.textContent).join(',') }));
+    if (/LGA to PIA on 2026-11-26 through 2026-11-30/.test(decodeURIComponent(legs.round)) && legs.pressed === 'PIA,PIA')
+      ok(`${label} — In/Home toggles: Home → PIA gives one round-trip search (LGA ⇄ PIA), still picked after a reload`);
+    else bad(`${label} — leg toggles wrong: ${JSON.stringify(legs)}`);
+    await page.locator('[data-leg-home="ORD"]').click();
+    await page.waitForSelector('.trip-idea-mine [data-leg="home"]', { timeout: 5000 });
     // PIA-106: "I booked ✓" → the card, the strip and "1 of 2 booked" all show it, after a reload too.
     await page.locator('.trip-idea-ibooked').click();
     await page.waitForSelector('.trip-idea-mine .trip-idea-booked-tag', { timeout: 5000 });
     await page.reload({ waitUntil: 'load' });
     await page.waitForSelector('.trip-idea-mine', { timeout: 8000 });
-    const booked = await page.evaluate(() => ({ tag: !!document.querySelector('.trip-idea-mine .trip-idea-booked-tag'), line: (document.querySelector('.trip-idea-booked-line') || {}).textContent || '',
-      green: document.querySelectorAll('.trip-idea-strip i.booked').length, list: document.querySelector('.trip-idea-rsvp-list').innerText }));
+    const booked = await page.evaluate(() => ({ tag: !!document.querySelector('.trip-idea-mine .trip-idea-booked-tag'), line: (document.querySelector('.trip-idea-rsvp-summary strong') || {}).textContent || '',
+      green: document.querySelectorAll('.trip-idea-strip i.booked').length, list: document.querySelector('.trip-idea-rsvp-list').textContent }));
     if (booked.tag && /1 of 2 booked/.test(booked.line) && booked.green === 5 && /✈️ booked/.test(booked.list))
       ok(`${label} — "I booked ✓" sticks: ✈️ Booked on the card, "${booked.line.trim()}", Anjo's 5 days green on the strip`);
     else bad(`${label} — booked wrong: ${JSON.stringify(booked)}`);
@@ -762,10 +774,10 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     const win = await page.evaluate(() => ({ text: (document.querySelector('.trip-idea-window') || {}).textContent || '',
       rows: document.querySelectorAll('.trip-idea-strip .trip-idea-strip-name').length, over: document.documentElement.scrollWidth > innerWidth,
       stripFits: (() => { const st = document.querySelector('.trip-idea-strip'); return !!st && st.scrollWidth <= st.clientWidth + 1; })() }));
-    if (/Everyone’s there Nov 26–29/.test(win.text) && win.rows === 4 && win.stripFits && !win.over)
+    if (/Everyone’s there Thu Nov 26 – Sun Nov 29/.test(win.text) && win.rows === 5 && win.stripFits && !win.over)
       ok(`${label} — "${win.text}" with a day strip (hosts + 2 travelers) that fits the screen`);
     else bad(`${label} — window/strip wrong: ${JSON.stringify(win)}`);
-    if (sendOk && /Anjo/.test(card) && /In/.test(card) && /Nov 26–30/.test(card) && /Change my answer/.test(card) && !errors.length)
+    if (sendOk && /Anjo/.test(card) && /In/.test(card) && /Thu Nov 26 – Mon Nov 30/.test(card) && /Change my answer/.test(card) && !errors.length)
       ok(`${label} — "Send my answer" on screen (≥44px); after saving, a reload opens straight to "${card.slice(0, 40)}…"`);
     else bad(`${label} — answer/remember failed: send ${JSON.stringify(sendBox)} card "${card}" errors ${JSON.stringify(errors)}`);
   } catch (e) {
@@ -784,9 +796,22 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.waitForSelector('.trip-idea-mine, .trip-idea-rsvp-form', { timeout: 8000 });
     const a = await page.evaluate(() => ({ guest: document.body.classList.contains('idea-guest'), close: !!document.querySelector('.trip-idea-close') && document.querySelector('.trip-idea-close').offsetParent !== null,
       body: document.getElementById('trip-idea-builder-body').innerText }));
-    if (!a.guest && a.close && /Whole family ≈ \$900/.test(a.body) && /Proposed Nov 25–29/.test(a.body))
+    if (!a.guest && a.close && /Plan Wed Nov 25 – Sun Nov 29 · ≈ \$900/.test(a.body))
       ok(`${label} — organizer device keeps the dashboard (✕), exact dates and the family cost`);
     else bad(`${label} — organizer view wrong: ${JSON.stringify({ guest: a.guest, close: a.close, body: a.body.slice(0, 200) })}`);
+    // PIA-112: answers and organizer tools start folded; ✎ fixes the plan dates on the Worker.
+    const folds = await page.evaluate(() => [...document.querySelectorAll('details[data-fold]')].map((d) => d.open));
+    await page.locator('[data-plan-edit]').click();
+    await page.locator('#trip-idea-plan-cal-wrap [data-cal-day="2026-11-20"]').click();
+    await page.locator('#trip-idea-plan-cal-wrap [data-cal-day="2026-11-29"]').click();
+    await page.locator('[data-plan-save]').click();
+    await page.waitForFunction(() => /Plan Fri Nov 20 – Sun Nov 29/.test((document.querySelector('.trip-idea-planline') || {}).textContent || ''), null, { timeout: 5000 });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.trip-idea-planline', { timeout: 8000 });
+    const planline = await page.locator('.trip-idea-planline').innerText();
+    if (folds.join() === 'false,false' && /Plan Fri Nov 20 – Sun Nov 29/.test(planline))
+      ok(`${label} — answers & organizer tools start folded; ✎ saved the plan dates ("${planline.replace(/\s+/g, ' ').trim()}") to the Worker`);
+    else bad(`${label} — folds/plan edit wrong: ${JSON.stringify({ folds, planline })}`);
   } catch (e) {
     bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
   } finally {
@@ -803,7 +828,9 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
   try {
     const page = await ctx.newPage();
     await page.goto(idea.url(), { waitUntil: 'load' });
-    await page.waitForSelector('[data-idea-answer-for]', { timeout: 8000 });
+    await page.waitForSelector('details[data-fold="list"] summary', { timeout: 8000 });
+    await page.locator('details[data-fold="list"] summary').click();
+    await page.waitForSelector('[data-idea-answer-for]', { timeout: 3000 });
     const targets = await page.$$eval('[data-idea-answer-for]', (bs) => bs.map((b) => b.getAttribute('data-idea-answer-for')));
     await page.locator('[data-idea-answer-for="PIA"]').click();
     const head = await page.locator('.trip-idea-form-head strong').innerText();
@@ -826,14 +853,43 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.goto(idea.url('#k=' + idea.key), { waitUntil: 'load' });
     await page.waitForSelector('.trip-idea-mine, .trip-idea-rsvp-form', { timeout: 8000 });
     const st = await page.evaluate((id) => ({ guest: document.body.classList.contains('idea-guest'), hash: location.hash,
-      key: !!(JSON.parse(localStorage.getItem('pialax_idea_keys_v1') || '{}')[id] || {}).edit_key, body: document.getElementById('trip-idea-builder-body').innerText }), idea.id);
-    if (!st.guest && !st.hash && st.key && /Whole family/.test(st.body) && /Copy organizer link/.test(st.body))
+      key: !!(JSON.parse(localStorage.getItem('pialax_idea_keys_v1') || '{}')[id] || {}).edit_key, body: document.getElementById('trip-idea-builder-body').innerText,
+      orglink: !!document.querySelector('[data-idea-orglink]') }), idea.id);
+    if (!st.guest && !st.hash && st.key && /≈ \$900/.test(st.body) && st.orglink)
       ok(`${label2} — #k= link makes this device the organizer (admin view), and the key is wiped from the address bar`);
     else bad(`${label2} — organizer link wrong: ${JSON.stringify({ guest: st.guest, hash: st.hash, key: st.key })}`);
   } catch (e) {
     bad(`${label2} — threw: ${e && e.message ? e.message : String(e)}`);
   } finally {
     await ctx2.close();
+  }
+}
+
+// PIA-113: a trip linked to a family RSVP opens the Family tab summary-first.
+{
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context({ width: 390, height: 844 }, idea, { admin: true });
+  const label = 'pialax-mobile.html Family tab (linked trip) @ 390x844';
+  try {
+    await ctx.addInitScript((id) => { localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] })); }, idea.id);
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('.wl-row[data-wl-id="thanksgiving"]', { timeout: 8000 });
+    await page.locator('.wl-row[data-wl-id="thanksgiving"]').click();
+    await page.locator('.wl-more-actions summary').click();
+    await page.locator('.wl-more-actions .wl-open').click();
+    await page.waitForSelector('#linked-trip-summary:not([hidden])', { timeout: 5000 });
+    const f = await page.evaluate(() => ({ sum: document.getElementById('linked-trip-summary').innerText.replace(/\s+/g, ' '),
+      block1: getComputedStyle(document.getElementById('plan-block1')).display, over: document.documentElement.scrollWidth > innerWidth }));
+    await page.locator('.lts-planner').click();
+    const opened = await page.evaluate(() => getComputedStyle(document.getElementById('plan-block1')).display);
+    if (/Thanksgiving/.test(f.sum) && /Fri Nov 20 – Sun Nov 29/.test(f.sum) && /Open RSVP/.test(f.sum) && f.block1 === 'none' && opened !== 'none' && !f.over)
+      ok(`${label} — summary first ("${f.sum.slice(0, 60)}…"), Step 1 folded until "Planner ▸"`);
+    else bad(`${label} — summary wrong: ${JSON.stringify(Object.assign(f, { opened }))}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
   }
 }
 

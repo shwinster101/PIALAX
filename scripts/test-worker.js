@@ -571,6 +571,20 @@ const VALID_EXTRACTION = {
       if (badM.status === 400 && badB.status === 400 && closedB.status === 409) ok('/idea/booked rejects unknown members and non-boolean flags; dropped trips are closed');
       else bad(`booked errors: ${badM.status}/${badB.status}/${closedB.status}`);
     }
+    // PIA-111: per-traveler hub airports.
+    {
+      const c5 = await readJson(await call(req('POST', 'https://w.dev/idea', { idea: Object.assign({}, IDEA, { destination: { city: 'Peoria', airport: 'PIA' }, recommendation: Object.assign({}, IDEA.recommendation, { airport: 'PIA' }) }) }), env));
+      const post = async (p, b) => readJson(await call(req('POST', 'https://w.dev' + p + '?id=' + c5.id, b), env));
+      const a = await post('/idea/respond', { member: 'LGA', status: 'in', available_from: '2026-11-20', available_to: '2026-11-29', arrive_at: 'ord', leave_from: 'PIA' });
+      const bad = await post('/idea/respond', { member: 'LAX', status: 'in', arrive_at: 'RDU', leave_from: 'LHR' });
+      await post('/idea/booked', { member: 'LGA', booked: true });
+      const kept = await post('/idea/respond', { member: 'LGA', status: 'maybe', available_from: '2026-11-20', available_to: '2026-11-29' });
+      const r = kept.doc.responses.LGA;
+      if (a.doc.responses.LGA.arrive_at === 'ORD' && a.doc.responses.LGA.leave_from === 'PIA' && bad.doc.responses.LAX.arrive_at === '' && bad.doc.responses.LAX.leave_from === '' &&
+          r.arrive_at === 'ORD' && r.leave_from === 'PIA' && r.booked === true && a.can_legs === true)
+        ok('arrive_at / leave_from: hub airports only (PIA/ORD), kept across booked and answer changes');
+      else bad('legs: ' + JSON.stringify({ a: a.doc.responses.LGA, bad: bad.doc.responses.LAX, r }));
+    }
     const opts = [];
     const ttlEnv = { IDEAS: { get: async () => null, put: async (k, v, o) => { opts.push(o); } } };
     await call(req('POST', 'https://w.dev/idea', { idea: IDEA }), ttlEnv);

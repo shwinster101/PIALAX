@@ -506,7 +506,7 @@ function summarizeIdeaResponses(doc) {
     if (status === 'in' && !host) travelersIn += Number(m.headcount) || 1;
     return {code:m.code, label:m.label || m.code, headcount:Number(m.headcount) || 1, status:status, host:host,
       origin:(r && r.origin) || m.airport || '', available_from:(r && r.available_from) || '', available_to:(r && r.available_to) || '', note:(r && r.note) || '',
-      booked:!!(r && r.booked && (r.status === 'in' || r.status === 'maybe'))};
+      booked:!!(r && r.booked && (r.status === 'in' || r.status === 'maybe')), arrive_at:(r && r.arrive_at) || '', leave_from:(r && r.leave_from) || ''};
   });
   return {rows:rows, counts:counts, travelersIn:travelersIn, stage:ideaDecisionStage(doc)};
 }
@@ -567,51 +567,76 @@ function tripIdeaAltAirports(dest) {
 // O'Hare (two one-ways). For these destinations that pair is the primary search;
 // round trips into either airport stay as the fallback.
 var TRIP_IDEA_HOME_FROM = {PIA:'ORD'};
+// PIA-111: each traveler's in / home airports — their saved picks (arrive_at /
+// leave_from), else the family default (Peoria: in PIA, home ORD). Same airport
+// both ways = one round-trip search; different = two one-ways.
+function tripIdeaLegPick(dest, row) {
+  var hub = [dest].concat(tripIdeaAltAirports(dest));
+  return {in:row && hub.indexOf(row.arrive_at) >= 0 ? row.arrive_at : dest,
+    home:row && hub.indexOf(row.leave_from) >= 0 ? row.leave_from : (TRIP_IDEA_HOME_FROM[dest] || dest), hub:hub};
+}
+function tripIdeaLegLinks(from, legs, dep, ret, adults) {
+  if (!dep) return null;
+  if (legs.in === legs.home || !ret) { var u = tripIdeaFlightUrl(from, legs.in, dep, ret, adults); return u ? {round:true, to:legs.in, back:legs.in, url:u} : null; }
+  var inUrl = tripIdeaFlightUrl(from, legs.in, dep, '', adults), outUrl = tripIdeaFlightUrl(legs.home, from, ret, '', adults);
+  return inUrl && outUrl ? {round:false, to:legs.in, back:legs.home, inUrl:inUrl, outUrl:outUrl} : null;
+}
 function tripIdeaOpenJaw(from, dest, dep, ret, adults) {
-  var back = TRIP_IDEA_HOME_FROM[dest];
-  if (!back || back === from || !dep || !ret) return null;
-  var inUrl = tripIdeaFlightUrl(from, dest, dep, '', adults), outUrl = tripIdeaFlightUrl(back, from, ret, '', adults);
-  return inUrl && outUrl ? {to:dest, back:back, inUrl:inUrl, outUrl:outUrl} : null;
+  var l = tripIdeaLegLinks(from, tripIdeaLegPick(dest, null), dep, ret, adults);
+  return l && !l.round ? l : null;
 }
 function tripIdeaBookRows(doc) {
   var dest = _tripIdeaDestAirport(doc), alts = tripIdeaAltAirports(dest);
   return summarizeIdeaResponses(doc).rows.filter(function(x){ return !x.host && (x.status === 'in' || x.status === 'maybe'); }).map(function(x){
-    var from = String(x.origin || '').toUpperCase();
+    var from = String(x.origin || '').toUpperCase(), legs = tripIdeaLegPick(dest, x);
+    var links = x.available_from ? tripIdeaLegLinks(from, legs, x.available_from, x.available_to, x.headcount) : null;
     return {code:x.code, label:x.label, from:from, to:dest, dep:x.available_from, ret:x.available_to, headcount:x.headcount, status:x.status, booked:!!x.booked,
+      legs:legs, links:links, openJaw:links && !links.round ? links : null,
       url:x.available_from ? tripIdeaFlightUrl(from, dest, x.available_from, x.available_to, x.headcount) : '',
-      openJaw:x.available_from ? tripIdeaOpenJaw(from, dest, x.available_from, x.available_to, x.headcount) : null,
       alts:x.available_from ? alts.filter(function(a){ return a !== from; }).map(function(a){ return {to:a, url:tripIdeaFlightUrl(from, a, x.available_from, x.available_to, x.headcount)}; }).filter(function(a){ return a.url; }) : []};
   });
 }
-function _tripIdeaOpenJawBtns(oj, code) {
-  return '<span class="trip-idea-book-btns"><a class="trip-idea-book-go" href="' + _tripIdeaEsc(oj.inUrl) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(code) + '" data-leg="in">In ' + _tripIdeaEsc(oj.to) + ' ↗</a>' +
-    '<a class="trip-idea-book-go" href="' + _tripIdeaEsc(oj.outUrl) + '" target="_blank" rel="noopener" data-leg="home">Home ' + _tripIdeaEsc(oj.back) + ' ↗</a></span>';
-}
-// Footnote: the plan in one line, plus the round-trip fallback when the primary is in/out.
-function _tripIdeaBookFootHtml(sh, rows) {
-  var dest = _tripIdeaDestAirport(sh.doc), back = TRIP_IDEA_HOME_FROM[dest], hub = [dest].concat(tripIdeaAltAirports(dest));
-  if (!rows.some(function(r){ return r.openJaw; })) return '<small>One search per person, on their own dates' + (hub.length > 1 ? ' — into either ' + _tripIdeaEsc(hub.join(' or ')) : '') + '.</small>';
-  var rt = rows.filter(function(r){ return r.url && !r.booked; }).map(function(r){
-    return _tripIdeaEsc(_tripIdeaName(r.label)) + ': <a href="' + _tripIdeaEsc(r.url) + '" target="_blank" rel="noopener">' + _tripIdeaEsc(r.to) + '</a>' + r.alts.map(function(a){ return ' · <a href="' + _tripIdeaEsc(a.url) + '" target="_blank" rel="noopener">' + _tripIdeaEsc(a.to) + '</a>'; }).join('');
-  });
-  return '<small>Fly in to ' + _tripIdeaEsc(dest) + ', home from ' + _tripIdeaEsc(back) + ' — two one-ways, each on your own dates.' + (rt.length ? '<br>Round trip instead — ' + rt.join(' · ') : '') + '</small>';
+function _tripIdeaLegBtns(l, code, cls) {
+  var c = cls || 'trip-idea-book-go';
+  if (l.round) return '<a class="' + c + '" href="' + _tripIdeaEsc(l.url) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(code) + '" data-leg="round">Round trip · ' + _tripIdeaEsc(l.to) + ' ↗</a>';
+  return '<a class="' + c + '" href="' + _tripIdeaEsc(l.inUrl) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(code) + '" data-leg="in">✈️ In ' + _tripIdeaEsc(l.to) + ' ↗</a>' +
+    '<a class="' + c + '" href="' + _tripIdeaEsc(l.outUrl) + '" target="_blank" rel="noopener" data-leg="home">🏠 Home ' + _tripIdeaEsc(l.back) + ' ↗</a>';
 }
 function tripIdeaBookPanelHtml(sh) {
   var rows = tripIdeaBookRows(sh.doc);
   if (!rows.length) return '';
   return '<details class="trip-idea-book"' + (sh.bookOpen ? ' open' : '') + '><summary>✈️ Book for these dates</summary><ul>' + rows.map(function(r){
     return '<li><div><strong>' + _tripIdeaEsc(_tripIdeaName(r.label)) + (r.headcount > 1 ? ' (' + r.headcount + ')' : '') + '</strong><span>' +
-      _tripIdeaEsc(r.dep ? r.from + ' → ' + r.to + ' · ' + tripIdeaDateRange(r.dep, r.ret) : 'no dates yet') + '</span></div>' +
-      (r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.openJaw ? _tripIdeaOpenJawBtns(r.openJaw, r.code) : r.url ? '<span class="trip-idea-book-btns"><a class="trip-idea-book-go" href="' + _tripIdeaEsc(r.url) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(r.code) + '">' + _tripIdeaEsc(r.to) + ' ↗</a>' +
-        r.alts.map(function(a){ return '<a class="trip-idea-book-alt" href="' + _tripIdeaEsc(a.url) + '" target="_blank" rel="noopener" data-book-alt="' + _tripIdeaEsc(a.to) + '">' + _tripIdeaEsc(a.to) + ' ↗</a>'; }).join('') + '</span>' : '') +
+      _tripIdeaEsc(r.dep ? r.from + ' → ' + r.legs.in + (r.legs.home !== r.legs.in && r.ret ? ' · home ' + r.legs.home : '') + ' · ' + tripIdeaDateRange(r.dep, r.ret) : 'no dates yet') + '</span></div>' +
+      (r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.links ? '<span class="trip-idea-book-btns">' + _tripIdeaLegBtns(r.links, r.code) + '</span>' : '') +
       (sh.editKey && tripIdeaCanBook() ? '<button type="button" class="trip-idea-linkish" data-idea-booked="' + _tripIdeaEsc(r.code) + '" data-booked-to="' + (r.booked ? '0' : '1') + '">' + (r.booked ? 'Undo' : 'Mark booked') + '</button>' : '') + '</li>';
-  }).join('') + '</ul>' + _tripIdeaBookFootHtml(sh, rows) + '</details>';
+  }).join('') + '</ul><small>One search per person, on their own dates and airports.</small></details>';
 }
 // ── PIA-106: who's booked ───────────────────────────────────────────────────
 // Shown only once the Worker says it stores it (can_book), so nothing appears
 // before `wrangler deploy`.
 var TRIP_IDEA_BOOKED_STORAGE = 'pialax_idea_booked_v1';
 function tripIdeaCanBook() { try { return localStorage.getItem(TRIP_IDEA_BOOKED_STORAGE) === '1'; } catch (e) { return false; } }
+var TRIP_IDEA_LEGS_STORAGE = 'pialax_idea_legs_v1';
+function tripIdeaCanLegs() { try { return localStorage.getItem(TRIP_IDEA_LEGS_STORAGE) === '1'; } catch (e) { return false; } }
+// One tap on In / Home re-saves the answer with the new airports (rest unchanged).
+function tripIdeaSetLegs(sh, code, pick) {
+  var r = (sh.doc.responses && sh.doc.responses[code]) || {};
+  var body = {member:code, status:r.status, origin:r.origin || '', available_from:r.available_from || '', available_to:r.available_to || '', note:r.note || '',
+    arrive_at:pick.in, leave_from:pick.home};
+  return _tripIdeaApi('POST', '/idea/respond?id=' + encodeURIComponent(sh.id), body).then(function(res){
+    if (res.ok && res.json && res.json.doc) { sh.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(sh.doc); renderTripIdeaBuilder(); return sh.doc; }
+    showShareToast('Could not save — try again'); return null;
+  });
+}
+// Trips-card handoff: a linked traveler's saved picks, when they made any.
+function tripIdeaMemberLegs(item, code) {
+  if (!item || !item.sharedIdeaId) return null;
+  var doc = tripIdeaCachedDoc(item.sharedIdeaId);
+  if (!doc) return null;
+  var base = _tripIdeaPersonBase(code), row = summarizeIdeaResponses(doc).rows.filter(function(x){ return _tripIdeaPersonBase(x.code) === base; })[0];
+  return row && (row.arrive_at || row.leave_from) ? tripIdeaLegPick(_tripIdeaDestAirport(doc), row) : null;
+}
 function tripIdeaBookedCount(doc) {
   var t = summarizeIdeaResponses(doc).rows.filter(function(x){ return !x.host && (x.status === 'in' || x.status === 'maybe'); });
   return {booked:t.filter(function(x){ return x.booked; }).length, total:t.length,
@@ -643,7 +668,10 @@ function tripIdeaDayStripHtml(doc, win) {
   if (_tripIdeaNights(from, to) > 20) { from = _tripIdeaIsoAdd(win.from, -3) < from ? from : _tripIdeaIsoAdd(win.from, -3); to = _tripIdeaIsoAdd(from, 20) < to ? _tripIdeaIsoAdd(from, 20) : to; }
   var days = []; for (var d = from; d <= to; d = _tripIdeaIsoAdd(d, 1)) days.push(d);
   var every = days.length > 14 ? 2 : 1, cols = 'grid-template-columns:minmax(64px,auto) repeat(' + days.length + ',minmax(0,1fr))';
-  var head = '<span class="trip-idea-strip-name">' + TRIP_IDEA_MONTHS[+days[0].slice(5, 7) - 1] + '</span>' + days.map(function(d, i){
+  var wd = function(d){ return new Date(d + 'T12:00:00Z').getUTCDay(); };
+  var head = '<span class="trip-idea-strip-name"></span>' + days.map(function(d){
+    return '<span class="trip-idea-strip-wd' + (wd(d) === 0 || wd(d) === 6 ? ' we' : '') + (d >= win.from && d <= win.to ? ' win' : '') + '">' + 'SMTWTFS'.charAt(wd(d)) + '</span>';
+  }).join('') + '<span class="trip-idea-strip-name">' + TRIP_IDEA_MONTHS[+days[0].slice(5, 7) - 1] + '</span>' + days.map(function(d, i){
     return '<span class="trip-idea-strip-day' + (d >= win.from && d <= win.to ? ' win' : '') + '">' + (i % every ? '' : +d.slice(8)) + '</span>';
   }).join('');
   var body = rows.map(function(x){
@@ -702,6 +730,7 @@ function _tripIdeaApi(method, path, body) {
       var j = null; try { j = JSON.parse(t); } catch (e) {}
       if (j && j.preview === true && !_tripIdeaWorkerPreview()) { try { localStorage.setItem(TRIP_IDEA_PREVIEW_STORAGE, '1'); } catch (e) {} }
       if (j && j.can_book === true && !tripIdeaCanBook()) { try { localStorage.setItem(TRIP_IDEA_BOOKED_STORAGE, '1'); } catch (e) {} }
+      if (j && j.can_legs === true && !tripIdeaCanLegs()) { try { localStorage.setItem(TRIP_IDEA_LEGS_STORAGE, '1'); } catch (e) {} }
       return {ok:res.ok, status:res.status, json:j, sentKey:!!opts.headers['X-Idea-Key']};
     });
   }).catch(function(){ return {ok:false, status:0, json:null}; });
@@ -815,38 +844,71 @@ function renderTripIdeaShared(target) {
   var doc = sh.doc, idea = doc.idea || {}, r = idea.recommendation || {}, sum = summarizeIdeaResponses(doc), win = ideaBestWindow(doc);
   var closed = sum.stage === 'booked' || sum.stage === 'dropped';
   var tripDep = r.departure || (idea.dates && idea.dates.departure) || '', tripRet = r.return || (idea.dates && idea.dates.return) || '';
-  // PIA-098: guests see a rough time and pick their own days; only the organizer
-  // (edit key on this device) sees the exact proposal dates and the cost.
-  var dates = sh.editKey ? (tripDep ? 'Proposed ' + tripIdeaDateRange(tripDep, tripRet) : 'Dates TBD')
+  // PIA-112: one header line. Guests see a rough time (PIA-098); the organizer
+  // sees the plan dates (✎ to fix them) and the family estimate.
+  var plan = sh.editKey ? (tripDep ? 'Plan ' + tripIdeaDateRange(tripDep, tripRet) : 'No plan dates yet') + (r.familyTotal != null ? ' · ≈ $' + Number(r.familyTotal).toLocaleString('en-US') : '')
     : (tripIdeaLooseWhen(tripDep) ? tripIdeaLooseWhen(tripDep).replace(/^./, function(c){ return c.toUpperCase(); }) + ' · pick your own dates' : 'Pick your own dates');
-  var fare = !sh.editKey ? '' : (r.familyTotal != null ? 'Whole family ≈ $' + Number(r.familyTotal).toLocaleString('en-US') + ' (' + (r.familyStatus === 'cached' ? 'cached fares' : 'estimate') + ') · ' : '') +
-    (r.totalFare ? '$' + r.totalFare + (r.headcount > 1 ? ' ($' + r.perTicketFare + ' × ' + r.headcount + ')' : '') + ' from ' + (r.fareFrom || r.hub || '') : 'Fare not priced yet');
-  var html = '<div class="trip-idea-results-summary"><strong>' + _tripIdeaEsc(idea.title || 'Trip idea') + '</strong><span class="trip-idea-stage trip-idea-stage-' + sum.stage + '">' + _tripIdeaEsc(sum.stage) + '</span></div>' +
-    '<div class="trip-idea-result selected"><span class="trip-idea-result-head"><strong>' + _tripIdeaEsc(r.city || idea.destination && idea.destination.city || 'Destination TBD') + '</strong><b>' + _tripIdeaEsc(dates) + '</b></span>' + (fare ? '<span>' + _tripIdeaEsc(fare) + '</span>' : '') + (idea.notes ? '<span>' + _tripIdeaEsc(idea.notes) + '</span>' : '') + '</div>' +
-    '<div class="trip-idea-rsvp-summary"><strong>' + sum.counts.in + ' in · ' + sum.counts.maybe + ' maybe · ' + sum.counts.out + ' out · ' + sum.counts.pending + ' waiting</strong><span>' + sum.travelersIn + ' traveler' + (sum.travelersIn === 1 ? '' : 's') + ' confirmed</span>' +
-    '<b class="trip-idea-window' + (win && win.everyone && win.total > 1 ? ' all' : '') + '">' + _tripIdeaEsc(tripIdeaWindowText(win)) + '</b>' + tripIdeaDayStripHtml(doc, win) + _tripIdeaBookedLineHtml(doc) + tripIdeaBookPanelHtml(sh) + '</div>' +
-    '<ul class="trip-idea-rsvp-list">' + sum.rows.map(function(x){
-      var canAnswerFor = sh.editKey && !closed && !_tripIdeaIsOrganizer(x.label);
+  var html = '<div class="trip-idea-hd"><strong>' + _tripIdeaEsc(idea.title || 'Trip idea') + '</strong><span class="trip-idea-stage trip-idea-stage-' + sum.stage + '">' + _tripIdeaEsc(sum.stage) + '</span></div>' +
+    '<div class="trip-idea-planline"><span>' + _tripIdeaEsc(plan) + '</span>' + (sh.editKey && !closed ? '<button type="button" class="trip-idea-linkish" data-plan-edit aria-label="Change plan dates">✎</button>' : '') + '</div>' +
+    (sh.planCal ? _tripIdeaPlanEditHtml(sh) : '') +
+    (idea.notes ? '<p class="trip-idea-notes-clamp" data-clamp>' + _tripIdeaEsc(idea.notes) + '</p>' : '') +
+    '<div class="trip-idea-rsvp-summary"><strong>' + _tripIdeaEsc(tripIdeaCountsLine(doc)) + '</strong>' +
+    '<b class="trip-idea-window' + (win && win.everyone && win.total > 1 ? ' all' : '') + '">' + _tripIdeaEsc(tripIdeaWindowText(win)) + '</b>' + tripIdeaDayStripHtml(doc, win) + tripIdeaBookPanelHtml(sh) + '</div>';
+  var listHtml = '<ul class="trip-idea-rsvp-list">' + sum.rows.map(function(x){      var canAnswerFor = sh.editKey && !closed && !_tripIdeaIsOrganizer(x.label);
       return '<li' + (canAnswerFor ? ' class="has-edit"' : '') + '><strong>' + _tripIdeaEsc(_tripIdeaName(x.label)) + (x.headcount > 1 ? ' (' + x.headcount + ')' : '') + '</strong>' +
         (canAnswerFor ? '<button type="button" class="trip-idea-row-edit" data-idea-answer-for="' + _tripIdeaEsc(x.code) + '" aria-label="Answer for ' + _tripIdeaEsc(x.label) + '">✎ Answer for</button>' : '') +
         '<span>' + _tripIdeaEsc(x.host && x.status === 'in' ? '🏠 Hosting — confirmed' : (TRIP_IDEA_RSVP_LABELS[x.status] || x.status) + (x.booked ? ' · ✈️ booked' : '')) + (x.origin && !x.host ? ' · from ' + _tripIdeaEsc(x.origin) : '') +
         (x.available_from && !x.host ? ' · here ' + _tripIdeaEsc(tripIdeaDateRange(x.available_from, x.available_to)) : '') + '</span>' + (x.note ? '<small>' + _tripIdeaEsc(x.note) + '</small>' : '') + '</li>';
     }).join('') + '</ul>';
   html += _tripIdeaAnswerHtml(sh, sum, closed);
+  // PIA-112: the strip already shows who's there; the full list and the
+  // organizer tools fold away.
+  html += '<details class="trip-idea-fold"' + (sh.listOpen || sh.answerFor ? ' open' : '') + ' data-fold="list"><summary>Answers &amp; notes (' + sum.rows.length + ')</summary>' + listHtml + '</details>';
+  var orgHtml = '';
   var othersWaiting = sum.rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).length;
   var notBooked = tripIdeaCanBook() ? tripIdeaBookedCount(doc).unbooked.length : 0;
-  if (sh.editKey) html += '<div class="trip-idea-decision-row trip-idea-admin-row"><button type="button" class="secondary trip-idea-rsvp-send" data-idea-orglink>🔑 Copy organizer link</button></div>';
-  if (!closed && sh.editKey && (othersWaiting || notBooked || (win && win.total > 1))) html += '<div class="trip-idea-decision-row trip-idea-admin-row">' +
+  if (!closed && sh.editKey && (othersWaiting || notBooked || (win && win.total > 1))) orgHtml += '<div class="trip-idea-decision-row trip-idea-admin-row">' +
     (othersWaiting ? '<button type="button" class="secondary trip-idea-rsvp-send" data-idea-action="nudge">📣 Nudge ' + othersWaiting + ' waiting</button>'
       : notBooked ? '<button type="button" class="secondary trip-idea-rsvp-send" data-idea-action="nudge">📣 Nudge ' + notBooked + ' to book</button>' : '') +
     (win && win.total > 1 ? '<button type="button" class="secondary trip-idea-rsvp-send" data-idea-hold>📅 Hold ' + _tripIdeaEsc(tripIdeaDateRange(win.from, win.to)) + '</button>' : '') + '</div>';
-  if (typeof renderTripIdeaDecisionPanel === 'function') html += renderTripIdeaDecisionPanel(doc, !!sh.editKey);
-  target.innerHTML = html;
+  if (sh.editKey) orgHtml += '<div class="trip-idea-decision-row trip-idea-admin-row"><button type="button" class="secondary trip-idea-rsvp-send" data-idea-orglink>🔑 Copy organizer link</button></div>';
+  var decision = typeof renderTripIdeaDecisionPanel === 'function' ? renderTripIdeaDecisionPanel(doc, !!sh.editKey) : '';
+  if (sh.editKey) html += '<details class="trip-idea-fold"' + (sh.orgOpen ? ' open' : '') + ' data-fold="org"><summary>Organizer</summary>' + orgHtml + decision + '</details>';
+  else html += decision;
   if (_tripIdeaGuest) html += '<p class="trip-idea-guest-exit"><button type="button" class="trip-idea-linkish" data-idea-leave>Open full PIALAX</button></p>';
   target.innerHTML = html;
   var primary = _tripIdeaEl('trip-idea-builder-primary');
   if (primary && sh.formOpen) { primary.disabled = false; primary.textContent = sh.answerFor ? 'Save for ' + sh.formName : sh.formHost ? 'Confirm we’re hosting' : 'Send my answer'; }
   _tripIdeaWireShared(target, sh);
+}
+// PIA-112: one status line — "All 3 in", or "2 in · 1 waiting · 1 booked".
+function tripIdeaCountsLine(doc) {
+  var c = summarizeIdeaResponses(doc).counts, people = c.in + c.maybe + c.out + c.pending, parts = [];
+  if (c.in && c.in === people) parts.push('All ' + c.in + ' in');
+  else [['in', c.in], ['maybe', c.maybe], ['out', c.out], ['waiting', c.pending]].forEach(function(p){ if (p[1]) parts.push(p[1] + ' ' + p[0]); });
+  var b = tripIdeaCanBook() ? tripIdeaBookedCount(doc) : null;
+  if (b && b.booked) parts.push(b.booked + ' of ' + b.total + ' booked');
+  return parts.join(' · ') || 'No answers yet';
+}
+// Organizer fixes the plan dates (the proposal stored on the Worker) — same
+// calendar as the RSVP, saved through /idea/update with the edit key.
+function tripIdeaPlanDatesPayload(doc, from, to) {
+  var idea = JSON.parse(JSON.stringify((doc && doc.idea) || {}));
+  idea.dates = Object.assign({}, idea.dates || {}, {departure:from, return:to || ''});
+  if (idea.recommendation) { idea.recommendation.departure = from; idea.recommendation.return = to || ''; }
+  return idea;
+}
+function _tripIdeaPlanEditHtml(sh) {
+  var c = sh.planCal;
+  return '<div class="trip-idea-planedit"><div id="trip-idea-plan-cal-wrap">' + tripIdeaRangeCalendarHtml(c.month, c.from, c.to, {}, _tripIdeaTodayIso()) + '</div>' +
+    '<div class="trip-idea-decision-row"><button type="button" class="trip-idea-rsvp-send" data-plan-save' + (c.from ? '' : ' disabled') + '>Save plan dates</button><button type="button" class="trip-idea-linkish" data-plan-cancel>Cancel</button></div></div>';
+}
+function tripIdeaSavePlanDates(sh) {
+  var c = sh.planCal; if (!c || !c.from || !sh.editKey) return Promise.resolve(null);
+  return _tripIdeaApi('POST', '/idea/update?id=' + encodeURIComponent(sh.id), {edit_key:sh.editKey, idea:tripIdeaPlanDatesPayload(sh.doc, c.from, c.to)}).then(function(res){
+    if (res.ok && res.json && res.json.doc) { sh.doc = res.json.doc; sh.planCal = null; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(sh.doc); showShareToast('✓ Plan dates saved'); renderTripIdeaBuilder(); return sh.doc; }
+    showShareToast('Could not save the plan dates'); return null;
+  });
 }
 // PIA-100: the answer area is one of three states — pick your name (first
 // visit), your saved answer with "Change" (return visits), or the form.
@@ -868,7 +930,7 @@ function _tripIdeaAnswerHtml(sh, sum, closed) {
     return '<div class="trip-idea-mine"><span>Your answer' + (name !== 'You' ? ' · ' + _tripIdeaEsc(name) : '') + '</span><strong>' + _tripIdeaEsc(row.host ? '🏠 Hosting' : (TRIP_IDEA_RSVP_LABELS[row.status] || row.status)) + '</strong>' +
       (bits.length ? '<span>' + _tripIdeaEsc(bits.join(' · ')) + '</span>' : '') + (row.note ? '<small>' + _tripIdeaEsc(row.note) + '</small>' : '') +
       '<div class="trip-idea-mine-actions">' + (row.booked ? '<b class="trip-idea-booked-tag">✈️ Booked</b><button type="button" class="trip-idea-linkish" data-idea-booked="' + _tripIdeaEsc(row.code) + '" data-booked-to="0">Undo</button>'
-        : _tripIdeaFindFlightHtml(sh, row) + (tripIdeaCanBook() && !row.host && (row.status === 'in' || row.status === 'maybe') ? '<button type="button" class="trip-idea-ibooked" data-idea-booked="' + _tripIdeaEsc(row.code) + '" data-booked-to="1">I booked ✓</button>' : '')) +
+        : _tripIdeaLegToggleHtml(sh, row) + _tripIdeaFindFlightHtml(sh, row) + (tripIdeaCanBook() && !row.host && (row.status === 'in' || row.status === 'maybe') ? '<button type="button" class="trip-idea-ibooked" data-idea-booked="' + _tripIdeaEsc(row.code) + '" data-booked-to="1">I booked ✓</button>' : '')) +
       '<button type="button" data-idea-edit>Change my answer</button>' + (sh.editKey ? '' : '<button type="button" class="trip-idea-linkish" data-idea-notme>Not ' + _tripIdeaEsc(row.label) + '?</button>') + '</div></div>';
   }
   sh.formOpen = true; sh.formHost = row.host; sh.formName = row.label;
@@ -888,23 +950,29 @@ function _tripIdeaAnswerHtml(sh, sum, closed) {
   html += '<label class="trip-idea-notes">Note <span>Optional</span><textarea id="trip-idea-rsvp-note" rows="2" maxlength="280" placeholder="Anything the group should know">' + _tripIdeaEsc(mine.note || '') + '</textarea></label></form>';
   return html;
 }
-function _tripIdeaBookedLineHtml(doc) {
-  var c = tripIdeaBookedCount(doc);
-  return tripIdeaCanBook() && c.total && c.booked ? '<span class="trip-idea-booked-line' + (c.booked === c.total ? ' all' : '') + '">✈️ ' + c.booked + ' of ' + c.total + ' booked</span>' : '';
-}
 function _tripIdeaFindFlightHtml(sh, row) {
   if (row.host || (row.status !== 'in' && row.status !== 'maybe') || !row.available_from) return '';
-  var from = String(row.origin || '').toUpperCase(), dest = _tripIdeaDestAirport(sh.doc);
-  var url = tripIdeaFlightUrl(from, dest, row.available_from, row.available_to, row.headcount);
-  var alts = tripIdeaAltAirports(dest).filter(function(a){ return a !== from; }).map(function(a){ return {to:a, url:tripIdeaFlightUrl(from, a, row.available_from, row.available_to, row.headcount)}; }).filter(function(a){ return a.url; });
-  var oj = tripIdeaOpenJaw(from, dest, row.available_from, row.available_to, row.headcount);
-  if (oj) return '<a class="trip-idea-findflight" href="' + _tripIdeaEsc(oj.inUrl) + '" target="_blank" rel="noopener">✈️ Fly in · ' + _tripIdeaEsc(oj.to) + '</a>' +
-    '<a class="trip-idea-findflight" href="' + _tripIdeaEsc(oj.outUrl) + '" target="_blank" rel="noopener">🏠 Fly home · ' + _tripIdeaEsc(oj.back) + '</a>';
-  return url ? '<a class="trip-idea-findflight" href="' + _tripIdeaEsc(url) + '" target="_blank" rel="noopener">✈️ Find my flight · ' + _tripIdeaEsc(dest) + '</a>' +
-    alts.map(function(a){ return '<a class="trip-idea-book-alt" href="' + _tripIdeaEsc(a.url) + '" target="_blank" rel="noopener">or ' + _tripIdeaEsc(a.to) + ' ↗</a>'; }).join('') : '';
+  var from = String(row.origin || '').toUpperCase(), legs = tripIdeaLegPick(_tripIdeaDestAirport(sh.doc), row);
+  var l = tripIdeaLegLinks(from, legs, row.available_from, row.available_to, row.headcount);
+  return l ? _tripIdeaLegBtns(l, row.code, 'trip-idea-findflight') : '';
+}
+// In: [PIA][ORD]  Home: [PIA][ORD] — saved with the answer (needs a Worker that stores it).
+function _tripIdeaLegToggleHtml(sh, row) {
+  if (!tripIdeaCanLegs() || row.host || (row.status !== 'in' && row.status !== 'maybe') || !row.available_from) return '';
+  var legs = tripIdeaLegPick(_tripIdeaDestAirport(sh.doc), row);
+  if (legs.hub.length < 2) return '';
+  var seg = function(kind, cur){ return '<span class="trip-idea-seg" role="group" aria-label="' + (kind === 'in' ? 'Fly in to' : 'Fly home from') + '">' + legs.hub.map(function(a){
+    return '<button type="button" data-leg-' + kind + '="' + _tripIdeaEsc(a) + '" aria-pressed="' + (a === cur ? 'true' : 'false') + '">' + _tripIdeaEsc(a) + '</button>'; }).join('') + '</span>'; };
+  return '<div class="trip-idea-legs"><label>In ' + seg('in', legs.in) + '</label><label>Home ' + seg('home', legs.home) + '</label></div>';
 }
 function _tripIdeaWireShared(target, sh) {
   target.querySelectorAll('details.trip-idea-book').forEach(function(d){ d.addEventListener('toggle', function(){ sh.bookOpen = d.open; }); });
+  target.querySelectorAll('[data-leg-in],[data-leg-home]').forEach(function(b){ b.onclick = function(e){
+    e.preventDefault(); var who = tripIdeaWho(sh), row = summarizeIdeaResponses(sh.doc).rows.filter(function(x){ return x.code === who; })[0];
+    if (!row) return; var p = tripIdeaLegPick(_tripIdeaDestAirport(sh.doc), row);
+    if (b.hasAttribute('data-leg-in')) p.in = b.getAttribute('data-leg-in'); else p.home = b.getAttribute('data-leg-home');
+    tripIdeaSetLegs(sh, row.code, p);
+  }; });
   target.querySelectorAll('[data-idea-booked]').forEach(function(b){ b.onclick = function(e){ e.preventDefault(); tripIdeaSetBooked(sh, b.getAttribute('data-idea-booked'), b.getAttribute('data-booked-to') === '1'); }; });
   var on = function(sel, fn){ target.querySelectorAll(sel).forEach(function(el){ el.onclick = function(e){ e.preventDefault(); fn(el); }; }); };
   on('[data-idea-who]', function(el){ sh.picked = el.getAttribute('data-idea-who'); sh.editing = true; renderTripIdeaBuilder(); });
@@ -912,6 +980,20 @@ function _tripIdeaWireShared(target, sh) {
   on('[data-idea-cancel]', function(){ sh.editing = false; sh.answerFor = ''; sh.cal = null; renderTripIdeaBuilder(); });
   on('[data-idea-notme]', function(){ tripIdeaSetMe(sh.id, ''); sh.picked = ''; sh.editing = false; renderTripIdeaBuilder(); });
   on('[data-idea-leave]', function(){ tripIdeaLeaveGuest(); });
+  target.querySelectorAll('details[data-fold]').forEach(function(d){ d.addEventListener('toggle', function(){ if (d.getAttribute('data-fold') === 'list') sh.listOpen = d.open; else sh.orgOpen = d.open; }); });
+  target.querySelectorAll('[data-clamp]').forEach(function(p){ p.onclick = function(){ p.classList.toggle('open'); }; });
+  on('[data-plan-edit]', function(){
+    var idea = sh.doc.idea || {}, r = idea.recommendation || {}, d = idea.dates || {}, from = r.departure || d.departure || '', to = r.return || d.return || '';
+    sh.planCal = {month:(from || _tripIdeaTodayIso()).slice(0, 7), from:from, to:to}; renderTripIdeaBuilder();
+  });
+  on('[data-plan-cancel]', function(){ sh.planCal = null; renderTripIdeaBuilder(); });
+  on('[data-plan-save]', function(){ tripIdeaSavePlanDates(sh); });
+  var pw = _tripIdeaEl('trip-idea-plan-cal-wrap');
+  if (pw && sh.planCal) {
+    pw.querySelectorAll('[data-cal-day]').forEach(function(b){ b.onclick = function(){ tripIdeaCalendarTap(sh.planCal, b.getAttribute('data-cal-day')); renderTripIdeaBuilder(); }; });
+    pw.querySelectorAll('[data-cal-nav]').forEach(function(b){ b.onclick = function(){ var y = +sh.planCal.month.slice(0, 4), m = +sh.planCal.month.slice(5, 7) - 1 + Number(b.getAttribute('data-cal-nav')); sh.planCal.month = new Date(Date.UTC(y, m, 1)).toISOString().slice(0, 7); renderTripIdeaBuilder(); }; });
+    pw.querySelectorAll('[data-cal-clear]').forEach(function(b){ b.onclick = function(){ sh.planCal.from = ''; sh.planCal.to = ''; renderTripIdeaBuilder(); }; });
+  }
   on('[data-idea-hold]', function(){ var w = ideaBestWindow(sh.doc); if (w) tripIdeaHoldWindow(sh.id, w); });
   on('[data-idea-orglink]', function(){ tripIdeaCopyOrganizerLink(sh.id); });
   on('[data-idea-answer-for]', function(el){
@@ -1160,12 +1242,17 @@ function tripIdeaAskFamily(itemId) {
 // without navigator.share copies the same text + link. Text and url are passed
 // separately so Messages renders one link preview instead of a duplicate.
 var TRIP_IDEA_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// PIA-110: dates say the weekday — "Fri Nov 20 – Sun Nov 29".
+var TRIP_IDEA_WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function tripIdeaDay(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return '';
+  return TRIP_IDEA_WEEKDAYS[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()] + ' ' + TRIP_IDEA_MONTHS[+m[2] - 1] + ' ' + (+m[3]);
+}
 function tripIdeaDateRange(dep, ret) {
-  var p = function(s){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? {m:+m[2] - 1, d:+m[3]} : null; };
-  var a = p(dep), b = p(ret);
+  var a = tripIdeaDay(dep), b = tripIdeaDay(ret);
   if (!a) return 'dates TBD';
-  if (!b) return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d;
-  return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d + '–' + (b.m === a.m ? '' : TRIP_IDEA_MONTHS[b.m] + ' ') + b.d;
+  return b && ret !== dep ? a + ' – ' + b : a;
 }
 // PIA-098: a rough time of month ("late Nov"), never exact days — each person
 // picks their own arrive/leave dates in the RSVP.
