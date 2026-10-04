@@ -602,6 +602,36 @@ function _tripIdeaLegBtns(l, code, cls) {
   return '<a class="' + c + '" href="' + _tripIdeaEsc(l.inUrl) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(code) + '" data-leg="in">✈️ In ' + _tripIdeaEsc(l.to) + ' ↗</a>' +
     '<a class="' + c + '" href="' + _tripIdeaEsc(l.outUrl) + '" target="_blank" rel="noopener" data-leg="home">🏠 Home ' + _tripIdeaEsc(l.back) + ' ↗</a>';
 }
+// PIA-120: the trip's plan dates as the RSVP stores them (what the organizer
+// set with ✎). A linked trip uses these everywhere, not the dashboard's own.
+function tripIdeaPlanDates(doc) {
+  var idea = (doc && doc.idea) || {}, r = idea.recommendation || {}, d = idea.dates || {};
+  var dep = r.departure || d.departure || '', ret = r.return || d.return || '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(dep) ? {dep:dep, ret:/^\d{4}-\d{2}-\d{2}$/.test(ret) && ret >= dep ? ret : ''} : null;
+}
+// PIA-120: the same per-person booking rows as the RSVP sheet, always open —
+// for the Family tab's trip card.
+function tripIdeaBookListHtml(doc) {
+  var rows = doc ? tripIdeaBookRows(doc) : [];
+  if (!rows.length) return '';
+  return '<div class="lt-book"><div class="lt-book-hd">✈️ Book flights</div><ul>' + rows.map(function(r){
+    return '<li data-lt-book="' + _tripIdeaEsc(r.code) + '"><div><strong>' + _tripIdeaEsc(_tripIdeaName(r.label)) + (r.headcount > 1 ? ' (' + r.headcount + ')' : '') + '</strong><span>' +
+      _tripIdeaEsc(r.dep ? tripIdeaDateRange(r.dep, r.ret) : 'no dates yet') + '</span></div>' +
+      (r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.links ? '<span class="trip-idea-book-btns">' + _tripIdeaLegBtns(r.links, r.code) + '</span>' : '') + '</li>';
+  }).join('') + '</ul></div>';
+}
+// PIA-120: one Family-tab route card of a linked trip = that person's RSVP
+// answer: their dates, their In/Home airports, the same links as the RSVP sheet.
+function tripIdeaLinkedRoute(code) {
+  var doc = typeof S === 'object' && S && S.linkedIdeaId ? tripIdeaCachedDoc(S.linkedIdeaId) : null;
+  if (!doc) return null;
+  var base = _tripIdeaPersonBase(code);
+  var r = tripIdeaBookRows(doc).filter(function(x){ return _tripIdeaPersonBase(x.code) === base; })[0];
+  if (!r) return {dates:'📋 RSVP · no answer yet', links:'', booked:false};
+  var legs = r.legs.home !== r.legs.in && r.ret ? ' · in ' + r.legs.in + ', home ' + r.legs.home : '';
+  return {dates:'📋 RSVP · ' + (r.dep ? tripIdeaDateRange(r.dep, r.ret) + legs : 'no dates yet'), booked:r.booked,
+    links:r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.links ? _tripIdeaLegBtns(r.links, r.code) : ''};
+}
 function tripIdeaBookPanelHtml(sh) {
   var rows = tripIdeaBookRows(sh.doc);
   if (!rows.length) return '';
@@ -775,7 +805,7 @@ function _tripIdeaShare(){
     return _tripIdeaAnswerAsOrganizer(res.json.doc).then(function(doc){ if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {} return tripIdeaSendInvite(doc); });
   });
 }
-function _tripIdeaOpenRemote(id) {
+function _tripIdeaOpenRemote(id, opts) {
   var keys = _tripIdeaKeys();
   _tripIdeaShared = {id:id, doc:null, editKey:(keys[id] && keys[id].edit_key) || '', error:''};
   _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'shared';
@@ -790,8 +820,14 @@ function _tripIdeaOpenRemote(id) {
     if (res.ok && res.json && res.json.preview && res.json.organizer === false && res.sentKey && _tripIdeaShared.editKey) { _tripIdeaShared.editKey = ''; showShareToast('This device’s organizer key doesn’t match this trip'); }
     if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc); if (_tripIdeaShared.editKey && typeof tripIdeaMarkSeen === 'function') { tripIdeaMarkSeen(res.json.doc); if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {} } if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
     else _tripIdeaShared.error = res.status === 404 ? 'This trip idea was not found — it may have expired.' : res.status === 501 || res.status === 0 ? 'Shared trip ideas are not available right now.' : 'Could not load this trip idea.';
+    // PIA-120: "✎ Dates" on the Family tab opens straight into the plan-dates editor.
+    if (opts && opts.planEdit && _tripIdeaShared.doc && _tripIdeaShared.editKey) _tripIdeaStartPlanEdit(_tripIdeaShared);
     if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
   });
+}
+function _tripIdeaStartPlanEdit(sh) {
+  var p = tripIdeaPlanDates(sh.doc) || {dep:'', ret:''};
+  sh.planCal = {month:(p.dep || _tripIdeaTodayIso()).slice(0, 7), from:p.dep, to:p.ret};
 }
 function _tripIdeaRespond() {
   var sh = _tripIdeaShared; if (!sh || !sh.doc) return Promise.resolve(null);
@@ -987,10 +1023,7 @@ function _tripIdeaWireShared(target, sh) {
   on('[data-idea-leave]', function(){ tripIdeaLeaveGuest(); });
   target.querySelectorAll('details[data-fold]').forEach(function(d){ d.addEventListener('toggle', function(){ if (d.getAttribute('data-fold') === 'list') sh.listOpen = d.open; else sh.orgOpen = d.open; }); });
   target.querySelectorAll('[data-clamp]').forEach(function(p){ p.onclick = function(){ p.classList.toggle('open'); }; });
-  on('[data-plan-edit]', function(){
-    var idea = sh.doc.idea || {}, r = idea.recommendation || {}, d = idea.dates || {}, from = r.departure || d.departure || '', to = r.return || d.return || '';
-    sh.planCal = {month:(from || _tripIdeaTodayIso()).slice(0, 7), from:from, to:to}; renderTripIdeaBuilder();
-  });
+  on('[data-plan-edit]', function(){ _tripIdeaStartPlanEdit(sh); renderTripIdeaBuilder(); });
   on('[data-plan-cancel]', function(){ sh.planCal = null; renderTripIdeaBuilder(); });
   on('[data-plan-save]', function(){ tripIdeaSavePlanDates(sh); });
   var pw = _tripIdeaEl('trip-idea-plan-cal-wrap');
@@ -1278,7 +1311,7 @@ function tripIdeaShareText(doc, kind) {
     var waiting = summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).map(function(x){ return x.label; });
     // PIA-106: once everyone has answered, the nudge is about booking.
     var unbooked = !waiting.length && tripIdeaCanBook() ? tripIdeaBookedCount(doc).unbooked : [];
-    if (unbooked.length) return title + (when ? ' (' + when + ')' : '') + ' — ' + unbooked.join(' and ') + ', have you booked? Tap “Find my flight”, then “I booked ✓”:';
+    if (unbooked.length) return title + (when ? ' (' + when + ')' : '') + ' — ' + unbooked.join(' and ') + ', have you booked? Tap your ✈️ flight button, then “I booked ✓”:';
     return title + (when ? ' (' + when + ')' : '') + ' — still need an answer from ' + (waiting.length ? waiting.join(' and ') : 'everyone') + '. In / maybe / out, and your dates?';
   }
   return title + (when ? ' · ' + when : '') + '. Come and go on your own dates — tap to say in / maybe / out and when you’d be there:';
@@ -1392,6 +1425,10 @@ function tripIdeaApplyLinkedRsvp() {
   if (!id) return Promise.resolve(null);
   var apply = function(doc){
     if (!doc || S.linkedIdeaId !== id) return null;
+    // PIA-120: the RSVP's plan dates are the trip's dates — the Family math
+    // follows them instead of whatever the dashboard had selected.
+    var plan = tripIdeaPlanDates(doc);
+    if (plan) { S.depDate = new Date(plan.dep + 'T12:00:00'); S.retDate = plan.ret ? new Date(plan.ret + 'T12:00:00') : null; }
     var st = memberStatusFromIdea(doc, S.depDate), ms = {};
     Object.keys(st).forEach(function(c){ if (st[c] !== 'in') ms[c] = st[c]; });
     S.memberStatus = ms;
@@ -1406,6 +1443,7 @@ function tripIdeaApplyLinkedRsvp() {
     S.memberDates = md;
     try { if (typeof loadPrices === 'function') loadPrices(); } catch (e) {} // cache-only: zero quota
     try { if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap(); } catch (e) {}
+    try { if (typeof syncLinkedTripChrome === 'function') syncLinkedTripChrome(); if (typeof updateDateUI === 'function') updateDateUI(); } catch (e) {}
     return ms;
   };
   var cached = tripIdeaCachedDoc(id);

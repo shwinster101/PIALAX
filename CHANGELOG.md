@@ -12,6 +12,18 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-120)
+- A trip linked to a family RSVP now has one place for its dates and one place to book from:
+  - **Dates:** the Family tab's trip card shows the RSVP plan dates. The organizer changes them with
+    **✎ Dates**, which opens the RSVP's plan calendar. The Family math follows the plan, "Step 2 ·
+    Choose Dates" is hidden, and the date strip reads "Plan: … · from RSVP" instead of offering
+    📅 pickers.
+  - **Booking:** a **✈️ Book flights** list on the trip card gives each traveler their own dates and
+    the same In/Home searches as the RSVP sheet (Peoria: in PIA, home ORD). Booked travelers show ✓.
+  - **Flight Breakdown cards:** each card opens those same searches and shows "📋 RSVP" instead of
+    "✱ custom".
+- Copy: the booking nudge now matches the real buttons, and the empty state says "Calendar" tab.
+
 ## [1.3.1] — 2026-10-04
 
 Fixes: exact daily spend caps (`SpendMeter` Durable Object, PIA-118). Saving the organizer token no

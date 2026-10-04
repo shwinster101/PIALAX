@@ -887,13 +887,42 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.locator('.wl-more-actions summary').click();
     await page.locator('.wl-more-actions .wl-open').click();
     await page.waitForSelector('#linked-trip-summary:not([hidden])', { timeout: 5000 });
+    await page.waitForSelector('#linked-trip-summary .lt-book', { timeout: 5000 });
     const f = await page.evaluate(() => ({ sum: document.getElementById('linked-trip-summary').innerText.replace(/\s+/g, ' '),
       block1: getComputedStyle(document.getElementById('plan-block1')).display, over: document.documentElement.scrollWidth > innerWidth }));
     await page.locator('.lts-planner').click();
     const opened = await page.evaluate(() => getComputedStyle(document.getElementById('plan-block1')).display);
-    if (/Thanksgiving/.test(f.sum) && /Fri Nov 20 – Sun Nov 29/.test(f.sum) && /Open RSVP/.test(f.sum) && f.block1 === 'none' && opened !== 'none' && !f.over)
+    // PIA-120: the card's dates are the RSVP plan (Wed Nov 25), not the Trips card's Nov 20.
+    if (/Thanksgiving/.test(f.sum) && /Wed Nov 25 – Sun Nov 29/.test(f.sum) && /Open RSVP/.test(f.sum) && f.block1 === 'none' && opened !== 'none' && !f.over)
       ok(`${label} — summary first ("${f.sum.slice(0, 60)}…"), Step 1 folded until "Planner ▸"`);
     else bad(`${label} — summary wrong: ${JSON.stringify(Object.assign(f, { opened }))}`);
+    await page.locator('.lts-planner').click();
+    // PIA-120: one place for dates, one place to book — and it matches the RSVP sheet.
+    const g = await page.evaluate(() => {
+      const box = document.getElementById('linked-trip-summary');
+      const links = (root, code) => [...root.querySelectorAll('a[href]')].filter((a) => !code || a.closest('[data-lt-book="' + code + '"]')).map((a) => a.href);
+      const card = [...document.querySelectorAll('#meetup-routes .route-card, .route-card')].find((c) => /LAX/.test(c.querySelector('.route-card-hd') ? c.querySelector('.route-card-hd').textContent : ''));
+      const tgt = (el) => el && el.getBoundingClientRect();
+      const btns = [...box.querySelectorAll('.lt-book a')].map((a) => Math.round(a.getBoundingClientRect().height));
+      return { cardLinks: links(box, 'LAX'), routeLinks: card ? links(card) : null, routeText: card ? card.innerText.replace(/\s+/g, ' ') : '',
+        bridge: getComputedStyle(document.getElementById('step2-bridge')).display,
+        strip: (document.getElementById('meetup-strip') || {}).innerText || '', stripCal: !!document.querySelector('#meetup-strip [onclick*="openCal"]'),
+        edit: !!box.querySelector('.lts-dates-edit'), minBtn: Math.min.apply(null, btns.length ? btns : [0]), over: document.documentElement.scrollWidth > innerWidth };
+    });
+    const q = (u) => decodeURIComponent(u || '');
+    if (g.cardLinks.length === 2 && /LAX to PIA on 2026-11-21 one way/.test(q(g.cardLinks[0])) && /ORD to LAX on 2026-11-29 one way/.test(q(g.cardLinks[1])) && g.minBtn >= 44 && g.edit)
+      ok(`${label} — "✈️ Book flights" on the trip card: Me = In PIA Sat Nov 21 + Home ORD Sun Nov 29 (one-ways, own dates), ✎ Dates for the organizer`);
+    else bad(`${label} — trip card booking wrong: ${JSON.stringify(g)}`);
+    if (g.routeLinks && g.routeLinks.join('|') === g.cardLinks.join('|') && /📋 RSVP/.test(g.routeText) && !/custom/.test(g.routeText))
+      ok(`${label} — Flight Breakdown card for LAX opens the same two searches as the trip card / RSVP sheet ("📋 RSVP", no "✱ custom")`);
+    else bad(`${label} — route card disagrees: ${JSON.stringify({ routeLinks: g.routeLinks, cardLinks: g.cardLinks, text: g.routeText.slice(0, 160) })}`);
+    if (g.bridge === 'none' && !g.stripCal && /Plan:\s*Wed Nov 25 – Sun Nov 29\s*· from RSVP/i.test(g.strip) && !g.over)
+      ok(`${label} — no second date picker: "Step 2 · Choose Dates" hidden, strip reads "Plan: Wed Nov 25 – Sun Nov 29 · from RSVP"`);
+    else bad(`${label} — date controls still offered: ${JSON.stringify({ bridge: g.bridge, stripCal: g.stripCal, strip: g.strip.slice(0, 120) })}`);
+    await page.locator('.lts-dates-edit').click();
+    await page.waitForSelector('.trip-idea-planedit', { timeout: 5000 }).catch(() => {});
+    if (await page.locator('.trip-idea-planedit').count()) ok(`${label} — "✎ Dates" opens the RSVP straight into the plan-dates calendar`);
+    else bad(`${label} — "✎ Dates" did not open the plan-dates editor`);
   } catch (e) {
     bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
   } finally {
