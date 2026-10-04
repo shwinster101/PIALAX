@@ -1,0 +1,8 @@
+worker.js
+wrangler.toml
+scripts/test-trust.js
+scripts/verify-live.sh
+CLAUDE.md
+CHANGELOG.md
+scripts/messages/PIA-118.msg
+scripts/messages/PIA-118.files

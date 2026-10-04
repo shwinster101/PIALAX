@@ -12,6 +12,8 @@
 #       serialized:true. The trip is then dropped.
 #   A3  the same fresh search twice: MISS then HIT, the same X-Fetched-At, and
 #       this_month_usage up by exactly 1 (the run's only paid search).
+#   B3  /account's Worker-side spend meter is exact (SpendMeter DO) and moved
+#       by exactly 1 for that search (PIA-118).
 #
 # Usage:   PIALAX_TOKEN=… bash scripts/verify-live.sh [worker-url]
 # The token is read from the environment only — never pass it as an argument
@@ -103,6 +105,7 @@ step "A3 a cache hit keeps its age and spends nothing"
 D="$(node -e 'const d=new Date(Date.now()+(60+Math.floor(Math.random()*120))*864e5);process.stdout.write(d.toISOString().slice(0,10))')"
 Q3="engine=google_flights&departure_id=LAX&arrival_id=ORD&outbound_date=$D&type=2&currency=USD&hl=en"
 U2="$(usage)"
+S2="$(js "$TMP/acct.json" 'j && j.spend && j.spend.serp && j.spend.serp.used')"
 fetchq() { curl -sS -D "$TMP/h$1" -o "$TMP/b$1" -w '%{http_code}' -H "Origin: $ORIGIN" -H "X-Pialax-Token: $PIALAX_TOKEN" "$BASE/search?$2"; }
 hdr() { grep -i "^$2:" "$TMP/h$1" | head -1 | cut -d' ' -f2- | tr -d '\r'; }
 s1="$(fetchq 1 "$Q3")"; sleep 2
@@ -113,6 +116,10 @@ c1="$(hdr 1 X-Proxy-Cache)"; c2="$(hdr 2 X-Proxy-Cache)"; a1="$(hdr 1 X-Fetched-
 sleep 3
 U3="$(usage)"
 if [ -n "$U2" ] && [ -n "$U3" ] && [ $((U3 - U2)) -eq 1 ]; then ok "SerpAPI usage +1 for two searches ($U2 → $U3)"; else bad "SerpAPI usage moved $U2 → $U3 (want +1)"; fi
+S3="$(js "$TMP/acct.json" 'j && j.spend && j.spend.serp && j.spend.serp.used')"
+EX="$(js "$TMP/acct.json" 'j && j.spend && j.spend.exact')"
+# PIA-118: the Worker's own meter agrees, and it is the exact (Durable Object) one.
+if [ "$EX" = true ] && [ -n "$S2" ] && [ -n "$S3" ] && [ $((S3 - S2)) -eq 1 ]; then ok "Worker spend meter +1 and exact ($S2 → $S3 of cap $(js "$TMP/acct.json" 'j.spend.serp.cap'))"; else bad "Worker spend meter: exact=$EX, $S2 → $S3 (want exact=true, +1) — SpendMeter deployed?"; fi
 
 printf "\n"
 if [ "$fail" -eq 0 ]; then printf "VERIFY-LIVE: PASS — all %d checks\n" "$pass"; exit 0; fi

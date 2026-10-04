@@ -12,6 +12,15 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-118)
+- The daily spend caps are now exact. A new `SpendMeter` Durable Object checks and reserves each
+  paid call one at a time. Before, a burst of parallel calls all read the same KV counter, so 10
+  calls against a cap of 3 could all spend.
+- `/account` (organizer token required) now reports today's Worker-side spend per kind:
+  `spend: { serp: {used, cap}, extract, email, exact }`.
+- `wrangler.toml` adds the `SPEND_METER` binding and migration `v2`. Without the binding, the old
+  KV counter still works and reports `exact: false`.
+
 ## [1.3.0] — 2026-10-04
 
 Book from the RSVP, and the trust gate.
