@@ -36,6 +36,7 @@ EXPECT.push('tripIdeaAltAirports'); // PIA-108
 EXPECT.push('tripIdeaOpenJaw'); // PIA-109
 EXPECT.push('tripIdeaLegPick', 'tripIdeaLegLinks'); // PIA-111
 EXPECT.push('tripIdeaCountsLine', 'tripIdeaPlanDatesPayload'); // PIA-112
+EXPECT.push('tripIdeaPlanDates', 'tripIdeaBookListHtml', 'tripIdeaLinkedRoute'); // PIA-120
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -128,6 +129,16 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
       check(api.tripIdeaCountsLine(all) === 'All 3 in' && api.tripIdeaCountsLine(some) === '1 in · 1 waiting' &&
         pay.dates.departure === '2026-11-20' && pay.recommendation.departure === '2026-11-20' && pay.members.length === 3 && pay.title === 'T',
         `${file}: status line ("All 3 in" / "1 in · 1 waiting"); plan-date edit keeps the idea, moves dates`);
+    }
+    // PIA-120: the Family tab's trip card — plan dates from the RSVP, and the same
+    // per-person booking links as the sheet (in PIA / home ORD), hosts skipped.
+    {
+      const pd = api.tripIdeaPlanDates({ idea: { dates: { departure: '2026-11-25', return: '2026-11-29' }, recommendation: { departure: '2026-11-20', return: '2026-11-29' } } });
+      const html = api.tripIdeaBookListHtml(Object.assign({}, doc, { responses: Object.assign({}, doc.responses, { LGA: Object.assign({}, doc.responses.LGA, { booked: true }) }) }));
+      check(pd && pd.dep === '2026-11-20' && pd.ret === '2026-11-29' && api.tripIdeaPlanDates({ idea: {} }) === null &&
+        /data-lt-book="LAX"/.test(html) && !/data-lt-book="PIA"/.test(html) && /✈️ In PIA ↗/.test(html) && /🏠 Home ORD ↗/.test(html) &&
+        /Sat Nov 21 – Sun Nov 29/.test(html) && /data-lt-book="LGA"[\s\S]*✓ Booked/.test(html) && api.tripIdeaBookListHtml(null) === '',
+        `${file}: trip card — plan dates from the RSVP; "✈️ Book flights" rows match the sheet (In PIA / Home ORD), hosts skipped, booked ✓`);
     }
     // PIA-111: per-traveler airports — default in PIA / home ORD; same both ways = one round trip.
     {

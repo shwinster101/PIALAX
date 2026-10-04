@@ -1648,6 +1648,9 @@ body.trip-sheet-active{overflow:hidden;}
 #linked-trip-summary .lts-actions button{min-height:44px;padding:0 14px;border-radius:var(--rad-sm);font:inherit;font-weight:800;cursor:pointer}
 #linked-trip-summary .lts-open{background:var(--accent);color:#fff;border:1px solid var(--accent)}
 #linked-trip-summary .lts-planner{background:none;color:var(--accent);border:1px solid var(--line-strong)}
+#linked-trip-summary .lts-dates-edit{background:none;border:none;color:var(--accent);font:inherit;font-weight:800;padding:0 2px;min-height:32px;cursor:pointer}
+#linked-trip-summary .lt-book{margin-top:10px}
+body.linked-trip #step2-bridge{display:none}
 body.linked-trip #plan-block1:not(.open){display:none}
 body.linked-trip .last-trip-chip,body.linked-trip .meetup-wl-note{display:none}
 .fold-lite>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--accent);font-size:var(--fs-tiny);font-weight:800}
@@ -1753,6 +1756,15 @@ body.idea-guest [data-trip-close]{display:none!important}
 .trip-idea-book li>div{display:flex;flex-direction:column;min-width:0}
 .trip-idea-book li span{font-size:var(--fs-tiny);color:var(--ink-muted)}
 .trip-idea-book small a{color:var(--accent);font-weight:700}
+.lt-book{border:1px solid var(--line-strong);border-radius:var(--rad-md);background:var(--surface-2);padding:8px 10px 10px}
+.lt-book-hd{font-weight:900;font-size:var(--fs-tiny);color:var(--accent);text-transform:uppercase;letter-spacing:.4px;margin-bottom:6px}
+.lt-book ul{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.lt-book li{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:var(--rad-sm);background:var(--surface)}
+.lt-book li>div{display:flex;flex-direction:column;min-width:0}
+.lt-book li span{font-size:var(--fs-tiny);color:var(--ink-muted)}
+.lt-rsvp-badge{font-size:var(--fs-micro);background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:var(--rad-xs);font-weight:900;margin-left:4px}
+.lt-route-dates{margin-top:4px;font-size:var(--fs-tiny);color:var(--ink-muted);font-weight:700}
+.trip-idea-book-btns.lt-route-links{flex-direction:row;flex-wrap:wrap;margin-top:6px}
 .trip-idea-book small{display:block;padding:8px 14px 12px;font-size:var(--fs-micro);color:var(--ink-muted)}
 .trip-idea-book-btns{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 .trip-idea-legs{display:flex;flex-wrap:wrap;gap:10px;width:100%}
@@ -3373,6 +3385,13 @@ function renderMeetupStrip() {
     '<button onclick="openCal(\'dep\')" style="padding:4px 10px;font-size:var(--fs-body-s);font-weight:900;background:' + depBg + ';color:' + depFg + ';border:none;border-radius:var(--rad-sm);cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);min-height:36px;">📅 ' + depTxt + '</button>' +
     (isRT ? '<span style="font-size:.85rem;color:var(--ink-muted);font-weight:700;">→</span>' +
             '<button onclick="openCal(\'ret\')" style="padding:4px 10px;font-size:var(--fs-body-s);font-weight:900;background:' + retBg + ';color:' + retFg + ';border:none;border-radius:var(--rad-sm);cursor:pointer;font-family:inherit;box-shadow:0 1px 3px rgba(0,0,0,.2);min-height:36px;">📅 ' + retTxt + '</button>' : '');
+  // PIA-120: a linked trip's dates come from its RSVP plan — show them, don't
+  // offer a second place to change them (✎ Dates on the trip card does that).
+  if (S.linkedIdeaId && S.depDate && typeof tripIdeaDateRange === 'function') {
+    datePillsHtml = '<span style="font-size:var(--fs-tiny);color:var(--ink-muted);font-weight:700;text-transform:uppercase;letter-spacing:.5px;">Plan:</span>' +
+      '<strong class="lt-plan-dates" style="font-size:var(--fs-body-s);">' + _tripIdeaEsc(tripIdeaDateRange(fmtISO(S.depDate), S.retDate ? fmtISO(S.retDate) : '')) + '</strong>' +
+      '<span style="font-size:var(--fs-micro);color:var(--ink-muted);font-weight:700;">· from RSVP</span>';
+  }
   var nightCount = (S.depDate && S.retDate && isRT)
     ? Math.round((S.retDate - S.depDate) / 86400000)
     : 0;
@@ -3477,7 +3496,7 @@ function renderMeetupRoutes() {
       'font-size:var(--fs-tiny);line-height:var(--lh-normal);color:var(--ink-muted);">' +
         '<div style="font-weight:800;color:var(--ink);margin-bottom:3px;">Pick dates to see routes</div>' +
         'Fares depend on when you fly, so there is nothing to price yet. Choose a departure date in ' +
-        'the <strong>Dates</strong> tab below' + ' — or tap a Holiday Quick-Pick — and every family route will appear here.' +
+        'the <strong>Calendar</strong> tab below' + ' — or tap a Holiday Quick-Pick — and every family route will appear here.' +
       '</div>';
     if (typeof renderGroupCost === 'function') renderGroupCost();
     return;
@@ -3688,6 +3707,14 @@ function renderMeetupRoutes() {
         'color:var(--accent);text-decoration:none;border:1px solid var(--accent);border-radius:var(--rad-sm);padding:5px 10px;min-height:32px;" ' +
         'title="Search the confirmed route in Google Flights; final availability is shown there">🔎 Search ' + memberLabel + '\'s route ↗</a>'
       : '';
+    // PIA-120: on a linked trip this card books exactly what the RSVP says —
+    // that person's answer dates and In/Home airports, the same links as the sheet.
+    var linkedRoute = (S.linkedIdeaId && typeof tripIdeaLinkedRoute === 'function') ? tripIdeaLinkedRoute(from) : null;
+    if (linkedRoute) {
+      customBadge = '<span class="lt-rsvp-badge">📋 RSVP</span>';
+      flexDatesHtml = '<div class="lt-route-dates">' + _tripIdeaEsc(linkedRoute.dates) + '</div>';
+      bookLinkHtml = linkedRoute.links ? '<div class="lt-route-links trip-idea-book-btns">' + linkedRoute.links + '</div>' : '';
+    }
     html +=
       '<div class="route-card"' + cardStyle + '>' +
         '<div class="route-card-hd">' +
@@ -6870,13 +6897,20 @@ function syncLinkedTripChrome(){
   var doc = typeof tripIdeaCachedDoc === 'function' ? tripIdeaCachedDoc(S.linkedIdeaId) : null;
   var t = (typeof WATCHLIST !== 'undefined' ? WATCHLIST : []).filter(function(x){ return x && x.sharedIdeaId === S.linkedIdeaId; })[0];
   var title = (t && t.title) || (doc && doc.idea && doc.idea.title) || 'Family trip';
-  var dates = S.depDate && typeof tripIdeaDateRange === 'function' ? tripIdeaDateRange(fmtISO(S.depDate), S.retDate ? fmtISO(S.retDate) : '') : 'Pick dates';
+  // PIA-120: the RSVP's plan dates, the one place they change (✎ Dates).
+  var plan = doc && typeof tripIdeaPlanDates === 'function' ? tripIdeaPlanDates(doc) : null;
+  var dates = plan ? tripIdeaDateRange(plan.dep, plan.ret) : S.depDate && typeof tripIdeaDateRange === 'function' ? tripIdeaDateRange(fmtISO(S.depDate), S.retDate ? fmtISO(S.retDate) : '') : 'No plan dates yet';
+  var keys = typeof _tripIdeaKeys === 'function' ? _tripIdeaKeys() : {}, organizer = !!(keys[S.linkedIdeaId] && keys[S.linkedIdeaId].edit_key);
+  var book = doc && typeof tripIdeaBookListHtml === 'function' ? tripIdeaBookListHtml(doc) : '';
   var counts = doc && typeof tripIdeaCountsLine === 'function' ? tripIdeaCountsLine(doc) : '';
   var block1 = document.getElementById('plan-block1'), open = !!(block1 && block1.classList.contains('open'));
-  box.innerHTML = '<div class="lts-title">' + esc(title) + '</div><div class="lts-sub">' + esc(dates) + (counts ? ' · ' + esc(counts) : '') + '</div>' +
+  box.innerHTML = '<div class="lts-title">' + esc(title) + '</div><div class="lts-sub"><span class="lts-dates">' + esc(dates) + '</span>' + (counts ? ' · ' + esc(counts) : '') +
+    (organizer ? ' <button type="button" class="lts-dates-edit" aria-label="Change plan dates">✎ Dates</button>' : '') + '</div>' + book +
     '<div class="lts-actions"><button type="button" class="lts-open">👥 Open RSVP</button><button type="button" class="lts-planner" aria-expanded="' + (open ? 'true' : 'false') + '">' + (open ? 'Hide planner ▾' : 'Planner ▸') + '</button></div>';
   box.hidden = false;
   box.querySelector('.lts-open').onclick = function(){ if (typeof _tripIdeaOpenRemote === 'function') _tripIdeaOpenRemote(S.linkedIdeaId); };
+  var ed = box.querySelector('.lts-dates-edit');
+  if (ed) ed.onclick = function(){ if (typeof _tripIdeaOpenRemote === 'function') _tripIdeaOpenRemote(S.linkedIdeaId, {planEdit:true}); };
   box.querySelector('.lts-planner').onclick = function(){ if (block1) block1.classList.toggle('open'); syncLinkedTripChrome(); };
 }
 function renderGroupCost(){
@@ -10640,6 +10674,36 @@ function _tripIdeaLegBtns(l, code, cls) {
   return '<a class="' + c + '" href="' + _tripIdeaEsc(l.inUrl) + '" target="_blank" rel="noopener" data-book-for="' + _tripIdeaEsc(code) + '" data-leg="in">✈️ In ' + _tripIdeaEsc(l.to) + ' ↗</a>' +
     '<a class="' + c + '" href="' + _tripIdeaEsc(l.outUrl) + '" target="_blank" rel="noopener" data-leg="home">🏠 Home ' + _tripIdeaEsc(l.back) + ' ↗</a>';
 }
+// PIA-120: the trip's plan dates as the RSVP stores them (what the organizer
+// set with ✎). A linked trip uses these everywhere, not the dashboard's own.
+function tripIdeaPlanDates(doc) {
+  var idea = (doc && doc.idea) || {}, r = idea.recommendation || {}, d = idea.dates || {};
+  var dep = r.departure || d.departure || '', ret = r.return || d.return || '';
+  return /^\d{4}-\d{2}-\d{2}$/.test(dep) ? {dep:dep, ret:/^\d{4}-\d{2}-\d{2}$/.test(ret) && ret >= dep ? ret : ''} : null;
+}
+// PIA-120: the same per-person booking rows as the RSVP sheet, always open —
+// for the Family tab's trip card.
+function tripIdeaBookListHtml(doc) {
+  var rows = doc ? tripIdeaBookRows(doc) : [];
+  if (!rows.length) return '';
+  return '<div class="lt-book"><div class="lt-book-hd">✈️ Book flights</div><ul>' + rows.map(function(r){
+    return '<li data-lt-book="' + _tripIdeaEsc(r.code) + '"><div><strong>' + _tripIdeaEsc(_tripIdeaName(r.label)) + (r.headcount > 1 ? ' (' + r.headcount + ')' : '') + '</strong><span>' +
+      _tripIdeaEsc(r.dep ? tripIdeaDateRange(r.dep, r.ret) : 'no dates yet') + '</span></div>' +
+      (r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.links ? '<span class="trip-idea-book-btns">' + _tripIdeaLegBtns(r.links, r.code) + '</span>' : '') + '</li>';
+  }).join('') + '</ul></div>';
+}
+// PIA-120: one Family-tab route card of a linked trip = that person's RSVP
+// answer: their dates, their In/Home airports, the same links as the RSVP sheet.
+function tripIdeaLinkedRoute(code) {
+  var doc = typeof S === 'object' && S && S.linkedIdeaId ? tripIdeaCachedDoc(S.linkedIdeaId) : null;
+  if (!doc) return null;
+  var base = _tripIdeaPersonBase(code);
+  var r = tripIdeaBookRows(doc).filter(function(x){ return _tripIdeaPersonBase(x.code) === base; })[0];
+  if (!r) return {dates:'📋 RSVP · no answer yet', links:'', booked:false};
+  var legs = r.legs.home !== r.legs.in && r.ret ? ' · in ' + r.legs.in + ', home ' + r.legs.home : '';
+  return {dates:'📋 RSVP · ' + (r.dep ? tripIdeaDateRange(r.dep, r.ret) + legs : 'no dates yet'), booked:r.booked,
+    links:r.booked ? '<b class="trip-idea-booked-tag">✓ Booked</b>' : r.links ? _tripIdeaLegBtns(r.links, r.code) : ''};
+}
 function tripIdeaBookPanelHtml(sh) {
   var rows = tripIdeaBookRows(sh.doc);
   if (!rows.length) return '';
@@ -10813,7 +10877,7 @@ function _tripIdeaShare(){
     return _tripIdeaAnswerAsOrganizer(res.json.doc).then(function(doc){ if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {} return tripIdeaSendInvite(doc); });
   });
 }
-function _tripIdeaOpenRemote(id) {
+function _tripIdeaOpenRemote(id, opts) {
   var keys = _tripIdeaKeys();
   _tripIdeaShared = {id:id, doc:null, editKey:(keys[id] && keys[id].edit_key) || '', error:''};
   _tripIdeaBuilderReadOnly = false; _tripIdeaBuilderStage = 'shared';
@@ -10828,8 +10892,14 @@ function _tripIdeaOpenRemote(id) {
     if (res.ok && res.json && res.json.preview && res.json.organizer === false && res.sentKey && _tripIdeaShared.editKey) { _tripIdeaShared.editKey = ''; showShareToast('This device’s organizer key doesn’t match this trip'); }
     if (res.ok && res.json && res.json.doc) { _tripIdeaShared.doc = res.json.doc; if (typeof tripIdeaStoreDoc === 'function') tripIdeaStoreDoc(res.json.doc); if (_tripIdeaShared.editKey && typeof tripIdeaMarkSeen === 'function') { tripIdeaMarkSeen(res.json.doc); if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {} } if (typeof tripIdeaRecordDecision === 'function' && _tripIdeaShared.editKey) tripIdeaRecordDecision(res.json.doc); }
     else _tripIdeaShared.error = res.status === 404 ? 'This trip idea was not found — it may have expired.' : res.status === 501 || res.status === 0 ? 'Shared trip ideas are not available right now.' : 'Could not load this trip idea.';
+    // PIA-120: "✎ Dates" on the Family tab opens straight into the plan-dates editor.
+    if (opts && opts.planEdit && _tripIdeaShared.doc && _tripIdeaShared.editKey) _tripIdeaStartPlanEdit(_tripIdeaShared);
     if (_tripIdeaBuilderStage === 'shared') renderTripIdeaBuilder();
   });
+}
+function _tripIdeaStartPlanEdit(sh) {
+  var p = tripIdeaPlanDates(sh.doc) || {dep:'', ret:''};
+  sh.planCal = {month:(p.dep || _tripIdeaTodayIso()).slice(0, 7), from:p.dep, to:p.ret};
 }
 function _tripIdeaRespond() {
   var sh = _tripIdeaShared; if (!sh || !sh.doc) return Promise.resolve(null);
@@ -11025,10 +11095,7 @@ function _tripIdeaWireShared(target, sh) {
   on('[data-idea-leave]', function(){ tripIdeaLeaveGuest(); });
   target.querySelectorAll('details[data-fold]').forEach(function(d){ d.addEventListener('toggle', function(){ if (d.getAttribute('data-fold') === 'list') sh.listOpen = d.open; else sh.orgOpen = d.open; }); });
   target.querySelectorAll('[data-clamp]').forEach(function(p){ p.onclick = function(){ p.classList.toggle('open'); }; });
-  on('[data-plan-edit]', function(){
-    var idea = sh.doc.idea || {}, r = idea.recommendation || {}, d = idea.dates || {}, from = r.departure || d.departure || '', to = r.return || d.return || '';
-    sh.planCal = {month:(from || _tripIdeaTodayIso()).slice(0, 7), from:from, to:to}; renderTripIdeaBuilder();
-  });
+  on('[data-plan-edit]', function(){ _tripIdeaStartPlanEdit(sh); renderTripIdeaBuilder(); });
   on('[data-plan-cancel]', function(){ sh.planCal = null; renderTripIdeaBuilder(); });
   on('[data-plan-save]', function(){ tripIdeaSavePlanDates(sh); });
   var pw = _tripIdeaEl('trip-idea-plan-cal-wrap');
@@ -11316,7 +11383,7 @@ function tripIdeaShareText(doc, kind) {
     var waiting = summarizeIdeaResponses(doc).rows.filter(function(x){ return x.status === 'pending' && !_tripIdeaIsOrganizer(x.label); }).map(function(x){ return x.label; });
     // PIA-106: once everyone has answered, the nudge is about booking.
     var unbooked = !waiting.length && tripIdeaCanBook() ? tripIdeaBookedCount(doc).unbooked : [];
-    if (unbooked.length) return title + (when ? ' (' + when + ')' : '') + ' — ' + unbooked.join(' and ') + ', have you booked? Tap “Find my flight”, then “I booked ✓”:';
+    if (unbooked.length) return title + (when ? ' (' + when + ')' : '') + ' — ' + unbooked.join(' and ') + ', have you booked? Tap your ✈️ flight button, then “I booked ✓”:';
     return title + (when ? ' (' + when + ')' : '') + ' — still need an answer from ' + (waiting.length ? waiting.join(' and ') : 'everyone') + '. In / maybe / out, and your dates?';
   }
   return title + (when ? ' · ' + when : '') + '. Come and go on your own dates — tap to say in / maybe / out and when you’d be there:';
@@ -11430,6 +11497,10 @@ function tripIdeaApplyLinkedRsvp() {
   if (!id) return Promise.resolve(null);
   var apply = function(doc){
     if (!doc || S.linkedIdeaId !== id) return null;
+    // PIA-120: the RSVP's plan dates are the trip's dates — the Family math
+    // follows them instead of whatever the dashboard had selected.
+    var plan = tripIdeaPlanDates(doc);
+    if (plan) { S.depDate = new Date(plan.dep + 'T12:00:00'); S.retDate = plan.ret ? new Date(plan.ret + 'T12:00:00') : null; }
     var st = memberStatusFromIdea(doc, S.depDate), ms = {};
     Object.keys(st).forEach(function(c){ if (st[c] !== 'in') ms[c] = st[c]; });
     S.memberStatus = ms;
@@ -11444,6 +11515,7 @@ function tripIdeaApplyLinkedRsvp() {
     S.memberDates = md;
     try { if (typeof loadPrices === 'function') loadPrices(); } catch (e) {} // cache-only: zero quota
     try { if (typeof renderMeetupStrip === 'function') renderMeetupStrip(); if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); if (typeof redrawMap === 'function') redrawMap(); } catch (e) {}
+    try { if (typeof syncLinkedTripChrome === 'function') syncLinkedTripChrome(); if (typeof updateDateUI === 'function') updateDateUI(); } catch (e) {}
     return ms;
   };
   var cached = tripIdeaCachedDoc(id);
