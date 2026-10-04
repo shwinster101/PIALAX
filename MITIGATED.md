@@ -6,6 +6,19 @@ Maintained by the Deployment team (T4) after every ticket closes.
 
 ## Closed
 
+- **2026-10-04 · PIA-114 … PIA-117** · Trust release gate (v1.3.0).
+  - **PIA-114:** the Worker's paid routes (`/search`, `/account`, `/extract`, `/alert`, `/alerts/sync`) require `X-Pialax-Token` == the `PROXY_TOKEN` secret, plus per-day caps → 429. Search params are strictly allowlisted, and unknown GET → 404.
+  - **PIA-115:** the KV fare cache keeps the original `X-Fetched-At`; a hit spends no SerpAPI search and no client quota.
+  - **PIA-116:** the `IdeaRoom` Durable Object serializes trip writes.
+  - **PIA-117:** `scripts/test-trust.sh` runs in preflight.
+  - **Live proof:** `scripts/verify-live.sh` passed 21/21 against `pialax-proxy` on 2026-10-04 (merge `0248830`). Results:
+    - every unauthenticated paid call → 401/400/404, and SerpAPI usage stayed at 40 → 40;
+    - 3 parallel answers + a booked flag all survived, `serialized:true`;
+    - MISS → HIT with the same `X-Fetched-At`, and usage 40 → 41.
+  - **Pre-fix evidence** (dry run, same day): unauthenticated searches got 200, and a 4-way race lost 2 of 4 changes.
+  - **Auditors:** don't re-flag "browser-only quota protection", "open SerpAPI proxy" or "last-write-wins RSVP". The known residual is the soft cap: the KV counter can overshoot under a parallel burst.
+  - Shipped: PR #23.
+
 - **2026-07-24 · PIA-030 … PIA-040** · Projects UI overhaul (both dashboards) — see `RELEASE_UI_OVERHAUL.md`.
   Fix: shared design-token layer (`ui-tokens.css.frag`, 187 custom properties, light mode + reduced motion) adopted by `pialax.html` and `pialax-mobile.html`; new app shell (desktop top nav / mobile bottom tabs, watchlist as home); all component surfaces restyled onto tokens. Verified zero feature loss against `FEATURE_INVENTORY_UI_OVERHAUL.md` (69/69 rows, 281/281 anchors, zero functions removed, zero logic diffs in `familyForDate`/quota module/`computeRanking`/`computeBestMeetupWeekends`/`fetchFlights`/`syncURL`/`restoreFromURL`, all 17 data constants byte-identical, CSP + SRI + `index.html` byte-identical to base `246d1d9`).
   Bugs closed en route (all pre-existing): **attribute XSS via `?wl=` share links** — untrusted watchlist items now pass `sanitizeWatchlistItem()` at both the localStorage and URL boundaries (exploit reproduced live pre-fix, proved closed post-fix); mobile quota-warning banner could never render (stylesheet `display:none` vs JS clearing only the inline style — same class as the `#quota-bar` bug fixed one element over); an unknown stage in a shared link threw in the render sort and blanked the watchlist; desktop light mode was structurally broken by a legacy `:root` re-pinning dark surfaces after the light override without re-pinning `--ink`. Zero undefined `var(--…)` usages remain — the original `--ink`/`--line` defect class is closed by construction.
