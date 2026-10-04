@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+## [1.3.1] — 2026-10-04
+
+Fixes: exact daily spend caps (`SpendMeter` Durable Object, PIA-118). Saving the organizer token no
+longer drops the dashboard to mock data, and Advanced shows whether the token works (PIA-119).
+`verify-live.sh` passed 22/22 against Worker `0acad2c7` (merge `38f814e`).
+
 ### Fixed (PIA-119)
 - Advanced → Admin: the Proxy URL box now shows the Worker in use instead of a blank placeholder.
   Tapping the button to save a token no longer drops the dashboard to Mock Data. A blank box now
