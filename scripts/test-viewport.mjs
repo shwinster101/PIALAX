@@ -666,9 +666,17 @@ const rsvp = await (async () => {
   const fs = await import('node:fs'), os = await import('node:os');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-rsvp-'));
   fs.copyFileSync(path.join(ROOT, 'worker.js'), path.join(dir, 'worker.mjs'));
-  const worker = (await import(pathToFileURL(path.join(dir, 'worker.mjs')).href)).default;
+  const mod = await import(pathToFileURL(path.join(dir, 'worker.mjs')).href);
+  const worker = mod.default;
   const kv = new Map();
   const env = { IDEAS: { get: async (k) => (kv.has(k) ? kv.get(k) : null), put: async (k, v) => { kv.set(k, v); } } };
+  // PIA-116: trip writes go through the real IdeaRoom Durable Object, as deployed.
+  const rooms = new Map();
+  env.IDEA_ROOM = { idFromName: (n) => n, get: (id) => {
+    if (!rooms.has(id)) { const m = new Map(); rooms.set(id, new mod.IdeaRoom({ storage: { get: async (k) => (m.has(k) ? structuredClone(m.get(k)) : undefined), put: async (k, v) => { m.set(k, structuredClone(v)); }, deleteAll: async () => m.clear(), setAlarm: async () => {} } }, env)); }
+    const room = rooms.get(id);
+    return { fetch: (url, init) => room.fetch(new Request(url, init)) };
+  } };
   const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
   const post = async (p, body) => (await worker.fetch(new Request(W + p, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://shwinster101.github.io' }, body: JSON.stringify(body) }), env)).json();
   const newIdea = async () => {

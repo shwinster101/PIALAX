@@ -12,6 +12,15 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-116)
+- Family answers no longer overwrite each other. Every write to a shared trip (an RSVP, "I booked
+  ✓", an organizer edit or decision) now goes through that trip's own Durable Object (`IdeaRoom`),
+  one change at a time, and is applied to the latest version. Before, two people answering at the
+  same moment could erase one answer.
+- Existing trips move into their room the first time they're touched. The room writes through to
+  KV, so link previews keep working. Responses report `serialized: true`.
+- `wrangler.toml` adds the `IDEA_ROOM` binding and a SQLite-class migration (Workers Free plan).
+
 ### Fixed (PIA-115)
 - Fares now show their real age. A fare served from the Worker cache keeps its original fetch
   time (`X-Fetched-At`), so it reads "🟡 CACHED 5h ago" instead of "🟢 LIVE 1m ago". LIVE now means

@@ -992,9 +992,9 @@ function ideaGuestView(doc) {
   out.decision = Object.assign({}, out.decision, { chosen: strip(out.decision && out.decision.chosen), estimate_total: null, actual_total: null, delta_pct: null });
   return out;
 }
-async function ideaView(request, doc) {
+async function ideaView(request, doc, serialized) {
   const organizer = await ideaIsOrganizer(request, doc);
-  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true, can_book: true, can_legs: true };
+  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true, can_book: true, can_legs: true, serialized: !!serialized };
 }
 function ideaLog(doc, event, by) {
   doc.log = (doc.log || []).concat([{ at: new Date().toISOString(), event, by: by || null }]).slice(-IDEA_MAX_LOG);
@@ -1057,8 +1057,9 @@ async function handleIdea(request, env, pathname) {
 
   if (request.method === 'GET') {
     if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
+    if (env.IDEA_ROOM) return ideaRoomCall(request, env, id, 'GET', null);
     const doc = await ideaRead(env, id);
-    return doc ? ideaOk(request, await ideaView(request, doc)) : jsonError('Trip idea not found', 404, request, 'not_found');
+    return doc ? ideaOk(request, await ideaView(request, doc, false)) : jsonError('Trip idea not found', 404, request, 'not_found');
   }
 
   let parsed;
@@ -1078,13 +1079,92 @@ async function handleIdea(request, env, pathname) {
     };
     ideaLog(doc, 'created');
     await ideaWrite(env, doc);
-    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true }, 201);
+    // PIA-116: seed the trip's room too, so the first answers don't depend on
+    // KV having propagated the new doc to whichever colo serves them.
+    if (env.IDEA_ROOM) await ideaRoomStub(env, doc.id).fetch('https://idea-room/init', { method: 'POST', body: JSON.stringify({ doc }) });
+    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true, serialized: !!env.IDEA_ROOM }, 201);
   }
 
   if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
-  const doc = await ideaRead(env, id);
-  if (!doc) return jsonError('Trip idea not found', 404, request, 'not_found');
+  if (env.IDEA_ROOM) return ideaRoomCall(request, env, id, pathname, body);
+  return ideaMutate(request, env, pathname, body, ideaKvStore(env, id), false);
+}
 
+// ── PIA-116: one Durable Object per trip serializes every write ─────────────
+// KV is last-write-wins: two family members answering at the same moment each
+// read the doc, add their answer, and put it back — the later put erased the
+// earlier answer. Now every read and write of a trip goes through its IdeaRoom
+// (one instance per id, a queue inside), and each mutation applies only its
+// own change to the latest doc. The room writes through to KV, so /i/ link
+// previews keep reading KV. With no IDEA_ROOM binding (older deploys, unit
+// tests) the plain KV path still runs and responses say `serialized: false`.
+const IDEA_FWD_HEADERS = ['Origin', 'X-Idea-Key', 'User-Agent'];
+function ideaRoomStub(env, id) { return env.IDEA_ROOM.get(env.IDEA_ROOM.idFromName(id)); }
+async function ideaRoomCall(request, env, id, op, body) {
+  const headers = {};
+  IDEA_FWD_HEADERS.forEach((h) => { const v = request.headers.get(h); if (v) headers[h] = v; });
+  return ideaRoomStub(env, id).fetch('https://idea-room/op', { method: 'POST', headers, body: JSON.stringify({ op, id, body }) });
+}
+function ideaKvStore(env, id) {
+  return { read: () => ideaRead(env, id), write: (doc) => ideaWrite(env, doc) };
+}
+export class IdeaRoom {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+    this.queue = Promise.resolve();
+  }
+  fetch(request) {
+    // One request at a time, start to finish — including the awaits on
+    // hashing and KV that would otherwise let the runtime interleave them.
+    const run = this.queue.then(() => this.handle(request));
+    this.queue = run.catch(() => {});
+    return run;
+  }
+  store(id) {
+    const storage = this.state.storage;
+    return {
+      read: async () => {
+        let doc = await storage.get('doc');
+        if (!doc) {
+          doc = await ideaRead(this.env, id);   // first touch: migrate the KV doc
+          if (doc) await storage.put('doc', doc);
+        }
+        return doc || null;
+      },
+      write: async (doc) => {
+        doc.updated_at = new Date().toISOString();
+        await storage.put('doc', doc);
+        if (typeof storage.setAlarm === 'function') await storage.setAlarm(Date.now() + IDEA_TTL_SECONDS * 1000);
+        await this.env.IDEAS.put('idea:' + doc.id, JSON.stringify(doc), { expirationTtl: IDEA_TTL_SECONDS });
+      },
+    };
+  }
+  async handle(request) {
+    let msg;
+    try { msg = await request.json(); } catch (e) { return jsonError('Bad room request', 400, request, 'bad_body'); }
+    if (new URL(request.url).pathname === '/init') {
+      if (msg && msg.doc && IDEA_ID_RE.test(msg.doc.id) && !(await this.state.storage.get('doc'))) {
+        await this.state.storage.put('doc', msg.doc);
+        if (typeof this.state.storage.setAlarm === 'function') await this.state.storage.setAlarm(Date.now() + IDEA_TTL_SECONDS * 1000);
+      }
+      return new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } });
+    }
+    const id = msg && msg.id;
+    if (!IDEA_ID_RE.test(id || '')) return jsonError('Missing or malformed id', 400, request, 'bad_id');
+    const store = this.store(id);
+    if (msg.op === 'GET') {
+      const doc = await store.read();
+      return doc ? ideaOk(request, await ideaView(request, doc, true)) : jsonError('Trip idea not found', 404, request, 'not_found');
+    }
+    return ideaMutate(request, this.env, msg.op, msg.body || {}, store, true);
+  }
+  async alarm() { await this.state.storage.deleteAll(); }   // the trip's KV doc expired too
+}
+
+async function ideaMutate(request, env, pathname, body, store, serialized) {
+  const doc = await store.read();
+  if (!doc) return jsonError('Trip idea not found', 404, request, 'not_found');
   if (pathname === '/idea/respond') {
     if (doc.decision && (doc.decision.stage === 'booked' || doc.decision.stage === 'dropped')) {
       return jsonError('This trip idea is closed', 409, request, 'closed');
@@ -1100,8 +1180,8 @@ async function handleIdea(request, env, pathname) {
     if (prev && prev.booked && resp.status !== 'out') { resp.booked = true; resp.booked_at = prev.booked_at || null; }
     doc.responses[resp.member] = resp;
     ideaLog(doc, 'rsvp:' + resp.status, resp.member);
-    await ideaWrite(env, doc);
-    return ideaOk(request, await ideaView(request, doc));
+    await store.write(doc);
+    return ideaOk(request, await ideaView(request, doc, serialized));
   }
 
   // PIA-106: "I booked ✓" — flips one traveler's booked flag, nothing else.
@@ -1115,8 +1195,8 @@ async function handleIdea(request, env, pathname) {
     if (!r || (r.status !== 'in' && r.status !== 'maybe')) return jsonError('Answer in or maybe first', 400, request, 'answer_first');
     r.booked = body.booked; r.booked_at = body.booked ? new Date().toISOString() : null;
     ideaLog(doc, (body.booked ? 'booked:' : 'unbooked:') + member.code, member.code);
-    await ideaWrite(env, doc);
-    return ideaOk(request, await ideaView(request, doc));
+    await store.write(doc);
+    return ideaOk(request, await ideaView(request, doc, serialized));
   }
 
   if (pathname === '/idea/update') {
@@ -1135,8 +1215,8 @@ async function handleIdea(request, env, pathname) {
       if (err) return jsonError(err, 400, request, 'bad_decision');
       ideaLog(doc, 'decision:' + doc.decision.stage, 'organizer');
     }
-    await ideaWrite(env, doc);
-    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true });
+    await store.write(doc);
+    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true, serialized });
   }
   return jsonError('Not found', 404, request);
 }
