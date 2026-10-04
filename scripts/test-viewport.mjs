@@ -865,6 +865,34 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
   }
 }
 
+// PIA-113: a trip linked to a family RSVP opens the Family tab summary-first.
+{
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context({ width: 390, height: 844 }, idea, { admin: true });
+  const label = 'pialax-mobile.html Family tab (linked trip) @ 390x844';
+  try {
+    await ctx.addInitScript((id) => { localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] })); }, idea.id);
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('.wl-row[data-wl-id="thanksgiving"]', { timeout: 8000 });
+    await page.locator('.wl-row[data-wl-id="thanksgiving"]').click();
+    await page.locator('.wl-more-actions summary').click();
+    await page.locator('.wl-more-actions .wl-open').click();
+    await page.waitForSelector('#linked-trip-summary:not([hidden])', { timeout: 5000 });
+    const f = await page.evaluate(() => ({ sum: document.getElementById('linked-trip-summary').innerText.replace(/\s+/g, ' '),
+      block1: getComputedStyle(document.getElementById('plan-block1')).display, over: document.documentElement.scrollWidth > innerWidth }));
+    await page.locator('.lts-planner').click();
+    const opened = await page.evaluate(() => getComputedStyle(document.getElementById('plan-block1')).display);
+    if (/Thanksgiving/.test(f.sum) && /Fri Nov 20 – Sun Nov 29/.test(f.sum) && /Open RSVP/.test(f.sum) && f.block1 === 'none' && opened !== 'none' && !f.over)
+      ok(`${label} — summary first ("${f.sum.slice(0, 60)}…"), Step 1 folded until "Planner ▸"`);
+    else bad(`${label} — summary wrong: ${JSON.stringify(Object.assign(f, { opened }))}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
 await browser.close();
 
 console.log('');

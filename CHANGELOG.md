@@ -12,6 +12,13 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-113)
+- iPhone Family tab, opened from a trip with a family RSVP: it now leads with the trip, e.g.
+  "🦃 Thanksgiving · Fri Nov 20 – Sun Nov 29 · All 3 in", with **👥 Open RSVP** and **Planner ▸**.
+  Step 1 (mode, holiday quick-picks, home airport) stays folded until you tap Planner. Cheapest
+  week and the fairness ledger become one-line drawers, and the "Last trip" chip and helper text
+  hide. Fares, the cost split and Get Live Fares stay up front.
+
 ### Changed (PIA-112)
 - The RSVP screen is calmer:
   - **Header:** one title line, then one plan line ("Plan Fri Nov 20 – Sun Nov 29 · ≈ $704" for

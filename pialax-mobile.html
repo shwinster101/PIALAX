@@ -1640,6 +1640,17 @@ body.trip-sheet-active{overflow:hidden;}
      The canonical :root tokens and the shared Trip Idea Builder CSS above stay
      byte-identical with pialax.html; iPhone-specific changes live here only. -->
 <style id="ios-layer">
+/* PIA-113: Family tab opened from a family RSVP trip — summary first, planner folded */
+#linked-trip-summary[hidden]{display:none}
+#linked-trip-summary .lts-title{font-size:var(--fs-title);font-weight:900}
+#linked-trip-summary .lts-sub{margin-top:2px;font-size:var(--fs-tiny);font-weight:800;color:var(--success)}
+#linked-trip-summary .lts-actions{display:grid;grid-template-columns:1fr auto;gap:8px;margin-top:10px}
+#linked-trip-summary .lts-actions button{min-height:44px;padding:0 14px;border-radius:var(--rad-sm);font:inherit;font-weight:800;cursor:pointer}
+#linked-trip-summary .lts-open{background:var(--accent);color:#fff;border:1px solid var(--accent)}
+#linked-trip-summary .lts-planner{background:none;color:var(--accent);border:1px solid var(--line-strong)}
+body.linked-trip #plan-block1:not(.open){display:none}
+body.linked-trip .last-trip-chip,body.linked-trip .meetup-wl-note{display:none}
+.fold-lite>summary{min-height:44px;display:flex;align-items:center;cursor:pointer;color:var(--accent);font-size:var(--fs-tiny);font-weight:800}
 /* ── PIA-086: app shell ───────────────────────────────────────────────────── */
 /* Toast: just above whatever bottom chrome the tab actually shows (it used to
    float ~80px up on every tab), wraps long messages, and drops to the top of
@@ -1843,8 +1854,11 @@ body.idea-guest [data-trip-close]{display:none!important}
     <!-- ═══ PIA-033 TAB: Meetup — plan + results surface (both modes) ═══ -->
     <section class="nav-tab-page" data-tab="plan" id="tab-plan">
 
+    <!-- PIA-113: a linked family trip leads with a one-line summary -->
+    <div id="linked-trip-summary" class="card" hidden></div>
+
     <!-- ═══ BLOCK 1: Plan Trip ═══ -->
-    <div class="card">
+    <div class="card" id="plan-block1">
       <div class="step-label">Step 1 · Plan Trip</div>
 
       <!-- Mode switcher -->
@@ -3397,7 +3411,7 @@ function completedTripMarker() {
   }
   if (!best) return '';
   var label = best.completedTrip || 'Previous trip';
-  return '<div style="margin-top:8px;padding:5px 9px;background:var(--success-dim);' +
+  return '<div class="last-trip-chip" style="margin-top:8px;padding:5px 9px;background:var(--success-dim);' +
          'border:1px solid var(--success);border-radius:var(--rad-md);font-size:var(--fs-tiny);font-weight:800;' +
          'color:var(--success);display:flex;align-items:center;gap:6px;">' +
          '<span>✅ Last trip: ' + esc(label) + ' · complete</span></div>';
@@ -4019,7 +4033,7 @@ function renderMeetupFinder() {
                '</div>';
     }
     html2 += '</div>';
-    section.innerHTML = html2;
+    section.innerHTML = S.linkedIdeaId ? '<details class="fold-lite"><summary>💡 Cheapest week to gather</summary>' + html2 + '</details>' : html2; // PIA-113
     section.querySelectorAll('.finder-apply-btn').forEach(function(btn){
       btn.addEventListener('click', function(){ applyFinderPick(btn); });
     });
@@ -6764,7 +6778,28 @@ function sparklineSVG(vals, w, hgt){
   var col = vals[vals.length-1] > vals[0] ? '#ef4444' : '#10b981';
   return '<svg width="'+w+'" height="'+hgt+'" style="vertical-align:middle;"><polyline points="'+pts+'" fill="none" stroke="'+col+'" stroke-width="1.5"/></svg>';
 }
+// PIA-113: opened from a family RSVP trip, the Family tab leads with the trip
+// (dates, answers, Open RSVP) and folds the planner controls; it stays the
+// place for real fares and the family total.
+function syncLinkedTripChrome(){
+  var on = !!S.linkedIdeaId, box = document.getElementById('linked-trip-summary');
+  document.body.classList.toggle('linked-trip', on);
+  if (!box) return;
+  if (!on) { box.hidden = true; box.innerHTML = ''; return; }
+  var doc = typeof tripIdeaCachedDoc === 'function' ? tripIdeaCachedDoc(S.linkedIdeaId) : null;
+  var t = (typeof WATCHLIST !== 'undefined' ? WATCHLIST : []).filter(function(x){ return x && x.sharedIdeaId === S.linkedIdeaId; })[0];
+  var title = (t && t.title) || (doc && doc.idea && doc.idea.title) || 'Family trip';
+  var dates = S.depDate && typeof tripIdeaDateRange === 'function' ? tripIdeaDateRange(fmtISO(S.depDate), S.retDate ? fmtISO(S.retDate) : '') : 'Pick dates';
+  var counts = doc && typeof tripIdeaCountsLine === 'function' ? tripIdeaCountsLine(doc) : '';
+  var block1 = document.getElementById('plan-block1'), open = !!(block1 && block1.classList.contains('open'));
+  box.innerHTML = '<div class="lts-title">' + esc(title) + '</div><div class="lts-sub">' + esc(dates) + (counts ? ' · ' + esc(counts) : '') + '</div>' +
+    '<div class="lts-actions"><button type="button" class="lts-open">👥 Open RSVP</button><button type="button" class="lts-planner" aria-expanded="' + (open ? 'true' : 'false') + '">' + (open ? 'Hide planner ▾' : 'Planner ▸') + '</button></div>';
+  box.hidden = false;
+  box.querySelector('.lts-open').onclick = function(){ if (typeof _tripIdeaOpenRemote === 'function') _tripIdeaOpenRemote(S.linkedIdeaId); };
+  box.querySelector('.lts-planner').onclick = function(){ if (block1) block1.classList.toggle('open'); syncLinkedTripChrome(); };
+}
 function renderGroupCost(){
+  try { syncLinkedTripChrome(); } catch (e) {}
   var panel = document.getElementById('group-cost-panel');
   if (!panel) return;
   if (S.mode !== 'meetup' || !S.depDate) { panel.style.display = 'none'; return; }
@@ -6821,6 +6856,7 @@ function renderGroupCost(){
     '<div style="font-size:var(--fs-micro);color:var(--ink-muted);">⚖ Hosted so far: ' + esc(ledgerTxt || '—') + '</div>' +
     (nextHost ? '<div style="font-size:var(--fs-micro);color:var(--ink);margin-top:2px;">Fairest next host: <strong style="color:' + (DC[nextHost]||'var(--accent)') + ';">' + esc(labelFor(nextHost)) + '</strong></div>' : '') +
     '<button id="gc-log" style="margin-top:5px;font-size:var(--fs-micro);font-weight:800;background:transparent;color:var(--accent);border:1px solid var(--accent);border-radius:var(--rad-sm);padding:6px 10px;cursor:pointer;font-family:inherit;min-height:32px;">＋ Log this meetup to fairness</button></div>';
+  if (S.linkedIdeaId) fairHtml = '<details class="fold-lite"><summary>⚖ Fairness ledger</summary>' + fairHtml + '</details>'; // PIA-113
   panel.innerHTML =
     '<div class="lbl">💰 Family cost split · ' + hub + '</div>' +
     '<div style="border:1px solid ' + hubCol + '55;border-left:3px solid ' + hubCol + ';border-radius:var(--rad-md);padding:9px 11px;background:' + hubCol + '0f;">' +
