@@ -12,6 +12,14 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-115)
+- Fares now show their real age. A fare served from the Worker cache keeps its original fetch
+  time (`X-Fetched-At`), so it reads "🟡 CACHED 5h ago" instead of "🟢 LIVE 1m ago". LIVE now means
+  fetched within the last hour.
+- Cache hits no longer count against the monthly SerpAPI quota, the per-session cap or the "live
+  calls" counter. Only a real upstream search spends.
+- The 24h client cache now runs from when the fare was fetched, not from when it arrived.
+
 ### Security (PIA-114) — breaking Worker API
 - Paid Worker routes now require the organizer token (`X-Pialax-Token`, checked against the
   `PROXY_TOKEN` secret) and stop at server-side daily caps (`SERP_DAILY_CAP` 30,

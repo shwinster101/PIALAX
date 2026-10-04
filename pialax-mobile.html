@@ -4739,6 +4739,17 @@ function paidHeaders(extra) {
   if (t) h['X-Pialax-Token'] = t;
   return h;
 }
+// PIA-115: the Worker's fare cache answers with the ORIGINAL fetch time
+// (X-Fetched-At) and X-Proxy-Cache: HIT|MISS. A hit spent nothing upstream,
+// so it must not show as just-fetched or count against the quota.
+function fareStamp(res) {
+  var h = (res && res.headers && typeof res.headers.get === 'function') ? res.headers : null;
+  var at = h ? h.get('X-Fetched-At') : null;
+  var now = Date.now();
+  var t = at ? Date.parse(at) : NaN;
+  if (isNaN(t) || t > now) t = now;
+  return { at: new Date(t).toISOString(), ts: t, hit: !!(h && h.get('X-Proxy-Cache') === 'HIT') };
+}
 var _tokenHintShown = false;
 function noteMissingToken() {
   if (_tokenHintShown) return;
@@ -4885,6 +4896,7 @@ async function fetchFlights(from, to, dep, ret) {
       if (res.status === 401) { noteMissingToken(); return getMock(from, to); }
       if (res.status === 403) { console.warn('SerpAPI auth error'); return getMock(from, to); }
       if (!res.ok) throw new Error('HTTP ' + res.status);
+      var stamp = fareStamp(res);
       var json = await res.json();
       var best = (json && json.best_flights && json.best_flights.length > 0) ? json.best_flights[0] : null;
       if (!best && json && json.other_flights && json.other_flights.length > 0) {
@@ -4910,10 +4922,13 @@ async function fetchFlights(from, to, dep, ret) {
         returnStops: retLegs.length > 1 ? (retLegs.length - 1) : 0,
       };
       // PIA-013 AC1 (mobile mirror): stamp lastVerified before caching.
-      data.lastVerified = new Date().toISOString();
-      _flightCache[key] = { data: data, ts: Date.now() };
+      // PIA-115: the fare's real age (a Worker cache hit keeps its original time);
+      // the client TTL runs from that moment, not from when it arrived.
+      data.lastVerified = stamp.at;
+      if (stamp.hit) { data.cached = true; data.edgeHit = true; }
+      _flightCache[key] = { data: data, ts: stamp.ts };
       persistFlightCache(); // PIA-005 AC4: write through to localStorage
-      bumpQuota(1);
+      if (!stamp.hit) bumpQuota(1); // PIA-115: only a real SerpAPI call spends
       _lastFetchError = null;
       return data;
     } catch(e) {
@@ -4989,7 +5004,7 @@ function freshnessLabel(entry, familyCode) {
   if (ageMs < 60*60*1000) ago = Math.max(1, Math.round(ageMs/60000)) + 'm ago';
   else if (ageMs <= DAY)  ago = Math.round(ageMs/(60*60*1000)) + 'h ago';
   else                    ago = Math.round(ageMs/DAY) + 'd ago';
-  if (ageMs <= DAY) return { tier:'LIVE', label:'🟢 LIVE ' + ago, short:'LIVE', pillHtml:_freshPill('LIVE', '🟢 LIVE ' + ago) };
+  if (ageMs < 60*60*1000) return { tier:'LIVE', label:'🟢 LIVE ' + ago, short:'LIVE', pillHtml:_freshPill('LIVE', '🟢 LIVE ' + ago) };
   return { tier:'CACHED', label:'🟡 CACHED ' + ago, short:'CACHED', pillHtml:_freshPill('CACHED', '🟡 CACHED ' + ago) };
 }
 function _freshPill(tier, txt) {
