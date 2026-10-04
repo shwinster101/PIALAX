@@ -12,6 +12,20 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Security (PIA-114) — breaking Worker API
+- Paid Worker routes now require the organizer token (`X-Pialax-Token`, checked against the
+  `PROXY_TOKEN` secret) and stop at server-side daily caps (`SERP_DAILY_CAP` 30,
+  `EXTRACT_DAILY_CAP` 20, `EMAIL_DAILY_CAP` 10 → 429). The gated routes are fare search, the account
+  check, `/extract`, `/alert` and `/alerts/sync`. Without the token they return 401 and spend nothing.
+- Fare search moves to `GET /search` and accepts only allowlisted, validated params. `no_cache`
+  and unknown params get 400, and an unknown path gets 404 instead of a SerpAPI call. The
+  account check moves to `GET /account` and returns only quota fields.
+- Fares are cached in KV for 24h, keyed by the canonical params, and stored with their original
+  fetch time (`X-Proxy-Cache`, `X-Fetched-At`).
+- Client: there's a new **Organizer token** field under Advanced. The organizer link (`#k=…&t=…`)
+  carries the token to your other devices and strips it from the address bar. Without a token,
+  fares stay as samples and show a one-time hint. Family links never carry the token.
+
 ### Changed (PIA-113)
 - iPhone Family tab, opened from a trip with a family RSVP: it now leads with the trip, e.g.
   "🦃 Thanksgiving · Fri Nov 20 – Sun Nov 29 · All 3 in", with **👥 Open RSVP** and **Planner ▸**.

@@ -29,10 +29,14 @@ const bad = (m) => { console.log('  XX  ' + m); failCount++; };
 const ORIGIN = 'https://shwinster101.github.io';
 const NOTE = 'Fly LAX to CUZ Sep 4 and return LIM to LAX Sep 13.';
 
+// PIA-114: paid routes need the organizer token. These suites test behaviour
+// behind the gate, so requests carry it and envs get it by default; the
+// no-token / wrong-token cases live in test-trust.js.
+const TEST_TOKEN = 'test-organizer-token-0123456789abcdef';
 function req(method, url, body, origin) {
   return new Request(url, {
     method,
-    headers: { 'Content-Type': 'application/json', Origin: origin || ORIGIN },
+    headers: { 'Content-Type': 'application/json', Origin: origin || ORIGIN, 'X-Pialax-Token': TEST_TOKEN },
     body: body === undefined ? undefined : (typeof body === 'string' ? body : JSON.stringify(body)),
   });
 }
@@ -81,7 +85,7 @@ const VALID_EXTRACTION = {
   const realFetch = globalThis.fetch;
   const call = async (request, env, fetchImpl) => {
     globalThis.fetch = fetchImpl || (async () => { throw new Error('unexpected upstream call'); });
-    try { return await worker.fetch(request, env || {}); }
+    try { return await worker.fetch(request, Object.assign({ PROXY_TOKEN: TEST_TOKEN }, env || {})); }
     finally { globalThis.fetch = realFetch; }
   };
   const readJson = async (res) => { try { return JSON.parse(await res.text()); } catch (e) { return null; } };
@@ -229,7 +233,7 @@ const VALID_EXTRACTION = {
       ok('CORS origin still pinned to the Pages origin');
     } else bad(`unexpected allow-origin: ${pre.headers.get('Access-Control-Allow-Origin')}`);
 
-    const getNoKey = await call(req('GET', 'https://w.dev/?engine=google_flights'), {});
+    const getNoKey = await call(req('GET', 'https://w.dev/search?engine=google_flights&departure_id=LAX&arrival_id=PIA&outbound_date=2026-11-20'), {});
     if (getNoKey.status === 500) ok('GET path unchanged: missing SERPAPI_KEY still 500s');
     else bad(`GET without SERPAPI_KEY: expected 500, got ${getNoKey.status}`);
 

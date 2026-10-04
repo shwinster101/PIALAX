@@ -690,7 +690,10 @@ function tripIdeaSharedState() { return _tripIdeaShared; } // read accessor (tes
 function tripIdeaOrganizerLink(id) {
   var k = _tripIdeaKeys()[id];
   if (!k || !k.edit_key) return '';
-  return window.location.origin + window.location.pathname.replace(/[^\/]*$/, '') + '?idea=' + encodeURIComponent(id) + '#k=' + encodeURIComponent(k.edit_key);
+  // PIA-114: the organizer's own token rides along so a second device of
+  // theirs unlocks live fares too. Family links never carry it.
+  var t = (typeof proxyToken === 'function') ? proxyToken() : '';
+  return window.location.origin + window.location.pathname.replace(/[^\/]*$/, '') + '?idea=' + encodeURIComponent(id) + '#k=' + encodeURIComponent(k.edit_key) + (t ? '&t=' + encodeURIComponent(t) : '');
 }
 function tripIdeaCopyOrganizerLink(id) {
   var url = tripIdeaOrganizerLink(id);
@@ -702,6 +705,8 @@ function _tripIdeaTakeHashKey(id) {
   var m = /(?:^#|&)k=([A-Za-z0-9_-]{32,64})(?:&|$)/.exec((window.location && window.location.hash) || '');
   if (!m) return false;
   var keys = _tripIdeaKeys(); if (!(keys[id] && keys[id].edit_key === m[1])) _tripIdeaSaveKey(id, m[1], '');
+  var t = /(?:^#|&)t=([A-Za-z0-9_-]{16,128})(?:&|$)/.exec(window.location.hash);
+  if (t && typeof setProxyToken === 'function') setProxyToken(t[1]);
   try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
   return true;
 }

@@ -88,116 +88,15 @@ export default {
       if (/^\/i\/[^/]*\/?$/.test(pathname)) return handleIdeaPreview(request, env, pathname.split('/')[2] || '');
     }
 
-    // ── Validate API key is configured ──
-    const apiKey = env.SERPAPI_KEY;
-    if (!apiKey) {
-      return jsonError('SERPAPI_KEY secret not configured on this Worker', 500, request);
-    }
-
-    // ── Build SerpAPI request from query params ──
-    const url = new URL(request.url);
-    const params = url.searchParams;
-
-    // Special-case: /account quota lookup. Returns total_searches_left, etc.
-    // so the dashboard can sync its local quota counter with the real plan.
-    if (params.get('action') === 'account') {
-      try {
-        const acctRes = await fetch('https://serpapi.com/account.json?api_key=' + apiKey, {
-          headers: { 'User-Agent': 'PIALAX-Proxy/1.0' },
-        });
-        const acctBody = await acctRes.text();
-        return new Response(acctBody, {
-          status: acctRes.status,
-          headers: {
-            'Content-Type': 'application/json',
-            'X-SerpAPI-Status': String(acctRes.status),
-            ...corsHeaders(request),
-          },
-        });
-      } catch (e) {
-        return jsonError('Account lookup failed: ' + e.message, 502, request);
-      }
-    }
-
-    // Safety: only allow google_flights engine for search calls
-    if (params.get('engine') !== 'google_flights') {
-      return jsonError('Only google_flights engine is allowed', 400, request);
-    }
-
-    // Remove any api_key the client may have sent (we inject our own)
-    params.delete('api_key');
-    params.set('api_key', apiKey);
-
-    const serpUrl = SERPAPI_BASE + '?' + params.toString();
-
-    // ── Edge cache (perf + quota saver) ──
-    // Build a cache key WITHOUT the api_key so the same flight query from
-    // any browser hits one cached response. TTL = 24 hr — flight prices
-    // for non-imminent dates don't move meaningfully day-to-day, and the
-    // family-collab use case means multiple people will load the same query.
-    // SerpAPI free tier = 250/month; this cache lets all 4 family members
-    // share a single fetch per (route + dates) pair per day.
-    const cacheParams = new URLSearchParams(params);
-    cacheParams.delete('api_key');
-    const cacheKey = new Request(SERPAPI_BASE + '?' + cacheParams.toString(), { method: 'GET' });
-    const cache = caches.default;
-    const cached = await cache.match(cacheKey);
-    if (cached) {
-      // Re-emit with CORS headers; signal cache hit + remaining quota header (best-effort)
-      const body = await cached.text();
-      const h = {
-        'Content-Type': 'application/json',
-        'X-SerpAPI-Status': cached.headers.get('X-SerpAPI-Status') || '200',
-        'X-Proxy-Cache': 'HIT',
-        ...corsHeaders(request),
-      };
-      const remaining = cached.headers.get('X-SerpAPI-Searches-Left');
-      if (remaining) h['X-SerpAPI-Searches-Left'] = remaining;
-      return new Response(body, { status: 200, headers: h });
-    }
-
-    try {
-      const serpRes = await fetch(serpUrl, {
-        headers: { 'User-Agent': 'PIALAX-Proxy/1.0' },
-      });
-
-      // Forward rate-limit / error status codes so the client can handle them
-      const body = await serpRes.text();
-
-      // SerpAPI returns a `search_metadata` block on success; for the account
-      // endpoint they expose remaining searches but not on /search.json. We
-      // still surface it if SerpAPI ever sends it as a header.
-      const remaining = serpRes.headers.get('X-SerpAPI-Searches-Left') || '';
-
-      const responseHeaders = {
-        'Content-Type': 'application/json',
-        'X-SerpAPI-Status': String(serpRes.status),
-        'X-Proxy-Cache': 'MISS',
-        ...corsHeaders(request),
-      };
-      if (remaining) responseHeaders['X-SerpAPI-Searches-Left'] = remaining;
-
-      const response = new Response(body, { status: serpRes.status, headers: responseHeaders });
-
-      // Only cache successful 200s for 24 hr (was 5 min) — see comment above.
-      if (serpRes.status === 200) {
-        const cacheable = new Response(body, {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'X-SerpAPI-Status': '200',
-            ...(remaining ? { 'X-SerpAPI-Searches-Left': remaining } : {}),
-            'Cache-Control': 'public, max-age=86400',
-          },
-        });
-        // ctx.waitUntil isn't required; cache.put returns a promise but it's safe to await
-        await cache.put(cacheKey, cacheable);
-      }
-
-      return response;
-    } catch (e) {
-      return jsonError('Proxy error: ' + e.message, 502, request);
-    }
+    // PIA-114: fare searches live at /search (the bare root still works for
+    // older clients), the quota lookup at ?action=account. Every other GET path
+    // is a 404 — nothing falls through to a paid call any more.
+    let path = '/';
+    try { path = new URL(request.url).pathname.replace(/\/+$/, '') || '/'; } catch (e) { /* keep '/' */ }
+    const action = new URL(request.url).searchParams.get('action');
+    if ((path === '/' || path === '/account') && (action === 'account' || path === '/account')) return handleAccount(request, env);
+    if (path === '/' || path === '/search') return handleSearch(request, env);
+    return jsonError('Not found', 404, request, 'not_found');
   },
 
   // PIA-063: daily fare-alert check (Cron Trigger — see wrangler.toml).
@@ -217,7 +116,8 @@ function corsHeaders(request) {
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Idea-Key',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Idea-Key, X-Pialax-Token',
+    'Access-Control-Expose-Headers': 'X-Proxy-Cache, X-Fetched-At, X-SerpAPI-Status',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -401,7 +301,120 @@ function validateExtractionShape(obj) {
   return { ok: errs.length === 0, errors: errs };
 }
 
+// ── PIA-114: paid routes need the organizer token, then a daily budget ──────
+// Browser-side quota counters can't protect the account: anyone can call the
+// Worker directly. Paid routes (fare search, account lookup, note extraction,
+// alert email, alert config) need X-Pialax-Token == the PROXY_TOKEN secret
+// (constant-time compare). A missing secret refuses everything — fail closed.
+// With the token, each upstream call also counts against a per-UTC-day cap in
+// KV (quota:<kind>:<date>), so even a leaked token can only spend a day's cap.
+const PAID_CAPS = { serp: ['SERP_DAILY_CAP', 30], extract: ['EXTRACT_DAILY_CAP', 20], email: ['EMAIL_DAILY_CAP', 10] };
+function tokenOk(request, env) {
+  const want = typeof env.PROXY_TOKEN === 'string' ? env.PROXY_TOKEN : '';
+  const got = request.headers.get('X-Pialax-Token') || '';
+  if (want.length < 16 || got.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ got.charCodeAt(i);
+  return diff === 0;
+}
+function authGate(request, env) {
+  return tokenOk(request, env) ? null : jsonError('Organizer token required', 401, request, 'no_token');
+}
+// Call right before an upstream call. Returns a 429 Response when today's cap
+// is spent, otherwise records the spend and returns null.
+async function spendGate(request, env, kind) {
+  const kv = env.IDEAS;
+  if (!kv) return null;
+  const spec = PAID_CAPS[kind];
+  const cap = Math.max(0, Number(env[spec[0]] || spec[1]));
+  const key = 'quota:' + kind + ':' + new Date().toISOString().slice(0, 10);
+  const used = Number(await kv.get(key)) || 0;
+  if (used >= cap) return jsonError('Daily ' + kind + ' budget reached (' + cap + ')', 429, request, 'daily_cap');
+  await kv.put(key, String(used + 1), { expirationTtl: 2 * 86400 });
+  return null;
+}
+
+async function handleAccount(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
+  if (!env.SERPAPI_KEY) return jsonError('SERPAPI_KEY secret not configured on this Worker', 500, request);
+  try {
+    const acctRes = await fetch('https://serpapi.com/account.json?api_key=' + env.SERPAPI_KEY, { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
+    const acct = await acctRes.json().catch(() => ({}));
+    // Only the numbers the dashboard uses — never the account's email or keys.
+    const out = {};
+    ['plan_id', 'plan_name', 'searches_per_month', 'plan_searches_left', 'total_searches_left', 'this_month_usage', 'last_hour_searches'].forEach((k) => { if (k in acct) out[k] = acct[k]; });
+    return new Response(JSON.stringify(out), { status: acctRes.status, headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-SerpAPI-Status': String(acctRes.status) }, corsHeaders(request)) });
+  } catch (e) {
+    return jsonError('Account lookup failed', 502, request);
+  }
+}
+
+// Strict search shape: only these params, only these value forms. Anything
+// else (cache busters, no_cache, other engines) is a 400 before any spend.
+const SEARCH_PARAMS = {
+  engine: /^google_flights$/, departure_id: /^[A-Z]{3}$/, arrival_id: /^[A-Z]{3}$/,
+  outbound_date: /^\d{4}-\d{2}-\d{2}$/, return_date: /^\d{4}-\d{2}-\d{2}$/, type: /^[123]$/,
+  adults: /^[1-9]$/, currency: /^[A-Z]{3}$/, hl: /^[a-z]{2}$/, gl: /^[a-z]{2}$/, travel_class: /^[1-4]$/, stops: /^[0-3]$/,
+};
+function canonicalSearch(params) {
+  const keys = [];
+  for (const [k, v] of params) {
+    if (!Object.prototype.hasOwnProperty.call(SEARCH_PARAMS, k) || !SEARCH_PARAMS[k].test(v) || keys.indexOf(k) >= 0) return null;
+    keys.push(k);
+  }
+  if (params.get('engine') !== 'google_flights' || !params.get('departure_id') || !params.get('arrival_id') || !params.get('outbound_date')) return null;
+  return keys.sort().map((k) => k + '=' + params.get(k)).join('&');
+}
+
+async function handleSearch(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
+  const canonical = canonicalSearch(new URL(request.url).searchParams);
+  if (!canonical) return jsonError('Unsupported search parameters', 400, request, 'bad_params');
+  if (!env.SERPAPI_KEY) return jsonError('SERPAPI_KEY secret not configured on this Worker', 500, request);
+  const hit = await fareCacheGet(env, canonical);
+  if (hit) return fareResponse(request, hit.body, 'HIT', hit.fetched_at, 200);
+  const over = await spendGate(request, env, 'serp');
+  if (over) return over;
+  try {
+    const serpRes = await fetch(SERPAPI_BASE + '?' + canonical + '&api_key=' + encodeURIComponent(env.SERPAPI_KEY), { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
+    const body = await serpRes.text();
+    const fetchedAt = new Date().toISOString();
+    if (serpRes.status === 200) await fareCachePut(env, canonical, { fetched_at: fetchedAt, body });
+    return fareResponse(request, body, 'MISS', fetchedAt, serpRes.status);
+  } catch (e) {
+    return jsonError('Proxy error', 502, request);
+  }
+}
+function fareResponse(request, body, state, fetchedAt, status) {
+  return new Response(body, { status, headers: Object.assign({
+    'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-SerpAPI-Status': String(status),
+    'X-Proxy-Cache': state, 'X-Fetched-At': fetchedAt,
+  }, corsHeaders(request)) });
+}
+// PIA-115: the fare cache lives in KV (the Cache API does not persist on
+// *.workers.dev), and every entry keeps the time SerpAPI was actually called.
+const FARE_TTL_SECONDS = 86400;
+async function fareKey(canonical) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return 'fare:' + Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function fareCacheGet(env, canonical) {
+  if (!env.IDEAS) return null;
+  try {
+    const v = JSON.parse((await env.IDEAS.get(await fareKey(canonical))) || 'null');
+    return v && typeof v.body === 'string' && v.fetched_at ? v : null;
+  } catch (e) { return null; }
+}
+async function fareCachePut(env, canonical, entry) {
+  if (!env.IDEAS) return;
+  try { await env.IDEAS.put(await fareKey(canonical), JSON.stringify(entry), { expirationTtl: FARE_TTL_SECONDS }); } catch (e) { /* cache is best-effort */ }
+}
+
 async function handleExtract(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
   const apiKey = env.ANTHROPIC_KEY || env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     // 501, not 500: "this Worker does not offer extraction", which is exactly
@@ -443,6 +456,8 @@ async function handleExtract(request, env) {
     confirmed_trip_state: body.trip_state || null,
   };
 
+  const over = await spendGate(request, env, 'extract');
+  if (over) return over;
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), EXTRACT_TIMEOUT_MS) : null;
 
@@ -615,6 +630,8 @@ async function sendViaResend(env, to, subject, text) {
 }
 
 async function handleAlertSend(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
   if (!env.RESEND_API_KEY) {
     return jsonError('Alert delivery not configured on this Worker (no RESEND_API_KEY secret)', 501, request, 'no_key');
   }
@@ -623,6 +640,8 @@ async function handleAlertSend(request, env) {
   if (parsed.err) return jsonError(parsed.err.msg, parsed.err.status, request, parsed.err.code);
   const v = validateAlertPayload(parsed.body);
   if (!v) return jsonError('Invalid alert payload', 400, request, 'bad_body');
+  const over = await spendGate(request, env, 'email');
+  if (over) return over;
   try {
     const res = await sendViaResend(env, v.to, '✈️ PIALAX · ' + v.event.subject, v.event.body_text);
     if (res.ok) {
@@ -654,6 +673,8 @@ function validateWatch(w) {
 }
 
 async function handleAlertsSync(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
   if (!env.ALERTS) {
     return jsonError('Alert watching not configured on this Worker (no ALERTS KV binding)', 501, request, 'no_kv');
   }
