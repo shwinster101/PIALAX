@@ -612,8 +612,8 @@ button{font-family:inherit;cursor:pointer;}
 #api-body{padding:9px 10px;border-top:1px solid var(--line);display:none;}
 #api-body.open{display:block;}
 .api-lbl{font-size:var(--fs-tiny);font-weight:700;color:var(--ink-muted);margin-bottom:3px;text-transform:uppercase;}
-#api-key-inp{width:100%;padding:6px 9px;background:var(--bg);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--rad-sm);font-size:var(--fs-body-s);font-family:var(--font-mono);margin-bottom:5px;}
-#api-key-inp:focus{outline:none;border-color:var(--accent);}
+#api-key-inp,#api-token-inp{width:100%;padding:6px 9px;background:var(--bg);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--rad-sm);font-size:var(--fs-body-s);font-family:var(--font-mono);margin-bottom:5px;}
+#api-key-inp:focus,#api-token-inp:focus{outline:none;border-color:var(--accent);}
 #api-key-inp::placeholder{color:var(--ink-muted);}
 .api-btn-row{display:flex;gap:5px;margin-bottom:5px;}
 .api-btn-row button{flex:1;padding:5px;border:none;border-radius:var(--rad-sm);font-size:var(--fs-caption);font-weight:800;cursor:pointer;transition:opacity var(--t-quick);}
@@ -1167,6 +1167,8 @@ body.idea-guest [data-trip-close]{display:none!important}
           <button id="api-apply">Connect Proxy</button>
           <button id="api-clear" style="display:none" aria-label="Disconnect proxy">✕ Disconnect</button>
         </div>
+        <div class="api-lbl">Organizer token (your devices only)</div>
+        <input id="api-token-inp" type="password" autocomplete="off" placeholder="Paste once — unlocks live fares" spellcheck="false"/>
         <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank" rel="noopener noreferrer">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:var(--fs-tiny);color:var(--success);margin-top:3px;"></div>
         <div id="api-quota-lbl" style="display:none;font-size:var(--fs-tiny);margin-top:3px;line-height:var(--lh-normal);"></div>
@@ -3922,6 +3924,43 @@ function setMode(mode) {
 // Deploy worker.js, then set PROXY_URL to your *.workers.dev URL.
 var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
 
+// PIA-114: paid Worker routes (fares, account, extract, alerts) need the
+// organizer token. It lives only on the organizer's own devices — never in
+// family links — and travels as the X-Pialax-Token header.
+var PROXY_TOKEN_STORAGE_KEY = 'pialax_proxy_token';
+function proxyToken() {
+  try { return localStorage.getItem(PROXY_TOKEN_STORAGE_KEY) || ''; } catch (e) { return ''; }
+}
+function setProxyToken(t) {
+  t = String(t || '').trim();
+  if (t && !/^[A-Za-z0-9_\-]{16,128}$/.test(t)) return false;
+  try { if (t) localStorage.setItem(PROXY_TOKEN_STORAGE_KEY, t); else localStorage.removeItem(PROXY_TOKEN_STORAGE_KEY); } catch (e) { return false; }
+  return true;
+}
+function paidHeaders(extra) {
+  var h = Object.assign({}, extra || {});
+  var t = proxyToken();
+  if (t) h['X-Pialax-Token'] = t;
+  return h;
+}
+// PIA-115: the Worker's fare cache answers with the ORIGINAL fetch time
+// (X-Fetched-At) and X-Proxy-Cache: HIT|MISS. A hit spent nothing upstream,
+// so it must not show as just-fetched or count against the quota.
+function fareStamp(res) {
+  var h = (res && res.headers && typeof res.headers.get === 'function') ? res.headers : null;
+  var at = h ? h.get('X-Fetched-At') : null;
+  var now = Date.now();
+  var t = at ? Date.parse(at) : NaN;
+  if (isNaN(t) || t > now) t = now;
+  return { at: new Date(t).toISOString(), ts: t, hit: !!(h && h.get('X-Proxy-Cache') === 'HIT') };
+}
+var _tokenHintShown = false;
+function noteMissingToken() {
+  if (_tokenHintShown) return;
+  _tokenHintShown = true;
+  if (typeof showShareToast === 'function') showShareToast('🔑 Add your organizer token in Advanced settings for live fares');
+}
+
 // Note: rapid-fire spam is prevented via the search button being disabled
 // during in-flight loadPrices, plus the in-flight dedupe map _flightInflight.
 // (Older _fetchDebounce setTimeout pattern was never wired up — removed.)
@@ -4029,6 +4068,7 @@ async function fetchFlights(from, to, dep, ret) {
     console.warn('SerpAPI fetch blocked by quota/session safety guard for ' + from + '→' + to);
     return getMock(from, to);
   }
+  if (!proxyToken()) { noteMissingToken(); return getMock(from, to); }
 
   var flightType = ret ? 1 : 2; // 1=round-trip, 2=one-way (SerpAPI 'type' param)
   var p = new URLSearchParams({
@@ -4043,7 +4083,7 @@ async function fetchFlights(from, to, dep, ret) {
   if (ret) p.set('return_date', ret);
   // Note: api_key is NOT sent from browser — the Worker injects it server-side
 
-  var url = PROXY_URL + '?' + p.toString();
+  var url = PROXY_URL + '/search?' + p.toString();
 
   var pr = (async function(){
     // Critical fix: AbortController + 15s timeout so a slow/unreachable Worker
@@ -4057,7 +4097,7 @@ async function fetchFlights(from, to, dep, ret) {
         var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
         var timeoutId = ctrl ? setTimeout(function(){ ctrl.abort(); }, 15000) : null;
         try {
-          var resp = await fetch(targetUrl, ctrl ? { signal: ctrl.signal } : undefined);
+          var resp = await fetch(targetUrl, Object.assign({ headers: paidHeaders() }, ctrl ? { signal: ctrl.signal } : {}));
           if (timeoutId) clearTimeout(timeoutId);
           // Retry once on 5xx (server-side hiccup); don't retry 4xx (client error, won't change)
           if (resp.status >= 500 && resp.status < 600 && attempts < 2) {
@@ -4089,9 +4129,11 @@ async function fetchFlights(from, to, dep, ret) {
       var res = await fetchWithTimeoutAndRetry(url);
       // Gap #3: handle rate limits and auth errors
       if (res.status === 429) { console.warn('SerpAPI rate limit hit'); markQuotaExceeded(); return getMock(from, to); }
+      if (res.status === 401) { noteMissingToken(); return getMock(from, to); }
       if (res.status === 403) { console.warn('SerpAPI auth error — check Worker SERPAPI_KEY secret'); return getMock(from, to); }
       if (!res.ok) throw new Error('HTTP ' + res.status);
 
+      var stamp = fareStamp(res);
       var json = await res.json();
       // Gap #4: defensive parsing — don't assume best_flights[0].price exists
       var best = (json && json.best_flights && json.best_flights.length > 0) ? json.best_flights[0] : null;
@@ -4132,11 +4174,13 @@ async function fetchFlights(from, to, dep, ret) {
       };
       // PIA-013 AC1: stamp every live entry with an ISO `lastVerified` timestamp before caching,
       // so the renderer (AC2) and persisted localStorage cache (PIA-005 AC4) both carry it.
-      data.lastVerified = new Date().toISOString();
-      _flightCache[key] = { data: data, ts: Date.now() };
+      // PIA-115: the fare's real age (a Worker cache hit keeps its original time);
+      // the client TTL runs from that moment, not from when it arrived.
+      data.lastVerified = stamp.at;
+      if (stamp.hit) { data.cached = true; data.edgeHit = true; }
+      _flightCache[key] = { data: data, ts: stamp.ts };
       persistFlightCache(); // PIA-005 AC4: write through to localStorage
-      // Live success → consume 1 quota unit
-      bumpQuota(1);
+      if (!stamp.hit) bumpQuota(1); // PIA-115: only a real SerpAPI call spends
       _lastFetchError = null; // F11/F14: a fresh success supersedes any prior warning
       return data;
     } catch(e) {
@@ -4239,7 +4283,7 @@ function freshnessLabel(entry, familyCode) {
   if (ageMs < 60*60*1000) ago = Math.max(1, Math.round(ageMs/60000)) + 'm ago';
   else if (ageMs <= DAY)  ago = Math.round(ageMs/(60*60*1000)) + 'h ago';
   else                    ago = Math.round(ageMs/DAY) + 'd ago';
-  if (ageMs <= DAY) {
+  if (ageMs < 60*60*1000) {
     return { tier:'LIVE',   label:'🟢 LIVE ' + ago,   short:'LIVE',   pillHtml:_freshPill('LIVE',   '🟢 LIVE '   + ago) };
   }
   return   { tier:'CACHED', label:'🟡 CACHED ' + ago, short:'CACHED', pillHtml:_freshPill('CACHED', '🟡 CACHED ' + ago) };
@@ -4421,11 +4465,11 @@ function updateQuotaWarningBanner() {
 // Surfaces the last-sync timestamp in the API panel so divergence is visible.
 var _serpApiAccountLastSync = null;
 async function syncSerpApiAccount() {
-  if (!PROXY_URL) return null;
+  if (!PROXY_URL || !proxyToken()) return null;
   try {
     var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var to = ctrl ? setTimeout(function(){ ctrl.abort(); }, 8000) : null;
-    var r = await fetch(PROXY_URL + '?action=account', ctrl ? { signal: ctrl.signal } : undefined);
+    var r = await fetch(PROXY_URL + '/account', Object.assign({ headers: paidHeaders() }, ctrl ? { signal: ctrl.signal } : {}));
     if (to) clearTimeout(to);
     if (!r.ok) { console.warn('[PIALAX] /account sync HTTP ' + r.status); return null; }
     var acct = await r.json();
@@ -5648,6 +5692,10 @@ function setFlag(name, on) {
 // Critical fix: persist PROXY_URL override to localStorage so user-entered
 // proxy URLs survive reload (no more re-typing on every visit).
 var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
+(function restoreProxyToken(){
+  var inp = document.getElementById('api-token-inp');
+  if (inp) inp.value = proxyToken();
+})();
 (function restoreProxyURL(){
   try {
     var saved = localStorage.getItem(PROXY_URL_STORAGE_KEY);
@@ -5671,6 +5719,14 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
 })();
 
 document.getElementById('api-apply').addEventListener('click', function(){
+  var tokInp = document.getElementById('api-token-inp');
+  if (tokInp && !setProxyToken(tokInp.value)) {
+    tokInp.style.borderColor = 'var(--red, #ef4444)';
+    tokInp.setAttribute('title', 'Token: 16–128 letters, digits, - or _');
+    setTimeout(function(){ tokInp.style.borderColor = ''; }, 3500);
+    return;
+  }
+  _tokenHintShown = false;
   var url=document.getElementById('api-key-inp').value.trim();
   if (url.endsWith('/')) url = url.slice(0, -1);
   // Security hardening: validate the proxy URL is https + Cloudflare workers.dev
@@ -7361,7 +7417,7 @@ function requestExtraction(event, tripState, todayIso, tz) {
   var timer = ctrl ? setTimeout(function () { ctrl.abort(); }, TA_EXTRACT_TIMEOUT_MS) : null;
   return fetch(PROXY_URL + '/extract', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: paidHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({
       today: todayIso,
       tz: tz || 'UTC',
@@ -8014,7 +8070,7 @@ function drainAlertOutbox() {
     }
     var evt = pending[idx++];
     fetch(PROXY_URL + '/alert', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST', headers: paidHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ to: email, event: evt })
     }).then(function (res) {
       if (res.status === 501) { _alertDeliveryOff = true; _alertDrainBusy = false; return; }
@@ -8068,7 +8124,7 @@ function syncAlertWatches() {
   var json = JSON.stringify(payload);
   if (json === _lastAlertSyncJson) return; // unchanged — no chatter
   fetch(PROXY_URL + '/alerts/sync', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: json
+    method: 'POST', headers: paidHeaders({ 'Content-Type': 'application/json' }), body: json
   }).then(function (res) {
     if (res.status === 501) { _alertSyncOff = true; return; }
     if (res.ok) _lastAlertSyncJson = json;
@@ -8077,7 +8133,7 @@ function syncAlertWatches() {
 
 // Debounced: renders happen in bursts; one drain + sync per settle is plenty.
 function scheduleAlertMaintenance() {
-  if (!PROXY_URL) return;
+  if (!PROXY_URL || !proxyToken()) return;
   if (_alertMaintTimer) clearTimeout(_alertMaintTimer);
   _alertMaintTimer = setTimeout(function () {
     _alertMaintTimer = null;
@@ -8090,8 +8146,9 @@ function sendTestAlertEmail() {
   var email = loadAlertSettings().email;
   if (!PROXY_URL) { showShareToast('Connect the proxy Worker first (Advanced Settings)'); return; }
   if (!email) { showShareToast('Set the alert email first (Advanced Settings)'); return; }
+  if (!proxyToken()) { noteMissingToken(); return; }
   fetch(PROXY_URL + '/alert', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    method: 'POST', headers: paidHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ to: email, event: {
       id: taNewId('test'), trip_id: 'test', type: 'test',
       subject: 'Test alert — delivery works',
@@ -9969,7 +10026,10 @@ function tripIdeaSharedState() { return _tripIdeaShared; } // read accessor (tes
 function tripIdeaOrganizerLink(id) {
   var k = _tripIdeaKeys()[id];
   if (!k || !k.edit_key) return '';
-  return window.location.origin + window.location.pathname.replace(/[^\/]*$/, '') + '?idea=' + encodeURIComponent(id) + '#k=' + encodeURIComponent(k.edit_key);
+  // PIA-114: the organizer's own token rides along so a second device of
+  // theirs unlocks live fares too. Family links never carry it.
+  var t = (typeof proxyToken === 'function') ? proxyToken() : '';
+  return window.location.origin + window.location.pathname.replace(/[^\/]*$/, '') + '?idea=' + encodeURIComponent(id) + '#k=' + encodeURIComponent(k.edit_key) + (t ? '&t=' + encodeURIComponent(t) : '');
 }
 function tripIdeaCopyOrganizerLink(id) {
   var url = tripIdeaOrganizerLink(id);
@@ -9981,6 +10041,8 @@ function _tripIdeaTakeHashKey(id) {
   var m = /(?:^#|&)k=([A-Za-z0-9_-]{32,64})(?:&|$)/.exec((window.location && window.location.hash) || '');
   if (!m) return false;
   var keys = _tripIdeaKeys(); if (!(keys[id] && keys[id].edit_key === m[1])) _tripIdeaSaveKey(id, m[1], '');
+  var t = /(?:^#|&)t=([A-Za-z0-9_-]{16,128})(?:&|$)/.exec(window.location.hash);
+  if (t && typeof setProxyToken === 'function') setProxyToken(t[1]);
   try { history.replaceState(null, '', window.location.pathname + window.location.search); } catch (e) {}
   return true;
 }

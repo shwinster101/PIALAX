@@ -88,116 +88,15 @@ export default {
       if (/^\/i\/[^/]*\/?$/.test(pathname)) return handleIdeaPreview(request, env, pathname.split('/')[2] || '');
     }
 
-    // ── Validate API key is configured ──
-    const apiKey = env.SERPAPI_KEY;
-    if (!apiKey) {
-      return jsonError('SERPAPI_KEY secret not configured on this Worker', 500, request);
-    }
-
-    // ── Build SerpAPI request from query params ──
-    const url = new URL(request.url);
-    const params = url.searchParams;
-
-    // Special-case: /account quota lookup. Returns total_searches_left, etc.
-    // so the dashboard can sync its local quota counter with the real plan.
-    if (params.get('action') === 'account') {
-      try {
-        const acctRes = await fetch('https://serpapi.com/account.json?api_key=' + apiKey, {
-          headers: { 'User-Agent': 'PIALAX-Proxy/1.0' },
-        });
-        const acctBody = await acctRes.text();
-        return new Response(acctBody, {
-          status: acctRes.status,
-          headers: {
-            'Content-Type': 'application/json',
-            'X-SerpAPI-Status': String(acctRes.status),
-            ...corsHeaders(request),
-          },
-        });
-      } catch (e) {
-        return jsonError('Account lookup failed: ' + e.message, 502, request);
-      }
-    }
-
-    // Safety: only allow google_flights engine for search calls
-    if (params.get('engine') !== 'google_flights') {
-      return jsonError('Only google_flights engine is allowed', 400, request);
-    }
-
-    // Remove any api_key the client may have sent (we inject our own)
-    params.delete('api_key');
-    params.set('api_key', apiKey);
-
-    const serpUrl = SERPAPI_BASE + '?' + params.toString();
-
-    // ── Edge cache (perf + quota saver) ──
-    // Build a cache key WITHOUT the api_key so the same flight query from
-    // any browser hits one cached response. TTL = 24 hr — flight prices
-    // for non-imminent dates don't move meaningfully day-to-day, and the
-    // family-collab use case means multiple people will load the same query.
-    // SerpAPI free tier = 250/month; this cache lets all 4 family members
-    // share a single fetch per (route + dates) pair per day.
-    const cacheParams = new URLSearchParams(params);
-    cacheParams.delete('api_key');
-    const cacheKey = new Request(SERPAPI_BASE + '?' + cacheParams.toString(), { method: 'GET' });
-    const cache = caches.default;
-    const cached = await cache.match(cacheKey);
-    if (cached) {
-      // Re-emit with CORS headers; signal cache hit + remaining quota header (best-effort)
-      const body = await cached.text();
-      const h = {
-        'Content-Type': 'application/json',
-        'X-SerpAPI-Status': cached.headers.get('X-SerpAPI-Status') || '200',
-        'X-Proxy-Cache': 'HIT',
-        ...corsHeaders(request),
-      };
-      const remaining = cached.headers.get('X-SerpAPI-Searches-Left');
-      if (remaining) h['X-SerpAPI-Searches-Left'] = remaining;
-      return new Response(body, { status: 200, headers: h });
-    }
-
-    try {
-      const serpRes = await fetch(serpUrl, {
-        headers: { 'User-Agent': 'PIALAX-Proxy/1.0' },
-      });
-
-      // Forward rate-limit / error status codes so the client can handle them
-      const body = await serpRes.text();
-
-      // SerpAPI returns a `search_metadata` block on success; for the account
-      // endpoint they expose remaining searches but not on /search.json. We
-      // still surface it if SerpAPI ever sends it as a header.
-      const remaining = serpRes.headers.get('X-SerpAPI-Searches-Left') || '';
-
-      const responseHeaders = {
-        'Content-Type': 'application/json',
-        'X-SerpAPI-Status': String(serpRes.status),
-        'X-Proxy-Cache': 'MISS',
-        ...corsHeaders(request),
-      };
-      if (remaining) responseHeaders['X-SerpAPI-Searches-Left'] = remaining;
-
-      const response = new Response(body, { status: serpRes.status, headers: responseHeaders });
-
-      // Only cache successful 200s for 24 hr (was 5 min) — see comment above.
-      if (serpRes.status === 200) {
-        const cacheable = new Response(body, {
-          status: 200,
-          headers: {
-            'Content-Type': 'application/json',
-            'X-SerpAPI-Status': '200',
-            ...(remaining ? { 'X-SerpAPI-Searches-Left': remaining } : {}),
-            'Cache-Control': 'public, max-age=86400',
-          },
-        });
-        // ctx.waitUntil isn't required; cache.put returns a promise but it's safe to await
-        await cache.put(cacheKey, cacheable);
-      }
-
-      return response;
-    } catch (e) {
-      return jsonError('Proxy error: ' + e.message, 502, request);
-    }
+    // PIA-114: fare searches live at /search (the bare root still works for
+    // older clients), the quota lookup at ?action=account. Every other GET path
+    // is a 404 — nothing falls through to a paid call any more.
+    let path = '/';
+    try { path = new URL(request.url).pathname.replace(/\/+$/, '') || '/'; } catch (e) { /* keep '/' */ }
+    const action = new URL(request.url).searchParams.get('action');
+    if ((path === '/' || path === '/account') && (action === 'account' || path === '/account')) return handleAccount(request, env);
+    if (path === '/' || path === '/search') return handleSearch(request, env);
+    return jsonError('Not found', 404, request, 'not_found');
   },
 
   // PIA-063: daily fare-alert check (Cron Trigger — see wrangler.toml).
@@ -217,7 +116,8 @@ function corsHeaders(request) {
   return {
     'Access-Control-Allow-Origin': allowed,
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type, X-Idea-Key',
+    'Access-Control-Allow-Headers': 'Content-Type, X-Idea-Key, X-Pialax-Token',
+    'Access-Control-Expose-Headers': 'X-Proxy-Cache, X-Fetched-At, X-SerpAPI-Status',
     'Access-Control-Max-Age': '86400',
   };
 }
@@ -401,7 +301,120 @@ function validateExtractionShape(obj) {
   return { ok: errs.length === 0, errors: errs };
 }
 
+// ── PIA-114: paid routes need the organizer token, then a daily budget ──────
+// Browser-side quota counters can't protect the account: anyone can call the
+// Worker directly. Paid routes (fare search, account lookup, note extraction,
+// alert email, alert config) need X-Pialax-Token == the PROXY_TOKEN secret
+// (constant-time compare). A missing secret refuses everything — fail closed.
+// With the token, each upstream call also counts against a per-UTC-day cap in
+// KV (quota:<kind>:<date>), so even a leaked token can only spend a day's cap.
+const PAID_CAPS = { serp: ['SERP_DAILY_CAP', 30], extract: ['EXTRACT_DAILY_CAP', 20], email: ['EMAIL_DAILY_CAP', 10] };
+function tokenOk(request, env) {
+  const want = typeof env.PROXY_TOKEN === 'string' ? env.PROXY_TOKEN : '';
+  const got = request.headers.get('X-Pialax-Token') || '';
+  if (want.length < 16 || got.length !== want.length) return false;
+  let diff = 0;
+  for (let i = 0; i < want.length; i++) diff |= want.charCodeAt(i) ^ got.charCodeAt(i);
+  return diff === 0;
+}
+function authGate(request, env) {
+  return tokenOk(request, env) ? null : jsonError('Organizer token required', 401, request, 'no_token');
+}
+// Call right before an upstream call. Returns a 429 Response when today's cap
+// is spent, otherwise records the spend and returns null.
+async function spendGate(request, env, kind) {
+  const kv = env.IDEAS;
+  if (!kv) return null;
+  const spec = PAID_CAPS[kind];
+  const cap = Math.max(0, Number(env[spec[0]] || spec[1]));
+  const key = 'quota:' + kind + ':' + new Date().toISOString().slice(0, 10);
+  const used = Number(await kv.get(key)) || 0;
+  if (used >= cap) return jsonError('Daily ' + kind + ' budget reached (' + cap + ')', 429, request, 'daily_cap');
+  await kv.put(key, String(used + 1), { expirationTtl: 2 * 86400 });
+  return null;
+}
+
+async function handleAccount(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
+  if (!env.SERPAPI_KEY) return jsonError('SERPAPI_KEY secret not configured on this Worker', 500, request);
+  try {
+    const acctRes = await fetch('https://serpapi.com/account.json?api_key=' + env.SERPAPI_KEY, { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
+    const acct = await acctRes.json().catch(() => ({}));
+    // Only the numbers the dashboard uses — never the account's email or keys.
+    const out = {};
+    ['plan_id', 'plan_name', 'searches_per_month', 'plan_searches_left', 'total_searches_left', 'this_month_usage', 'last_hour_searches'].forEach((k) => { if (k in acct) out[k] = acct[k]; });
+    return new Response(JSON.stringify(out), { status: acctRes.status, headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-SerpAPI-Status': String(acctRes.status) }, corsHeaders(request)) });
+  } catch (e) {
+    return jsonError('Account lookup failed', 502, request);
+  }
+}
+
+// Strict search shape: only these params, only these value forms. Anything
+// else (cache busters, no_cache, other engines) is a 400 before any spend.
+const SEARCH_PARAMS = {
+  engine: /^google_flights$/, departure_id: /^[A-Z]{3}$/, arrival_id: /^[A-Z]{3}$/,
+  outbound_date: /^\d{4}-\d{2}-\d{2}$/, return_date: /^\d{4}-\d{2}-\d{2}$/, type: /^[123]$/,
+  adults: /^[1-9]$/, currency: /^[A-Z]{3}$/, hl: /^[a-z]{2}$/, gl: /^[a-z]{2}$/, travel_class: /^[1-4]$/, stops: /^[0-3]$/,
+};
+function canonicalSearch(params) {
+  const keys = [];
+  for (const [k, v] of params) {
+    if (!Object.prototype.hasOwnProperty.call(SEARCH_PARAMS, k) || !SEARCH_PARAMS[k].test(v) || keys.indexOf(k) >= 0) return null;
+    keys.push(k);
+  }
+  if (params.get('engine') !== 'google_flights' || !params.get('departure_id') || !params.get('arrival_id') || !params.get('outbound_date')) return null;
+  return keys.sort().map((k) => k + '=' + params.get(k)).join('&');
+}
+
+async function handleSearch(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
+  const canonical = canonicalSearch(new URL(request.url).searchParams);
+  if (!canonical) return jsonError('Unsupported search parameters', 400, request, 'bad_params');
+  if (!env.SERPAPI_KEY) return jsonError('SERPAPI_KEY secret not configured on this Worker', 500, request);
+  const hit = await fareCacheGet(env, canonical);
+  if (hit) return fareResponse(request, hit.body, 'HIT', hit.fetched_at, 200);
+  const over = await spendGate(request, env, 'serp');
+  if (over) return over;
+  try {
+    const serpRes = await fetch(SERPAPI_BASE + '?' + canonical + '&api_key=' + encodeURIComponent(env.SERPAPI_KEY), { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
+    const body = await serpRes.text();
+    const fetchedAt = new Date().toISOString();
+    if (serpRes.status === 200) await fareCachePut(env, canonical, { fetched_at: fetchedAt, body });
+    return fareResponse(request, body, 'MISS', fetchedAt, serpRes.status);
+  } catch (e) {
+    return jsonError('Proxy error', 502, request);
+  }
+}
+function fareResponse(request, body, state, fetchedAt, status) {
+  return new Response(body, { status, headers: Object.assign({
+    'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-SerpAPI-Status': String(status),
+    'X-Proxy-Cache': state, 'X-Fetched-At': fetchedAt,
+  }, corsHeaders(request)) });
+}
+// PIA-115: the fare cache lives in KV (the Cache API does not persist on
+// *.workers.dev), and every entry keeps the time SerpAPI was actually called.
+const FARE_TTL_SECONDS = 86400;
+async function fareKey(canonical) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(canonical));
+  return 'fare:' + Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+async function fareCacheGet(env, canonical) {
+  if (!env.IDEAS) return null;
+  try {
+    const v = JSON.parse((await env.IDEAS.get(await fareKey(canonical))) || 'null');
+    return v && typeof v.body === 'string' && v.fetched_at ? v : null;
+  } catch (e) { return null; }
+}
+async function fareCachePut(env, canonical, entry) {
+  if (!env.IDEAS) return;
+  try { await env.IDEAS.put(await fareKey(canonical), JSON.stringify(entry), { expirationTtl: FARE_TTL_SECONDS }); } catch (e) { /* cache is best-effort */ }
+}
+
 async function handleExtract(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
   const apiKey = env.ANTHROPIC_KEY || env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     // 501, not 500: "this Worker does not offer extraction", which is exactly
@@ -443,6 +456,8 @@ async function handleExtract(request, env) {
     confirmed_trip_state: body.trip_state || null,
   };
 
+  const over = await spendGate(request, env, 'extract');
+  if (over) return over;
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const timer = ctrl ? setTimeout(() => ctrl.abort(), EXTRACT_TIMEOUT_MS) : null;
 
@@ -615,6 +630,8 @@ async function sendViaResend(env, to, subject, text) {
 }
 
 async function handleAlertSend(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
   if (!env.RESEND_API_KEY) {
     return jsonError('Alert delivery not configured on this Worker (no RESEND_API_KEY secret)', 501, request, 'no_key');
   }
@@ -623,6 +640,8 @@ async function handleAlertSend(request, env) {
   if (parsed.err) return jsonError(parsed.err.msg, parsed.err.status, request, parsed.err.code);
   const v = validateAlertPayload(parsed.body);
   if (!v) return jsonError('Invalid alert payload', 400, request, 'bad_body');
+  const over = await spendGate(request, env, 'email');
+  if (over) return over;
   try {
     const res = await sendViaResend(env, v.to, '✈️ PIALAX · ' + v.event.subject, v.event.body_text);
     if (res.ok) {
@@ -654,6 +673,8 @@ function validateWatch(w) {
 }
 
 async function handleAlertsSync(request, env) {
+  const denied = authGate(request, env);
+  if (denied) return denied;
   if (!env.ALERTS) {
     return jsonError('Alert watching not configured on this Worker (no ALERTS KV binding)', 501, request, 'no_kv');
   }
@@ -971,9 +992,9 @@ function ideaGuestView(doc) {
   out.decision = Object.assign({}, out.decision, { chosen: strip(out.decision && out.decision.chosen), estimate_total: null, actual_total: null, delta_pct: null });
   return out;
 }
-async function ideaView(request, doc) {
+async function ideaView(request, doc, serialized) {
   const organizer = await ideaIsOrganizer(request, doc);
-  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true, can_book: true, can_legs: true };
+  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true, can_book: true, can_legs: true, serialized: !!serialized };
 }
 function ideaLog(doc, event, by) {
   doc.log = (doc.log || []).concat([{ at: new Date().toISOString(), event, by: by || null }]).slice(-IDEA_MAX_LOG);
@@ -1036,8 +1057,9 @@ async function handleIdea(request, env, pathname) {
 
   if (request.method === 'GET') {
     if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
+    if (env.IDEA_ROOM) return ideaRoomCall(request, env, id, 'GET', null);
     const doc = await ideaRead(env, id);
-    return doc ? ideaOk(request, await ideaView(request, doc)) : jsonError('Trip idea not found', 404, request, 'not_found');
+    return doc ? ideaOk(request, await ideaView(request, doc, false)) : jsonError('Trip idea not found', 404, request, 'not_found');
   }
 
   let parsed;
@@ -1057,13 +1079,92 @@ async function handleIdea(request, env, pathname) {
     };
     ideaLog(doc, 'created');
     await ideaWrite(env, doc);
-    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true }, 201);
+    // PIA-116: seed the trip's room too, so the first answers don't depend on
+    // KV having propagated the new doc to whichever colo serves them.
+    if (env.IDEA_ROOM) await ideaRoomStub(env, doc.id).fetch('https://idea-room/init', { method: 'POST', body: JSON.stringify({ doc }) });
+    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true, serialized: !!env.IDEA_ROOM }, 201);
   }
 
   if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
-  const doc = await ideaRead(env, id);
-  if (!doc) return jsonError('Trip idea not found', 404, request, 'not_found');
+  if (env.IDEA_ROOM) return ideaRoomCall(request, env, id, pathname, body);
+  return ideaMutate(request, env, pathname, body, ideaKvStore(env, id), false);
+}
 
+// ── PIA-116: one Durable Object per trip serializes every write ─────────────
+// KV is last-write-wins: two family members answering at the same moment each
+// read the doc, add their answer, and put it back — the later put erased the
+// earlier answer. Now every read and write of a trip goes through its IdeaRoom
+// (one instance per id, a queue inside), and each mutation applies only its
+// own change to the latest doc. The room writes through to KV, so /i/ link
+// previews keep reading KV. With no IDEA_ROOM binding (older deploys, unit
+// tests) the plain KV path still runs and responses say `serialized: false`.
+const IDEA_FWD_HEADERS = ['Origin', 'X-Idea-Key', 'User-Agent'];
+function ideaRoomStub(env, id) { return env.IDEA_ROOM.get(env.IDEA_ROOM.idFromName(id)); }
+async function ideaRoomCall(request, env, id, op, body) {
+  const headers = {};
+  IDEA_FWD_HEADERS.forEach((h) => { const v = request.headers.get(h); if (v) headers[h] = v; });
+  return ideaRoomStub(env, id).fetch('https://idea-room/op', { method: 'POST', headers, body: JSON.stringify({ op, id, body }) });
+}
+function ideaKvStore(env, id) {
+  return { read: () => ideaRead(env, id), write: (doc) => ideaWrite(env, doc) };
+}
+export class IdeaRoom {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+    this.queue = Promise.resolve();
+  }
+  fetch(request) {
+    // One request at a time, start to finish — including the awaits on
+    // hashing and KV that would otherwise let the runtime interleave them.
+    const run = this.queue.then(() => this.handle(request));
+    this.queue = run.catch(() => {});
+    return run;
+  }
+  store(id) {
+    const storage = this.state.storage;
+    return {
+      read: async () => {
+        let doc = await storage.get('doc');
+        if (!doc) {
+          doc = await ideaRead(this.env, id);   // first touch: migrate the KV doc
+          if (doc) await storage.put('doc', doc);
+        }
+        return doc || null;
+      },
+      write: async (doc) => {
+        doc.updated_at = new Date().toISOString();
+        await storage.put('doc', doc);
+        if (typeof storage.setAlarm === 'function') await storage.setAlarm(Date.now() + IDEA_TTL_SECONDS * 1000);
+        await this.env.IDEAS.put('idea:' + doc.id, JSON.stringify(doc), { expirationTtl: IDEA_TTL_SECONDS });
+      },
+    };
+  }
+  async handle(request) {
+    let msg;
+    try { msg = await request.json(); } catch (e) { return jsonError('Bad room request', 400, request, 'bad_body'); }
+    if (new URL(request.url).pathname === '/init') {
+      if (msg && msg.doc && IDEA_ID_RE.test(msg.doc.id) && !(await this.state.storage.get('doc'))) {
+        await this.state.storage.put('doc', msg.doc);
+        if (typeof this.state.storage.setAlarm === 'function') await this.state.storage.setAlarm(Date.now() + IDEA_TTL_SECONDS * 1000);
+      }
+      return new Response('{"ok":true}', { headers: { 'Content-Type': 'application/json' } });
+    }
+    const id = msg && msg.id;
+    if (!IDEA_ID_RE.test(id || '')) return jsonError('Missing or malformed id', 400, request, 'bad_id');
+    const store = this.store(id);
+    if (msg.op === 'GET') {
+      const doc = await store.read();
+      return doc ? ideaOk(request, await ideaView(request, doc, true)) : jsonError('Trip idea not found', 404, request, 'not_found');
+    }
+    return ideaMutate(request, this.env, msg.op, msg.body || {}, store, true);
+  }
+  async alarm() { await this.state.storage.deleteAll(); }   // the trip's KV doc expired too
+}
+
+async function ideaMutate(request, env, pathname, body, store, serialized) {
+  const doc = await store.read();
+  if (!doc) return jsonError('Trip idea not found', 404, request, 'not_found');
   if (pathname === '/idea/respond') {
     if (doc.decision && (doc.decision.stage === 'booked' || doc.decision.stage === 'dropped')) {
       return jsonError('This trip idea is closed', 409, request, 'closed');
@@ -1079,8 +1180,8 @@ async function handleIdea(request, env, pathname) {
     if (prev && prev.booked && resp.status !== 'out') { resp.booked = true; resp.booked_at = prev.booked_at || null; }
     doc.responses[resp.member] = resp;
     ideaLog(doc, 'rsvp:' + resp.status, resp.member);
-    await ideaWrite(env, doc);
-    return ideaOk(request, await ideaView(request, doc));
+    await store.write(doc);
+    return ideaOk(request, await ideaView(request, doc, serialized));
   }
 
   // PIA-106: "I booked ✓" — flips one traveler's booked flag, nothing else.
@@ -1094,8 +1195,8 @@ async function handleIdea(request, env, pathname) {
     if (!r || (r.status !== 'in' && r.status !== 'maybe')) return jsonError('Answer in or maybe first', 400, request, 'answer_first');
     r.booked = body.booked; r.booked_at = body.booked ? new Date().toISOString() : null;
     ideaLog(doc, (body.booked ? 'booked:' : 'unbooked:') + member.code, member.code);
-    await ideaWrite(env, doc);
-    return ideaOk(request, await ideaView(request, doc));
+    await store.write(doc);
+    return ideaOk(request, await ideaView(request, doc, serialized));
   }
 
   if (pathname === '/idea/update') {
@@ -1114,8 +1215,8 @@ async function handleIdea(request, env, pathname) {
       if (err) return jsonError(err, 400, request, 'bad_decision');
       ideaLog(doc, 'decision:' + doc.decision.stage, 'organizer');
     }
-    await ideaWrite(env, doc);
-    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true });
+    await store.write(doc);
+    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true, serialized });
   }
   return jsonError('Not found', 404, request);
 }

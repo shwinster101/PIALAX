@@ -12,6 +12,49 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-117) — trust release gate
+- `scripts/test-trust.sh` (48 checks, in preflight) proves the three trust outcomes:
+  - **A1:** every paid route, called without the token (or with a wrong one, a spoofed Origin, a
+    cache-buster, `no_cache`, an unknown path or past the daily cap), makes zero upstream calls.
+  - **A2:** three racing answers, a "booked" and an organizer edit all survive through
+    `IdeaRoom`. A control run shows the old KV path losing 4 of 5.
+  - **A3:** a repeated search is a HIT with the original `X-Fetched-At` and 1 upstream call, and
+    both dashboards keep that age and don't count quota.
+- `scripts/test-trip-idea.sh`: the Trip Idea Builder suite now actually runs in preflight.
+- `scripts/verify-live.sh`: A1, A2 and A3 against the deployed Worker, with the token taken from
+  `PIALAX_TOKEN` only. It aborts before spending anything if the Worker isn't gated.
+
+### Fixed (PIA-116)
+- Family answers no longer overwrite each other. Every write to a shared trip (an RSVP, "I booked
+  ✓", an organizer edit or decision) now goes through that trip's own Durable Object (`IdeaRoom`),
+  one change at a time, and is applied to the latest version. Before, two people answering at the
+  same moment could erase one answer.
+- Existing trips move into their room the first time they're touched. The room writes through to
+  KV, so link previews keep working. Responses report `serialized: true`.
+- `wrangler.toml` adds the `IDEA_ROOM` binding and a SQLite-class migration (Workers Free plan).
+
+### Fixed (PIA-115)
+- Fares now show their real age. A fare served from the Worker cache keeps its original fetch
+  time (`X-Fetched-At`), so it reads "🟡 CACHED 5h ago" instead of "🟢 LIVE 1m ago". LIVE now means
+  fetched within the last hour.
+- Cache hits no longer count against the monthly SerpAPI quota, the per-session cap or the "live
+  calls" counter. Only a real upstream search spends.
+- The 24h client cache now runs from when the fare was fetched, not from when it arrived.
+
+### Security (PIA-114) — breaking Worker API
+- Paid Worker routes now require the organizer token (`X-Pialax-Token`, checked against the
+  `PROXY_TOKEN` secret) and stop at server-side daily caps (`SERP_DAILY_CAP` 30,
+  `EXTRACT_DAILY_CAP` 20, `EMAIL_DAILY_CAP` 10 → 429). The gated routes are fare search, the account
+  check, `/extract`, `/alert` and `/alerts/sync`. Without the token they return 401 and spend nothing.
+- Fare search moves to `GET /search` and accepts only allowlisted, validated params. `no_cache`
+  and unknown params get 400, and an unknown path gets 404 instead of a SerpAPI call. The
+  account check moves to `GET /account` and returns only quota fields.
+- Fares are cached in KV for 24h, keyed by the canonical params, and stored with their original
+  fetch time (`X-Proxy-Cache`, `X-Fetched-At`).
+- Client: there's a new **Organizer token** field under Advanced. The organizer link (`#k=…&t=…`)
+  carries the token to your other devices and strips it from the address bar. Without a token,
+  fares stay as samples and show a one-time hint. Family links never carry the token.
+
 ### Changed (PIA-113)
 - iPhone Family tab, opened from a trip with a family RSVP: it now leads with the trip, e.g.
   "🦃 Thanksgiving · Fri Nov 20 – Sun Nov 29 · All 3 in", with **👥 Open RSVP** and **Planner ▸**.

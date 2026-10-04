@@ -1,0 +1,9 @@
+scripts/test-trust.js
+scripts/test-trust.sh
+scripts/test-trip-idea.sh
+scripts/verify-live.sh
+scripts/preflight.sh
+CLAUDE.md
+CHANGELOG.md
+scripts/messages/PIA-117.msg
+scripts/messages/PIA-117.files

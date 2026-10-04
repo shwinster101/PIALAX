@@ -65,3 +65,16 @@ crons = []
 [[kv_namespaces]]
 binding = "IDEAS"
 id = "e328e84ab0b34e8aa45c9ffa8b65bf3b"
+
+# PIA-116: one Durable Object per shared trip serializes RSVP / booked /
+# organizer writes (KV alone is last-write-wins, so simultaneous answers could
+# erase each other). SQLite-backed class = available on the Workers Free plan.
+# `wrangler deploy` applies the migration once; the room loads each existing
+# trip from IDEAS KV on first touch and writes through to it.
+[[durable_objects.bindings]]
+name = "IDEA_ROOM"
+class_name = "IdeaRoom"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["IdeaRoom"]
