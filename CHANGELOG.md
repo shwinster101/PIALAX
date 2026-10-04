@@ -12,6 +12,18 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-117) — trust release gate
+- `scripts/test-trust.sh` (48 checks, in preflight) proves the three trust outcomes:
+  - **A1:** every paid route, called without the token (or with a wrong one, a spoofed Origin, a
+    cache-buster, `no_cache`, an unknown path or past the daily cap), makes zero upstream calls.
+  - **A2:** three racing answers, a "booked" and an organizer edit all survive through
+    `IdeaRoom`. A control run shows the old KV path losing 4 of 5.
+  - **A3:** a repeated search is a HIT with the original `X-Fetched-At` and 1 upstream call, and
+    both dashboards keep that age and don't count quota.
+- `scripts/test-trip-idea.sh`: the Trip Idea Builder suite now actually runs in preflight.
+- `scripts/verify-live.sh`: A1, A2 and A3 against the deployed Worker, with the token taken from
+  `PIALAX_TOKEN` only. It aborts before spending anything if the Worker isn't gated.
+
 ### Fixed (PIA-116)
 - Family answers no longer overwrite each other. Every write to a shared trip (an RSVP, "I booked
   ✓", an organizer edit or decision) now goes through that trip's own Durable Object (`IdeaRoom`),

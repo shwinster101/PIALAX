@@ -138,7 +138,7 @@ fi
 # deliberately NOT run here — it needs a browser and takes real wall-clock
 # time, so it stays a manual/CI-optional check rather than a pre-push gate.
 step "8/8  trip-assistant test suites"
-suites=(test-core.sh test-extraction.sh test-worker.sh)
+suites=(test-core.sh test-extraction.sh test-worker.sh test-trip-idea.sh test-trust.sh)
 for s in "${suites[@]}"; do
   sf="$HERE/scripts/$s"
   if [ ! -f "$sf" ]; then

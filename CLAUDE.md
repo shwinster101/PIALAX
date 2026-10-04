@@ -13,7 +13,11 @@ No build system, no framework, no package.json. Node test suites live in `script
 - `index.html` — device-detect redirect shim (desktop vs mobile), preserves query string + hash.
 - `pialax.html` (~5,000 lines) — desktop dashboard. Single-file vanilla HTML/CSS/JS, IIFE + strict mode. d3 v7 + topojson from cdnjs with **SRI integrity hashes** (primary tamper guard) and a strict CSP meta tag.
 - `pialax-mobile.html` (~5,100 lines) — mobile dashboard. **Largely duplicated logic** from `pialax.html`; every behavior change must be mirrored in both files (mobile parity is a standing requirement). A shared `pialax-core.js` extraction is a deferred backlog item (PIA-008). Exception: the Trip Idea Builder block is kept identical in both HTML files and in `scripts/trip-idea-builder.js`; `scripts/test-trip-idea.js` fails if the three drift.
-- `worker.js` + `wrangler.toml` — Cloudflare Worker proxy for SerpAPI (Google Flights engine only). Injects the `SERPAPI_KEY` secret, adds CORS for the Pages origin, and edge-caches responses 24h keyed without the api_key. Deploy with `wrangler deploy`.
+- `worker.js` + `wrangler.toml` — Cloudflare Worker. Deploy with `wrangler deploy`.
+  - **Paid routes need the organizer token** (`X-Pialax-Token` == `PROXY_TOKEN` secret, PIA-114) and stop at per-day caps (`SERP_/EXTRACT_/EMAIL_DAILY_CAP`): `GET /search` (strict allowlisted params; it injects `SERPAPI_KEY`), `GET /account`, `/extract`, `/alert`, `/alerts/sync`. Any unknown GET path → 404. Never add a paid route without `authGate` + `spendGate`.
+  - **Fare cache:** IDEAS KV `fare:<sha256 canonical params>`, 24h, which keeps the original `X-Fetched-At`; a HIT spends nothing (PIA-115).
+  - **Shared trips (`/idea*`, free):** each trip's writes are serialized through the `IdeaRoom` Durable Object, which writes through to KV (PIA-116). Mutations apply only their own delta.
+  - Client: the token lives in localStorage `pialax_proxy_token` (Advanced → Organizer token, or the organizer link `#k=…&t=…`). Never put it in family links.
 
 Inside the HTML files, state lives in a single `S` object plus localStorage (flight-price cache, quota counter `pialax_serpapi_quota`, proxy URL override, watchlist). URL query/hash carry shareable state (`syncURL`/`restoreFromURL`). Key domain logic to preserve on any edit:
 
@@ -23,7 +27,9 @@ Inside the HTML files, state lives in a single `S` object plus localStorage (fli
 
 ## Commands
 
-There is no build step. Verification is `bash scripts/preflight.sh` (exit 0 = GO): file presence, no `console.log` in shipping HTML, secret scan, `<script>` tag balance, SRI hash freshness (`scripts/verify-sri.sh`), `bash -n` on all scripts, optional shellcheck (`STRICT=1` to make it blocking).
+There is no build step. Verification is `bash scripts/preflight.sh` (exit 0 = GO; its suites include `test-trust.sh`, the A1/A2/A3 trust gate, and `test-trip-idea.sh`): file presence, no `console.log` in shipping HTML, secret scan, `<script>` tag balance, SRI hash freshness (`scripts/verify-sri.sh`), `bash -n` on all scripts, optional shellcheck (`STRICT=1` to make it blocking).
+
+After any Worker deploy, run `PIALAX_TOKEN=… bash scripts/verify-live.sh`. It needs network and spends 1 SerpAPI search, and it aborts before spending if the Worker isn't gated. Trust tickets close only when it passes.
 
 Shipping is envelope-based (see `PIALAX_HQ.md` §2.4): write `scripts/messages/<PIA-id>.msg` (conventional-commit message) and `<PIA-id>.files` (path manifest, must include both envelope files), then `bash scripts/ship.sh <PIA-id>` runs preflight, stages exactly the manifest, commits, and pushes.
 
