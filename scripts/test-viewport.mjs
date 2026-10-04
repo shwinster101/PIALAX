@@ -725,7 +725,7 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.locator('[data-cal-day="2026-11-26"]').click();
     await page.locator('[data-cal-day="2026-11-30"]').click();
     const range = await page.locator('.trip-idea-cal-sel span').innerText();
-    if (cal.month === 'November 2026' && cal.picked === 0 && cal.minCell >= 44 && /Nov 26–30 · 4 nights/.test(range))
+    if (cal.month === 'November 2026' && cal.picked === 0 && cal.minCell >= 44 && /Thu Nov 26 – Mon Nov 30 · 4 nights/.test(range))
       ok(`${label} — calendar opens on ${cal.month} with nothing picked, day cells ≥44px (${Math.round(cal.minCell)}), two taps → "${range}"`);
     else bad(`${label} — calendar wrong: ${JSON.stringify(cal)} range "${range}"`);
     const send = page.locator('#trip-idea-builder-primary');
@@ -762,10 +762,10 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     const win = await page.evaluate(() => ({ text: (document.querySelector('.trip-idea-window') || {}).textContent || '',
       rows: document.querySelectorAll('.trip-idea-strip .trip-idea-strip-name').length, over: document.documentElement.scrollWidth > innerWidth,
       stripFits: (() => { const st = document.querySelector('.trip-idea-strip'); return !!st && st.scrollWidth <= st.clientWidth + 1; })() }));
-    if (/Everyone’s there Nov 26–29/.test(win.text) && win.rows === 4 && win.stripFits && !win.over)
+    if (/Everyone’s there Thu Nov 26 – Sun Nov 29/.test(win.text) && win.rows === 5 && win.stripFits && !win.over)
       ok(`${label} — "${win.text}" with a day strip (hosts + 2 travelers) that fits the screen`);
     else bad(`${label} — window/strip wrong: ${JSON.stringify(win)}`);
-    if (sendOk && /Anjo/.test(card) && /In/.test(card) && /Nov 26–30/.test(card) && /Change my answer/.test(card) && !errors.length)
+    if (sendOk && /Anjo/.test(card) && /In/.test(card) && /Thu Nov 26 – Mon Nov 30/.test(card) && /Change my answer/.test(card) && !errors.length)
       ok(`${label} — "Send my answer" on screen (≥44px); after saving, a reload opens straight to "${card.slice(0, 40)}…"`);
     else bad(`${label} — answer/remember failed: send ${JSON.stringify(sendBox)} card "${card}" errors ${JSON.stringify(errors)}`);
   } catch (e) {
@@ -784,7 +784,7 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     await page.waitForSelector('.trip-idea-mine, .trip-idea-rsvp-form', { timeout: 8000 });
     const a = await page.evaluate(() => ({ guest: document.body.classList.contains('idea-guest'), close: !!document.querySelector('.trip-idea-close') && document.querySelector('.trip-idea-close').offsetParent !== null,
       body: document.getElementById('trip-idea-builder-body').innerText }));
-    if (!a.guest && a.close && /Whole family ≈ \$900/.test(a.body) && /Proposed Nov 25–29/.test(a.body))
+    if (!a.guest && a.close && /Whole family ≈ \$900/.test(a.body) && /Wed Nov 25 – Sun Nov 29/.test(a.body))
       ok(`${label} — organizer device keeps the dashboard (✕), exact dates and the family cost`);
     else bad(`${label} — organizer view wrong: ${JSON.stringify({ guest: a.guest, close: a.close, body: a.body.slice(0, 200) })}`);
   } catch (e) {

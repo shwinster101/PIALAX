@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-110)
+- Dates show the weekday: "Fri Nov 20 – Sun Nov 29". This applies on the RSVP (window, answers,
+  calendar range, Book panel), the Trips card's per-person links and the Family tab's date pills.
+  The day strip has a weekday row, with weekends highlighted.
+
 ### Changed (PIA-109)
 - Thanksgiving plan (Dad wants the Peoria parade): fly in direct to **PIA Fri Nov 20**, fly home
   from **ORD Sun Nov 29**, booked as two one-ways. The Trips card's flight links are now per

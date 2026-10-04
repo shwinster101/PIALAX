@@ -643,7 +643,10 @@ function tripIdeaDayStripHtml(doc, win) {
   if (_tripIdeaNights(from, to) > 20) { from = _tripIdeaIsoAdd(win.from, -3) < from ? from : _tripIdeaIsoAdd(win.from, -3); to = _tripIdeaIsoAdd(from, 20) < to ? _tripIdeaIsoAdd(from, 20) : to; }
   var days = []; for (var d = from; d <= to; d = _tripIdeaIsoAdd(d, 1)) days.push(d);
   var every = days.length > 14 ? 2 : 1, cols = 'grid-template-columns:minmax(64px,auto) repeat(' + days.length + ',minmax(0,1fr))';
-  var head = '<span class="trip-idea-strip-name">' + TRIP_IDEA_MONTHS[+days[0].slice(5, 7) - 1] + '</span>' + days.map(function(d, i){
+  var wd = function(d){ return new Date(d + 'T12:00:00Z').getUTCDay(); };
+  var head = '<span class="trip-idea-strip-name"></span>' + days.map(function(d){
+    return '<span class="trip-idea-strip-wd' + (wd(d) === 0 || wd(d) === 6 ? ' we' : '') + (d >= win.from && d <= win.to ? ' win' : '') + '">' + 'SMTWTFS'.charAt(wd(d)) + '</span>';
+  }).join('') + '<span class="trip-idea-strip-name">' + TRIP_IDEA_MONTHS[+days[0].slice(5, 7) - 1] + '</span>' + days.map(function(d, i){
     return '<span class="trip-idea-strip-day' + (d >= win.from && d <= win.to ? ' win' : '') + '">' + (i % every ? '' : +d.slice(8)) + '</span>';
   }).join('');
   var body = rows.map(function(x){
@@ -1160,12 +1163,17 @@ function tripIdeaAskFamily(itemId) {
 // without navigator.share copies the same text + link. Text and url are passed
 // separately so Messages renders one link preview instead of a duplicate.
 var TRIP_IDEA_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+// PIA-110: dates say the weekday — "Fri Nov 20 – Sun Nov 29".
+var TRIP_IDEA_WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+function tripIdeaDay(iso) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso || ''));
+  if (!m) return '';
+  return TRIP_IDEA_WEEKDAYS[new Date(Date.UTC(+m[1], +m[2] - 1, +m[3])).getUTCDay()] + ' ' + TRIP_IDEA_MONTHS[+m[2] - 1] + ' ' + (+m[3]);
+}
 function tripIdeaDateRange(dep, ret) {
-  var p = function(s){ var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || '')); return m ? {m:+m[2] - 1, d:+m[3]} : null; };
-  var a = p(dep), b = p(ret);
+  var a = tripIdeaDay(dep), b = tripIdeaDay(ret);
   if (!a) return 'dates TBD';
-  if (!b) return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d;
-  return TRIP_IDEA_MONTHS[a.m] + ' ' + a.d + '–' + (b.m === a.m ? '' : TRIP_IDEA_MONTHS[b.m] + ' ') + b.d;
+  return b && ret !== dep ? a + ' – ' + b : a;
 }
 // PIA-098: a rough time of month ("late Nov"), never exact days — each person
 // picks their own arrive/leave dates in the RSVP.

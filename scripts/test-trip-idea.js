@@ -76,7 +76,7 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     check(counts['2026-11-21'] === 1 && counts['2026-11-23'] === 1 && !counts['2026-11-24'] && !counts['2026-11-20'],
       `${file}: day dots count others who are in/maybe (not "out", not yourself, not hosts)`);
     const html = api.tripIdeaRangeCalendarHtml('2026-11', '2026-11-24', '2026-11-29', counts, '2026-11-22');
-    check(/November 2026/.test(html) && /data-cal-day="2026-11-21"[^>]*disabled/.test(html) && /is-start/.test(html) && /Nov 24–29 · 5 nights/.test(html),
+    check(/November 2026/.test(html) && /data-cal-day="2026-11-21"[^>]*disabled/.test(html) && /is-start/.test(html) && /Tue Nov 24 – Sun Nov 29 · 5 nights/.test(html),
       `${file}: calendar marks past days, the picked range and its nights`);
   }
   // PIA-102: best-coverage window — everyone, partial (who's missing and why), hosts never limit it.
@@ -84,11 +84,11 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     const members = [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }, { code: 'RDU', label: 'Kiran', airport: 'RDU' }];
     const mk = (responses) => ({ idea: { members, destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' } }, responses });
     const all = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-30' }, RDU: { status: 'maybe', available_from: '2026-11-25', available_to: '2026-11-28' } }));
-    check(all && all.everyone && all.from === '2026-11-25' && all.to === '2026-11-28' && all.there === 3 && /Everyone’s there Nov 25–28/.test(api.tripIdeaWindowText(all)),
+    check(all && all.everyone && all.from === '2026-11-25' && all.to === '2026-11-28' && all.there === 3 && /Everyone’s there Wed Nov 25 – Sat Nov 28/.test(api.tripIdeaWindowText(all)),
       `${file}: everyone overlaps → "Everyone’s there Nov 25–28" (hosts don't limit it)`);
     const part = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-28' }, LGA: { status: 'in', available_from: '2026-11-24', available_to: '2026-11-28' }, RDU: { status: 'in', available_from: '2026-11-29', available_to: '2026-11-30' } }));
     const txt = api.tripIdeaWindowText(part);
-    check(part && !part.everyone && part.from === '2026-11-24' && part.to === '2026-11-28' && part.there === 2 && part.total === 3 && /Best window Nov 24–28 · 2 of 3 there \(Kiran: here Nov 29–30\)/.test(txt),
+    check(part && !part.everyone && part.from === '2026-11-24' && part.to === '2026-11-28' && part.there === 2 && part.total === 3 && /Best window Tue Nov 24 – Sat Nov 28 · 2 of 3 there \(Kiran: here Sun Nov 29 – Mon Nov 30\)/.test(txt),
       `${file}: partial overlap → best window, "2 of 3 there", and who's missing why`);
     const nodates = api.ideaBestWindow(mk({ LAX: { status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' }, LGA: { status: 'maybe' } }));
     check(nodates && nodates.total === 2 && nodates.missing[0].why === 'no dates yet' && api.ideaBestWindow(mk({})) === null && api.tripIdeaWindowText(null) === 'No dates picked yet',
@@ -439,7 +439,7 @@ async function sharedIdeaSuite() {
     check(api.tripIdeaLooseWhen('2026-11-25') === 'late Nov' && api.tripIdeaLooseWhen('2026-11-15') === 'mid-Nov' && api.tripIdeaLooseWhen('') === '',
       `${file}: loose time of month (early / mid- / late)`);
     check(/still need an answer from Anjo/.test(api.tripIdeaShareText(after, 'nudge')), `${file}: nudge names who is still waiting`);
-    check(api.tripIdeaDateRange('2026-10-30', '2026-11-02') === 'Oct 30–Nov 2' && api.tripIdeaDateRange('', '') === 'dates TBD',
+    check(api.tripIdeaDateRange('2026-10-30', '2026-11-02') === 'Fri Oct 30 – Mon Nov 2' && api.tripIdeaDateRange('2026-11-20', '2026-11-20') === 'Fri Nov 20' && api.tripIdeaDateRange('', '') === 'dates TBD',
       `${file}: date ranges read naturally across months`);
     {
       const calls = [];
@@ -553,7 +553,7 @@ async function staggeredArrivalsSuite() {
     check(intents.length === 2 && lax.depISO === '2026-11-21' && lax.retISO === '2026-11-29' && lga.depISO === '2026-11-24' && lga.retISO === '2026-11-29' &&
       !intents.some((x) => x.from === 'PIA'), `${file}: each traveler's flight search uses their own dates (LAX Nov 21, LGA Nov 24); hosts get none`);
     const labels = api.watchlistGFLinks(item).map((l) => l.label);
-    check(labels.some((l) => /^Me \(Nov 21–29\)/.test(l)) && labels.some((l) => /^Anjo \(Nov 24–29\)/.test(l)),
+    check(labels.some((l) => /^Me \(Sat Nov 21 – Sun Nov 29\)/.test(l)) && labels.some((l) => /^Anjo \(Tue Nov 24 – Sun Nov 29\)/.test(l)),
       `${file}: flight links are labelled with each person's dates`);
 
     api.S.linkedIdeaId = id; api.S.depDate = new Date('2026-11-25T12:00:00'); api.S.retDate = new Date('2026-11-29T12:00:00');
