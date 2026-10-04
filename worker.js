@@ -901,7 +901,14 @@ function validateIdea(raw) {
   };
 }
 
-function validateResponse(raw, members) {
+// PIA-111: which airport of the destination's hub each traveler flies into and
+// home from (Peoria = PIA or O'Hare; New York = LGA or JFK). Anything else is dropped.
+const IDEA_HUBS = [['PIA', 'ORD'], ['LGA', 'JFK']];
+function ideaHubAirports(dest) {
+  const hub = IDEA_HUBS.find((h) => h.indexOf(dest) >= 0);
+  return hub || (dest ? [dest] : []);
+}
+function validateResponse(raw, members, dest) {
   if (!raw || typeof raw !== 'object') return null;
   const member = members.find((m) => m.code === raw.member);
   if (!member || !Object.prototype.hasOwnProperty.call(IDEA_STATUSES, raw.status)) return null;
@@ -913,6 +920,8 @@ function validateResponse(raw, members) {
     origin: ideaIata(raw.origin) || member.airport,
     available_from: from, available_to: to,
     note: ideaStr(raw.note, 280),
+    arrive_at: ideaHubAirports(dest).indexOf(ideaIata(raw.arrive_at)) >= 0 ? ideaIata(raw.arrive_at) : '',
+    leave_from: ideaHubAirports(dest).indexOf(ideaIata(raw.leave_from)) >= 0 ? ideaIata(raw.leave_from) : '',
     updated_at: new Date().toISOString(),
   };
 }
@@ -964,7 +973,7 @@ function ideaGuestView(doc) {
 }
 async function ideaView(request, doc) {
   const organizer = await ideaIsOrganizer(request, doc);
-  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true, can_book: true };
+  return { doc: organizer ? ideaPublic(doc) : ideaGuestView(doc), organizer, preview: true, can_book: true, can_legs: true };
 }
 function ideaLog(doc, event, by) {
   doc.log = (doc.log || []).concat([{ at: new Date().toISOString(), event, by: by || null }]).slice(-IDEA_MAX_LOG);
@@ -1048,7 +1057,7 @@ async function handleIdea(request, env, pathname) {
     };
     ideaLog(doc, 'created');
     await ideaWrite(env, doc);
-    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true, can_book: true }, 201);
+    return ideaOk(request, { id: doc.id, edit_key: editKey, doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true }, 201);
   }
 
   if (!IDEA_ID_RE.test(id)) return jsonError('Missing or malformed id', 400, request, 'bad_id');
@@ -1059,10 +1068,14 @@ async function handleIdea(request, env, pathname) {
     if (doc.decision && (doc.decision.stage === 'booked' || doc.decision.stage === 'dropped')) {
       return jsonError('This trip idea is closed', 409, request, 'closed');
     }
-    const resp = validateResponse(body, doc.idea.members);
+    const dest = (doc.idea.recommendation && doc.idea.recommendation.airport) || (doc.idea.destination && doc.idea.destination.airport) || '';
+    const resp = validateResponse(body, doc.idea.members, dest);
     if (!resp) return jsonError('Invalid response', 400, request, 'bad_body');
     // PIA-106: changing an answer keeps "booked" — unless they're now out.
     const prev = doc.responses[resp.member];
+    // PIA-111: an answer that doesn't mention airports keeps the earlier picks.
+    if (prev && !('arrive_at' in body)) resp.arrive_at = prev.arrive_at || '';
+    if (prev && !('leave_from' in body)) resp.leave_from = prev.leave_from || '';
     if (prev && prev.booked && resp.status !== 'out') { resp.booked = true; resp.booked_at = prev.booked_at || null; }
     doc.responses[resp.member] = resp;
     ideaLog(doc, 'rsvp:' + resp.status, resp.member);
@@ -1102,7 +1115,7 @@ async function handleIdea(request, env, pathname) {
       ideaLog(doc, 'decision:' + doc.decision.stage, 'organizer');
     }
     await ideaWrite(env, doc);
-    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true, can_book: true });
+    return ideaOk(request, { doc: ideaPublic(doc), organizer: true, preview: true, can_book: true, can_legs: true });
   }
   return jsonError('Not found', 404, request);
 }

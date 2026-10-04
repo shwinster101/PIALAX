@@ -748,6 +748,18 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
         /LAX to PIA on 2026-11-21 one way/.test(dq(book.rows[0].href)) && /Anjo/.test(book.rows[1].text) && /In PIA ↗/.test(book.rows[1].text) && /Home ORD ↗/.test(book.rows[1].text) && !book.over)
       ok(`${label} — "✈️ Fly in · PIA" opens LGA→PIA Nov 26; the Book panel gives each traveler In PIA + Home ORD on their own dates`);
     else bad(`${label} — book step wrong: ${JSON.stringify(book)}`);
+    // PIA-111: In / Home toggles — Home → PIA makes one round-trip search; it's saved with the answer.
+    await page.locator('[data-leg-home="PIA"]').click();
+    await page.waitForSelector('.trip-idea-mine [data-leg="round"]', { timeout: 5000 });
+    await page.reload({ waitUntil: 'load' });
+    await page.waitForSelector('.trip-idea-mine', { timeout: 8000 });
+    const legs = await page.evaluate(() => ({ round: (document.querySelector('.trip-idea-mine [data-leg="round"]') || {}).href || '',
+      pressed: [...document.querySelectorAll('.trip-idea-seg [aria-pressed="true"]')].map((b) => b.textContent).join(',') }));
+    if (/LGA to PIA on 2026-11-26 through 2026-11-30/.test(decodeURIComponent(legs.round)) && legs.pressed === 'PIA,PIA')
+      ok(`${label} — In/Home toggles: Home → PIA gives one round-trip search (LGA ⇄ PIA), still picked after a reload`);
+    else bad(`${label} — leg toggles wrong: ${JSON.stringify(legs)}`);
+    await page.locator('[data-leg-home="ORD"]').click();
+    await page.waitForSelector('.trip-idea-mine [data-leg="home"]', { timeout: 5000 });
     // PIA-106: "I booked ✓" → the card, the strip and "1 of 2 booked" all show it, after a reload too.
     await page.locator('.trip-idea-ibooked').click();
     await page.waitForSelector('.trip-idea-mine .trip-idea-booked-tag', { timeout: 5000 });

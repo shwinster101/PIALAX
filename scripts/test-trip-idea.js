@@ -34,6 +34,7 @@ EXPECT.push('tripIdeaBookedCount', 'tripIdeaCanBook'); // PIA-106
 EXPECT.push('tripIdeaCardMoreHtml', 'tripIdeaShareCard'); // PIA-107
 EXPECT.push('tripIdeaAltAirports'); // PIA-108
 EXPECT.push('tripIdeaOpenJaw'); // PIA-109
+EXPECT.push('tripIdeaLegPick', 'tripIdeaLegLinks'); // PIA-111
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -117,6 +118,14 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     check(rows[0].openJaw && /LAX to PIA on 2026-11-21 one way/.test(decodeURIComponent(rows[0].openJaw.inUrl)) && /ORD to LAX on 2026-11-29 one way/.test(decodeURIComponent(rows[0].openJaw.outUrl)) &&
       rows[1].openJaw && /ORD to JFK on 2026-11-30 one way/.test(decodeURIComponent(rows[1].openJaw.outUrl)),
       `${file}: Peoria primary = fly in PIA + home from ORD, one-ways on each person's own dates`);
+    // PIA-111: per-traveler airports — default in PIA / home ORD; same both ways = one round trip.
+    {
+      const d = api.tripIdeaLegPick('PIA', {}), o = api.tripIdeaLegPick('PIA', { arrive_at: 'ORD', leave_from: 'ORD' }), junk = api.tripIdeaLegPick('PIA', { arrive_at: 'RDU' });
+      const rt = api.tripIdeaLegLinks('LGA', o, '2026-11-20', '2026-11-29', 1), ow = api.tripIdeaLegLinks('LGA', d, '2026-11-20', '2026-11-29', 1);
+      check(d.in === 'PIA' && d.home === 'ORD' && junk.in === 'PIA' && rt.round && /LGA to ORD on 2026-11-20 through 2026-11-29/.test(decodeURIComponent(rt.url)) &&
+        !ow.round && /ORD to LGA on 2026-11-29 one way/.test(decodeURIComponent(ow.outUrl)) && api.tripIdeaLegPick('RDU', {}).hub.length === 1,
+        `${file}: leg picks — default in PIA/home ORD, ORD both ways is one round trip, non-hub picks ignored`);
+    }
     // PIA-108: Peoria is the PIA/ORD hub — every traveler also gets an O'Hare search, on the same own dates.
     check(rows[0].alts.length === 1 && rows[0].alts[0].to === 'ORD' && /LAX to ORD on 2026-11-21 through 2026-11-29/.test(decodeURIComponent(rows[0].alts[0].url)) &&
       api.tripIdeaAltAirports('LGA').join() === 'JFK' && api.tripIdeaAltAirports('RDU').length === 0,

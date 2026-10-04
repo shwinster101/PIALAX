@@ -12,6 +12,15 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-111) — needs `wrangler deploy`
+- Each traveler picks their own airports on their RSVP card: **In [PIA][ORD]** and
+  **Home [PIA][ORD]**. One tap saves it. The same airport both ways gives one "Round trip · ORD ↗"
+  search; different airports give "✈️ In PIA ↗" and "🏠 Home ORD ↗". The Book panel and the Trips
+  card's per-person links follow each person's picks. The default stays in PIA, home ORD.
+- The Worker stores the picks (`arrive_at` / `leave_from`), limited to the destination's hub
+  airports (PIA/ORD, LGA/JFK), and keeps them when someone changes their answer or marks booked.
+  The toggles appear once the Worker supports them.
+
 ### Changed (PIA-110)
 - Dates show the weekday: "Fri Nov 20 – Sun Nov 29". This applies on the RSVP (window, answers,
   calendar range, Book panel), the Trips card's per-person links and the Family tab's date pills.
