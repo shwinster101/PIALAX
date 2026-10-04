@@ -12,6 +12,26 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-10-04
+
+Book from the RSVP, and the trust gate.
+- **RSVP → booking:**
+  - Book for these dates / Find my flight;
+  - who's booked;
+  - per-leg airports (PIA or ORD, LGA or JFK);
+  - weekdays on every date;
+  - a calmer RSVP screen and buttons;
+  - the Family tab leads with the linked trip.
+- **Trust (PIA-114…117):**
+  - Paid Worker routes need the organizer token and stop at daily caps.
+  - Cached fares keep their real age and don't spend quota.
+  - Shared-trip writes are serialized by the `IdeaRoom` Durable Object.
+  - Gate: `test-trust.sh` runs in preflight, and `verify-live.sh` passed 21/21 against the deployed
+    Worker on 2026-10-04 (merge `0248830`).
+- **Versioning note:** PIA-114 changes the Worker API, which `CHANGELOG` rules would call MAJOR.
+  It ships as a minor because the API's only client, the dashboards on Pages, changed in the same
+  merge, and no shared link, URL param or localStorage key breaks.
+
 ### Added (PIA-117) — trust release gate
 - `scripts/test-trust.sh` (48 checks, in preflight) proves the three trust outcomes:
   - **A1:** every paid route, called without the token (or with a wrong one, a spoofed Origin, a
