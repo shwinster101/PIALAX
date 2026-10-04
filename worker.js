@@ -322,16 +322,73 @@ function authGate(request, env) {
 }
 // Call right before an upstream call. Returns a 429 Response when today's cap
 // is spent, otherwise records the spend and returns null.
+// PIA-118: with the SPEND_METER Durable Object the check-and-reserve is one
+// queued step, so a burst of parallel calls can't all see the same "used" and
+// overshoot the cap. Without it (older deploys) the KV counter below is a soft cap.
+const spendDay = () => new Date().toISOString().slice(0, 10);
+function spendCap(env, kind) {
+  const spec = PAID_CAPS[kind];
+  return Math.max(0, Number(env[spec[0]] || spec[1]));
+}
+function spendMeter(env) { return env.SPEND_METER.get(env.SPEND_METER.idFromName('spend')); }
 async function spendGate(request, env, kind) {
+  const cap = spendCap(env, kind);
+  if (env.SPEND_METER) {
+    const res = await spendMeter(env).fetch('https://spend-meter/spend', { method: 'POST', body: JSON.stringify({ kind, cap }) });
+    const j = await res.json().catch(() => null);
+    return j && j.ok ? null : jsonError('Daily ' + kind + ' budget reached (' + cap + ')', 429, request, 'daily_cap');
+  }
   const kv = env.IDEAS;
   if (!kv) return null;
-  const spec = PAID_CAPS[kind];
-  const cap = Math.max(0, Number(env[spec[0]] || spec[1]));
-  const key = 'quota:' + kind + ':' + new Date().toISOString().slice(0, 10);
+  const key = 'quota:' + kind + ':' + spendDay();
   const used = Number(await kv.get(key)) || 0;
   if (used >= cap) return jsonError('Daily ' + kind + ' budget reached (' + cap + ')', 429, request, 'daily_cap');
   await kv.put(key, String(used + 1), { expirationTtl: 2 * 86400 });
   return null;
+}
+// Today's spend per kind, for /account. `exact` says whether the meter backs it.
+async function spendStatus(env) {
+  const out = { exact: !!env.SPEND_METER };
+  let used = {};
+  if (env.SPEND_METER) {
+    used = await (await spendMeter(env).fetch('https://spend-meter/status')).json().catch(() => ({}));
+  } else if (env.IDEAS) {
+    for (const kind of Object.keys(PAID_CAPS)) used[kind] = Number(await env.IDEAS.get('quota:' + kind + ':' + spendDay())) || 0;
+  }
+  Object.keys(PAID_CAPS).forEach((kind) => { out[kind] = { used: Number(used[kind]) || 0, cap: spendCap(env, kind) }; });
+  return out;
+}
+export class SpendMeter {
+  constructor(state, env) {
+    this.state = state;
+    this.env = env;
+    this.queue = Promise.resolve();
+  }
+  fetch(request) {
+    const run = this.queue.then(() => this.handle(request));
+    this.queue = run.catch(() => {});
+    return run;
+  }
+  async usedToday(kind) {
+    const rec = await this.state.storage.get('spend:' + kind);
+    return rec && rec.day === spendDay() ? rec.used : 0;   // a new UTC day starts at 0
+  }
+  async handle(request) {
+    const reply = (obj) => new Response(JSON.stringify(obj), { headers: { 'Content-Type': 'application/json' } });
+    if (request.method === 'GET') {
+      const out = {};
+      for (const kind of Object.keys(PAID_CAPS)) out[kind] = await this.usedToday(kind);
+      return reply(out);
+    }
+    let msg;
+    try { msg = await request.json(); } catch (e) { return reply({ ok: false }); }
+    if (!msg || !Object.prototype.hasOwnProperty.call(PAID_CAPS, msg.kind)) return reply({ ok: false });
+    const cap = Math.max(0, Number(msg.cap) || 0);
+    const used = await this.usedToday(msg.kind);
+    if (used >= cap) return reply({ ok: false, used, cap });
+    await this.state.storage.put('spend:' + msg.kind, { day: spendDay(), used: used + 1 });
+    return reply({ ok: true, used: used + 1, cap });
+  }
 }
 
 async function handleAccount(request, env) {
@@ -344,6 +401,7 @@ async function handleAccount(request, env) {
     // Only the numbers the dashboard uses — never the account's email or keys.
     const out = {};
     ['plan_id', 'plan_name', 'searches_per_month', 'plan_searches_left', 'total_searches_left', 'this_month_usage', 'last_hour_searches'].forEach((k) => { if (k in acct) out[k] = acct[k]; });
+    out.spend = await spendStatus(env);   // PIA-118: today's Worker-side spend vs caps
     return new Response(JSON.stringify(out), { status: acctRes.status, headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-SerpAPI-Status': String(acctRes.status) }, corsHeaders(request)) });
   } catch (e) {
     return jsonError('Account lookup failed', 502, request);

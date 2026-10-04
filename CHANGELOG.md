@@ -12,6 +12,22 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-119)
+- Advanced → Admin: the Proxy URL box now shows the Worker in use instead of a blank placeholder.
+  Tapping the button to save a token no longer drops the dashboard to Mock Data. A blank box now
+  means "keep the built-in Worker"; only ✕ Disconnect turns live fares off.
+- The button is now **Save & connect**, with a status line under the token: "No token yet",
+  "✗ Token rejected" or "✓ Token accepted · Worker searches today 1/30".
+
+### Fixed (PIA-118)
+- The daily spend caps are now exact. A new `SpendMeter` Durable Object checks and reserves each
+  paid call one at a time. Before, a burst of parallel calls all read the same KV counter, so 10
+  calls against a cap of 3 could all spend.
+- `/account` (organizer token required) now reports today's Worker-side spend per kind:
+  `spend: { serp: {used, cap}, extract, email, exact }`.
+- `wrangler.toml` adds the `SPEND_METER` binding and migration `v2`. Without the binding, the old
+  KV counter still works and reports `exact: false`.
+
 ## [1.3.0] — 2026-10-04
 
 Book from the RSVP, and the trust gate.

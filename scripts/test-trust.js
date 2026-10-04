@@ -79,7 +79,7 @@ function makeRooms(IdeaRoom, env, gate) {
 }
 
 (async function main() {
-  console.log('▶ test-trust: A1 unauthorized spends nothing · A2 racing answers survive · A3 cache hits keep age');
+  console.log('▶ test-trust: A1 unauthorized spends nothing · A2 racing answers survive · A3 cache hits keep age · B exact caps');
 
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-trust-'));
   const tmpFile = path.join(tmpDir, 'worker.mjs');
@@ -241,6 +241,44 @@ function makeRooms(IdeaRoom, env, gate) {
     const r3 = await get(env, '/search?' + SEARCH);
     check(r3.status === 401, 'A3 a cache HIT still needs the token (no free reads of cached fares)');
   }
+  // ── B (PIA-118): exact caps under a parallel burst ──────────────────────────
+  // KV reads are held at a barrier so all racers read the counter at once; the
+  // SpendMeter Durable Object must still let exactly `cap` of them spend.
+  async function burst(metered, kind, cap, n) {
+    const gate = { on: true, n };
+    const env = baseEnv({ IDEAS: makeKv(gate), SERP_DAILY_CAP: String(cap), EXTRACT_DAILY_CAP: String(cap) });
+    if (metered) env.SPEND_METER = makeRooms(mod.SpendMeter, env);
+    const before = upstream.length;
+    const reqs = [];
+    for (let i = 0; i < n; i++) {
+      const d = '2027-02-' + String(i + 1).padStart(2, '0');   // all different → all cache misses
+      reqs.push(kind === 'serp'
+        ? get(env, '/search?' + SEARCH.replace('2026-11-20', d), T)
+        : post(env, '/extract', { today: '2026-10-04', tz: 'UTC', trip_state: null, context_event: { id: 'c' + i, raw_text: 'Fly LAX to PIA on ' + d } }, T));
+    }
+    const statuses = (await Promise.all(reqs)).map((r) => r.status);
+    gate.on = false;
+    return { env, calls: upstream.length - before, capped: statuses.filter((s) => s === 429).length };
+  }
+  check(typeof mod.SpendMeter === 'function', 'B worker.js exports the SpendMeter Durable Object class');
+  {
+    const r = await burst(true, 'serp', 3, 10);
+    check(r.calls === 3 && r.capped === 7, 'B1 10 parallel searches with SERP_DAILY_CAP=3 → exactly 3 SerpAPI calls, 7 × 429', `calls ${r.calls}, 429s ${r.capped}`);
+    const acct = await json(await get(r.env, '/account', T));
+    check(acct && acct.spend && acct.spend.exact === true && acct.spend.serp.used === 3 && acct.spend.serp.cap === 3,
+      'B3 /account reports today\'s Worker spend from the meter (serp 3/3, exact:true)', JSON.stringify(acct && acct.spend));
+  }
+  {
+    const r = await burst(true, 'extract', 1, 5);
+    check(r.calls === 1 && r.capped === 4, 'B1 5 parallel /extract calls with EXTRACT_DAILY_CAP=1 → exactly 1 Anthropic call', `calls ${r.calls}, 429s ${r.capped}`);
+  }
+  {
+    const r = await burst(false, 'serp', 3, 10);
+    check(r.calls > 3, `B2 control: without the meter the same burst overshoots the cap (${r.calls} calls for a cap of 3 — the test bites)`, 'calls ' + r.calls);
+    const acct = await json(await get(r.env, '/account', T));
+    check(acct && acct.spend && acct.spend.exact === false, 'B3 without the meter /account says exact:false');
+  }
+
   // Client side, both dashboards: fetchFlights runs for real in a sandbox with
   // a fetch that answers like a Worker cache HIT from five hours ago.
   for (const file of ['pialax.html', 'pialax-mobile.html']) {
