@@ -6,6 +6,20 @@ Maintained by the Deployment team (T4) after every ticket closes.
 
 ## Closed
 
+- **2026-10-04 · PIA-118, PIA-119** · Exact spend caps; the token settings can't drop the dashboard to mock (v1.3.1).
+  - **PIA-118:** the `SpendMeter` Durable Object checks and reserves each paid call one at a time.
+    - In-process: 10 parallel searches with cap 3 → exactly 3 upstream calls; the KV control → 10.
+    - `/account` reports `spend {used, cap, exact}`.
+  - **PIA-119:** the Advanced URL box shows the Worker in use; a blank box keeps it; the button is **Save & connect**; a status line shows the token state.
+    - Root cause: tapping Connect with the box blank set `PROXY_URL=''` (seen on the iPhone).
+  - **Live proof:** `verify-live.sh` passed 22/22 against Worker version `0acad2c7` (merge `38f814e`). Results:
+    - A1 usage stayed at 41 → 41;
+    - A2 `serialized:true`, all writes survived;
+    - A3 MISS → HIT, usage 41 → 42;
+    - B3 meter exact, serp 0 → 1 of 30.
+  - **Auditors:** don't re-flag "daily cap is soft / overshoots under concurrency" or "saving the token disconnects the proxy".
+  - Shipped: PR #25.
+
 - **2026-10-04 · PIA-114 … PIA-117** · Trust release gate (v1.3.0).
   - **PIA-114:** the Worker's paid routes (`/search`, `/account`, `/extract`, `/alert`, `/alerts/sync`) require `X-Pialax-Token` == the `PROXY_TOKEN` secret, plus per-day caps → 429. Search params are strictly allowlisted, and unknown GET → 404.
   - **PIA-115:** the KV fare cache keeps the original `X-Fetched-At`; a hit spends no SerpAPI search and no client quota.
@@ -16,7 +30,7 @@ Maintained by the Deployment team (T4) after every ticket closes.
     - 3 parallel answers + a booked flag all survived, `serialized:true`;
     - MISS → HIT with the same `X-Fetched-At`, and usage 40 → 41.
   - **Pre-fix evidence** (dry run, same day): unauthenticated searches got 200, and a 4-way race lost 2 of 4 changes.
-  - **Auditors:** don't re-flag "browser-only quota protection", "open SerpAPI proxy" or "last-write-wins RSVP". The known residual is the soft cap: the KV counter can overshoot under a parallel burst.
+  - **Auditors:** don't re-flag "browser-only quota protection", "open SerpAPI proxy" or "last-write-wins RSVP". The soft-cap residual was closed by PIA-118 (below).
   - Shipped: PR #23.
 
 - **2026-07-24 · PIA-030 … PIA-040** · Projects UI overhaul (both dashboards) — see `RELEASE_UI_OVERHAUL.md`.
