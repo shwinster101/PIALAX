@@ -2080,11 +2080,12 @@ body.idea-guest [data-trip-close]{display:none!important}
         <div class="api-lbl">Proxy URL (Cloudflare Worker)</div>
         <input id="api-key-inp" type="text" placeholder="https://pialax-proxy.YOUR-SUB.workers.dev" spellcheck="false"/>
         <div class="api-btn-row">
-          <button id="api-apply">Connect Proxy</button>
+          <button id="api-apply">Save &amp; connect</button>
           <button id="api-clear" style="display:none" aria-label="Disconnect proxy">✕ Disconnect</button>
         </div>
         <div class="api-lbl">Organizer token (your devices only)</div>
         <input id="api-token-inp" type="password" autocomplete="off" placeholder="Paste once — unlocks live fares" spellcheck="false"/>
+        <div id="api-token-status" style="font-size:var(--fs-tiny);color:var(--ink-muted);margin:-2px 0 4px;" aria-live="polite"></div>
         <div class="api-note">API key stays in the Worker · <a href="https://serpapi.com/google-flights-api" target="_blank" rel="noopener noreferrer">Setup guide in worker.js</a></div>
         <div id="api-calls-lbl" style="display:none;font-size:var(--fs-tiny);color:var(--success);margin-top:3px;"></div>
         <div id="api-quota-lbl" style="display:none;font-size:var(--fs-tiny);margin-top:3px;line-height:var(--lh-normal);"></div>
@@ -4719,6 +4720,7 @@ function setMode(mode) {
 
 // ── API LAYER ────────────────────────────────────────────────────
 var PROXY_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+var PROXY_URL_DEFAULT = PROXY_URL; // PIA-119: a blank URL box means "keep the built-in Worker"
 
 // PIA-114: paid Worker routes (fares, account, extract, alerts) need the
 // organizer token. It lives only on the organizer's own devices — never in
@@ -4749,6 +4751,17 @@ function fareStamp(res) {
   var t = at ? Date.parse(at) : NaN;
   if (isNaN(t) || t > now) t = now;
   return { at: new Date(t).toISOString(), ts: t, hit: !!(h && h.get('X-Proxy-Cache') === 'HIT') };
+}
+// PIA-119: say plainly whether this device's organizer token works.
+function setTokenStatus(state, acct) {
+  var el = document.getElementById('api-token-status');
+  if (!el) return;
+  var sp = acct && acct.spend && acct.spend.serp;
+  var txt = state === 'ok' ? '✓ Token accepted' + (sp ? ' · Worker searches today ' + sp.used + '/' + sp.cap : '')
+          : state === 'bad' ? '✗ Token rejected — check for a typo, or paste the new one if it was rotated'
+          : 'No token yet — live fares stay off on this device';
+  el.textContent = txt;
+  el.style.color = state === 'ok' ? 'var(--success, #10b981)' : state === 'bad' ? 'var(--red, #ef4444)' : 'var(--ink-muted)';
 }
 var _tokenHintShown = false;
 function noteMissingToken() {
@@ -5129,14 +5142,17 @@ function updateQuotaWarningBanner() {
 
 var _serpApiAccountLastSync = null;
 async function syncSerpApiAccount() {
-  if (!PROXY_URL || !proxyToken()) return null;
+  if (!PROXY_URL) return null;
+  if (!proxyToken()) { setTokenStatus('none'); return null; }
   try {
     var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var to = ctrl ? setTimeout(function(){ ctrl.abort(); }, 8000) : null;
     var r = await fetch(PROXY_URL + '/account', Object.assign({ headers: paidHeaders() }, ctrl ? { signal: ctrl.signal } : {}));
     if (to) clearTimeout(to);
+    if (r.status === 401) { setTokenStatus('bad'); return null; }
     if (!r.ok) return null;
     var acct = await r.json();
+    setTokenStatus('ok', acct);
     var totalLeft = (typeof acct.total_searches_left === 'number') ? acct.total_searches_left : null;
     var monthlyBudget = (typeof acct.searches_per_month === 'number') ? acct.searches_per_month : null;
     var monthUsed = (typeof acct.this_month_usage === 'number') ? acct.this_month_usage : null;
@@ -6390,6 +6406,14 @@ var PROXY_URL_STORAGE_KEY = 'pialax_proxy_url';
   } catch(e) {}
 })();
 
+// PIA-119: show the Worker actually in use, so the box is never blank and
+// "Save & connect" (e.g. after pasting a token) can't silently drop to mock data.
+(function showProxyInUse(){
+  var inp = document.getElementById('api-key-inp');
+  if (inp && !inp.value && PROXY_URL) inp.value = PROXY_URL;
+  if (!proxyToken()) setTokenStatus('none');
+})();
+
 document.getElementById('api-apply').addEventListener('click', function(){
   var tokInp = document.getElementById('api-token-inp');
   if (tokInp && !setProxyToken(tokInp.value)) {
@@ -6399,7 +6423,7 @@ document.getElementById('api-apply').addEventListener('click', function(){
     return;
   }
   _tokenHintShown = false;
-  var url=document.getElementById('api-key-inp').value.trim();
+  var url=document.getElementById('api-key-inp').value.trim() || PROXY_URL || PROXY_URL_DEFAULT;
   if (url.endsWith('/')) url = url.slice(0, -1);
   // Security hardening: only accept https *.workers.dev proxy URLs
   if (url) {

@@ -901,6 +901,42 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
   }
 }
 
+// ---- PIA-119: pasting the organizer token can't knock the dashboard into mock ----
+// The URL box used to be blank (the built-in Worker URL never showed), so
+// tapping the button to save a token set PROXY_URL to '' — mock data.
+for (const file of ['pialax-mobile.html', 'pialax.html']) {
+  const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+  const TOK = 'viewport-token-0123456789abcdef';
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx.route(/^https:\/\/(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net)\//, (r) => r.fulfill({ status: 404, body: '' }));
+  await ctx.route(W + '/**', (route) => {
+    const q = route.request();
+    const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Pialax-Token, X-Idea-Key', 'content-type': 'application/json' };
+    if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+    if (new URL(q.url()).pathname === '/account') {
+      const good = q.headers()['x-pialax-token'] === TOK;
+      return route.fulfill({ status: good ? 200 : 401, headers: cors, body: good ? JSON.stringify({ this_month_usage: 41, searches_per_month: 1000, total_searches_left: 959, spend: { serp: { used: 1, cap: 30 }, exact: true } }) : '{"code":"no_token"}' });
+    }
+    return route.fulfill({ status: 404, headers: cors, body: '{}' });
+  });
+  const label = `${file} organizer token (PIA-119)`;
+  try {
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(ROOT, file)).href, { waitUntil: 'load' });
+    const before = await page.evaluate(() => ({ url: document.getElementById('api-key-inp').value, status: document.getElementById('api-token-status').textContent }));
+    if (before.url === W && /No token yet/.test(before.status)) ok(`${label} — URL box shows the Worker in use; status says "${before.status}"`);
+    else bad(`${label} — boot: url "${before.url}", status "${before.status}"`);
+    for (const [tok, want] of [['wrong-token-0123456789abcdef', /Token rejected/], [TOK, /Token accepted · Worker searches today 1\/30/]]) {
+      await page.evaluate((t) => { document.getElementById('api-token-inp').value = t; document.getElementById('api-apply').click(); }, tok);
+      await page.waitForFunction((re) => new RegExp(re).test(document.getElementById('api-token-status').textContent), want.source, { timeout: 5000 }).catch(() => {});
+      const after = await page.evaluate(() => ({ status: document.getElementById('api-token-status').textContent, saved: localStorage.getItem('pialax_proxy_url'), tok: localStorage.getItem('pialax_proxy_token') }));
+      if (want.test(after.status) && after.saved === W && after.tok === tok) ok(`${label} — "Save & connect" keeps the Worker and shows "${after.status}"`);
+      else bad(`${label} — after save: ${JSON.stringify(after)}`);
+    }
+  } catch (e) { bad(`${label} — ${e.message}`); }
+  await ctx.close();
+}
+
 await browser.close();
 
 console.log('');
