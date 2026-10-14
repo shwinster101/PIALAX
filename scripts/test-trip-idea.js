@@ -534,6 +534,47 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
 }
 
+// PIA-126: one pickup run — landing times and the gap, from cached offers only.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  let fetchCalls = 0;
+  const names = ['tripPickupTimeline', 'tripPickupBestPair', 'tripPickupHtml', 'tripLegOffers'];
+  const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { fetch: () => { fetchCalls++; return Promise.reject(new Error('no fetch')); } });
+  const boot = fetchCalls; // boot's own map download attempt
+  const tg = { id: 'TGTGTGTGTGTGTGTGTGTGTG', idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
+    members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+    responses: { LAX: { status: 'in', origin: 'LAX', available_from: '2030-11-20', available_to: '2030-11-29' }, LGA: { status: 'in', origin: 'LGA', available_from: '2030-11-20', available_to: '2030-11-29' } } };
+  const o = (price, no, dep, depT, arr, arrT) => ({ price, airline: 'X', flightNos: [no], depAirport: dep, arrAirport: arr, depTime: depT, arrTime: arrT, stops: 0 });
+  const put = (from, to, date, offers) => { api._flightCache[api._cacheKey(from, to, date, '')] = { data: { ow: offers[0].price, live: true, lastVerified: new Date().toISOString(), offers }, ts: Date.now() }; };
+  const ts = () => api.tripLegsFor(tg);
+  // Me lands PIA 3:40p, Anjo PIA 4:55p (75 min) → one trip. Home: Me ORD 7:10a, Anjo ORD 1:30p (6h 20m).
+  put('LAX', 'PIA', '2030-11-20', [o(189, 'AA 1', 'LAX', '2030-11-20 06:00', 'PIA', '2030-11-20 15:40')]);
+  put('LGA', 'PIA', '2030-11-20', [o(212, 'UA 2', 'LGA', '2030-11-20 13:00', 'PIA', '2030-11-20 16:55'), o(199, 'UA 3', 'LGA', '2030-11-20 06:00', 'PIA', '2030-11-20 09:10')]);
+  put('ORD', 'LAX', '2030-11-29', [o(150, 'AA 4', 'ORD', '2030-11-29 07:10', 'LAX', '2030-11-29 09:40')]);
+  put('ORD', 'LGA', '2030-11-29', [o(120, 'UA 5', 'ORD', '2030-11-29 13:30', 'LGA', '2030-11-29 16:40'), o(140, 'UA 6', 'ORD', '2030-11-29 08:00', 'LGA', '2030-11-29 11:00')]);
+  let tl = api.tripPickupTimeline(ts());
+  check(tl.arrive.rows.map((x) => x.code + '@' + x.airport).join() === 'LAX@PIA,LGA@PIA' && tl.arrive.gap === 75 && tl.arrive.within && tl.leave.gap === 380 && !tl.leave.within && tl.leave.same,
+    `${file}: pickup — Me lands PIA 3:40p, Anjo 4:55p: 75 min, one trip; leaving ORD 7:10a vs 1:30p is 6h 20m`);
+  const pair = api.tripPickupBestPair(ts(), 'leave'), html = api.tripPickupHtml(tg);
+  check(pair && pair.total === 290 && pair.picks.map((p) => p.offer.flightNos[0]).join() === 'AA 4,UA 6' && /✓ within 2h · one trip/.test(html) && /6h 20m apart/.test(html) &&
+    /Cheapest pair within 2h at ORD: (Me|Ashwin) AA 4 7:10a \+ Anjo UA 6 8:00a = \$290 \(\+\$20\)/.test(html) && fetchCalls === boot,
+    `${file}: "cheapest pair within 2h" for the ORD departures — AA 4 + UA 6 = $290 (+$20), 0 searches`);
+  // Across midnight: 11:30p vs 12:45a next day is still 75 min.
+  put('LAX', 'PIA', '2030-11-20', [o(189, 'AA 1', 'LAX', '2030-11-20 16:00', 'PIA', '2030-11-20 23:30')]);
+  tg.responses.LGA.available_from = '2030-11-21';
+  put('LGA', 'PIA', '2030-11-21', [o(212, 'UA 2', 'LGA', '2030-11-20 22:00', 'PIA', '2030-11-21 00:45')]);
+  tl = api.tripPickupTimeline(ts());
+  check(tl.arrive.gap === 75 && tl.arrive.within, `${file}: pickup gap across midnight (11:30p → 12:45a) is 75 min, still one trip`);
+  // Different airports, and a traveler with no live fare yet.
+  put('LGA', 'PIA', '2030-11-21', [o(212, 'UA 2', 'LGA', '2030-11-21 10:00', 'ORD', '2030-11-21 12:00')]);
+  tl = api.tripPickupTimeline(ts());
+  const diff = api.tripPickupHtml(tg);
+  delete api._flightCache[api._cacheKey('LGA', 'PIA', '2030-11-21', '')];
+  const wait = api.tripPickupHtml(tg);
+  check(!tl.arrive.same && !tl.arrive.within && /different airports — two trips/.test(diff) && /waiting on Anjo’s live fare/.test(wait),
+    `${file}: pickup — PIA vs ORD reads "different airports — two trips"; no live fare reads "waiting on Anjo’s live fare"`);
+  Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+}
+
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
 
 // PIA-068: scripts/trip-idea-builder.js is the reviewable copy of the block

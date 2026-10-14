@@ -1029,6 +1029,13 @@ body.idea-guest [data-trip-close]{display:none!important}
 .lt-nearby b{color:var(--success)}
 .lt-nearby.ok{color:var(--ink-muted)}
 .lt-nearby-tog[aria-pressed="true"]{background:var(--accent-soft)}
+/* PIA-126: pickup timeline */
+.lt-pickup{margin-bottom:8px;padding:8px 10px;border:1px solid var(--line-strong);border-radius:var(--rad-md);background:var(--surface-2)}
+.lt-pickup-line{display:flex;flex-direction:column;gap:2px;font-size:var(--fs-tiny);color:var(--ink);padding:4px 0}
+.lt-pickup-line+.lt-pickup-line{border-top:1px dashed var(--line-strong)}
+.lt-pickup-gap{font-size:var(--fs-micro);font-weight:800;color:var(--warn)}
+.lt-pickup-gap.ok{color:var(--success)}
+.lt-pickup-best{font-size:var(--fs-micro);color:var(--ink-muted)}
 .trip-idea-book small{display:block;padding:8px 14px 12px;font-size:var(--fs-micro);color:var(--ink-muted)}
 .trip-idea-book-btns{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 .trip-idea-legs{display:flex;flex-wrap:wrap;gap:10px;width:100%}
@@ -2895,6 +2902,8 @@ function renderMeetupRoutes() {
         bookLinkHtml +
       '</div>';
   });
+  // PIA-126: a linked trip leads its breakdown with the pickup timeline.
+  if (S.linkedIdeaId && typeof tripLinkedSummaryHtml === 'function') html = tripLinkedSummaryHtml() + html;
   container.innerHTML = html || '<div style="font-size:var(--fs-tiny);color:var(--ink-muted);padding:4px 2px">All family members at hub</div>';
   if (typeof renderGroupCost === 'function') renderGroupCost(); // PIA-022/025 panel
 }
@@ -11482,6 +11491,92 @@ function tripNearbyToggleHtml(id, t) {
 function tripIdeaSetOrigin(id, code, airport) {
   if (!/^[A-Z]{3}$/.test(String(airport || ''))) return Promise.resolve(null);
   return _tripIdeaRewriteAnswer(id, code, function(b){ b.origin = airport; return {done:'flies from ' + airport}; });
+}
+// ── PIA-126: one pickup run — when everyone lands, and leaves ──────────────
+// Times come from offers already cached with each leg's fare; nothing here
+// searches. Same airport + within 2 hours = Mom & Dad make one trip.
+function _tripMinutes(s) {
+  var m = /^(\d{4})-(\d{2})-(\d{2})[ T](\d{1,2}):(\d{2})/.exec(String(s || ''));
+  return m ? Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]) / 60000 : null;
+}
+// The offers behind a leg's price: on a nearby search, only its own airport's.
+function tripLegOffers(leg) {
+  var hit = _tripLegHit(leg), byFrom = !!leg.searchFrom && leg.searchFrom !== leg.from, byTo = !!leg.searchTo && leg.searchTo !== leg.to;
+  var list = hit ? (hit.data.offers || []).filter(function(o){ return (!byFrom || o.depAirport === leg.from) && (!byTo || o.arrAirport === leg.to); }) : [];
+  return !list.length && (byFrom || byTo) ? tripLegOffers(Object.assign({}, leg, {searchFrom:'', searchTo:''})) : list;
+}
+// The offer whose price is shown: the headline (best) fare, or on a nearby
+// search the cheapest from the traveler's own airport.
+function _tripLegShownOffer(leg) {
+  var list = tripLegOffers(leg);
+  if ((leg.searchFrom && leg.searchFrom !== leg.from) || (leg.searchTo && leg.searchTo !== leg.to)) list = list.slice().sort(function(a, b){ return a.price - b.price; });
+  return list[0] || null;
+}
+function _tripGapText(min) {
+  var d = Math.floor(min / 1440), h = Math.floor((min % 1440) / 60), m = min % 60;
+  return d ? d + 'd' + (h ? ' ' + h + 'h' : '') : h ? h + 'h' + (m ? ' ' + m + 'm' : '') : m + 'm';
+}
+function _tripPickupSide(ts, kind) {
+  var rows = [], waiting = [];
+  ts.forEach(function(t){
+    var l = kind === 'arrive' ? t.legs[0] : t.legs.filter(function(x){ return x.dir === 'home'; })[0];
+    if (!l) return;
+    var o = _tripLegShownOffer(l), at = o && (kind === 'arrive' ? o.arrTime : o.depTime);
+    if (!at) { waiting.push(_tripIdeaName(t.label)); return; }
+    rows.push({code:t.code, label:t.label, airport:(kind === 'arrive' ? o.arrAirport : o.depAirport) || (kind === 'arrive' ? l.to : l.from), time:at, min:_tripMinutes(at), price:o.price});
+  });
+  rows.sort(function(a, b){ return a.min - b.min; });
+  var same = rows.length > 1 && rows.every(function(x){ return x.airport === rows[0].airport; }), gap = rows.length > 1 ? rows[rows.length - 1].min - rows[0].min : null;
+  return {rows:rows, waiting:waiting, same:same, gap:gap, within:!waiting.length && same && gap != null && gap <= 120};
+}
+function tripPickupTimeline(ts) {
+  var list = (ts || []).filter(function(t){ return !t.booked && t.legs && t.legs.length; });
+  return {travelers:list.length, arrive:_tripPickupSide(list, 'arrive'), leave:_tripPickupSide(list, 'home')};
+}
+// The cheapest combination of cached offers where everyone lands (or leaves)
+// at the same airport within 2 hours. Pure arithmetic on cached offers.
+function tripPickupBestPair(ts, kind) {
+  var list = (ts || []).filter(function(t){ return !t.booked && t.legs && t.legs.length; });
+  var lists = list.map(function(t){
+    var l = kind === 'arrive' ? t.legs[0] : t.legs.filter(function(x){ return x.dir === 'home'; })[0];
+    return l ? tripLegOffers(l).map(function(o){ var at = kind === 'arrive' ? o.arrTime : o.depTime; return at ? {code:t.code, label:t.label, offer:o, min:_tripMinutes(at), airport:kind === 'arrive' ? o.arrAirport : o.depAirport} : null; }).filter(Boolean) : [];
+  });
+  if (lists.length < 2 || lists.some(function(x){ return !x.length; })) return null;
+  var best = null, pick = [];
+  (function walk(i){
+    if (i === lists.length) {
+      var mins = pick.map(function(p){ return p.min; }), ap = pick[0].airport;
+      if (!pick.every(function(p){ return p.airport === ap; }) || Math.max.apply(null, mins) - Math.min.apply(null, mins) > 120) return;
+      var total = pick.reduce(function(s, p){ return s + p.offer.price; }, 0);
+      if (!best || total < best.total) best = {total:total, airport:ap, picks:pick.slice()};
+      return;
+    }
+    lists[i].forEach(function(x){ pick.push(x); walk(i + 1); pick.pop(); });
+  })(0);
+  return best;
+}
+function _tripPickupWhen(x) { return _tripIdeaEsc(_tripIdeaName(x.label)) + ' <b>' + _tripIdeaEsc(x.airport) + ' ' + _tripIdeaEsc(tripIdeaDay(x.time.slice(0, 10)).replace(/ [A-Z][a-z]{2} \d+$/, '') + ' ' + _tripTime(x.time)) + '</b>'; }
+function _tripPickupLineHtml(side, verb, ts, kind) {
+  if (!side.rows.length && !side.waiting.length) return '';
+  var why = side.waiting.length ? 'waiting on ' + side.waiting.join(' & ') + '’s live fare' :
+    !side.same ? 'different airports — two trips' : side.within ? '✓ within 2h · one trip' : _tripGapText(side.gap) + ' apart';
+  var best = side.within || side.waiting.length ? null : tripPickupBestPair(ts, kind);
+  var shown = side.rows.reduce(function(s, x){ return s + x.price; }, 0);
+  return '<div class="lt-pickup-line"><span>' + verb + ' ' + side.rows.map(_tripPickupWhen).join(' · ') + '</span><span class="lt-pickup-gap' + (side.within ? ' ok' : '') + '">' + _tripIdeaEsc(why) + '</span>' +
+    (best ? '<span class="lt-pickup-best">Cheapest pair within 2h at ' + _tripIdeaEsc(best.airport) + ': ' + best.picks.map(function(p){ return _tripIdeaEsc(_tripIdeaName(p.label) + ' ' + (p.offer.flightNos[0] || p.offer.airline || '') + ' ' + _tripTime(kind === 'arrive' ? p.offer.arrTime : p.offer.depTime)); }).join(' + ') +
+      ' = $' + best.total + (best.total > shown ? ' (+$' + (best.total - shown) + ')' : '') + '</span>' : '') + '</div>';
+}
+// Top of a linked trip's Flight Breakdown: who lands when, and the gap.
+function tripPickupHtml(doc) {
+  var ts = tripLegsFor(doc).filter(function(t){ return !t.booked && t.legs.length; });
+  if (ts.length < 2) return '';
+  var tl = tripPickupTimeline(ts);
+  var a = _tripPickupLineHtml(tl.arrive, '✈️ Lands', ts, 'arrive'), l = _tripPickupLineHtml(tl.leave, '🏠 Leaves', ts, 'leave');
+  return a || l ? '<div class="lt-pickup"><div class="lt-watch-hd">🚗 Pickup timeline</div>' + a + l + '</div>' : '';
+}
+function tripLinkedSummaryHtml() {
+  var doc = tripLinkedDoc();
+  return doc ? tripPickupHtml(doc) : '';
 }
 function tripLegsRepaint() {
   try { if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); } catch (e) {}

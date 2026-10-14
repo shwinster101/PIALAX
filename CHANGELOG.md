@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-126)
+- **Pickup timeline** at the top of a linked trip's Flight Breakdown. It shows when each traveler lands (in-leg) and leaves (home-leg), using the times already cached with each live fare.
+  - It shows the gap and reads "✓ within 2h · one trip" when everyone uses the same airport within two hours, "different airports — two trips", or "6h 20m apart". Gaps across midnight count correctly.
+  - When they aren't aligned, it shows the **cheapest pair within 2h** from the cached offers (e.g. "AA 4 7:10a + UA 6 8:00a = $290 (+$20)"). This never needs another search.
+  - A traveler without a live fare reads "waiting on Anjo’s live fare".
+
 ### Added (PIA-122) — needs `wrangler deploy`
 - **Nearby airports in one search.** "📍 Also try BUR · LGB · ONT · SNA" on a traveler's route card searches their whole metro in the same one search per leg: LA for Ashwin, NYC (JFK/EWR) for Anjo.
   - The traveler's own airport keeps its own fare.
