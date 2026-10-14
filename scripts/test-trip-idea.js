@@ -390,6 +390,61 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   check(api.tripIdeaCanBook() && /Anjo, have you booked\?/.test(api.tripIdeaShareText(doc, 'nudge')), `${file}: once everyone answered, the nudge asks who hasn't booked`);
 }
 
+// PIA-123: each traveler's fare watch — one age formatter, device-only targets
+// (trip-wide default, per-traveler override, seeded from a confirmed fact),
+// history deduped by fetch time, and a stale fare shown greyed, not as truth.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const ls = makeLocalStorage();
+  const id = 'TGTGTGTGTGTGTGTGTGTGTG';
+  const tg = { id, idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
+    members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+    responses: { PIA: { status: 'in' }, LAX: { status: 'in', origin: 'LAX', available_from: '2030-11-20', available_to: '2030-11-29' },
+      LGA: { status: 'in', origin: 'LGA', available_from: '2030-11-26', available_to: '2030-11-30', booked: true } } };
+  ls.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] }));
+  ls.setItem('pialax_parsed_facts_v1', JSON.stringify({ v: 1, facts: [{ id: 'f1', trip_id: 'thanksgiving', field_path: 'target_price', value: 420, status: 'confirmed', confidence: 1 }] }));
+  const names = ['fareAgeLabel', 'tripLegSetTarget', 'tripLegTargets', 'tripLegTargetFor', 'tripLegRecord', 'tripLegWatch', 'tripLegWatchLineHtml', 'tripTravelerWatchHtml', 'tripLegWatchCardHtml'];
+  const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls });
+  const ago = (ms) => api.fareAgeLabel(new Date(Date.now() - ms).toISOString());
+  check(ago(30e3) === 'just now' && ago(59 * 60e3) === '59m ago' && ago(60 * 60e3) === '1h ago' && ago(24 * 3600e3) === '24h ago' && ago(26 * 3600e3) === '1d ago' &&
+    api.fareAgeLabel(Date.now() - 5 * 3600e3) === '5h ago' && api.fareAgeLabel(new Date(Date.now() - 120e3)) === '2m ago' && api.fareAgeLabel('nope') === '',
+    `${file}: one age label — "just now", 59m, 1h, 24h, 1d; takes ISO, ms or Date`);
+  check(api.tripLegTargetFor(id, 'LAX').value === 420 && api.tripLegTargetFor(id, 'LAX').from === 'fact', `${file}: a confirmed "target price" fact on the Trips card seeds the trip's target ($420)`);
+  api.tripLegSetTarget(id, '', '$450'); api.tripLegSetTarget(id, 'LAX', '400');
+  check(api.tripLegTargetFor(id, 'LAX').value === 400 && api.tripLegTargetFor(id, 'LGA').value === 450 && api.tripLegTargetFor(id, 'LGA').from === 'trip',
+    `${file}: the trip target ($450) carries to each traveler; Me's own $400 wins for Me`);
+  const again = loadApi(path.join(ROOT, file), file, ['tripLegTargetFor', 'tripLegSetTarget'], { localStorage: ls }).api;
+  again.tripLegSetTarget(id, 'LAX', '');
+  check(again.tripLegTargetFor(id, 'LGA').value === 450 && again.tripLegTargetFor(id, 'LAX').value === 450, `${file}: targets survive a reload; clearing Me's falls back to the trip's`);
+  api.tripLegSetTarget(id, 'LAX', '400');
+  // History: a fetch counts once (by its fetch time); a new fetch adds a point and a Δ.
+  const leg = { code: 'LAX', dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20', ret: '' };
+  const t1 = new Date(Date.now() - 30 * 3600e3).toISOString(), t2 = new Date(Date.now() - 5 * 3600e3).toISOString();
+  const p = (price, at) => ({ price, status: 'live', lastVerified: at });
+  check(api.tripLegRecord(leg, p(212, t1)) === true && api.tripLegRecord(leg, p(212, t1)) === false && api.tripLegRecord(leg, { price: 150, status: 'estimate' }) === false,
+    `${file}: leg history — one point per fetch time; estimates are never recorded`);
+  api.tripLegRecord({ code: 'LAX', dir: 'in', from: 'LAX', to: 'PIA', date: '2020-01-01', ret: '' }, p(99, t1));
+  check(!Object.keys(JSON.parse(ls.getItem('pialax_leg_history_v1'))).some((k) => k.includes('2020-01-01')), `${file}: leg history drops legs whose date has passed`);
+  // No live cache entry → the last real price, greyed as stale (never shown as current).
+  let w = api.tripLegWatch(leg);
+  const stale = api.tripLegWatchLineHtml({ code: 'LAX', legs: [leg] }, 0);
+  check(w.known && w.known.stale && w.known.price === 212 && w.price.status === 'estimate' && /stale/.test(stale) && /Last \$212 · 1d ago/.test(stale) && !/data-leg-refresh/.test(stale),
+    `${file}: past 24h the fare shows as "Last $212 · 1d ago · stale" (refresh button only with a token)`);
+  api._flightCache[api._cacheKey('LAX', 'PIA', '2030-11-20', '')] = { data: { ow: 194, live: true, lastVerified: t2, insights: { level: 'high', typical: [180, 260], hist: [[1, 230], [2, 210], [3, 194]] } }, ts: Date.parse(t2) };
+  w = api.tripLegWatch(leg);
+  const line = api.tripLegWatchLineHtml({ code: 'LAX', legs: [leg] }, 0);
+  check(!w.known.stale && w.delta === -18 && w.series.join() === '230,210,194' && /▼ \$18/.test(line) && /<svg/.test(line) && /Google: high price · typical \$180–\$260/.test(line) && /checked 5h ago/.test(line),
+    `${file}: a cache hit shows its original age ("checked 5h ago"), ▼ $18 since last check, a sparkline and Google's verdict`);
+  api.tripIdeaStoreDoc(tg); api.S.linkedIdeaId = id;
+  const lax = api.tripLegsFor(tg).find((x) => x.code === 'LAX');
+  const tw = api.tripTravelerWatchHtml(id, lax);
+  check(/data-leg-target[^>]*data-code="LAX"[^>]*value="400"/.test(tw) && /checked 5h ago/.test(tw), `${file}: route card watch — editable target for Me ($400) and the oldest leg's age`);
+  const card = api.tripLegWatchCardHtml(api.watchlistItem('thanksgiving'));
+  check(/Fare watch/.test(card) && /data-code="" value="450"/.test(card) && /<strong>Me<\/strong>|<strong>Ashwin<\/strong>/.test(card) && /<strong>Anjo<\/strong><b class="lt-verdict ok">✓ Booked/.test(card) &&
+    /~\$\d+ in \+ home/.test(card) && api.tripLegWatchCardHtml(Object.assign({}, api.watchlistItem('thanksgiving'), { stage: 'booked' })) === '',
+    `${file}: Trips card fare watch — trip target, Me's in + home price, Anjo booked ✓; hidden once the trip is booked`);
+  api.S.linkedIdeaId = null;
+}
+
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
 
 // PIA-068: scripts/trip-idea-builder.js is the reviewable copy of the block

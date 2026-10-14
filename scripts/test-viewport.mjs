@@ -946,6 +946,16 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
           ok(`${label} — tapping ${nextDate} moved only Me's RSVP arrive date; trip card, route card and plan chip agree; 0 searches`);
         else bad(`${label} — flex tap didn't carry through: ${JSON.stringify({ after, saved: r, lga: saved.doc && saved.doc.responses.LGA, searches: searches.length })}`);
       }
+      // PIA-123: a target typed on the card saves on this device and reads back as a verdict.
+      const tin = page.locator('[data-leg-box="LAX"] input[data-leg-target]');
+      await tin.fill('300'); await tin.press('Enter'); await tin.evaluate((el) => el.blur());
+      await page.waitForFunction(() => /target \$300/.test((document.querySelector('[data-leg-box="LAX"] .lt-watch') || {}).textContent || ''), null, { timeout: 4000 }).catch(() => {});
+      const tw = await page.evaluate((id) => ({ h: Math.round((document.querySelector('[data-leg-box="LAX"] input[data-leg-target]') || { getBoundingClientRect: () => ({ height: 0 }) }).getBoundingClientRect().height),
+        txt: (document.querySelector('[data-leg-box="LAX"] .lt-watch') || {}).textContent || '', saved: (JSON.parse(localStorage.getItem('pialax_leg_targets_v1') || '{}')[id] || {}).byCode,
+        over: document.documentElement.scrollWidth > innerWidth }), idea.id);
+      if (tw.h >= 44 && /target \$300 \(estimate\)/.test(tw.txt) && tw.saved && tw.saved.LAX === 300 && !tw.over)
+        ok(`${label} — 🎯 target on Me's card (≥44px) saves on this device and reads "target $300 (estimate)" until fares are live`);
+      else bad(`${label} — target didn't save/read back: ${JSON.stringify(tw)}`);
     }
     await page.locator('.lts-dates-edit').click();
     await page.waitForSelector('.trip-idea-planedit', { timeout: 5000 }).catch(() => {});

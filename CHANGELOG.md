@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-123)
+- **Fare watch per traveler.** On a linked trip, each traveler's route card and the trip's Trips card show:
+  - their in + home price;
+  - a **🎯 target** you can type in place;
+  - the change since the last check, plus the fare's age ("checked 5h ago").
+- **Each leg** also shows a sparkline and Google's own verdict (for example "high price · typical $180–$260") when Google provides one.
+- **Targets live on this device.** A trip-wide "target per traveler" carries over to everyone, a traveler's own target wins, and a confirmed "target price" note on the Trips card seeds it.
+- **Fare age is honest.** A Worker cache hit keeps its original fetch time. After 24 hours the leg greys out and reads "Last $212 · 1d ago · stale", with "Tap to refresh (1 search)" when a token is set. A stale price is never shown as current.
+- **One "N ago" format everywhere** (fare pills, the last-error chip, the /account sync line): just now, Nm, Nh, Nd.
+
 ### Added (PIA-121)
 - **One-way pricing for linked trips:** a trip linked to a family RSVP is now priced the way each traveler books it. For Peoria that's in to PIA plus home from ORD, as two one-ways. Before, it was priced as a round trip that nobody books.
   - Each Flight Breakdown card shows that traveler's in + home total, with `~$` on estimates.

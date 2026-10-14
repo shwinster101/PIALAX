@@ -283,7 +283,7 @@ function makeRooms(IdeaRoom, env, gate) {
   // a fetch that answers like a Worker cache HIT from five hours ago.
   for (const file of ['pialax.html', 'pialax-mobile.html']) {
     const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    const fns = ['fareStamp', 'fetchFlights', 'freshnessLabel', '_freshPill', 'tripFareParse'].map((n) => extractFn(html, n));
+    const fns = ['fareStamp', 'fetchFlights', 'freshnessLabel', '_freshPill', 'tripFareParse', 'fareAgeLabel'].map((n) => extractFn(html, n));
     if (fns.some((f) => !f)) { bad(`A3 ${file}: could not find fareStamp/fetchFlights/freshnessLabel/tripFareParse`); continue; }
     const fetchedAt = new Date(Date.now() - 5 * 3600 * 1000).toISOString();
     const quota = { n: 0 };

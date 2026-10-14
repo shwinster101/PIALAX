@@ -1667,9 +1667,9 @@ function tripLegsFetch(legs, cap) {
 var _tripLegWide = {}, _tripLegWriting = {};
 function _tripLegRows(t) {
   var out = [];
-  (t.legs || []).forEach(function(l){
-    if (l.dir === 'round') { out.push({leg:l, write:'in', at:'date', lbl:'✈️ Out · ' + l.from + '→' + l.to}); out.push({leg:l, write:'home', at:'ret', lbl:'↩ Back · ' + l.to + '→' + l.from}); }
-    else if (l.date) out.push({leg:l, write:l.dir === 'home' ? 'home' : 'in', at:'date', lbl:l.dir === 'home' ? '🏠 Home · ' + l.from + '→' + l.to : '✈️ In · ' + l.from + '→' + l.to});
+  (t.legs || []).forEach(function(l, i){
+    if (l.dir === 'round') { out.push({leg:l, idx:i, write:'in', at:'date', lbl:'✈️ Out · ' + l.from + '→' + l.to}); out.push({leg:l, idx:i, write:'home', at:'ret', lbl:'↩ Back · ' + l.to + '→' + l.from}); }
+    else if (l.date) out.push({leg:l, idx:i, write:l.dir === 'home' ? 'home' : 'in', at:'date', lbl:l.dir === 'home' ? '🏠 Home · ' + l.from + '→' + l.to : '✈️ In · ' + l.from + '→' + l.to});
   });
   return out;
 }
@@ -1703,7 +1703,8 @@ function tripIdeaFlexStripHtml(t) {
         ' data-leg-flex data-code="' + code + '" data-dir="' + r.write + '" data-date="' + d + '" aria-label="' + _tripIdeaEsc((r.write === 'home' ? 'Leave ' : 'Arrive ') + tripIdeaDay(d) + ' ' + _tripLegMoney(p) + (o === 0 ? ' (plan)' : '')) + '">' +
         '<span>' + _tripIdeaEsc(_tripLegDayShort(d)) + '</span><b>' + _tripIdeaEsc(_tripLegMoney(p)) + '</b></button>';
     }).join('');
-    return '<div class="lt-leg-row"><div class="lt-leg-lbl">' + _tripIdeaEsc(r.lbl) + ' ' + meta + '</div><div class="lt-leg-chips">' + chips + '</div></div>';
+    return '<div class="lt-leg-row"><div class="lt-leg-lbl">' + _tripIdeaEsc(r.lbl) + ' ' + meta + '</div><div class="lt-leg-chips">' + chips + '</div>' +
+      (r.at === 'date' ? tripLegWatchLineHtml(t, r.idx) : '') + '</div>';
   }).join('');
 }
 function _tripLegCanSpend() { return typeof PROXY_URL === 'string' && !!PROXY_URL && typeof proxyToken === 'function' && !!proxyToken(); }
@@ -1713,7 +1714,7 @@ function tripIdeaLegsHtml(code) {
   if (!t || !t.legs.length || t.booked) return '';
   var n = tripLegsSearchCount(tripLegFlexLegs(t)), wide = !!_tripLegWide[t.code], c = _tripIdeaEsc(t.code);
   var btn = n && _tripLegCanSpend() ? '<button type="button" class="lt-leg-btn" data-leg-price data-code="' + c + '">Price these (' + n + ' search' + (n > 1 ? 'es' : '') + ')</button>' : '';
-  return '<div class="lt-legs" data-leg-box="' + c + '">' + tripIdeaFlexStripHtml(t) +
+  return '<div class="lt-legs" data-leg-box="' + c + '">' + (S.linkedIdeaId ? tripTravelerWatchHtml(S.linkedIdeaId, t) : '') + tripIdeaFlexStripHtml(t) +
     '<div class="lt-leg-foot"><span>~$ = estimate · tap a day to move ' + (_tripIdeaIsOrganizer(t.label) ? 'your' : _tripIdeaEsc(t.label) + '’s') + ' RSVP</span>' +
     '<button type="button" class="lt-leg-btn" data-leg-more data-code="' + c + '" aria-pressed="' + wide + '">' + (wide ? '±1 day' : '±2 days') + '</button>' + btn + '</div></div>';
 }
@@ -1743,6 +1744,140 @@ function tripIdeaSetTravelDate(id, code, dir, iso) {
     });
   }).then(done, function(){ return done(null); });
 }
+// ── PIA-123: each traveler's fare watch — target, trend, age ────────────────
+// One age formatter for every "N ago" in the app. A fare's age is its original
+// fetch time (X-Fetched-At), so a cache hit never reads as "just now".
+// Self-contained: test-trust runs freshnessLabel + this alone in a sandbox.
+function fareAgeLabel(at) {
+  var t = at instanceof Date ? at.getTime() : typeof at === 'number' ? at : Date.parse(at);
+  if (!(t > 0)) return '';
+  var s = Math.max(0, (Date.now() - t) / 1000);
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.max(1, Math.round(s / 60)) + 'm ago';
+  if (s <= 86400) return Math.round(s / 3600) + 'h ago';
+  return Math.round(s / 86400) + 'd ago';
+}
+// Targets live on this device only (keyed by the shared trip): a trip-wide
+// per-traveler target, and an optional per-traveler override.
+var TRIP_LEG_TARGETS_STORAGE = 'pialax_leg_targets_v1', TRIP_LEG_HISTORY_STORAGE = 'pialax_leg_history_v1';
+function _tripLegStore(key) { try { var v = JSON.parse(localStorage.getItem(key)); return v && typeof v === 'object' ? v : {}; } catch (e) { return {}; } }
+function _tripLegSave(key, v) { try { localStorage.setItem(key, JSON.stringify(v)); } catch (e) {} }
+function tripLegTargets(id) {
+  var t = _tripLegStore(TRIP_LEG_TARGETS_STORAGE)[id] || {};
+  return {trip:Number(t.trip) > 0 ? Number(t.trip) : null, byCode:t.byCode && typeof t.byCode === 'object' ? t.byCode : {}};
+}
+function tripLegSetTarget(id, code, value) {
+  var v = Math.round(Number(String(value == null ? '' : value).replace(/[$,\s]/g, ''))), all = _tripLegStore(TRIP_LEG_TARGETS_STORAGE);
+  var t = tripLegTargets(id);
+  if (code) { if (v > 0) t.byCode[code] = v; else delete t.byCode[code]; } else t.trip = v > 0 ? v : null;
+  all[id] = t; _tripLegSave(TRIP_LEG_TARGETS_STORAGE, all);
+  return t;
+}
+// A confirmed "target price" fact on the linked Trips card seeds the trip target.
+function _tripLegFact(id, field) {
+  if (typeof tripStateFor !== 'function' || typeof WATCHLIST === 'undefined' || !Array.isArray(WATCHLIST)) return null;
+  var item = WATCHLIST.filter(function(x){ return x && x.sharedIdeaId === id; })[0];
+  if (!item) return null;
+  try { var st = tripStateFor(item, typeof loadParsedFacts === 'function' ? loadParsedFacts() : []); return st ? st[field] : null; } catch (e) { return null; }
+}
+// Traveler's own target, else the trip's, else the confirmed fact.
+function tripLegTargetFor(id, code) {
+  var t = tripLegTargets(id), own = Number(t.byCode[code]);
+  if (own > 0) return {value:own, from:'traveler'};
+  if (t.trip) return {value:t.trip, from:'trip'};
+  var f = Number(_tripLegFact(id, 'target_price'));
+  return f > 0 ? {value:Math.round(f), from:'fact'} : null;
+}
+// Leg history: one point per fetch (deduped by its fetch time), ≤30 per leg,
+// dropped once the travel date passes. It keeps the last price after the 24h
+// cache lets go, so a stale fare can still be shown (greyed) and compared.
+function tripLegHistory(leg) { return _tripLegStore(TRIP_LEG_HISTORY_STORAGE)[_tripLegKey(leg)] || []; }
+function tripLegRecord(leg, p) {
+  var key = _tripLegKey(leg), at = p && p.status === 'live' && p.lastVerified ? Date.parse(p.lastVerified) : NaN;
+  if (!key || !(at > 0)) return false;
+  var all = _tripLegStore(TRIP_LEG_HISTORY_STORAGE), h = all[key] || [];
+  if (h.some(function(x){ return x.t === at; })) return false;
+  h.push({t:at, p:p.price}); h.sort(function(a, b){ return a.t - b.t; });
+  all[key] = h.slice(-30);
+  var today = _tripIdeaTodayIso();
+  Object.keys(all).forEach(function(k){ var d = k.split('|')[2]; if (d && d < today) delete all[k]; });
+  _tripLegSave(TRIP_LEG_HISTORY_STORAGE, all);
+  return true;
+}
+function tripLegWatch(leg) {
+  var p = tripLegPrice(leg); tripLegRecord(leg, p);
+  var h = tripLegHistory(leg), last = h[h.length - 1] || null, prev = h.length > 1 ? h[h.length - 2] : null, ins = p.data && p.data.insights;
+  var known = p.status === 'live' ? {price:p.price, at:p.lastVerified, stale:false} : last ? {price:last.p, at:new Date(last.t).toISOString(), stale:true} : null;
+  var series = ins && ins.hist && ins.hist.length > 1 ? ins.hist.map(function(x){ return x[1]; }) : h.map(function(x){ return x.p; });
+  return {price:p, known:known, delta:last && prev ? last.p - prev.p : null, series:series, insights:ins || null};
+}
+function _tripLegDeltaHtml(d) {
+  if (d == null) return '';
+  return d === 0 ? '<span class="lt-delta">no change</span>' : '<span class="lt-delta ' + (d < 0 ? 'down' : 'up') + '">' + (d < 0 ? '▼ $' : '▲ $') + Math.abs(d) + '</span>';
+}
+// Under each leg: Δ vs last check · sparkline · Google's verdict · fare age.
+function tripLegWatchLineHtml(t, i) {
+  var w = tripLegWatch(t.legs[i]), bits = [];
+  if (!w.known) return '<div class="lt-watch-line">Estimate — not priced live yet</div>';
+  if (w.known.stale) {
+    return '<div class="lt-watch-line stale">Last $' + w.known.price + ' · ' + _tripIdeaEsc(fareAgeLabel(w.known.at)) + ' · stale' +
+      (_tripLegCanSpend() ? ' <button type="button" class="lt-leg-btn" data-leg-refresh data-code="' + _tripIdeaEsc(t.code) + '" data-leg="' + i + '">Tap to refresh (1 search)</button>' : '') + '</div>';
+  }
+  if (w.delta != null) bits.push(_tripLegDeltaHtml(w.delta) + ' since last check');
+  if (w.series.length > 1 && typeof sparklineSVG === 'function') bits.push(sparklineSVG(w.series, 64, 16));
+  if (w.insights && (w.insights.level || w.insights.typical)) bits.push('Google: ' + _tripIdeaEsc((w.insights.level ? w.insights.level + ' price' : '') + (w.insights.typical ? (w.insights.level ? ' · ' : '') + 'typical $' + w.insights.typical[0] + '–$' + w.insights.typical[1] : '')));
+  bits.push('checked ' + _tripIdeaEsc(fareAgeLabel(w.known.at)));
+  return '<div class="lt-watch-line">' + bits.join(' · ') + '</div>';
+}
+// A traveler's watch: in + home total vs target (editable inline), oldest age.
+function tripTravelerWatch(id, t) {
+  var cost = tripTravelerCost(t);
+  if (!cost) return null;
+  var target = tripLegTargetFor(id, t.code), delta = null, oldest = null;
+  t.legs.forEach(function(l, i){
+    var w = tripLegWatch(l);
+    if (w.delta != null) delta = (delta || 0) + w.delta;
+    if (w.known && !w.known.stale && (!oldest || w.known.at < oldest)) oldest = w.known.at;
+  });
+  var verdict = !target || cost.per == null ? '' : cost.status !== 'live' ? 'estimate' : cost.per <= target.value ? 'under' : 'over';
+  return {cost:cost, target:target, delta:delta, oldest:oldest, verdict:verdict};
+}
+function _tripLegVerdictHtml(w) {
+  if (!w.target || !w.verdict) return '';
+  if (w.verdict === 'under') return '<b class="lt-verdict ok">✓ at or under $' + w.target.value + '</b>';
+  if (w.verdict === 'over') return '<b class="lt-verdict over">$' + (w.cost.per - w.target.value) + ' over $' + w.target.value + '</b>';
+  return '<span class="lt-verdict">target $' + w.target.value + ' (estimate)</span>';
+}
+function _tripLegTargetInput(id, code, own, ph, label) {
+  return '<label class="lt-target">' + _tripIdeaEsc(label) + ' <input type="text" inputmode="numeric" autocomplete="off" data-leg-target data-idea="' + _tripIdeaEsc(id) + '" data-code="' + _tripIdeaEsc(code) +
+    '" value="' + (own ? own : '') + '" placeholder="' + _tripIdeaEsc(ph) + '" aria-label="' + _tripIdeaEsc(label) + '"></label>';
+}
+function tripTravelerWatchHtml(id, t) {
+  var w = tripTravelerWatch(id, t);
+  if (!w) return '';
+  var own = tripLegTargets(id).byCode[t.code], trip = tripLegTargets(id).trip;
+  return '<div class="lt-watch">' + _tripLegTargetInput(id, t.code, own, trip ? '$' + trip + ' (trip)' : 'none', '🎯 Target $') + _tripLegVerdictHtml(w) +
+    (w.delta != null ? _tripLegDeltaHtml(w.delta) : '') + (w.oldest ? '<span class="lt-age">checked ' + _tripIdeaEsc(fareAgeLabel(w.oldest)) + '</span>' : '') + '</div>';
+}
+// The Trips card of a linked trip: the trip target + one watch line per traveler.
+// Read-only on prices — nothing here spends a search.
+function tripLegWatchCardHtml(item) {
+  if (!item || !item.sharedIdeaId || (item.stage !== 'watching' && item.stage !== 'planning')) return '';
+  var id = item.sharedIdeaId, doc = tripIdeaCachedDoc(id), ts = doc ? tripLegsFor(doc) : [];
+  if (!ts.length) return '';
+  var trip = tripLegTargets(id).trip, fact = trip ? null : tripLegTargetFor(id, '');
+  var rows = ts.map(function(t){
+    var name = '<strong>' + _tripIdeaEsc(_tripIdeaName(t.label)) + '</strong>';
+    if (t.booked) return '<li>' + name + '<b class="lt-verdict ok">✓ Booked</b></li>';
+    var w = tripTravelerWatch(id, t);
+    if (!w || w.cost.per == null) return '<li>' + name + '<span>' + (t.legs.length ? 'no fare yet' : 'no dates yet') + '</span></li>';
+    return '<li>' + name + '<span>' + (w.cost.status === 'live' ? '$' : '~$') + w.cost.per + ' ' + (t.legs.length > 1 ? 'in + home' : 'trip') + '</span>' + _tripLegVerdictHtml(w) +
+      (w.delta != null ? _tripLegDeltaHtml(w.delta) : '') + '<span class="lt-age">' + (w.oldest ? 'checked ' + _tripIdeaEsc(fareAgeLabel(w.oldest)) : 'estimate') + '</span></li>';
+  }).join('');
+  return '<div class="lt-watch-card"><div class="lt-watch-hd">🎯 Fare watch</div>' +
+    _tripLegTargetInput(id, '', trip, fact ? '$' + fact.value + ' (from notes)' : 'e.g. 400', 'Target per traveler $') +
+    '<ul>' + rows + '</ul><small>Prices from the Family tab · ~$ = estimate · nothing here spends a search</small></div>';
+}
 function tripLegsRepaint() {
   try { if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); } catch (e) {}
   try { if (typeof syncLinkedTripChrome === 'function') syncLinkedTripChrome(); } catch (e) {}
@@ -1752,13 +1887,15 @@ function tripLegsWire() {
   if (_tripLegsWired || typeof document === 'undefined' || !document || typeof document.addEventListener !== 'function') return;
   _tripLegsWired = true;
   document.addEventListener('click', function(e){
-    var el = e.target && e.target.closest ? e.target.closest('[data-leg-flex],[data-leg-more],[data-leg-price]') : null;
+    var el = e.target && e.target.closest ? e.target.closest('[data-leg-flex],[data-leg-more],[data-leg-price],[data-leg-refresh]') : null;
     if (!el || el.disabled) return;
     var code = el.getAttribute('data-code');
     if (el.hasAttribute('data-leg-more')) { _tripLegWide[code] = !_tripLegWide[code]; tripLegsRepaint(); return; }
-    if (el.hasAttribute('data-leg-price')) {
+    if (el.hasAttribute('data-leg-price') || el.hasAttribute('data-leg-refresh')) {
+      var tr = tripLinkedTraveler(code), one = el.hasAttribute('data-leg-refresh');
+      if (!tr) return;
       el.disabled = true; el.textContent = 'Searching…';
-      tripLegsFetch(tripLegFlexLegs(tripLinkedTraveler(code))).then(function(r){
+      tripLegsFetch(one ? [tr.legs[+el.getAttribute('data-leg')]].filter(Boolean) : tripLegFlexLegs(tr), one ? 1 : null).then(function(r){
         if (typeof updateApiCallCount === 'function') try { updateApiCallCount(); } catch (x) {}
         tripLegsRepaint();
         showShareToast(r.asked ? '✓ ' + r.live + ' of ' + r.asked + ' priced live' : 'Nothing new to price');
@@ -1766,6 +1903,14 @@ function tripLegsWire() {
       return;
     }
     if (typeof S === 'object' && S && S.linkedIdeaId) tripIdeaSetTravelDate(S.linkedIdeaId, code, el.getAttribute('data-dir'), el.getAttribute('data-date'));
+  });
+  // PIA-123: a target typed into any watch (trip-wide or one traveler) saves on change.
+  document.addEventListener('change', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('[data-leg-target]') : null;
+    if (!el) return;
+    tripLegSetTarget(el.getAttribute('data-idea'), el.getAttribute('data-code'), el.value);
+    tripLegsRepaint();
+    if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (x) {}
   });
 }
 
