@@ -39,6 +39,7 @@ EXPECT.push('tripIdeaCountsLine', 'tripIdeaPlanDatesPayload'); // PIA-112
 EXPECT.push('tripIdeaPlanDates', 'tripIdeaBookListHtml', 'tripIdeaLinkedRoute'); // PIA-120
 EXPECT.push('tripFareParse', 'tripLegsForRow', 'tripLegsFor', 'tripLegPrice', 'tripTravelerCost', 'tripLinkedCostFor', 'tripLinkedPlanLegs',
   'tripLegsToPrice', 'tripLegsSearchCount', 'tripLegsFetch', 'tripLegFlexLegs', 'tripIdeaFlexStripHtml', 'tripIdeaLegsHtml', 'tripIdeaSetTravelDate', 'tripIdeaStoreDoc'); // PIA-121
+EXPECT.push('tripIdeaMarkBooked'); // PIA-124
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -445,6 +446,55 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   api.S.linkedIdeaId = null;
 }
 
+// PIA-124: the booking handoff — a live fare opens Google's own link for that
+// exact search (1 adult) or narrows the text query; confidence by fare age;
+// book-by from a confirmed deadline, else the trip's own (Thanksgiving: Nov 1).
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const ls = makeLocalStorage();
+  const id = 'TGTGTGTGTGTGTGTGTGTGTG', iso = (d) => d.toISOString().slice(0, 10), plus = (n) => iso(new Date(Date.now() + n * 864e5));
+  ls.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] }));
+  const names = ['tripFarePick', 'fareConfidence', 'tripBookBy', 'tripLegItinerary', 'tripBookCueHtml', '_googleFlightsUrl', 'tripTravelerConfidence'];
+  const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls });
+  const q = (u) => decodeURIComponent((u.split('?q=')[1] || '').replace(/\+/g, ' '));
+  const GF = 'https://www.google.com/travel/flights?hl=en&tfs=CBwQ';
+  check(api.tripIdeaFlightUrl('LAX', 'PIA', '2030-11-20', '', 1, { gfUrl: GF }) === GF && q(api.tripIdeaFlightUrl('LAX', 'PIA', '2030-11-20', '', 2, { gfUrl: GF, nonstop: true })) === 'Flights from LAX to PIA on 2030-11-20 one way for 2 adults nonstop' &&
+    q(api.tripIdeaFlightUrl('ORD', 'LAX', '2030-11-29', '', 1, { nonstop: false, airline: 'United' })) === 'Flights from ORD to LAX on 2030-11-29 one way on United',
+    `${file}: Book link — Google's own link for the fare's exact search (1 adult); else "nonstop" / "on <airline>" narrow the query`);
+  const at = new Date(Date.now() - 2 * 3600e3).toISOString();
+  api._flightCache[api._cacheKey('LAX', 'PIA', '2030-11-20', '')] = { data: { ow: 189, live: true, lastVerified: at, gfUrl: GF, airline: 'American',
+    offers: [{ price: 189, airline: 'American', flightNos: ['AA 1', 'AA 2'], depAirport: 'LAX', arrAirport: 'PIA', depTime: '2030-11-20 06:00', arrTime: '2030-11-20 15:40', stops: 1 }] }, ts: Date.parse(at) };
+  const pick = api.tripFarePick('LAX', 'PIA', '2030-11-20', '', 1);
+  const rows = api.tripIdeaBookRows({ idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' }, members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }] },
+    responses: { LAX: { status: 'in', origin: 'LAX', available_from: '2030-11-20', available_to: '2030-11-29' } } });
+  check(pick && pick.gfUrl === GF && pick.nonstop === false && pick.airline === 'American' && api.tripFarePick('LAX', 'PIA', '2030-11-20', '', 2).gfUrl === '' && api.tripFarePick('ORD', 'LAX', '2030-11-29', '', 1) === null &&
+    rows[0].openJaw.inUrl === GF && /ORD to LAX on 2030-11-29 one way$/.test(q(rows[0].openJaw.outUrl)) && api._googleFlightsUrl('LAX', 'PIA', '2030-11-20', '', false) === GF &&
+    /Flights from LAX to PIA on 2030-11-21$/.test(q(api._googleFlightsUrl('LAX', 'PIA', '2030-11-21', '', false))),
+    `${file}: Book links — Me's in-leg (live) opens Google's link; the unpriced home leg keeps the plain search; planner cards use the same rule`);
+  check(api.tripLegItinerary(api.tripLegPrice({ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20' })) === 'American AA 1 + AA 2 · 6:00a→3:40p · 1 stop' &&
+    api.tripLegItinerary(api.tripLegPrice({ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-21' })) === '',
+    `${file}: the itinerary next to the link — "American AA 1 + AA 2 · 6:00a→3:40p · 1 stop" (live fares only)`);
+  const conf = (h) => api.fareConfidence(h == null ? null : new Date(Date.now() - h * 3600e3).toISOString()).level;
+  check(conf(2) === 'solid' && conf(6) === 'solid' && conf(7) === 'recheck' && conf(24) === 'recheck' && conf(25) === 'stale' && conf(null) === 'estimate' &&
+    api.tripTravelerConfidence({ legs: [{ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20' }] }).level === 'solid' &&
+    api.tripTravelerConfidence({ legs: [{ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20' }, { dir: 'home', from: 'ORD', to: 'LAX', date: '2030-11-29' }] }).level === 'estimate',
+    `${file}: fare confidence — ≤6h solid, ≤24h recheck, older stale; any estimated leg makes the traveler "estimate"`);
+  const bb = api.tripBookBy(id);
+  check(bb && bb.date === '2026-11-01' && (bb.days < 0 ? bb.tone === 'red' && /passed/.test(bb.text) : bb.days <= 7 ? bb.tone === 'amber' : bb.tone === 'ok'),
+    `${file}: Thanksgiving book-by defaults to Sun Nov 1 (${bb && bb.text})`);
+  const fact = (d) => { ls.setItem('pialax_parsed_facts_v1', JSON.stringify({ v: 1, facts: [{ id: 'f2', trip_id: 'thanksgiving', field_path: 'decision_deadline', value: d, status: 'confirmed', confidence: 1 }] })); return api.tripBookBy(id); };
+  const amber = fact(plus(3)), red = fact(plus(-1)), ok = fact(plus(20));
+  check(amber.tone === 'amber' && /3 days left/.test(amber.text) && red.tone === 'red' && /Book-by passed/.test(red.text) && ok.tone === 'ok',
+    `${file}: a confirmed decision deadline wins; the countdown turns amber within 7 days, red once passed`);
+  const t = { code: 'LAX', booked: false, legs: [{ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20' }] };
+  const cueNo = api.tripBookCueHtml(id, t);
+  ls.setItem('pialax_idea_booked_v1', '1'); ls.setItem('pialax_idea_keys_v1', JSON.stringify({ [id]: { edit_key: 'k'.repeat(32) } }));
+  const cueYes = api.tripBookCueHtml(id, t);
+  check(/lt-conf solid/.test(cueNo) && /Fare: solid · 2h ago/.test(cueNo) && /lt-bookby ok/.test(cueNo) && !/Mark booked/.test(cueNo) && /data-leg-booked data-code="LAX"/.test(cueYes) &&
+    api.tripBookCueHtml(id, Object.assign({}, t, { booked: true })) === '',
+    `${file}: book cue — "Fare: solid · 2h ago", the book-by chip, and Mark booked ✓ only on the organizer device once the Worker stores it`);
+  Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+}
+
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
 
 // PIA-068: scripts/trip-idea-builder.js is the reviewable copy of the block
@@ -707,6 +757,18 @@ async function staggeredArrivalsSuite() {
         `${file}: flex tap — "leave before arrive" is refused; the organizer moving their own date isn't tagged`);
       await respond(id, { member: 'LAX', status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' });
       await respond(id, { member: 'LGA', status: 'maybe', available_from: '2026-11-24', available_to: '2026-11-29' });
+    }
+    // PIA-124: Mark booked ✓ flips that traveler's RSVP row; they drop off the watch.
+    {
+      await api.tripIdeaFetchDoc(id, true);
+      api.S.linkedIdeaId = id;
+      const had = api.tripIdeaLegsHtml('LAX') !== '';
+      const next = await api.tripIdeaMarkBooked(id, 'LAX');
+      const legs = api.tripLinkedPlanLegs();
+      check(had && next && next.responses.LAX.booked === true && api.tripIdeaLegsHtml('LAX') === '' && !legs.some((l) => l.code === 'LAX') && legs.some((l) => l.code === 'LGA'),
+        `${file}: Mark booked ✓ flips Me's RSVP row; Me drops off the watch and Get Live Fares (Anjo stays)`);
+      api.S.linkedIdeaId = null;
+      await fetchW('https://w.dev/idea/booked?id=' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ member: 'LAX', booked: false }) });
     }
     doc = await api.tripIdeaFetchDoc(id, true);
     sum = api.summarizeIdeaResponses(doc);

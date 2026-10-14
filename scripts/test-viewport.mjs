@@ -956,6 +956,19 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
       if (tw.h >= 44 && /target \$300 \(estimate\)/.test(tw.txt) && tw.saved && tw.saved.LAX === 300 && !tw.over)
         ok(`${label} — 🎯 target on Me's card (≥44px) saves on this device and reads "target $300 (estimate)" until fares are live`);
       else bad(`${label} — target didn't save/read back: ${JSON.stringify(tw)}`);
+      // PIA-124: above Me's Book buttons — fare confidence and the book-by countdown;
+      // "Mark booked ✓" flips Me's RSVP row and Me drops off the watch.
+      const cue = await page.evaluate(() => ({ txt: (document.querySelector('[data-leg-box="LAX"] .lt-book-cue') || {}).textContent || '',
+        hd: (document.querySelector('#linked-trip-summary .lt-book-hd') || {}).textContent || '' }));
+      const mark = page.locator('[data-leg-box="LAX"] [data-leg-booked]');
+      const canMark = await mark.count();
+      if (canMark) await mark.click();
+      await page.waitForFunction(() => !document.querySelector('[data-leg-box="LAX"]') && /✓ Booked/.test((document.querySelector('#linked-trip-summary [data-lt-book="LAX"]') || {}).textContent || ''), null, { timeout: 6000 }).catch(() => {});
+      const gone = await page.evaluate(() => ({ box: !!document.querySelector('[data-leg-box="LAX"]'), trip: (document.querySelector('#linked-trip-summary [data-lt-book="LAX"]') || {}).textContent || '' }));
+      const bdoc = (await (await rsvp.worker.fetch(new Request(rsvp.W + '/idea?id=' + idea.id), rsvp.env)).json()).doc;
+      if (/Fare: estimate/.test(cue.txt) && /Book[- ]by.*Sun Nov 1/.test(cue.txt) && /Book[- ]by.*Sun Nov 1/.test(cue.hd) && canMark && !gone.box && /✓ Booked/.test(gone.trip) && bdoc.responses.LAX.booked === true)
+        ok(`${label} — "Fare: estimate" + "${cue.txt.replace(/.*⏳ /, '').slice(0, 30)}" above Me's Book buttons; Mark booked ✓ flips Me's RSVP row and Me leaves the watch`);
+      else bad(`${label} — book cue / mark booked wrong: ${JSON.stringify({ cue, canMark, gone, booked: bdoc.responses.LAX.booked })}`);
     }
     await page.locator('.lts-dates-edit').click();
     await page.waitForSelector('.trip-idea-planedit', { timeout: 5000 }).catch(() => {});

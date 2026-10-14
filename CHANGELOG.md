@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-124)
+- **Book-now handoff:**
+  - Once a leg has a live fare, its ✈️ In / 🏠 Home button opens Google Flights' own link for that exact search (1 adult). Otherwise the search is narrowed to that fare: "nonstop", "on American".
+  - The flight behind the price is spelled out next to it, so you can find it: "American AA 1 + AA 2 · 6:00a→3:40p · 1 stop".
+  - The planner's own Google Flights links follow the same rule.
+- **Fare confidence** above each traveler's Book buttons, by fare age: "solid" (≤6h), "recheck on Google Flights before paying" (6–24h), "estimate — search first", or "stale — refresh first".
+- **Book-by countdown:** Thanksgiving defaults to **Sun Nov 1**. A confirmed "decision deadline" note wins; otherwise it's three weeks before leaving. It turns amber within 7 days and red once passed.
+- **Mark booked ✓** on the trip card and route card (organizer device) flips that traveler's RSVP row; they then drop off the fare watch and Get Live Fares.
+- Not built: "Open on airline.com". It needs a second, paid SerpAPI call (`booking_token`).
+
 ### Added (PIA-123)
 - **Fare watch per traveler.** On a linked trip, each traveler's route card and the trip's Trips card show:
   - their in + home price;
