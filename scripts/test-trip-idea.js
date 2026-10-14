@@ -407,7 +407,7 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   const names = ['fareAgeLabel', 'tripLegSetTarget', 'tripLegTargets', 'tripLegTargetFor', 'tripLegRecord', 'tripLegWatch', 'tripLegWatchLineHtml', 'tripTravelerWatchHtml', 'tripLegWatchCardHtml'];
   const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls });
   const ago = (ms) => api.fareAgeLabel(new Date(Date.now() - ms).toISOString());
-  check(ago(30e3) === 'just now' && ago(59 * 60e3) === '59m ago' && ago(60 * 60e3) === '1h ago' && ago(24 * 3600e3) === '24h ago' && ago(26 * 3600e3) === '1d ago' &&
+  check(ago(30e3) === 'just now' && ago(59 * 60e3) === '59m ago' && ago(60 * 60e3) === '1h ago' && ago(23.9 * 3600e3) === '24h ago' && ago(26 * 3600e3) === '1d ago' &&
     api.fareAgeLabel(Date.now() - 5 * 3600e3) === '5h ago' && api.fareAgeLabel(new Date(Date.now() - 120e3)) === '2m ago' && api.fareAgeLabel('nope') === '',
     `${file}: one age label — "just now", 59m, 1h, 24h, 1d; takes ISO, ms or Date`);
   check(api.tripLegTargetFor(id, 'LAX').value === 420 && api.tripLegTargetFor(id, 'LAX').from === 'fact', `${file}: a confirmed "target price" fact on the Trips card seeds the trip's target ($420)`);
@@ -475,7 +475,7 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
     api.tripLegItinerary(api.tripLegPrice({ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-21' })) === '',
     `${file}: the itinerary next to the link — "American AA 1 + AA 2 · 6:00a→3:40p · 1 stop" (live fares only)`);
   const conf = (h) => api.fareConfidence(h == null ? null : new Date(Date.now() - h * 3600e3).toISOString()).level;
-  check(conf(2) === 'solid' && conf(6) === 'solid' && conf(7) === 'recheck' && conf(24) === 'recheck' && conf(25) === 'stale' && conf(null) === 'estimate' &&
+  check(conf(2) === 'solid' && conf(5.99) === 'solid' && conf(6.01) === 'recheck' && conf(23.99) === 'recheck' && conf(24.01) === 'stale' && conf(null) === 'estimate' &&
     api.tripTravelerConfidence({ legs: [{ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20' }] }).level === 'solid' &&
     api.tripTravelerConfidence({ legs: [{ dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20' }, { dir: 'home', from: 'ORD', to: 'LAX', date: '2030-11-29' }] }).level === 'estimate',
     `${file}: fare confidence — ≤6h solid, ≤24h recheck, older stale; any estimated leg makes the traveler "estimate"`);
