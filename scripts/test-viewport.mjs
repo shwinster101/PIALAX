@@ -919,6 +919,34 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     if (g.bridge === 'none' && !g.stripCal && /Plan:\s*Wed Nov 25 – Sun Nov 29\s*· from RSVP/i.test(g.strip) && !g.over)
       ok(`${label} — no second date picker: "Step 2 · Choose Dates" hidden, strip reads "Plan: Wed Nov 25 – Sun Nov 29 · from RSVP"`);
     else bad(`${label} — date controls still offered: ${JSON.stringify({ bridge: g.bridge, stripCal: g.stripCal, strip: g.strip.slice(0, 120) })}`);
+    // PIA-121: the LAX card is priced as the legs Me books (in + home), with a ±day
+    // strip; one tap moves Me's RSVP date and every view follows. Zero searches.
+    {
+      await rsvp.post('/idea/respond?id=' + idea.id, { member: 'LGA', status: 'in', available_from: '2026-11-26', available_to: '2026-11-30' });
+      const searches = []; page.on('request', (r) => { if (/\/search\?/.test(r.url())) searches.push(r.url()); });
+      const lc = page.locator('.route-card', { has: page.locator('[data-leg-box="LAX"]') });
+      await lc.waitFor({ timeout: 5000 });
+      const s = await lc.evaluate((c) => ({ text: c.innerText.replace(/\s+/g, ' '), chips: [...c.querySelectorAll('[data-leg-flex]')].map((b) => Math.round(b.getBoundingClientRect().height)),
+        next: (c.querySelector('[data-leg-flex][data-dir="in"]:not([disabled])') || {}).dataset || null, over: document.documentElement.scrollWidth > innerWidth }));
+      const nextDate = s.next && s.next.date;
+      if (/in \+ home/.test(s.text) && /In · LAX→PIA/.test(s.text) && /Home · ORD→LAX/.test(s.text) && s.chips.length === 6 && Math.min.apply(null, s.chips) >= 44 && !s.over && nextDate)
+        ok(`${label} — LAX card priced as Me's legs ("in + home"), −1/plan/+1 per leg, chips ≥44px, no overflow`);
+      else bad(`${label} — leg strip wrong: ${JSON.stringify({ text: s.text.slice(0, 200), chips: s.chips, nextDate, over: s.over })}`);
+      if (nextDate) {
+        await lc.locator('[data-leg-flex][data-dir="in"][data-date="' + nextDate + '"]').click();
+        await page.waitForFunction((d) => [...document.querySelectorAll('#linked-trip-summary [data-lt-book="LAX"] a')].some((a) => decodeURIComponent(a.href).includes('LAX to PIA on ' + d)), nextDate, { timeout: 6000 }).catch(() => {});
+        const after = await page.evaluate((d) => {
+          const card = [...document.querySelectorAll('.route-card')].find((c) => c.querySelector('[data-leg-box="LAX"]'));
+          const has = (root) => !!root && [...root.querySelectorAll('a[href]')].some((a) => decodeURIComponent(a.href).includes('LAX to PIA on ' + d + ' one way'));
+          return { trip: has(document.querySelector('#linked-trip-summary [data-lt-book="LAX"]')), route: has(card), plan: !!(card && card.querySelector('.lt-leg-chip.plan[data-dir="in"][data-date="' + d + '"]')) };
+        }, nextDate);
+        const saved = await (await rsvp.worker.fetch(new Request(rsvp.W + '/idea?id=' + idea.id), rsvp.env)).json();
+        const r = saved.doc && saved.doc.responses.LAX;
+        if (after.trip && after.route && after.plan && r && r.available_from === nextDate && r.available_to === '2026-11-29' && saved.doc.responses.LGA.available_from === '2026-11-26' && !searches.length)
+          ok(`${label} — tapping ${nextDate} moved only Me's RSVP arrive date; trip card, route card and plan chip agree; 0 searches`);
+        else bad(`${label} — flex tap didn't carry through: ${JSON.stringify({ after, saved: r, lga: saved.doc && saved.doc.responses.LGA, searches: searches.length })}`);
+      }
+    }
     await page.locator('.lts-dates-edit').click();
     await page.waitForSelector('.trip-idea-planedit', { timeout: 5000 }).catch(() => {});
     if (await page.locator('.trip-idea-planedit').count()) ok(`${label} — "✎ Dates" opens the RSVP straight into the plan-dates calendar`);

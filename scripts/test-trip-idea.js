@@ -37,6 +37,8 @@ EXPECT.push('tripIdeaOpenJaw'); // PIA-109
 EXPECT.push('tripIdeaLegPick', 'tripIdeaLegLinks'); // PIA-111
 EXPECT.push('tripIdeaCountsLine', 'tripIdeaPlanDatesPayload'); // PIA-112
 EXPECT.push('tripIdeaPlanDates', 'tripIdeaBookListHtml', 'tripIdeaLinkedRoute'); // PIA-120
+EXPECT.push('tripFareParse', 'tripLegsForRow', 'tripLegsFor', 'tripLegPrice', 'tripTravelerCost', 'tripLinkedCostFor', 'tripLinkedPlanLegs',
+  'tripLegsToPrice', 'tripLegsSearchCount', 'tripLegsFetch', 'tripLegFlexLegs', 'tripIdeaFlexStripHtml', 'tripIdeaLegsHtml', 'tripIdeaSetTravelDate', 'tripIdeaStoreDoc'); // PIA-121
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -147,6 +149,70 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
       check(d.in === 'PIA' && d.home === 'ORD' && junk.in === 'PIA' && rt.round && /LGA to ORD on 2026-11-20 through 2026-11-29/.test(decodeURIComponent(rt.url)) &&
         !ow.round && /ORD to LGA on 2026-11-29 one way/.test(decodeURIComponent(ow.outUrl)) && api.tripIdeaLegPick('RDU', {}).hub.length === 1,
         `${file}: leg picks — default in PIA/home ORD, ORD both ways is one round trip, non-hub picks ignored`);
+    }
+    // PIA-121: SerpAPI parse — same headline price, plus offers, insights and a safe results link.
+    {
+      const seg = (fn, a, at, b, bt) => ({ airline: 'American', flight_number: fn, departure_airport: { id: a, time: at }, arrival_airport: { id: b, time: bt } });
+      const full = api.tripFareParse({
+        best_flights: [{ price: 300, total_duration: 400, flights: [seg('AA 1', 'LAX', '2030-11-20 06:00', 'ORD', '2030-11-20 12:10'), seg('AA 2', 'ORD', '2030-11-20 14:30', 'PIA', '2030-11-20 15:40')] }],
+        other_flights: [{ price: 280 }, { price: 250, flights: [seg('UA 9', 'LAX', '2030-11-20 08:00', 'PIA', '2030-11-20 16:05')] }, { price: 0 }],
+        price_insights: { lowest_price: 250, price_level: 'high', typical_price_range: [180, 260], price_history: [[1760000000, 240], [1760086400, 250]] },
+        search_metadata: { google_flights_url: 'https://www.google.com/travel/flights?hl=en&tfs=abc' },
+      });
+      const o0 = full.offers[0];
+      check(full.price === 300 && full.airline === 'American' && full.flightNo === 'AA 1' && full.stops === 1 &&
+        full.offers.map((o) => o.price).join() === '300,250,280' && o0.depAirport === 'LAX' && o0.arrAirport === 'PIA' && o0.arrTime === '2030-11-20 15:40' &&
+        o0.flightNos.join() === 'AA 1,AA 2' && o0.durMin === 400 && full.insights.level === 'high' && full.insights.typical.join() === '180,260' &&
+        full.insights.hist[0][0] === 1760000000000 && /tfs=abc$/.test(full.gfUrl),
+        `${file}: fare parse keeps best_flights[0] as the price, then cheapest offers, insights (ms) and the Google Flights link`);
+      const bare = api.tripFareParse({ best_flights: [{ price: 220 }] });
+      check(bare && bare.price === 220 && bare.offers.length === 1 && bare.airline === null && bare.insights === null && bare.gfUrl === '' &&
+        api.tripFareParse({}) === null && api.tripFareParse(null) === null &&
+        api.tripFareParse({ best_flights: [{ price: 1 }], search_metadata: { google_flights_url: 'javascript:alert(1)' } }).gfUrl === '' &&
+        api.tripFareParse({ best_flights: [{ price: 1 }], search_metadata: { google_flights_url: 'https://evil.example/travel/flights?x' } }).gfUrl === '',
+        `${file}: fare parse — a bare offer still parses; no fare → null; only a google.com/travel/flights link is kept`);
+    }
+    // PIA-121: a linked trip's legs = the booking links (in PIA + home ORD), priced from cache or ~$ estimate.
+    {
+      const tg = { id: 'TGTGTGTGTGTGTGTGTGTGTG', idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
+        members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+        responses: { PIA: { status: 'in' }, LAX: { status: 'in', origin: 'LAX', available_from: '2030-11-20', available_to: '2030-11-29' },
+          LGA: { status: 'in', origin: 'LGA', available_from: '2030-11-26', available_to: '2030-11-30' } } };
+      const t = api.tripLegsFor(tg), lax = t.find((x) => x.code === 'LAX'), lga = t.find((x) => x.code === 'LGA');
+      const desc = (l) => [l.dir, l.from, l.to, l.date].join(' ');
+      check(t.length === 2 && lax.legs.map(desc).join('|') === 'in LAX PIA 2030-11-20|home ORD LAX 2030-11-29' &&
+        lga.legs.map(desc).join('|') === 'in LGA PIA 2030-11-26|home ORD LGA 2030-11-30',
+        `${file}: legs — Me LAX→PIA Nov 20 + ORD→LAX Nov 29; Anjo LGA→PIA Nov 26 + ORD→LGA Nov 30 (hosts have none)`);
+      const rt = api.tripLegsForRow(api.tripIdeaBookRows(Object.assign({}, tg, { responses: { LAX: Object.assign({}, tg.responses.LAX, { arrive_at: 'ORD', leave_from: 'ORD' }) } }))[0]);
+      const oneWay = api.tripLegsForRow(api.tripIdeaBookRows(Object.assign({}, tg, { responses: { LAX: Object.assign({}, tg.responses.LAX, { available_to: '' }) } }))[0]);
+      check(rt.length === 1 && rt[0].dir === 'round' && rt[0].to === 'ORD' && rt[0].ret === '2030-11-29' && oneWay.length === 1 && oneWay[0].dir === 'in',
+        `${file}: legs mirror the links — ORD both ways is one round trip; no leave date is one in-leg`);
+      api._flightCache[api._cacheKey('LAX', 'PIA', '2030-11-20', '')] = { data: { ow: 189, live: true, lastVerified: new Date().toISOString(), airline: 'American', flightNo: 'AA 3315', stops: 0 }, ts: Date.now() };
+      const inP = api.tripLegPrice(lax.legs[0]), homeP = api.tripLegPrice(lax.legs[1]), none = api.tripLegPrice({ dir: 'in', from: 'BUR', to: 'PIA', date: '2030-11-20' });
+      const cost = api.tripTravelerCost(lax);
+      check(inP.status === 'live' && inP.price === 189 && homeP.status === 'estimate' && homeP.price > 0 && homeP.price % 5 === 0 && none.status === 'none' && none.price === null &&
+        cost.status === 'mixed' && cost.per === 189 + homeP.price,
+        `${file}: leg prices — cached one-way is live ($189), uncached is a ~$ day-of-week estimate, no sample → none; traveler total sums both`);
+      check(api.tripLegsSearchCount(lax.legs) === 1 && api.tripLegsToPrice(lax.legs)[0].from === 'ORD' &&
+        api.tripLegsToPrice([{ dir: 'in', from: 'LAX', to: 'PIA', date: '2020-01-01' }]).length === 0,
+        `${file}: "Price these" only counts legs without a live fare, and never past dates`);
+      const flex = api.tripLegFlexLegs(lax).map((l) => l.from + ' ' + l.date);
+      check(flex.join('|') === 'LAX 2030-11-20|ORD 2030-11-29|LAX 2030-11-19|ORD 2030-11-28|LAX 2030-11-21|ORD 2030-11-30',
+        `${file}: flex searches go plan dates first, then −1, then +1`);
+      const strip = api.tripIdeaFlexStripHtml(lax);
+      check((strip.match(/data-leg-flex/g) || []).length === 6 && /class="lt-leg-chip plan"[^>]* disabled[^>]*data-date="2030-11-20"/.test(strip) &&
+        /data-dir="in" data-date="2030-11-19"/.test(strip) && /data-dir="home" data-date="2030-11-30"/.test(strip) && /<b>\$189<\/b>/.test(strip) && /<b>~\$\d/.test(strip) && /AA 3315 · nonstop/.test(strip),
+        `${file}: flex strip — −1/plan/+1 per leg, plan chip disabled, live $ vs ~$ estimates, airline on the live leg`);
+      const tight = api.tripIdeaFlexStripHtml(api.tripLegsFor(Object.assign({}, tg, { responses: { LAX: Object.assign({}, tg.responses.LAX, { available_to: '2030-11-20' }) } }))[0]);
+      check(/disabled[^>]*data-dir="in" data-date="2030-11-21"/.test(tight) && /disabled[^>]*data-dir="home" data-date="2030-11-19"/.test(tight) &&
+        !/disabled[^>]*data-dir="in" data-date="2030-11-19"/.test(tight),
+        `${file}: flex strip — a day that would put "leave" before "arrive" can't be tapped`);
+      api.tripIdeaStoreDoc(tg); api.S.linkedIdeaId = tg.id;
+      check(api.tripLinkedCostFor('LAX', 'PIA').per === cost.per && api.tripLinkedCostFor('LAX', 'ORD') && api.tripLinkedCostFor('LAX', 'LAX') === null &&
+        api.tripLinkedPlanLegs().length === 4 && /data-leg-box="LAX"/.test(api.tripIdeaLegsHtml('LAX')) && /±2 days/.test(api.tripIdeaLegsHtml('LAX')),
+        `${file}: linked trip — route-card cost only on the trip's own hub (PIA/ORD); Get Live Fares covers 4 legs`);
+      api.S.linkedIdeaId = null;
+      Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
     }
     // PIA-108: Peoria is the PIA/ORD hub — every traveler also gets an O'Hare search, on the same own dates.
     check(rows[0].alts.length === 1 && rows[0].alts[0].to === 'ORD' && /LAX to ORD on 2026-11-21 through 2026-11-29/.test(decodeURIComponent(rows[0].alts[0].url)) &&
@@ -573,7 +639,20 @@ async function staggeredArrivalsSuite() {
     check(/still need an answer from Anjo\./.test(api.tripIdeaShareText(doc, 'nudge')), `${file}: nudge names only Anjo — never the hosts or the organizer`);
 
     await respond(id, { member: 'LAX', status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' });
-    await respond(id, { member: 'LGA', status: 'maybe', available_from: '2026-11-24', available_to: '2026-11-29' });
+    await respond(id, { member: 'LGA', status: 'maybe', available_from: '2026-11-24', available_to: '2026-11-29', note: 'after class', arrive_at: 'PIA', leave_from: 'ORD' });
+    // PIA-121: a flex tap moves one traveler's date through the real Worker and keeps the rest of their answer.
+    {
+      const moved = await api.tripIdeaSetTravelDate(id, 'LGA', 'in', '2026-11-25');
+      const r = moved && moved.responses.LGA;
+      check(r && r.available_from === '2026-11-25' && r.available_to === '2026-11-29' && r.status === 'maybe' && r.arrive_at === 'PIA' && r.leave_from === 'ORD' &&
+        r.note === 'after class (entered by Ashwin)', `${file}: flex tap — Anjo arrives Nov 25; status, legs and note stay, tagged "entered by Ashwin"`);
+      const clamped = await api.tripIdeaSetTravelDate(id, 'LGA', 'home', '2026-11-20');
+      const mine = await api.tripIdeaSetTravelDate(id, 'LAX', 'home', '2026-11-30');
+      check(clamped === null && mine && mine.responses.LGA.available_to === '2026-11-29' && mine.responses.LAX.available_to === '2026-11-30' && !/entered by/.test(mine.responses.LAX.note || ''),
+        `${file}: flex tap — "leave before arrive" is refused; the organizer moving their own date isn't tagged`);
+      await respond(id, { member: 'LAX', status: 'in', available_from: '2026-11-21', available_to: '2026-11-29' });
+      await respond(id, { member: 'LGA', status: 'maybe', available_from: '2026-11-24', available_to: '2026-11-29' });
+    }
     doc = await api.tripIdeaFetchDoc(id, true);
     sum = api.summarizeIdeaResponses(doc);
     check(sum.counts.pending === 0 && sum.travelersIn === 1, `${file}: nobody left waiting once both travelers answer`);
@@ -602,6 +681,8 @@ async function staggeredArrivalsSuite() {
     const booked = await api.tripIdeaPromptActual(api.watchlistItem('thanksgiving'), '$900');
     check(booked && booked.decision.estimate_total === 592 && booked.decision.actual_total === 900,
       `${file}: booking compares the actual $900 with the per-person estimate $592`);
+    check(await api.tripIdeaSetTravelDate(id, 'LGA', 'in', '2026-11-23') === null && (await api.tripIdeaFetchDoc(id, true)).responses.LGA.available_from === '2026-11-24',
+      `${file}: flex tap on a booked trip is refused (409) and changes nothing`);
     Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
   }
 }

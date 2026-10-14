@@ -12,6 +12,17 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-121)
+- **One-way pricing for linked trips:** a trip linked to a family RSVP is now priced the way each traveler books it. For Peoria that's in to PIA plus home from ORD, as two one-ways. Before, it was priced as a round trip that nobody books.
+  - Each Flight Breakdown card shows that traveler's in + home total, with `~$` on estimates.
+  - The cost panel and the "At a glance" total use the same number.
+- **±day flex strip** under each leg, showing the day before and after the plan date (tap "±2 days" for more).
+  - Each chip shows a live fare from the 24h cache or a `~$` day-of-week estimate. Showing the strip never spends a search.
+  - Tapping a day moves only that traveler's RSVP arrive or leave date and keeps the rest of their answer. A day that would put leaving before arriving can't be tapped.
+  - "Price these (N searches)" prices the visible days, at most 4 per tap.
+- **Get Live Fares on a linked trip** prices those legs (at most 4 searches per tap), and its label shows how many searches the next tap will spend.
+- Live fares now also keep the cheapest few offers (with times and airports), Google's price insights and Google's own results link. The parser is shared by both dashboards.
+
 ### Changed (PIA-120)
 - A trip linked to a family RSVP now has one place for its dates and one place to book from:
   - **Dates:** the Family tab's trip card shows the RSVP plan dates. The organizer changes them with

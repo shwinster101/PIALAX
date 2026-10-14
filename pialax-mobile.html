@@ -1765,6 +1765,22 @@ body.idea-guest [data-trip-close]{display:none!important}
 .lt-rsvp-badge{font-size:var(--fs-micro);background:var(--accent-soft);color:var(--accent);padding:1px 5px;border-radius:var(--rad-xs);font-weight:900;margin-left:4px}
 .lt-route-dates{margin-top:4px;font-size:var(--fs-tiny);color:var(--ink-muted);font-weight:700}
 .trip-idea-book-btns.lt-route-links{flex-direction:row;flex-wrap:wrap;margin-top:6px}
+/* PIA-121: a linked trip's legs — one-way prices and a ±day strip per leg */
+.lt-legs{display:grid;gap:8px;margin-top:8px;padding-top:8px;border-top:1px dashed var(--line-strong)}
+.lt-leg-row{display:grid;gap:4px;min-width:0}
+.lt-leg-lbl{font-size:var(--fs-tiny);font-weight:800;color:var(--ink)}
+.lt-leg-meta{font-size:var(--fs-micro);font-weight:700;color:var(--ink-muted)}
+.lt-leg-chips{display:grid;grid-template-columns:repeat(auto-fit,minmax(58px,1fr));gap:4px}
+.lt-leg-chip{display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:0;min-height:44px;padding:3px 2px;border:1px solid var(--line-strong);border-radius:var(--rad-sm);background:var(--surface);color:var(--ink);font:inherit;font-size:var(--fs-micro);cursor:pointer}
+.lt-leg-chip b{font-size:var(--fs-tiny);font-weight:900}
+.lt-leg-chip.est b{font-weight:700;color:var(--ink-muted)}
+.lt-leg-chip.plan{border-color:var(--accent);background:var(--accent-soft);cursor:default}
+.lt-leg-chip.cheaper b{color:var(--success)}
+.lt-leg-chip:disabled:not(.plan){opacity:.45;cursor:not-allowed}
+.lt-leg-foot{display:flex;align-items:center;flex-wrap:wrap;gap:6px;font-size:var(--fs-micro);color:var(--ink-muted)}
+.lt-leg-foot>span{flex:1 1 140px}
+.lt-leg-btn{min-height:44px;padding:0 12px;border:1px solid var(--accent);border-radius:var(--rad-sm);background:transparent;color:var(--accent);font:inherit;font-size:var(--fs-tiny);font-weight:800;cursor:pointer}
+.lt-leg-btn:disabled{opacity:.6;cursor:wait}
 .trip-idea-book small{display:block;padding:8px 14px 12px;font-size:var(--fs-micro);color:var(--ink-muted)}
 .trip-idea-book-btns{display:flex;flex-direction:column;gap:6px;flex-shrink:0}
 .trip-idea-legs{display:flex;flex-wrap:wrap;gap:10px;width:100%}
@@ -3316,7 +3332,10 @@ function renderDecisionRail() {
     sub.textContent = dateText;
     primaryLabel.textContent = 'Recommended hub';
     primary.textContent = row ? city + ' · ' + row.dest : '—';
-    total.textContent = row ? '≈ $' + row.total + ' ' + fareLabel : '—';
+    // PIA-121: a linked trip's total is what the family books (each traveler's
+    // in + home legs), the same number as the cost panel and route cards.
+    var linkedTotal = row && S.linkedIdeaId && typeof tripLinkedDoc === 'function' && tripLinkedDoc() ? memberCostsFor(row.dest).total : null;
+    total.textContent = row ? '≈ $' + (linkedTotal != null ? linkedTotal + ' in + home' : row.total + ' ' + fareLabel) : '—';
     signal.textContent = row && row.savings > 0 ? 'Save ≈ $' + row.savings : (S.depDate ? 'Compare routes' : 'Pick a weekend');
     signal.dataset.tone = row && row.savings > 0 ? 'success' : 'accent';
     return;
@@ -3715,6 +3734,19 @@ function renderMeetupRoutes() {
       flexDatesHtml = '<div class="lt-route-dates">' + _tripIdeaEsc(linkedRoute.dates) + '</div>';
       bookLinkHtml = linkedRoute.links ? '<div class="lt-route-links trip-idea-book-btns">' + linkedRoute.links + '</div>' : '';
     }
+    // PIA-121: …and priced the same way: the legs they book (in PIA + home ORD
+    // as one-ways), not the planner's round trip, with a ±day strip per leg.
+    var priceTxt = '$' + price, cardFareLbl = fareLabel, legsHtml = '';
+    var legCost = linkedRoute && typeof tripLinkedCostFor === 'function' ? tripLinkedCostFor(from, hub) : null;
+    if (legCost) {
+      price = legCost.per; subtotalGen = price * headcount;
+      priceTxt = (legCost.status === 'live' ? '$' : '~$') + price;
+      cardFareLbl = legCost.parts.length > 1 ? 'in + home' : legCost.parts[0].leg.dir === 'round' ? 'RT' : 'OW';
+      genSubtotalLine = headcount > 1 ? '<div class="route-fare-lbl" style="margin-top:2px;">' + priceTxt + ' × ' + headcount + ' = <strong>$' + subtotalGen + '</strong> ' + cardFareLbl + '</div>' : '';
+      airlineHtml = '';
+      legsHtml = tripIdeaLegsHtml(from);
+      copyFlyText = memberLabel + ' (' + from + ' → ' + hub + '): ' + priceTxt + ' ' + cardFareLbl + ' · ' + linkedRoute.dates;
+    }
     html +=
       '<div class="route-card"' + cardStyle + '>' +
         '<div class="route-card-hd">' +
@@ -3728,13 +3760,14 @@ function renderMeetupRoutes() {
           '<button class="route-copy-btn" data-copy="' + esc(copyFlyText) + '" title="Copy" aria-label="Copy route">📋</button>' +
         '</div>' +
         '<div style="display:flex;align-items:baseline;gap:5px;flex-wrap:wrap;">' +
-          '<div class="route-price">$' + price + '</div>' +
-          '<span class="route-fare-lbl">' + fareLabel + '</span>' +
+          '<div class="route-price">' + priceTxt + '</div>' +
+          '<span class="route-fare-lbl">' + cardFareLbl + '</span>' +
         '</div>' +
         genSubtotalLine +
         airlineHtml +
         tentativeNote +
         flexDatesHtml +
+        legsHtml +
         bookLinkHtml +
       '</div>';
   });
@@ -4938,28 +4971,25 @@ async function fetchFlights(from, to, dep, ret) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       var stamp = fareStamp(res);
       var json = await res.json();
-      var best = (json && json.best_flights && json.best_flights.length > 0) ? json.best_flights[0] : null;
-      if (!best && json && json.other_flights && json.other_flights.length > 0) {
-        best = json.other_flights[0];
-      }
-      if (!best || typeof best.price !== 'number') return getMock(from, to);
-      var price = best.price;
-      var outLegs = (best.flights && best.flights.length) ? best.flights : [];
-      var outFirst = outLegs[0] || {};
-      var retLegs = (best.return_flights && best.return_flights.length) ? best.return_flights : [];
-      var retFirst = retLegs[0] || {};
+      // PIA-121: one shared parser (Trip Idea block) — same headline price as
+      // before, plus the best/cheapest offers, price insights and results link.
+      var f = tripFareParse(json);
+      if (!f) return getMock(from, to);
       var data = {
-        ow: ret ? null : price,
-        rt: ret ? price : null,
+        ow: ret ? null : f.price,
+        rt: ret ? f.price : null,
         live: true,
-        airline: outFirst.airline || null,
-        flightNo: outFirst.flight_number || null,
-        airlineLogo: outFirst.airline_logo || best.airline_logo || null,
-        stops: outLegs.length > 1 ? (outLegs.length - 1) : 0,
-        returnAirline: retFirst.airline || null,
-        returnFlightNo: retFirst.flight_number || null,
-        returnAirlineLogo: retFirst.airline_logo || null,
-        returnStops: retLegs.length > 1 ? (retLegs.length - 1) : 0,
+        airline: f.airline,
+        flightNo: f.flightNo,
+        airlineLogo: f.airlineLogo,
+        stops: f.stops,
+        returnAirline: f.returnAirline,
+        returnFlightNo: f.returnFlightNo,
+        returnAirlineLogo: f.returnAirlineLogo,
+        returnStops: f.returnStops,
+        offers: f.offers,
+        insights: f.insights,
+        gfUrl: f.gfUrl,
       };
       // PIA-013 AC1 (mobile mirror): stamp lastVerified before caching.
       // PIA-115: the fare's real age (a Worker cache hit keeps its original time);
@@ -5438,6 +5468,15 @@ async function loadPrices(allowLive) {
       routes.push({ from:S.home, to:dest, key:S.home+'-'+dest, dep:globalDep, ret:globalRet });
     });
   }
+  // PIA-121: on a trip linked to a family RSVP the button prices the legs people
+  // book (each traveler's in + home one-ways), not round trips on plan dates;
+  // the planner's other routes then render from cache only.
+  var legRes = null;
+  if (live && S.mode === 'meetup' && typeof tripLinkedPlanLegs === 'function') {
+    var planLegs = tripLinkedPlanLegs();
+    if (planLegs.length) legRes = await tripLegsFetch(planLegs);
+  }
+  var routeLive = live && !legRes;
   var liveCount = 0, failCount = 0, cachedCount = 0, doneCount = 0, total = routes.length;
   var _repaintScheduled = false;
   function scheduleRepaint() {
@@ -5453,7 +5492,7 @@ async function loadPrices(allowLive) {
   }
   // PIA-005 AC3 (mobile mirror, downgrade): live fan-out capped at MAX_CALLS_PER_REFRESH.
   // Cache hits free; cache miss with no budget → mock fallback with rateLimited flag.
-  var liveBudget = live ? MAX_CALLS_PER_REFRESH : 0;
+  var liveBudget = routeLive ? MAX_CALLS_PER_REFRESH : 0;
   await Promise.all(routes.map(function(r) {
     var rDep = r.dep || globalDep;
     var rRet = r.ret || globalRet;
@@ -5462,7 +5501,7 @@ async function loadPrices(allowLive) {
     var isCacheHit = hit && (Date.now() - hit.ts) < FLIGHT_CACHE_TTL_MS;
     // Cache-only path (no button press): cached fares if fresh, else sample.
     // Never calls fetchFlights → zero SerpAPI spend.
-    if (!live) {
+    if (!routeLive) {
       if (isCacheHit) { S.prices[r.key] = Object.assign({}, hit.data, { cached: true }); cachedCount++; }
       else { S.prices[r.key] = getMock(r.from, r.to); }
       doneCount++; scheduleRepaint();
@@ -5483,6 +5522,7 @@ async function loadPrices(allowLive) {
       .catch(function(){ S.prices[r.key]=getMock(r.from, r.to); failCount++; })
       .then(function(){ doneCount++; scheduleRepaint(); });
   }));
+  if (legRes) liveCount += legRes.fresh;
   if (PROXY_URL && liveCount > 0) { S.apiCalls += liveCount; }
   updateApiCallCount();
   // F11 (2026-07-31): loadPrices' own allFailed/failCount below rarely fires on a
@@ -5503,6 +5543,10 @@ async function loadPrices(allowLive) {
   else if (allFailed) statusLbl = 'Blind — fetch failed (mock shown)';
   else if (liveCount === 0 && cachedCount > 0) statusLbl = 'Live (cached)';
   else statusLbl = 'Live Data';
+  if (legRes) {
+    allFailed = legRes.asked > 0 && !legRes.live; isLiveish = !!PROXY_URL && !allFailed;
+    statusLbl = !PROXY_URL ? 'Mock Data' : !legRes.asked ? 'Cached fares' : allFailed ? 'Blind — fetch failed (mock shown)' : legRes.fresh ? 'Live Data' : 'Live (cached)';
+  }
   document.getElementById('data-badge').textContent   = statusLbl;
   document.getElementById('data-badge').className     = 'ab-badge ' + (isLiveish ? 'b-live' : 'b-mock');
   document.getElementById('pill-src').textContent     = statusLbl;
@@ -5513,13 +5557,16 @@ async function loadPrices(allowLive) {
   document.querySelector('.ld').style.background      = isLiveish ? 'var(--green)' : (allFailed ? 'var(--danger)' : 'var(--amber)');
   renderMeetupStrip(); redrawMap(); updateStats();
   // PIA-025: record the whole-family total on a real live fetch (mobile mirror).
-  if (live && S.mode === 'meetup') {
+  if (live && S.mode === 'meetup' && !legRes) {
     try { var _r = computeRanking(), _h = getActiveHub(_r), _row = _r.filter(function(x){ return x.dest === _h; })[0];
       if (_row && _row.total > 0) recordGroupPrice(_h, _row.total); } catch(e){}
   }
   if (S.mode === 'meetup') { renderMeetupRoutes(); renderMeetupFinder(); }
   if (S.mode === 'solo') renderSoloCards();
   var nextLbl = (!live && PROXY_URL && cachedCount < total) ? 'Get Live Fares' : 'Refresh Fares';
+  // PIA-121: on a linked trip, the label says what the next press will spend.
+  var nextLegs = S.mode === 'meetup' && typeof tripLinkedPlanLegs === 'function' ? tripLinkedPlanLegs() : [];
+  if (nextLegs.length && PROXY_URL) { var nLeg = tripLegsSearchCount(nextLegs); nextLbl = nLeg ? 'Get Live Fares (' + nLeg + ' search' + (nLeg > 1 ? 'es' : '') + ')' : 'Refresh Fares'; }
   if (live) { btn.disabled=false; spin.style.display='none'; icon.style.display=''; }
   lbl.textContent = nextLbl;
   requestAnimationFrame(function(){ lbl.textContent = nextLbl; });
@@ -6839,7 +6886,12 @@ function memberCostsFor(hub) {
     if (from === 'PIA' && hub === 'ORD') { rows.push({ code:from, label:label, headcount:headcount, per:0, subtotal:0, drives:true, status:status }); return; }
     var per = 0, viaORD = false;
     if (from === 'PIA' && INTL_DESTS.indexOf(hub) > -1) { var route = piaRouteTo(hub, fareKey); per = route.fare || 0; viaORD = route.viaORD; }
-    else { var p = S.prices[from + '-' + hub] || getMock(from, hub); per = p ? (p[fareKey] || p.ow) : 0; }
+    else {
+      // PIA-121: a linked traveler costs what they'd book (their legs), as on their route card.
+      var lc = S.linkedIdeaId && typeof tripLinkedCostFor === 'function' ? tripLinkedCostFor(from, hub) : null;
+      if (lc) per = lc.per;
+      else { var p = S.prices[from + '-' + hub] || getMock(from, hub); per = p ? (p[fareKey] || p.ow) : 0; }
+    }
     var sub = per * headcount;
     if (status !== 'out') total += sub; // PIA-023
     rows.push({ code:from, label:label, headcount:headcount, per:per, subtotal:sub, viaORD:viaORD, status:status });
@@ -11618,7 +11670,231 @@ function tripIdeaPromptActual(item, amount) {
   });
 }
 
+// ── PIA-121: a linked trip, priced the way people book it ───────────────────
+// Each traveler's RSVP row becomes their real legs: in to PIA and home from ORD
+// are two one-ways (one round trip when it's the same airport both ways), on
+// their own dates. Prices come from the 24h cache or a ~$ day-of-week estimate;
+// tripLegsFetch is the one path that spends, and only on a button press.
+var TRIP_LEG_CALLS_PER_PRESS = 4; // one full re-price: two travelers × in + home
+var TRIP_LEG_FLEX_DAYS = [-1, 0, 1], TRIP_LEG_FLEX_WIDE = [-2, -1, 0, 1, 2];
+// SerpAPI google_flights → what the dashboard keeps. best_flights[0] stays the
+// headline price (unchanged meaning); the best and cheapest few offers, Google's
+// price insights and its own results link ride along. Self-contained on purpose:
+// test-trust runs fetchFlights + this function alone in a sandbox.
+function tripFareParse(json) {
+  var j = json && typeof json === 'object' ? json : {};
+  var top = Array.isArray(j.best_flights) ? j.best_flights : [], more = Array.isArray(j.other_flights) ? j.other_flights : [];
+  var best = top[0] || more[0] || null;
+  if (!best || typeof best.price !== 'number') return null;
+  function offer(o) {
+    var segs = Array.isArray(o.flights) ? o.flights : [], a = segs[0] || {}, z = segs[segs.length - 1] || {};
+    var da = a.departure_airport || {}, za = z.arrival_airport || {};
+    return {price:o.price, airline:a.airline || null, flightNos:segs.map(function(s){ return s && s.flight_number; }).filter(Boolean).slice(0, 4),
+      depAirport:da.id || '', arrAirport:za.id || '', depTime:da.time || '', arrTime:za.time || '',
+      stops:segs.length > 1 ? segs.length - 1 : 0, durMin:Number(o.total_duration) || null};
+  }
+  var all = top.concat(more).filter(function(o){ return o && typeof o.price === 'number' && o.price > 0; }).map(offer);
+  var offers = all.slice(0, 1).concat(all.slice(1).sort(function(a, b){ return a.price - b.price; })).slice(0, 6);
+  var segs = Array.isArray(best.flights) ? best.flights : [], first = segs[0] || {};
+  var back = Array.isArray(best.return_flights) ? best.return_flights : [], bf = back[0] || {};
+  var pi = j.price_insights && typeof j.price_insights === 'object' ? j.price_insights : null, insights = null;
+  if (pi) {
+    var tr = Array.isArray(pi.typical_price_range) ? pi.typical_price_range.map(Number) : [];
+    var hist = (Array.isArray(pi.price_history) ? pi.price_history : []).filter(function(p){ return Array.isArray(p) && Number(p[0]) > 0 && Number(p[1]) > 0; })
+      .map(function(p){ var t = Number(p[0]); return [t < 1e12 ? t * 1000 : t, Number(p[1])]; }).slice(-30);
+    insights = {level:typeof pi.price_level === 'string' ? pi.price_level : '', low:Number(pi.lowest_price) || null,
+      typical:tr.length === 2 && tr[0] > 0 && tr[1] >= tr[0] ? tr : null, hist:hist};
+  }
+  var gf = j.search_metadata && typeof j.search_metadata.google_flights_url === 'string' ? j.search_metadata.google_flights_url : '';
+  if (gf.indexOf('https://www.google.com/travel/flights?') !== 0 || /[\s<>]/.test(gf)) gf = '';
+  return {price:best.price, airline:first.airline || null, flightNo:first.flight_number || null, airlineLogo:first.airline_logo || best.airline_logo || null,
+    stops:segs.length > 1 ? segs.length - 1 : 0, returnAirline:bf.airline || null, returnFlightNo:bf.flight_number || null,
+    returnAirlineLogo:bf.airline_logo || null, returnStops:back.length > 1 ? back.length - 1 : 0, offers:offers, insights:insights, gfUrl:gf};
+}
+// One traveler's legs, exactly what their booking links search (tripIdeaLegLinks).
+function tripLegsForRow(r) {
+  if (!r || !r.dep || !r.links) return [];
+  var l = r.links, hc = r.headcount || 1, ret = r.ret && r.ret >= r.dep ? r.ret : '';
+  if (l.round) return [{code:r.code, dir:ret ? 'round' : 'in', from:r.from, to:l.to, date:r.dep, ret:ret, headcount:hc}];
+  return [{code:r.code, dir:'in', from:r.from, to:l.to, date:r.dep, ret:'', headcount:hc},
+    {code:r.code, dir:'home', from:l.back, to:r.from, date:ret, ret:'', headcount:hc}];
+}
+function tripLegsFor(doc) {
+  return doc ? tripIdeaBookRows(doc).map(function(r){ return {code:r.code, label:r.label, headcount:r.headcount, booked:r.booked, from:r.from, row:r, legs:tripLegsForRow(r)}; }) : [];
+}
+function tripLinkedDoc() { return typeof S === 'object' && S && S.linkedIdeaId ? tripIdeaCachedDoc(S.linkedIdeaId) : null; }
+function tripLinkedTraveler(code) {
+  var base = _tripIdeaPersonBase(code);
+  return tripLegsFor(tripLinkedDoc()).filter(function(t){ return _tripIdeaPersonBase(t.code) === base; })[0] || null;
+}
+// Every unbooked traveler's legs on their own dates — what Get Live Fares prices.
+function tripLinkedPlanLegs() {
+  var out = [];
+  tripLegsFor(tripLinkedDoc()).forEach(function(t){ if (!t.booked) out = out.concat(t.legs); });
+  return out;
+}
+function _tripLegKey(leg) { return typeof _cacheKey === 'function' && leg && leg.date ? _cacheKey(leg.from, leg.to, leg.date, leg.dir === 'round' ? leg.ret : '') : ''; }
+// Zero-spend price for one leg: a live fare from the 24h cache, else the
+// sample fare × the calendar's day-of-week tier (shown as ~$), else none.
+function tripLegPrice(leg) {
+  var none = {price:null, status:'none', lastVerified:null, data:null};
+  if (!leg || !leg.date) return none;
+  var rt = leg.dir === 'round' && !!leg.ret, cache = typeof _flightCache === 'object' && _flightCache ? _flightCache : {};
+  var ttl = typeof FLIGHT_CACHE_TTL_MS === 'number' ? FLIGHT_CACHE_TTL_MS : 0, hit = cache[_tripLegKey(leg)];
+  if (hit && hit.data && hit.data.live && Date.now() - hit.ts < ttl) {
+    var v = Number(rt ? hit.data.rt : hit.data.ow);
+    if (v > 0) return {price:v, status:'live', lastVerified:hit.data.lastVerified || null, data:hit.data};
+  }
+  var m = typeof getMock === 'function' ? getMock(leg.from, leg.to) : null, base = m ? Number(rt ? m.rt : m.ow) || 0 : 0;
+  if (!(base > 0)) return none;
+  var day = _tripIdeaDate(leg.date);
+  return {price:day && typeof tier === 'function' && typeof dayPrice === 'function' ? dayPrice(base, tier(day)) : base, status:'estimate', lastVerified:null, data:null};
+}
+function tripTravelerCost(t) {
+  if (!t || !t.legs || !t.legs.length) return null;
+  var parts = t.legs.map(function(l){ return {leg:l, p:tripLegPrice(l)}; }), sum = 0, live = 0, missing = 0;
+  parts.forEach(function(x){ if (x.p.price == null) missing++; else { sum += x.p.price; if (x.p.status === 'live') live++; } });
+  return {per:missing ? null : sum, total:missing ? null : sum * (t.headcount || 1), parts:parts,
+    status:missing ? 'none' : live === parts.length ? 'live' : live ? 'mixed' : 'estimate'};
+}
+// The linked traveler's cost — only while the dashboard's hub is the trip's own.
+function tripLinkedCostFor(code, hub) {
+  var doc = tripLinkedDoc(); if (!doc) return null;
+  var dest = _tripIdeaDestAirport(doc);
+  if (hub && hub !== dest && tripIdeaAltAirports(dest).indexOf(hub) < 0) return null;
+  var c = tripTravelerCost(tripLinkedTraveler(code));
+  return c && c.per != null ? c : null;
+}
+// Legs still without a live fare: future dates only, each search once.
+function tripLegsToPrice(legs) {
+  var seen = {}, today = _tripIdeaTodayIso();
+  return (legs || []).filter(function(l){
+    var k = _tripLegKey(l);
+    if (!k || seen[k] || l.date < today) return false;
+    seen[k] = true;
+    return tripLegPrice(l).status !== 'live';
+  });
+}
+function tripLegsSearchCount(legs) { return Math.min(tripLegsToPrice(legs).length, TRIP_LEG_CALLS_PER_PRESS); }
+// The one paid path: uncached legs only, one at a time (so the session cap
+// holds), at most `cap` per press. fetchFlights keeps every other guard.
+function tripLegsFetch(legs, cap) {
+  var todo = tripLegsToPrice(legs).slice(0, cap == null ? TRIP_LEG_CALLS_PER_PRESS : cap), out = {asked:todo.length, live:0, fresh:0};
+  if (!todo.length || typeof fetchFlights !== 'function') return Promise.resolve(out);
+  return todo.reduce(function(p, l){
+    return p.then(function(){
+      return Promise.resolve(fetchFlights(l.from, l.to, l.date, l.dir === 'round' ? l.ret : '')).then(function(d){ if (d && d.live) { out.live++; if (!d.cached) out.fresh++; } }, function(){});
+    });
+  }, Promise.resolve()).then(function(){ return out; });
+}
+// ±day strip: one row per date the traveler controls (arrive / leave).
+var _tripLegWide = {}, _tripLegWriting = {};
+function _tripLegRows(t) {
+  var out = [];
+  (t.legs || []).forEach(function(l){
+    if (l.dir === 'round') { out.push({leg:l, write:'in', at:'date', lbl:'✈️ Out · ' + l.from + '→' + l.to}); out.push({leg:l, write:'home', at:'ret', lbl:'↩ Back · ' + l.to + '→' + l.from}); }
+    else if (l.date) out.push({leg:l, write:l.dir === 'home' ? 'home' : 'in', at:'date', lbl:l.dir === 'home' ? '🏠 Home · ' + l.from + '→' + l.to : '✈️ In · ' + l.from + '→' + l.to});
+  });
+  return out;
+}
+function _tripLegVariant(row, iso) { var v = Object.assign({}, row.leg); v[row.at] = iso; return v; }
+function _tripLegDateOk(t, row, iso) {
+  if (!iso || iso < _tripIdeaTodayIso()) return false;
+  return row.write === 'home' ? (!t.row.dep || iso >= t.row.dep) : (!t.row.ret || iso <= t.row.ret);
+}
+function _tripLegMoney(p) { return p.price == null ? '—' : (p.status === 'live' ? '$' : '~$') + Math.round(p.price).toLocaleString('en-US'); }
+function _tripLegDayShort(iso) { return tripIdeaDay(iso).replace(/ [A-Z][a-z]{2} /, ' '); }
+function _tripLegOffsets(t) { return _tripLegWide[t.code] ? TRIP_LEG_FLEX_WIDE : TRIP_LEG_FLEX_DAYS; }
+// What "Price these" would search: plan dates first, then ±1, then ±2.
+function tripLegFlexLegs(t) {
+  if (!t) return [];
+  var rows = _tripLegRows(t), out = [];
+  _tripLegOffsets(t).slice().sort(function(a, b){ return Math.abs(a) - Math.abs(b); }).forEach(function(o){
+    rows.forEach(function(r){ var d = _tripIdeaIsoAdd(r.leg[r.at], o); if (o === 0 || _tripLegDateOk(t, r, d)) out.push(_tripLegVariant(r, d)); });
+  });
+  return out;
+}
+function tripIdeaFlexStripHtml(t) {
+  if (!t || !t.legs.length || t.booked) return '';
+  var code = _tripIdeaEsc(t.code);
+  return _tripLegRows(t).map(function(r){
+    var plan = tripLegPrice(r.leg), d0 = r.leg[r.at], meta = '';
+    if (plan.data && plan.data.airline) meta = '<span class="lt-leg-meta">' + _tripIdeaEsc(plan.data.airline + (plan.data.flightNo ? ' ' + plan.data.flightNo : '') + (plan.data.stops ? ' · ' + plan.data.stops + ' stop' + (plan.data.stops > 1 ? 's' : '') : ' · nonstop')) + '</span>';
+    var chips = _tripLegOffsets(t).map(function(o){
+      var d = _tripIdeaIsoAdd(d0, o), p = o === 0 ? plan : tripLegPrice(_tripLegVariant(r, d)), ok = o === 0 || _tripLegDateOk(t, r, d);
+      var cheaper = o !== 0 && p.status === 'live' && plan.status === 'live' && p.price < plan.price;
+      return '<button type="button" class="lt-leg-chip' + (o === 0 ? ' plan' : '') + (p.status === 'live' ? '' : ' est') + (cheaper ? ' cheaper' : '') + '"' + (o === 0 || !ok ? ' disabled' : '') +
+        ' data-leg-flex data-code="' + code + '" data-dir="' + r.write + '" data-date="' + d + '" aria-label="' + _tripIdeaEsc((r.write === 'home' ? 'Leave ' : 'Arrive ') + tripIdeaDay(d) + ' ' + _tripLegMoney(p) + (o === 0 ? ' (plan)' : '')) + '">' +
+        '<span>' + _tripIdeaEsc(_tripLegDayShort(d)) + '</span><b>' + _tripIdeaEsc(_tripLegMoney(p)) + '</b></button>';
+    }).join('');
+    return '<div class="lt-leg-row"><div class="lt-leg-lbl">' + _tripIdeaEsc(r.lbl) + ' ' + meta + '</div><div class="lt-leg-chips">' + chips + '</div></div>';
+  }).join('');
+}
+function _tripLegCanSpend() { return typeof PROXY_URL === 'string' && !!PROXY_URL && typeof proxyToken === 'function' && !!proxyToken(); }
+// A linked route card's legs: total, ±day strip, and the one "Price these" button.
+function tripIdeaLegsHtml(code) {
+  var t = tripLinkedTraveler(code);
+  if (!t || !t.legs.length || t.booked) return '';
+  var n = tripLegsSearchCount(tripLegFlexLegs(t)), wide = !!_tripLegWide[t.code], c = _tripIdeaEsc(t.code);
+  var btn = n && _tripLegCanSpend() ? '<button type="button" class="lt-leg-btn" data-leg-price data-code="' + c + '">Price these (' + n + ' search' + (n > 1 ? 'es' : '') + ')</button>' : '';
+  return '<div class="lt-legs" data-leg-box="' + c + '">' + tripIdeaFlexStripHtml(t) +
+    '<div class="lt-leg-foot"><span>~$ = estimate · tap a day to move ' + (_tripIdeaIsOrganizer(t.label) ? 'your' : _tripIdeaEsc(t.label) + '’s') + ' RSVP</span>' +
+    '<button type="button" class="lt-leg-btn" data-leg-more data-code="' + c + '" aria-pressed="' + wide + '">' + (wide ? '±1 day' : '±2 days') + '</button>' + btn + '</div></div>';
+}
+// One tap = that traveler's RSVP dates move (the rest of their answer is kept).
+// Reads the doc fresh first so it never rewinds a newer answer.
+function tripIdeaSetTravelDate(id, code, dir, iso) {
+  var wk = id + '|' + code;
+  if (!TRIP_IDEA_ID_RE.test(String(id || '')) || !/^\d{4}-\d{2}-\d{2}$/.test(String(iso || '')) || _tripLegWriting[wk]) return Promise.resolve(null);
+  _tripLegWriting[wk] = true;
+  var done = function(x){ delete _tripLegWriting[wk]; return x; };
+  return tripIdeaFetchDoc(id, true).then(function(doc){
+    var r = doc && doc.responses && doc.responses[code];
+    if (!r) { showShareToast('No RSVP answer to move yet'); return null; }
+    var from = dir === 'home' ? r.available_from : iso, to = dir === 'home' ? iso : r.available_to;
+    if (!from || (to && to < from)) { showShareToast('Leave date must be on or after the arrive date'); return null; }
+    var body = {member:code, status:r.status, origin:r.origin || '', available_from:from, available_to:to || '', note:r.note || '', arrive_at:r.arrive_at || '', leave_from:r.leave_from || ''};
+    var org = _tripIdeaOrganizerCode(doc), mine = !!(_tripIdeaKeys()[id] || {}).edit_key;
+    if (mine && org && code !== org && body.note.indexOf('(entered by ') < 0) body.note = ((body.note ? body.note + ' ' : '') + '(entered by ' + TRIP_IDEA_ORGANIZER_NAME + ')').slice(0, 280);
+    return _tripIdeaApi('POST', '/idea/respond?id=' + encodeURIComponent(id), body).then(function(res){
+      if (!(res.ok && res.json && res.json.doc)) { showShareToast(res.status === 409 ? 'This trip is already decided' : 'Could not move the date — try again'); return null; }
+      var next = res.json.doc, who = summarizeIdeaResponses(next).rows.filter(function(x){ return x.code === code; })[0];
+      tripIdeaStoreDoc(next);
+      if (_tripIdeaShared && _tripIdeaShared.id === id) _tripIdeaShared.doc = next;
+      showShareToast('✓ ' + _tripIdeaName((who && who.label) || code) + ' · ' + (dir === 'home' ? 'leave ' : 'arrive ') + tripIdeaDay(iso));
+      if (typeof S === 'object' && S && S.linkedIdeaId === id) tripIdeaApplyLinkedRsvp();
+      return next;
+    });
+  }).then(done, function(){ return done(null); });
+}
+function tripLegsRepaint() {
+  try { if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); } catch (e) {}
+  try { if (typeof syncLinkedTripChrome === 'function') syncLinkedTripChrome(); } catch (e) {}
+}
+var _tripLegsWired = false;
+function tripLegsWire() {
+  if (_tripLegsWired || typeof document === 'undefined' || !document || typeof document.addEventListener !== 'function') return;
+  _tripLegsWired = true;
+  document.addEventListener('click', function(e){
+    var el = e.target && e.target.closest ? e.target.closest('[data-leg-flex],[data-leg-more],[data-leg-price]') : null;
+    if (!el || el.disabled) return;
+    var code = el.getAttribute('data-code');
+    if (el.hasAttribute('data-leg-more')) { _tripLegWide[code] = !_tripLegWide[code]; tripLegsRepaint(); return; }
+    if (el.hasAttribute('data-leg-price')) {
+      el.disabled = true; el.textContent = 'Searching…';
+      tripLegsFetch(tripLegFlexLegs(tripLinkedTraveler(code))).then(function(r){
+        if (typeof updateApiCallCount === 'function') try { updateApiCallCount(); } catch (x) {}
+        tripLegsRepaint();
+        showShareToast(r.asked ? '✓ ' + r.live + ' of ' + r.asked + ' priced live' : 'Nothing new to price');
+      });
+      return;
+    }
+    if (typeof S === 'object' && S && S.linkedIdeaId) tripIdeaSetTravelDate(S.linkedIdeaId, code, el.getAttribute('data-dir'), el.getAttribute('data-date'));
+  });
+}
+
 function initTripIdeaBuilder(){
+  tripLegsWire();
   var c=_tripIdeaEl('build-trip-idea-btn'); if(c) c.onclick=function(){tripIdeaBuilderOpen();};
   var bd=_tripIdeaEl('trip-idea-builder-bd');if(bd)bd.onclick=function(e){if(e.target===bd)tripIdeaBuilderClose();};
   document.addEventListener('keydown',function(e){if(e.key==='Escape' && _tripIdeaBuilderOpen)tripIdeaBuilderClose();});

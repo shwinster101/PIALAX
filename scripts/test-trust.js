@@ -283,8 +283,8 @@ function makeRooms(IdeaRoom, env, gate) {
   // a fetch that answers like a Worker cache HIT from five hours ago.
   for (const file of ['pialax.html', 'pialax-mobile.html']) {
     const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    const fns = ['fareStamp', 'fetchFlights', 'freshnessLabel', '_freshPill'].map((n) => extractFn(html, n));
-    if (fns.some((f) => !f)) { bad(`A3 ${file}: could not find fareStamp/fetchFlights/freshnessLabel`); continue; }
+    const fns = ['fareStamp', 'fetchFlights', 'freshnessLabel', '_freshPill', 'tripFareParse'].map((n) => extractFn(html, n));
+    if (fns.some((f) => !f)) { bad(`A3 ${file}: could not find fareStamp/fetchFlights/freshnessLabel/tripFareParse`); continue; }
     const fetchedAt = new Date(Date.now() - 5 * 3600 * 1000).toISOString();
     const quota = { n: 0 };
     const ctx = {
@@ -304,6 +304,9 @@ function makeRooms(IdeaRoom, env, gate) {
     check(quota.n === 0, `A3 ${file}: a Worker HIT does not move the SerpAPI quota or session counter`, 'bumpQuota ' + quota.n);
     check(entry && entry.ts === Date.parse(fetchedAt), `A3 ${file}: the client cache TTL runs from the original fetch time`);
     check(/CACHED 5h ago/.test(label), `A3 ${file}: the label reads "CACHED 5h ago", not LIVE`, label);
+    // PIA-121: the shared parser keeps the same headline price and adds the offers.
+    check(entry && entry.data.ow === 210 && entry.data.airline === 'UA' && Array.isArray(entry.data.offers) && entry.data.offers[0].price === 210,
+      `A3 ${file}: the cached fare keeps its price ($210, UA) and now carries its offers`);
     ctx.fetch = async () => new Response(JSON.stringify({ best_flights: [{ price: 220 }] }), { status: 200, headers: { 'X-Proxy-Cache': 'MISS', 'X-Fetched-At': new Date().toISOString() } });
     await ctx.fetchFlights('LAX', 'ORD', '2026-11-20', null);
     check(quota.n === 1, `A3 ${file}: a MISS (real SerpAPI call) counts exactly once`, 'bumpQuota ' + quota.n);
