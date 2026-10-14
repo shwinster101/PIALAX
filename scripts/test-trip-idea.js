@@ -575,6 +575,45 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
 }
 
+// PIA-125: no auto-fetch — the app counts day-old fares and offers one tap; a
+// fare at or under target alerts once per traveler per day; no token = silent.
+async function nudgeSuite() {
+  for (const file of ['pialax.html', 'pialax-mobile.html']) {
+    const ls = makeLocalStorage();
+    const id = 'TGTGTGTGTGTGTGTGTGTGTG';
+    let fetches = 0;
+    ls.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] }));
+    const names = ['tripStaleLegs', 'tripStaleNudge', 'tripTargetAlerts', 'tripDailyCapMark', 'tripDailyCapHit', 'isFetchLocked', 'loadAlertLog', 'tripLegRecord', 'tripLegSetTarget'];
+    const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls, fetch: () => { fetches++; return Promise.reject(new Error('no')); } });
+    const boot = fetches;
+    const tg = { id, idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
+      members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+      responses: { LAX: { status: 'in', origin: 'LAX', available_from: '2030-11-20', available_to: '2030-11-29' } } };
+    api.tripIdeaStoreDoc(tg);
+    const lin = { code: 'LAX', dir: 'in', from: 'LAX', to: 'PIA', date: '2030-11-20', ret: '' }, lhome = { code: 'LAX', dir: 'home', from: 'ORD', to: 'LAX', date: '2030-11-29', ret: '' };
+    const old = new Date(Date.now() - 30 * 3600e3).toISOString();
+    api.tripLegRecord(lin, { price: 189, status: 'live', lastVerified: old });
+    check(api.tripStaleLegs().length === 1 && api.tripStaleLegs()[0].from === 'LAX', `${file}: one leg priced 30h ago (cache lapsed) counts as "a day old"; a never-priced leg doesn't`);
+    check(await api.tripStaleNudge() === 0 && fetches === boot, `${file}: with no organizer token the nudge stays quiet and makes no calls`);
+    // Target alert: Me's legs priced live, total $389 ≤ target $400 → one alert today, not two.
+    const now = new Date().toISOString();
+    api._flightCache[api._cacheKey('LAX', 'PIA', '2030-11-20', '')] = { data: { ow: 189, live: true, lastVerified: now }, ts: Date.now() };
+    api._flightCache[api._cacheKey('ORD', 'LAX', '2030-11-29', '')] = { data: { ow: 200, live: true, lastVerified: now }, ts: Date.now() };
+    api.tripLegSetTarget(id, '', '420');
+    const first = api.tripTargetAlerts(), second = api.tripTargetAlerts();
+    const evts = api.loadAlertLog().filter((e) => /^leg_target\|/.test(e.dedupe_key));
+    check(first.length === 1 && second.length === 0 && evts.length === 1 && evts[0].type === 'fare_drop' && evts[0].trip_id === 'thanksgiving' && /\$389 \(target \$420\)/.test(evts[0].subject) && !evts[0].sent,
+      `${file}: Me at $389 ≤ $420 → one alert today (queued for email), not one per render`);
+    api.tripLegSetTarget(id, '', '300');
+    check(api.tripTargetAlerts().length === 0, `${file}: above target → no alert`);
+    check(!api.tripDailyCapHit() && !api.isFetchLocked(), `${file}: no daily-cap lock to begin with`);
+    api.tripDailyCapMark();
+    const q = JSON.parse(ls.getItem('pialax_serpapi_quota') || '{}');
+    check(api.tripDailyCapHit() && api.isFetchLocked() && !q.exceeded, `${file}: a Worker daily-cap hit locks fetching for today without marking the month exceeded`);
+    Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+  }
+}
+
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
 
 // PIA-068: scripts/trip-idea-builder.js is the reviewable copy of the block
@@ -893,7 +932,8 @@ async function staggeredArrivalsSuite() {
 }
 
 sharedIdeaSuite().catch((e) => check(false, 'shared idea suite threw: ' + (e && e.stack || e)))
-  .then(() => staggeredArrivalsSuite()).catch((e) => check(false, 'staggered arrivals suite threw: ' + (e && e.stack || e))).then(() => {
+  .then(() => staggeredArrivalsSuite()).catch((e) => check(false, 'staggered arrivals suite threw: ' + (e && e.stack || e)))
+  .then(() => nudgeSuite()).catch((e) => check(false, 'nudge suite threw: ' + (e && e.stack || e))).then(() => {
   if (failures) process.exit(1);
   console.log('all Trip Idea Builder checks passing');
 });

@@ -981,6 +981,38 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
   }
 }
 
+// PIA-125: with a token and a fare that lapsed overnight, opening the app shows a
+// one-tap nudge — and spends nothing until it's tapped.
+{
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context({ width: 390, height: 844 }, idea, { admin: true });
+  const label = 'pialax-mobile.html stale-fare nudge @ 390x844';
+  try {
+    await ctx.addInitScript((id) => {
+      localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] }));
+      localStorage.setItem('pialax_proxy_token', 'tok_' + 'x'.repeat(28));
+      localStorage.setItem('pialax_leg_history_v1', JSON.stringify({ 'LAX|PIA|2026-11-21|': [{ t: Date.now() - 30 * 3600e3, p: 189 }] }));
+    }, idea.id);
+    const page = await ctx.newPage();
+    const searches = []; page.on('request', (r) => { if (/\/search\?/.test(r.url())) searches.push(r.url()); });
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('#lt-banner:not([hidden])', { timeout: 8000 }).catch(() => {});
+    const b = await page.evaluate(() => { const el = document.getElementById('lt-banner'); const go = el && el.querySelector('[data-banner-go]'), x = el && el.querySelector('[data-banner-x]');
+      return el ? { text: el.textContent, kind: el.getAttribute('data-kind'), go: go ? Math.round(go.getBoundingClientRect().height) : 0, x: x ? Math.round(x.getBoundingClientRect().width) : 0, over: document.documentElement.scrollWidth > innerWidth } : null; });
+    if (b && b.kind === 'nudge' && /1 fare is a day old/.test(b.text) && /Refresh \(1 search\)/.test(b.text) && b.go >= 44 && b.x >= 44 && !searches.length && !b.over)
+      ok(`${label} — "1 fare is a day old · Refresh (1 search)" on open, 44px targets, 0 searches until tapped`);
+    else bad(`${label} — nudge wrong: ${JSON.stringify({ b, searches: searches.length })}`);
+    await page.locator('#lt-banner [data-banner-x]').click();
+    const gone = await page.evaluate(() => document.getElementById('lt-banner').hidden);
+    if (gone && !searches.length) ok(`${label} — ✕ dismisses it for this visit, still 0 searches`);
+    else bad(`${label} — dismiss failed or a search went out (${searches.length})`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
 // ---- PIA-119: pasting the organizer token can't knock the dashboard into mock ----
 // The URL box used to be blank (the built-in Worker URL never showed), so
 // tapping the button to save a token set PROXY_URL to '' — mock data.

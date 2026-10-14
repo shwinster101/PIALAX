@@ -323,6 +323,15 @@ function makeRooms(IdeaRoom, env, gate) {
     ctx.fetch = async () => new Response(JSON.stringify({ best_flights: [{ price: 220 }] }), { status: 200, headers: { 'X-Proxy-Cache': 'MISS', 'X-Fetched-At': new Date().toISOString() } });
     await ctx.fetchFlights('LAX', 'ORD', '2026-11-20', null);
     check(quota.n === 1, `A3 ${file}: a MISS (real SerpAPI call) counts exactly once`, 'bumpQuota ' + quota.n);
+    // PIA-125: the Worker's own daily cap (429 daily_cap) locks only until tomorrow,
+    // never the month; a SerpAPI 429 keeps the month lock.
+    const marks = { day: 0, month: 0 };
+    ctx.tripDailyCapMark = () => { marks.day++; }; ctx.markQuotaExceeded = () => { marks.month++; };
+    ctx.fetch = async () => new Response(JSON.stringify({ error: 'Daily cap reached', code: 'daily_cap' }), { status: 429 });
+    const capped = await ctx.fetchFlights('LAX', 'BUR', '2026-11-21', null);
+    ctx.fetch = async () => new Response('{"error":"rate"}', { status: 429 });
+    await ctx.fetchFlights('LAX', 'SNA', '2026-11-21', null);
+    check(capped && capped.mock === true && marks.day === 1 && marks.month === 1, `A1 ${file}: a Worker daily_cap 429 locks today only (month untouched); a SerpAPI 429 still locks the month`, JSON.stringify(marks));
     let calls = 0;
     ctx.proxyToken = () => '';
     ctx.fetch = async () => { calls++; return new Response('{}'); };

@@ -1685,7 +1685,7 @@ function tripLegsFetch(legs, cap) {
     return p.then(function(){
       return Promise.resolve(fetchFlights(l.searchFrom || l.from, l.searchTo || l.to, l.date, l.dir === 'round' ? l.ret : '')).then(function(d){ if (d && d.live) { out.live++; if (!d.cached) out.fresh++; } }, function(){});
     });
-  }, Promise.resolve()).then(function(){ return out; });
+  }, Promise.resolve()).then(function(){ try { tripTargetAlerts(); } catch (e) {} return out; }); // PIA-125: a fresh fare may hit a target
 }
 // ±day strip: one row per date the traveler controls (arrive / leave).
 var _tripLegWide = {}, _tripLegWriting = {};
@@ -2110,6 +2110,115 @@ function tripPickupHtml(doc) {
   var a = _tripPickupLineHtml(tl.arrive, '✈️ Lands', ts, 'arrive'), l = _tripPickupLineHtml(tl.leave, '🏠 Leaves', ts, 'leave');
   return a || l ? '<div class="lt-pickup"><div class="lt-watch-hd">🚗 Pickup timeline</div>' + a + l + '</div>' : '';
 }
+// ── PIA-125: a one-tap nudge for day-old fares + target alerts ──────────────
+// Nothing here fetches on its own (CLAUDE.md: searches are button-gated). On
+// open / return to the tab the app only COUNTS stale legs and offers a button;
+// alerts fire from whatever got priced, once per traveler per day.
+var TRIP_DAILY_CAP_STORAGE = 'pialax_daily_cap_v1';
+function _tripUtcDay() { return new Date().toISOString().slice(0, 10); }
+// The Worker's own 30/day cap locks this device until tomorrow (UTC) — not the month.
+function tripDailyCapMark() {
+  try { localStorage.setItem(TRIP_DAILY_CAP_STORAGE, _tripUtcDay()); } catch (e) {}
+  showShareToast('Today’s Worker search cap is used up — live fares resume tomorrow');
+}
+function tripDailyCapHit() { try { return localStorage.getItem(TRIP_DAILY_CAP_STORAGE) === _tripUtcDay(); } catch (e) { return false; } }
+// Linked Trips cards this device is still deciding on.
+function _tripWatchedIdeas() {
+  return (typeof WATCHLIST !== 'undefined' && Array.isArray(WATCHLIST) ? WATCHLIST : []).filter(function(x){
+    return x && x.sharedIdeaId && (x.stage === 'watching' || x.stage === 'planning');
+  }).map(function(x){ return {item:x, id:x.sharedIdeaId}; });
+}
+// Legs that had a live fare whose 24h cache has lapsed — "a day old".
+function tripStaleLegs() {
+  var out = [], today = _tripIdeaTodayIso();
+  _tripWatchedIdeas().forEach(function(w){
+    tripLegsFor(tripIdeaCachedDoc(w.id)).forEach(function(t){
+      if (!t.booked) t.legs.forEach(function(l){ if (l.date >= today && !_tripLegHit(l) && tripLegHistory(l).length) out.push(l); });
+    });
+  });
+  return tripLegsToPrice(out);
+}
+function _tripBudgetText() {
+  var sp = _tripWorkerAcct && _tripWorkerAcct.spend && _tripWorkerAcct.spend.serp;
+  return sp && sp.cap ? ' · Worker searches today ' + sp.used + '/' + sp.cap : '';
+}
+var _tripNudgeDismissed = false;
+function tripStaleNudge() {
+  if (!_tripLegCanSpend() || _tripNudgeDismissed || tripDailyCapHit() || (typeof isFetchLocked === 'function' && isFetchLocked())) return Promise.resolve(0);
+  return Promise.all(_tripWatchedIdeas().map(function(w){ return tripIdeaFetchDoc(w.id); })).then(function(){
+    tripTargetAlerts();
+    var legs = tripStaleLegs(), n = Math.min(legs.length, TRIP_LEG_CALLS_PER_PRESS);
+    if (!n) { tripBannerHide('nudge'); return 0; }
+    tripBannerShow('nudge', n + ' fare' + (n > 1 ? 's are' : ' is') + ' a day old' + _tripBudgetText(), 'Refresh (' + n + ' search' + (n > 1 ? 'es' : '') + ')', function(){
+      return tripLegsFetch(legs).then(function(r){
+        tripBannerHide('nudge'); tripLegsRepaint();
+        if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {}
+        if (typeof syncSerpApiAccount === 'function') try { syncSerpApiAccount(); } catch (e) {}
+        showShareToast('✓ ' + r.live + ' of ' + r.asked + ' refreshed');
+      });
+    });
+    return n;
+  });
+}
+// Any traveler now at or under their target: one alert per traveler per day
+// (pialax_alert_log_v1 → emailed by the existing outbox once Resend exists).
+var _tripAlertsSeen = {};
+function tripTargetAlerts() {
+  var hits = [], day = _tripIdeaTodayIso(), log = typeof loadAlertLog === 'function' ? loadAlertLog() : [];
+  _tripWatchedIdeas().forEach(function(w){
+    tripLegsFor(tripIdeaCachedDoc(w.id)).forEach(function(t){
+      if (t.booked) return;
+      var tw = tripTravelerWatch(w.id, t), key = 'leg_target|' + w.id + '|' + t.code + '|' + day;
+      if (!tw || tw.verdict !== 'under' || _tripAlertsSeen[key] || log.some(function(e){ return e.dedupe_key === key; })) return;
+      _tripAlertsSeen[key] = true;
+      var who = _tripIdeaName(t.label), title = String(w.item.title || 'Trip').replace(/^\W+/, '');
+      var legs = tw.cost.parts.map(function(x){ return x.leg.from + '→' + x.leg.to + ' ' + tripIdeaDay(x.leg.date) + ' $' + x.p.price; }).join(' + ');
+      if (typeof appendAlertLog === 'function') appendAlertLog({id:'lt-' + Date.now().toString(36) + '-' + t.code, trip_id:/^[A-Za-z0-9_-]{1,64}$/.test(w.item.id) ? w.item.id : w.id, type:'fare_drop',
+        subject:who + '’s ' + title + ' fare is at your target: $' + tw.cost.per + ' (target $' + tw.target.value + ')',
+        body_text:legs + ' = $' + tw.cost.per + ' · target $' + tw.target.value + (tw.oldest ? ' · checked ' + fareAgeLabel(tw.oldest) : '') + '. Recheck on Google Flights before paying.',
+        dedupe_key:key, created_at:new Date().toISOString(), trip_state_version:0, sent:false});
+      hits.push(who + ' $' + tw.cost.per + ' ≤ $' + tw.target.value);
+    });
+  });
+  if (hits.length) {
+    tripAttention(hits.length);
+    tripBannerShow('alert', '🎯 At your target: ' + hits.join(' · '), '', null);
+    if (typeof drainAlertOutbox === 'function') try { drainAlertOutbox(); } catch (e) {}
+  }
+  return hits;
+}
+// One in-app banner (alerts win over the nudge), plus a favicon dot and "(1)"
+// in the tab title until it's dismissed. No Notification API: there's no
+// background polling, so you're already looking at the app when it fires.
+function tripBannerShow(kind, text, action, onAction) {
+  if (typeof document === 'undefined' || !document.body || typeof document.createElement !== 'function') return null;
+  var el = document.getElementById('lt-banner');
+  if (el && !el.hidden && el.getAttribute('data-kind') === 'alert' && kind === 'nudge') return el;
+  if (!el) { el = document.createElement('div'); el.id = 'lt-banner'; el.setAttribute('role', 'status'); el.setAttribute('aria-live', 'polite'); document.body.appendChild(el); }
+  el.setAttribute('data-kind', kind);
+  el.innerHTML = '<span>' + _tripIdeaEsc(text) + '</span>' + (action ? '<button type="button" class="lt-leg-btn" data-banner-go>' + _tripIdeaEsc(action) + '</button>' : '') +
+    '<button type="button" class="lt-banner-x" data-banner-x aria-label="Dismiss">✕</button>';
+  el.hidden = false;
+  var go = el.querySelector('[data-banner-go]'), x = el.querySelector('[data-banner-x]');
+  if (go && onAction) go.onclick = function(){ go.disabled = true; go.textContent = 'Searching…'; onAction(); };
+  if (x) x.onclick = function(){ el.hidden = true; if (kind === 'nudge') _tripNudgeDismissed = true; tripAttention(0); };
+  return el;
+}
+function tripBannerHide(kind) {
+  var el = typeof document !== 'undefined' && document.getElementById ? document.getElementById('lt-banner') : null;
+  if (el && (!kind || el.getAttribute('data-kind') === kind)) el.hidden = true;
+}
+var _tripTitleBase = null, _tripIconBase = null;
+var TRIP_ICON_DOT = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%2307101e'/%3E%3Cpath d='M14 36l36-14-10 28-7-11z' fill='%233b82f6'/%3E%3Ccircle cx='50' cy='14' r='12' fill='%23ef4444'/%3E%3C/svg%3E";
+function tripAttention(n) {
+  if (typeof document === 'undefined' || !document.querySelector) return;
+  if (_tripTitleBase == null) _tripTitleBase = String(document.title || '').replace(/^\(\d+\) /, '');
+  document.title = (n ? '(' + n + ') ' : '') + _tripTitleBase;
+  var link = document.querySelector('link[rel~="icon"]');
+  if (!link || !link.setAttribute) return;
+  if (_tripIconBase == null) _tripIconBase = link.getAttribute('href') || '';
+  link.setAttribute('href', n ? TRIP_ICON_DOT : _tripIconBase);
+}
 function tripLinkedSummaryHtml() {
   var doc = tripLinkedDoc();
   return doc ? tripPickupHtml(doc) : '';
@@ -2149,12 +2258,16 @@ function tripLegsWire() {
     if (!el) return;
     tripLegSetTarget(el.getAttribute('data-idea'), el.getAttribute('data-code'), el.value);
     tripLegsRepaint();
+    try { tripTargetAlerts(); } catch (x) {}
     if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (x) {}
   });
+  // PIA-125: coming back to the app only COUNTS day-old fares and offers one tap.
+  document.addEventListener('visibilitychange', function(){ if (document.visibilityState === 'visible') tripStaleNudge(); });
 }
 
 function initTripIdeaBuilder(){
   tripLegsWire();
+  setTimeout(function(){ tripStaleNudge(); }, 2500); // PIA-125: after the token / account check at boot
   var c=_tripIdeaEl('build-trip-idea-btn'); if(c) c.onclick=function(){tripIdeaBuilderOpen();};
   var bd=_tripIdeaEl('trip-idea-builder-bd');if(bd)bd.onclick=function(e){if(e.target===bd)tripIdeaBuilderClose();};
   document.addEventListener('keydown',function(e){if(e.key==='Escape' && _tripIdeaBuilderOpen)tripIdeaBuilderClose();});

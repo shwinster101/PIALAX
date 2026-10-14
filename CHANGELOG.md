@@ -12,6 +12,19 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-125)
+- **One-tap nudge for day-old fares.** When you open the app or come back to it, with the organizer token set, it counts the watched legs whose fare is over a day old. It offers "N fares are a day old · Worker searches today 7/30 · **Refresh (N searches)**", at most 4 per tap.
+  - Nothing is searched until you tap; searches are still never automatic.
+  - ✕ hides the banner for this visit.
+  - Without a token it stays silent.
+- **Target alerts in the app.** After any pricing, a traveler at or under their target gets one alert per day: a banner ("🎯 At your target: Ashwin $389 ≤ $420"), a dot on the tab icon and "(1)" in the tab title.
+  - The alert is queued in the existing outbox, so it is emailed once Resend is set up.
+  - Desktop now has a tab icon too.
+  - There is no browser notification, because nothing runs in the background.
+
+### Fixed (PIA-125)
+- Hitting the Worker's own daily search cap (a 429 `daily_cap`) used to lock live fares on the device for the **rest of the month**. It now locks only until tomorrow (UTC), with a toast that says so. A SerpAPI 429 still locks the month.
+
 ### Added (PIA-126)
 - **Pickup timeline** at the top of a linked trip's Flight Breakdown. It shows when each traveler lands (in-leg) and leaves (home-leg), using the times already cached with each live fare.
   - It shows the gap and reads "✓ within 2h · one trip" when everyone uses the same airport within two hours, "different airports — two trips", or "6h 20m apart". Gaps across midnight count correctly.

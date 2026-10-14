@@ -22,7 +22,7 @@ No build system, no framework, no package.json. Node test suites live in `script
 Inside the HTML files, state lives in a single `S` object plus localStorage (flight-price cache, quota counter `pialax_serpapi_quota`, proxy URL override, watchlist). URL query/hash carry shareable state (`syncURL`/`restoreFromURL`). Key domain logic to preserve on any edit:
 
 - **FAMILY array is date-aware**: sister's airport is JAX before 2026-09-01, LGA after (`FAMILY_INFO.JAX.moveAirport`; JFK is her alternate) (`familyForDate`, per-member effective dates). Family composition is 4 people total — PIA=2 (Mom & Dad), LAX=1 (Ashwin), JAX/LGA=1 (Sister, Anjo) — not 1 per airport.
-- **Quota-safe fetching**: SerpAPI calls are strictly button-gated (never auto-fetch), capped per refresh/session, locked near quota exhaustion; mock/"Sample" data is the fallback and is labeled as estimates. `PROXY_URL` empty → mock-only mode.
+- **Quota-safe fetching**: SerpAPI calls are strictly button-gated (never auto-fetch — day-old fares get a one-tap nudge, PIA-125), capped per refresh/session, locked near quota exhaustion (a Worker `daily_cap` 429 locks only until the next UTC day); mock/"Sample" data is the fallback and is labeled as estimates. `PROXY_URL` empty → mock-only mode.
 - Meetup math: `computeRanking`, `computeBestMeetupWeekends`, ORD drive-to pivot for Peoria.
 
 ## Commands
