@@ -130,6 +130,10 @@ function makeRooms(IdeaRoom, env, gate) {
       ['organizer token + duplicated param', () => get(env, '/search?' + SEARCH + '&arrival_id=ORD', T), [400]],
       ['organizer token + a non-flights engine', () => get(env, '/search?' + SEARCH.replace('google_flights', 'google'), T), [400]],
       ['organizer token + lowercase / injected airport', () => get(env, '/search?' + SEARCH.replace('LAX', 'lax%26api_key%3Dx'), T), [400]],
+      // PIA-122: comma-joined airports are allowed, but only 1–5 clean IATA codes.
+      ['organizer token + 6 comma-joined airports', () => get(env, '/search?' + SEARCH.replace('LAX', 'LAX%2CBUR%2CLGB%2CSNA%2CONT%2CSAN'), T), [400]],
+      ['organizer token + trailing comma in an airport list', () => get(env, '/search?' + SEARCH.replace('LAX', 'LAX%2C'), T), [400]],
+      ['organizer token + lowercase code in an airport list', () => get(env, '/search?' + SEARCH.replace('LAX', 'lax%2CBUR'), T), [400]],
       ['organizer token + unknown GET path', () => get(env, '/whatever?' + SEARCH, T), [404]],
     ];
     for (const [label, run, want] of cases) {
@@ -240,6 +244,15 @@ function makeRooms(IdeaRoom, env, gate) {
     check(env.IDEAS.map.get('quota:serp:' + day) === '1', 'A3 the server spend counter moved once, not twice', env.IDEAS.map.get('quota:serp:' + day));
     const r3 = await get(env, '/search?' + SEARCH);
     check(r3.status === 401, 'A3 a cache HIT still needs the token (no free reads of cached fares)');
+    // PIA-122: one search covers home + nearby airports; the list is a set, so
+    // any order is the same cache entry, and the upstream call is still one.
+    const n0 = upstream.length;
+    const m1 = await get(env, '/search?' + SEARCH.replace('LAX', 'LAX%2CBUR%2CSNA'), T);
+    const m2 = await get(env, '/search?' + SEARCH.replace('LAX', 'SNA%2CLAX%2CBUR%2CLAX'), T);
+    check(m1.status === 200 && m1.headers.get('X-Proxy-Cache') === 'MISS' && m2.headers.get('X-Proxy-Cache') === 'HIT' && upstream.length - n0 === 1 && /departure_id=BUR,LAX,SNA&/.test(upstream[upstream.length - 1]),
+      'A3 nearby airports — LAX,BUR,SNA is one SerpAPI call; SNA,LAX,BUR,LAX is the same cache entry (HIT)', String(upstream.length - n0));
+    const acct = await json(await get(env, '/account', T));
+    check(acct && acct.features && acct.features.multi_airport === true, 'A3 /account announces multi-airport search (so old Workers never get a comma)');
   }
   // ── B (PIA-118): exact caps under a parallel burst ──────────────────────────
   // KV reads are held at a barrier so all racers read the counter at once; the

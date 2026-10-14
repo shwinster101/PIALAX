@@ -12,6 +12,18 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-122) — needs `wrangler deploy`
+- **Nearby airports in one search.** "📍 Also try BUR · LGB · ONT · SNA" on a traveler's route card searches their whole metro in the same one search per leg: LA for Ashwin, NYC (JFK/EWR) for Anjo.
+  - The traveler's own airport keeps its own fare.
+  - The winning airport shows with its saving ("BUR $190 · saves $30 vs LAX"); both prices come from that one search.
+  - **Use BUR** changes that traveler's RSVP origin, and their book links follow.
+  - The metro follows Anjo's date-aware airport (LGA from Sep 1).
+- **Worker:**
+  - `/search` takes up to 5 comma-joined codes in `departure_id`/`arrival_id`, as a set: sorted and de-duplicated in the cache key, so a single code is unchanged and old cache entries survive.
+  - Anything else is still a 400 with no spend.
+  - `/account` reports `features.multi_airport`. The dashboard sends a comma only once it sees that, so an older Worker never gets one.
+- `verify-live.sh` A3 now makes its one search a nearby search (`LAX,BUR`, re-ordered for the HIT) and checks the new `/account` feature flag.
+
 ### Added (PIA-124)
 - **Book-now handoff:**
   - Once a leg has a live fare, its ✈️ In / 🏠 Home button opens Google Flights' own link for that exact search (1 adult). Otherwise the search is narrowed to that fare: "nonstop", "on American".

@@ -402,6 +402,7 @@ async function handleAccount(request, env) {
     const out = {};
     ['plan_id', 'plan_name', 'searches_per_month', 'plan_searches_left', 'total_searches_left', 'this_month_usage', 'last_hour_searches'].forEach((k) => { if (k in acct) out[k] = acct[k]; });
     out.spend = await spendStatus(env);   // PIA-118: today's Worker-side spend vs caps
+    out.features = { multi_airport: true }; // PIA-122: /search takes comma-joined airports
     return new Response(JSON.stringify(out), { status: acctRes.status, headers: Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store', 'X-SerpAPI-Status': String(acctRes.status) }, corsHeaders(request)) });
   } catch (e) {
     return jsonError('Account lookup failed', 502, request);
@@ -410,8 +411,11 @@ async function handleAccount(request, env) {
 
 // Strict search shape: only these params, only these value forms. Anything
 // else (cache busters, no_cache, other engines) is a 400 before any spend.
+// PIA-122: an airport may be up to 5 comma-joined codes (home + nearby, e.g.
+// LAX,BUR,LGB,SNA,ONT) — still one SerpAPI search.
+const IATA_LIST_RE = /^[A-Z]{3}(,[A-Z]{3}){0,4}$/;
 const SEARCH_PARAMS = {
-  engine: /^google_flights$/, departure_id: /^[A-Z]{3}$/, arrival_id: /^[A-Z]{3}$/,
+  engine: /^google_flights$/, departure_id: IATA_LIST_RE, arrival_id: IATA_LIST_RE,
   outbound_date: /^\d{4}-\d{2}-\d{2}$/, return_date: /^\d{4}-\d{2}-\d{2}$/, type: /^[123]$/,
   adults: /^[1-9]$/, currency: /^[A-Z]{3}$/, hl: /^[a-z]{2}$/, gl: /^[a-z]{2}$/, travel_class: /^[1-4]$/, stops: /^[0-3]$/,
 };
@@ -422,7 +426,10 @@ function canonicalSearch(params) {
     keys.push(k);
   }
   if (params.get('engine') !== 'google_flights' || !params.get('departure_id') || !params.get('arrival_id') || !params.get('outbound_date')) return null;
-  return keys.sort().map((k) => k + '=' + params.get(k)).join('&');
+  // PIA-122: airport lists are a set — sorted and de-duplicated, so LAX,BUR and
+  // BUR,LAX share one cache entry. A single code is unchanged (old keys survive).
+  const value = (k) => (k === 'departure_id' || k === 'arrival_id') ? params.get(k).split(',').filter((c, i, a) => a.indexOf(c) === i).sort().join(',') : params.get(k);
+  return keys.sort().map((k) => k + '=' + value(k)).join('&');
 }
 
 async function handleSearch(request, env) {

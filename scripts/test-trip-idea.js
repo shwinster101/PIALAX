@@ -40,6 +40,7 @@ EXPECT.push('tripIdeaPlanDates', 'tripIdeaBookListHtml', 'tripIdeaLinkedRoute');
 EXPECT.push('tripFareParse', 'tripLegsForRow', 'tripLegsFor', 'tripLegPrice', 'tripTravelerCost', 'tripLinkedCostFor', 'tripLinkedPlanLegs',
   'tripLegsToPrice', 'tripLegsSearchCount', 'tripLegsFetch', 'tripLegFlexLegs', 'tripIdeaFlexStripHtml', 'tripIdeaLegsHtml', 'tripIdeaSetTravelDate', 'tripIdeaStoreDoc'); // PIA-121
 EXPECT.push('tripIdeaMarkBooked'); // PIA-124
+EXPECT.push('tripIdeaSetOrigin'); // PIA-122
 EXPECT.push('tripIdeaMe', 'tripIdeaSetMe', 'tripIdeaWho', 'tripIdeaCalendarStartMonth', 'tripIdeaCalendarTap', 'tripIdeaDayCounts', 'tripIdeaRangeCalendarHtml'); // PIA-100/101
 const OPTIONAL = [];
 let failures = 0;
@@ -495,6 +496,44 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
 }
 
+// PIA-122: nearby airports — one search covers the traveler's metro, only once the
+// Worker says it takes comma-joined airports; the chosen airport keeps its own fare.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const ls = makeLocalStorage();
+  const names = ['tripNearbyGroup', 'tripNoteWorkerFeatures', 'tripCanNearby', 'tripSetNearby', 'tripLegNearby', 'tripLegNearbyHtml', 'tripNearbyToggleHtml', 'tripIdeaSetOrigin'];
+  const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls });
+  const id = 'TGTGTGTGTGTGTGTGTGTGTG';
+  const tg = { id, idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
+    members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+    responses: { LAX: { status: 'in', origin: 'LAX', available_from: '2030-11-20', available_to: '2030-11-29' }, LGA: { status: 'in', origin: 'LGA', available_from: '2030-11-26', available_to: '2030-11-30' } } };
+  const before = api.tripIdeaMembersFor('2026-08-20').map((m) => m.code), after = api.tripIdeaMembersFor('2026-11-20').map((m) => m.code);
+  check(api.tripNearbyGroup('LAX').join() === 'BUR,LAX,LGB,ONT,SNA' && api.tripNearbyGroup('LGA').join() === 'EWR,JFK,LGA' && api.tripNearbyGroup('PIA').length === 0 &&
+    before.includes('JAX') && api.tripNearbyGroup('JAX').length === 0 && after.includes('LGA') && !after.includes('JAX'),
+    `${file}: nearby metros — LA (BUR/LGB/SNA/ONT), NYC (JFK/EWR); Anjo is JAX before Sep 1 (no metro), LGA after`);
+  api.tripSetNearby(id, 'LAX', true);
+  const off = api.tripLegsFor(tg).find((x) => x.code === 'LAX').legs;
+  api.tripNoteWorkerFeatures({ features: { multi_airport: true } });
+  const on = api.tripLegsFor(tg).find((x) => x.code === 'LAX').legs, lga = api.tripLegsFor(tg).find((x) => x.code === 'LGA').legs;
+  check(!off[0].searchFrom && api.tripCanNearby() && on[0].searchFrom === 'BUR,LAX,LGB,ONT,SNA' && on[1].searchTo === 'BUR,LAX,LGB,ONT,SNA' && !lga[0].searchFrom &&
+    api.tripLegsToPrice(on).map((l) => (l.searchFrom || l.from) + '>' + (l.searchTo || l.to)).join(' ') === 'BUR,LAX,LGB,ONT,SNA>PIA ORD>BUR,LAX,LGB,ONT,SNA',
+    `${file}: "Also try nearby" (Me only) makes each leg one LA-metro search — and only once the Worker announces it (no comma for an old Worker)`);
+  const seg = (a) => ({ airline: 'X', departure_airport: { id: a }, arrival_airport: { id: 'PIA' } });
+  const parsed = api.tripFareParse({ best_flights: [{ price: 220, flights: [seg('LAX')] }], other_flights: [{ price: 200, flights: [seg('BUR')] }, { price: 190, flights: [seg('BUR')] }, { price: 240, flights: [seg('SNA')] }] });
+  check(JSON.stringify(parsed.byDep) === '{"LAX":220,"BUR":190,"SNA":240}' && parsed.byArr.PIA === 190, `${file}: fare parse keeps the cheapest fare per airport (LAX $220, BUR $190, SNA $240)`);
+  const key = api._cacheKey('BUR,LAX,LGB,ONT,SNA', 'PIA', '2030-11-20', '');
+  api._flightCache[key] = { data: { ow: 220, live: true, lastVerified: new Date().toISOString(), byDep: parsed.byDep, byArr: parsed.byArr }, ts: Date.now() };
+  const t = { code: 'LAX', from: 'LAX', legs: on }, n = api.tripLegNearby(on[0]), html = api.tripLegNearbyHtml(t, 0);
+  check(api.tripLegPrice(on[0]).price === 220 && api.tripLegPrice(on[0]).status === 'live' && n.airport === 'BUR' && n.price === 190 && n.saving === 30 &&
+    /BUR \$190<\/b> · saves \$30 vs LAX/.test(html) && /data-leg-origin data-code="LAX" data-airport="BUR"/.test(html) && api.tripLegsToPrice(on).length === 1,
+    `${file}: one LA search — Me's LAX fare stays $220 (live), BUR wins at $190 ("saves $30 vs LAX", Use BUR)`);
+  api._flightCache[key].data.byDep = { BUR: 190 };
+  check(api.tripLegPrice(on[0]).status !== 'live' && api.tripLegsToPrice(on).length === 1 && /LAX not in these results/.test(api.tripLegNearbyHtml(t, 0)),
+    `${file}: if LAX isn't in the nearby results, Me's fare isn't faked (estimate) and the search isn't repeated`);
+  check(/data-leg-nearby[^>]*aria-pressed="true"[^>]*>📍 Nearby on · BUR · LGB · ONT · SNA/.test(api.tripNearbyToggleHtml(id, t)) && (api.tripNoteWorkerFeatures({}), api.tripNearbyToggleHtml(id, t) === ''),
+    `${file}: the nearby toggle shows only when the Worker supports it`);
+  Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+}
+
 check(formMarkup['pialax-mobile.html'] === formMarkup['pialax.html'], 'desktop/mobile builder inputs remain identical');
 
 // PIA-068: scripts/trip-idea-builder.js is the reviewable copy of the block
@@ -769,6 +808,14 @@ async function staggeredArrivalsSuite() {
         `${file}: Mark booked ✓ flips Me's RSVP row; Me drops off the watch and Get Live Fares (Anjo stays)`);
       api.S.linkedIdeaId = null;
       await fetchW('https://w.dev/idea/booked?id=' + id, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ member: 'LAX', booked: false }) });
+    }
+    // PIA-122: "Use BUR" moves Me's RSVP origin through the real Worker; dates stay.
+    {
+      const bur = await api.tripIdeaSetOrigin(id, 'LAX', 'BUR');
+      const row = bur && api.tripIdeaBookRows(bur).find((r) => r.code === 'LAX');
+      check(bur && bur.responses.LAX.origin === 'BUR' && bur.responses.LAX.available_from === '2026-11-21' && row && /BUR to PIA on 2026-11-21 one way/.test(decodeURIComponent(row.openJaw.inUrl)),
+        `${file}: "Use BUR" — Me now flies from BUR (book links follow), dates unchanged`);
+      await api.tripIdeaSetOrigin(id, 'LAX', 'LAX');
     }
     doc = await api.tripIdeaFetchDoc(id, true);
     sum = api.summarizeIdeaResponses(doc);
