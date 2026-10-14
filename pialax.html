@@ -8251,6 +8251,10 @@ function alertWatchesPayload() {
     var p = s.prefs[t.id];
     if (!p || p.enabled !== true) return;
     if (t.stage === 'booked' || t.stage === 'completed') return;
+    // PIA-130: a trip linked to a family RSVP is watched leg by leg (each leg's own
+    // baseline + the traveler's target), never as one whole-family estimate.
+    var legW = typeof tripAlertWatches === 'function' ? tripAlertWatches(t, p) : null;
+    if (legW) { legW.forEach(function (w) { if (watches.length < 10) watches.push(w); }); return; }
     var from = String((t.gf && t.gf.from) || t.origin || '').toUpperCase();
     var to = String((t.gf && t.gf.to) || t.dest || t.hub || '').toUpperCase();
     if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to) || from === to) return;
@@ -11469,6 +11473,29 @@ function tripIdeaMarkBooked(id, code) {
     if (typeof syncLtSheet === 'function') try { syncLtSheet(); } catch (e) {}
     return next;
   });
+}
+// ── PIA-130: what the server's alert cron watches for a linked trip ─────────
+// Each traveler's legs, one watch per leg: its baseline is that leg's own live
+// fare (never a whole-family estimate, which made a single fare look like a
+// huge drop), and the traveler's target rides along with a group id so the
+// cron compares in + home with it. Server watches are single-airport searches.
+function tripAlertWatches(item, prefs) {
+  if (!item || !item.sharedIdeaId) return null;
+  var doc = tripIdeaCachedDoc(item.sharedIdeaId);
+  if (!doc) return null;
+  var out = [], today = _tripIdeaTodayIso(), pr = prefs || {};
+  tripLegsFor(doc).forEach(function(t){
+    if (t.booked) return;
+    var tg = tripLegTargetFor(item.sharedIdeaId, t.code), group = String(item.id + '_' + t.code).slice(0, 64);
+    t.legs.forEach(function(l){
+      if (!l.date || l.date < today || l.from === l.to) return;
+      var p = tripLegPrice(Object.assign({}, l, {searchFrom:'', searchTo:''}));
+      out.push({trip_id:(group + '_' + l.dir).slice(0, 64), group:group, target:tg ? tg.value : null,
+        label:(_tripIdeaName(t.label) + ' · ' + l.from + '→' + l.to).slice(0, 80), from:l.from, to:l.to, dep:l.date, ret:l.dir === 'round' && l.ret ? l.ret : null,
+        threshold_pct:pr.fare_drop_pct, remind_days:pr.deadline_days, baseline:p.status === 'live' ? p.price : null});
+    });
+  });
+  return out;
 }
 // ── PIA-127: the phone's one-thumb flow ─────────────────────────────────────
 // A "✈️ Book flights" button on a linked Trips card (opens the same book list

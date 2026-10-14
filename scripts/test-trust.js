@@ -125,6 +125,7 @@ function makeRooms(IdeaRoom, env, gate) {
       ['POST /extract without a token', () => post(env, '/extract', extractBody), [401]],
       ['POST /alert without a token', () => post(env, '/alert', alertBody), [401]],
       ['POST /alerts/sync without a token', () => post(env, '/alerts/sync', { email: 'me@example.com', watches: [] }), [401]],
+      ['GET /alerts/status without a token (PIA-130)', () => get(env, '/alerts/status'), [401]],
       ['organizer token + no_cache=true (cache bypass)', () => get(env, '/search?' + SEARCH + '&no_cache=true', T), [400]],
       ['organizer token + random cache-buster param', () => get(env, '/search?' + SEARCH + '&x=' + Date.now(), T), [400]],
       ['organizer token + duplicated param', () => get(env, '/search?' + SEARCH + '&arrival_id=ORD', T), [400]],
@@ -253,6 +254,38 @@ function makeRooms(IdeaRoom, env, gate) {
       'A3 nearby airports — LAX,BUR,SNA is one SerpAPI call; SNA,LAX,BUR,LAX is the same cache entry (HIT)', String(upstream.length - n0));
     const acct = await json(await get(env, '/account', T));
     check(acct && acct.features && acct.features.multi_airport === true, 'A3 /account announces multi-airport search (so old Workers never get a comma)');
+  }
+  // ── C (PIA-130): the alert cron spends like the dashboard ───────────────────
+  // Same KV fare cache (a fare priced today costs 0), same daily serp/email
+  // caps, and a traveler's legs together vs their own target → one email a day.
+  {
+    const cron = async (env) => { const waits = []; await worker.scheduled({}, env, { waitUntil: (p) => waits.push(p) }); await Promise.all(waits); return JSON.parse(await env.ALERTS.get('alerts:last_run')); };
+    const serpCalls = () => upstream.filter((u) => /serpapi\.com\/search/.test(u)).length, mails = () => upstream.filter((u) => /resend/.test(u)).length;
+    const leg = (id, from, to, dep, extra) => Object.assign({ trip_id: id, label: 'Ashwin · ' + from + '→' + to, from, to, dep, ret: null, threshold_pct: 10, remind_days: 0, baseline: null }, extra || {});
+    {
+      const env = baseEnv();
+      const q = 'engine=google_flights&departure_id=LAX&arrival_id=PIA&outbound_date=2030-11-20&type=2&currency=USD&hl=en';
+      await get(env, '/search?' + q, T); // the dashboard priced it today → KV fare cache
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LAX_in', 'LAX', 'PIA', '2030-11-20')] }));
+      const s0 = serpCalls(), run = await cron(env);
+      check(serpCalls() === s0 && run.cached === 1 && run.spent === 0, 'C1 the cron reads the KV fare cache — a fare priced today costs 0 searches', JSON.stringify(run));
+    }
+    {
+      const env = baseEnv({ SERP_DAILY_CAP: '1' });
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('a1', 'LAX', 'PIA', '2030-11-21'), leg('a2', 'LAX', 'PIA', '2030-11-22'), leg('a3', 'LAX', 'PIA', '2030-11-23')] }));
+      const s0 = serpCalls(), run = await cron(env);
+      check(serpCalls() - s0 === 1 && run.spent === 1 && run.capped === true, 'C2 the cron stops at the daily serp cap (SERP_DAILY_CAP=1 → exactly 1 search, run marked capped)', JSON.stringify(run));
+    }
+    {
+      const env = baseEnv();
+      const g = { group: 'tg_LAX', target: 400, threshold_pct: 1 };
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LAX_in', 'LAX', 'PIA', '2030-11-20', g), leg('tg_LAX_home', 'ORD', 'LAX', '2030-11-29', g)] }));
+      const m0 = mails();
+      await cron(env); await cron(env);
+      check(mails() - m0 === 1, 'C3 Ashwin in $199 + home $199 = $398 ≤ target $400 → one email, not one per leg, not one per run', String(mails() - m0));
+      const st = await json(await get(env, '/alerts/status', T));
+      check(st && st.ok && st.watches === 2, 'C4 /alerts/status still answers the organizer (token)', JSON.stringify(st));
+    }
   }
   // ── B (PIA-118): exact caps under a parallel burst ──────────────────────────
   // KV reads are held at a barrier so all racers read the counter at once; the

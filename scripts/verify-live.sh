@@ -71,6 +71,7 @@ check "GET unknown path"                    "404 401" "$(status "$BASE/serp?$Q")
 check "POST /extract, no token"             "401"     "$(status -X POST -H "$J" --data '{"today":"2026-10-04","context_event":{"id":"v","raw_text":"LAX to PIA"}}' "$BASE/extract")"
 check "POST /alert, no token"               "401"     "$(status -X POST -H "$J" --data '{"to":"a@b.co","event":{"id":"v","trip_id":"t","type":"test","subject":"s","body_text":"b"}}' "$BASE/alert")"
 check "POST /alerts/sync, no token"         "401"     "$(status -X POST -H "$J" --data '{"email":"a@b.co","watches":[]}' "$BASE/alerts/sync")"
+check "GET /alerts/status, no token"        "401"     "$(status "$BASE/alerts/status")"   # PIA-130: it named the masked email
 check "GET /search + no_cache, WITH token"  "400"     "$(status -H "X-Pialax-Token: $PIALAX_TOKEN" "$BASE/search?$Q&no_cache=true")"
 sleep 3
 U1="$(usage)"

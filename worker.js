@@ -633,8 +633,11 @@ async function handleExtract(request, env) {
 //   1. resend.com → sign up with the alert recipient's email → API key.
 //   2. wrangler kv namespace create ALERTS   → paste the id into wrangler.toml
 //   3. wrangler secret put RESEND_API_KEY
-//   4. wrangler deploy   (wrangler.toml already carries the cron trigger)
+//   4. set the cron in wrangler.toml ([triggers] crons — off since PIA-074; PIA-128
+//      decides the slot), then wrangler deploy
 // Optional env vars: ALERT_FROM (verified sender), ALERT_CRON_MAX (fetch cap).
+// PIA-130: the cron spends like the dashboard — through the KV fare cache and
+// the same daily serp/email caps — and /alerts/status needs the token.
 //
 // Every route degrades exactly like /extract: 501 + code tells the client
 // "not configured here", and the dashboard falls back to preview-only.
@@ -647,7 +650,7 @@ const ALERT_EMAIL_RE = /^[^\s@]{1,64}@[^\s@.]{1,63}(\.[^\s@.]{1,63})+$/;
 const IATA_RE = /^[A-Z]{3}$/;
 const ALERT_TYPES = { fare_drop: 1, constraint_violation: 1, deadline_approaching: 1, conflict_needs_you: 1, test: 1 };
 const MAX_WATCHES = 10;
-const CRON_MAX_FETCHES_DEFAULT = 8;
+const CRON_MAX_FETCHES_DEFAULT = 4; // PIA-130: one Thanksgiving re-price (2 travelers × in + home)
 
 function alertsCors(request, extra) {
   return Object.assign({ 'Content-Type': 'application/json', 'Cache-Control': 'no-store' }, corsHeaders(request), extra || {});
@@ -734,7 +737,11 @@ function validateWatch(w) {
   const remind = (typeof w.remind_days === 'number' && w.remind_days >= 0 && w.remind_days <= 60) ? w.remind_days : 3;
   const baseline = (typeof w.baseline === 'number' && w.baseline > 0 && w.baseline < 100000) ? Math.round(w.baseline) : null;
   const label = typeof w.label === 'string' ? w.label.slice(0, 80) : (from + ' → ' + to);
-  return { trip_id: w.trip_id, label, from, to, dep: w.dep, ret, threshold_pct: pct, remind_days: remind, baseline };
+  // PIA-130: a traveler's legs share a `group` and that traveler's `target`
+  // (their in + home total) — the cron compares the legs' sum with it.
+  const group = (typeof w.group === 'string' && ALERT_ID_RE.test(w.group)) ? w.group : null;
+  const target = (typeof w.target === 'number' && w.target > 0 && w.target < 100000) ? Math.round(w.target) : null;
+  return { trip_id: w.trip_id, label, from, to, dep: w.dep, ret, threshold_pct: pct, remind_days: remind, baseline, group, target };
 }
 
 async function handleAlertsSync(request, env) {
@@ -763,6 +770,9 @@ async function handleAlertsSync(request, env) {
 }
 
 async function handleAlertsStatus(request, env) {
+  // PIA-130: it names the masked email and how many trips are watched — not public.
+  const denied = authGate(request, env);
+  if (denied) return denied;
   if (!env.ALERTS) {
     return jsonError('Alert watching not configured on this Worker (no ALERTS KV binding)', 501, request, 'no_kv');
   }
@@ -783,10 +793,11 @@ async function handleAlertsStatus(request, env) {
   }), { status: 200, headers: alertsCors(request) });
 }
 
-// Cache-first SerpAPI price for one watch. Shares the browser's 24h edge cache
-// key (params without api_key), so a route the family already looked at today
-// costs zero quota. Returns { price, fromCache } or { price: null }.
-async function cronFetchPrice(watch, env, counters) {
+// Cache-first SerpAPI price for one watch (PIA-130): the same canonical search
+// and KV fare cache as GET /search — a route anyone priced today is free — and
+// a miss goes through the same daily serp cap. Returns { price } or
+// { price: null, capped: true } when today's budget is gone.
+async function cronFetchPrice(watch, env, counters, cronReq) {
   const params = new URLSearchParams();
   params.set('engine', 'google_flights');
   params.set('departure_id', watch.from);
@@ -796,35 +807,33 @@ async function cronFetchPrice(watch, env, counters) {
   else params.set('type', '2');
   params.set('currency', 'USD');
   params.set('hl', 'en');
-
-  const cacheKey = new Request(SERPAPI_BASE + '?' + params.toString(), { method: 'GET' });
-  const cache = (typeof caches !== 'undefined' && caches.default) ? caches.default : null;
-  let bodyText = null;
-  if (cache) {
-    const hit = await cache.match(cacheKey);
-    if (hit) { bodyText = await hit.text(); counters.cached++; }
-  }
-  if (bodyText == null) {
-    params.set('api_key', env.SERPAPI_KEY);
-    const res = await fetch(SERPAPI_BASE + '?' + params.toString(), { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
+  const canonical = canonicalSearch(params);
+  if (!canonical) return { price: null };
+  let entry = await fareCacheGet(env, canonical);
+  if (entry) counters.cached++;
+  else {
+    const over = await spendGate(cronReq, env, 'serp');
+    if (over) return { price: null, capped: true };
+    const res = await fetch(SERPAPI_BASE + '?' + canonical + '&api_key=' + encodeURIComponent(env.SERPAPI_KEY), { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
     if (!res.ok) { console.warn('[alert-cron] SerpAPI ' + res.status + ' for ' + watch.from + '-' + watch.to); return { price: null }; }
-    bodyText = await res.text();
+    entry = { fetched_at: new Date().toISOString(), body: await res.text() };
     counters.spent++;
-    if (cache) {
-      await cache.put(cacheKey, new Response(bodyText, {
-        status: 200,
-        headers: { 'Content-Type': 'application/json', 'X-SerpAPI-Status': '200', 'Cache-Control': 'public, max-age=86400' },
-      }));
-    }
+    await fareCachePut(env, canonical, entry);
   }
   try {
-    const j = JSON.parse(bodyText);
+    const j = JSON.parse(entry.body);
     const best = (Array.isArray(j.best_flights) && j.best_flights[0] && j.best_flights[0].price)
       || (Array.isArray(j.other_flights) && j.other_flights[0] && j.other_flights[0].price)
       || (j.price_insights && j.price_insights.lowest_price)
       || null;
     return { price: (typeof best === 'number' && best > 0) ? best : null };
   } catch (e) { return { price: null }; }
+}
+// PIA-130: every cron email goes through the daily email cap, like POST /alert.
+async function cronSend(env, cronReq, to, subject, text) {
+  const over = await spendGate(cronReq, env, 'email');
+  if (over) return { ok: false, capped: true };
+  return sendViaResend(env, to, subject, text);
 }
 
 async function runAlertCron(env) {
@@ -847,6 +856,7 @@ async function runAlertCron(env) {
     const maxFetches = (typeof env.ALERT_CRON_MAX === 'string' && parseInt(env.ALERT_CRON_MAX, 10) > 0)
       ? parseInt(env.ALERT_CRON_MAX, 10) : CRON_MAX_FETCHES_DEFAULT;
     const counters = { spent: 0, cached: 0 };
+    const cronReq = new Request('https://pialax-cron.internal/'); // spendGate builds its 429 from a request
 
     for (const raw of config.watches) {
       const w = validateWatch(raw);
@@ -857,7 +867,9 @@ async function runAlertCron(env) {
 
       // One watch failing (bad route, upstream hiccup) must not kill the run.
       try {
-        const got = await cronFetchPrice(w, env, counters);
+        const got = await cronFetchPrice(w, env, counters, cronReq);
+        if (got.capped) { summary.capped = true; break; } // today's serp budget is gone — stop, don't skip around it
+        const grouped = !!(w.group && w.target);
         const st = state[w.trip_id] || {};
         const daysLeft = Math.round((new Date(w.dep + 'T00:00:00Z') - new Date(today + 'T00:00:00Z')) / 86400000);
 
@@ -868,9 +880,9 @@ async function runAlertCron(env) {
           // Re-alert only when the fare drops MATERIALLY below the last alert
           // ($10 buckets, same spirit as the client's dedupe key) — never a
           // daily repeat about the same price.
-          const dropHit = got.price <= target && (!(st.last_alert_price > 0) || got.price <= st.last_alert_price - 10);
+          const dropHit = !grouped && got.price <= target && (!(st.last_alert_price > 0) || got.price <= st.last_alert_price - 10);
           if (dropHit) {
-            const res = await sendViaResend(env, config.email,
+            const res = await cronSend(env, cronReq, config.email,
               '✈️ PIALAX · ' + w.label + ' dropped to $' + got.price,
               w.from + ' → ' + w.to + ' · ' + w.dep + (w.ret ? ' – ' + w.ret : '') +
               '\nNow $' + got.price + ' (baseline $' + Math.round(baseline) + ', your threshold ' + w.threshold_pct + '%).' +
@@ -882,8 +894,8 @@ async function runAlertCron(env) {
         }
 
         // Departure-window reminder — once per watch, price known or not.
-        if (daysLeft >= 0 && daysLeft <= w.remind_days && !st.deadline_sent) {
-          const res = await sendViaResend(env, config.email,
+        if (!grouped && daysLeft >= 0 && daysLeft <= w.remind_days && !st.deadline_sent) {
+          const res = await cronSend(env, cronReq, config.email,
             '✈️ PIALAX · ' + w.label + ' departs ' + (daysLeft === 0 ? 'TODAY' : 'in ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's')),
             w.from + ' → ' + w.to + ' · ' + w.dep + (w.ret ? ' – ' + w.ret : '') +
             (st.last_price ? '\nLatest fare seen: $' + st.last_price + '.' : '') +
@@ -897,6 +909,26 @@ async function runAlertCron(env) {
       } catch (e) {
         console.warn('[alert-cron] watch ' + w.trip_id + ' failed: ' + e.message);
       }
+    }
+    // PIA-130: a traveler's legs (one group) vs their own target: one email per
+    // traveler per day, only when every leg was priced in this run.
+    const groups = {};
+    for (const raw of config.watches) {
+      const w = validateWatch(raw);
+      if (w && w.group && w.target && w.dep >= today) (groups[w.group] = groups[w.group] || { target: w.target, legs: [] }).legs.push(w);
+    }
+    for (const g of Object.keys(groups)) {
+      const G = groups[g], sts = G.legs.map((w) => state[w.trip_id] || {}), gs = state['group:' + g] || {};
+      if (sts.every((s) => s.last_checked === today && s.last_price > 0)) {
+        const sum = sts.reduce((a, s) => a + s.last_price, 0);
+        if (sum <= G.target && gs.last_alert_day !== today) {
+          const res = await cronSend(env, cronReq, config.email, '✈️ PIALAX · ' + G.legs[0].label.split(' · ')[0] + ' is at your target: $' + sum,
+            G.legs.map((w, i) => w.from + ' → ' + w.to + ' · ' + w.dep + ' · $' + sts[i].last_price).join('\n') +
+            '\nTotal $' + sum + ' — your target $' + G.target + '. Recheck on Google Flights before paying.' + '\n\nOpen the trip: ' + DASH_URL);
+          if (res.ok) { summary.sent++; gs.last_alert_day = today; }
+        }
+      }
+      state['group:' + g] = gs;
     }
     summary.spent = counters.spent;
     summary.cached = counters.cached;

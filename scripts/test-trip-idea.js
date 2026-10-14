@@ -609,7 +609,7 @@ async function nudgeSuite() {
     const id = 'TGTGTGTGTGTGTGTGTGTGTG';
     let fetches = 0;
     ls.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] }));
-    const names = ['tripStaleLegs', 'tripStaleNudge', 'tripTargetAlerts', 'tripDailyCapMark', 'tripDailyCapHit', 'isFetchLocked', 'loadAlertLog', 'tripLegRecord', 'tripLegSetTarget'];
+    const names = ['tripStaleLegs', 'tripStaleNudge', 'tripTargetAlerts', 'tripDailyCapMark', 'tripDailyCapHit', 'isFetchLocked', 'loadAlertLog', 'tripLegRecord', 'tripLegSetTarget', 'alertWatchesPayload'];
     const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls, fetch: () => { fetches++; return Promise.reject(new Error('no')); } });
     const boot = fetches;
     const tg = { id, idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
@@ -636,6 +636,25 @@ async function nudgeSuite() {
     api.tripDailyCapMark();
     const q = JSON.parse(ls.getItem('pialax_serpapi_quota') || '{}');
     check(api.tripDailyCapHit() && api.isFetchLocked() && !q.exceeded, `${file}: a Worker daily-cap hit locks fetching for today without marking the month exceeded`);
+    // PIA-130: the server watches this trip leg by leg — each leg's own live
+    // baseline (never the whole-family estimate) plus Ashwin's target — and the
+    // real Worker accepts that payload.
+    ls.setItem('pialax_alert_prefs_v1', JSON.stringify({ v: 1, settings: { email: 'ash@example.com', prefs: { thanksgiving: { enabled: true, fare_drop_pct: 10, deadline_days: 3 } } } }));
+    api.tripLegSetTarget(id, '', '420');
+    const pay = api.alertWatchesPayload(), w = (pay && pay.watches) || [];
+    check(w.length === 2 && w.map((x) => x.trip_id).join() === 'thanksgiving_LAX_in,thanksgiving_LAX_home' && w.every((x) => x.group === 'thanksgiving_LAX' && x.target === 420) &&
+      w[0].baseline === 189 && w[1].baseline === 200 && w[0].from === 'LAX' && w[1].from === 'ORD' && w[1].dep === '2030-11-29',
+      `${file}: server alert watches = Ashwin's legs (LAX→PIA $189, ORD→LAX $200), grouped with his $420 target — no whole-family baseline`);
+    const os = require('os'), tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-aw-'));
+    fs.writeFileSync(path.join(tmp, 'worker.mjs'), fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8'));
+    const worker = (await import('file://' + path.join(tmp, 'worker.mjs'))).default;
+    fs.rmSync(tmp, { recursive: true, force: true });
+    const kv = new Map(), TOKEN = 'tok_' + 'x'.repeat(28);
+    const res = await worker.fetch(new Request('https://w.dev/alerts/sync', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Pialax-Token': TOKEN }, body: JSON.stringify(pay) }),
+      { PROXY_TOKEN: TOKEN, ALERTS: { get: async (k) => (kv.has(k) ? kv.get(k) : null), put: async (k, v) => { kv.set(k, v); } } });
+    const stored = JSON.parse(kv.get('alerts:config') || 'null');
+    check(res.status === 200 && stored && stored.watches.length === 2 && stored.watches[0].group === 'thanksgiving_LAX' && stored.watches[0].target === 420,
+      `${file}: the Worker's /alerts/sync accepts and keeps the per-leg watches (group + target)`);
     Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
   }
 }

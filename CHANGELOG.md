@@ -12,6 +12,17 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-130) — needs `wrangler deploy`
+- **`/alerts/status` needs the organizer token.** It used to answer anyone with the masked alert email, the watch count and the last run.
+- **The alert cron now spends like the dashboard.**
+  - It goes through the same KV fare cache, so a fare priced today costs 0.
+  - Misses go through the same daily serp cap; the run stops there and records `capped`.
+  - Every cron email goes through the daily email cap.
+  - `ALERT_CRON_MAX` defaults to 4, one Thanksgiving re-price.
+- **Server alert watches for a linked trip are per leg.** Each leg's baseline is its own live fare, never the whole-family estimate that made a single fare look like a big drop. A traveler's legs share a `group` and their `target`, so the cron sends **one** "at your target" email per traveler per day when in + home together reach it.
+- `verify-live.sh` A1 also checks that `/alerts/status` without a token returns 401 (free).
+- Turning server alerts on (cron slot, ALERTS KV, `RESEND_API_KEY`) stays with PIA-128.
+
 ### Added (PIA-129)
 - **Family total board** at the top of a linked trip's Flight Breakdown. It shows one number for everyone still to book, e.g. "$721 still to book · 2 of 2 travelers".
   - Each traveler's in + home fare.

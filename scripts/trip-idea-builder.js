@@ -1982,6 +1982,29 @@ function tripIdeaMarkBooked(id, code) {
     return next;
   });
 }
+// ── PIA-130: what the server's alert cron watches for a linked trip ─────────
+// Each traveler's legs, one watch per leg: its baseline is that leg's own live
+// fare (never a whole-family estimate, which made a single fare look like a
+// huge drop), and the traveler's target rides along with a group id so the
+// cron compares in + home with it. Server watches are single-airport searches.
+function tripAlertWatches(item, prefs) {
+  if (!item || !item.sharedIdeaId) return null;
+  var doc = tripIdeaCachedDoc(item.sharedIdeaId);
+  if (!doc) return null;
+  var out = [], today = _tripIdeaTodayIso(), pr = prefs || {};
+  tripLegsFor(doc).forEach(function(t){
+    if (t.booked) return;
+    var tg = tripLegTargetFor(item.sharedIdeaId, t.code), group = String(item.id + '_' + t.code).slice(0, 64);
+    t.legs.forEach(function(l){
+      if (!l.date || l.date < today || l.from === l.to) return;
+      var p = tripLegPrice(Object.assign({}, l, {searchFrom:'', searchTo:''}));
+      out.push({trip_id:(group + '_' + l.dir).slice(0, 64), group:group, target:tg ? tg.value : null,
+        label:(_tripIdeaName(t.label) + ' · ' + l.from + '→' + l.to).slice(0, 80), from:l.from, to:l.to, dep:l.date, ret:l.dir === 'round' && l.ret ? l.ret : null,
+        threshold_pct:pr.fare_drop_pct, remind_days:pr.deadline_days, baseline:p.status === 'live' ? p.price : null});
+    });
+  });
+  return out;
+}
 // ── PIA-127: the phone's one-thumb flow ─────────────────────────────────────
 // A "✈️ Book flights" button on a linked Trips card (opens the same book list
 // as the trip card, in a bottom sheet): open app → Book → In PIA ↗ = 2 taps.
