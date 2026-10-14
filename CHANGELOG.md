@@ -12,6 +12,112 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (sprint review, before merge)
+- **Security:**
+  - Google's results link is normalised when parsed and refused on read if it carries quotes, backticks or backslashes, so it can't break out of an `href` on the planner cards.
+- **Alert cron:**
+  - Once a traveler's leg has departed, the remaining leg is no longer measured against the in + home target.
+  - The per-run limit counts real searches only, so cached fares and departure reminders still run for every watch.
+  - A group's sum uses only prices fetched in that run.
+  - One failed email no longer loses the day's alert state.
+  - Groups get one departure reminder each, and re-alert only after a further $10 drop.
+- **Dashboard:**
+  - "At your target" emails respect each trip's alert switch; the banner still shows, once a day.
+  - A linked trip sends no server watch until its RSVP has loaded, instead of the old whole-family watch.
+  - A second quick date tap now says "Saving…" instead of vanishing.
+  - A flex or "Use X" write needs a fresh read of the RSVP, and an open sheet repaints afterwards.
+  - Two pricing runs can't overlap and overshoot the session cap.
+  - A round-trip traveler reads "flies a round trip — not compared" on the pickup timeline.
+
+### Fixed (PIA-130) — needs `wrangler deploy`
+- **`/alerts/status` needs the organizer token.** It used to answer anyone with the masked alert email, the watch count and the last run.
+- **The alert cron now spends like the dashboard.**
+  - It goes through the same KV fare cache, so a fare priced today costs 0.
+  - Misses go through the same daily serp cap; the run stops there and records `capped`.
+  - Every cron email goes through the daily email cap.
+  - `ALERT_CRON_MAX` defaults to 4, one Thanksgiving re-price.
+- **Server alert watches for a linked trip are per leg.** Each leg's baseline is its own live fare, never the whole-family estimate that made a single fare look like a big drop. A traveler's legs share a `group` and their `target`, so the cron sends **one** "at your target" email per traveler per day when in + home together reach it.
+- `verify-live.sh` A1 also checks that `/alerts/status` without a token returns 401 (free).
+- Turning server alerts on (cron slot, ALERTS KV, `RESEND_API_KEY`) stays with PIA-128.
+
+### Added (PIA-129)
+- **Family total board** at the top of a linked trip's Flight Breakdown. It shows one number for everyone still to book, e.g. "$721 still to book · 2 of 2 travelers".
+  - Each traveler's in + home fare.
+  - The **cheapest live fares already seen** within ±2 days or at a nearby airport, with what it takes ("→ $300 with Mon 25 in") and the saving.
+  - Booked vs not; booking someone moves them to ✓ Booked and out of the total.
+- A saving is only claimed between live fares. With any estimate, the total reads "~$…" and is labelled "~ = includes estimates".
+
+### Added (PIA-127) — phone
+- **From open app to Google Flights in 2 taps.** A linked Thanksgiving card on the Trips tab has a **✈️ Book flights** button. It opens a bottom sheet with each traveler's ✈️ In / 🏠 Home links, the book-by countdown, fare confidence and Mark booked ✓.
+- **Trip bar.** On a linked trip's Family tab, the Get Live Fares slot becomes **📅 Flex · 📍 Nearby · ⟳ Refresh (N) · ✈️ Book**.
+  - There is no third bottom bar.
+  - Refresh is the same spend-gated Get Live Fares, and it reads "Fresh ✓" when every leg has a live fare.
+  - 📍 Nearby shows once the Worker supports it.
+  - **Flex** opens a "Dates & airports" sheet with every traveler's ±2-day strip and nearby toggle, instead of the full RSVP calendar.
+- Repaints and live refreshes keep your scroll position. Every target is ≥44px and nothing scrolls sideways at 360, 390 or 430px.
+
+### Added (PIA-125)
+- **One-tap nudge for day-old fares.** When you open the app or come back to it, with the organizer token set, it counts the watched legs whose fare is over a day old. It offers "N fares are a day old · Worker searches today 7/30 · **Refresh (N searches)**", at most 4 per tap.
+  - Nothing is searched until you tap; searches are still never automatic.
+  - ✕ hides the banner for this visit.
+  - Without a token it stays silent.
+- **Target alerts in the app.** After any pricing, a traveler at or under their target gets one alert per day: a banner ("🎯 At your target: Ashwin $389 ≤ $420"), a dot on the tab icon and "(1)" in the tab title.
+  - The alert is queued in the existing outbox, so it is emailed once Resend is set up.
+  - Desktop now has a tab icon too.
+  - There is no browser notification, because nothing runs in the background.
+
+### Fixed (PIA-125)
+- Hitting the Worker's own daily search cap (a 429 `daily_cap`) used to lock live fares on the device for the **rest of the month**. It now locks only until tomorrow (UTC), with a toast that says so. A SerpAPI 429 still locks the month.
+
+### Added (PIA-126)
+- **Pickup timeline** at the top of a linked trip's Flight Breakdown. It shows when each traveler lands (in-leg) and leaves (home-leg), using the times already cached with each live fare.
+  - It shows the gap and reads "✓ within 2h · one trip" when everyone uses the same airport within two hours, "different airports — two trips", or "6h 20m apart". Gaps across midnight count correctly.
+  - When they aren't aligned, it shows the **cheapest pair within 2h** from the cached offers (e.g. "AA 4 7:10a + UA 6 8:00a = $290 (+$20)"). This never needs another search.
+  - A traveler without a live fare reads "waiting on Anjo’s live fare".
+
+### Added (PIA-122) — needs `wrangler deploy`
+- **Nearby airports in one search.** "📍 Also try BUR · LGB · ONT · SNA" on a traveler's route card searches their whole metro in the same one search per leg: LA for Ashwin, NYC (JFK/EWR) for Anjo.
+  - The traveler's own airport keeps its own fare.
+  - The winning airport shows with its saving ("BUR $190 · saves $30 vs LAX"); both prices come from that one search.
+  - **Use BUR** changes that traveler's RSVP origin, and their book links follow.
+  - The metro follows Anjo's date-aware airport (LGA from Sep 1).
+- **Worker:**
+  - `/search` takes up to 5 comma-joined codes in `departure_id`/`arrival_id`, as a set: sorted and de-duplicated in the cache key, so a single code is unchanged and old cache entries survive.
+  - Anything else is still a 400 with no spend.
+  - `/account` reports `features.multi_airport`. The dashboard sends a comma only once it sees that, so an older Worker never gets one.
+- `verify-live.sh` A3 now makes its one search a nearby search (`LAX,BUR`, re-ordered for the HIT) and checks the new `/account` feature flag.
+
+### Added (PIA-124)
+- **Book-now handoff:**
+  - Once a leg has a live fare, its ✈️ In / 🏠 Home button opens Google Flights' own link for that exact search (1 adult). Otherwise the search is narrowed to that fare: "nonstop", "on American".
+  - The flight behind the price is spelled out next to it, so you can find it: "American AA 1 + AA 2 · 6:00a→3:40p · 1 stop".
+  - The planner's own Google Flights links follow the same rule.
+- **Fare confidence** above each traveler's Book buttons, by fare age: "solid" (≤6h), "recheck on Google Flights before paying" (6–24h), "estimate — search first", or "stale — refresh first".
+- **Book-by countdown:** Thanksgiving defaults to **Sun Nov 1**. A confirmed "decision deadline" note wins; otherwise it's three weeks before leaving. It turns amber within 7 days and red once passed.
+- **Mark booked ✓** on the trip card and route card (organizer device) flips that traveler's RSVP row; they then drop off the fare watch and Get Live Fares.
+- Not built: "Open on airline.com". It needs a second, paid SerpAPI call (`booking_token`).
+
+### Added (PIA-123)
+- **Fare watch per traveler.** On a linked trip, each traveler's route card and the trip's Trips card show:
+  - their in + home price;
+  - a **🎯 target** you can type in place;
+  - the change since the last check, plus the fare's age ("checked 5h ago").
+- **Each leg** also shows a sparkline and Google's own verdict (for example "high price · typical $180–$260") when Google provides one.
+- **Targets live on this device.** A trip-wide "target per traveler" carries over to everyone, a traveler's own target wins, and a confirmed "target price" note on the Trips card seeds it.
+- **Fare age is honest.** A Worker cache hit keeps its original fetch time. After 24 hours the leg greys out and reads "Last $212 · 1d ago · stale", with "Tap to refresh (1 search)" when a token is set. A stale price is never shown as current.
+- **One "N ago" format everywhere** (fare pills, the last-error chip, the /account sync line): just now, Nm, Nh, Nd.
+
+### Added (PIA-121)
+- **One-way pricing for linked trips:** a trip linked to a family RSVP is now priced the way each traveler books it. For Peoria that's in to PIA plus home from ORD, as two one-ways. Before, it was priced as a round trip that nobody books.
+  - Each Flight Breakdown card shows that traveler's in + home total, with `~$` on estimates.
+  - The cost panel and the "At a glance" total use the same number.
+- **±day flex strip** under each leg, showing the day before and after the plan date (tap "±2 days" for more).
+  - Each chip shows a live fare from the 24h cache or a `~$` day-of-week estimate. Showing the strip never spends a search.
+  - Tapping a day moves only that traveler's RSVP arrive or leave date and keeps the rest of their answer. A day that would put leaving before arriving can't be tapped.
+  - "Price these (N searches)" prices the visible days, at most 4 per tap.
+- **Get Live Fares on a linked trip** prices those legs (at most 4 searches per tap), and its label shows how many searches the next tap will spend.
+- Live fares now also keep the cheapest few offers (with times and airports), Google's price insights and Google's own results link. The parser is shared by both dashboards.
+
 ### Changed (PIA-120)
 - A trip linked to a family RSVP now has one place for its dates and one place to book from:
   - **Dates:** the Family tab's trip card shows the RSVP plan dates. The organizer changes them with

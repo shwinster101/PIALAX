@@ -125,11 +125,16 @@ function makeRooms(IdeaRoom, env, gate) {
       ['POST /extract without a token', () => post(env, '/extract', extractBody), [401]],
       ['POST /alert without a token', () => post(env, '/alert', alertBody), [401]],
       ['POST /alerts/sync without a token', () => post(env, '/alerts/sync', { email: 'me@example.com', watches: [] }), [401]],
+      ['GET /alerts/status without a token (PIA-130)', () => get(env, '/alerts/status'), [401]],
       ['organizer token + no_cache=true (cache bypass)', () => get(env, '/search?' + SEARCH + '&no_cache=true', T), [400]],
       ['organizer token + random cache-buster param', () => get(env, '/search?' + SEARCH + '&x=' + Date.now(), T), [400]],
       ['organizer token + duplicated param', () => get(env, '/search?' + SEARCH + '&arrival_id=ORD', T), [400]],
       ['organizer token + a non-flights engine', () => get(env, '/search?' + SEARCH.replace('google_flights', 'google'), T), [400]],
       ['organizer token + lowercase / injected airport', () => get(env, '/search?' + SEARCH.replace('LAX', 'lax%26api_key%3Dx'), T), [400]],
+      // PIA-122: comma-joined airports are allowed, but only 1–5 clean IATA codes.
+      ['organizer token + 6 comma-joined airports', () => get(env, '/search?' + SEARCH.replace('LAX', 'LAX%2CBUR%2CLGB%2CSNA%2CONT%2CSAN'), T), [400]],
+      ['organizer token + trailing comma in an airport list', () => get(env, '/search?' + SEARCH.replace('LAX', 'LAX%2C'), T), [400]],
+      ['organizer token + lowercase code in an airport list', () => get(env, '/search?' + SEARCH.replace('LAX', 'lax%2CBUR'), T), [400]],
       ['organizer token + unknown GET path', () => get(env, '/whatever?' + SEARCH, T), [404]],
     ];
     for (const [label, run, want] of cases) {
@@ -240,6 +245,76 @@ function makeRooms(IdeaRoom, env, gate) {
     check(env.IDEAS.map.get('quota:serp:' + day) === '1', 'A3 the server spend counter moved once, not twice', env.IDEAS.map.get('quota:serp:' + day));
     const r3 = await get(env, '/search?' + SEARCH);
     check(r3.status === 401, 'A3 a cache HIT still needs the token (no free reads of cached fares)');
+    // PIA-122: one search covers home + nearby airports; the list is a set, so
+    // any order is the same cache entry, and the upstream call is still one.
+    const n0 = upstream.length;
+    const m1 = await get(env, '/search?' + SEARCH.replace('LAX', 'LAX%2CBUR%2CSNA'), T);
+    const m2 = await get(env, '/search?' + SEARCH.replace('LAX', 'SNA%2CLAX%2CBUR%2CLAX'), T);
+    check(m1.status === 200 && m1.headers.get('X-Proxy-Cache') === 'MISS' && m2.headers.get('X-Proxy-Cache') === 'HIT' && upstream.length - n0 === 1 && /departure_id=BUR,LAX,SNA&/.test(upstream[upstream.length - 1]),
+      'A3 nearby airports — LAX,BUR,SNA is one SerpAPI call; SNA,LAX,BUR,LAX is the same cache entry (HIT)', String(upstream.length - n0));
+    const acct = await json(await get(env, '/account', T));
+    check(acct && acct.features && acct.features.multi_airport === true, 'A3 /account announces multi-airport search (so old Workers never get a comma)');
+  }
+  // ── C (PIA-130): the alert cron spends like the dashboard ───────────────────
+  // Same KV fare cache (a fare priced today costs 0), same daily serp/email
+  // caps, and a traveler's legs together vs their own target → one email a day.
+  {
+    const cron = async (env) => { const waits = []; await worker.scheduled({}, env, { waitUntil: (p) => waits.push(p) }); await Promise.all(waits); return JSON.parse(await env.ALERTS.get('alerts:last_run')); };
+    const serpCalls = () => upstream.filter((u) => /serpapi\.com\/search/.test(u)).length, mails = () => upstream.filter((u) => /resend/.test(u)).length;
+    const leg = (id, from, to, dep, extra) => Object.assign({ trip_id: id, label: 'Ashwin · ' + from + '→' + to, from, to, dep, ret: null, threshold_pct: 10, remind_days: 0, baseline: null }, extra || {});
+    {
+      const env = baseEnv();
+      const q = 'engine=google_flights&departure_id=LAX&arrival_id=PIA&outbound_date=2030-11-20&type=2&currency=USD&hl=en';
+      await get(env, '/search?' + q, T); // the dashboard priced it today → KV fare cache
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LAX_in', 'LAX', 'PIA', '2030-11-20')] }));
+      const s0 = serpCalls(), run = await cron(env);
+      check(serpCalls() === s0 && run.cached === 1 && run.spent === 0, 'C1 the cron reads the KV fare cache — a fare priced today costs 0 searches', JSON.stringify(run));
+    }
+    {
+      const env = baseEnv({ SERP_DAILY_CAP: '1' });
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('a1', 'LAX', 'PIA', '2030-11-21'), leg('a2', 'LAX', 'PIA', '2030-11-22'), leg('a3', 'LAX', 'PIA', '2030-11-23')] }));
+      const s0 = serpCalls(), run = await cron(env);
+      check(serpCalls() - s0 === 1 && run.spent === 1 && run.capped === true, 'C2 the cron stops at the daily serp cap (SERP_DAILY_CAP=1 → exactly 1 search, run marked capped)', JSON.stringify(run));
+    }
+    {
+      const env = baseEnv();
+      const g = { group: 'tg_LAX', target: 400, threshold_pct: 1 };
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LAX_in', 'LAX', 'PIA', '2030-11-20', g), leg('tg_LAX_home', 'ORD', 'LAX', '2030-11-29', g)] }));
+      const m0 = mails();
+      await cron(env); await cron(env);
+      check(mails() - m0 === 1, 'C3 Ashwin in $199 + home $199 = $398 ≤ target $400 → one email, not one per leg, not one per run', String(mails() - m0));
+      const st = await json(await get(env, '/alerts/status', T));
+      check(st && st.ok && st.watches === 2, 'C4 /alerts/status still answers the organizer (token)', JSON.stringify(st));
+    }
+    // Review fixes: a group with a departed leg never alerts on the leg that's left;
+    // the per-run ceiling counts real searches (cache hits and the rest still run);
+    // the group sum never uses a price that wasn't fetched in this run.
+    {
+      const env = baseEnv();
+      const g = { group: 'tg_LGA', target: 400, threshold_pct: 1 };
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LGA_in', 'LGA', 'PIA', '2020-11-26', g), leg('tg_LGA_home', 'ORD', 'LGA', '2030-11-30', g)] }));
+      const m0 = mails();
+      await cron(env);
+      check(mails() - m0 === 0, 'C5 a traveler whose in-leg has departed gets no "at your target" email for the home leg alone', String(mails() - m0));
+    }
+    {
+      const env = baseEnv({ ALERT_CRON_MAX: '1' });
+      const dates = ['2030-12-01', '2030-12-02', '2030-12-03'];
+      for (const d of dates) await get(env, '/search?engine=google_flights&departure_id=LAX&arrival_id=PIA&outbound_date=' + d + '&type=2&currency=USD&hl=en', T);
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: dates.map((d, i) => leg('w' + i, 'LAX', 'PIA', d)).concat([leg('w3', 'LAX', 'PIA', '2030-12-04'), leg('w4', 'LAX', 'PIA', '2030-12-05')]) }));
+      const s0 = serpCalls(), run = await cron(env);
+      check(run.checked === 5 && run.cached === 3 && run.spent === 1 && serpCalls() - s0 === 1, 'C6 ALERT_CRON_MAX=1 caps real searches only — 3 cached + 1 search, all 5 watches checked', JSON.stringify(run));
+    }
+    {
+      const env = baseEnv({ SERP_DAILY_CAP: '1' });
+      const g = { group: 'tg_LAX', target: 999, threshold_pct: 1 };
+      const day = new Date().toISOString().slice(0, 10);
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LAX_in', 'LAX', 'PIA', '2030-12-10', g), leg('tg_LAX_home', 'ORD', 'LAX', '2030-12-12', g)] }));
+      await env.ALERTS.put('alerts:state', JSON.stringify({ tg_LAX_home: { last_price: 100, last_checked: day } })); // seen today, not priced today
+      const m0 = mails();
+      await cron(env);
+      check(mails() - m0 === 0, 'C7 the group sum never uses a price that was not fetched in this run (home leg capped)', String(mails() - m0));
+    }
   }
   // ── B (PIA-118): exact caps under a parallel burst ──────────────────────────
   // KV reads are held at a barrier so all racers read the counter at once; the
@@ -283,8 +358,8 @@ function makeRooms(IdeaRoom, env, gate) {
   // a fetch that answers like a Worker cache HIT from five hours ago.
   for (const file of ['pialax.html', 'pialax-mobile.html']) {
     const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    const fns = ['fareStamp', 'fetchFlights', 'freshnessLabel', '_freshPill'].map((n) => extractFn(html, n));
-    if (fns.some((f) => !f)) { bad(`A3 ${file}: could not find fareStamp/fetchFlights/freshnessLabel`); continue; }
+    const fns = ['fareStamp', 'fetchFlights', 'freshnessLabel', '_freshPill', 'tripFareParse', 'fareAgeLabel'].map((n) => extractFn(html, n));
+    if (fns.some((f) => !f)) { bad(`A3 ${file}: could not find fareStamp/fetchFlights/freshnessLabel/tripFareParse`); continue; }
     const fetchedAt = new Date(Date.now() - 5 * 3600 * 1000).toISOString();
     const quota = { n: 0 };
     const ctx = {
@@ -304,9 +379,21 @@ function makeRooms(IdeaRoom, env, gate) {
     check(quota.n === 0, `A3 ${file}: a Worker HIT does not move the SerpAPI quota or session counter`, 'bumpQuota ' + quota.n);
     check(entry && entry.ts === Date.parse(fetchedAt), `A3 ${file}: the client cache TTL runs from the original fetch time`);
     check(/CACHED 5h ago/.test(label), `A3 ${file}: the label reads "CACHED 5h ago", not LIVE`, label);
+    // PIA-121: the shared parser keeps the same headline price and adds the offers.
+    check(entry && entry.data.ow === 210 && entry.data.airline === 'UA' && Array.isArray(entry.data.offers) && entry.data.offers[0].price === 210,
+      `A3 ${file}: the cached fare keeps its price ($210, UA) and now carries its offers`);
     ctx.fetch = async () => new Response(JSON.stringify({ best_flights: [{ price: 220 }] }), { status: 200, headers: { 'X-Proxy-Cache': 'MISS', 'X-Fetched-At': new Date().toISOString() } });
     await ctx.fetchFlights('LAX', 'ORD', '2026-11-20', null);
     check(quota.n === 1, `A3 ${file}: a MISS (real SerpAPI call) counts exactly once`, 'bumpQuota ' + quota.n);
+    // PIA-125: the Worker's own daily cap (429 daily_cap) locks only until tomorrow,
+    // never the month; a SerpAPI 429 keeps the month lock.
+    const marks = { day: 0, month: 0 };
+    ctx.tripDailyCapMark = () => { marks.day++; }; ctx.markQuotaExceeded = () => { marks.month++; };
+    ctx.fetch = async () => new Response(JSON.stringify({ error: 'Daily cap reached', code: 'daily_cap' }), { status: 429 });
+    const capped = await ctx.fetchFlights('LAX', 'BUR', '2026-11-21', null);
+    ctx.fetch = async () => new Response('{"error":"rate"}', { status: 429 });
+    await ctx.fetchFlights('LAX', 'SNA', '2026-11-21', null);
+    check(capped && capped.mock === true && marks.day === 1 && marks.month === 1, `A1 ${file}: a Worker daily_cap 429 locks today only (month untouched); a SerpAPI 429 still locks the month`, JSON.stringify(marks));
     let calls = 0;
     ctx.proxyToken = () => '';
     ctx.fetch = async () => { calls++; return new Response('{}'); };

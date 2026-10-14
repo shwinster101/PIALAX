@@ -71,6 +71,7 @@ check "GET unknown path"                    "404 401" "$(status "$BASE/serp?$Q")
 check "POST /extract, no token"             "401"     "$(status -X POST -H "$J" --data '{"today":"2026-10-04","context_event":{"id":"v","raw_text":"LAX to PIA"}}' "$BASE/extract")"
 check "POST /alert, no token"               "401"     "$(status -X POST -H "$J" --data '{"to":"a@b.co","event":{"id":"v","trip_id":"t","type":"test","subject":"s","body_text":"b"}}' "$BASE/alert")"
 check "POST /alerts/sync, no token"         "401"     "$(status -X POST -H "$J" --data '{"email":"a@b.co","watches":[]}' "$BASE/alerts/sync")"
+check "GET /alerts/status, no token"        "401"     "$(status "$BASE/alerts/status")"   # PIA-130: it named the masked email
 check "GET /search + no_cache, WITH token"  "400"     "$(status -H "X-Pialax-Token: $PIALAX_TOKEN" "$BASE/search?$Q&no_cache=true")"
 sleep 3
 U1="$(usage)"
@@ -102,17 +103,23 @@ fi
 
 step "A3 a cache hit keeps its age and spends nothing"
 # A date nobody has searched, so the first call is a real MISS (one SerpAPI search).
+# PIA-122: it is a nearby-airport search (LAX + BUR in one call); the second call
+# lists the airports the other way round and must still be the same cache entry.
 D="$(node -e 'const d=new Date(Date.now()+(60+Math.floor(Math.random()*120))*864e5);process.stdout.write(d.toISOString().slice(0,10))')"
-Q3="engine=google_flights&departure_id=LAX&arrival_id=ORD&outbound_date=$D&type=2&currency=USD&hl=en"
+Q3="engine=google_flights&departure_id=LAX%2CBUR&arrival_id=ORD&outbound_date=$D&type=2&currency=USD&hl=en"
 U2="$(usage)"
 S2="$(js "$TMP/acct.json" 'j && j.spend && j.spend.serp && j.spend.serp.used')"
 fetchq() { curl -sS -D "$TMP/h$1" -o "$TMP/b$1" -w '%{http_code}' -H "Origin: $ORIGIN" -H "X-Pialax-Token: $PIALAX_TOKEN" "$BASE/search?$2"; }
 hdr() { grep -i "^$2:" "$TMP/h$1" | head -1 | cut -d' ' -f2- | tr -d '\r'; }
 s1="$(fetchq 1 "$Q3")"; sleep 2
-s2="$(fetchq 2 "$(printf '%s' "$Q3" | tr '&' '\n' | sort -r | paste -sd'&' -)")"   # same search, params reordered
+s2="$(fetchq 2 "$(printf '%s' "$Q3" | sed 's/LAX%2CBUR/BUR%2CLAX/' | tr '&' '\n' | sort -r | paste -sd'&' -)")"   # same search: params and airports reordered
 c1="$(hdr 1 X-Proxy-Cache)"; c2="$(hdr 2 X-Proxy-Cache)"; a1="$(hdr 1 X-Fetched-At)"; a2="$(hdr 2 X-Fetched-At)"
 [ "$c1" = MISS ] && [ "$c2" = HIT ] && ok "first search MISS, second HIT ($D)" || bad "cache states: '$c1' then '$c2' (HTTP $s1, $s2)"
 [ -n "$a1" ] && [ "$a1" = "$a2" ] && ok "HIT keeps the original X-Fetched-At ($a1)" || bad "X-Fetched-At changed: '$a1' → '$a2'"
+# PIA-122/124: what that one response carries (informational — SerpAPI decides).
+AP="$(js "$TMP/b1" '[...new Set([].concat(j.best_flights||[],j.other_flights||[]).map(o=>o.flights&&o.flights[0]&&o.flights[0].departure_airport&&o.flights[0].departure_airport.id).filter(Boolean))].join(",")')"
+[ -n "$AP" ] && ok "nearby search priced from: $AP" || bad "nearby search returned no departure airports (HTTP $s1)"
+printf "  ··  price_insights: %s · google_flights_url: %s\n" "$(js "$TMP/b1" 'j.price_insights ? "yes" : "no"')" "$(js "$TMP/b1" 'j.search_metadata && j.search_metadata.google_flights_url ? "yes" : "no"')"
 sleep 3
 U3="$(usage)"
 if [ -n "$U2" ] && [ -n "$U3" ] && [ $((U3 - U2)) -eq 1 ]; then ok "SerpAPI usage +1 for two searches ($U2 → $U3)"; else bad "SerpAPI usage moved $U2 → $U3 (want +1)"; fi
@@ -120,6 +127,8 @@ S3="$(js "$TMP/acct.json" 'j && j.spend && j.spend.serp && j.spend.serp.used')"
 EX="$(js "$TMP/acct.json" 'j && j.spend && j.spend.exact')"
 # PIA-118: the Worker's own meter agrees, and it is the exact (Durable Object) one.
 if [ "$EX" = true ] && [ -n "$S2" ] && [ -n "$S3" ] && [ $((S3 - S2)) -eq 1 ]; then ok "Worker spend meter +1 and exact ($S2 → $S3 of cap $(js "$TMP/acct.json" 'j.spend.serp.cap'))"; else bad "Worker spend meter: exact=$EX, $S2 → $S3 (want exact=true, +1) — SpendMeter deployed?"; fi
+# PIA-122: the dashboard only sends comma-joined airports once /account says so.
+[ "$(js "$TMP/acct.json" 'j && j.features && j.features.multi_airport')" = true ] && ok "/account announces multi-airport search" || bad "/account has no features.multi_airport — old Worker?"
 
 printf "\n"
 if [ "$fail" -eq 0 ]; then printf "VERIFY-LIVE: PASS — all %d checks\n" "$pass"; exit 0; fi

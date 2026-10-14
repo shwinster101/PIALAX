@@ -919,10 +919,149 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
     if (g.bridge === 'none' && !g.stripCal && /Plan:\s*Wed Nov 25 – Sun Nov 29\s*· from RSVP/i.test(g.strip) && !g.over)
       ok(`${label} — no second date picker: "Step 2 · Choose Dates" hidden, strip reads "Plan: Wed Nov 25 – Sun Nov 29 · from RSVP"`);
     else bad(`${label} — date controls still offered: ${JSON.stringify({ bridge: g.bridge, stripCal: g.stripCal, strip: g.strip.slice(0, 120) })}`);
+    // PIA-121: the LAX card is priced as the legs Me books (in + home), with a ±day
+    // strip; one tap moves Me's RSVP date and every view follows. Zero searches.
+    {
+      await rsvp.post('/idea/respond?id=' + idea.id, { member: 'LGA', status: 'in', available_from: '2026-11-26', available_to: '2026-11-30' });
+      const searches = []; page.on('request', (r) => { if (/\/search\?/.test(r.url())) searches.push(r.url()); });
+      const lc = page.locator('.route-card', { has: page.locator('[data-leg-box="LAX"]') });
+      await lc.waitFor({ timeout: 5000 });
+      const s = await lc.evaluate((c) => ({ text: c.innerText.replace(/\s+/g, ' '), chips: [...c.querySelectorAll('[data-leg-flex]')].map((b) => Math.round(b.getBoundingClientRect().height)),
+        next: (c.querySelector('[data-leg-flex][data-dir="in"]:not([disabled])') || {}).dataset || null, over: document.documentElement.scrollWidth > innerWidth }));
+      const nextDate = s.next && s.next.date;
+      if (/in \+ home/.test(s.text) && /In · LAX→PIA/.test(s.text) && /Home · ORD→LAX/.test(s.text) && s.chips.length === 6 && Math.min.apply(null, s.chips) >= 44 && !s.over && nextDate)
+        ok(`${label} — LAX card priced as Me's legs ("in + home"), −1/plan/+1 per leg, chips ≥44px, no overflow`);
+      else bad(`${label} — leg strip wrong: ${JSON.stringify({ text: s.text.slice(0, 200), chips: s.chips, nextDate, over: s.over })}`);
+      if (nextDate) {
+        await lc.locator('[data-leg-flex][data-dir="in"][data-date="' + nextDate + '"]').click();
+        await page.waitForFunction((d) => [...document.querySelectorAll('#linked-trip-summary [data-lt-book="LAX"] a')].some((a) => decodeURIComponent(a.href).includes('LAX to PIA on ' + d)), nextDate, { timeout: 6000 }).catch(() => {});
+        const after = await page.evaluate((d) => {
+          const card = [...document.querySelectorAll('.route-card')].find((c) => c.querySelector('[data-leg-box="LAX"]'));
+          const has = (root) => !!root && [...root.querySelectorAll('a[href]')].some((a) => decodeURIComponent(a.href).includes('LAX to PIA on ' + d + ' one way'));
+          return { trip: has(document.querySelector('#linked-trip-summary [data-lt-book="LAX"]')), route: has(card), plan: !!(card && card.querySelector('.lt-leg-chip.plan[data-dir="in"][data-date="' + d + '"]')) };
+        }, nextDate);
+        const saved = await (await rsvp.worker.fetch(new Request(rsvp.W + '/idea?id=' + idea.id), rsvp.env)).json();
+        const r = saved.doc && saved.doc.responses.LAX;
+        if (after.trip && after.route && after.plan && r && r.available_from === nextDate && r.available_to === '2026-11-29' && saved.doc.responses.LGA.available_from === '2026-11-26' && !searches.length)
+          ok(`${label} — tapping ${nextDate} moved only Me's RSVP arrive date; trip card, route card and plan chip agree; 0 searches`);
+        else bad(`${label} — flex tap didn't carry through: ${JSON.stringify({ after, saved: r, lga: saved.doc && saved.doc.responses.LGA, searches: searches.length })}`);
+      }
+      // PIA-123: a target typed on the card saves on this device and reads back as a verdict.
+      const tin = page.locator('[data-leg-box="LAX"] input[data-leg-target]');
+      await tin.fill('300'); await tin.press('Enter'); await tin.evaluate((el) => el.blur());
+      await page.waitForFunction(() => /target \$300/.test((document.querySelector('[data-leg-box="LAX"] .lt-watch') || {}).textContent || ''), null, { timeout: 4000 }).catch(() => {});
+      const tw = await page.evaluate((id) => ({ h: Math.round((document.querySelector('[data-leg-box="LAX"] input[data-leg-target]') || { getBoundingClientRect: () => ({ height: 0 }) }).getBoundingClientRect().height),
+        txt: (document.querySelector('[data-leg-box="LAX"] .lt-watch') || {}).textContent || '', saved: (JSON.parse(localStorage.getItem('pialax_leg_targets_v1') || '{}')[id] || {}).byCode,
+        over: document.documentElement.scrollWidth > innerWidth }), idea.id);
+      if (tw.h >= 44 && /target \$300 \(estimate\)/.test(tw.txt) && tw.saved && tw.saved.LAX === 300 && !tw.over)
+        ok(`${label} — 🎯 target on Me's card (≥44px) saves on this device and reads "target $300 (estimate)" until fares are live`);
+      else bad(`${label} — target didn't save/read back: ${JSON.stringify(tw)}`);
+      // PIA-124: above Me's Book buttons — fare confidence and the book-by countdown;
+      // "Mark booked ✓" flips Me's RSVP row and Me drops off the watch.
+      const cue = await page.evaluate(() => ({ txt: (document.querySelector('[data-leg-box="LAX"] .lt-book-cue') || {}).textContent || '',
+        hd: (document.querySelector('#linked-trip-summary .lt-book-hd') || {}).textContent || '' }));
+      const mark = page.locator('[data-leg-box="LAX"] [data-leg-booked]');
+      const canMark = await mark.count();
+      if (canMark) await mark.click();
+      await page.waitForFunction(() => !document.querySelector('[data-leg-box="LAX"]') && /✓ Booked/.test((document.querySelector('#linked-trip-summary [data-lt-book="LAX"]') || {}).textContent || ''), null, { timeout: 6000 }).catch(() => {});
+      const gone = await page.evaluate(() => ({ box: !!document.querySelector('[data-leg-box="LAX"]'), trip: (document.querySelector('#linked-trip-summary [data-lt-book="LAX"]') || {}).textContent || '' }));
+      const bdoc = (await (await rsvp.worker.fetch(new Request(rsvp.W + '/idea?id=' + idea.id), rsvp.env)).json()).doc;
+      if (/Fare: estimate/.test(cue.txt) && /Book[- ]by.*Sun Nov 1/.test(cue.txt) && /Book[- ]by.*Sun Nov 1/.test(cue.hd) && canMark && !gone.box && /✓ Booked/.test(gone.trip) && bdoc.responses.LAX.booked === true)
+        ok(`${label} — "Fare: estimate" + "${cue.txt.replace(/.*⏳ /, '').slice(0, 30)}" above Me's Book buttons; Mark booked ✓ flips Me's RSVP row and Me leaves the watch`);
+      else bad(`${label} — book cue / mark booked wrong: ${JSON.stringify({ cue, canMark, gone, booked: bdoc.responses.LAX.booked })}`);
+    }
     await page.locator('.lts-dates-edit').click();
     await page.waitForSelector('.trip-idea-planedit', { timeout: 5000 }).catch(() => {});
     if (await page.locator('.trip-idea-planedit').count()) ok(`${label} — "✎ Dates" opens the RSVP straight into the plan-dates calendar`);
     else bad(`${label} — "✎ Dates" did not open the plan-dates editor`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
+// PIA-127: the phone's one-thumb flow. Open the app → "✈️ Book flights" on the
+// Thanksgiving card → Ashwin's "In PIA" link = 2 taps; and on the Family tab
+// the fare CTA slot becomes the trip bar (Flex · Refresh · Book) with sheets.
+for (const vp of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context(vp, idea, { admin: true });
+  const label = `pialax-mobile.html one-thumb flow @ ${vp.width}x${vp.height}`;
+  try {
+    await ctx.addInitScript((id) => { localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] })); }, idea.id);
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('[data-book-idea]', { timeout: 8000 });
+    let taps = 0;
+    await page.locator('[data-book-idea]').first().click(); taps++;
+    await page.waitForSelector('#lt-sheet:not([hidden]) [data-lt-book="LAX"] a', { timeout: 6000 });
+    const s = await page.evaluate(() => {
+      const a = document.querySelector('#lt-sheet [data-lt-book="LAX"] a'), r = a.getBoundingClientRect();
+      return { href: decodeURIComponent(a.href), text: a.textContent, h: Math.round(r.height), inView: r.top >= 0 && r.bottom <= innerHeight, over: document.documentElement.scrollWidth > innerWidth };
+    });
+    taps++; // tapping that link is the hand-off itself (not followed here — it leaves the app)
+    if (taps <= 3 && /In PIA/.test(s.text) && /LAX to PIA on 2026-11-21 one way/.test(s.href) && s.h >= 44 && s.inView && !s.over)
+      ok(`${label} — open → ✈️ Book flights → "${s.text.trim()}" = ${taps} taps to Ashwin's Google Flights search (LAX→PIA Sat Nov 21), 44px, on screen`);
+    else bad(`${label} — book path wrong: ${JSON.stringify(Object.assign(s, { taps }))}`);
+    await page.locator('#lt-sheet .lt-sheet-x').click();
+    // Family tab: the trip bar replaces Get Live Fares in the same slot.
+    await page.locator('.wl-row[data-wl-id="thanksgiving"]').click();
+    await page.locator('.wl-more-actions summary').click();
+    await page.locator('.wl-more-actions .wl-open').click();
+    await page.waitForSelector('#lt-tripbar button', { timeout: 6000 });
+    const bar = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('#lt-tripbar button')], tab = document.getElementById('tab-bar');
+      const r = document.getElementById('lt-tripbar').getBoundingClientRect(), tr = tab ? tab.getBoundingClientRect() : { top: innerHeight };
+      return { labels: btns.map((b) => b.textContent), minH: Math.min.apply(null, btns.map((b) => b.getBoundingClientRect().height)), cta: getComputedStyle(document.getElementById('search-btn')).display,
+        clipped: btns.some((b) => b.scrollWidth > b.clientWidth + 1), aboveTabs: r.bottom <= tr.top + 1, over: document.documentElement.scrollWidth > innerWidth };
+    });
+    if (bar.labels.length === 3 && /Flex/.test(bar.labels[0]) && /Refresh|Fresh/.test(bar.labels[1]) && /Book/.test(bar.labels[2]) && bar.minH >= 44 && bar.cta === 'none' && !bar.clipped && bar.aboveTabs && !bar.over)
+      ok(`${label} — trip bar in the CTA slot: ${bar.labels.join(' · ')} (≥44px, unclipped, above the tab bar, no overflow)`);
+    else bad(`${label} — trip bar wrong: ${JSON.stringify(bar)}`);
+    // PIA-129: the family total leads the Flight Breakdown, estimates labelled.
+    const board = await page.evaluate(() => { const el = document.querySelector('#meetup-routes .lt-board'); return el ? { text: el.innerText.replace(/\s+/g, ' '), fits: el.scrollWidth <= el.clientWidth + 1 } : null; });
+    if (board && /family total/i.test(board.text) && /~\$[\d,]+ still to book · 1 of 1 traveler · ~ = includes estimates/.test(board.text) && /Booked: 0 of 1/.test(board.text) && board.fits)
+      ok(`${label} — family total board: "${board.text.replace(/.*family total /i, '').slice(0, 60)}…" (estimates labelled, fits)`);
+    else bad(`${label} — family total board wrong: ${JSON.stringify(board)}`);
+    await page.locator('#lt-tripbar [data-tb="flex"]').click();
+    await page.waitForSelector('#lt-sheet:not([hidden]) [data-leg-flex]', { timeout: 6000 }).catch(() => {});
+    const fx = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#lt-sheet .lt-leg-chips')].map((c) => c.children.length), over: document.documentElement.scrollWidth > innerWidth,
+      sheetOver: (() => { const sh = document.getElementById('lt-sheet'); return sh ? sh.scrollWidth > sh.clientWidth + 1 : true; })() }));
+    if (fx.rows.length >= 2 && fx.rows.every((n) => n === 5) && !fx.over && !fx.sheetOver) ok(`${label} — 📅 Flex opens "Dates & airports": ±2 days per leg (${fx.rows.join('/')} chips), no sideways scroll`);
+    else bad(`${label} — flex sheet wrong: ${JSON.stringify(fx)}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
+// PIA-125: with a token and a fare that lapsed overnight, opening the app shows a
+// one-tap nudge — and spends nothing until it's tapped.
+{
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context({ width: 390, height: 844 }, idea, { admin: true });
+  const label = 'pialax-mobile.html stale-fare nudge @ 390x844';
+  try {
+    await ctx.addInitScript((id) => {
+      localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] }));
+      localStorage.setItem('pialax_proxy_token', 'tok_' + 'x'.repeat(28));
+      localStorage.setItem('pialax_leg_history_v1', JSON.stringify({ 'LAX|PIA|2026-11-21|': [{ t: Date.now() - 30 * 3600e3, p: 189 }] }));
+    }, idea.id);
+    const page = await ctx.newPage();
+    const searches = []; page.on('request', (r) => { if (/\/search\?/.test(r.url())) searches.push(r.url()); });
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('#lt-banner:not([hidden])', { timeout: 8000 }).catch(() => {});
+    const b = await page.evaluate(() => { const el = document.getElementById('lt-banner'); const go = el && el.querySelector('[data-banner-go]'), x = el && el.querySelector('[data-banner-x]');
+      return el ? { text: el.textContent, kind: el.getAttribute('data-kind'), go: go ? Math.round(go.getBoundingClientRect().height) : 0, x: x ? Math.round(x.getBoundingClientRect().width) : 0, over: document.documentElement.scrollWidth > innerWidth } : null; });
+    if (b && b.kind === 'nudge' && /1 fare is a day old/.test(b.text) && /Refresh \(1 search\)/.test(b.text) && b.go >= 44 && b.x >= 44 && !searches.length && !b.over)
+      ok(`${label} — "1 fare is a day old · Refresh (1 search)" on open, 44px targets, 0 searches until tapped`);
+    else bad(`${label} — nudge wrong: ${JSON.stringify({ b, searches: searches.length })}`);
+    await page.locator('#lt-banner [data-banner-x]').click();
+    const gone = await page.evaluate(() => document.getElementById('lt-banner').hidden);
+    if (gone && !searches.length) ok(`${label} — ✕ dismisses it for this visit, still 0 searches`);
+    else bad(`${label} — dismiss failed or a search went out (${searches.length})`);
   } catch (e) {
     bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
   } finally {
