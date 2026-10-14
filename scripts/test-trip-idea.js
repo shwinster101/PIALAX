@@ -626,6 +626,11 @@ async function nudgeSuite() {
     api._flightCache[api._cacheKey('LAX', 'PIA', '2030-11-20', '')] = { data: { ow: 189, live: true, lastVerified: now }, ts: Date.now() };
     api._flightCache[api._cacheKey('ORD', 'LAX', '2030-11-29', '')] = { data: { ow: 200, live: true, lastVerified: now }, ts: Date.now() };
     api.tripLegSetTarget(id, '', '420');
+    const quiet = api.tripTargetAlerts();
+    check(quiet.length === 1 && !api.loadAlertLog().some((e) => /^leg_target\|/.test(e.dedupe_key)),
+      `${file}: with this trip's email alerts off, a target hit still shows the banner but queues no email`);
+    ls.removeItem('pialax_leg_alerts_seen_v1');
+    ls.setItem('pialax_alert_prefs_v1', JSON.stringify({ v: 1, settings: { email: 'ash@example.com', prefs: { thanksgiving: { enabled: true, fare_drop_pct: 10, deadline_days: 3 } } } }));
     const first = api.tripTargetAlerts(), second = api.tripTargetAlerts();
     const evts = api.loadAlertLog().filter((e) => /^leg_target\|/.test(e.dedupe_key));
     check(first.length === 1 && second.length === 0 && evts.length === 1 && evts[0].type === 'fare_drop' && evts[0].trip_id === 'thanksgiving' && /\$389 \(target \$420\)/.test(evts[0].subject) && !evts[0].sent,
@@ -656,6 +661,57 @@ async function nudgeSuite() {
     check(res.status === 200 && stored && stored.watches.length === 2 && stored.watches[0].group === 'thanksgiving_LAX' && stored.watches[0].target === 420,
       `${file}: the Worker's /alerts/sync accepts and keeps the per-leg watches (group + target)`);
     Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+  }
+}
+
+// Review fixes (sprint PR #28): each one pinned so it can't come back.
+async function reviewFixSuite() {
+  for (const file of ['pialax.html', 'pialax-mobile.html']) {
+    const ls = makeLocalStorage(), posts = [];
+    const names = ['tripFarePick', '_googleFlightsUrl', 'tripAlertWatches', 'alertWatchesPayload', 'tripPickupHtml', 'tripLegsFetch', 'tripLegSetTarget'];
+    const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls,
+      fetch: (u, o) => { if (o && o.method === 'POST') posts.push(String(u)); return Promise.reject(new Error('offline')); } });
+    // 1. The Google link can never leave its href attribute.
+    const evil = 'https://www.google.com/travel/flights?"onmouseover="alert(1)"';
+    const parsed = api.tripFareParse({ best_flights: [{ price: 1 }], search_metadata: { google_flights_url: evil } });
+    api._flightCache[api._cacheKey('LAX', 'PIA', '2030-11-20', '')] = { data: { ow: 189, live: true, lastVerified: new Date().toISOString(), gfUrl: evil }, ts: Date.now() };
+    const u = api._googleFlightsUrl('LAX', 'PIA', '2030-11-20', '', false);
+    check(!/["'`]/.test(parsed.gfUrl) && api.tripFarePick('LAX', 'PIA', '2030-11-20', '', 1).gfUrl === '' && !/["'`]/.test(u) && /^https:\/\/www\.google\.com\/travel\/flights\?q=/.test(u),
+      `${file}: a Google link carrying quotes is normalised on parse and refused from a tampered cache — it can't break out of href`);
+    // 2. A traveler with a departed leg is no longer held to the in + home target.
+    const id = 'TGTGTGTGTGTGTGTGTGTGTG';
+    const tg = { id, idea: { destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
+      members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+      responses: { LAX: { status: 'in', origin: 'LAX', available_from: '2020-01-01', available_to: '2030-11-29' }, LGA: { status: 'in', origin: 'LGA', available_from: '2030-11-26', available_to: '2030-11-30', arrive_at: 'ORD', leave_from: 'ORD' } } };
+    ls.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] }));
+    const fresh = loadApi(path.join(ROOT, file), file, EXPECT.concat(names), { localStorage: ls }).api;
+    const item = fresh.watchlistItem('thanksgiving');
+    ls.setItem('pialax_alert_prefs_v1', JSON.stringify({ v: 1, settings: { email: 'ash@example.com', prefs: { thanksgiving: { enabled: true, fare_drop_pct: 10, deadline_days: 3 } } } }));
+    // 7. Until the RSVP has loaded, a linked trip sends no watch at all (never the old whole-family one).
+    const none = fresh.alertWatchesPayload();
+    fresh.tripIdeaStoreDoc(tg); fresh.tripLegSetTarget(id, '', '420');
+    const ws = fresh.tripAlertWatches(item, { fare_drop_pct: 10, deadline_days: 3 });
+    check(none && none.watches.length === 0 && ws.length === 2 && ws[0].trip_id === 'thanksgiving_LAX_home' && ws[0].group === null && ws[0].target === null &&
+      ws[1].trip_id === 'thanksgiving_LGA_round' && ws[1].group === 'thanksgiving_LGA' && ws[1].target === 420,
+      `${file}: alert watches — nothing until the RSVP loads; Ashwin (in-leg departed) loses group/target, Anjo keeps hers`);
+    // 11. A round-trip traveler isn't compared on the "Leaves" line (and isn't "different airports").
+    const put = (from, to, date, ret, o) => { fresh._flightCache[fresh._cacheKey(from, to, date, ret)] = { data: { ow: ret ? null : o.price, rt: ret ? o.price : null, live: true, lastVerified: new Date().toISOString(), offers: [o] }, ts: Date.now() }; };
+    tg.responses.LAX.available_from = '2030-11-26';
+    put('LAX', 'PIA', '2030-11-26', '', { price: 189, flightNos: ['AA 1'], depAirport: 'LAX', arrAirport: 'PIA', depTime: '2030-11-26 06:00', arrTime: '2030-11-26 15:40' });
+    put('ORD', 'LAX', '2030-11-29', '', { price: 150, flightNos: ['AA 4'], depAirport: 'ORD', arrAirport: 'LAX', depTime: '2030-11-29 07:10', arrTime: '2030-11-29 09:40' });
+    put('LGA', 'ORD', '2030-11-26', '2030-11-30', { price: 300, flightNos: ['UA 2'], depAirport: 'LGA', arrAirport: 'ORD', depTime: '2030-11-26 08:00', arrTime: '2030-11-26 10:00' });
+    const pick = fresh.tripPickupHtml(tg);
+    check(/Anjo flies a round trip — not compared/.test(pick) && !/🏠 Leaves[^<]*<\/span><span class="lt-pickup-gap">different airports/.test(pick),
+      `${file}: pickup — Anjo's round trip reads "flies a round trip — not compared", not "different airports"`);
+    // 10. One pricing run at a time across surfaces (card + banner can't overshoot the session cap).
+    const legs = [{ dir: 'in', from: 'LAX', to: 'SNA', date: '2030-11-20', ret: '' }];
+    const r1 = fresh.tripLegsFetch(legs), r2 = await fresh.tripLegsFetch(legs);
+    await r1;
+    check(r2.busy === true && r2.asked === 0, `${file}: a second pricing run while one is in flight is refused ("Already searching")`);
+    // 9. No fresh read of the RSVP → no write.
+    api.S.linkedIdeaId = null;
+    const w = await api.tripIdeaSetTravelDate(id, 'LGA', 'in', '2030-11-25');
+    check(w === null && !posts.some((x) => /\/idea\/respond/.test(x)), `${file}: if the RSVP can't be read fresh, a flex tap writes nothing`);
   }
 }
 
@@ -978,7 +1034,8 @@ async function staggeredArrivalsSuite() {
 
 sharedIdeaSuite().catch((e) => check(false, 'shared idea suite threw: ' + (e && e.stack || e)))
   .then(() => staggeredArrivalsSuite()).catch((e) => check(false, 'staggered arrivals suite threw: ' + (e && e.stack || e)))
-  .then(() => nudgeSuite()).catch((e) => check(false, 'nudge suite threw: ' + (e && e.stack || e))).then(() => {
+  .then(() => nudgeSuite()).catch((e) => check(false, 'nudge suite threw: ' + (e && e.stack || e)))
+  .then(() => reviewFixSuite()).catch((e) => check(false, 'review-fix suite threw: ' + (e && e.stack || e))).then(() => {
   if (failures) process.exit(1);
   console.log('all Trip Idea Builder checks passing');
 });

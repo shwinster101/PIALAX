@@ -797,7 +797,7 @@ async function handleAlertsStatus(request, env) {
 // and KV fare cache as GET /search — a route anyone priced today is free — and
 // a miss goes through the same daily serp cap. Returns { price } or
 // { price: null, capped: true } when today's budget is gone.
-async function cronFetchPrice(watch, env, counters, cronReq) {
+async function cronFetchPrice(watch, env, counters, cronReq, maySpend) {
   const params = new URLSearchParams();
   params.set('engine', 'google_flights');
   params.set('departure_id', watch.from);
@@ -812,6 +812,7 @@ async function cronFetchPrice(watch, env, counters, cronReq) {
   let entry = await fareCacheGet(env, canonical);
   if (entry) counters.cached++;
   else {
+    if (maySpend === false) return { price: null }; // this run's search budget is used; cached fares still count
     const over = await spendGate(cronReq, env, 'serp');
     if (over) return { price: null, capped: true };
     const res = await fetch(SERPAPI_BASE + '?' + canonical + '&api_key=' + encodeURIComponent(env.SERPAPI_KEY), { headers: { 'User-Agent': 'PIALAX-Proxy/1.0' } });
@@ -862,18 +863,18 @@ async function runAlertCron(env) {
       const w = validateWatch(raw);
       if (!w) continue;
       if (w.dep < today) continue;                    // departed — stale watch
-      if (summary.checked >= maxFetches) break;       // hard quota ceiling per run
-      summary.checked++;
+      summary.checked++;                              // review fix: the per-run ceiling counts real searches only (below)
 
       // One watch failing (bad route, upstream hiccup) must not kill the run.
       try {
-        const got = await cronFetchPrice(w, env, counters, cronReq);
+        const got = await cronFetchPrice(w, env, counters, cronReq, counters.spent < maxFetches);
         if (got.capped) { summary.capped = true; break; } // today's serp budget is gone — stop, don't skip around it
         const grouped = !!(w.group && w.target);
         const st = state[w.trip_id] || {};
         const daysLeft = Math.round((new Date(w.dep + 'T00:00:00Z') - new Date(today + 'T00:00:00Z')) / 86400000);
 
         if (got.price != null) {
+          st.last_priced = today; // review fix: the group sum uses only prices from this run
           if (!(st.first_price > 0)) st.first_price = got.price;
           const baseline = w.baseline || st.first_price;
           const target = baseline * (1 - w.threshold_pct / 100);
@@ -912,23 +913,41 @@ async function runAlertCron(env) {
     }
     // PIA-130: a traveler's legs (one group) vs their own target: one email per
     // traveler per day, only when every leg was priced in this run.
+    // Groups are built from ALL their legs: once any leg has departed, the
+    // traveler can't be held to the in + home target any more (review fix).
     const groups = {};
     for (const raw of config.watches) {
       const w = validateWatch(raw);
-      if (w && w.group && w.target && w.dep >= today) (groups[w.group] = groups[w.group] || { target: w.target, legs: [] }).legs.push(w);
+      if (w && w.group && w.target) (groups[w.group] = groups[w.group] || { target: w.target, legs: [] }).legs.push(w);
     }
     for (const g of Object.keys(groups)) {
-      const G = groups[g], sts = G.legs.map((w) => state[w.trip_id] || {}), gs = state['group:' + g] || {};
-      if (sts.every((s) => s.last_checked === today && s.last_price > 0)) {
-        const sum = sts.reduce((a, s) => a + s.last_price, 0);
-        if (sum <= G.target && gs.last_alert_day !== today) {
-          const res = await cronSend(env, cronReq, config.email, '✈️ PIALAX · ' + G.legs[0].label.split(' · ')[0] + ' is at your target: $' + sum,
-            G.legs.map((w, i) => w.from + ' → ' + w.to + ' · ' + w.dep + ' · $' + sts[i].last_price).join('\n') +
-            '\nTotal $' + sum + ' — your target $' + G.target + '. Recheck on Google Flights before paying.' + '\n\nOpen the trip: ' + DASH_URL);
-          if (res.ok) { summary.sent++; gs.last_alert_day = today; }
+      // One group failing (Resend / meter hiccup) must not lose the day's state.
+      try {
+        const G = groups[g], sts = G.legs.map((w) => state[w.trip_id] || {}), gs = state['group:' + g] || {};
+        if (G.legs.some((w) => w.dep < today)) continue;
+        const who = G.legs[0].label.split(' · ')[0];
+        if (sts.every((s) => s.last_priced === today && s.last_price > 0)) {
+          const sum = sts.reduce((a, s) => a + s.last_price, 0);
+          // Like single watches: alert once, then again only after a further $10 drop.
+          if (sum <= G.target && gs.last_alert_day !== today && (!(gs.last_alert_sum > 0) || sum <= gs.last_alert_sum - 10)) {
+            const res = await cronSend(env, cronReq, config.email, '✈️ PIALAX · ' + who + ' is at your target: $' + sum,
+              G.legs.map((w, i) => w.from + ' → ' + w.to + ' · ' + w.dep + ' · $' + sts[i].last_price).join('\n') +
+              '\nTotal $' + sum + ' — your target $' + G.target + '. Recheck on Google Flights before paying.' + '\n\nOpen the trip: ' + DASH_URL);
+            if (res.ok) { summary.sent++; gs.last_alert_day = today; gs.last_alert_sum = sum; }
+          }
         }
+        // The group's departure reminder (its legs skip their own): once, by the first leg.
+        const first = G.legs.reduce((a, w) => (w.dep < a.dep ? w : a), G.legs[0]);
+        const daysLeft = Math.round((new Date(first.dep + 'T00:00:00Z') - new Date(today + 'T00:00:00Z')) / 86400000);
+        if (daysLeft >= 0 && daysLeft <= first.remind_days && !gs.deadline_sent) {
+          const res = await cronSend(env, cronReq, config.email, '✈️ PIALAX · ' + who + ' departs ' + (daysLeft === 0 ? 'TODAY' : 'in ' + daysLeft + ' day' + (daysLeft === 1 ? '' : 's')),
+            first.from + ' → ' + first.to + ' · ' + first.dep + '\nStill unbooked on the watchlist — decide now.' + '\n\nOpen the trip: ' + DASH_URL);
+          if (res.ok) { summary.sent++; gs.deadline_sent = true; }
+        }
+        state['group:' + g] = gs;
+      } catch (e) {
+        console.warn('[alert-cron] group ' + g + ' failed: ' + e.message);
       }
-      state['group:' + g] = gs;
     }
     summary.spent = counters.spent;
     summary.cached = counters.cached;

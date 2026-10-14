@@ -286,6 +286,35 @@ function makeRooms(IdeaRoom, env, gate) {
       const st = await json(await get(env, '/alerts/status', T));
       check(st && st.ok && st.watches === 2, 'C4 /alerts/status still answers the organizer (token)', JSON.stringify(st));
     }
+    // Review fixes: a group with a departed leg never alerts on the leg that's left;
+    // the per-run ceiling counts real searches (cache hits and the rest still run);
+    // the group sum never uses a price that wasn't fetched in this run.
+    {
+      const env = baseEnv();
+      const g = { group: 'tg_LGA', target: 400, threshold_pct: 1 };
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LGA_in', 'LGA', 'PIA', '2020-11-26', g), leg('tg_LGA_home', 'ORD', 'LGA', '2030-11-30', g)] }));
+      const m0 = mails();
+      await cron(env);
+      check(mails() - m0 === 0, 'C5 a traveler whose in-leg has departed gets no "at your target" email for the home leg alone', String(mails() - m0));
+    }
+    {
+      const env = baseEnv({ ALERT_CRON_MAX: '1' });
+      const dates = ['2030-12-01', '2030-12-02', '2030-12-03'];
+      for (const d of dates) await get(env, '/search?engine=google_flights&departure_id=LAX&arrival_id=PIA&outbound_date=' + d + '&type=2&currency=USD&hl=en', T);
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: dates.map((d, i) => leg('w' + i, 'LAX', 'PIA', d)).concat([leg('w3', 'LAX', 'PIA', '2030-12-04'), leg('w4', 'LAX', 'PIA', '2030-12-05')]) }));
+      const s0 = serpCalls(), run = await cron(env);
+      check(run.checked === 5 && run.cached === 3 && run.spent === 1 && serpCalls() - s0 === 1, 'C6 ALERT_CRON_MAX=1 caps real searches only — 3 cached + 1 search, all 5 watches checked', JSON.stringify(run));
+    }
+    {
+      const env = baseEnv({ SERP_DAILY_CAP: '1' });
+      const g = { group: 'tg_LAX', target: 999, threshold_pct: 1 };
+      const day = new Date().toISOString().slice(0, 10);
+      await env.ALERTS.put('alerts:config', JSON.stringify({ email: 'me@example.com', watches: [leg('tg_LAX_in', 'LAX', 'PIA', '2030-12-10', g), leg('tg_LAX_home', 'ORD', 'LAX', '2030-12-12', g)] }));
+      await env.ALERTS.put('alerts:state', JSON.stringify({ tg_LAX_home: { last_price: 100, last_checked: day } })); // seen today, not priced today
+      const m0 = mails();
+      await cron(env);
+      check(mails() - m0 === 0, 'C7 the group sum never uses a price that was not fetched in this run (home leg capped)', String(mails() - m0));
+    }
   }
   // ── B (PIA-118): exact caps under a parallel burst ──────────────────────────
   // KV reads are held at a barrier so all racers read the counter at once; the

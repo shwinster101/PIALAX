@@ -12,6 +12,23 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (sprint review, before merge)
+- **Security:**
+  - Google's results link is normalised when parsed and refused on read if it carries quotes, backticks or backslashes, so it can't break out of an `href` on the planner cards.
+- **Alert cron:**
+  - Once a traveler's leg has departed, the remaining leg is no longer measured against the in + home target.
+  - The per-run limit counts real searches only, so cached fares and departure reminders still run for every watch.
+  - A group's sum uses only prices fetched in that run.
+  - One failed email no longer loses the day's alert state.
+  - Groups get one departure reminder each, and re-alert only after a further $10 drop.
+- **Dashboard:**
+  - "At your target" emails respect each trip's alert switch; the banner still shows, once a day.
+  - A linked trip sends no server watch until its RSVP has loaded, instead of the old whole-family watch.
+  - A second quick date tap now says "Saving…" instead of vanishing.
+  - A flex or "Use X" write needs a fresh read of the RSVP, and an open sheet repaints afterwards.
+  - Two pricing runs can't overlap and overshoot the session cap.
+  - A round-trip traveler reads "flies a round trip — not compared" on the pickup timeline.
+
 ### Fixed (PIA-130) — needs `wrangler deploy`
 - **`/alerts/status` needs the organizer token.** It used to answer anyone with the masked alert email, the watch count and the last run.
 - **The alert cron now spends like the dashboard.**

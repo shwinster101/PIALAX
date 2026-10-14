@@ -1596,7 +1596,10 @@ function tripFareParse(json) {
       typical:tr.length === 2 && tr[0] > 0 && tr[1] >= tr[0] ? tr : null, hist:hist};
   }
   var gf = j.search_metadata && typeof j.search_metadata.google_flights_url === 'string' ? j.search_metadata.google_flights_url : '';
-  if (gf.indexOf('https://www.google.com/travel/flights?') !== 0 || /[\s<>]/.test(gf)) gf = '';
+  // Review fix: it becomes an href — normalise it, and refuse anything that could
+  // leave the attribute (quotes, backticks, backslashes, whitespace, < >).
+  try { var gu = typeof URL === 'function' && gf ? new URL(gf) : null; gf = gu && gu.protocol === 'https:' && gu.hostname === 'www.google.com' && gu.pathname === '/travel/flights' ? gu.href : ''; } catch (e) { gf = ''; }
+  if (gf.indexOf('https://www.google.com/travel/flights?') !== 0 || /[\s<>\x22\x27\x60\x5c]/.test(gf)) gf = '';
   return {price:best.price, airline:first.airline || null, flightNo:first.flight_number || null, airlineLogo:first.airline_logo || best.airline_logo || null,
     stops:segs.length > 1 ? segs.length - 1 : 0, returnAirline:bf.airline || null, returnFlightNo:bf.flight_number || null,
     returnAirlineLogo:bf.airline_logo || null, returnStops:back.length > 1 ? back.length - 1 : 0, offers:offers, insights:insights, gfUrl:gf, byDep:byDep, byArr:byArr};
@@ -1678,14 +1681,18 @@ function tripLegsToPrice(legs) {
 function tripLegsSearchCount(legs) { return Math.min(tripLegsToPrice(legs).length, TRIP_LEG_CALLS_PER_PRESS); }
 // The one paid path: uncached legs only, one at a time (so the session cap
 // holds), at most `cap` per press. fetchFlights keeps every other guard.
+var _tripLegsBusy = false;
 function tripLegsFetch(legs, cap) {
   var todo = tripLegsToPrice(legs).slice(0, cap == null ? TRIP_LEG_CALLS_PER_PRESS : cap), out = {asked:todo.length, live:0, fresh:0};
   if (!todo.length || typeof fetchFlights !== 'function') return Promise.resolve(out);
+  // Review fix: two surfaces (card + banner) can't run at once and overshoot the session cap.
+  if (_tripLegsBusy) { showShareToast('Already searching — one moment'); return Promise.resolve({asked:0, live:0, fresh:0, busy:true}); }
+  _tripLegsBusy = true;
   return todo.reduce(function(p, l){
     return p.then(function(){
       return Promise.resolve(fetchFlights(l.searchFrom || l.from, l.searchTo || l.to, l.date, l.dir === 'round' ? l.ret : '')).then(function(d){ if (d && d.live) { out.live++; if (!d.cached) out.fresh++; } }, function(){});
     });
-  }, Promise.resolve()).then(function(){ try { tripTargetAlerts(); } catch (e) {} return out; }); // PIA-125: a fresh fare may hit a target
+  }, Promise.resolve()).then(function(){ _tripLegsBusy = false; try { tripTargetAlerts(); } catch (e) {} return out; }, function(){ _tripLegsBusy = false; return out; }); // PIA-125: a fresh fare may hit a target
 }
 // ±day strip: one row per date the traveler controls (arrive / leave).
 var _tripLegWide = {}, _tripLegWriting = {};
@@ -1749,10 +1756,14 @@ function tripIdeaLegsHtml(code) {
 // the body and returns {done:'what changed'} or {error:'why not'}.
 function _tripIdeaRewriteAnswer(id, code, edit) {
   var wk = id + '|' + code;
-  if (!TRIP_IDEA_ID_RE.test(String(id || '')) || _tripLegWriting[wk]) return Promise.resolve(null);
+  if (!TRIP_IDEA_ID_RE.test(String(id || ''))) return Promise.resolve(null);
+  if (_tripLegWriting[wk]) { showShareToast('Saving the last change — tap again in a moment'); return Promise.resolve(null); }
   _tripLegWriting[wk] = true;
-  var done = function(x){ delete _tripLegWriting[wk]; return x; };
-  return tripIdeaFetchDoc(id, true).then(function(doc){
+  var done = function(x){ delete _tripLegWriting[wk]; tripLegsRepaint(); return x; };
+  // Read the answer fresh — a cached copy could rewind a newer one. No fresh read, no write.
+  return _tripIdeaApi('GET', '/idea?id=' + encodeURIComponent(id)).then(function(got){
+    if (!(got.ok && got.json && got.json.doc)) { showShareToast('Couldn’t reach the RSVP — try again'); return null; }
+    var doc = got.json.doc; tripIdeaStoreDoc(doc);
     var r = doc && doc.responses && doc.responses[code];
     if (!r) { showShareToast('No RSVP answer to change yet'); return null; }
     var body = {member:code, status:r.status, origin:r.origin || '', available_from:r.available_from || '', available_to:r.available_to || '', note:r.note || '', arrive_at:r.arrive_at || '', leave_from:r.leave_from || ''};
@@ -1921,7 +1932,8 @@ function tripFarePick(from, to, dep, ret, adults) {
   var p = tripLegPrice({dir:ret ? 'round' : 'in', from:from, to:to, date:dep, ret:ret || ''});
   if (p.status !== 'live' || !p.data) return null;
   var o = (p.data.offers || [])[0] || {airline:p.data.airline, stops:p.data.stops, flightNos:p.data.flightNo ? [p.data.flightNo] : []};
-  return {gfUrl:(adults || 1) === 1 ? p.data.gfUrl || '' : '', nonstop:o.stops === 0, airline:o.airline || '', offer:o, price:p.price, lastVerified:p.lastVerified};
+  var gf = typeof p.data.gfUrl === 'string' && p.data.gfUrl.indexOf('https://www.google.com/travel/flights?') === 0 && !/[\s<>\x22\x27\x60\x5c]/.test(p.data.gfUrl) ? p.data.gfUrl : '';
+  return {gfUrl:(adults || 1) === 1 ? gf : '', nonstop:o.stops === 0, airline:o.airline || '', offer:o, price:p.price, lastVerified:p.lastVerified};
 }
 // How much to trust a fare before paying: ≤6h solid, ≤24h recheck, older stale.
 function fareConfidence(iso) {
@@ -1994,11 +2006,13 @@ function tripAlertWatches(item, prefs) {
   var out = [], today = _tripIdeaTodayIso(), pr = prefs || {};
   tripLegsFor(doc).forEach(function(t){
     if (t.booked) return;
-    var tg = tripLegTargetFor(item.sharedIdeaId, t.code), group = String(item.id + '_' + t.code).slice(0, 64);
+    // Review fix: once one of their legs has departed, the rest can't be held to the in + home target.
+    var past = t.legs.some(function(l){ return l.date && l.date < today; });
+    var tg = past ? null : tripLegTargetFor(item.sharedIdeaId, t.code), group = past ? null : String(item.id + '_' + t.code).slice(0, 64);
     t.legs.forEach(function(l){
       if (!l.date || l.date < today || l.from === l.to) return;
       var p = tripLegPrice(Object.assign({}, l, {searchFrom:'', searchTo:''}));
-      out.push({trip_id:(group + '_' + l.dir).slice(0, 64), group:group, target:tg ? tg.value : null,
+      out.push({trip_id:(String(item.id + '_' + t.code) + '_' + l.dir).slice(0, 64), group:group, target:tg ? tg.value : null,
         label:(_tripIdeaName(t.label) + ' · ' + l.from + '→' + l.to).slice(0, 80), from:l.from, to:l.to, dep:l.date, ret:l.dir === 'round' && l.ret ? l.ret : null,
         threshold_pct:pr.fare_drop_pct, remind_days:pr.deadline_days, baseline:p.status === 'live' ? p.price : null});
     });
@@ -2096,17 +2110,17 @@ function _tripGapText(min) {
   return d ? d + 'd' + (h ? ' ' + h + 'h' : '') : h ? h + 'h' + (m ? ' ' + m + 'm' : '') : m + 'm';
 }
 function _tripPickupSide(ts, kind) {
-  var rows = [], waiting = [];
+  var rows = [], waiting = [], roundTrip = [];
   ts.forEach(function(t){
     var l = kind === 'arrive' ? t.legs[0] : t.legs.filter(function(x){ return x.dir === 'home'; })[0];
-    if (!l) return;
+    if (!l) { if (t.legs.some(function(x){ return x.dir === 'round'; })) roundTrip.push(_tripIdeaName(t.label)); return; }
     var o = _tripLegShownOffer(l), at = o && (kind === 'arrive' ? o.arrTime : o.depTime);
     if (!at) { waiting.push(_tripIdeaName(t.label)); return; }
     rows.push({code:t.code, label:t.label, airport:(kind === 'arrive' ? o.arrAirport : o.depAirport) || (kind === 'arrive' ? l.to : l.from), time:at, min:_tripMinutes(at), price:o.price});
   });
   rows.sort(function(a, b){ return a.min - b.min; });
   var same = rows.length > 1 && rows.every(function(x){ return x.airport === rows[0].airport; }), gap = rows.length > 1 ? rows[rows.length - 1].min - rows[0].min : null;
-  return {rows:rows, waiting:waiting, same:same, gap:gap, within:!waiting.length && same && gap != null && gap <= 120};
+  return {rows:rows, waiting:waiting, roundTrip:roundTrip, same:same, gap:gap, within:!waiting.length && same && gap != null && gap <= 120};
 }
 function tripPickupTimeline(ts) {
   var list = (ts || []).filter(function(t){ return !t.booked && t.legs && t.legs.length; });
@@ -2138,8 +2152,9 @@ function _tripPickupWhen(x) { return _tripIdeaEsc(_tripIdeaName(x.label)) + ' <b
 function _tripPickupLineHtml(side, verb, ts, kind) {
   if (!side.rows.length && !side.waiting.length) return '';
   var why = side.waiting.length ? 'waiting on ' + side.waiting.join(' & ') + '’s live fare' :
+    side.rows.length < 2 ? (side.roundTrip.length ? side.roundTrip.join(' & ') + ' flies a round trip — not compared' : '') :
     !side.same ? 'different airports — two trips' : side.within ? '✓ within 2h · one trip' : _tripGapText(side.gap) + ' apart';
-  var best = side.within || side.waiting.length ? null : tripPickupBestPair(ts, kind);
+  var best = side.within || side.waiting.length || side.rows.length < 2 ? null : tripPickupBestPair(ts, kind);
   var shown = side.rows.reduce(function(s, x){ return s + x.price; }, 0);
   return '<div class="lt-pickup-line"><span>' + verb + ' ' + side.rows.map(_tripPickupWhen).join(' · ') + '</span><span class="lt-pickup-gap' + (side.within ? ' ok' : '') + '">' + _tripIdeaEsc(why) + '</span>' +
     (best ? '<span class="lt-pickup-best">Cheapest pair within 2h at ' + _tripIdeaEsc(best.airport) + ': ' + best.picks.map(function(p){ return _tripIdeaEsc(_tripIdeaName(p.label) + ' ' + (p.offer.flightNos[0] || p.offer.airline || '') + ' ' + _tripTime(kind === 'arrive' ? p.offer.arrTime : p.offer.depTime)); }).join(' + ') +
@@ -2205,28 +2220,34 @@ function tripStaleNudge() {
 }
 // Any traveler now at or under their target: one alert per traveler per day
 // (pialax_alert_log_v1 → emailed by the existing outbox once Resend exists).
-var _tripAlertsSeen = {};
+var TRIP_ALERTS_SEEN_STORAGE = 'pialax_leg_alerts_seen_v1';
 function tripTargetAlerts() {
-  var hits = [], day = _tripIdeaTodayIso(), log = typeof loadAlertLog === 'function' ? loadAlertLog() : [];
+  var hits = [], day = _tripIdeaTodayIso(), log = typeof loadAlertLog === 'function' ? loadAlertLog() : [], queued = false;
+  var seen = _tripLegStore(TRIP_ALERTS_SEEN_STORAGE), _tripAlertsSeen = {};
+  Object.keys(seen).forEach(function(k){ if (k.slice(-10) === day) _tripAlertsSeen[k] = true; }); // keep today's only
   _tripWatchedIdeas().forEach(function(w){
     tripLegsFor(tripIdeaCachedDoc(w.id)).forEach(function(t){
       if (t.booked) return;
       var tw = tripTravelerWatch(w.id, t), key = 'leg_target|' + w.id + '|' + t.code + '|' + day;
       if (!tw || tw.verdict !== 'under' || _tripAlertsSeen[key] || log.some(function(e){ return e.dedupe_key === key; })) return;
       _tripAlertsSeen[key] = true;
+      // Review fix: email only for trips whose alerts are switched on (the banner shows regardless).
+      var emailOn = typeof alertPrefsFor === 'function' && alertPrefsFor(w.item.id).enabled === true;
       var who = _tripIdeaName(t.label), title = String(w.item.title || 'Trip').replace(/^\W+/, '');
       var legs = tw.cost.parts.map(function(x){ return x.leg.from + '→' + x.leg.to + ' ' + tripIdeaDay(x.leg.date) + ' $' + x.p.price; }).join(' + ');
-      if (typeof appendAlertLog === 'function') appendAlertLog({id:'lt-' + Date.now().toString(36) + '-' + t.code, trip_id:/^[A-Za-z0-9_-]{1,64}$/.test(w.item.id) ? w.item.id : w.id, type:'fare_drop',
+      if (emailOn && typeof appendAlertLog === 'function') queued = true;
+      if (emailOn && typeof appendAlertLog === 'function') appendAlertLog({id:'lt-' + Date.now().toString(36) + '-' + t.code, trip_id:/^[A-Za-z0-9_-]{1,64}$/.test(w.item.id) ? w.item.id : w.id, type:'fare_drop',
         subject:who + '’s ' + title + ' fare is at your target: $' + tw.cost.per + ' (target $' + tw.target.value + ')',
         body_text:legs + ' = $' + tw.cost.per + ' · target $' + tw.target.value + (tw.oldest ? ' · checked ' + fareAgeLabel(tw.oldest) : '') + '. Recheck on Google Flights before paying.',
         dedupe_key:key, created_at:new Date().toISOString(), trip_state_version:0, sent:false});
       hits.push(who + ' $' + tw.cost.per + ' ≤ $' + tw.target.value);
     });
   });
+  _tripLegSave(TRIP_ALERTS_SEEN_STORAGE, _tripAlertsSeen);
   if (hits.length) {
     tripAttention(hits.length);
     tripBannerShow('alert', '🎯 At your target: ' + hits.join(' · '), '', null);
-    if (typeof drainAlertOutbox === 'function') try { drainAlertOutbox(); } catch (e) {}
+    if (queued && typeof drainAlertOutbox === 'function') try { drainAlertOutbox(); } catch (e) {}
   }
   return hits;
 }
