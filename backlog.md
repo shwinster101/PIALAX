@@ -165,3 +165,22 @@ the (already correct, already tested) decision of whether to alert.
 
 **Effort:** S–M. Not release-blocking — the feature is fully usable via
 Preview without it.
+
+---
+
+## Thanksgiving sprint: PIA-121 to PIA-130 (filed 2026-10-14)
+
+Source: `SPRINT_THANKSGIVING_2026-10.md` (read the build-decisions box at the top). It all ships as one sprint PR with one commit per ticket. The order is the table order.
+
+| Ticket | Tier | Intent | Files |
+|---|---|---|---|
+| PIA-121 | must | Price a linked trip's legs as the one-ways people book. Add a ±day flex strip per leg; a tap re-saves that traveler's RSVP dates. | both HTML, `trip-idea-builder.js`, tests |
+| PIA-123 | must | Each traveler's watch row shows price, target (stored on the device), the change since the last check, a sparkline, Google's typical range, and "checked Nh ago". | both HTML, `trip-idea-builder.js`, tests |
+| PIA-124 | must | Book-now link for the exact leg, a confidence cue based on fare age, a book-by countdown, and Mark booked. | both HTML, `trip-idea-builder.js`, tests |
+| PIA-122 | must | One search covers the home airport plus nearby ones (BUR/LGB/SNA/ONT, JFK/EWR). Shows the winner with its saving, and "Use X" sets the RSVP origin. | `worker.js`, both HTML, tests, `verify-live.sh` |
+| PIA-126 | should | Pickup timeline: each traveler's landing time, the gap between them, and a within-2h badge. It uses no extra searches. | both HTML, `trip-idea-builder.js`, tests |
+| PIA-125 | should | A one-tap nudge when fares are a day old. In-app target alerts (banner, favicon dot, title). A Worker daily cap no longer locks the whole month. | both HTML, tests |
+| PIA-127 | should | Mobile trip bar in the sticky-CTA slot: Flex · Nearby · Refresh · Book. ≤3 taps to Google Flights. | `pialax-mobile.html`, `test-viewport.mjs` |
+| PIA-129 | could | Thanksgiving total board: plan vs cheapest, booked vs not. Savings are counted only between live fares. | both HTML, `trip-idea-builder.js`, tests |
+| PIA-130 | could | Alert path hardening: `/alerts/status` needs the token, the cron goes through the KV fare cache and spend caps, and alerts are per-leg watches. | `worker.js`, both HTML, tests, `verify-live.sh` |
+| PIA-128 | could | **Open, waiting on infra decisions.** Turn on server alerts (cron slot or `POST /alerts/run`, ALERTS KV, `RESEND_API_KEY`). | `wrangler.toml` |
