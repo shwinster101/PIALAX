@@ -12,6 +12,15 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-127) — phone
+- **From open app to Google Flights in 2 taps.** A linked Thanksgiving card on the Trips tab has a **✈️ Book flights** button. It opens a bottom sheet with each traveler's ✈️ In / 🏠 Home links, the book-by countdown, fare confidence and Mark booked ✓.
+- **Trip bar.** On a linked trip's Family tab, the Get Live Fares slot becomes **📅 Flex · 📍 Nearby · ⟳ Refresh (N) · ✈️ Book**.
+  - There is no third bottom bar.
+  - Refresh is the same spend-gated Get Live Fares, and it reads "Fresh ✓" when every leg has a live fare.
+  - 📍 Nearby shows once the Worker supports it.
+  - **Flex** opens a "Dates & airports" sheet with every traveler's ±2-day strip and nearby toggle, instead of the full RSVP calendar.
+- Repaints and live refreshes keep your scroll position. Every target is ≥44px and nothing scrolls sideways at 360, 390 or 430px.
+
 ### Added (PIA-125)
 - **One-tap nudge for day-old fares.** When you open the app or come back to it, with the organizer token set, it counts the watched legs whose fare is over a day old. It offers "N fares are a day old · Worker searches today 7/30 · **Refresh (N searches)**", at most 4 per tap.
   - Nothing is searched until you tap; searches are still never automatic.

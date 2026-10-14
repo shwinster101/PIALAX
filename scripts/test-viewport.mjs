@@ -981,6 +981,57 @@ for (const vp of [{ width: 375, height: 667 }, { width: 390, height: 844 }]) {
   }
 }
 
+// PIA-127: the phone's one-thumb flow. Open the app → "✈️ Book flights" on the
+// Thanksgiving card → Ashwin's "In PIA" link = 2 taps; and on the Family tab
+// the fare CTA slot becomes the trip bar (Flex · Refresh · Book) with sheets.
+for (const vp of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { width: 430, height: 932 }]) {
+  const idea = await rsvp.newIdea();
+  const ctx = await rsvp.context(vp, idea, { admin: true });
+  const label = `pialax-mobile.html one-thumb flow @ ${vp.width}x${vp.height}`;
+  try {
+    await ctx.addInitScript((id) => { localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: id } }, added: [] })); }, idea.id);
+    const page = await ctx.newPage();
+    await page.goto(pathToFileURL(path.join(ROOT, 'pialax-mobile.html')).href, { waitUntil: 'load' });
+    await page.waitForSelector('[data-book-idea]', { timeout: 8000 });
+    let taps = 0;
+    await page.locator('[data-book-idea]').first().click(); taps++;
+    await page.waitForSelector('#lt-sheet:not([hidden]) [data-lt-book="LAX"] a', { timeout: 6000 });
+    const s = await page.evaluate(() => {
+      const a = document.querySelector('#lt-sheet [data-lt-book="LAX"] a'), r = a.getBoundingClientRect();
+      return { href: decodeURIComponent(a.href), text: a.textContent, h: Math.round(r.height), inView: r.top >= 0 && r.bottom <= innerHeight, over: document.documentElement.scrollWidth > innerWidth };
+    });
+    taps++; // tapping that link is the hand-off itself (not followed here — it leaves the app)
+    if (taps <= 3 && /In PIA/.test(s.text) && /LAX to PIA on 2026-11-21 one way/.test(s.href) && s.h >= 44 && s.inView && !s.over)
+      ok(`${label} — open → ✈️ Book flights → "${s.text.trim()}" = ${taps} taps to Ashwin's Google Flights search (LAX→PIA Sat Nov 21), 44px, on screen`);
+    else bad(`${label} — book path wrong: ${JSON.stringify(Object.assign(s, { taps }))}`);
+    await page.locator('#lt-sheet .lt-sheet-x').click();
+    // Family tab: the trip bar replaces Get Live Fares in the same slot.
+    await page.locator('.wl-row[data-wl-id="thanksgiving"]').click();
+    await page.locator('.wl-more-actions summary').click();
+    await page.locator('.wl-more-actions .wl-open').click();
+    await page.waitForSelector('#lt-tripbar button', { timeout: 6000 });
+    const bar = await page.evaluate(() => {
+      const btns = [...document.querySelectorAll('#lt-tripbar button')], tab = document.getElementById('tab-bar');
+      const r = document.getElementById('lt-tripbar').getBoundingClientRect(), tr = tab ? tab.getBoundingClientRect() : { top: innerHeight };
+      return { labels: btns.map((b) => b.textContent), minH: Math.min.apply(null, btns.map((b) => b.getBoundingClientRect().height)), cta: getComputedStyle(document.getElementById('search-btn')).display,
+        clipped: btns.some((b) => b.scrollWidth > b.clientWidth + 1), aboveTabs: r.bottom <= tr.top + 1, over: document.documentElement.scrollWidth > innerWidth };
+    });
+    if (bar.labels.length === 3 && /Flex/.test(bar.labels[0]) && /Refresh|Fresh/.test(bar.labels[1]) && /Book/.test(bar.labels[2]) && bar.minH >= 44 && bar.cta === 'none' && !bar.clipped && bar.aboveTabs && !bar.over)
+      ok(`${label} — trip bar in the CTA slot: ${bar.labels.join(' · ')} (≥44px, unclipped, above the tab bar, no overflow)`);
+    else bad(`${label} — trip bar wrong: ${JSON.stringify(bar)}`);
+    await page.locator('#lt-tripbar [data-tb="flex"]').click();
+    await page.waitForSelector('#lt-sheet:not([hidden]) [data-leg-flex]', { timeout: 6000 }).catch(() => {});
+    const fx = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#lt-sheet .lt-leg-chips')].map((c) => c.children.length), over: document.documentElement.scrollWidth > innerWidth,
+      sheetOver: (() => { const sh = document.getElementById('lt-sheet'); return sh ? sh.scrollWidth > sh.clientWidth + 1 : true; })() }));
+    if (fx.rows.length >= 2 && fx.rows.every((n) => n === 5) && !fx.over && !fx.sheetOver) ok(`${label} — 📅 Flex opens "Dates & airports": ±2 days per leg (${fx.rows.join('/')} chips), no sideways scroll`);
+    else bad(`${label} — flex sheet wrong: ${JSON.stringify(fx)}`);
+  } catch (e) {
+    bad(`${label} — threw: ${e && e.message ? e.message : String(e)}`);
+  } finally {
+    await ctx.close();
+  }
+}
+
 // PIA-125: with a token and a fare that lapsed overnight, opening the app shows a
 // one-tap nudge — and spends nothing until it's tapped.
 {

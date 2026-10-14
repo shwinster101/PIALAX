@@ -11183,7 +11183,7 @@ function _tripLegDateOk(t, row, iso) {
 }
 function _tripLegMoney(p) { return p.price == null ? '—' : (p.status === 'live' ? '$' : '~$') + Math.round(p.price).toLocaleString('en-US'); }
 function _tripLegDayShort(iso) { return tripIdeaDay(iso).replace(/ [A-Z][a-z]{2} /, ' '); }
-function _tripLegOffsets(t) { return _tripLegWide[t.code] ? TRIP_LEG_FLEX_WIDE : TRIP_LEG_FLEX_DAYS; }
+function _tripLegOffsets(t, wide) { return wide || _tripLegWide[t.code] ? TRIP_LEG_FLEX_WIDE : TRIP_LEG_FLEX_DAYS; }
 // What "Price these" would search: plan dates first, then ±1, then ±2.
 function tripLegFlexLegs(t) {
   if (!t) return [];
@@ -11193,14 +11193,14 @@ function tripLegFlexLegs(t) {
   });
   return out;
 }
-function tripIdeaFlexStripHtml(t) {
+function tripIdeaFlexStripHtml(t, wide) {
   if (!t || !t.legs.length || t.booked) return '';
   var code = _tripIdeaEsc(t.code);
   return _tripLegRows(t).map(function(r){
     var plan = tripLegPrice(r.leg), d0 = r.leg[r.at], meta = '';
     var itin = tripLegItinerary(plan);
     if (itin) meta = '<span class="lt-leg-meta">' + _tripIdeaEsc(itin) + '</span>';
-    var chips = _tripLegOffsets(t).map(function(o){
+    var chips = _tripLegOffsets(t, wide).map(function(o){
       var d = _tripIdeaIsoAdd(d0, o), p = o === 0 ? plan : tripLegPrice(_tripLegVariant(r, d)), ok = o === 0 || _tripLegDateOk(t, r, d);
       var cheaper = o !== 0 && p.status === 'live' && plan.status === 'live' && p.price < plan.price;
       return '<button type="button" class="lt-leg-chip' + (o === 0 ? ' plan' : '') + (p.status === 'live' ? '' : ' est') + (cheaper ? ' cheaper' : '') + '"' + (o === 0 || !ok ? ' disabled' : '') +
@@ -11457,8 +11457,28 @@ function tripIdeaMarkBooked(id, code) {
   return tripIdeaSetBooked({id:id, doc:doc}, code, true).then(function(next){
     if (next && typeof S === 'object' && S && S.linkedIdeaId === id) tripIdeaApplyLinkedRsvp();
     if (typeof renderWatchlist === 'function') try { renderWatchlist(); } catch (e) {}
+    if (typeof syncLtSheet === 'function') try { syncLtSheet(); } catch (e) {}
     return next;
   });
+}
+// ── PIA-127: the phone's one-thumb flow ─────────────────────────────────────
+// A "✈️ Book flights" button on a linked Trips card (opens the same book list
+// as the trip card, in a bottom sheet): open app → Book → In PIA ↗ = 2 taps.
+function tripCardBookChipHtml(item) {
+  if (!item || !item.sharedIdeaId || (item.stage !== 'watching' && item.stage !== 'planning')) return '';
+  var doc = tripIdeaCachedDoc(item.sharedIdeaId);
+  if (doc && !tripIdeaBookRows(doc).some(function(r){ return !r.booked && r.links; })) return '';
+  return '<button type="button" class="wl-book-chip" data-book-idea="' + _tripIdeaEsc(item.sharedIdeaId) + '">✈️ Book flights</button>';
+}
+// The "Dates & airports" sheet: every traveler's ±2-day strip and nearby toggle.
+function tripLegsSheetHtml(doc) {
+  var id = doc && doc.id;
+  var html = tripLegsFor(doc).filter(function(t){ return !t.booked && t.legs.length; }).map(function(t){
+    var cost = tripTravelerCost(t);
+    return '<section class="lt-sheet-trav"><h3>' + _tripIdeaEsc(_tripIdeaName(t.label)) + (cost && cost.per != null ? ' · ' + (cost.status === 'live' ? '$' : '~$') + cost.per : '') + '</h3>' +
+      tripIdeaFlexStripHtml(t, true) + '<div class="lt-leg-foot">' + tripNearbyToggleHtml(id, t) + '</div></section>';
+  }).join('');
+  return html || '<p class="lt-sheet-empty">Everyone with dates is booked ✓</p>';
 }
 // ── PIA-122: nearby airports — one search covers home + its neighbors ───────
 // Off unless the Worker says it takes comma-joined airports (/account features),
@@ -11703,8 +11723,12 @@ function tripLinkedSummaryHtml() {
   return doc ? tripPickupHtml(doc) : '';
 }
 function tripLegsRepaint() {
+  // PIA-127: a repaint never moves the page under your thumb.
+  var y = typeof window !== 'undefined' && typeof window.scrollY === 'number' ? window.scrollY : null;
   try { if (typeof renderMeetupRoutes === 'function') renderMeetupRoutes(); } catch (e) {}
   try { if (typeof syncLinkedTripChrome === 'function') syncLinkedTripChrome(); } catch (e) {}
+  try { if (typeof syncLtSheet === 'function') syncLtSheet(); } catch (e) {}
+  if (y != null && typeof window.scrollTo === 'function' && window.scrollY !== y) try { window.scrollTo(0, y); } catch (e) {}
 }
 var _tripLegsWired = false;
 function tripLegsWire() {
@@ -11717,7 +11741,12 @@ function tripLegsWire() {
     if (el.hasAttribute('data-leg-more')) { _tripLegWide[code] = !_tripLegWide[code]; tripLegsRepaint(); return; }
     if (el.hasAttribute('data-leg-nearby')) { if (S && S.linkedIdeaId) { tripSetNearby(S.linkedIdeaId, code, !tripNearbyOn(S.linkedIdeaId, code)); tripLegsRepaint(); try { if (typeof loadPrices === 'function') loadPrices(); } catch (x) {} } return; }
     if (el.hasAttribute('data-leg-origin')) { if (S && S.linkedIdeaId) { el.disabled = true; tripIdeaSetOrigin(S.linkedIdeaId, code, el.getAttribute('data-airport')); } return; }
-    if (el.hasAttribute('data-leg-booked')) { if (typeof S === 'object' && S && S.linkedIdeaId) { el.disabled = true; tripIdeaMarkBooked(S.linkedIdeaId, code); } return; }
+    if (el.hasAttribute('data-leg-booked')) {
+      // PIA-127: a sheet opened from the Trips tab names its own trip (data-idea-scope).
+      var scope = el.closest('[data-idea-scope]'), bid = scope ? scope.getAttribute('data-idea-scope') : (typeof S === 'object' && S ? S.linkedIdeaId : '');
+      if (bid) { el.disabled = true; tripIdeaMarkBooked(bid, code); }
+      return;
+    }
     if (el.hasAttribute('data-leg-price') || el.hasAttribute('data-leg-refresh')) {
       var tr = tripLinkedTraveler(code), one = el.hasAttribute('data-leg-refresh');
       if (!tr) return;
