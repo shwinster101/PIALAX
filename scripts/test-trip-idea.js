@@ -575,6 +575,32 @@ for (const file of ['pialax.html', 'pialax-mobile.html']) {
   Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
 }
 
+// PIA-129: one number for the family — what's left to book, the cheapest live
+// fares seen (±2 days / nearby), who's booked; savings only between live fares.
+for (const file of ['pialax.html', 'pialax-mobile.html']) {
+  const names = ['tripTotalBoard', 'tripTotalBoardHtml'];
+  const { api } = loadApi(path.join(ROOT, file), file, EXPECT.concat(names));
+  const tg = { id: 'TGTGTGTGTGTGTGTGTGTGTG', idea: { title: '🦃 Thanksgiving at home — Peoria', destination: { airport: 'PIA' }, recommendation: { airport: 'PIA' },
+    members: [{ code: 'PIA', label: 'Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'LAX', label: 'Me', airport: 'LAX' }, { code: 'LGA', label: 'Anjo', airport: 'LGA' }] },
+    responses: { LAX: { status: 'in', origin: 'LAX', available_from: '2030-11-20', available_to: '2030-11-29' }, LGA: { status: 'in', origin: 'LGA', available_from: '2030-11-26', available_to: '2030-11-30' } } };
+  const put = (from, to, date, ow) => { api._flightCache[api._cacheKey(from, to, date, '')] = { data: { ow, live: true, lastVerified: new Date().toISOString() }, ts: Date.now() }; };
+  put('LAX', 'PIA', '2030-11-20', 189); put('ORD', 'LAX', '2030-11-29', 200); put('LGA', 'PIA', '2030-11-26', 212); put('ORD', 'LGA', '2030-11-30', 120);
+  put('LGA', 'PIA', '2030-11-25', 180); // Anjo a day earlier is $32 cheaper (live)
+  const b = api.tripTotalBoard(tg), html = api.tripTotalBoardHtml(tg);
+  check(b.total === 721 && b.live && b.cheapest === 689 && b.saving === 32 && b.booked === 0 && /<b>\$721<\/b> still to book · 2 of 2 travelers · live fares/.test(html) &&
+    /Anjo<\/strong><span>\$332<\/span><span class="lt-board-alt">→ \$300 with Mon 25 in/.test(html) && /saves \$32/.test(html) && /Booked: 0 of 2/.test(html),
+    `${file}: family total — $721 still to book (Ashwin $389 + Anjo $332); Anjo a day earlier is $300 → cheapest seen $689, saves $32`);
+  delete api._flightCache[api._cacheKey('ORD', 'LGA', '2030-11-30', '')];
+  const est = api.tripTotalBoard(tg), estHtml = api.tripTotalBoardHtml(tg);
+  check(!est.live && est.saving === null && /<b>~\$\d[\d,]*<\/b> still to book/.test(estHtml) && /~ = includes estimates/.test(estHtml) && !/saves/.test(estHtml),
+    `${file}: with an estimated leg the total is "~$…", labelled, and no saving is claimed`);
+  tg.responses.LAX.booked = true;
+  const bk = api.tripTotalBoardHtml(tg);
+  check(/1 of 2 traveler/.test(bk) && /<strong>(Me|Ashwin)<\/strong><b class="lt-verdict ok">✓ Booked/.test(bk) && /Booked: 1 of 2/.test(bk),
+    `${file}: booking Ashwin moves him to ✓ Booked and out of "still to book"`);
+  Object.keys(api._flightCache).forEach((k) => delete api._flightCache[k]);
+}
+
 // PIA-125: no auto-fetch — the app counts day-old fares and offers one tap; a
 // fare at or under target alerts once per traveler per day; no token = silent.
 async function nudgeSuite() {

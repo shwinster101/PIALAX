@@ -12,6 +12,13 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-129)
+- **Family total board** at the top of a linked trip's Flight Breakdown. It shows one number for everyone still to book, e.g. "$721 still to book · 2 of 2 travelers".
+  - Each traveler's in + home fare.
+  - The **cheapest live fares already seen** within ±2 days or at a nearby airport, with what it takes ("→ $300 with Mon 25 in") and the saving.
+  - Booked vs not; booking someone moves them to ✓ Booked and out of the total.
+- A saving is only claimed between live fares. With any estimate, the total reads "~$…" and is labelled "~ = includes estimates".
+
 ### Added (PIA-127) — phone
 - **From open app to Google Flights in 2 taps.** A linked Thanksgiving card on the Trips tab has a **✈️ Book flights** button. It opens a bottom sheet with each traveler's ✈️ In / 🏠 Home links, the book-by countdown, fare confidence and Mark booked ✓.
 - **Trip bar.** On a linked trip's Family tab, the Get Live Fares slot becomes **📅 Flex · 📍 Nearby · ⟳ Refresh (N) · ✈️ Book**.

@@ -2239,9 +2239,66 @@ function tripAttention(n) {
   if (_tripIconBase == null) _tripIconBase = link.getAttribute('href') || '';
   link.setAttribute('href', n ? TRIP_ICON_DOT : _tripIconBase);
 }
+// ── PIA-129: one number for the family ──────────────────────────────────────
+// Everyone still to book, combined: what the plan costs now, the cheapest live
+// fares already seen within ±2 days or at a nearby airport, and who's booked.
+// A saving is only claimed between live fares; estimates are labelled.
+function _tripLegBest(t, row) {
+  var best = null;
+  TRIP_LEG_FLEX_WIDE.forEach(function(o){
+    var d = _tripIdeaIsoAdd(row.leg[row.at], o);
+    if (o !== 0 && !_tripLegDateOk(t, row, d)) return;
+    var v = _tripLegVariant(row, d), p = tripLegPrice(v), n = tripLegNearby(v);
+    if (p.status === 'live' && (!best || p.price < best.price)) best = {price:p.price, date:d, offset:o, airport:''};
+    if (n && n.airport !== n.mine && (!best || n.price < best.price)) best = {price:n.price, date:d, offset:o, airport:n.airport};
+  });
+  return best;
+}
+function tripTotalBoard(doc) {
+  var out = {rows:[], booked:0, travelers:0, total:0, live:true, cheapest:0, cheapestOk:true, saving:null};
+  tripLegsFor(doc).forEach(function(t){
+    out.travelers++;
+    if (t.booked) { out.booked++; out.rows.push({t:t, booked:true}); return; }
+    var c = tripTravelerCost(t), hc = t.headcount || 1;
+    if (!c || c.per == null) { out.live = false; out.cheapestOk = false; out.rows.push({t:t, cost:null}); return; }
+    var best = 0, how = [], ok = c.status === 'live';
+    _tripLegRows(t).filter(function(r){ return r.at === 'date'; }).forEach(function(r){
+      var plan = tripLegPrice(r.leg), b = _tripLegBest(t, r);
+      if (!b || plan.status !== 'live') { ok = false; return; }
+      best += Math.min(b.price, plan.price);
+      if (b.price < plan.price) how.push((b.airport ? b.airport + (b.offset ? ' ' : '') : '') + (b.offset ? _tripLegDayShort(b.date) : '') + ' ' + (r.write === 'home' ? 'home' : 'in'));
+    });
+    out.total += c.per * hc;
+    if (c.status !== 'live') out.live = false;
+    if (ok) out.cheapest += best * hc; else out.cheapestOk = false;
+    out.rows.push({t:t, cost:c, best:ok ? best : null, how:how});
+  });
+  if (out.live && out.cheapestOk && out.total > out.cheapest) out.saving = out.total - out.cheapest;
+  return out;
+}
+function tripTotalBoardHtml(doc) {
+  var b = tripTotalBoard(doc);
+  if (!b.travelers) return '';
+  var money = function(v, live){ return (live ? '$' : '~$') + Math.round(v).toLocaleString('en-US'); };
+  var title = String((doc.idea && doc.idea.title) || 'Trip').replace(/\s+trip$/i, '');
+  var rows = b.rows.map(function(x){
+    var name = '<strong>' + _tripIdeaEsc(_tripIdeaName(x.t.label)) + '</strong>';
+    if (x.booked) return '<li>' + name + '<b class="lt-verdict ok">✓ Booked</b></li>';
+    if (!x.cost) return '<li>' + name + '<span>' + (x.t.legs.length ? 'no fare yet' : 'no dates yet') + '</span></li>';
+    return '<li>' + name + '<span>' + money(x.cost.per * (x.t.headcount || 1), x.cost.status === 'live') + '</span>' +
+      (x.best != null && x.best < x.cost.per ? '<span class="lt-board-alt">→ $' + Math.round(x.best * (x.t.headcount || 1)) + ' with ' + _tripIdeaEsc(x.how.join(' + ')) + '</span>' : '') + '</li>';
+  }).join('');
+  var left = b.travelers - b.booked;
+  return '<div class="lt-board"><div class="lt-watch-hd">🧮 ' + _tripIdeaEsc(title) + ' · family total</div>' +
+    (left ? '<div class="lt-board-main"><b>' + money(b.total, b.live) + '</b> still to book · ' + left + ' of ' + b.travelers + ' traveler' + (b.travelers > 1 ? 's' : '') + (b.live ? ' · live fares' : ' · ~ = includes estimates') + '</div>'
+      : '<div class="lt-board-main"><b class="lt-verdict ok">Everyone’s booked ✓</b></div>') +
+    '<ul>' + rows + '</ul>' +
+    (b.saving ? '<div class="lt-board-save">Cheapest live fares seen (±2 days, nearby airports): <b>$' + Math.round(b.cheapest).toLocaleString('en-US') + '</b> — saves $' + Math.round(b.saving) + '</div>' : '') +
+    '<small>Booked: ' + b.booked + ' of ' + b.travelers + '</small></div>';
+}
 function tripLinkedSummaryHtml() {
   var doc = tripLinkedDoc();
-  return doc ? tripPickupHtml(doc) : '';
+  return doc ? tripTotalBoardHtml(doc) + tripPickupHtml(doc) : '';
 }
 function tripLegsRepaint() {
   // PIA-127: a repaint never moves the page under your thumb.

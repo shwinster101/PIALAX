@@ -1019,6 +1019,11 @@ for (const vp of [{ width: 360, height: 740 }, { width: 390, height: 844 }, { wi
     if (bar.labels.length === 3 && /Flex/.test(bar.labels[0]) && /Refresh|Fresh/.test(bar.labels[1]) && /Book/.test(bar.labels[2]) && bar.minH >= 44 && bar.cta === 'none' && !bar.clipped && bar.aboveTabs && !bar.over)
       ok(`${label} — trip bar in the CTA slot: ${bar.labels.join(' · ')} (≥44px, unclipped, above the tab bar, no overflow)`);
     else bad(`${label} — trip bar wrong: ${JSON.stringify(bar)}`);
+    // PIA-129: the family total leads the Flight Breakdown, estimates labelled.
+    const board = await page.evaluate(() => { const el = document.querySelector('#meetup-routes .lt-board'); return el ? { text: el.innerText.replace(/\s+/g, ' '), fits: el.scrollWidth <= el.clientWidth + 1 } : null; });
+    if (board && /family total/i.test(board.text) && /~\$[\d,]+ still to book · 1 of 1 traveler · ~ = includes estimates/.test(board.text) && /Booked: 0 of 1/.test(board.text) && board.fits)
+      ok(`${label} — family total board: "${board.text.replace(/.*family total /i, '').slice(0, 60)}…" (estimates labelled, fits)`);
+    else bad(`${label} — family total board wrong: ${JSON.stringify(board)}`);
     await page.locator('#lt-tripbar [data-tb="flex"]').click();
     await page.waitForSelector('#lt-sheet:not([hidden]) [data-leg-flex]', { timeout: 6000 }).catch(() => {});
     const fx = await page.evaluate(() => ({ rows: [...document.querySelectorAll('#lt-sheet .lt-leg-chips')].map((c) => c.children.length), over: document.documentElement.scrollWidth > innerWidth,
