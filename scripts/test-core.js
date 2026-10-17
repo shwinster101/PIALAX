@@ -58,6 +58,8 @@ const EXPECT = [
   'generateTripIdeaDatePairs', 'tripIdeaScore', 'rankTripIdeaRecommendations',
   'buildTripIdeaRecommendations', 'serializeTripIdeaSharePayload', 'restoreTripIdeaSharePayload',
   'tripIdeaFlexibilityLabel', 'createTripIdeaWatchlistItem',
+  // PIA-131: compact share links.
+  'wlShareEncode', 'wlShareDecode', '_wlShareUrl', 'shareWatchlistTrip', 'sharePlan',
 ];
 
 
@@ -200,6 +202,122 @@ for (const f of FILES) {
   const stripped = P('', '{"assistant":true,"ghost":true}');
   if (stripped.flags.ghost === undefined && stripped.changed === true) ok(f + ': AC-FLAGS — unknown stored key stripped on load');
   else bad(f + ': AC-FLAGS — unknown stored key should be stripped, got ' + JSON.stringify(stripped));
+}
+
+// PIA-131 — compact share links. The old ?wl= link ran the JSON through
+// encodeURIComponent, base64 and encodeURIComponent again: ~900 characters for
+// one trip. ?w= must round-trip every field, stay short, keep old links
+// working, and still send every added trip through sanitizeWatchlistItem.
+{
+  const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x))
+    ? Object.keys(x).sort().reduce((o, key) => { o[key] = x[key]; return o; }, {}) : x);
+  const json = (v) => JSON.parse(JSON.stringify(v));
+  const ORD = { id: 'w1792121078503', _added: true, mode: 'family', origin: 'PIA', dest: 'ORD', hub: 'NYC', dep: '2026-12-22', ret: '2026-12-26', stage: 'watching', title: 'ORD — family meetup idea', routeTxt: 'PIA → ORD', gf: { from: 'PIA', to: 'NYC' }, notes: '', eventDate: '2026-10-15', reminders: [], nextAction: '', blockers: [] };
+  const SOLO = { id: 'w1790000000001', _added: true, mode: 'solo', origin: 'LAX', dest: 'SFO', hub: null, dep: '2026-11-02', ret: null, stage: 'booked', title: 'SFO — solo trip', routeTxt: 'LAX → SFO', gf: { from: 'LAX', to: 'SFO' }, notes: '', eventDate: null, reminders: [], nextAction: '', blockers: [] };
+  const READABLE = { id: 'w1790000000002', _added: true, mode: 'family', origin: 'LAX', dest: 'North Carolina', hub: null, dep: '2027-03-10', ret: '2027-03-14', stage: 'planning', title: 'North Carolina — family meetup idea', routeTxt: 'LAX → North Carolina', gf: { from: 'LAX', to: null }, notes: 'Grandma 90th 🎂', eventDate: '2027-03-12', reminders: ['2027-02-01'], nextAction: 'Ask Anjo', blockers: [] };
+  const CUSTOM = { id: 'trip-idea-abc', _added: true, mode: 'family', origin: 'LAX', dest: 'PIA', hub: 'PIA', dep: '2026-11-25', ret: '2026-11-29', stage: 'watching', title: '🦃 Thanksgiving in Peoria', routeTxt: 'Everyone → PIA', gf: { from: 'LAX', to: 'ORD' }, notes: 'Zoë’s pick — “drive from ORD”', eventDate: null, reminders: [], nextAction: '', blockers: [], sharedIdeaId: 'AbCdEfGhIjKlMnOpQrStUv', calendarEvents: [{ title: 'Dinner', start: '2026-11-26', end: '2026-11-27' }], bookBy: '2026-11-01' };
+  const NOGF = { id: 'w3', _added: true, mode: 'solo', origin: 'LAX', dest: 'JFK', dep: '2026-12-01', stage: 'watching', title: 'JFK — solo trip' };
+  const OVR = { peru: { stage: 'planning', notes: '', nextAction: '', blockers: [], dep: '2026-09-04', ret: '2026-09-13', eventDate: null, sharedIdeaId: undefined } };
+  const b64 = (s) => Buffer.from(s).toString('base64url');
+  const URL_RE = /^https:\/\/shwinster101\.github\.io\/PIALAX\/\?w=[A-Za-z0-9_-]+$/;
+
+  for (const f of FILES) {
+    const api = loaded[f];
+    if (!api) continue;
+    const E = api.wlShareEncode, D = api.wlShareDecode;
+    const full = { overrides: OVR, added: [ORD, SOLO, READABLE, CUSTOM] };
+    const back = D(E(full));
+    if (back && canon(back.added) === canon(json(full.added)))
+      ok(f + ': ?w= round-trips family, solo, readable-destination and custom trips exactly');
+    else bad(f + ': ?w= round-trip changed the added trips: ' + JSON.stringify(back));
+    // Starter trips send only what differs from WATCHLIST_SEED; a changed value
+    // (even an emptied note) is kept exactly.
+    if (back && canon(back.overrides) === canon({ peru: { stage: 'planning', notes: '' } }))
+      ok(f + ': a starter-trip override keeps changed fields (emptied note too) and leaves out seed-equal ones');
+    else bad(f + ': starter-trip override diff: ' + JSON.stringify(back && back.overrides));
+    const ng = D(E({ overrides: {}, added: [NOGF] }));
+    const n0 = ng && ng.added[0];
+    if (n0 && !('gf' in n0) && n0.title === NOGF.title && n0.dep === NOGF.dep && n0.mode === 'solo')
+      ok(f + ': a trip with no flight target still has none after the round-trip');
+    else bad(f + ': a trip without gf gained one or lost fields: ' + JSON.stringify(n0));
+
+    const shim = makeShim();
+    shim.location.origin = 'https://shwinster101.github.io';
+    shim.location.pathname = '/PIALAX/' + f;
+    let copied = null;
+    shim.navigator.clipboard.writeText = (t) => { copied = t; return Promise.resolve(); };
+    shim.setTimeout = () => 0;
+    shim.localStorage.setItem('pialax_watchlist_v1', JSON.stringify({ overrides: { london: { notes: 'Our own London note' } }, added: [ORD, CUSTOM] }));
+    try {
+      const { api: live, missing } = loadApi(path.join(ROOT, f), f, EXPECT, shim);
+      if (missing.length) throw new Error('missing: ' + missing.join(', '));
+      live.loadWatchlist();
+      const legacy = 'https://shwinster101.github.io/PIALAX/' + f + '?wl=' + encodeURIComponent(Buffer.from(encodeURIComponent(JSON.stringify({ overrides: {}, added: [ORD] }))).toString('base64'));
+      const url = live._wlShareUrl({ overrides: {}, added: [ORD] });
+      if (URL_RE.test(url) && url.length <= 220 && url.length * 4 <= legacy.length)
+        ok(f + ': the ORD link is ' + url.length + ' characters (was ' + legacy.length + '), at the site root, with no % = or +');
+      else bad(f + ': ORD link too long or malformed (' + url.length + ' vs ' + legacy.length + '): ' + url);
+
+      live.shareWatchlistTrip(ORD.id);
+      const lines = String(copied || '').split('\n');
+      if (lines[0] === '📋 Proposed trip: ORD — family meetup idea' && lines.includes('✈️ PIA → ORD · flights to NYC') &&
+          lines.includes('📅 Tue Dec 22 – Sat Dec 26') && lines.includes('📌 Event: Thu Oct 15') &&
+          lines[lines.length - 2] === 'Open in PIALAX:' && URL_RE.test(lines[lines.length - 1]))
+        ok(f + ': the trip message has friendly dates, the route, and the bare link alone on its last line');
+      else bad(f + ': trip message format: ' + JSON.stringify(copied));
+      const sent = D(new URL(lines[lines.length - 1]).searchParams.get('w'));
+      const sent0 = sent && sent.added[0];
+      if (sent0 && sent0.id === ORD.id && sent0.hub === 'NYC' && sent0.eventDate === '2026-10-15' && sent0.gf && sent0.gf.to === 'NYC')
+        ok(f + ': the shared link decodes back to the same trip');
+      else bad(f + ': shared link lost trip fields: ' + JSON.stringify(sent));
+
+      copied = null; live.shareWatchlistTrip(CUSTOM.id);
+      const last = String(copied || '').split('\n').pop();
+      if (last.includes(CUSTOM.sharedIdeaId) && !/[?&]w=/.test(last))
+        ok(f + ': a trip already shared with the family sends its short invite link instead');
+      else bad(f + ': linked trip did not use its invite link: ' + last);
+
+      copied = null; live.shareWatchlistTrip('peru');
+      const peruUrl = String(copied || '').split('\n').pop();
+      if (URL_RE.test(peruUrl) && peruUrl.length <= 80)
+        ok(f + ': sharing an unedited starter trip sends a ' + peruUrl.length + '-character link, not its notes');
+      else bad(f + ': starter-trip link: ' + peruUrl);
+
+      copied = null; live.sharePlan();
+      const plan = String(copied || '').split('\n'), planUrl = plan[plan.length - 1], planGot = D(new URL(planUrl).searchParams.get('w') || '');
+      const seedNotes = live.WATCHLIST_SEED.map((t) => t.notes).filter(Boolean);
+      if (plan[plan.length - 2] === 'Open in PIALAX:' && URL_RE.test(planUrl) && planGot && planGot.added.some((a) => a.id === ORD.id) &&
+          planGot.overrides.london && planGot.overrides.london.notes === 'Our own London note' &&
+          !Object.values(planGot.overrides).some((o) => seedNotes.includes(o.notes)))
+        ok(f + ': the whole-plan link uses ?w= too (' + planUrl.length + ' characters), with edited notes but not the seeds\' own');
+      else bad(f + ': plan share link: ' + planUrl);
+    } catch (e) { bad(f + ': share message check failed — ' + e.message); }
+
+    // Receiving: ?w= loads like ?wl= and lands the trip; hostile links change nothing.
+    const recv = (search) => {
+      const s2 = makeShim(); s2.location.search = search;
+      const { api: r } = loadApi(path.join(ROOT, f), f, EXPECT, s2);
+      r.loadWatchlist(); return r;
+    };
+    try {
+      const r = recv('?w=' + E({ overrides: { peru: { notes: 'Shared via ?w=' } }, added: [ORD] }));
+      const got = r.watchlistItem(ORD.id), peru = r.watchlistItem('peru');
+      if (got && got.title === ORD.title && got.dep === ORD.dep && got.ret === ORD.ret && got.hub === 'NYC' && got.eventDate === ORD.eventDate && peru && peru.notes === 'Shared via ?w=')
+        ok(f + ': opening a ?w= link adds the trip and applies the overrides');
+      else bad(f + ': ?w= link did not load: ' + JSON.stringify({ got, peru: peru && peru.notes }));
+      const base = recv('').WATCHLIST_SEED.length;
+      const junk = ['?w=not*base64', '?w=' + 'A'.repeat(40000), '?w=' + b64('{"v":1,"a":[]}'), '?w=' + b64('nope')];
+      const counts = junk.map((q) => { const j = recv(q); return j.watchlistItem(ORD.id) ? -1 : 0; });
+      if (counts.every((c) => c === 0) && junk.every((q) => D(q.slice(3)) === null) && base > 0)
+        ok(f + ': garbage, oversized and wrong-version ?w= links decode to nothing and load nothing');
+      else bad(f + ': a hostile ?w= link was accepted');
+      const evil = recv('?w=' + b64('{"v":2,"a":[{"i":"evil","m":"s","o":"<script>","d":"SFO"}]}'));
+      const pp = D(b64('{"v":2,"a":[{"i":"pp","m":"s","o":"LAX","d":"SFO","z":{"__proto__":{"polluted":1}}}]}'));
+      if (!evil.watchlistItem('evil') && pp && Object.getPrototypeOf(pp.added[0]) === Object.prototype && pp.added[0].polluted === undefined)
+        ok(f + ': a ?w= trip with a bad airport code is still dropped, and __proto__ passthrough is ignored');
+      else bad(f + ': hostile ?w= trip got through');
+    } catch (e) { bad(f + ': ?w= receive check failed — ' + e.message); }
+  }
 }
 
 // AC-PARITY (PIA-046) — the two files are hand-mirrored with nothing enforcing

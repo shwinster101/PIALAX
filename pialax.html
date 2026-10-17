@@ -6634,9 +6634,11 @@ function loadWatchlist() {
   // PIA-024: a shared plan link (?wl=…) reproduces the sender's whole watchlist —
   // stage overrides + any custom-added trips. URL wins over localStorage for sharing.
   try {
-    var wlp = new URLSearchParams(window.location.search).get('wl');
-    if (wlp) {
-      var s = JSON.parse(decodeURIComponent(atob(wlp)));
+    // PIA-131: compact ?w= links first; legacy ?wl= links already sent still load.
+    var wqs = new URLSearchParams(window.location.search), wv2 = wqs.get('w'), wlp = wqs.get('wl');
+    var s = wv2 ? wlShareDecode(wv2) : null;
+    if (!s && wlp) s = JSON.parse(decodeURIComponent(atob(wlp)));
+    if (s) {
       if (s && s.overrides) { _scrubStalePeruDep(s.overrides); _scrubPrebookingOverrides(s.overrides); } 
       if (s && s.overrides) WATCHLIST.forEach(function(t){ var o=s.overrides[t.id]; if (o){ if (o.stage && WATCHLIST_STAGES[o.stage]) t.stage=o.stage; if (o.sharedIdeaId && /^[A-Za-z0-9_-]{22}$/.test(String(o.sharedIdeaId))) t.sharedIdeaId=o.sharedIdeaId; if (o.notes != null) t.notes=o.notes; if (o.nextAction != null) t.nextAction=o.nextAction; if (o.dep != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.dep))) t.dep=o.dep; if (o.ret != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.ret))) t.ret=o.ret; if (o.eventDate != null && /^\d{4}-\d{2}-\d{2}$/.test(String(o.eventDate))) t.eventDate=o.eventDate; if (Array.isArray(o.blockers)) t.blockers=o.blockers.filter(function(k){ return !!BLOCKERS[k]; }); } });
       if (s && Array.isArray(s.added)) s.added.forEach(function(a){ var it = sanitizeWatchlistItem(a); if (it && !_isSeedDupMemphis(it) && !_isSeedDupNyc(it) && !WATCHLIST.some(function(x){ return x.id===it.id; })) WATCHLIST.push(it); });
@@ -6644,18 +6646,116 @@ function loadWatchlist() {
   } catch(e){}
   archivePastBookedTrips(WATCHLIST, fmtISO(new Date()));
 }
+// PIA-131: compact share links. The old ?wl= link ran the JSON through
+// encodeURIComponent, base64 and encodeURIComponent again (~900 characters for
+// one trip). ?w= is base64url of UTF-8 JSON with short keys, and an added trip
+// leaves out every field the receiver rebuilds (empties, the default title,
+// route and flight target). A starter trip's override carries only the fields
+// that differ from WATCHLIST_SEED, which every device already has (its notes
+// alone were 150-330 characters). Old ?wl= links already sent still load.
+var WL_SHARE_OVR = {stage:'s', notes:'n', nextAction:'x', blockers:'b', dep:'p', ret:'q', eventDate:'e', sharedIdeaId:'sh'};
+var WL_SHARE_ADD = {id:'i', origin:'o', dest:'d', hub:'h', dep:'p', ret:'q', stage:'s', eventDate:'e', notes:'n', nextAction:'x', blockers:'b', reminders:'r'};
+var WL_SHARE_DERIVED = ['_added','gf','mode','title','routeTxt'];
+var WL_SHARE_MAX = 32768; // far above any real plan; old ?wl= links had no cap
+function _wlBadKey(k){ return k === '__proto__' || k === 'constructor' || k === 'prototype'; }
+function _wlEmpty(v){ return v == null || v === '' || (Array.isArray(v) && !v.length); }
+function _wlB64urlEncode(str){
+  var bin = encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(m, h){ return String.fromCharCode(parseInt(h, 16)); });
+  return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+function _wlB64urlDecode(b64){
+  var s = String(b64).replace(/-/g, '+').replace(/_/g, '/');
+  while (s.length % 4) s += '=';
+  return decodeURIComponent(atob(s).split('').map(function(c){ return '%' + ('0' + c.charCodeAt(0).toString(16)).slice(-2); }).join(''));
+}
+// What the quick-add form (addWatchlistTrip) would have written for this trip.
+function _wlTripDefaults(a){
+  return { title:a.dest + ' — ' + (a.mode === 'family' ? 'family meetup idea' : 'solo trip'), routeTxt:a.origin + ' → ' + a.dest,
+    gfTo:a.mode === 'family' ? (a.hub || null) : (/^[A-Z]{3}$/.test(String(a.dest || '')) ? a.dest : null) };
+}
+function _wlPackAdded(t){
+  var a = JSON.parse(JSON.stringify(t || {})), c = {}, z = {}, d = _wlTripDefaults(a);
+  Object.keys(a).forEach(function(k){
+    var v = a[k];
+    if (WL_SHARE_DERIVED.indexOf(k) >= 0 || (k === 'stage' && v === 'watching') || _wlEmpty(v)) return;
+    if (WL_SHARE_ADD[k]) c[WL_SHARE_ADD[k]] = v; else z[k] = v;
+  });
+  if (a.mode != null) c.m = a.mode === 'family' ? 'f' : a.mode === 'solo' ? 's' : a.mode;
+  if (a.title != null && a.title !== d.title) c.ti = a.title;
+  if (a.routeTxt != null && a.routeTxt !== d.routeTxt) c.rt = a.routeTxt;
+  if (!a.gf || typeof a.gf !== 'object') c.g = 0;
+  else if (Object.keys(a.gf).some(function(k){ return k !== 'from' && k !== 'to'; })) c.g = a.gf;
+  else {
+    if (a.gf.from !== a.origin) c.f = a.gf.from == null ? null : a.gf.from;
+    if (a.gf.to !== d.gfTo) c.t = a.gf.to == null ? null : a.gf.to;
+  }
+  if (Object.keys(z).length) c.z = z;
+  return c;
+}
+function _wlUnpackAdded(c){
+  if (!c || typeof c !== 'object' || Array.isArray(c)) return null;
+  var a = {}, has = function(k){ return Object.prototype.hasOwnProperty.call(c, k); };
+  if (c.z && typeof c.z === 'object') Object.keys(c.z).forEach(function(k){ if (!_wlBadKey(k) && !WL_SHARE_ADD[k] && WL_SHARE_DERIVED.indexOf(k) < 0) a[k] = c.z[k]; });
+  a.id = c.i; a._added = true;
+  a.mode = c.m === 'f' ? 'family' : c.m === 's' ? 'solo' : c.m;
+  a.origin = has('o') ? c.o : null; a.dest = has('d') ? c.d : null; a.hub = has('h') ? c.h : null;
+  a.dep = has('p') ? c.p : null; a.ret = has('q') ? c.q : null;
+  a.stage = c.s || 'watching';
+  var d = _wlTripDefaults(a);
+  a.title = has('ti') ? c.ti : d.title; a.routeTxt = has('rt') ? c.rt : d.routeTxt;
+  if (c.g !== 0) a.gf = c.g && typeof c.g === 'object' ? c.g : { from:has('f') ? c.f : a.origin, to:has('t') ? c.t : d.gfTo };
+  a.notes = has('n') ? c.n : ''; a.eventDate = has('e') ? c.e : null;
+  a.reminders = has('r') ? c.r : []; a.nextAction = has('x') ? c.x : ''; a.blockers = has('b') ? c.b : [];
+  return a;
+}
+// payload is the legacy {overrides, added} shape; wlShareDecode returns it again.
+function wlShareEncode(payload){
+  var c = {v:2}, ov = (payload && payload.overrides) || {}, ad = (payload && payload.added) || [], seed = {};
+  (typeof WATCHLIST_SEED !== 'undefined' ? WATCHLIST_SEED : []).forEach(function(t){ seed[t.id] = t; });
+  Object.keys(ov).forEach(function(id){
+    var src = JSON.parse(JSON.stringify(ov[id] || {})), base = seed[id] || {}, o = {};
+    Object.keys(WL_SHARE_OVR).forEach(function(k){
+      if (src[k] === undefined) return;
+      if (base[k] !== undefined ? JSON.stringify(base[k]) === JSON.stringify(src[k]) : _wlEmpty(src[k])) return;
+      o[WL_SHARE_OVR[k]] = src[k];
+    });
+    if (Object.keys(o).length) { c.o = c.o || {}; c.o[id] = o; }
+  });
+  if (ad.length) c.a = ad.map(_wlPackAdded);
+  return _wlB64urlEncode(JSON.stringify(c));
+}
+function wlShareDecode(str){
+  try {
+    str = String(str || '');
+    if (!str || str.length > WL_SHARE_MAX || !/^[A-Za-z0-9_-]+$/.test(str)) return null;
+    var c = JSON.parse(_wlB64urlDecode(str));
+    if (!c || typeof c !== 'object' || c.v !== 2) return null;
+    var out = {overrides:{}, added:[]};
+    if (c.o && typeof c.o === 'object') Object.keys(c.o).forEach(function(id){
+      var src = c.o[id], o = {};
+      if (_wlBadKey(id) || !src || typeof src !== 'object') return;
+      Object.keys(WL_SHARE_OVR).forEach(function(k){ if (Object.prototype.hasOwnProperty.call(src, WL_SHARE_OVR[k])) o[k] = src[WL_SHARE_OVR[k]]; });
+      out.overrides[id] = o;
+    });
+    if (Array.isArray(c.a)) c.a.slice(0, 50).forEach(function(x){ var a = _wlUnpackAdded(x); if (a) out.added.push(a); });
+    return out;
+  } catch(e){ return null; }
+}
+// The site root, so index.html sends each person to their own phone/desktop page.
+function _wlShareUrl(payload){
+  var enc = ''; try { enc = wlShareEncode(payload); } catch(e){}
+  return window.location.origin + window.location.pathname.replace(/[^\/]*$/, '') + (enc ? '?w=' + enc : '');
+}
 // PIA-024: copy a shareable summary + link of the WHOLE plan (every watched trip).
 function sharePlan(){
   var payload = { overrides:{}, added:[] };
   WATCHLIST.forEach(function(t){ if (t._added) payload.added.push(t); else payload.overrides[t.id] = { stage:t.stage, notes:t.notes, nextAction:t.nextAction, blockers:t.blockers, dep:t.dep, ret:t.ret, eventDate:t.eventDate, sharedIdeaId:t.sharedIdeaId || undefined }; });
-  var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e){}
-  var sp = new URLSearchParams(window.location.search); sp.set('wl', enc);
-  var url = window.location.origin + window.location.pathname + '?' + sp.toString();
+  var url = _wlShareUrl(payload); // PIA-131
   var lines = WATCHLIST.slice().sort(function(a,b){ return WATCHLIST_STAGES[a.stage].order - WATCHLIST_STAGES[b.stage].order; }).map(function(t){
     var st = WATCHLIST_STAGES[t.stage] || {}; var est = watchlistEst(t);
     return (st.emoji||'') + ' ' + t.title + ' · ' + t.dep + (t.ret?'→'+t.ret:'') + (est!=null?' ≈ $'+est:'') + ' · ' + (st.lbl||t.stage);
   });
-  var summary = '📋 Our trip plan (PIALAX):\n' + lines.join('\n') + '\n\n' + url;
+  var summary = '📋 Our trip plan (PIALAX):\n' + lines.join('\n') + '\n\nOpen in PIALAX:\n' + url;
   if (typeof copyRouteText === 'function') copyRouteText(summary);
   else if (typeof showShareToast === 'function') showShareToast('Copy: ' + url);
 }
@@ -6664,14 +6764,19 @@ function shareWatchlistTrip(id){
   var payload = { overrides:{}, added:[] };
   if (item._added) payload.added.push(item);
   else payload.overrides[item.id] = { stage:item.stage, notes:item.notes, nextAction:item.nextAction, blockers:item.blockers, dep:item.dep, ret:item.ret, eventDate:item.eventDate };
-  var enc = ''; try { enc = btoa(encodeURIComponent(JSON.stringify(payload))); } catch(e) {}
-  var url = window.location.origin + window.location.pathname + '?wl=' + encodeURIComponent(enc);
-  var dateLine = item.dep ? item.dep + (item.ret ? ' → ' + item.ret : '') : 'Dates TBD';
-  var eventLine = item.eventDate ? '\n📌 Event: ' + item.eventDate : '';
+  // PIA-131: a trip already shared with the family sends its short invite link
+  // (preview card, RSVP page); anything else gets the compact ?w= link.
+  var url = item.sharedIdeaId && /^[A-Za-z0-9_-]{22}$/.test(String(item.sharedIdeaId)) && typeof tripIdeaInviteUrl === 'function'
+    ? tripIdeaInviteUrl(item.sharedIdeaId) : _wlShareUrl(payload);
+  var flightTo = item.gf && item.gf.to;
+  var routeLine = item.routeTxt ? '\n✈️ ' + item.routeTxt + (flightTo && /^[A-Z]{3}$/.test(String(flightTo)) && flightTo !== item.dest ? ' · flights to ' + flightTo : '') : '';
+  var dateLine = item.dep ? ((typeof tripIdeaDateRange === 'function' && tripIdeaDay(item.dep)) ? tripIdeaDateRange(item.dep, item.ret) : item.dep + (item.ret ? ' → ' + item.ret : '')) : 'Dates TBD';
+  var eventLine = item.eventDate ? '\n📌 Event: ' + ((typeof tripIdeaDay === 'function' && tripIdeaDay(item.eventDate)) || item.eventDate) : '';
   var noteLine = item.notes ? '\nReason: ' + item.notes : '';
-  var summary = '📋 Proposed trip: ' + item.title + '\n' +
+  // The URL sits alone on the last line so every messaging app links all of it.
+  var summary = '📋 Proposed trip: ' + item.title + routeLine + '\n' +
     '📅 ' + dateLine + eventLine + noteLine + '\n\n' +
-    'Open this idea in PIALAX: ' + url;
+    'Open in PIALAX:\n' + url;
   if (typeof copyRouteText === 'function') copyRouteText(summary);
   else if (typeof showShareToast === 'function') showShareToast('Copy: ' + url);
 }
@@ -11950,7 +12055,7 @@ document.addEventListener('click', function(e){
 function initShellView() {
   try {
     var sp = new URLSearchParams(window.location.search);
-    if (sp.get('wl') != null) { setView('watchlist'); return; }
+    if (sp.get('wl') != null || sp.get('w') != null) { setView('watchlist'); return; } // PIA-131: ?w= is the compact form
     var deep = ['hub','trip','mode','dep','ret','mhub','md','pia','ms','ord','lhr'].some(function(k){ return sp.get(k) != null; });
     if (!deep) { S.mapView = DEFAULT_MAP_VIEW; setView(DEFAULT_HOME_VIEW); return; }
     setView('meetup');
