@@ -184,3 +184,9 @@ Source: `SPRINT_THANKSGIVING_2026-10.md` (read the build-decisions box at the to
 | PIA-129 | could | Thanksgiving total board: plan vs cheapest, booked vs not. Savings are counted only between live fares. | both HTML, `trip-idea-builder.js`, tests |
 | PIA-130 | could | Alert path hardening: `/alerts/status` needs the token, the cron goes through the KV fare cache and spend caps, and alerts are per-leg watches. | `worker.js`, both HTML, tests, `verify-live.sh` |
 | PIA-128 | could | **Open, waiting on infra decisions.** Turn on server alerts (cron slot or `POST /alerts/run`, ALERTS KV, `RESEND_API_KEY`). | `wrangler.toml` |
+
+## Follow-ups after the Thanksgiving sprint
+
+| Ticket | Tier | Intent | Files |
+|---|---|---|---|
+| PIA-131 | must | **Shipped on its branch.** A shared trip link is short enough to paste into a family chat without wrapping into a wall of text. It still opens the same trip on any device, and links already sent keep working. | both HTML, `scripts/test-core.js` |

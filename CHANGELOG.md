@@ -12,6 +12,18 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed (PIA-131) — shorter share links
+- **"Share idea" link:** the ORD trip's link went from 900 characters to 208.
+  - **Cause:** the old `?wl=` link encoded the trip twice, escaped it a third time, and sent every empty or derived field.
+  - **Now:** the new `?w=` link is base64url with short keys. It contains no `%`, `=` or `+`.
+- **Starter trips:** a shared starter trip sends only what you changed, not its own built-in notes. An untouched one is a 51-character link.
+- **Linked trips:** a trip already shared with the family sends its short invite link instead.
+- **Device routing:** links point to the site root, so each device opens its own phone or desktop page.
+- **Message layout:**
+  - Dates read like "Tue Dec 22 – Sat Dec 26", and the route shows the flight target.
+  - The link sits alone on the last line.
+- **Compatibility:** old `?wl=` links already sent still open. Every shared trip still goes through `sanitizeWatchlistItem`.
+
 ### Fixed (sprint review, before merge)
 - **Security:**
   - Google's results link is normalised when parsed and refused on read if it carries quotes, backticks or backslashes, so it can't break out of an `href` on the planner cards.
