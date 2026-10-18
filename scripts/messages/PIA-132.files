@@ -1,0 +1,14 @@
+scripts/trip-model.js
+scripts/test-trip-model.js
+scripts/test-trip-model.sh
+scripts/fixtures/idea-thanksgiving-legacy.json
+scripts/fixtures/idea-diwali.json
+scripts/fixtures/idea-tahoe.json
+scripts/fixtures/idea-8members.json
+scripts/fixtures/idea-undated.json
+scripts/fixtures/idea-lax-local.json
+scripts/fixtures/v1-watchlist-storage.json
+scripts/preflight.sh
+CHANGELOG.md
+scripts/messages/PIA-132.msg
+scripts/messages/PIA-132.files

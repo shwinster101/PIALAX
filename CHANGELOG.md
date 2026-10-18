@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-132) — v2 groundwork, not used by the app yet
+- **One trip model for v2.** `scripts/trip-model.js` turns one shared trip record into everything a v2 screen will show: one place, one plan, one head count, one stage, everyone's dates, their Google Flights links and the one total. It runs offline with no clock, so every screen and every phone reads the same facts.
+  - Each person's dates are their own where they set them, else the plan's. Moving the plan never rewrites dates someone set, and booked travelers keep the days they booked.
+  - Hosts (home airport at the destination or in its metro area, like Mom & Dad for Peoria) count as in until they answer. They are never nudged and get no flight links or searches.
+  - Totals use only real cached fares, each marked fresh, stale, unsearched or "no fares". A missing fare is never estimated, and no price is read from the trip record. The cheapest-week bars use the same pricing rule, so a bar and the trip total always agree.
+  - The live v1 Thanksgiving trip reads safely: its stale 11/25 plan, frozen $704 and "Me" label are never shown as facts, and Ashwin's link keeps his own 11/20–11/29.
+  - Answer, booking and organizer-edit builders never drop a date, note, pick or member, proven against the real Worker in tests. They never write a "Me" or faceless name or send a price with 🔒, and they build nothing the Worker would refuse (on a paid or dropped trip, reopen before an edit that needs answers).
+  - A built-in table of 348 airports (from OurAirports). Any other 3-letter code still works, just without a city or map position.
+- New `test-trip-model` suite (179 checks) runs in preflight, offline, with today pinned to 2026-10-17.
+
 ### Fixed (PIA-131) — shorter share links
 - **"Share idea" link:** the ORD trip's link went from 900 characters to 208.
   - **Cause:** the old `?wl=` link encoded the trip twice, escaped it a third time, and sent every empty or derived field.

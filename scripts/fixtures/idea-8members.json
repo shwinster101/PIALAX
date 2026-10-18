@@ -1,0 +1,155 @@
+{
+  "v": 1,
+  "id": "m8GrandmaNinetieth0c03",
+  "created_at": "2026-10-15T09:00:00.000Z",
+  "updated_at": "2026-10-15T09:00:00.000Z",
+  "idea": {
+    "title": "🎂 Grandma Josephine’s 90th birthday weekend in Savannah",
+    "destination": {
+      "city": "Savannah",
+      "airport": "SAV"
+    },
+    "dates": {
+      "departure": "2026-12-11",
+      "return": "2026-12-14",
+      "searchStart": "",
+      "searchEnd": ""
+    },
+    "recommendation": null,
+    "notes": "📌2026-12-12 Party at the riverfront hall",
+    "members": [
+      {
+        "code": "bartholomewmontgomeryfitzgera-dj",
+        "label": "🦊 Bartholomew Montgomery-Fitzgerald",
+        "airport": "ORD",
+        "headcount": 1
+      },
+      {
+        "code": "anastasiakonstantinopoulou-x1",
+        "label": "🐻 Anastasia Konstantinopoulou",
+        "airport": "ATL",
+        "headcount": 2
+      },
+      {
+        "code": "maximilianoyelaranwhitfield-5u",
+        "label": "🐼 Maximilian Oyelaran-Whitfield",
+        "airport": "QQQ",
+        "headcount": 1
+      },
+      {
+        "code": "samlee-kz",
+        "label": "🐨 Sam Lee",
+        "airport": "SEA",
+        "headcount": 1
+      },
+      {
+        "code": "samlee-sb",
+        "label": "🐯 Sam Lee",
+        "airport": "PDX",
+        "headcount": 1
+      },
+      {
+        "code": "guadalupehernndezvillanueva-5m",
+        "label": "🦉 Guadalupe Hernández-Villanueva",
+        "airport": "SAV",
+        "headcount": 2
+      },
+      {
+        "code": "oluwaseunadebayorichardson-ew",
+        "label": "🐙 Oluwaseun Adebayo-Richardson",
+        "airport": "JFK",
+        "headcount": 1
+      },
+      {
+        "code": "grandmajosephine-nf",
+        "label": "🐝 Grandma Josephine",
+        "airport": "SAV",
+        "headcount": 1
+      }
+    ]
+  },
+  "responses": {
+    "bartholomewmontgomeryfitzgera-dj": {
+      "member": "bartholomewmontgomeryfitzgera-dj",
+      "status": "in",
+      "origin": "ORD",
+      "available_from": "2026-12-10",
+      "available_to": "2026-12-14",
+      "note": "Driving down from Chicago if flights are bad",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-15T10:00:00.000Z"
+    },
+    "anastasiakonstantinopoulou-x1": {
+      "member": "anastasiakonstantinopoulou-x1",
+      "status": "maybe",
+      "origin": "ATL",
+      "available_from": "",
+      "available_to": "",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-15T11:00:00.000Z"
+    },
+    "maximilianoyelaranwhitfield-5u": {
+      "member": "maximilianoyelaranwhitfield-5u",
+      "status": "in",
+      "origin": "QQQ",
+      "available_from": "",
+      "available_to": "",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-15T12:00:00.000Z"
+    },
+    "samlee-kz": {
+      "member": "samlee-kz",
+      "status": "out",
+      "origin": "SEA",
+      "available_from": "",
+      "available_to": "",
+      "note": "Work",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-15T13:00:00.000Z"
+    },
+    "samlee-sb": {
+      "member": "samlee-sb",
+      "status": "in",
+      "origin": "PDX",
+      "available_from": "2026-12-12",
+      "available_to": "2026-12-13",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-15T14:00:00.000Z"
+    },
+    "oluwaseunadebayorichardson-ew": {
+      "member": "oluwaseunadebayorichardson-ew",
+      "status": "in",
+      "origin": "EWR",
+      "available_from": "",
+      "available_to": "",
+      "note": "📞",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-15T15:00:00.000Z"
+    }
+  },
+  "decision": {
+    "stage": "proposed",
+    "chosen": null,
+    "chosen_at": null,
+    "estimate_total": null,
+    "actual_total": null,
+    "booked_at": null,
+    "delta_pct": null
+  },
+  "log": [
+    {
+      "at": "2026-10-15T09:00:00.000Z",
+      "event": "created",
+      "by": null
+    }
+  ]
+}

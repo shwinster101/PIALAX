@@ -1,0 +1,97 @@
+{
+  "overrides": {
+    "nyc": {
+      "stage": "booked",
+      "notes": "Booked: B6 424 LAX 9:49a → JFK 6:24p, Fri Aug 28. First NYC visit since the move.",
+      "nextAction": "",
+      "blockers": [],
+      "dep": "2026-08-28",
+      "ret": null,
+      "eventDate": null
+    },
+    "memphis": {
+      "stage": "booked",
+      "notes": "BOOKED: DL 4903 LGA 8:41a → MEM 10:36a, Mon Aug 31.",
+      "nextAction": "",
+      "blockers": [],
+      "dep": "2026-08-31",
+      "ret": "2026-09-03",
+      "eventDate": null
+    },
+    "peru": {
+      "stage": "completed",
+      "notes": "BOOKED: LATAM via Santiago.",
+      "nextAction": "",
+      "blockers": [],
+      "dep": "2026-09-04",
+      "ret": "2026-09-13",
+      "eventDate": null
+    },
+    "thanksgiving": {
+      "stage": "planning",
+      "notes": "Thanksgiving at Mom & Dad’s in Peoria, with the Peoria parade.",
+      "nextAction": "Ask the family — everyone picks arrive / leave",
+      "blockers": [
+        "dates"
+      ],
+      "dep": "2026-11-20",
+      "ret": "2026-11-29",
+      "eventDate": "2026-11-26",
+      "sharedIdeaId": "tgLegacyThanksgiving01"
+    },
+    "tgiving": {
+      "stage": "completed",
+      "notes": "Postponed — the shower is being rescheduled.",
+      "nextAction": "Postponed — revive when the shower is rescheduled",
+      "blockers": [],
+      "dep": "2026-11-26",
+      "ret": "2026-11-29",
+      "eventDate": null
+    },
+    "london": {
+      "stage": "completed",
+      "notes": "Completed — flew Jun 25, returned Jul 3.",
+      "nextAction": "",
+      "blockers": [],
+      "dep": "2026-06-25",
+      "ret": "2026-07-03",
+      "eventDate": null
+    }
+  },
+  "added": [
+    {
+      "id": "builder-mg1x2y",
+      "_added": true,
+      "mode": "family",
+      "title": "Raleigh · Trip idea",
+      "routeTxt": "PIA_ORD → RDU",
+      "origin": "PIA",
+      "dest": "RDU",
+      "dep": "2026-11-06",
+      "ret": "2026-11-09",
+      "stage": "watching",
+      "notes": "",
+      "reminders": [],
+      "nextAction": "Refresh pricing before booking",
+      "blockers": [],
+      "eventDate": "2026-11-08",
+      "sharedIdeaId": "dwDiwaliRaleigh2026a01",
+      "gf": {
+        "from": "PIA",
+        "to": "RDU"
+      }
+    },
+    {
+      "id": "builder-bad001",
+      "_added": true,
+      "mode": "solo",
+      "title": "Broken link",
+      "dest": "SFO",
+      "dep": "2026-12-01",
+      "ret": null,
+      "stage": "watching",
+      "eventDate": "soon",
+      "sharedIdeaId": "not-an-id"
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "v": 1,
+  "id": "tgLegacyThanksgiving01",
+  "created_at": "2026-10-04T18:12:40.511Z",
+  "updated_at": "2026-10-04T18:12:40.511Z",
+  "idea": {
+    "title": "🦃 Thanksgiving at home — Peoria",
+    "destination": {
+      "city": "🦃 Thanksgiving at home — Peoria",
+      "airport": "PIA"
+    },
+    "dates": {
+      "departure": "2026-11-25",
+      "return": "2026-11-29",
+      "searchStart": "",
+      "searchEnd": ""
+    },
+    "recommendation": {
+      "city": "🦃 Thanksgiving at home — Peoria",
+      "airport": "PIA",
+      "hub": "",
+      "fareFrom": "",
+      "fareTo": "",
+      "departure": "2026-11-25",
+      "return": "2026-11-29",
+      "totalFare": null,
+      "perTicketFare": null,
+      "headcount": 1,
+      "priceStatus": "estimated",
+      "familyTotal": 704,
+      "familyStatus": "cached"
+    },
+    "notes": "Thanksgiving at Mom & Dad’s in Peoria, with the Peoria parade. Plan: fly in direct to PIA Fri Nov 20, fly home from ORD Sun Nov 29 (two one-ways). Arrivals can still be staggered — everyone picks their own arrive / leave dates on the RSVP link.",
+    "members": [
+      {
+        "code": "PIA",
+        "label": "Mom & Dad",
+        "airport": "PIA",
+        "headcount": 2
+      },
+      {
+        "code": "LAX",
+        "label": "Me",
+        "airport": "LAX",
+        "headcount": 1
+      },
+      {
+        "code": "LGA",
+        "label": "Anjo",
+        "airport": "LGA",
+        "headcount": 1
+      }
+    ]
+  },
+  "responses": {
+    "LAX": {
+      "member": "LAX",
+      "status": "in",
+      "origin": "LAX",
+      "available_from": "2026-11-20",
+      "available_to": "2026-11-29",
+      "note": "",
+      "arrive_at": "PIA",
+      "leave_from": "ORD",
+      "updated_at": "2026-10-05T01:02:03.000Z"
+    },
+    "LGA": {
+      "member": "LGA",
+      "status": "in",
+      "origin": "LGA",
+      "available_from": "2026-11-24",
+      "available_to": "2026-11-29",
+      "note": "Arriving late, PTO approved (entered by Ashwin)",
+      "arrive_at": "PIA",
+      "leave_from": "ORD",
+      "updated_at": "2026-10-06T15:20:11.000Z"
+    }
+  },
+  "decision": {
+    "stage": "chosen",
+    "chosen": {
+      "city": "🦃 Thanksgiving at home — Peoria",
+      "airport": "PIA",
+      "hub": "",
+      "fareFrom": "",
+      "fareTo": "",
+      "departure": "2026-11-25",
+      "return": "2026-11-29",
+      "totalFare": null,
+      "perTicketFare": null,
+      "headcount": 1,
+      "priceStatus": "estimated",
+      "familyTotal": 704,
+      "familyStatus": "cached"
+    },
+    "chosen_at": "2026-10-07T03:44:00.000Z",
+    "estimate_total": 704,
+    "actual_total": null,
+    "booked_at": null,
+    "delta_pct": null
+  },
+  "log": [
+    {
+      "at": "2026-10-04T18:12:40.511Z",
+      "event": "created",
+      "by": null
+    },
+    {
+      "at": "2026-10-05T01:02:03.000Z",
+      "event": "rsvp:in",
+      "by": "LAX"
+    },
+    {
+      "at": "2026-10-06T15:20:11.000Z",
+      "event": "rsvp:in",
+      "by": "LGA"
+    },
+    {
+      "at": "2026-10-07T03:44:00.000Z",
+      "event": "decision:chosen",
+      "by": "organizer"
+    }
+  ]
+}

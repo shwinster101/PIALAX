@@ -1,0 +1,115 @@
+{
+  "v": 1,
+  "id": "lxBeachWeekendLAX00d05",
+  "created_at": "2026-10-16T19:00:00.000Z",
+  "updated_at": "2026-10-16T19:00:00.000Z",
+  "idea": {
+    "title": "🌊 LA beach weekend",
+    "destination": {
+      "city": "Los Angeles",
+      "airport": "LAX"
+    },
+    "dates": {
+      "departure": "2026-12-04",
+      "return": "2026-12-07",
+      "searchStart": "",
+      "searchEnd": ""
+    },
+    "recommendation": null,
+    "notes": "",
+    "members": [
+      {
+        "code": "priya-x1",
+        "label": "🦊 Priya",
+        "airport": "DEN",
+        "headcount": 1
+      },
+      {
+        "code": "maya-x2",
+        "label": "🐼 Maya",
+        "airport": "SNA",
+        "headcount": 1
+      },
+      {
+        "code": "ashwin-x3",
+        "label": "🌴 Ashwin",
+        "airport": "LAX",
+        "headcount": 1
+      },
+      {
+        "code": "leo-x4",
+        "label": "🐸 Leo",
+        "airport": "SEA",
+        "headcount": 1
+      },
+      {
+        "code": "anjo-x5",
+        "label": "🗽 Anjo",
+        "airport": "LGA",
+        "headcount": 1
+      }
+    ]
+  },
+  "responses": {
+    "priya-x1": {
+      "member": "priya-x1",
+      "status": "in",
+      "origin": "DEN",
+      "available_from": "",
+      "available_to": "",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-16T19:01:00.000Z"
+    },
+    "ashwin-x3": {
+      "member": "ashwin-x3",
+      "status": "in",
+      "origin": "LAX",
+      "available_from": "",
+      "available_to": "",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-16T19:02:00.000Z"
+    },
+    "leo-x4": {
+      "member": "leo-x4",
+      "status": "in",
+      "origin": "PDX",
+      "available_from": "",
+      "available_to": "",
+      "note": "Flying from Portland that week",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-16T20:00:00.000Z"
+    },
+    "anjo-x5": {
+      "member": "anjo-x5",
+      "status": "maybe",
+      "origin": "LGA",
+      "available_from": "2026-12-05",
+      "available_to": "2026-12-07",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-16T21:00:00.000Z"
+    }
+  },
+  "decision": {
+    "stage": "proposed",
+    "chosen": null,
+    "chosen_at": null,
+    "estimate_total": null,
+    "actual_total": null,
+    "booked_at": null,
+    "delta_pct": null
+  },
+  "log": [
+    {
+      "at": "2026-10-16T19:00:00.000Z",
+      "event": "created",
+      "by": null
+    }
+  ]
+}

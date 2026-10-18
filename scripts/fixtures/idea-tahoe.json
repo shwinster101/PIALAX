@@ -1,0 +1,98 @@
+{
+  "v": 1,
+  "id": "thTahoeSkiWeekend26b02",
+  "created_at": "2026-10-12T20:00:00.000Z",
+  "updated_at": "2026-10-12T20:00:00.000Z",
+  "idea": {
+    "title": "🎿 Tahoe ski weekend",
+    "destination": {
+      "city": "Reno",
+      "airport": "RNO"
+    },
+    "dates": {
+      "departure": "2026-11-27",
+      "return": "2026-11-30",
+      "searchStart": "",
+      "searchEnd": ""
+    },
+    "recommendation": null,
+    "notes": "",
+    "members": [
+      {
+        "code": "priya-d4",
+        "label": "🦊 Priya",
+        "airport": "DEN",
+        "headcount": 1
+      },
+      {
+        "code": "maya-s9",
+        "label": "🐼 Maya",
+        "airport": "SFO",
+        "headcount": 1
+      },
+      {
+        "code": "ashwin-l2",
+        "label": "🌴 Ashwin",
+        "airport": "LAX",
+        "headcount": 1
+      },
+      {
+        "code": "leo-w6",
+        "label": "🐸 Leo",
+        "airport": "SEA",
+        "headcount": 1
+      }
+    ]
+  },
+  "responses": {
+    "priya-d4": {
+      "member": "priya-d4",
+      "status": "in",
+      "origin": "DEN",
+      "available_from": "",
+      "available_to": "",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-12T20:01:00.000Z"
+    },
+    "maya-s9": {
+      "member": "maya-s9",
+      "status": "in",
+      "origin": "SFO",
+      "available_from": "",
+      "available_to": "",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-13T08:30:00.000Z"
+    },
+    "ashwin-l2": {
+      "member": "ashwin-l2",
+      "status": "maybe",
+      "origin": "LAX",
+      "available_from": "",
+      "available_to": "",
+      "note": "Depends on Thanksgiving dates",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-14T18:45:00.000Z"
+    }
+  },
+  "decision": {
+    "stage": "proposed",
+    "chosen": null,
+    "chosen_at": null,
+    "estimate_total": null,
+    "actual_total": null,
+    "booked_at": null,
+    "delta_pct": null
+  },
+  "log": [
+    {
+      "at": "2026-10-12T20:00:00.000Z",
+      "event": "created",
+      "by": null
+    }
+  ]
+}

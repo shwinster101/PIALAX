@@ -1,0 +1,81 @@
+{
+  "v": 1,
+  "id": "cyCaryShowerUndated004",
+  "created_at": "2026-10-17T15:30:00.000Z",
+  "updated_at": "2026-10-17T15:30:00.000Z",
+  "idea": {
+    "title": "🎉 Cary baby shower — postponed",
+    "destination": {
+      "city": "Raleigh",
+      "airport": "RDU"
+    },
+    "dates": {
+      "departure": "",
+      "return": "",
+      "searchStart": "2026-12-18",
+      "searchEnd": "2027-01-04"
+    },
+    "recommendation": null,
+    "notes": "🌙4 New date TBD",
+    "members": [
+      {
+        "code": "momdad-c1",
+        "label": "🌽 Mom & Dad",
+        "airport": "PIA",
+        "headcount": 2
+      },
+      {
+        "code": "ashwin-c3",
+        "label": "🌴 Ashwin",
+        "airport": "LAX",
+        "headcount": 1
+      },
+      {
+        "code": "anjo-c4",
+        "label": "🗽 Anjo",
+        "airport": "LGA",
+        "headcount": 1
+      }
+    ]
+  },
+  "responses": {
+    "ashwin-c3": {
+      "member": "ashwin-c3",
+      "status": "in",
+      "origin": "LAX",
+      "available_from": "2026-12-19",
+      "available_to": "2026-12-26",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-17T16:00:00.000Z"
+    },
+    "anjo-c4": {
+      "member": "anjo-c4",
+      "status": "in",
+      "origin": "LGA",
+      "available_from": "2026-12-21",
+      "available_to": "2026-12-27",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-17T16:30:00.000Z"
+    }
+  },
+  "decision": {
+    "stage": "proposed",
+    "chosen": null,
+    "chosen_at": null,
+    "estimate_total": null,
+    "actual_total": null,
+    "booked_at": null,
+    "delta_pct": null
+  },
+  "log": [
+    {
+      "at": "2026-10-17T15:30:00.000Z",
+      "event": "created",
+      "by": null
+    }
+  ]
+}

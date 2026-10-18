@@ -1,0 +1,81 @@
+{
+  "v": 1,
+  "id": "dwDiwaliRaleigh2026a01",
+  "created_at": "2026-10-10T16:00:00.000Z",
+  "updated_at": "2026-10-10T16:00:00.000Z",
+  "idea": {
+    "title": "🪔 Diwali in Raleigh",
+    "destination": {
+      "city": "Raleigh",
+      "airport": "RDU"
+    },
+    "dates": {
+      "departure": "2026-11-06",
+      "return": "2026-11-09",
+      "searchStart": "",
+      "searchEnd": ""
+    },
+    "recommendation": null,
+    "notes": "📌2026-11-08 Lakshmi puja Sunday evening",
+    "members": [
+      {
+        "code": "momdad-k3",
+        "label": "🌽 Mom & Dad",
+        "airport": "PIA",
+        "headcount": 2
+      },
+      {
+        "code": "ashwin-p8",
+        "label": "🌴 Ashwin",
+        "airport": "LAX",
+        "headcount": 1
+      },
+      {
+        "code": "anjo-z5",
+        "label": "🗽 Anjo",
+        "airport": "LGA",
+        "headcount": 1
+      }
+    ]
+  },
+  "responses": {
+    "momdad-k3": {
+      "member": "momdad-k3",
+      "status": "in",
+      "origin": "PIA",
+      "available_from": "",
+      "available_to": "",
+      "note": "📞",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-11T02:10:00.000Z"
+    },
+    "ashwin-p8": {
+      "member": "ashwin-p8",
+      "status": "in",
+      "origin": "LAX",
+      "available_from": "",
+      "available_to": "",
+      "note": "",
+      "arrive_at": "",
+      "leave_from": "",
+      "updated_at": "2026-10-11T02:11:00.000Z"
+    }
+  },
+  "decision": {
+    "stage": "proposed",
+    "chosen": null,
+    "chosen_at": null,
+    "estimate_total": null,
+    "actual_total": null,
+    "booked_at": null,
+    "delta_pct": null
+  },
+  "log": [
+    {
+      "at": "2026-10-10T16:00:00.000Z",
+      "event": "created",
+      "by": null
+    }
+  ]
+}
