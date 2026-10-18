@@ -19,7 +19,8 @@ while [ -L "$SOURCE" ]; do
   [[ "$SOURCE" != /* ]] && SOURCE="$DIR/$SOURCE"
 done
 HERE="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
-FILES=("$HERE/pialax.html" "$HERE/pialax-mobile.html")
+# PIA-134: app.html (the v2 shell) gets the same console.log / secret / <script> checks as the v1 pair.
+FILES=("$HERE/pialax.html" "$HERE/pialax-mobile.html" "$HERE/app.html")
 fail=0
 
 step() { printf "\n▶ %s\n" "$1"; }
@@ -137,8 +138,11 @@ fi
 # DOES block the push, same as every other step above. test-viewport.sh is
 # deliberately NOT run here — it needs a browser and takes real wall-clock
 # time, so it stays a manual/CI-optional check rather than a pre-push gate.
+# PIA-134: test-app.sh (the v2 shell in Node) and test-words.sh (the strict word
+# gate over app.html's rendered screens and popups) run here; test-words skips
+# itself, like the others, when Playwright is missing.
 step "8/8  trip-assistant test suites"
-suites=(test-core.sh test-extraction.sh test-worker.sh test-trip-idea.sh test-trust.sh test-trip-model.sh test-gflinks.sh)
+suites=(test-core.sh test-extraction.sh test-worker.sh test-trip-idea.sh test-trust.sh test-trip-model.sh test-gflinks.sh test-app.sh test-words.sh)
 for s in "${suites[@]}"; do
   sf="$HERE/scripts/$s"
   if [ ! -f "$sf" ]; then

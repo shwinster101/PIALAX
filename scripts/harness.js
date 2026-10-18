@@ -177,4 +177,28 @@ function loadApi(filepath, label, EXPECT, shimOverrides) {
   const missing = EXPECT.filter((n) => typeof api[n] === 'undefined');
   return { api, missing };
 }
-module.exports = { extractAppBody, makeElementStub, makeLocalStorage, makeShim, loadApi };
+
+// ---- PIA-134: the app file is an argument --------------------------------
+// v1 stays the default: with no file named, the harness means the v1 pair. The
+// v2 shell (app.html) uses the same markers, so `loadApi(app.html, …)` and
+// `node scripts/harness.js app.html` work on it unchanged.
+const V1_APP_FILES = ['pialax.html', 'pialax-mobile.html'];
+function appFiles(args) {
+  const named = (args || []).filter((a) => typeof a === 'string' && /\.html?$/i.test(a));
+  return named.length ? named : V1_APP_FILES.slice();
+}
+// CLI: `node scripts/harness.js [root] [file.html …]` checks that the app block is found in each file.
+if (require.main === module) {
+  const path = require('path');
+  const args = process.argv.slice(2);
+  const root = args[0] && !/\.html?$/i.test(args[0]) ? args.shift() : path.join(__dirname, '..');
+  let bad = 0;
+  appFiles(args).forEach((f) => {
+    try {
+      const body = extractAppBody(fs.readFileSync(path.isAbsolute(f) ? f : path.join(root, f), 'utf8'), f);
+      process.stdout.write('  OK  ' + f + ': app block found (' + body.length + ' chars)\n');
+    } catch (e) { bad++; process.stdout.write('  XX  ' + f + ': ' + e.message + '\n'); }
+  });
+  process.exit(bad ? 1 : 0);
+}
+module.exports = { extractAppBody, makeElementStub, makeLocalStorage, makeShim, loadApi, appFiles, V1_APP_FILES };

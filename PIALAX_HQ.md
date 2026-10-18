@@ -152,9 +152,9 @@ Guardrails:
 
 ## 6. Constraints (locked, do not violate)
 
-- Code edits live in `pialax.html` + `pialax-mobile.html` only. (Tooling-only files like `scripts/*.sh`, `MITIGATED.md`, `LESSONS_LEARNED_*.md`, and `PIALAX_HQ.md` itself are infra/docs and editable when their owning prompt authorizes — they are NOT code.)
+- Code edits live in `pialax.html` + `pialax-mobile.html` only. (Tooling-only files like `scripts/*.sh`, `MITIGATED.md`, `LESSONS_LEARNED_*.md`, and `PIALAX_HQ.md` itself are infra/docs and editable when their owning prompt authorizes — they are NOT code.) **Amended 2026-10-18 (PIA-134):** v2 tickets (PIA-134 … PIA-147) edit `app.html` + `scripts/trip-model.js` instead and must not touch the v1 files, `index.html` or `scripts/trip-idea-builder.js` before the cutover — see §12.
 - "git push" / "push to github" → commit + push to `shwinster101/PIALAX`.
-- FAMILY array is date-aware: JFK after 2026-09-01.
+- FAMILY array is date-aware: JFK after 2026-09-01. (v2: the trip model's `familyForDate` keeps this rule — Anjo at JAX before 2026-09-01, LGA from then on, JFK through the NY set — and the ORD drive pivot for Peoria stays; see §12.)
 - Family composition: 4 people total — PIA=2 (Mom & Dad), LAX=1 (Ashwin), JAX/JFK=1 (Sister). Not 1 per airport.
 - Auditor outputs 5 systems segmented patch / minor / major, ending in a proposal artifact.
 - **Acceptance criteria are written at intent-level, not implementation-level (2026-05-25).** Example: "modern SRI integrity hash present on each CDN script" — NOT "sha384-…". This avoids the sha384→sha512 amendment ping-pong observed on PIA-001 (T2 shipped sha512 because it was cdnjs's default and strictly stronger; T3 flagged the ticket text as the bug, not the impl). When intent and implementation diverge in a non-regressive direction, T3 returns GO and T1 amends the ticket; do NOT re-implement.
@@ -293,3 +293,33 @@ email delivery is preview-only until PIA-052.
 
 _Source: sprint spec `SPRINT_PROPOSAL_2026-08-02` (verbal), tickets
 PIA-046 through PIA-051, this file's §10 positioning principle unchanged._
+
+---
+
+## 12. v2 — `app.html`, its decisions, the word rule and the cutover (PIA-134, 2026-10-18)
+
+**Why.** v1 grew two trip models (the watchlist card and the shared `/idea` doc), estimated prices that disagreed with each other, and screens with hundreds of words. v2 is a new single file, `app.html`, built beside v1 on `main` and linked from nowhere until the cutover, so the family keeps using v1 until v2 is proven.
+
+**The decisions every v2 ticket inherits**
+
+| | Decision | What it means for a ticket |
+|---|---|---|
+| **D1** | Purposes, not features | Each v1 feature's purpose is served by a v2 element or deliberately dropped (the redesign spec's feature-disposition table). A ticket may retire a v1 control if its purpose is covered. |
+| **D2** | One record | The shared `/idea` doc is the only store of trip facts; `tripModel` (scripts/trip-model.js) derives every screen from it on every render. No screen keeps its own dates, hub, people, stage or total. |
+| **D3** | The shared watchlist is a list of ids | Each phone keeps the trips it opened (`pialax_watchlist_v2`); trips travel by link (`?idea=`, the list link `?l=<id>.<id>…&f=<face>`, the organizer's own-devices links). No backend list. Acceptable only if people understand it: a 2-person comprehension check ("Where did Tahoe come from? Will new ideas appear?") is owed before cutover. |
+| **D4** | Cheapest week on demand | Organizer-initiated, real searches only, the cost shown before spending, never a synthetic price. |
+| **D5** | Desktop = the phone app in a centred column | One `@media (min-width:700px)` block; at cutover the v1 pages become redirect shims. |
+
+**The strict word rule.** A word is a visible whitespace-separated token containing a Unicode letter — tab and segment labels, codes, month names, names, buttons, placeholders and typed values all count. Free: trip names (`[data-free]`), numerals, prices, dates, emoji, glyphs and shapes. Every screen ≤10 words, every popup (sheet, long-press label, toast) ≤20, in every state. `scripts/test-words.sh` counts the rendered DOM in Chromium on fixture phones (8 members with long names, unknown airports, a revealed token, long typed values, a failed refresh) and fails the gate; it is in preflight and skips itself without Playwright. Test & Eval (T3) treats a word-budget failure like a failing assertion, never as a style note.
+
+**Amended domain rules.** The mock / estimate engine is retired for v2 (no `getMock`, sample fares, meetup estimators or seeded personal trips in `app.html`; an unsearched fare is shown as unsearched). The ORD drive pivot and `familyForDate` are kept, inside the trip model. Keys shared with v1 are read and written in v1's exact formats; v2 never deletes or replaces an edit key and reads `pialax_watchlist_v1` once without writing it. v2's list link uses `?l=` because v1 owns `?w=` (PIA-131) and `?wl=`.
+
+**Build and cutover plan**
+
+1. **PIA-134** — the shell: tabs, sheets, ⓘ / long-press labels, ⚙, the trip store and router, the word gate, the drift test, preflight coverage.
+2. **PIA-135 … PIA-145** — the screens on that shell: Ideas, create, trip view and RSVP, dates, booking, prices, cheapest week, Family, Map, Calendar, then the job-flow / viewport / comprehension suite. Each ticket keeps `test-app`, `test-words` and `test-viewport` green and edits only `app.html`, `scripts/trip-model.js` and their tests.
+3. **PIA-146** — the family's history and the live v1 trips are brought across (P-migrate for legacy docs, a one-time import).
+4. **PIA-147 — cutover and v2.0.0.** `index.html`, `pialax.html` and `pialax-mobile.html` become redirect shims to `app.html` (query and hash kept, no standalone web-app mode); v1's code, its parity rule and the 3-way builder drift test are retired; CHANGELOG `[2.0.0]` lists the breaking changes. Preconditions: PIA-146 done the same day; no v2 link shared before; the prototype's Mom & Dad icon check and the 2-person shared-list comprehension check recorded.
+
+Until PIA-147: nothing links to `app.html`, v1 stays untouched, and the Deployment team (T4) ships v2 tickets like any other envelope (preflight GO), knowing they change nothing the family sees.
+

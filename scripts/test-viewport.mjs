@@ -10,6 +10,9 @@
 //      watchlist (worst case, which is what made it reproduce).
 //   3. Interactive controls carry an accessible name and meet the 44px target.
 //
+// PIA-134: app.html (the v2 shell) has its own block at the end: no horizontal
+// scroll, ≥44px named targets and the light/dark tokens at 360/390/430.
+//
 // Runs against BOTH files: pialax-mobile.html is the spec target, and
 // pialax.html is checked at the same widths because the desktop file is served
 // to any device that isn't UA-detected as mobile.
@@ -1103,6 +1106,97 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     }
   } catch (e) { bad(`${label} — ${e.message}`); }
   await ctx.close();
+}
+
+// ---- PIA-134: app.html, the v2 shell, at 360 / 390 / 430 in light and dark ----
+// Every state the shell can reach (empty, the list with its shelf open, Family, a trip view with eight long
+// names, Map, Calendar, ⓘ, ⚙ and P-link) must have no horizontal scroll, ≥44px targets with accessible names,
+// and the light or dark token set. The Worker is a route over the repo's fixtures; nothing else is reachable.
+{
+  const fs = await import('node:fs');
+  const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+  const fx = (n) => JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'fixtures', n), 'utf8'));
+  const docs = {};
+  ['idea-diwali.json', 'idea-tahoe.json', 'idea-8members.json', 'idea-undated.json', 'idea-thanksgiving-legacy.json', 'idea-lax-local.json'].forEach((f) => { const d = fx(f); docs[d.id] = d; });
+  const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03';
+  const seed = {
+    pialax_watchlist_v2: JSON.stringify(ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))),
+    pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),
+    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2' }),
+    pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 })
+  };
+  const LAYOUT = () => {
+    const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !el.closest('[hidden]') && getComputedStyle(el).visibility !== 'hidden'; };
+    const name = (el) => (el.getAttribute('aria-label') || '').trim() || (el.labels && el.labels[0] && el.labels[0].textContent.trim()) || (el.textContent || '').replace(/\s+/g, ' ').trim();
+    const out = { overflow: document.documentElement.scrollWidth - innerWidth, sheetOverflow: 0, small: [], unnamed: [] };
+    const sh = document.querySelector('#sheet');
+    if (sh && !sh.hidden) out.sheetOverflow = sh.scrollWidth - sh.clientWidth;
+    document.querySelectorAll('#screen button, #screen a, #tabbar button, #sheet button, #sheet a, #sheet input, #sheet textarea').forEach((el) => {
+      if (!vis(el)) return;
+      // a card title is a text button whose overlay covers the whole card: the card is the target
+      const box = (el.classList.contains('card-open') ? el.closest('.card') : el).getBoundingClientRect();
+      const id = (el.getAttribute('data-act') || el.id || el.className || el.tagName) + '@' + Math.round(box.width) + 'x' + Math.round(box.height);
+      if (box.width < 43.5 || box.height < 43.5) out.small.push(id);
+      if (!name(el)) out.unnamed.push(id);
+    });
+    const cs = getComputedStyle(document.body);
+    out.bg = cs.backgroundColor; out.ink = getComputedStyle(document.documentElement).getPropertyValue('--ink').trim();
+    return out;
+  };
+  const lum = (rgb) => { const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb || ''); return m ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 : -1; };
+  for (const vp of VIEWPORTS) {
+    for (const scheme of ['light', 'dark']) {
+      const label = `app.html @ ${vp.name} ${scheme}`;
+      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
+      await ctx.route(/^https?:\/\//, (r) => r.abort());
+      await ctx.route(W + '/**', (route) => {
+        const q = route.request(), id = new URL(q.url()).searchParams.get('id');
+        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
+        if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+        if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: id === DW && q.headers()['x-idea-key'] === KEY }) });
+      });
+      const page = await ctx.newPage();
+      const fails = [];
+      try {
+        await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
+        // the first visit is the empty phone; the seed lands before the second
+        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' });
+        await page.waitForTimeout(150);
+        let states = 0;
+        const measure = async (s) => {
+          states++;
+          const r = await page.evaluate(LAYOUT);
+          if (r.overflow > 0 || r.sheetOverflow > 0) fails.push(s + ': horizontal scroll ' + r.overflow + '/' + r.sheetOverflow + 'px');
+          if (r.small.length) fails.push(s + ': targets under 44px ' + r.small.slice(0, 4).join(', '));
+          if (r.unnamed.length) fails.push(s + ': controls without a name ' + r.unnamed.slice(0, 4).join(', '));
+          const L = lum(r.bg);
+          if (scheme === 'dark' ? !(L >= 0 && L < 0.2) : !(L > 0.8)) fails.push(s + ': body background ' + r.bg + ' is not the ' + scheme + ' token');
+        };
+        await measure('empty');
+        await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
+        await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
+        await measure('list');
+        const shelf = await page.$('#screen [data-act="shelf"]'); if (shelf) { await shelf.click(); await page.waitForTimeout(100); await measure('list + shelf'); }
+        await page.click('#screen [data-act="seg"][data-v="family"]'); await page.waitForTimeout(100); await measure('family');
+        await page.click('#screen [data-act="seg"][data-v="ideas"]'); await page.waitForTimeout(100);
+        for (const id of [M8, DW]) {
+          await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip ' + id);
+          await page.click('#screen [data-act="key"]'); await page.waitForTimeout(100); await measure('trip ' + id + ' + ⓘ');
+          await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
+          await page.click('#screen [data-act="back"]'); await page.waitForTimeout(100);
+        }
+        for (const tab of ['map', 'cal']) { await page.click('#tabbar [data-v="' + tab + '"]'); await page.waitForTimeout(120); await measure(tab); }
+        await page.click('#tabbar [data-v="trips"]'); await page.waitForTimeout(100);
+        await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(100); await measure('⚙');
+        await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); });
+        await page.click('#sheet [data-act="devlink"]'); await page.waitForTimeout(150); await measure('P-link');
+        if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
+        else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
+      } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
+      await ctx.close();
+    }
+  }
 }
 
 await browser.close();

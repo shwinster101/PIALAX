@@ -1,0 +1,15 @@
+app.html
+scripts/harness.js
+scripts/test-app.js
+scripts/test-app.sh
+scripts/test-words.js
+scripts/test-words.sh
+scripts/test-trust.js
+scripts/test-viewport.mjs
+scripts/preflight.sh
+scripts/verify-sri.sh
+CLAUDE.md
+PIALAX_HQ.md
+CHANGELOG.md
+scripts/messages/PIA-134.msg
+scripts/messages/PIA-134.files

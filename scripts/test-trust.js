@@ -400,6 +400,39 @@ function makeRooms(IdeaRoom, env, gate) {
     const noTok = await ctx.fetchFlights('LAX', 'JFK', '2026-11-20', null);
     check(calls === 0 && noTok && noTok.mock === true, `A1 ${file}: with no organizer token the dashboard never calls the Worker (sample fares)`);
   }
+
+  // PIA-134: the v2 shell (app.html) makes no fare search yet. It must contain no
+  // /search fetch and no organizer-token header, and on an organizer phone that
+  // holds the token, everything it sends goes to the free /idea routes only and
+  // never carries the token. (PIA-140 adds the gated search and lifts this.)
+  {
+    const app = fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8');
+    check(!/['"`]\/search\b|\/search\?|engine=google_flights|departure_id|arrival_id/.test(app), 'A1 app.html: no /search fetch (no route string, no SerpAPI parameters)');
+    check(!/x-pialax-token/i.test(app) && !/paidHeaders|serpapi\.com/i.test(app), 'A1 app.html: no organizer-token header (X-Pialax-Token) and no paid-route helper');
+    check(!/['"`]\/(account|extract|alert)/.test(app), 'A1 app.html: no other paid route (/account, /extract, /alert*)');
+    const { loadApi, makeLocalStorage } = require(path.resolve(ROOT, 'scripts', 'harness.js'));
+    const ls = makeLocalStorage();
+    const ID = 'dwDiwaliRaleigh2026a01', KEY = 'pialax-test-edit-key-0123456789abcdefghijk';
+    ls.setItem('pialax_proxy_token', TOKEN);
+    ls.setItem('pialax_idea_keys_v1', JSON.stringify({ [ID]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }));
+    ls.setItem('pialax_watchlist_v2', JSON.stringify([{ id: ID, t: '', e: '', at: 1, pin: false, arch: false }]));
+    const sent = [];
+    const spy = async (url, opts) => { sent.push({ url: String(url), opts: opts || {} }); return new Response(JSON.stringify({ error: 'nope', code: 'not_found' }), { status: 404 }); };
+    const loc = { search: '?idea=' + ID, hash: '', pathname: '/PIALAX/app.html', origin: ORIGIN, href: ORIGIN + '/PIALAX/app.html?idea=' + ID, hostname: 'shwinster101.github.io' };
+    const { api, missing } = loadApi(path.join(ROOT, 'app.html'), 'app.html', ['refreshAll', 'respond', 'organizerWrite', 'createTrip', 'poll'],
+      { localStorage: ls, fetch: spy, location: loc, history: { replaceState() {}, pushState() {}, back() {}, state: null }, setInterval: () => ({ unref() {} }) });
+    if (missing.length) bad('A1 app.html: harness could not reach ' + missing.join(', '));
+    else {
+      await api.refreshAll(); await api.poll();
+      await api.organizerWrite(ID, { caption: 'x' });
+      await api.createTrip({ emoji: '🎄', name: 'X', dest: { airport: 'PIA' }, dates: {}, members: [{ name: 'Ashwin', airport: 'LAX' }] });
+      const paths = sent.map((s) => new URL(s.url).pathname);
+      const leaks = sent.filter((s) => JSON.stringify([s.url, s.opts.headers || {}, s.opts.body || '']).indexOf(TOKEN) >= 0 || Object.keys(s.opts.headers || {}).some((h) => /pialax-token/i.test(h)));
+      check(sent.length >= 3 && paths.every((p) => p === '/idea' || p.indexOf('/idea/') === 0) && sent.every((s) => s.url.indexOf('https://pialax-proxy.ashwinyedavalli.workers.dev/') === 0),
+        `A1 app.html: on an organizer phone with the token, every request (${sent.length}) goes to the Worker's free /idea routes`, paths);
+      check(leaks.length === 0, 'A1 app.html: the organizer token never leaves the phone in any URL, header or body', leaks.map((s) => s.url));
+    }
+  }
   finish(tmpDir);
 })().catch((e) => { bad('crashed: ' + (e && e.stack || e)); finish(); });
 
