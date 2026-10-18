@@ -13,6 +13,10 @@
 //     change, organizer edits start from a fresh record.
 //   • Prices come only from real cached fares (pialax_fares_v2). Nothing here
 //     reads a price stored in the record, and nothing estimates a missing fare.
+//   • PIA-133: one link builder for every hand-off (Google Flights, Explore,
+//     Flighty, calendars, the guest link), recomputed from the record on each
+//     render and opened in a new tab. Calendar events and shares carry only the
+//     guest /i/<id> link, never an edit key or token.
 //
 // The region between the begin/end markers is inlined byte-identical into the
 // app IIFE of app.html (PIA-134 drift test). It must never contain
@@ -43,7 +47,17 @@ var FACES = ['🦊', '🐻', '🐼', '🐨', '🦁', '🐯', '🐸', '🐙', '�
 var SCENES = ['🦃', '🎄', '🪔', '🎉', '🎂', '💍', '🌊', '🗻', '🌆', '🌵', '🎿', '⚾', '⛺'];
 var PALETTE_SIZE = 8;
 var GF_SEARCH = 'https://www.google.com/travel/flights/search';
-var GF_EXPLORE = 'https://www.google.com/travel/explore?hl=en&gl=us&curr=USD';
+var GF_TAIL = '&hl=en&gl=us&curr=USD';
+var GF_EXPLORE = 'https://www.google.com/travel/explore?hl=en&gl=us&curr=USD';   // unprefilled: no Explore encoding is verified live
+var GF_QUERY = 'https://www.google.com/travel/flights?q=';                       // the q= fallback (only when the tfs encoder fails)
+var FLIGHTY_URL = 'https://www.flighty.com/';                                    // = v1's hand-off; Flighty documents no deep link
+var GCAL_TEMPLATE = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
+var WORKER_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';             // = v1 PROXY_URL; serves the guest /i/<id> links
+var WORKER_RE = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev$/i;          // = v1's proxy URL check: no path, query or fragment
+var HANDOFF_TARGET = '_blank';
+var HANDOFF_REL = 'noopener noreferrer';
+/* IATA metropolitan-area codes: q= drops to a blank page on them (NYC was checked live), so the fallback never sends one */
+var METRO_CODES = ['NYC', 'CHI', 'WAS', 'DTT', 'YTO', 'YMQ', 'LON', 'PAR', 'MIL', 'ROM', 'STO', 'MOW', 'TYO', 'OSA', 'SEL', 'BJS', 'SAO', 'RIO', 'BUE'];
 
 /* The family preset (v1 FAMILY / FAMILY_INFO / familyForDate). Anjo flies from
    JAX before 2026-09-01 and from LGA from that day on; JFK is her alternate
@@ -307,8 +321,9 @@ function gfTfs(o) {
   var b64 = (typeof btoa === 'function' ? btoa(bin) : Buffer.from(out).toString('base64'));
   return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
-function gfSearchUrl(o) { return GF_SEARCH + '?tfs=' + gfTfs(o) + '&hl=en&gl=us&curr=USD'; }
-/* decoder for tests and link inspection: {legs:[{date, from, to}], adults, trip, cabin} */
+function gfSearchUrl(o) { return GF_SEARCH + '?tfs=' + gfTfs(o) + GF_TAIL; }
+/* decoder for the builder's self-check and for tests: {legs:[{date, from, to, stops, airlines}], adults, trip, cabin,
+   fields (top-level field numbers, in order)}. stops is null and airlines empty when the leg has no such filter. */
 function gfDecode(href) {
   var m = /[?&]tfs=([^&]+)/.exec(href || ''); if (!m) return null;
   var s = m[1].replace(/-/g, '+').replace(/_/g, '/'); while (s.length % 4) s += '=';
@@ -325,12 +340,15 @@ function gfDecode(href) {
     }
     return res;
   }
-  var legs = [], adults = 0, trip = 0, cabin = 0;
+  var legs = [], adults = 0, trip = 0, cabin = 0, fields = [];
   rd(b).forEach(function (e) {
+    fields.push(e.f);
     if (e.f === 3) {
-      var L = { date: '', from: [], to: [] };
+      var L = { date: '', from: [], to: [], stops: null, airlines: [] };
       rd(e.b).forEach(function (x) {
         if (x.f === 2 && x.b) L.date = String.fromCharCode.apply(null, x.b);
+        if (x.f === 5 && !x.b) L.stops = x.v;
+        if (x.f === 6 && x.b) L.airlines.push(String.fromCharCode.apply(null, x.b));
         if ((x.f === 13 || x.f === 14) && x.b) { var c = ''; rd(x.b).forEach(function (y) { if (y.f === 2 && y.b) c = String.fromCharCode.apply(null, y.b); }); (x.f === 13 ? L.from : L.to).push(c); }
       });
       legs.push(L);
@@ -339,7 +357,7 @@ function gfDecode(href) {
     if (e.f === 9) cabin = e.v;
     if (e.f === 19) trip = e.v;
   });
-  return { legs: legs, adults: adults, trip: trip, cabin: cabin };
+  return { legs: legs, adults: adults, trip: trip, cabin: cabin, fields: fields };
 }
 
 /* ---- one traveler's legs, link plan and fare keys ----
@@ -367,14 +385,77 @@ function fareState(f, now) {
    (spec risk); this is the single place to change it. */
 function legTotal(f) { return f && typeof f.p === 'number' && !f.none ? f.p : null; }
 /* why a traveler has nothing to search for d1–d2 ('' = searchable). One rule for the model's links and legs
-   and for every cheapest-week candidate, so the two can never disagree on who is priced. */
-function legWhy(dest, O, d1, d2, today) {
+   and for every cheapest-week candidate, so the two can never disagree on who is priced. origin = the member's
+   own code (override or home airport). */
+function legWhy(dest, O, d1, d2, today, origin) {
   if (!dest) return 'nodest';
+  if (!origin) return 'noairport';     // no home airport and no override: nothing to fly from (not 'local')
   if (!O.length) return 'local';       // their origin is one of the destination's own airports: no flight to price
   if (!d1 || !d2) return 'nodates';
   if (d1 > d2) return 'order';
   if (d1 < today) return 'past';
   return '';
+}
+
+/* ---- hand-offs: the one link builder (PIA-133) ----
+   Every hand-off is computed from the record on each render, never stored or cached, and opens in a new tab.
+   Google Flights links are tfs searches: adults = headcount, economy, and never an airline or nonstop filter. */
+function handoff(kind, href, extra) {
+  var h = { kind: kind, href: href, target: HANDOFF_TARGET, rel: HANDOFF_REL };
+  if (extra) Object.keys(extra).forEach(function (k) { h[k] = extra[k]; });
+  return h;
+}
+function attrEsc(s) { return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
+/* the attributes of an <a> for a hand-off: the one place that makes every hand-off open in a new tab */
+function handoffAttrs(h) { return 'href="' + attrEsc(h.href) + '" target="' + HANDOFF_TARGET + '" rel="' + HANDOFF_REL + '"'; }
+function isQuery(href) { return typeof href === 'string' && href.indexOf(GF_QUERY) === 0; }
+/* the decoded link carries exactly the plan: trip, party, economy, each leg's date and airports, and no filters */
+function gfSame(dec, o) {
+  if (!dec || dec.trip !== o.trip || dec.adults !== o.adults || dec.cabin !== (o.cabin || 1) || dec.legs.length !== o.legs.length) return false;
+  return o.legs.every(function (L, i) {
+    var D = dec.legs[i];
+    return D.date === L.date && D.from.join() === [].concat(L.from).join() && D.to.join() === [].concat(L.to).join() && D.stops === null && !D.airlines.length;
+  });
+}
+/* a tfs search for plan o, or '' when the encoder fails: it throws, or its link does not decode back to o */
+function gfTry(o) {
+  try { var href = gfSearchUrl(o); return gfSame(gfDecode(href), o) ? href : ''; } catch (e) { return ''; }
+}
+/* The q= fallback, used only when the encoder fails, and only in the grammar verified live on 2026-10-17:
+     'Flights from AAA to BBB on YYYY-MM-DD through YYYY-MM-DD[ for N adults]'
+     'Flights from AAA to BBB on YYYY-MM-DD one way[ for N adults]'
+   One airport code per side: never 'or', commas, metro codes, airline names, months or 'nonstop'. q= rewrites
+   past dates silently, so the caller never builds one for a range that has started (legWhy). */
+function gfQueryUrl(from, to, d1, d2, n) {
+  if (!isIata(from) || !isIata(to) || from === to || METRO_CODES.indexOf(from) >= 0 || METRO_CODES.indexOf(to) >= 0) return '';
+  if (!isIso(d1) || (d2 && (!isIso(d2) || d2 < d1))) return '';
+  var k = Math.round(+n) || 1;
+  if (k < 1 || k > 9) return '';
+  var s = 'Flights from ' + from + ' to ' + to + ' on ' + d1 + (d2 ? ' through ' + d2 : ' one way') + (k > 1 ? ' for ' + k + ' adults' : '');
+  return GF_QUERY + encodeURIComponent(s) + GF_TAIL;
+}
+/* One traveler's Google Flights hand-off (the one builder; the model calls it for every searchable traveler):
+   • round trip (A = H): one round-trip search, O → A on d1 and A → O on d2 (trip 1);
+   • open-jaw (A ≠ H): ONE multi-city link, O → A on d1 and H → O on d2 (trip 3; trip 1 would silently drop H),
+     plus inHref / outHref, the two one-way searches PIALAX prices (trip 2).
+   O = the origin set, n = headcount, home = the member's own code (override or home airport).
+   Should the encoder fail, each search falls back to q= from the home code alone; q= cannot say open-jaw, so the
+   primary then opens the inbound one-way with the outbound beside it (split: true, and trip 2, because the primary
+   is then a one-way search; plan keeps the trip-3 plan). null when no link can be built at all. */
+function flightLink(O, A, H, d1, d2, n, home) {
+  var lp = legPlan(O, A, H, d1, d2, n);
+  var one = function (i) { return { trip: 2, adults: n, legs: [lp.legs[i]] }; };
+  var src = O.indexOf(home) >= 0 ? home : O[0];
+  var href = gfTry(lp), split = false, inHref = '', outHref = '';
+  if (lp.trip === 3) {
+    inHref = gfTry(one(0)) || gfQueryUrl(src, A, d1, '', n);
+    outHref = gfTry(one(1)) || gfQueryUrl(H, src, d2, '', n);
+    if (!href) { href = inHref; split = true; }
+  } else if (!href) href = gfQueryUrl(src, A, d1, d2, n);
+  if (!href) return null;
+  var link = handoff('gf', href, { trip: split ? 2 : lp.trip, plan: lp, adults: n, q: isQuery(href) || isQuery(inHref) || isQuery(outHref), split: split });
+  if (lp.trip === 3) { link.inHref = inHref; link.outHref = outHref; }
+  return link;
 }
 
 /* ---- reading the record ---- */
@@ -467,15 +548,11 @@ function tripModel(doc, ctx) {
     var booked = !!(r && r.booked) && answered;
     var link = null, why = '', keys = [];
     if (traveler) {
-      why = legWhy(dest, O, d1, d2, today);
+      why = legWhy(dest, O, d1, d2, today, originCode);
       if (!why) {
-        var lp = legPlan(O, A, H, d1, d2, hc);
-        link = { href: gfSearchUrl(lp), trip: lp.trip, plan: lp };
-        if (lp.trip === 3) {
-          link.inHref = gfSearchUrl({ trip: 2, adults: hc, legs: [lp.legs[0]] });
-          link.outHref = gfSearchUrl({ trip: 2, adults: hc, legs: [lp.legs[1]] });
-        }
+        link = flightLink(O, A, H, d1, d2, hc, originCode);
         keys = legKeys(from, A, H, d1, d2, hc);
+        if (!link) why = 'nolink';     // the encoder failed and q= refused the codes (e.g. a metro code): ✈ ⚠, still priced
       }
     }
     var clash = [];
@@ -653,7 +730,7 @@ function candStarts(L, w, pin, today) {
 /* one traveler's pricing row if the plan were s–e: their own ends stay, a blank end takes the window's, and the
    same legWhy / legKeys rules as the model's own legs apply (on the current plan the row IS their model row) */
 function windowRow(model, m, s, e, today) {
-  var d1 = m.own1 || s, d2 = m.own2 || e, why = legWhy(model.dest, m.O, d1, d2, today);
+  var d1 = m.own1 || s, d2 = m.own2 || e, why = legWhy(model.dest, m.O, d1, d2, today, m.origin);
   return { code: m.code, color: m.color, why: why, keys: why ? [] : legKeys(m.from, m.A, m.H, d1, d2, m.headcount) };
 }
 /* cheapest-week candidates: each window is priced by priceRows, the same rule as priceTrip, from real cached fares
@@ -711,6 +788,110 @@ function pickups(model, fares, now, showPredicted) {
     lanes[a] = merged;
   });
   return lanes;
+}
+
+/* ---- hand-offs for one face on one trip (PIA-133) ---- */
+/* The guest link: <worker>/i/<id>, or with #m=<code> for a personal nudge. It is the only link that ever leaves
+   in a share or a calendar event: it is built from the id and a member code alone, so an edit key or token cannot
+   ride along. worker = the Worker the app talks to: undefined, null or blank → WORKER_URL (a blank override keeps
+   the built-in Worker, as v1 does, PIA-119); one that is not a bare https *.workers.dev origin builds no link. */
+function guestLink(id, code, worker) {
+  var w = worker === undefined || worker === null ? '' : String(worker).trim();
+  var base = w ? w.replace(/\/$/, '') : WORKER_URL;
+  if (!WORKER_RE.test(base) || !IDEA_ID_RE.test(String(id || ''))) return '';
+  if (code && !MEMBER_CODE_RE.test(String(code))) return '';
+  return base + '/i/' + id + (code ? '#m=' + code : '');
+}
+/* RFC 5545 TEXT: escape backslash, every line break (CRLF, a lone CR or a lone LF → \n), ';' and ','; drop every
+   other control character (C0 except tab, and DEL), so no stored title or city can start a new property line */
+function icsEsc(s) {
+  return String(s).replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+    .replace(/;/g, '\\;').replace(/,/g, '\\,');
+}
+function icsDay(s) { return s.replace(/-/g, ''); }
+/* a download file name: ASCII letters and digits only (slugOf's 'm' fallback is for member codes, not files) */
+function fileSlug(s) { return String(s || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 40); }
+/* RFC 5545 folding: lines of at most 75 octets, continued with CRLF + space, never splitting a UTF-8 sequence */
+function icsFold(line) {
+  var out = '', n = 0;
+  Array.from(line).forEach(function (ch) {
+    var c = ch.codePointAt(0), b = c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4;
+    if (n + b > 75) { out += '\r\n '; n = 1; }   // the continuation's leading space counts toward its 75
+    out += ch; n += b;
+  });
+  return out;
+}
+function icsText(ev) {
+  var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PIALAX//Trip//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+    'UID:' + ev.uid, 'DTSTAMP:' + ev.stamp, 'DTSTART;VALUE=DATE:' + icsDay(ev.d1), 'DTEND;VALUE=DATE:' + icsDay(ev.end),
+    'SUMMARY:' + icsEsc(ev.title)];
+  if (ev.where) lines.push('LOCATION:' + icsEsc(ev.where));
+  if (ev.details) lines.push('DESCRIPTION:' + icsEsc(ev.details));
+  lines.push('STATUS:' + (ev.tentative ? 'TENTATIVE' : 'CONFIRMED'), 'END:VEVENT', 'END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n') + '\r\n';
+}
+/* P-calendar-add: one all-day event (d2 + 1 is the exclusive end) over my own travel days when I have a usable
+   pair, else the plan, as the prototype's sheet does: a host, someone who is out, a phone with no face, or my own
+   reversed ⚠ range gets the plan, so a reversed pair never becomes an event. Tentative ('? ' and STATUS:TENTATIVE)
+   until the days are set: 🔒 (a legacy 🔒 reads as proposed), my own 🎫 on my own days, or 🏁 Done (every
+   traveler booked, or 💵). The only link inside is the guest /i/<id> link. Both the Google TEMPLATE link and the
+   .ics text come from the same event. null when there are no days (an undated idea), the days are over, or the
+   trip is dropped (🗑). ctx = {today, now, worker}. */
+function calendarAdd(model, ctx) {
+  ctx = ctx || {};
+  if (!isIso(ctx.today)) throw new Error('calendarAdd: ctx.today must be a YYYY-MM-DD day');
+  if (typeof ctx.now !== 'number' || !isFinite(ctx.now)) throw new Error('calendarAdd: ctx.now must be epoch milliseconds');
+  if (model.decision === 'dropped') return null;
+  var me = model.me, plan = model.plan, own = !!(me && me.traveler && !me.bad && me.d1 && me.d2);
+  var d1 = own ? me.d1 : plan ? plan.s : '', d2 = own ? me.d2 : plan ? plan.e : '';
+  if (!d1 || !d2 || d1 > d2 || d2 < ctx.today) return null;
+  var tentative = !model.locked && model.stage !== 'done' && !(own && me.booked), end = addD(d2, 1);
+  var title = (tentative ? '? ' : '') + (model.title || model.emoji);
+  var where = model.city || model.dest, details = guestLink(model.id, '', ctx.worker);
+  // the UID is built from checked codes only (the id and the member code), never from free text
+  var uid = (IDEA_ID_RE.test(String(model.id || '')) ? model.id : 'trip') + (me && MEMBER_CODE_RE.test(String(me.code)) ? '-' + me.code : '') + '@pialax';
+  var ev = { uid: uid, stamp: new Date(ctx.now).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z'),
+    d1: d1, end: end, title: title, where: where, details: details, tentative: tentative };
+  var google = GCAL_TEMPLATE + '&text=' + encodeURIComponent(title) + '&dates=' + icsDay(d1) + '/' + icsDay(end) +
+    (details ? '&details=' + encodeURIComponent(details) : '') + (where ? '&location=' + encodeURIComponent(where) : '');
+  return {
+    d1: d1, d2: d2, end: end, own: own, tentative: tentative, title: title, where: where, details: details,
+    google: handoff('calendar', google),
+    ics: { kind: 'ics', filename: (fileSlug(model.name) || fileSlug(model.dest) || 'trip') + '.ics', mime: 'text/calendar;charset=utf-8', text: icsText(ev) }
+  };
+}
+/* Everything one face can open on one trip, from the model alone: the one entry point for every hand-off.
+   code = a member code (default: this phone's face). ctx = {today, now, worker}, as for calendarAdd.
+   • gf: the primary ✈↗ (one round-trip search, or ONE multi-city link when open-jaw; when the encoder failed and
+     q= stands in, split is true and the primary is the inbound one-way, trip 2); gfIn / gfOut: the two one-way
+     searches PIALAX prices (open-jaw only).
+   • why: the reason whenever there is no gf: dropped, host, out, nodest, noairport, local, nodates, order, past,
+     or nolink (the encoder failed and q= refused the codes).
+   • explore: 🧭↗ Google Flights Explore, unprefilled, for an idea without a place that is not over or dropped.
+   • flighty: 🛂↗ only once that traveler is booked (kept on a dropped trip: a booked flight is still real).
+   • calendar: calendarAdd, on this phone's own face only (or on a phone with no face).
+   • share: the guest /i/<id> link; nudge: the same with #m=<code>, only for someone else who is ◌ waiting or
+     ? maybe (P-person's 📣 rule): never a host, never someone who is in or out.
+   A dropped trip (🗑) offers no Google Flights link, Explore, calendar event or nudge, only share (and Flighty for
+   a booked traveler). null for a code that is not on the trip. */
+function handoffs(model, code, ctx) {
+  var me = model.me, x = code ? model.members.filter(function (m) { return m.code === code; })[0] || null : me;
+  if (code && !x) return null;
+  var dropped = model.decision === 'dropped', worker = (ctx || {}).worker;
+  var mine = !x || (!!me && x.code === me.code), L = x && !dropped ? x.link : null;
+  var ask = !!x && !mine && !dropped && !x.host && (x.status === 'waiting' || x.status === 'maybe');
+  return {
+    code: x ? x.code : '',
+    gf: L ? handoff('gf', L.href, { trip: L.trip, q: L.q, split: L.split }) : null,
+    gfIn: L && L.inHref ? handoff('gf-in', L.inHref) : null,
+    gfOut: L && L.outHref ? handoff('gf-out', L.outHref) : null,
+    why: x && !L ? (dropped ? 'dropped' : x.host ? 'host' : x.status === 'out' ? 'out' : x.why || 'nolink') : '',
+    explore: model.dest || dropped || model.past ? null : handoff('explore', GF_EXPLORE),
+    flighty: x && x.traveler && x.booked ? handoff('flighty', FLIGHTY_URL) : null,
+    calendar: mine ? calendarAdd(model, ctx) : null,
+    share: guestLink(model.id, '', worker),
+    nudge: ask ? guestLink(model.id, x.code, worker) : ''
+  };
 }
 
 /* ---- the family preset (date-aware) and v1 storage ---- */
@@ -1085,7 +1266,10 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     IDEA_HUBS: IDEA_HUBS, NEARBY_GROUPS: NEARBY_GROUPS, DRIVE: DRIVE, IDEA_MAX_MEMBERS: IDEA_MAX_MEMBERS, MEMBER_CODE_RE: MEMBER_CODE_RE,
     TEXT_MAX: TEXT_MAX, FARE_STALE_MS: FARE_STALE_MS, FACES: FACES, SCENES: SCENES, PALETTE_SIZE: PALETTE_SIZE, FAMILY: FAMILY,
-    AIRPORTS: AIRPORTS, GF_EXPLORE: GF_EXPLORE,
+    AIRPORTS: AIRPORTS, GF_EXPLORE: GF_EXPLORE, GF_QUERY: GF_QUERY, FLIGHTY_URL: FLIGHTY_URL, GCAL_TEMPLATE: GCAL_TEMPLATE, WORKER_URL: WORKER_URL,
+    HANDOFF_TARGET: HANDOFF_TARGET, HANDOFF_REL: HANDOFF_REL,
+    handoff: handoff, handoffAttrs: handoffAttrs, isQuery: isQuery, gfSame: gfSame, gfTry: gfTry, gfQueryUrl: gfQueryUrl, flightLink: flightLink,
+    guestLink: guestLink, icsFold: icsFold, calendarAdd: calendarAdd, handoffs: handoffs,
     dn: dn, ds: ds, isIso: isIso, addD: addD, diffD: diffD, md: md, dowOf: dowOf, ym: ym, holidays: holidays, holidayOn: holidayOn, nextHolidays: nextHolidays,
     fnv1a: fnv1a, clip: clip, splitLabel: splitLabel, normName: normName, isMeLabel: isMeLabel, shortName: shortName, oneWord: oneWord, slugOf: slugOf,
     hashedFace: hashedFace, colorOf: colorOf, memberLabel: memberLabel, titleOf: titleOf,

@@ -12,6 +12,16 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-133) — v2 groundwork, not used by the app yet
+- **One link builder for every hand-off.** `scripts/trip-model.js` now builds each person's Google Flights, Explore, Flighty and calendar links from the shared trip record, so a date, airport or party-size change can't leave a stale or wrong link. Every hand-off opens in a new tab.
+  - A round trip opens one round-trip search. Flying into PIA and home from ORD opens one multi-city search, plus the two one-way searches PIALAX prices. Links search the whole nearby-airport set, book for the household's headcount, and never add an airline or nonstop filter.
+  - Hosts, people flying from inside the destination's own area, and people who are out get no flight link. Neither does someone with no home airport, or dates that are missing, reversed or already started. An idea without a place offers Google Flights Explore, not prefilled. A dropped trip offers no flight link, calendar event, Explore or nudge.
+  - Flighty shows only once that traveler is booked.
+  - Add to calendar (Google or an .ics file): one all-day event over my own travel days (hosts, and a reversed range, get the plan), marked "?" and tentative until the dates are set or I've booked. The only link inside is the family /i/ link, never an edit key or token. A stray line break or control character in a title or city can't add a line to the event.
+  - A nudge link goes only to someone who hasn't answered or said maybe, never to a host.
+  - If the link encoder ever fails, links fall back to the plain-text search form, using only the phrasing that was checked live (one airport per side, never past dates).
+- New `test-gflinks` suite (93 checks) runs in preflight, offline. It pins the five links checked live and the v2 sample links byte for byte, and decodes every link it builds. The eight v2 sample links still need one manual open in Google Flights before ship.
+
 ### Added (PIA-132) — v2 groundwork, not used by the app yet
 - **One trip model for v2.** `scripts/trip-model.js` turns one shared trip record into everything a v2 screen will show: one place, one plan, one head count, one stage, everyone's dates, their Google Flights links and the one total. It runs offline with no clock, so every screen and every phone reads the same facts.
   - Each person's dates are their own where they set them, else the plan's. Moving the plan never rewrites dates someone set, and booked travelers keep the days they booked.
