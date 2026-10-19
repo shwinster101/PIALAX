@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(bash scripts/preflight.sh)",
+      "Bash(bash scripts/test-app.sh)",
+      "Bash(bash scripts/test-trip-model.sh)",
+      "Bash(bash scripts/test-words.sh)",
+      "Bash(bash scripts/test-viewport.sh)",
+      "Bash(bash scripts/test-trust.sh)",
+      "Bash(bash scripts/test-gflinks.sh)"
+    ]
+  }
+}
