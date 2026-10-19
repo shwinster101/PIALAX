@@ -1128,8 +1128,9 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
   const seed = {
     pialax_fares_v2: JSON.stringify(fares),
     pialax_watchlist_v2: JSON.stringify(ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))),
-    pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),
-    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2' }),
+    // PIA-136: this phone also organizes the 8-member trip (a join request on a full trip opens its people editor at ⚠ 9/8)
+    pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),
+    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 })
   };
   const LAYOUT = () => {
@@ -1161,7 +1162,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: id === DW && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -1210,9 +1211,42 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await page.goto(listLink, { waitUntil: 'load' }); await page.waitForTimeout(300);
         await measure('P-savelist (nothing new)');
         await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
+        // PIA-136: the one create path (each step, a long typed name, an unknown code, a person's row open, dates and a window) and the
+        // organizer's edit sheets (P-edit, name and place, people, caption, drop)
+        await page.click('#screen [data-act="new"]'); await page.waitForTimeout(120); await measure('P-new-what');
+        await page.fill('#new-title', 'Grandma Josephine ninetieth birthday weekend in Savannah with everyone'); await page.fill('#new-dest', 'ZZQ'); await page.waitForTimeout(60); await measure('P-new-what (typed, unknown code)');
+        await page.click('#sheet [data-act="nnext"]'); await page.waitForTimeout(100); await measure('P-new-who');
+        await page.click('#sheet [data-act="nedit"] >> nth=0'); await page.fill('#mem-name', 'Bartholomew Montgomery Fitzgerald'); await page.waitForTimeout(60); await measure('P-new-who (a row open)');
+        if (!(await page.$('#sheet .metog[aria-pressed="true"]'))) await page.click('#sheet .metog');
+        await page.click('#sheet [data-act="nnext"]'); await page.waitForTimeout(100); await measure('P-new-when');
+        await page.click('#sheet [data-act="nday"][data-v="2026-11-06"]'); await page.click('#sheet [data-act="nday"][data-v="2026-11-09"]'); await page.waitForTimeout(60); await measure('P-new-when (dates)');
+        await page.click('#sheet [data-act="nmode"][data-v="window"]'); await page.waitForTimeout(60); await measure('P-new-when (window)');
+        await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
+        await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await page.click('#screen [data-act="edit"]'); await page.waitForTimeout(100); await measure('P-edit');
+        await page.click('#sheet [data-act="etitle"]'); await page.waitForTimeout(100); await measure('P-edit name and place');
+        await page.click('#sheet [data-act="sh-back"]'); await page.waitForTimeout(80);
+        await page.click('#sheet [data-act="epeople"]'); await page.waitForTimeout(100); await measure('P-edit people');
+        await page.click('#sheet [data-act="nedit"] >> nth=0'); await page.click('#sheet [data-act="ndel"]'); await page.waitForTimeout(60); await measure('P-edit people (remove armed)');
+        await page.click('#sheet [data-act="sh-back"]'); await page.waitForTimeout(80);
+        await page.click('#sheet [data-act="ecap"]'); await page.waitForTimeout(100); await measure('P-note');
+        await page.click('#sheet [data-act="sh-back"]'); await page.waitForTimeout(80);
+        await page.click('#sheet [data-act="edrop"]'); await page.waitForTimeout(100); await measure('P-drop');
+        await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
+        await page.click('#screen [data-act="back"]'); await page.waitForTimeout(100);
         await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(100); await measure('⚙');
         await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); });
         await page.click('#sheet [data-act="devlink"]'); await page.waitForTimeout(150); await measure('P-link');
+        // PIA-136: a join request on the full 8-member trip (the joiner open, ⚠ 9/8), and a v1 idea link with a long note (📝⚠, then its P-note)
+        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?idea=' + M8 + '&add=' + encodeURIComponent('Nina Okafor.BOS'), { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (!(await page.$('#who-cap'))) fails.push('a join request on the full trip should open P-edit-who with ⚠ 9/8');
+        await measure('P-edit-who (join request, ⚠ 9/8)');
+        const v1idea = { version: 'trip-idea-v1', builder: { destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: '2026-11-06', return: '2026-11-09' }, constraints: { eventDate: '2026-11-08' } },
+          notes: 'Puja Sunday then ' + Array.from({ length: 30 }, (_, i) => 'lamplighting' + i).join(' ') };
+        const tripIdea = Buffer.from(encodeURIComponent(JSON.stringify(v1idea)), 'binary').toString('base64');
+        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?tripIdea=' + encodeURIComponent(tripIdea), { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await measure('P-new-what (a v1 idea link, 📝⚠)');
+        await page.click('#sheet [data-act="nnote"]'); await page.waitForTimeout(120); await measure('P-note (the new trip\'s note)');
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }

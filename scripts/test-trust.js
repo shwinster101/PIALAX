@@ -432,6 +432,32 @@ function makeRooms(IdeaRoom, env, gate) {
         `A1 app.html: on an organizer phone with the token, every request (${sent.length}) goes to the Worker's free /idea routes`, paths);
       check(leaks.length === 0, 'A1 app.html: the organizer token never leaves the phone in any URL, header or body', leaks.map((s) => s.url));
     }
+    // PIA-136: the token and edit keys reach the clipboard only (the organizer's own devices), never a share sheet. Every
+    // control that hands a link out is tapped on a phone that HAS a share sheet (recording each payload), so a secret link
+    // sent to it is caught here, not hidden by a fallback to copying.
+    const shares = [], copies = [];
+    const ls2 = makeLocalStorage();
+    ls2.setItem('pialax_proxy_token', TOKEN);
+    ls2.setItem('pialax_idea_keys_v1', JSON.stringify({ [ID]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }));
+    ls2.setItem('pialax_watchlist_v2', JSON.stringify([{ id: ID, t: '', e: '', at: 1, pin: false, arch: false }]));
+    ls2.setItem('pialax_ui_v1', JSON.stringify({ v1read: 1 }));
+    const nav = { userAgent: 'test-trust', share: (o) => { shares.push(o); return Promise.resolve(); }, clipboard: { writeText: (u) => { copies.push(u); return Promise.resolve(); } } };
+    const loc2 = Object.assign({}, loc, { search: '', href: ORIGIN + '/PIALAX/app.html' });
+    const two = loadApi(path.join(ROOT, 'app.html'), 'app.html', ['ACTS', 'openSheet', 'closeSheet', 'DOCS', 'STAT'],
+      { localStorage: ls2, fetch: spy, location: loc2, navigator: nav, history: { replaceState() {}, pushState() {}, back() {}, state: null }, setInterval: () => ({ unref() {} }) });
+    if (two.missing.length) bad('A1 app.html: harness could not reach ' + two.missing.join(', '));
+    else {
+      const a2 = two.api, tap = (name, ds) => a2.ACTS[name]({ dataset: ds || {} });
+      a2.DOCS[ID] = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'fixtures', 'idea-diwali.json'), 'utf8')); a2.STAT[ID] = 'ok';
+      a2.openSheet('edit', { id: ID }); tap('ekey', { id: ID }); a2.closeSheet();       // ✎ → 🔑 the organizer link
+      a2.openSheet('organizer', {}); tap('orglink', { id: ID }); tap('devlink'); a2.closeSheet();   // ⚙: the organizer and devices links
+      tap('tshare', { id: ID });                                                         // the trip's 📣
+      a2.openSheet('sharelist', {}); tap('slshare'); a2.closeSheet();                    // the list share
+      await new Promise((r) => setTimeout(r, 20));
+      const secret = (o) => { const s = JSON.stringify(o); return s.indexOf(TOKEN) >= 0 || s.indexOf(KEY) >= 0 || /#k=|#ks=|[#&]t=/.test(s); };
+      check(shares.length === 2 && shares.every((o) => !secret(o)) && copies.filter(secret).length === 3,
+        `A1 app.html: no share-sheet payload carries the token, an edit key, #k=, #ks= or &t= (${shares.length} shared: the trip and list links; the organizer and devices links went to the clipboard only)`, { shares, copies: copies.length });
+    }
   }
   finish(tmpDir);
 })().catch((e) => { bad('crashed: ' + (e && e.stack || e)); finish(); });

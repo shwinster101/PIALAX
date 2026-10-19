@@ -843,6 +843,142 @@ function makeServer(worker) {
       'a place off the US map (London, Cancún), an unknown code or a bad point has no map position');
   }
 
+  // ═══ PIA-136 ════════════════════════════════════════════════════════════
+  section('PIA-136 the one create path and organizer edits: typed caps, names, join requests, v1 idea links, groups, faces');
+  {
+    // typed text under a word cap: a change that adds a word past the cap is refused; nothing already there is ever cut
+    const twelve = 'one two three four five six seven eight nine ten eleven twelve', long = 'a b c d e f g h i j k l m n o p q r s t u v w x y z';
+    check(M.wordsIn('🎉 Diwali in 2026 — Raleigh') === 3 && M.wordsIn('') === 0 && M.wordsIn('  ') === 0 && M.wordsIn('Mom & Dad') === 2,
+      'wordsIn counts the strict rule\'s words: tokens with a letter (numerals, emoji and dashes are free)');
+    check(M.capTyped(twelve + ' thirteen', twelve, 12) === twelve && M.capTyped(twelve + ' 13', twelve, 12) === twelve + ' 13' && M.capTyped('a b', 'a', 12) === 'a b',
+      'capTyped refuses the word that would pass the cap (the field keeps what it had); numerals and emoji still go in');
+    check(M.capTyped(long.replace(' z', ''), long, 20) === long.replace(' z', '') && M.capTyped(long + 'z', long, 20) === long + 'z' && M.capTyped(long + ' zz', long, 20) === long,
+      'a text that was already longer than the cap (a v1 caption) can be edited and shortened, never grown, and is never cut by typing');
+    const fw = M.firstWords('Dad wants the  Peoria parade 🦃 at 9 and then lunch', 5);
+    check(fw.text === 'Dad wants the  Peoria parade 🦃' && fw.more === true && eq(M.firstWords('two words', 5), { text: 'two words', more: false }) && M.firstWords('', 3).text === '',
+      'firstWords: the first n words (tokens with no letter ride along), and whether any were left out', fw);
+  }
+  {
+    check(M.cleanName('  Sam   Lee ') === 'Sam Lee' && M.cleanName('Me') === '' && M.cleanName(' me ') === '' && M.cleanName('123') === '' && M.cleanName('Ana Maria de Souza') === '' &&
+      M.cleanName('Bartholomew Montgomery-Fitzgerald').length === 33 && M.cleanName('x'.repeat(60)).length === M.NAME_CHARS && M.NAME_CHARS === 37 && M.TITLE_CHARS === 77,
+      'cleanName: one space between words, ≤3 words, ≤37 characters (a label is "<face> <name>" ≤40), a letter in it, never the v1 word Me');
+    const id = 'dwDiwaliRaleigh2026a01', base = 'https://shwinster101.github.io/PIALAX/';
+    const L1 = M.joinLink(base, id, 'Sam', 'oak'), L2 = M.joinLink(base, id, ' Dr. Ana  Lee ', ''), L3 = M.joinLink(base, id, 'José', 'GRU');
+    const back = (u) => { const p = new URL(u).searchParams; return { idea: p.get('idea'), j: M.parseJoin(p.get('add')) }; };
+    check(L1 === base + '?idea=' + id + '&add=Sam.OAK' && eq(back(L1), { idea: id, j: { name: 'Sam', airport: 'OAK' } }) && eq(back(L2).j, { name: 'Dr. Ana Lee', airport: '' }) && eq(back(L3).j, { name: 'José', airport: 'GRU' }),
+      'joinLink → parseJoin round-trips through the address bar: ?idea=<id>&add=<name>.<IATA> (a name with a dot, no airport, an accent)', [L1, L2, L3]);
+    check(M.parseJoin('Sam.12') === null && M.parseJoin('.OAK') === null && M.parseJoin('Me.LAX') === null && M.parseJoin('') === null && eq(M.parseJoin('Priya'), { name: 'Priya', airport: '' }) &&
+      M.joinLink(base, 'short', 'Sam', 'OAK') === '' && M.joinLink(base, id, 'Me', 'OAK') === '' && M.joinLink('javascript:x', id, 'Sam', '') === '',
+      'a join request needs a real name and a 3-letter code or none; a bad id, the word Me or a base that is not an address builds nothing');
+    const u = new URL(L1);
+    check(!u.hash && eq([...u.searchParams.keys()], ['idea', 'add']), 'a join request carries the trip id, a name and an airport only: no key, token or hash');
+  }
+  {
+    // v1's read-only ?tripIdea= payload (encodeTripIdeaSharePayload: base64 of the URI-encoded JSON); test-app reads one v1 itself built
+    const enc = (p) => Buffer.from(encodeURIComponent(JSON.stringify(p)), 'binary').toString('base64');
+    const v1p = { version: 'trip-idea-v1', builder: { destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: '2026-11-06', return: '2026-11-09', searchStart: '', searchEnd: '' }, constraints: { tripLength: null, eventDate: '2026-11-08' } },
+      recommendation: { airport: 'RDU', city: 'Raleigh-Durham', departure: '2026-11-06', return: '2026-11-09', totalFare: 955, perTicketFare: 240, hub: 'LAX' }, fareStatus: 'estimated', notes: 'Lakshmi puja Sunday', eventContext: '2026-11-08' };
+    const d1 = M.legacyDraft(enc(v1p), TODAY);
+    check(eq(d1, { name: 'Raleigh-Durham', code: 'RDU', mode: 'dates', s: '2026-11-06', e: '2026-11-09', pin: '2026-11-08', nights: 3, caption: 'Lakshmi puja Sunday', cut: false }) && JSON.stringify(d1).indexOf('955') < 0,
+      'legacyDraft: a v1 idea link fills the create sheet with its place, plan, event day and note; v1\'s prices and hub are never read', d1);
+    // v1's builder note has no limit: the caption is its first 20 words (and fits the notes field), marked cut
+    const words40 = Array.from({ length: 40 }, (_, i) => 'note' + i).join(' '), huge = 'x'.repeat(849);
+    const c40 = M.legacyDraft(enc(Object.assign({}, v1p, { notes: words40 })), TODAY), cHuge = M.legacyDraft(enc(Object.assign({}, v1p, { notes: huge })), TODAY);
+    const built = M.createRequest({ emoji: '🪔', name: 'X', dest: { airport: 'RDU' }, dates: { departure: c40.s, return: c40.e }, pin: c40.pin, caption: cHuge.caption, members: [{ name: 'Ana', airport: 'LAX' }] }, { today: TODAY });
+    check(c40.cut && M.wordsIn(c40.caption) === 20 && c40.caption === words40.split(' ').slice(0, 20).join(' ') && cHuge.cut && cHuge.caption.length === M.CAPTION_CHARS &&
+      built.body.idea.notes === '📌2026-11-08 ' + cHuge.caption && built.body.idea.notes.length <= M.TEXT_MAX.notes,
+      'a longer v1 note is cut visibly, never silently: its first 20 words (849 characters → CAPTION_CHARS), marked cut; with 📌 it still fits the 500-character notes whole', { w: M.wordsIn(c40.caption), len: cHuge.caption.length });
+    const win = M.legacyDraft(encodeURIComponent(JSON.stringify({ version: 'trip-idea-v0', builder: { destination: { airport: 'cun' }, dates: { searchStart: '2026-10-01', searchEnd: '2026-12-20' }, constraints: { tripLength: 5 } } })), TODAY);
+    const past = M.legacyDraft(enc(Object.assign({}, v1p, { recommendation: Object.assign({}, v1p.recommendation, { departure: '2026-09-01', return: '2026-09-04' }), builder: Object.assign({}, v1p.builder, { dates: {} }) })), TODAY);
+    check(eq(win, { name: '', code: 'CUN', mode: 'window', s: TODAY, e: '2026-12-20', pin: '', nights: 5, caption: '', cut: false }) && past.s === '' && past.e === '' && past.pin === '2026-11-08',
+      'a window idea becomes a ⟦window⟧ (from today) with its nights; days already past are not offered again', { win, past });
+    check(M.legacyDraft('!!!', TODAY) === null && M.legacyDraft(enc({ version: 'something-else' }), TODAY) === null && M.legacyDraft('', TODAY) === null && M.legacyDraft(enc(v1p), 'nope') === null,
+      'anything that is not a v1 idea payload reads as nothing (the router then says the link is broken)');
+  }
+  {
+    // the groups P-new-who offers: the people of each trip this phone has seen, newest first, one per set of names
+    const solo = tweak(DW, (d) => { d.id = 'soSoloTripJustMe00s001'; d.idea.members = [d.idea.members[1]]; d.responses = {}; });
+    const ms = [M.tripModel(TH, ctx({ me: 'ashwin-l2' })), M.tripModel(DW, ctx({ me: 'ashwin-p8' })), M.tripModel(CY, ctx({ me: 'ashwin-c3' })), M.tripModel(solo, ctx()), M.tripModel(LEG, ctx({ me: 'LAX' }))];
+    const g = M.groupPresets(ms);
+    check(g.length === 3 && eq(g[0].faces, ['🦊', '🐼', '🌴', '🐸']) && eq(g[0].rows.map((r) => r.me), [false, false, true, false]) && g[1].family && eq(g[1].faces, ['🌽', '🌴', '🗽']) && !g[0].family &&
+      eq(g[2].rows.map((r) => r.name), ['Ashwin']) && eq(g[1].rows.map((r) => [r.name, r.airport, r.headcount]), [['Mom & Dad', 'PIA', 2], ['Ashwin', 'LAX', 1], ['Anjo', 'LGA', 1]]),
+      'groupPresets: Tahoe\'s friends (me marked from this phone\'s identity), the 👪 family once (Diwali and the shower are the same people), a solo trip', g.map((x) => x.faces.join('')));
+    const legOnly = M.groupPresets([M.tripModel(LEG, ctx({ me: 'LAX' }))]);
+    check(M.tripModel(LEG, ctx({ me: 'LAX' })).legacy && legOnly.length === 0 && g.every((x) => x.rows.every((r) => r.name !== 'Me')),
+      'an unmigrated v1 trip offers no group: its faces are read-time stand-ins (a hashed 🐻 for Anjo), so picking it would hand people faces they never had', legOnly.map((x) => x.faces.join('')));
+    check(M.freeFace(['🦊', '🐻']) === '🐼' && M.freeFace(['🦊'], ['🐻', '🐼']) === '🐨' && M.freeFace(M.FACES.slice(0, 23), M.FACES) === M.FACES[23] && M.FACES.indexOf(M.freeFace(M.FACES)) >= 0,
+      'freeFace: the first face nobody on the trip has, preferring one nobody on this phone has either');
+  }
+  {
+    // faces are unique within a trip whatever the screen sends; codes never change
+    const twins = M.createRequest({ emoji: '🎉', name: 'Twins', dest: { airport: 'RDU' }, members: [{ name: 'Ana', face: '🦊', airport: 'LAX' }, { name: 'Bo', face: '🦊', airport: 'SEA' }, { name: 'Cy', airport: 'SEA' }] }, { today: TODAY });
+    const faces = twins.body.idea.members.map((x) => M.splitLabel(x.label).face);
+    check(new Set(faces).size === 3 && faces[0] === '🦊' && faces[1] !== '🦊', 'createRequest: a face an earlier member already has is replaced by a free one (faces stay unique in the trip)', faces);
+    const id = srv.seed(DW), fresh = await srv.get(id, KEY);
+    const dup = M.updateRequest(fresh, KEY, { members: fresh.idea.members.map((m) => ({ code: m.code })).concat([{ name: 'Priya', face: '🌽', airport: 'DEN' }]) });
+    const df = dup.body.idea.members.map((x) => M.splitLabel(x.label).face);
+    check(new Set(df).size === 4 && eq(dup.body.idea.members.slice(0, 3).map((x) => x.label), fresh.idea.members.map((x) => x.label)) && eq(dup.body.idea.members.slice(0, 3).map((x) => x.code), fresh.idea.members.map((x) => x.code)),
+      'an edit that adds someone with a face already on the trip gives them a free one; the kept members\' labels and codes are resent verbatim', df);
+    // the people editor's own changes, through the real Worker: an airport change resends the answered member's flights
+    const ed = M.organizerEdit(fresh, KEY, { members: fresh.idea.members.map((m) => (m.code === 'ashwin-p8' ? { code: m.code, name: 'Ashwin', face: '🌴', airport: 'SFO', headcount: 1 } : { code: m.code })) });
+    const res = await srv.send(ed), after = await srv.get(id, KEY);
+    check(srv.allOk(res) && ed.length === 2 && /respond/.test(ed[1].path) && ed[1].body.member === 'ashwin-p8' && after.responses['ashwin-p8'].origin === 'SFO' && after.responses['ashwin-p8'].status === 'in' &&
+      after.responses['ashwin-p8'].note === fresh.responses['ashwin-p8'].note && M.tripModel(after, ctx({ me: 'ashwin-p8' })).me.O.join() === 'SFO',
+      'moving an answered member\'s home airport (Ashwin LAX → SFO) is one update plus a complete answer resent with the new origin: his flights follow, his answer and note stay', ed.map((q) => q.path.split('?')[0]));
+    const rm = M.organizerEdit(after, KEY, { members: after.idea.members.filter((m) => m.code !== 'anjo-z5').map((m) => ({ code: m.code })) });
+    const rmRes = await srv.send(rm), gone = await srv.get(id, KEY);
+    check(srv.allOk(rmRes) && gone.idea.members.length === 2 && !gone.responses['anjo-z5'] && gone.responses['momdad-k3'].status === 'in',
+      'removing someone drops their answers on the Worker (why the editor asks twice for someone who answered); everyone else\'s answers stay');
+  }
+  {
+    // a kept member (its code alone) keeps its label whatever order the list is in: a new or edited row never takes its face
+    const id = srv.seed(tweak(DW, (d) => { d.id = 'dwKeptFacesFirst000k01'; })), fresh = await srv.get(id, KEY);
+    const kept = fresh.idea.members.map((m) => ({ code: m.code }));
+    const first = M.updateRequest(fresh, KEY, { members: [{ name: 'Priya', face: '🌽', airport: 'DEN' }].concat(kept) });
+    const pf = first.body.idea.members.map((x) => x.label);
+    check(eq(pf.slice(1), fresh.idea.members.map((x) => x.label)) && M.splitLabel(pf[0]).face !== '🌽' && new Set(pf.map((l) => M.splitLabel(l).face)).size === 4,
+      'reverse order: a new row listed BEFORE the kept members, with a face one of them has (🌽), gets a free face; the kept labels go back verbatim', pf);
+    const refaced = M.updateRequest(fresh, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', face: '🗽' }, { code: 'anjo-z5' }] });
+    const rf = refaced.body.idea.members.map((x) => x.label);
+    check(rf[0] === fresh.idea.members[0].label && rf[2] === fresh.idea.members[2].label && M.splitLabel(rf[1]).face !== '🗽' && M.splitLabel(rf[1]).name === 'Ashwin',
+      'a member re-faced to a face someone kept already has (Anjo\'s 🗽, later in the list) gets a free one instead; Anjo keeps hers', rf);
+    const air = M.updateRequest(fresh, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', airport: 'SFO' }, { code: 'anjo-z5' }] });
+    check(eq(air.body.idea.members.map((x) => x.label), fresh.idea.members.map((x) => x.label)) && air.body.idea.members[1].airport === 'SFO' && air.body.idea.members[1].headcount === 1,
+      'an airport-only change ({code, airport}) leaves every label as it is (another device\'s rename of the same member would survive)');
+    // a long name already on the trip (another client, P-migrate) is kept as it is; the word cap is for typing only
+    check(M.keepName('Mary  Ann Van Dyke') === 'Mary Ann Van Dyke' && M.cleanName('Mary Ann Van Dyke') === '' && M.keepName('Me') === '' && M.keepName('42') === '' && M.keepName('x'.repeat(60)).length === M.NAME_CHARS,
+      'keepName keeps a name that is already on a trip however many words it has (never the word Me, never one without a letter); cleanName is the typed rule');
+  }
+  {
+    // an edit whose update landed but whose airport-sync answer did not: the answer is still owed, rebuilt from the record that edit began with
+    const id = srv.seed(tweak(DW, (d) => { d.id = 'dwOwedAnswerRetry00o01'; })), base = await srv.get(id, KEY);
+    const ed = M.organizerEdit(base, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', airport: 'SFO' }, { code: 'anjo-z5' }] });
+    await srv.send(ed.slice(0, 1));   // the update lands; the connection drops before Ashwin's answer
+    const landed = await srv.get(id, KEY);
+    const naive = M.organizerEdit(landed, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', airport: 'SFO' }, { code: 'anjo-z5' }] });
+    const owed = { base, codes: ['ashwin-p8'] };
+    const alone = M.organizerEdit(landed, KEY, {}, { owed }), withEdit = M.organizerEdit(landed, KEY, { caption: 'Puja at 6' }, { owed });
+    check(M.tripModel(landed, ctx({ me: 'ashwin-p8' })).me.override === 'LAX' && naive.length === 1 && M.organizerEdit(landed, KEY, {}) === null,
+      'after the landed update the record reads LAX as an override (his flights still from LAX); rebuilt from the landed record the same edit owes nothing, so a plain retry would never send the answer', naive.map((q) => q.path.split('?')[0]));
+    check(alone.length === 1 && /\/idea\/respond/.test(alone[0].path) && alone[0].body.member === 'ashwin-p8' && alone[0].body.origin === '' && alone[0].body.note === base.responses['ashwin-p8'].note &&
+      withEdit.length === 2 && /update/.test(withEdit[0].path) && withEdit[1].body.member === 'ashwin-p8' && withEdit[1].body.origin === '',
+      'opts.owed: the owed answer is rebuilt against base (origin "" — his own home now), alone for an empty delta or after the next idea edit\'s update', [alone.map((q) => q.body), withEdit.map((q) => q.path.split('?')[0])]);
+    const res = await srv.send(alone), fixed = await srv.get(id, KEY);
+    check(srv.allOk(res) && fixed.responses['ashwin-p8'].origin === 'SFO' && M.tripModel(fixed, ctx({ me: 'ashwin-p8' })).me.override === '' && M.tripModel(fixed, ctx({ me: 'ashwin-p8' })).me.O.join() === 'SFO',
+      'through the real Worker the owed answer puts him on SFO for good (no override left)');
+    const closed = clone(landed); closed.decision = { stage: 'dropped' };
+    check(M.organizerEdit(closed, KEY, {}, { owed }) === null && M.organizerEdit(landed, KEY, {}, { owed: { base, codes: ['nobody-zz'] } }) === null,
+      'nothing is owed on a closed trip (it takes no answers), nor for a member who has no answer');
+  }
+  {
+    // a paste (or autocorrect) that would pass a word cap: everything already there stays, and as much of the paste as fits goes in
+    const prev = 'Diwali in', pasted = 'Diwali in ' + Array.from({ length: 18 }, (_, i) => 'w' + i + 'x').join(' ');
+    const f1 = M.fitTyped(pasted, prev, 12), mid = M.fitTyped('Sam PASTE ME HERE Lee', 'Sam Lee', 3), ok = M.fitTyped('Sam Lee', 'Sam', 3);
+    check(f1.cut && M.wordsIn(f1.text) === 12 && f1.text.indexOf('Diwali in w0x') === 0 && f1.at === f1.text.length && mid.cut && mid.text === 'Sam PASTE Lee' && mid.at === 10 && !ok.cut && ok.text === 'Sam Lee' && ok.at === -1 &&
+      eq(M.fitTyped('🦊🦁 a b', '🦊🦁', 1), { text: '🦊🦁 a ', cut: true, at: 7 }) && M.fitTyped(prev + ' 12 13', prev, 2).cut === false,
+      'fitTyped: a paste past the cap keeps the text that was there (before and after the cursor) and the first words that fit, and says it was cut; numerals ride free', [f1.text, mid.text]);
+  }
+
   // ═══ AC11 ═══════════════════════════════════════════════════════════════
   section('AC11 the inlined region is clean, the encoder port is exact, and the suite is offline and in preflight');
   const modelSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'trip-model.js'), 'utf8');

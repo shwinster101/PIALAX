@@ -628,6 +628,27 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .svhd .svt { font-size: 24px; line-height: 1; }
 .svhd svg { width: 60px; height: 24px; }
 .preset .more { margin-left: 2px; }
+/* PIA-136: the one create path and organizer edits */
+.mrow > .mchip { flex: 1; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; border-radius: 14px; border: 1.5px solid var(--line); font-size: 16px; font-weight: 600; text-align: left; }
+.mrow > .mchip .w { color: var(--bad); }
+.mrow .metog { width: 48px; height: 48px; font-size: 20px; }
+.mrow .metog[aria-pressed="false"] > span { filter: grayscale(1); opacity: .4; }
+.mrow .facepick { font-size: 24px; }
+.mrow .ib.arm { border-color: var(--bad); color: var(--bad); }
+.mrow .ib.del { color: var(--bad); }
+.btn.stick { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 0 0 6px var(--surface); }
+.btn.busy { opacity: .6; cursor: progress; }
+.pcrow { display: flex; align-items: center; gap: 12px; min-height: 60px; }
+.mtitle { margin: 0; font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
+.sheet .grid .dc { min-height: 46px; }
+.lockd { font-size: 18px; }
+.droppc { opacity: .5; }
+.split.two > * { flex: 1 1 0; min-width: 0; }
+.tiles6 .tool.bad { color: var(--bad); }
+.tiles6 .tool.done { border-color: var(--in); background: color-mix(in srgb, var(--in) 14%, var(--surface)); }
+.notev { margin: 0; font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+.counter .w { color: var(--bad); }
+.toprow .ib.edit, .nav .ib.edit { font-size: 22px; }
 </style>
 </head>
 <body>
@@ -1590,13 +1611,23 @@ function faceOf(f) { return typeof f === 'string' && f && splitLabel(f).face ===
 /* members for a write: existing codes are kept as they are (answers hang off them); new rows get fresh codes.
    Every label written is '<face> <name>' and never reads as legacy (docLegacy): a row with no face gets an
    auto-assigned one, and a blank name or the v1 word 'Me' builds nothing (the screen asks for a real name). A kept
-   row's label is resent verbatim when it already starts with a face. */
+   row's label is resent verbatim when it already starts with a face. PIA-136: faces are unique within the trip. A
+   member resent as it is (its code alone, with a face already on its label) is KEPT: its label goes back verbatim
+   whatever it holds, and its face is reserved before any other row is built, wherever it sits in the list. Any
+   other row (new, renamed, re-faced) whose face a kept member or an earlier row already has gets a free one (a
+   nameless face-only label, which has nothing to rebuild its label from, is the only exception). So nobody else's
+   face is ever rewritten by an edit that does not touch them. */
 function buildMembers(list, prev, rand) {
   if (!Array.isArray(list) || !list.length || list.length > IDEA_MAX_MEMBERS) return null;
   var byCode = {}; (prev || []).forEach(function (m) { if (m) byCode[m.code] = m; });
   var taken = list.map(function (e) { return e && e.code; }).filter(function (c) { return typeof c === 'string' && MEMBER_CODE_RE.test(c); }).concat((prev || []).map(function (m) { return m && m.code; }));
-  var faces = [], out = [];
+  var faces = [], out = [], used = [];
   list.forEach(function (e) { var f = e && (faceOf(e.face) || splitLabel(e.label || (byCode[e.code] || {}).label).face); if (f) faces.push(f); });
+  var kept = list.map(function (e) {
+    var base = e && typeof e.code === 'string' && byCode[e.code];
+    return !!base && !hasOwn(e, 'name') && !hasOwn(e, 'face') && !hasOwn(e, 'label') && typeof base.label === 'string' && !!splitLabel(base.label).face;
+  });
+  list.forEach(function (e, k) { if (kept[k]) used.push(splitLabel(byCode[e.code].label).face); });
   for (var i = 0; i < list.length; i++) {
     var e = list[i] || {}, base = (typeof e.code === 'string' && byCode[e.code]) || null;
     var code = typeof e.code === 'string' && MEMBER_CODE_RE.test(e.code) ? e.code : null;
@@ -1608,14 +1639,16 @@ function buildMembers(list, prev, rand) {
     else if (base) { raw = typeof base.label === 'string' ? base.label : ''; lab = splitLabel(raw); }
     else lab = { face: null, name: '' };
     if (isMeLabel(lab.name)) return null;
-    var label;
-    if (raw && lab.face && (lab.name || base)) label = raw;   // already '<face> <name>' (an existing face-only row stays)
+    var label, dup = !kept[i] && !!lab.face && used.indexOf(lab.face) >= 0;
+    if (kept[i]) label = raw;                                                          // as it is on the trip
+    else if (raw && lab.face && (lab.name || base) && (!dup || !lab.name)) label = raw;   // already '<face> <name>' (an existing face-only row stays)
     else {
       if (!lab.name) return null;
-      var face = lab.face;
-      if (!face) { face = autoFace(normName(lab.name), faces); faces.push(face); }
+      var face = dup ? null : lab.face;
+      if (!face) { face = autoFace(normName(lab.name), faces.concat(used)); faces.push(face); }
       label = memberLabel(face, lab.name);
     }
+    if (!kept[i]) used.push(splitLabel(label).face);
     if (!code) { code = memberCode(lab.name, taken, rand); if (!code) return null; taken.push(code); }
     var hc = hasOwn(e, 'headcount') ? +e.headcount : (base ? +base.headcount : 1);
     out.push({ code: code, label: label, airport: normIata(hasOwn(e, 'airport') ? e.airport : (base && base.airport)), headcount: Math.max(1, Math.min(9, Math.round(hc) || 1)) });
@@ -1805,10 +1838,25 @@ function airportSyncRequests(fresh, idea) {
    4. a decision that closes the trip (dropped, or 💵 booked) goes in its own update after them, because the
       Worker refuses answers on a closed trip.
    On a trip that is already closed the Worker takes no answers, so an edit that would need step 1, or step 3
-   without this very update reopening the trip, builds nothing: reopen first, then edit. */
+   without this very update reopening the trip, builds nothing: reopen first, then edit.
+   PIA-136 opts.owed = {base, codes}: the airport-sync answers an earlier edit still owes (its update landed, these
+   answers did not). They are rebuilt here against the record as it is now, with base (the record that earlier edit
+   started from) as the old side, so a member's flights follow the move they really made; they ride the next idea
+   edit (replacing that edit's own answer for the same member), or go alone when the delta is empty. A closed trip
+   takes no answers, so on one they are not sent. */
+function owedSync(fresh, responses, decision, idea, owed) {
+  var old = { id: fresh.id, idea: owed.base.idea, responses: responses || {}, decision: decision };
+  return airportSyncRequests(old, idea).filter(function (q) { return owed.codes.indexOf(q.body.member) >= 0; });
+}
 function organizerEdit(fresh, editKey, delta, opts) {
-  delta = delta || {};
+  delta = delta || {}; opts = opts || {};
+  var owed = opts.owed && opts.owed.base && opts.owed.base.idea && Array.isArray(opts.owed.codes) ? opts.owed : null;
   var ideaEdit = IDEA_DELTA_KEYS.some(function (k) { return hasOwn(delta, k); });
+  if (!ideaEdit && !delta.decision) {   // nothing to change: only what an earlier edit still owes
+    if (!owed || !fresh || !fresh.id || !fresh.idea || docClosed(fresh)) return null;
+    var only = owedSync(fresh, fresh.responses, fresh.decision, fresh.idea, owed);
+    return only.length ? only : null;
+  }
   var dst = delta.decision && delta.decision.stage, closes = dst === 'booked' || dst === 'dropped';
   if (ideaEdit && closes && !docClosed(fresh)) {
     var tail = updateRequest(fresh, editKey, { decision: delta.decision }, opts);
@@ -1836,6 +1884,10 @@ function organizerEdit(fresh, editKey, delta, opts) {
   });
   // the sync answers resend dates too, so they start from the answers as they stand after step 1
   var after = airportSyncRequests({ id: fresh.id, idea: fresh.idea, responses: pinned, decision: open }, up.body.idea);
+  if (owed && (!closed || reopens)) {
+    var ows = owedSync(fresh, pinned, open, up.body.idea, owed);
+    after = after.filter(function (q) { return !ows.some(function (o) { return o.body.member === q.body.member; }); }).concat(ows);
+  }
   if (closed && (before.length || (after.length && !reopens))) return null;
   return before.concat([up], after);
 }
@@ -1981,6 +2033,145 @@ function usPoint(lat, lon) {
 }
 /* where an airport sits on the US map, or null (an unknown code, or a place off the map) */
 function mapXY(code) { var a = airportInfo(code); return a.known ? usPoint(a.lat, a.lon) : null; }
+
+/* ---- the one create path, organizer edits and join requests (PIA-136) ---- */
+var NAME_WORDS = 3;                                                      // a person's name: ≤3 words wherever it is typed
+var TITLE_WORDS = 12;                                                    // a trip name being typed (it counts on P-new-what)
+var CAPTION_WORDS = 20;                                                  // a caption (or a note): ≤20 words
+var NAME_CHARS = TEXT_MAX.label - 3;                                     // '<face> <name>' ≤40 UTF-16 units; a face is ≤2, then a space
+var TITLE_CHARS = TEXT_MAX.title - 3;                                    // '<scene> <name>' ≤80
+var CAPTION_CHARS = TEXT_MAX.notes - 13;                                 // a new trip's caption: room left after '📌YYYY-MM-DD ' (a new trip has 📌 or 🌙N, never both)
+var V1_IDEA_VERSIONS = { 'trip-idea-v1': 1, 'trip-idea-v0': 1 };         // = v1 TRIP_IDEA_BUILDER_VERSION (and its v0)
+function wordsIn(s) { return String(s == null ? '' : s).split(/\s+/).filter(function (w) { return /\p{L}/u.test(w); }).length; }
+/* a typed value under a word cap: the change is taken while it stays within the cap, or when it adds no word to a
+   text that was already longer (so nothing already there is ever cut); otherwise it is refused and prev stays */
+function capTyped(next, prev, max) { var n = wordsIn(next); return n <= max || n <= wordsIn(prev) ? String(next) : String(prev == null ? '' : prev); }
+/* the same rule for a change that inserts more than one keystroke (a paste, autocorrect): everything that was there
+   stays, and as much of the inserted text as fits under the cap goes in. {text, cut: some of the insertion was left
+   out, at: where the caret goes (after what went in; -1 when nothing was cut)}. The insertion is what lies between
+   the longest common start and end of prev and next. */
+function fitTyped(next, prev, max) {
+  var nx = String(next == null ? '' : next), pv = String(prev == null ? '' : prev), lim = Math.max(max, wordsIn(pv));
+  if (wordsIn(nx) <= lim) return { text: nx, cut: false, at: -1 };
+  var p = 0, s = 0;
+  while (p < nx.length && p < pv.length && nx.charCodeAt(p) === pv.charCodeAt(p)) p++;
+  if (p > 0 && /[\uD800-\uDBFF]/.test(nx.charAt(p - 1))) p--;                       // never split an emoji in two
+  while (s < nx.length - p && s < pv.length - p && nx.charCodeAt(nx.length - 1 - s) === pv.charCodeAt(pv.length - 1 - s)) s++;
+  if (s > 0 && /[\uDC00-\uDFFF]/.test(nx.charAt(nx.length - s))) s--;
+  var head = nx.slice(0, p), tail = nx.slice(nx.length - s), parts = nx.slice(p, nx.length - s).split(/(\s+)/), ins = '', best = '';
+  var apart = !tail || /^\s/.test(tail);                                            // a word may end the cut only if it cannot run into the text after it
+  for (var i = 0; i < parts.length; i++) {
+    ins += parts[i];
+    if (/\S/.test(parts[i]) && !apart) continue;
+    if (wordsIn(head + ins + tail) > lim) break;
+    best = ins;
+  }
+  return { text: head + best + tail, cut: true, at: head.length + best.length };
+}
+/* the first n words of a text, and whether words were left out (tokens with no letter ride along for free) */
+function firstWords(s, n) {
+  var parts = String(s == null ? '' : s).trim().split(/(\s+)/), out = '', w = 0, more = false;
+  for (var i = 0; i < parts.length; i++) {
+    var t = parts[i];
+    if (/\p{L}/u.test(t)) { if (w === n) { more = true; break; } w++; }
+    out += t;
+  }
+  return { text: out.trim(), more: more };
+}
+/* a person's name as typed (P-new-who, a join request): one space between words, ≤3 words, ≤37 units, a letter in
+   it and never the v1 word 'Me'; '' when it is not a usable name */
+function cleanName(s) {
+  var t = keepName(s);
+  return t && wordsIn(t) <= NAME_WORDS ? t : '';
+}
+/* a name that is already on a trip (a member's, or a group's from another trip): kept as it is, however many words it
+   has (the cap is for typing); '' when it is no name (no letter, or the v1 word 'Me') */
+function keepName(s) {
+  var t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (!t || !/\p{L}/u.test(t) || isMeLabel(t)) return '';
+  return clip(t, NAME_CHARS);
+}
+/* a join request: <base>?idea=<id>&add=<name>.<IATA>. Someone not on the list shares it (P-face 🙋＋); on the
+   organizer's phone it opens the people editor with them added. The airport may be blank. */
+function joinLink(base, id, name, airport) {
+  var b = String(base || ''), n = cleanName(name);
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^?#\s]*$/i.test(b) || !IDEA_ID_RE.test(String(id || '')) || !n) return '';
+  return b + '?idea=' + id + '&add=' + encodeURIComponent(n + '.' + normIata(airport));
+}
+/* ?add=<name>.<IATA> → {name, airport}, or null (no usable name, or something after the last '.' that is no code) */
+function parseJoin(v) {
+  var s = String(v == null ? '' : v), i = s.lastIndexOf('.');
+  var tail = i >= 0 ? s.slice(i + 1).trim() : '', ap = normIata(tail);
+  if (tail && !ap) return null;
+  var name = cleanName(i >= 0 ? s.slice(0, i) : s);
+  return name ? { name: name, airport: ap } : null;
+}
+function b64text(s) {
+  var t = String(s).replace(/\s/g, '+').replace(/-/g, '+').replace(/_/g, '/');
+  while (t.length % 4) t += '=';
+  return typeof atob === 'function' ? atob(t) : Buffer.from(t, 'base64').toString('binary');
+}
+/* A v1 read-only ?tripIdea= link (v1's encodeTripIdeaSharePayload: base64 of the URI-encoded JSON payload, or the
+   URI-encoded JSON itself) → the draft P-new opens with: {name, code, mode 'dates'|'window', s, e, pin, nights,
+   caption, cut}. Only the place, the plan or window, the event day, the nights and the note are read; v1's prices, hub
+   and mode never are. Days already past are not offered again (the picker cannot choose them). v1's note has no
+   limit: the caption is its first 20 words within CAPTION_CHARS, and cut says that some of it was left out (the
+   sheet shows it with ⚠). null when the value is not such a payload. */
+function legacyDraft(raw, today) {
+  var s = String(raw == null ? '' : raw), p = null;
+  if (!s || s.length > 32768 || !isIso(today)) return null;
+  [function () { return decodeURIComponent(b64text(s)); }, function () { return decodeURIComponent(s); }].some(function (dec) {
+    try { var v = JSON.parse(dec()); if (v && typeof v === 'object' && hasOwn(V1_IDEA_VERSIONS, v.version)) { p = v; return true; } } catch (e) { /* not this encoding */ }
+    return false;
+  });
+  if (!p) return null;
+  var obj = function (v) { return v && typeof v === 'object' ? v : {}; };
+  var b = obj(p.builder), r = obj(p.recommendation), dest = obj(b.destination), d = obj(b.dates), c = obj(b.constraints);
+  var iso = function (v) { return isIso(v) ? v : ''; };
+  var code = normIata(r.airport) || normIata(dest.airport);
+  var name = clip(String(r.city || dest.city || '').replace(/\s+/g, ' '), TITLE_CHARS);
+  var out = { name: capTyped(name, '', TITLE_WORDS) === name ? name : firstWords(name, TITLE_WORDS).text, code: code, mode: 'dates', s: '', e: '', pin: '', nights: 3, caption: '', cut: false };
+  var dep = iso(r.departure) || iso(d.departure), ret = iso(r.return) || iso(d.return);
+  var w1 = iso(d.searchStart), w2 = iso(d.searchEnd), L = Math.round(+c.tripLength);
+  if (dep && ret && dep <= ret && dep >= today) { out.s = dep; out.e = ret; }
+  else if (w1 && w2 && w1 <= w2 && w2 >= today) { out.mode = 'window'; out.s = maxD(w1, today); out.e = w2; out.nights = L >= 1 && L <= 30 ? Math.min(L, Math.max(1, diffD(out.s, out.e))) : Math.max(1, Math.min(3, diffD(out.s, out.e))); }
+  var pin = iso(c.eventDate) || iso(p.eventContext);
+  if (out.mode === 'dates' && pin && pin >= today && (!out.s || (pin >= out.s && pin <= out.e))) out.pin = pin;
+  var notes = typeof p.notes === 'string' ? p.notes.replace(/\s+/g, ' ').trim() : '';
+  if (notes) { var fw = firstWords(notes, CAPTION_WORDS), c = clip(fw.text, CAPTION_CHARS); out.caption = c; out.cut = fw.more || c !== fw.text; }
+  return out;
+}
+/* the people of the trips this phone has seen, as ready groups for P-new-who: one per distinct set of people (by
+   name), in the order given (newest trip first). An unmigrated v1 trip offers no group: its faces are only read-time
+   stand-ins (a hashed face nobody chose), so a group built from it would hand someone a face they never had. Each:
+   {key, faces, rows [{face, name, airport, headcount, me}], family: it is the 👪 three (the token phone shows its
+   own 👪 chip)} */
+var FAMILY_KEY = FAMILY.map(function (f) { return normName(f.name); }).sort().join('|');
+function groupPresets(models) {
+  var out = [], seen = {};
+  (models || []).forEach(function (m) {
+    if (!m || !m.members || m.legacy) return;
+    var ms = m.members.filter(function (x) { return !!x.norm; });
+    if (!ms.length) return;
+    var key = ms.map(function (x) { return x.norm; }).sort().join('|');
+    if (hasOwn(seen, key)) return;
+    seen[key] = 1;
+    var faces = [], rows = ms.map(function (x) {
+      var f = faces.indexOf(x.face) < 0 ? x.face : freeFace(faces); faces.push(f);
+      return { face: f, name: x.name, airport: x.airport, headcount: x.headcount, me: !!(m.me && m.me.code === x.code) };
+    });
+    out.push({ key: key, faces: faces, rows: rows, family: key === FAMILY_KEY });
+  });
+  return out;
+}
+/* a face for someone new on a trip: the first face nobody on it has, preferring one nobody on this phone's other
+   trips has either (so faces stay telling when names are dropped to fit the words) */
+function freeFace(used, avoid) {
+  var u = used || [], a = avoid || [], i;
+  for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0 && a.indexOf(FACES[i]) < 0) return FACES[i];
+  for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0) return FACES[i];
+  return FACES[0];
+}
 /* === pialax trip-model: end === */
 
 /* =====================================================================================================
@@ -1998,7 +2189,7 @@ function mapXY(code) { var a = airportInfo(code); return a.known ? usPoint(a.lat
    • Keys shared with v1 are read and written in v1's exact formats. Nothing here deletes or replaces an edit key.
    • No fare search, no token header, no mock or estimated fare, no seeded trip: the only network peer is the
      Worker's free /idea routes.
-   Screens a later ticket owns (the trip view, Family board, Map, Calendar, create) are placeholders that render
+   Screens a later ticket owns (the trip view, Family board, Map, Calendar) are placeholders that render
    real store data; their tickets replace them.
    PIA-135: Trips › Ideas is the shared watchlist. Each card: the postcard with its mini locator, the title, the plan
    pill with 📌 and ⏳ days to go over the book-by arc (red once book-by has passed, where it matters), faces with
@@ -2006,6 +2197,10 @@ function mapXY(code) { var a = airportInfo(code); return a.known ? usPoint(a.lat
    and the one total on the organizer's token phone only.
    The 🗄 shelf collapses for real (the organizer can ↩ a dropped trip). The list-share sheet sends a ?l= list link
    of the trips I pick (grouped by people) with my face; a list link opens the receiving sheet (⤓ Save).
+   PIA-136: the one create path, three steps in one sheet (picture + name + optional place → people → dates or a rough
+   window with nights), and the organizer's edits (✎ P-edit: name and place, people, caption, the organizer link, drop
+   with ↩). Join requests (?idea=…&add=Name.IATA) open the people editor on the organizer's phone; v1's read-only
+   ?tripIdea= link opens a filled create sheet.
    ===================================================================================================== */
 
 /* ---- constants (outside the model region) ---- */
@@ -2135,7 +2330,7 @@ function listSnap(id, doc) {
 }
 /* pialax_ui_v1 {sel, keySeen, v1read, shelfOpen}: per-phone conveniences */
 function uiRead() { return readMap(ST.ui); }
-function uiSet(patch) { var u = uiRead(); Object.keys(patch).forEach(function (k) { u[k] = patch[k]; }); lsSet(ST.ui, JSON.stringify(u)); }
+function uiSet(patch) { var u = uiRead(); Object.keys(patch).forEach(function (k) { if (patch[k] === undefined) delete u[k]; else u[k] = patch[k]; }); lsSet(ST.ui, JSON.stringify(u)); }
 function navRead() { try { var v = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null'); return plainObj(v) ? v : {}; } catch (e) { return {}; } }
 function navWrite() { try { sessionStorage.setItem(NAV_KEY, JSON.stringify({ tab: S.tab, seg: S.seg })); } catch (e) { /* session storage is optional */ } }
 /* pialax_fares_v2 {fare key: {p, f, …}}: the cached real fares the one total is built from (read only here; the
@@ -2155,6 +2350,18 @@ function recordShared(ids) {
 }
 /* pialax_me_profile_v1 {label: '<face> <name>'}: who I am across trips (written by create and P-face) */
 function profileFace() { var l = readMap(ST.profile).label; return typeof l === 'string' ? splitLabel(l).face || '' : ''; }
+/* PIA-136: who I am, for the 🙋 of a new trip: my profile, else my face on the trip added to this phone last */
+function profileLabel() {
+  var l = readMap(ST.profile).label;
+  if (typeof l === 'string' && splitLabel(l).face && keepName(splitLabel(l).name)) return clip(l, TEXT_MAX.label);
+  var L = listRead().slice().sort(function (a, b) { return b.at - a.at; });
+  for (var i = 0; i < L.length; i++) {
+    var c = meFor(L[i].id), mem = c && DOCS[L[i].id] ? memberOf(DOCS[L[i].id], c) : null, lab = mem ? splitLabel(mem.label) : null;
+    if (lab && lab.face && keepName(lab.name)) return memberLabel(lab.face, lab.name);
+  }
+  return '';
+}
+function saveProfile(label) { var lab = splitLabel(label); if (lab.face && keepName(lab.name)) lsSet(ST.profile, JSON.stringify({ label: memberLabel(lab.face, lab.name) })); }
 
 /* ---- the Worker: free /idea routes only ---- */
 var ERR_CODES = { network: 1, not_found: 1, closed: 1, forbidden: 1, no_token: 1, daily_cap: 1, no_kv: 1, bad_body: 1, bad_id: 1, answer_first: 1, bad_decision: 1, too_large: 1 };
@@ -2202,7 +2409,7 @@ function changed() {
 }
 var RENDER_Q = false;
 function setDoc(id, doc) {
-  DOCS[id] = doc; STAT[id] = 'ok'; FAIL[id] = false;
+  DOCS[id] = doc; STAT[id] = 'ok'; FAIL[id] = false; MC = {};   // a model read before the next render is built from this doc
   listSnap(id, doc);
   if (S && S.tab === 'trips' && S.trip === id) markSeen(doc);
 }
@@ -2226,6 +2433,7 @@ function refresh(id) {
     if (storeSig(id) !== s0) changed();
     linkAnswered(id, missing);
     savedAnswered(id, missing);
+    joinAnswered(id);
     return r;
   });
   INFL[id] = { p: p, seq: seq };
@@ -2265,13 +2473,14 @@ function onFocus() { if (pageVisible() && nowMs() - LAST_ALL >= FOCUS_GAP_MS) re
 /* writes: optimistic, one per control, through the model's request builders */
 function beginWrite(id) { PEND[id] = (PEND[id] || 0) + 1; WSEQ[id] = (WSEQ[id] || 0) + 1; }
 function endWrite(id) { PEND[id] = Math.max(0, (PEND[id] || 0) - 1); WSEQ[id] = (WSEQ[id] || 0) + 1; }
-/* the requests of one write, in order; a refusal stops the rest and says which reply landed before it */
+/* the requests of one write, in order; a refusal stops the rest and says which reply landed before it (landed) and
+   which request it was (at: the requests from there on were not applied) */
 function sendAll(reqs) {
   var i = 0, last = null;
   function next() {
     if (i >= reqs.length) return Promise.resolve({ ok: true, json: last && last.json });
-    var q = reqs[i++];
-    return api(q.method, q.path, q.body).then(function (r) { if (!r.ok) { r.landed = last; return r; } last = r; return next(); });
+    var at = i, q = reqs[i++];
+    return api(q.method, q.path, q.body).then(function (r) { if (!r.ok) { r.landed = last; r.at = at; return r; } last = r; return next(); });
   }
   return next();
 }
@@ -2307,34 +2516,68 @@ function setBooked(id, code, booked, opts) {
   if (!reqs) return Promise.resolve({ ok: false, code: doc ? 'bad_body' : 'not_found' });
   return commitWrite(id, reqs, doc);
 }
+/* PIA-136: id → {base, codes}: the airport-sync answers an organizer edit still owes. Its update landed and these
+   answers did not (the connection dropped between them), so the record would read the old home as an override. They
+   ride this phone's next idea edit of the trip, or go alone (an empty delta: ↻ on the sheet), rebuilt by the model
+   against base, the record that edit began with. In memory only: the retry is the sheet's ⚠ ↻. */
+var OWED = {};
+function reqRoute(q) { return String(q.path).split('?')[0]; }
+/* what is owed after a write that failed: the update landed (the refusal came after it) → every sync answer from the
+   refused one on; it did not → what was owed before still is */
+function owedAfter(reqs, r, ow, fresh) {
+  var up = -1, at = typeof r.at === 'number' ? r.at : 0;
+  reqs.forEach(function (q, i) { if (up < 0 && reqRoute(q) === '/idea/update' && q.body && q.body.idea) up = i; });
+  if (up >= 0 && at <= up) return ow || null;
+  var codes = reqs.slice(at).filter(function (q) { return reqRoute(q) === '/idea/respond'; }).map(function (q) { return q.body.member; });
+  return codes.length ? { base: ow ? ow.base : fresh, codes: codes } : null;
+}
 /* an organizer edit: drawn at once from the doc on screen, then rebuilt from a fresh GET (with the edit key) and sent.
-   delta may be a function of the doc (read again from the fresh one), for an edit that depends on what is there. */
+   delta may be a function of the doc (read again from the fresh one), for an edit that depends on what is there.
+   An empty delta sends only what an earlier edit still owes (OWED). The result says partial when an earlier request
+   of the write landed, and updated when its update did. */
 function organizerWrite(id, delta, opts) {
   var key = editKeyFor(id), before = DOCS[id];
   if (!key || KEYBAD[id]) return Promise.resolve({ ok: false, code: 'forbidden' });
   var dl = typeof delta === 'function' ? delta : function () { return delta; };
+  var ow = OWED[id] || null, op = Object.assign({}, opts || {}, ow ? { owed: ow } : {});
+  var idea = function (d) { return !!d && IDEA_DELTA_KEYS.some(function (k) { return hasOwn(d, k); }); };
   beginWrite(id);
-  var pre = before ? organizerEdit(before, key, dl(before), opts) : null;
+  var d0 = before ? dl(before) : null, pre = before ? organizerEdit(before, key, d0, op) : null;
   if (pre) { DOCS[id] = applyLocal(before, pre); changed(); }
   return api('GET', reqPath('/idea', id)).then(function (g) {
     if (!g.ok || !plainObj(g.json.doc) || g.json.doc.id !== id) return finishWrite(id, { ok: false, code: g.code || 'network' }, before);
     if (g.json.organizer === false) { KEYBAD[id] = true; return finishWrite(id, { ok: false, code: 'forbidden' }, g.json.doc); }
-    var fresh = g.json.doc, reqs = organizerEdit(fresh, key, dl(fresh), opts);
-    if (!reqs) return finishWrite(id, { ok: false, code: 'bad_body' }, fresh);
+    var fresh = g.json.doc, d = dl(fresh) || {}, owedOnly = !idea(d) && !d.decision, reqs = organizerEdit(fresh, key, d, op);
+    if (!reqs) {
+      // only owed answers, and none can go (the trip closed meanwhile, or nobody owed still has an answer): settled
+      if (owedOnly && ow) { if (OWED[id] === ow) delete OWED[id]; endWrite(id); setDoc(id, fresh); changed(); return { ok: true }; }
+      return finishWrite(id, { ok: false, code: 'bad_body' }, fresh);
+    }
     DOCS[id] = applyLocal(fresh, reqs); changed();
-    return sendAll(reqs).then(function (r) { return finishWrite(id, r, fresh); });
+    return sendAll(reqs).then(function (r) {
+      var out = finishWrite(id, r, fresh), carried = idea(d) || owedOnly;   // a decision-only edit carries nothing owed
+      if (out.ok) { if (carried && OWED[id] === ow) delete OWED[id]; return out; }
+      var up = reqs.map(reqRoute).indexOf('/idea/update');
+      out.updated = up >= 0 && r.at > up && idea(d);
+      if (carried) { var nx = owedAfter(reqs, r, ow, fresh); if (nx) OWED[id] = nx; else delete OWED[id]; }
+      return out;
+    });
   });
 }
-/* POST /idea: the edit key is saved in v1's format and the trip joins the list */
-function createTrip(draft) {
+/* POST /idea: the edit key is saved in v1's format and the trip joins the list. o.me = the index of the 🙋 member in
+   draft.members: this phone is that member on the new trip (pialax_idea_me_v1) and it becomes my profile. */
+function createTrip(draft, o) {
+  o = o || {};
   var req = createRequest(draft, { today: todayLocal() });
   if (!req) return Promise.resolve({ ok: false, code: 'bad_body' });
   return api(req.method, req.path, req.body).then(function (r) {
     var j = r.json || {};
     if (!r.ok || !IDEA_ID_RE.test(String(j.id)) || !IDEA_KEY_RE.test(String(j.edit_key)) || !plainObj(j.doc)) return { ok: false, code: r.code || 'bad_body' };
     saveKey(j.id, j.edit_key, req.body.idea.title);
+    var mine = typeof o.me === 'number' ? req.body.idea.members[o.me] || null : null;
+    if (mine) { setMe(j.id, mine.code); saveProfile(mine.label); }
     listAdd([j.id]); setDoc(j.id, j.doc); changed();
-    return { ok: true, id: j.id };
+    return { ok: true, id: j.id, code: mine ? mine.code : '' };
   });
 }
 /* what the Worker will make of these requests (validateResponse / booked / validateIdea + applyDecision), so the
@@ -2412,11 +2655,13 @@ function v1ShortIds(s) {
 }
 /* v1's legacy ?wl= payload (base64 of URI-encoded JSON {overrides, added}) */
 function v1LegacyIds(s) { try { return v1SharedIds(JSON.parse(decodeURIComponent(atob(String(s || ''))))); } catch (e) { return []; } }
-/* What a URL asks for. Pure: (search, hash, pathname) → {idea, ids, face, tab, keys, token, hint, list, devices, drop, stripHash}.
+/* What a URL asks for. Pure: (search, hash, pathname) → {idea, ids, face, tab, keys, token, hint, list, devices, drop, stripHash,
+   join, tripIdea}.
    ?idea=<id> or /i/<id>       the trip to save and open
    ?l=<id>.<id>…&f=<face>      a v2 list link (v1 owns ?w= and ?wl=); ?w= / ?wl= v1 share payloads are read for ids
    #k=<key>&t=<token>          v1's organizer link (with ?idea=)        #ks=<id>.<key>,…&t=<token>   the devices link
    #m=<code>                   a nudge hint for the trip                ?tab=map|cal                  a starting tab
+   ?idea=<id>&add=<name>.<IATA>  a join request (PIA-136)               ?tripIdea=<v1 payload>        v1's read-only idea link
    The hash patterns are v1's (_tripIdeaTakeHashKey); a token is taken only with a key or devices link.
    A hash that carries any k=, ks=, t= or m= at all leaves the address bar, valid or not, so a truncated or
    mistyped key or token is never left on screen or in history. Punctuation that a sentence put after a pasted
@@ -2433,9 +2678,13 @@ function hashParams(hash) {
 }
 function readLink(search, hash, pathname) {
   var q = qsParse(search), h = String(hash || '');
-  var out = { idea: '', ids: [], face: '', tab: '', keys: {}, token: '', hint: '', list: false, devices: false, drop: [], stripHash: false };
+  var out = { idea: '', ids: [], face: '', tab: '', keys: {}, token: '', hint: '', list: false, devices: false, drop: [], stripHash: false, join: null, tripIdea: null };
   var pm = /\/i\/([A-Za-z0-9_-]{22})\/?$/.exec(String(pathname || '')), id = pm ? pm[1] : String(q.idea || '');
   if (IDEA_ID_RE.test(id)) out.idea = id;
+  // PIA-136: a join request ?idea=<id>&add=<name>.<IATA> (read once; only the organizer's phone acts on it), and v1's
+  // read-only ?tripIdea=<payload> (read once: it opens a prefilled create sheet; ?idea= wins, as in v1)
+  if (hasOwn(q, 'add')) { if (out.idea) out.join = parseJoin(q.add); out.drop.push('add'); }
+  if (hasOwn(q, 'tripIdea')) { if (!out.idea) out.tripIdea = String(q.tripIdea); out.drop.push('tripIdea'); }
   var ids = [];
   if (hasOwn(q, 'l')) { out.list = true; ids = ids.concat(String(q.l).split('.')); out.drop.push('l'); }
   if (hasOwn(q, 'f')) { out.face = faceOf(q.f) || ''; out.drop.push('f'); }
@@ -2473,9 +2722,11 @@ function applyLink(L) {
   if (L.tab) S.tab = L.tab;
   if (L.idea) {
     S.sel = L.idea; uiSet({ sel: L.idea });
-    if (!L.tab) { S.tab = 'trips'; S.trip = L.idea; }
+    if (!L.tab || L.join) { S.tab = 'trips'; S.trip = L.idea; }   // a join request is acted on in the trip view, whatever ?tab= says
     if (L.hint) S.hint = { id: L.idea, code: L.hint };
+    if (L.join) S.joinNext = { id: L.idea, name: L.join.name, airport: L.join.airport };   // see joinAnswered
   }
+  if (L.tripIdea !== null) { S.newNext = legacyDraft(L.tripIdea, todayLocal()); if (!S.newNext) S.errNext0 = 'bad_id'; }
   if (fromList.length) S.toastNext = '⤓ ' + fromList.length;
   cleanUrl(L);
   return { listed: fromList, added: more };
@@ -2513,10 +2764,13 @@ function syncURL() {
 }
 function appBase() { return String(location.href || '').split(/[?#]/)[0]; }
 /* the organizer's own-devices links (v1's #k=/#t= format, and #ks= for every key at once). They are only copied,
-   never handed to a share sheet, and P-link and ⚙ say they are for the organizer's own devices. */
+   never handed to a share sheet, and P-link and ⚙ say they are for the organizer's own devices.
+   PIA-136: the organizer link is exactly v1's (tripIdeaOrganizerLink): the app's folder, so index.html sends it to
+   v1 today (which takes the key) and to this app after the cutover, and no copied link names app.html. The devices
+   link (#ks=, v2 only: v1 would leave its keys in the address bar) stays on this file until the cutover (PIA-147). */
 function organizerLink(id) {
   var key = editKeyFor(id); if (!key) return '';
-  return appBase() + '?idea=' + id + '#k=' + key + (hasToken() ? '&t=' + tokenStr() : '');
+  return dirBase() + '?idea=' + id + '#k=' + key + (hasToken() ? '&t=' + tokenStr() : '');
 }
 function devicesLink() {
   var keyed = keyIds(), ids = uniq(listIds().concat(keyed)).slice(0, APP_LIST_MAX);
@@ -2620,7 +2874,9 @@ var LEGEND = {
   trips: ['🧳', 'Trips'], map: ['🗺', 'Map'], cal: ['🗓', 'Calendar'], all: ['▦', 'All trips'],
   sharelist: [LISTSHARE, 'Share list'], share: ['📣', 'Share'], save: ['⤓', 'Save list'], new: ['<span class="av s28" style="--pc:var(--p0)"><span class="f">🙂</span><span class="new"></span></span>', 'New answer'],
   look: ['<span class="kbadge">1</span>', 'Needs a look'], total: ['$', 'Group total'], paid: ['💵', 'Paid'], unpriced: ['+🙂', 'Not priced'], search: ['🔍', 'Search fares'],
-  restore: ['↩', 'Restore'], bookby: [BBA_KEY, 'Book by'], place: [LOC_KEY_US, 'Place'], abroad: [LOC_KEY_GLOBE, 'Abroad'], noplace: [LOC_KEY_NONE, 'Place unknown']
+  restore: ['↩', 'Restore'], bookby: [BBA_KEY, 'Book by'], place: [LOC_KEY_US, 'Place'], abroad: [LOC_KEY_GLOBE, 'Abroad'], noplace: [LOC_KEY_NONE, 'Place unknown'],
+  // PIA-136
+  edit: ['✎', 'Edit'], me: ['🙋', 'Me'], unknown: ['📍⚠', 'Unknown airport'], noairport: ['📍?', 'No airport']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -2893,12 +3149,17 @@ function renderFamily() {
   return { id: 'trips-family', html: h };
 }
 /* the trip view (PIA-137 builds the organizer page and the open portal on this frame) */
+/* PIA-136: the organizer's ✎ (P-edit) sits in the nav of a trip this phone holds the key to (never on a v1 doc, which
+   P-migrate brings across first); 📣 shares the guest link; 📝 opens the caption */
+function editBtn(m) { return m.org && !m.legacy ? '<button class="ib edit" data-act="edit" data-id="' + m.id + '" aria-label="Edit" data-k="edit">✎</button>' : ''; }
+function tripShareBtn(m) { return m.decision === 'dropped' ? '' : '<button class="ib" data-act="tshare" data-id="' + m.id + '" aria-label="Share" data-k="share">📣</button>'; }
 function renderTrip(id) {
   var m = modelOf(id), x = listEntry(id) || { id: id, t: '', e: '' };
-  var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + keyBtn() + setBtn() + '</div>';
+  var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + tripShareBtn(m) : '') + keyBtn() + setBtn() + '</div>';
   if (!m) return { id: 'trip-loading', html: nav + '<div class="hero">' + postcard(stubModel(x), 'lg') + '</div><h2 class="ttl" data-free>' + esc(x.t) + '</h2><div class="rowc">' + staleMark() + '</div>' };
   var hero = '<div class="hero">' + postcard(m, 'lg', { noLock: true }) +
     (m.iHost ? '' : '<button class="chip" data-act="tomap" data-id="' + m.id + '" aria-label="Map" data-k="dest">📍' + esc(m.dest || '?') + '</button>') +
+    (m.caption ? '<button class="nt" data-act="cap" data-id="' + m.id + '" aria-label="Note" data-k="note"><span>📝</span></button>' : '') +
     '<span class="ring" role="img" aria-label="Heads in" data-k="heads">' + headsRing(m) + '</span></div><h2 class="ttl" data-free>' + esc(m.title) + '</h2>';
   var dr = '<div class="daterow"><span class="pill' + (m.locked ? ' set' : '') + '"><span class="inner">' + datesText(m, true) + (m.locked ? ' <span data-k="lock">🔒</span>' : '') + '</span></span></div>';
   var faces = '<div class="dayfaces">' + m.members.map(function (p, i) {
@@ -3008,7 +3269,20 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
    failed read). While a sheet is open the screen and tab bar behind it are inert, and closing it puts focus
    back on the control that opened it. ---- */
 var SHEETS = {};
-var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', soon: 'New trip', sharelist: 'Share list', savelist: 'Save list' };   // each sheet's accessible name
+var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
+  edit: 'Edit trip', drop: 'Drop trip', note: 'Note' };   // each sheet's accessible name
+/* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
+function popupName(sh) {
+  if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
+  return 'P-' + sh.type;
+}
+/* a screen reader hears which step of the create sheet it is on (its step dots are pictures only) */
+function sheetName(sh) {
+  var D = sh.type === 'new' ? sh.local.d : null;
+  if (D && D.edit) return 'Edit trip';
+  if (D) return 'New trip, step ' + Math.max(1, Math.min(3, D.step || 1)) + ' of 3';
+  return SHEET_NAME[sh.type] || 'Sheet';
+}
 function shHd(left, o) {
   o = o || {};
   if (o.back === undefined && S.sheet && S.sheet.back) o.back = true;
@@ -3163,8 +3437,523 @@ SHEETS.error = function (sh) {
   return shHd('') + '<div class="errline"><span class="eg" aria-hidden="true">' + e[0] + '</span>' + (e[1] ? '<span class="tn">' + esc(e[1]) + '</span>' : '') + '</div>' +
     (e[2] ? '<button class="btn pri wide" data-act="eretry" aria-label="Retry">↻</button>' : '');
 };
-/* P-new is PIA-136's; until then ＋ opens this frame */
-SHEETS.soon = function () { return shHd('＋') + '<div class="ghost">' + ghostPicture() + '</div>'; };
+/* ---- PIA-136: the one create path (P-new-what → P-new-who → P-new-when) and the organizer's edits ----
+   One sheet in three steps. It starts empty: a picture, no name, no place and no dates, so nothing comes from another
+   screen's state. Step 2 starts from a group this phone can see, shown as a pressed chip: the 👪 family on the
+   organizer's token phone, else the people of the trip added to this phone last, with 🙋 me from my profile.
+   Everything typed lives in the sheet (outside the model render, so a refresh never resets it); only a failed Create
+   keeps it (pialax_ui_v1.draft), and ＋ then reopens it for a retry. A sheet closed before Create stores nothing; the
+   toast's ↩ brings it back. Everything Create sends is on the sheet (a v1 link's note is its 📝 chip). P-edit reuses
+   steps 1 and 2, and a Save sends only what it changed. */
+var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+var POPUP_MAX = 20;
+/* the picture follows the name until one is tapped; with no keyword it is the city scene */
+var SCENE_WORDS = [['🦃', /thanksgiving|turkey/], ['🎄', /christmas|xmas|holiday/], ['🪔', /diwali|deepavali/], ['🎂', /birthday|bday/], ['💍', /wedding|engage/],
+  ['🎉', /party|shower|reunion|celebrat|new year/], ['🌊', /beach|surf|island|cancun|hawaii|honolulu|cruise/], ['🎿', /ski|snow/], ['🗻', /hike|mountain|trek|park/],
+  ['⛺', /camp/], ['⚾', /baseball|game|match|stadium/], ['🌵', /desert|vegas|phoenix|arizona/], ['🌆', /city|nyc|visit|work|trip/]];
+var SCENE_FALLBACK = '🌆';
+var FAMILY_KEYS = {}; FAMILY.forEach(function (f) { FAMILY_KEYS[f.key] = 1; });
+function guessScene(title) { var t = String(title || '').toLowerCase(); for (var i = 0; i < SCENE_WORDS.length; i++) if (SCENE_WORDS[i][1].test(t)) return SCENE_WORDS[i][0]; return SCENE_FALLBACK; }
+function shiftMonth(ymStr, k) { var y = +ymStr.slice(0, 4), mo = +ymStr.slice(5, 7) - 1 + k; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + (mo < 9 ? '0' : '') + (mo + 1); }
+/* the one date grid (P-new-when now; P-dates and Calendar build on it): ◀ month ▶, two named weekend columns */
+function monthHeader(ymStr, act, minYm) {
+  var prevOk = !minYm || ymStr > minYm;
+  return '<div class="monthhd"><button class="ib" data-act="' + act + '" data-v="-1" aria-label="Previous month"' + (prevOk ? '' : ' disabled') + '>◀</button><h3>' + MONTHS[+ymStr.slice(5, 7) - 1] + ' <span class="tn">' + ymStr.slice(0, 4) + '</span></h3>' +
+    '<button class="ib" data-act="' + act + '" data-v="1" aria-label="Next month">▶</button></div>';
+}
+function gridHTML(ymStr, cellFn) {
+  var first = ymStr + '-01', lead = dowOf(first), days = diffD(first, shiftMonth(ymStr, 1) + '-01'), h = '<div class="grid"><span class="wd we">Sun</span>', k;
+  for (k = 0; k < 5; k++) h += '<span class="wd"></span>';
+  h += '<span class="wd we">Sat</span>';
+  for (k = 0; k < lead; k++) h += '<span class="dc blank"></span>';
+  for (k = 0; k < days; k++) h += cellFn(addD(first, k));
+  var tail = (7 - (lead + days) % 7) % 7; for (k = 0; k < tail; k++) h += '<span class="dc blank"></span>';
+  return h + '</div>';
+}
+function dayCls(day) { var w = dowOf(day); return 'dc' + (w === 0 || w === 6 ? ' we' : '') + (day < RT.today ? ' past' : '') + (day === RT.today ? ' today' : ''); }
+function holMark(day) { var x = holidayOn(day); return x ? '<span class="hg" aria-hidden="true">' + x.g + '</span>' : ''; }
+/* holiday chips only for the next ~90 days (a chip seven months out is noise) */
+function soonHolidays() { return nextHolidays(RT.today, 6).filter(function (hd) { return diffD(RT.today, hd.d) <= 90; }); }
+/* every trip this phone has seen (the list, shelf included), the one added last first */
+function seenModels() {
+  var L = listRead();
+  return L.map(function (x, i) { return { x: x, i: i }; }).sort(function (a, b) { return (b.x.at - a.x.at) || (b.i - a.i); })
+    .map(function (o) { return modelOf(o.x.id); }).filter(Boolean);
+}
+function phoneFaces() { var f = []; seenModels().forEach(function (m) { m.members.forEach(function (x) { f.push(x.face); }); }); return f; }
+/* the step-2 chips: 👪 (the token phone only, date-aware: Anjo is at LGA from 9/1; Create re-resolves it against the
+   departure), then the groups of trips this phone has seen (at most four) */
+function presetChips() {
+  var out = [], tok = hasToken();
+  if (tok) out.push({ key: 'family', family: true, faces: FAMILY.map(function (f) { return f.face; }),
+    rows: familyPreset('', RT.today).map(function (f) { return { face: f.face, name: f.name, name0: f.name, ap: f.airport, n: f.headcount, me: false, preset: f.preset }; }) });
+  groupPresets(seenModels()).forEach(function (g) {
+    if ((g.family && tok) || out.length >= (tok ? 5 : 4)) return;
+    out.push({ key: 'g:' + g.key, family: false, faces: g.faces, rows: g.rows.map(function (r) { return { face: r.face, name: r.name, name0: r.name, ap: r.airport, n: r.headcount, me: r.me, preset: '' }; }) });
+  });
+  return out;
+}
+/* a row's name as it will be saved. One that came from a record (a member's, a group's from another trip: name0) and
+   was not retyped is kept as it is, however many words it has; a typed one follows the typed rule (≤3 words). */
+function spaced(s) { return String(s == null ? '' : s).replace(/\s+/g, ' ').trim(); }
+function nameUntouched(r) { return r.name0 != null && spaced(r.name) === spaced(r.name0); }
+function nameFor(r) { return nameUntouched(r) ? keepName(r.name) : cleanName(r.name); }
+/* 🙋 from my profile when the rows carry no me of their own */
+function withMe(rows) {
+  if (rows.some(function (r) { return r.me; })) return rows;
+  var norm = normName(splitLabel(profileLabel()).name);
+  if (norm) for (var i = 0; i < rows.length; i++) if (normName(rows[i].name) === norm) { rows[i].me = true; break; }
+  return rows;
+}
+/* the group pre-applied on step 2: the people of the trip added last (👪 when they are the family and this is the
+   token phone); a fresh token phone starts from 👪 */
+function presetFor(chips) {
+  var last = seenModels().filter(function (m) { return m.members.some(function (x) { return !!x.norm; }); })[0];
+  var g = last ? groupPresets([last])[0] : null;
+  if (!g) return hasToken() ? chips[0] || null : null;
+  return chips.filter(function (c) { return (g.family && c.family) || c.key === 'g:' + g.key; })[0] || null;
+}
+function newDraft(start) {
+  var chips = presetChips(), pick = presetFor(chips), s = isIso(start) && start >= RT.today ? start : '';
+  return { step: 1, edit: false, scene: SCENE_FALLBACK, scenePicked: false, name: '', dest: '', rows: pick ? withMe(clone(pick.rows)) : [], preset: pick ? pick.key : null,
+    ed: null, arm: null, mode: 'dates', s: s, e: '', stage: s ? 1 : 0, pin: '', pinMode: false, nights: 3, ym: s ? ym(s) : shiftMonth(ym(RT.today), 1),
+    caption: '', captionCut: false, cuts: {}, failed: '', busy: false, kept: false };
+}
+/* v1's read-only ?tripIdea= link, as a create sheet: its place, dates or window and event day; its note is the 📝
+   chip on the first and last steps (shown, editable, ⚠ when v1's longer text was cut to 20 words) */
+function draftFromLegacy(x) {
+  var D = newDraft();
+  D.name = x.name || ''; D.dest = x.code || ''; D.scene = guessScene(D.name); D.mode = x.mode === 'window' ? 'window' : 'dates';
+  D.s = x.s || ''; D.e = x.e || ''; D.pin = x.pin || ''; D.nights = x.nights || 3; D.caption = x.caption || ''; D.captionCut = !!x.cut;
+  if (D.s) D.ym = ym(D.s);
+  return D;
+}
+/* what a failed Create keeps (pialax_ui_v1.draft), and reading it back (anything off-shape is dropped) */
+function draftOut(D) {
+  return { scene: D.scene, scenePicked: !!D.scenePicked, name: D.name, dest: D.dest, preset: D.preset, mode: D.mode, s: D.s, e: D.e, pin: D.pin, nights: D.nights, ym: D.ym,
+    caption: D.caption, captionCut: !!D.captionCut,
+    rows: D.rows.map(function (r) { var o = { face: r.face, name: r.name, ap: r.ap, n: r.n, me: !!r.me, preset: r.preset || '' }; if (r.name0 != null) o.name0 = r.name0; return o; }) };
+}
+function keptDraft() {
+  var k = uiRead().draft; if (!plainObj(k)) return null;
+  var D = newDraft(), str = function (v, n) { return typeof v === 'string' ? v.slice(0, n) : ''; }, code = function (v) { return str(v, 3).toUpperCase().replace(/[^A-Z]/g, ''); };
+  var iso = function (v) { return isIso(v) && v >= RT.today ? v : ''; }, used = [];
+  D.scene = faceOf(k.scene) || SCENE_FALLBACK; D.scenePicked = !!k.scenePicked; D.name = str(k.name, TITLE_CHARS); D.dest = code(k.dest);
+  D.rows = (Array.isArray(k.rows) ? k.rows : []).filter(plainObj).slice(0, IDEA_MAX_MEMBERS).map(function (r) {
+    var f = faceOf(r.face); if (!f || used.indexOf(f) >= 0) f = freeFace(used); used.push(f);
+    var o = { face: f, name: str(r.name, NAME_CHARS), ap: code(r.ap), n: Math.max(1, Math.min(9, Math.round(+r.n) || 1)), me: !!r.me, preset: hasOwn(FAMILY_KEYS, r.preset) ? r.preset : '' };
+    if (typeof r.name0 === 'string') o.name0 = r.name0.slice(0, NAME_CHARS);
+    return o;
+  });
+  D.preset = typeof k.preset === 'string' ? k.preset : null; D.mode = k.mode === 'window' ? 'window' : 'dates';
+  D.s = iso(k.s); D.e = D.s ? iso(k.e) : ''; D.pin = iso(k.pin); D.nights = Math.max(1, Math.min(30, Math.round(+k.nights) || 3));
+  // the caption is shown (📝) and capped like any typed caption: what comes back is never more than the sheet can show
+  var fw = firstWords(spaced(str(k.caption, TEXT_MAX.notes)), CAPTION_WORDS), cap = clip(fw.text, CAPTION_CHARS);
+  D.caption = cap; D.captionCut = !!k.captionCut || fw.more || cap !== fw.text;
+  if (/^\d{4}-\d{2}$/.test(String(k.ym)) && k.ym >= ym(RT.today)) D.ym = k.ym;
+  D.step = 3; D.kept = true;
+  return D;
+}
+/* the sheet's state → createRequest's draft (members as named, 🙋 by index). Everything sent is on the sheet: the
+   caption is the 📝 chip's text. */
+function requestDraft(D) {
+  var dated = D.mode === 'dates', both = !!(D.s && D.e), rows = D.rows.filter(function (r) { return r.name.trim(); });
+  return { emoji: D.scene, name: spaced(D.name), dest: { airport: D.dest.length === 3 ? D.dest : '' },
+    dates: dated ? { departure: both ? D.s : '', return: both ? D.e : '' } : { searchStart: both ? D.s : '', searchEnd: both ? D.e : '' },
+    pin: dated ? D.pin : '', nights: dated ? null : D.nights, caption: spaced(D.caption),
+    members: rows.map(function (r) { var e = { name: nameFor(r), face: r.face, airport: r.ap.length === 3 ? r.ap : '', headcount: r.n }; if (r.preset) e.preset = r.preset; return e; }),
+    me: rows.map(function (r) { return !!r.me; }).indexOf(true) };
+}
+function editDraft1(m) {
+  var t = splitLabel(m.title);
+  return { step: 1, edit: true, scene: t.face || '', scenePicked: true, name: t.name, dest: m.dest, rows: [], cuts: {}, failed: '', busy: false };
+}
+/* the people editor of an existing trip: every member keeps its code (answers hang off it) and remembers how it was
+   (o, name0), so a Save sends only what this edit changed. A join request adds one row, also on a full trip: the sheet
+   then shows ⚠ 9/8 and Save waits until someone is removed. */
+function editDraft2(m, join) {
+  var me = m.me ? m.me.code : '';
+  var rows = m.members.map(function (x) {
+    return { face: x.face, name: x.name, name0: x.name, ap: x.airport, n: x.headcount, me: x.code === me, preset: '', code0: x.code, ans: !!x.resp, o: { face: x.face, ap: x.airport, n: x.headcount } };
+  });
+  var D = { step: 2, edit: true, rows: rows, ed: null, arm: null, known: m.members.map(function (x) { return x.code; }), cuts: {}, failed: '', busy: false };
+  if (join && !rows.some(function (r) { return normName(r.name) === normName(join.name); })) {
+    rows.push({ face: freeFace(rows.map(function (r) { return r.face; }), phoneFaces()), name: join.name, ap: join.airport || '', n: 1, me: false, preset: '' });
+    D.ed = rows.length - 1;
+  }
+  return D;
+}
+/* the people editor over the record as it is now (a Save that would pass 8 people, because someone was added on
+   another device meanwhile): this edit's own changes stay on the rows still there, the members added meanwhile
+   appear, a member removed meanwhile is gone, the new rows stay (with a face nobody there has) */
+function rebaseWho(D, m) {
+  var F = editDraft2(m), mine = {}, rows = [];
+  D.rows.forEach(function (r) { if (r.code0) mine[r.code0] = r; });
+  F.rows.forEach(function (f) {
+    var r = mine[f.code0];
+    if (r) {
+      ['face', 'ap', 'n'].forEach(function (k) { if (r[k] !== r.o[k]) f[k] = r[k]; });
+      if (!nameUntouched(r)) f.name = r.name;
+      f.me = r.me; rows.push(f);
+    } else if ((D.known || []).indexOf(f.code0) < 0) { f.me = false; rows.push(f); }
+  });
+  D.rows.forEach(function (r) {
+    if (r.code0) return;
+    var used = rows.map(function (x) { return x.face; });
+    if (used.indexOf(r.face) >= 0) r.face = freeFace(used, phoneFaces());
+    rows.push(r);
+  });
+  D.rows = rows; D.known = F.known; D.ed = null; D.arm = null;
+}
+/* the open row closes into a chip. A new row left without a name goes; a member already on the trip is only ever
+   removed with 🗑 (which asks again when they answered), so a cleared name comes back as it was. */
+function closeEditor(D) {
+  if (D.ed == null) return;
+  var r = D.rows[D.ed];
+  if (r && !r.name.trim()) { if (r.code0) r.name = r.name0 || ''; else D.rows.splice(D.ed, 1); }
+  else if (r) r.name = spaced(r.name);
+  D.ed = null;
+}
+/* the first row that cannot be saved as it is: a name that is no name (the v1 word 'Me', no letter, or a typed name
+   past 3 words) or a code cut short. Only what this sheet typed is checked: a name already on the trip (or in a
+   group) that nobody retyped is never refused, so nobody has to rename someone else to save an unrelated change. A
+   member re-faced whose label had no name needs one (their label is rebuilt from it). */
+function rowProblem(D) {
+  for (var i = 0; i < D.rows.length; i++) {
+    var r = D.rows[i];
+    var check = !r.code0 || !nameUntouched(r) || (r.o && r.face !== r.o.face && !keepName(r.name0));
+    if (check && r.name.trim() && !nameFor(r)) return { i: i, f: 'mem-name' };
+    if (r.ap && r.ap.length !== 3) return { i: i, f: 'mem-ap' };
+  }
+  return null;
+}
+/* what a Save changes on one row: a new person in full; a member already there as their code plus only the fields
+   this edit changed (their code alone when nothing: their label goes back verbatim, and a change made on another
+   device meanwhile survives) */
+function rowDelta(r) {
+  if (!r.code0) return { name: nameFor(r), face: r.face, airport: r.ap.length === 3 ? r.ap : '', headcount: r.n };
+  var o = r.o || {}, e = { code: r.code0 };
+  if (r.face !== o.face) e.face = r.face;
+  if (!nameUntouched(r)) e.name = nameFor(r);
+  if (r.ap !== o.ap) e.airport = r.ap.length === 3 ? r.ap : '';
+  if (r.n !== o.n) e.headcount = r.n;
+  return e;
+}
+/* P-new-who's word guard: the open row shows its full typed value; the other rows are chips whose names shorten (2
+   words, then 1, 'Mom&Dad' style, then their codes hide) so the sheet never passes 20 words; above 6 people a name is
+   1 word from the start */
+function chipName(r, mode) { return mode === 'short' ? shortName(r.name) : oneWord(r.name); }
+function whoWords(D, mode) {
+  var n = 0;
+  D.rows.forEach(function (r, i) {
+    if (i === D.ed) { n += (r.name.trim() ? wordsIn(r.name) : 1) + (r.ap ? wordsIn(r.ap) : 1); return; }
+    n += wordsIn(chipName(r, mode)) + (mode !== 'nocode' && r.ap ? wordsIn(r.ap) : 0);
+  });
+  return n;
+}
+function whoMode(D, limit) {
+  var modes = D.rows.length > 6 ? ['one', 'nocode'] : ['short', 'one', 'nocode'];
+  for (var k = 0; k < modes.length; k++) if (whoWords(D, modes[k]) <= limit) return modes[k];
+  return 'nocode';
+}
+function whoLimit(D) { return POPUP_MAX - (D.edit ? 1 : 0); }   // 'Save' is a word; ▶ is not
+function stepDots(n) { return '<span class="stepdots" aria-hidden="true">' + [1, 2, 3].map(function (i) { return '<i class="' + (i === n ? 'on' : '') + '"></i>'; }).join('') + '</span>'; }
+var PREV_BTN = '<button class="ib" data-act="nprev" aria-label="Back" data-k="back">‹</button>';
+/* a kept draft (a failed Create) can be thrown away, to start again empty */
+function keptBtn(D) { return D.kept ? '<button class="ib" data-act="ndiscard" aria-label="Discard draft">🗑</button>' : ''; }
+/* a sheet's primary while its write is out (◷), after it failed (⚠ ↻, a retry), or as itself. why: a primary that is
+   not ready yet still takes the tap, to show what it waits for (aria-disabled + data-why), instead of doing nothing */
+function primaryBtn(D, act, label, ok, why) {
+  var off = ok ? '' : why ? ' aria-disabled="true" data-why="1"' : ' disabled', dis = !ok && why ? ' dis' : '';
+  if (D.busy) return '<button class="btn pri wide stick busy" data-act="' + act + '" aria-label="Saving" disabled>◷</button>';
+  if (D.failed) return '<button class="btn pri wide stick' + dis + '" data-act="' + act + '" aria-label="Retry"' + off + '>⚠ ↻</button>';
+  return '<button class="btn pri wide stick' + dis + '" data-act="' + act + '"' + off + '>' + label + '</button>';
+}
+/* ⚠ beside a field whose paste (or autocorrect) was cut to fit its words; shown and hidden in place while typing */
+function cutMark(D, fid) { return '<span id="cut-' + fid + '" class="w" data-k="warn"' + (D.cuts && D.cuts[fid] ? '' : ' hidden') + '>⚠</span>'; }
+/* 🙋 per person: the screen reader hears whose it is; the long-press label stays "Me" */
+function meTog(D, i) {
+  var r = D.rows[i];
+  return '<button class="ib metog" data-act="nme" data-v="' + i + '" aria-pressed="' + !!r.me + '" aria-label="' + esc('Me: ' + (shortName(r.name) || 'Person')) + '" data-lbl="Me" data-k="me"><span>🙋</span></button>';
+}
+/* the caption a new trip will carry (a v1 idea link's note, a kept draft's): 📝, ⚠ when v1's longer text was cut */
+function capChip(D) {
+  if (!spaced(D.caption)) return '';
+  return '<button class="hchip" data-act="nnote" aria-label="Note" data-k="note">📝' + (D.captionCut ? '<span class="w">⚠</span>' : '') + '</button>';
+}
+function chipRow(D, r, i, mode) {
+  return '<div class="mrow"><button class="mchip" data-act="nedit" data-v="' + i + '" aria-label="' + esc((shortName(r.name) || 'Person') + (r.ap ? ', ' + r.ap : '')) + '"><span class="mf" aria-hidden="true">' + r.face + '</span>' +
+    '<span class="mn">' + esc(chipName(r, mode)) + '</span>' + (!r.ap ? '<span class="w" data-k="noairport">📍?</span>' : mode !== 'nocode' ? '<b class="mc">' + esc(r.ap) + '</b>' : '') +
+    (r.n > 1 ? '<span class="tn">×' + r.n + '</span>' : '') + '</button>' + meTog(D, i) + '</div>';
+}
+function editorRow(D, r, i) {
+  var armed = D.arm === i;
+  return '<div class="mrow ed"><div class="mline"><button class="ib facepick" data-act="nface" data-v="' + i + '" aria-label="Change face">' + r.face + '</button>' +
+    '<span class="fld"><input id="mem-name" aria-label="Name" placeholder="Name" maxlength="' + NAME_CHARS + '" autocomplete="off" autocapitalize="words" spellcheck="false" value="' + esc(r.name) + '">' + cutMark(D, 'mem-name') + '</span></div>' +
+    '<div class="mline"><span class="fld code"><input id="mem-ap" aria-label="Airport" placeholder="Airport" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' + esc(r.ap) + '"></span>' +
+    '<button class="ib cntb" data-act="ncount" data-v="' + i + '" aria-label="Headcount ' + r.n + '" data-lbl="Headcount" data-k="count">×' + r.n + '</button>' + meTog(D, i) + '<span class="sp"></span>' +
+    '<button class="ib del' + (armed ? ' arm' : '') + '" data-act="ndel" data-v="' + i + '" aria-label="' + (armed ? 'Remove anyway' : 'Remove') + '">' + (armed ? '🗑⚠' : '🗑') + '</button></div></div>';
+}
+/* step 1 (P-new-what; P-edit 🏷📍): the picture, the name, an optional destination (any 3 letters; one the app does
+   not know is marked 📍⚠ and never blocks; locked while the dates are 🔒 or the trip is closed) and up to 3 recent places */
+function whatHTML(sh, D) {
+  var m = D.edit ? modelOf(sh.p.id) : null, locked = !!(m && (m.locked || m.closed));   // 🔒 dates, or a closed trip (it takes no answers to resync)
+  var h = D.edit ? shHd('<span aria-hidden="true">✎</span>') : shHd(stepDots(1), { right: keptBtn(D) });
+  h += '<div class="pcrow">' + postcard({ emoji: D.scene || '💡', members: [], locked: false }, 'md') + '</div>';
+  h += '<div class="scenes" role="group" aria-label="Picture">' + SCENES.map(function (e, i) { return '<button data-act="nscene" data-v="' + i + '" aria-pressed="' + (D.scene === e) + '" data-lbl="Picture">' + e + '</button>'; }).join('') + '</div>';
+  // the name being typed counts here (≤12 words can be typed); an existing longer trip name is free, as trip names are
+  var free = wordsIn(D.name) > TITLE_WORDS;
+  h += '<div class="fld" id="fld-title"' + (free ? ' data-free' : '') + '><label for="new-title" aria-hidden="true">🏷</label><input id="new-title" aria-label="Trip name" placeholder="Trip name" maxlength="' + TITLE_CHARS + '" autocomplete="off" value="' + esc(D.name) + '">' + cutMark(D, 'new-title') + '</div>';
+  var unknown = D.dest.length === 3 && !airportInfo(D.dest).known;
+  var recent = locked ? [] : uniq(seenModels().map(function (x) { return x.dest; }).filter(Boolean)).filter(function (c) { return c !== D.dest; }).slice(0, 3);
+  h += '<div class="rowc"><span class="fld code wide"><label for="new-dest" aria-hidden="true">📍</label><input id="new-dest" aria-label="Destination" placeholder="Airport" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' + esc(D.dest) + '"' + (locked ? ' disabled' : '') + '></span>' +
+    (locked ? '<span class="lockd" data-k="lock">🔒</span>' : '<span id="dest-warn" class="w" data-k="unknown"' + (unknown ? '' : ' hidden') + '>📍⚠</span>') +
+    recent.map(function (c) { return '<button class="hchip" data-act="nrecent" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div>';
+  if (!D.edit && capChip(D)) h += '<div class="rowc">' + capChip(D) + '</div>';
+  var ok = !!D.name.trim();
+  h += D.edit ? primaryBtn(D, 'esave1', 'Save', ok) : '<button class="btn pri wide stick' + (ok ? '' : ' dis') + '" data-act="nnext" data-why="1" aria-label="Next"' + (ok ? '' : ' aria-disabled="true"') + '>▶</button>';
+  return h;
+}
+/* step 2 (P-new-who; P-edit 👥): who is invited and which one is me. Faces are unique in the trip (🙂 a face cycles to
+   the next free one); a member who has answered is removed only on a second tap (the Worker drops their answers) */
+function whoHTML(sh, D) {
+  var h = D.edit ? shHd('<span aria-hidden="true">👥</span>') : shHd(PREV_BTN + stepDots(2));
+  if (!D.edit) {
+    var chips = presetChips();
+    if (chips.length) h += '<div class="rowc" role="group" aria-label="Groups">' + chips.map(function (c, i) {
+      return '<button class="preset" data-act="npreset" data-v="' + i + '" aria-pressed="' + (D.preset === c.key) + '" aria-label="' + esc(c.family ? 'Family' : groupName({ names: c.rows.map(function (r) { return shortName(r.name); }), faces: c.faces })) +
+        '" data-lbl="' + (c.family ? 'Family' : 'Group') + '">' + (c.family ? '👪' : '') + c.faces.slice(0, 4).join('') + (c.faces.length > 4 ? '<span class="more">+' + (c.faces.length - 4) + '</span>' : '') + '</button>';
+    }).join('') + '</div>';
+  }
+  var mode = whoMode(D, whoLimit(D)), over = D.rows.length > IDEA_MAX_MEMBERS;
+  h += '<div class="mlist">' + D.rows.map(function (r, i) { return i === D.ed ? editorRow(D, r, i) : chipRow(D, r, i, mode); }).join('') + '</div>';
+  if (D.rows.length < IDEA_MAX_MEMBERS) h += '<div class="rowc"><button class="tool" data-act="nadd" aria-label="Add person">＋</button></div>';
+  // more people than a trip holds (a join request on a full trip, or someone added on another device meanwhile):
+  // the count is shown, and Save waits until someone is removed
+  if (over) h += '<div class="counter" id="who-cap" role="img" aria-label="Too many people"><span class="w" data-k="warn">⚠</span> <span class="tn">' + D.rows.length + '/' + IDEA_MAX_MEMBERS + '</span></div>';
+  var named = D.rows.some(function (r) { return r.name.trim(); }), hasMe = D.rows.some(function (r) { return r.me && r.name.trim(); });
+  h += D.edit ? primaryBtn(D, 'esave2', 'Save', named && !over, over) : '<button class="btn pri wide stick' + (hasMe ? '' : ' dis') + '" data-act="nnext" data-why="1" aria-label="Next"' + (hasMe ? '' : ' aria-disabled="true"') + '>▶</button>';
+  return h;
+}
+/* step 3 (P-new-when): plan dates (with an optional 📌 event day) or a rough ⟦window⟧ with 🌙 nights, on the one
+   date grid; dates are optional, and an idea may start undated */
+function whenState(D) {
+  var dated = D.mode === 'dates';
+  var pinOut = !!(dated && D.pin && D.s && D.e && (D.pin < D.s || D.pin > D.e)), past = !!(D.s && D.s < RT.today);
+  var room = D.s && D.e ? diffD(D.s, D.e) : 30, long = !dated && !!(D.s && D.e) && D.nights > room;
+  return { dated: dated, pinOut: pinOut, past: past, long: long, room: room, ok: !(D.s && !D.e) && !pinOut && !past && !long };
+}
+function whenHTML(sh, D) {
+  var st = whenState(D), dated = st.dated;
+  var h = shHd(PREV_BTN + stepDots(3), { right: keptBtn(D) });
+  h += '<div class="rowc"><span class="tg2" role="group" aria-label="Dates or window"><button data-act="nmode" data-v="dates" aria-pressed="' + dated + '" aria-label="Dates">🗓</button>' +
+    '<button data-act="nmode" data-v="window" aria-pressed="' + !dated + '" aria-label="Flex window">⟦⟧</button></span></div>';
+  var hols = soonHolidays();
+  if (hols.length) h += '<div class="rowc">' + hols.map(function (hd) { return '<button class="hchip" data-act="nhol" data-v="' + hd.d + '" aria-label="Holiday ' + md(hd.d) + '" data-lbl="Holiday">' + hd.g + ' ' + md(hd.d) + '</button>'; }).join('') + '</div>';
+  h += monthHeader(D.ym, 'nmonth', ym(RT.today));
+  var selE = D.e || D.s;
+  h += gridHTML(D.ym, function (day) {
+    var on = !!(D.s && day >= D.s && day <= selE), w = dowOf(day), off = day < RT.today;
+    var sel = on ? '<span class="sel' + (day === D.s || w === 0 ? ' st' : '') + (day === selE || w === 6 ? ' en' : '') + '"></span>' : '';
+    return '<button class="' + dayCls(day) + (off ? ' nope' : '') + '" data-act="nday" data-v="' + day + '" aria-label="' + md(day) + '" aria-pressed="' + on + '"' + (off ? ' disabled' : '') + '><span class="dn">' + (+day.slice(8)) + '</span>' +
+      holMark(day) + sel + (dated && D.pin === day ? '<span class="pinday" aria-hidden="true">📌</span>' : '') + '</button>';
+  });
+  var ro;
+  if (dated) ro = D.s ? '<span class="tn">' + md(D.s) + '–' + (D.e ? md(D.e) : '…') + '</span>' + (D.e ? ' · <span data-k="nights">' + diffD(D.s, D.e) + G('🌙') + '</span>' : '') : '';
+  else ro = '<span data-k="window">⟦' + (D.s ? md(D.s) + '–' + (D.e ? md(D.e) : '…') : ' ') + '⟧</span> <span data-k="nights">' + G('🌙') + D.nights + '</span>';
+  if (dated && D.pin) ro += ' <span class="' + (st.pinOut ? 'w' : '') + '" data-k="pin">' + G('📌') + (st.pinOut ? '⚠' : md(D.pin)) + '</span>';
+  if (st.past) ro += ' <span class="w" data-k="warn">⏳⚠</span>';
+  if (st.long) ro += ' <span class="w" data-k="warn">🌙⚠</span>';
+  h += '<div class="readout">' + ro + '</div>';
+  h += '<div class="rowc">' + (dated ? '<button class="tool" data-act="npin" aria-pressed="' + !!D.pinMode + '" aria-label="Event day">📌</button>' :
+    '<button class="tool" data-act="nnights" data-v="-1" aria-label="Fewer nights"' + (D.nights <= 1 ? ' disabled' : '') + '>🌙−</button>' +
+    '<button class="tool" data-act="nnights" data-v="1" aria-label="More nights"' + (D.nights >= Math.min(30, st.room) ? ' disabled' : '') + '>🌙+</button>') + capChip(D) + '</div>';
+  h += primaryBtn(D, 'ncreate', 'Create', st.ok);
+  return h;
+}
+SHEETS.new = function (sh) { var D = sh.local.d; return D.step === 1 ? whatHTML(sh, D) : D.step === 2 ? whoHTML(sh, D) : whenHTML(sh, D); };
+/* P-edit (✎, organizer only): 🏷📍 name, picture, place · 👥 people · 📝 caption · 🔑 the organizer link (copied for my
+   own devices, with the warning) · 🗑 drop (↩ once dropped). A closed trip (paid or dropped) takes no answers, so its
+   people (whose answers an airport change would resend) are not offered. */
+SHEETS.edit = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local;
+  var h = shHd('<span aria-hidden="true">✎</span>' + (m ? '<span style="font-size:24px" aria-hidden="true">' + m.emoji + '</span>' : ''));
+  if (!m) return h + '<div class="rowc">' + staleMark() + '</div>';
+  var t = function (act, glyph, label, cls) { return '<button class="tool' + (cls ? ' ' + cls : '') + '" data-act="' + act + '" data-id="' + m.id + '" aria-label="' + label + '">' + glyph + '</button>'; };
+  h += '<div class="tiles6">' + t('etitle', '🏷📍', 'Name and place') + (m.closed ? '' : t('epeople', '👥', 'People')) + t('ecap', '📝', 'Note') +
+    t('ekey', '🔑', 'Organizer link', L.copied ? 'done' : '') + (m.decision === 'dropped' ? t('restore', '↩', 'Restore') : t('edrop', '🗑', 'Drop', 'bad')) + '</div>';
+  if (L.copied) h += '<p class="warnline">🔑⚠ Your devices only</p>';
+  return h;
+};
+/* P-drop: asked once, with buttons named by what they do; ↩ (the toast, or the shelf card) undoes it */
+SHEETS.drop = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local, h = shHd('<span data-k="dropped">🗑</span>');
+  if (!m) return h;
+  var drop = L.busy ? '<button class="btn danger busy" data-act="dropyes" aria-label="Saving" disabled>◷</button>'
+    : L.failed ? '<button class="btn danger" data-act="dropyes" aria-label="Retry">⚠ ↻</button>' : '<button class="btn danger" data-act="dropyes">🗑 Drop</button>';
+  return h + '<div class="droppc">' + postcard(m, 'lg', { loc: true }) + '</div><p class="mtitle" data-free>' + esc(m.title) + '</p><div class="split two">' + drop + '<button class="btn pri" data-act="dropkeep">Keep</button></div>';
+};
+/* P-note, the trip's caption: ≤20 words (typing stops there), saved when the sheet closes. Everyone else reads it
+   (the first 20 words of a longer v1 text, then '…'). Replacing a longer text shows ⚠ and needs a second ⌄. */
+function capRoom(m) { var p = buildNotes(m.pin, m.plan ? null : m.nightsN, ''); return TEXT_MAX.notes - (p ? p.length + 1 : 0); }
+/* the create sheet's own caption (📝 on P-new-what / P-new-when): the same P-note over the draft, nothing is sent; its
+   text goes back to the sheet as it closes (‹), and 🗑 clears it */
+function draftNoteHTML(sh) {
+  var D = sh.back && sh.back.type === 'new' ? sh.back.local.d : null, L = sh.local;
+  var h = shHd('<span data-k="note">📝</span><span style="font-size:24px" aria-hidden="true">' + (D ? D.scene : '') + '</span>');
+  if (!D) return h;
+  if (L.text == null) { L.edit = true; L.draft = true; L.init = D.caption; L.text = D.caption; }
+  h += '<textarea id="note-text" class="txt" aria-label="Note" maxlength="' + CAPTION_CHARS + '">' + esc(L.text) + '</textarea>';
+  h += '<div class="counter" id="note-count">' + (D.captionCut && L.text === L.init ? '<span class="w" data-k="warn">⚠</span> ' : '') + cutMark(L, 'note-text') + ' <span class="tn">' + wordsIn(L.text) + '/' + CAPTION_WORDS + '</span></div>';
+  h += '<div class="rowc"><button class="tool" data-act="nnoteclr" aria-label="Clear note">🗑</button></div>';
+  return h;
+}
+SHEETS.note = function (sh) {
+  if (sh.p.draft) return draftNoteHTML(sh);
+  var m = modelOf(sh.p.id), L = sh.local;
+  var h = shHd('<span data-k="note">📝</span>' + (m ? '<span style="font-size:24px" aria-hidden="true">' + m.emoji + '</span>' : ''));
+  if (!m) return h;
+  var fw = firstWords(m.caption, CAPTION_WORDS);
+  if (L.text == null) {
+    var kept = S.drafts.cap && S.drafts.cap[m.id];
+    L.edit = m.org && !m.legacy; L.long = fw.more; L.init = fw.text; L.text = typeof kept === 'string' ? kept : fw.text;
+  }
+  if (!L.edit) return h + '<p class="notev">' + esc(fw.text) + (fw.more ? '…' : '') + '</p>';
+  h += '<textarea id="note-text" class="txt" aria-label="Note" maxlength="' + capRoom(m) + '">' + esc(L.text) + '</textarea>';
+  h += '<div class="counter" id="note-count">' + (L.long ? '<span class="w" data-k="warn">⚠</span> ' : '') + cutMark(L, 'note-text') + ' <span class="tn">' + wordsIn(L.text) + '/' + CAPTION_WORDS + '</span></div>';
+  if (L.armed) h += '<p class="warnline"><span data-k="warn">⚠</span> <span data-k="close">⌄</span></p>';
+  return h;
+};
+/* a caption leaves with its sheet: unchanged → nothing is sent; a longer v1 text being replaced asks for a second ⌄
+   (false = the sheet stays open); else one organizer edit, kept here to try again when it fails. The create sheet's
+   own caption just goes back into its draft. */
+function leaveNote(sh, fromPop) {
+  var L = sh && sh.type === 'note' ? sh.local : null;
+  if (L && L.draft) {
+    var D = sh.back && sh.back.type === 'new' ? sh.back.local.d : null;
+    if (D && L.text != null && L.text !== L.init) { D.caption = spaced(L.text); D.captionCut = false; L.init = L.text; }
+    return true;
+  }
+  if (!L || !L.edit || L.text == null || L.text === L.init) return true;
+  if (L.long && !L.armed) {
+    L.armed = true;
+    if (fromPop) { try { history.pushState({ pialaxSheet: 1 }, ''); S.histPushed = true; } catch (e) { /* no history */ } }
+    renderSheet(false);
+    return false;
+  }
+  L.init = L.text;
+  saveCaption(sh.p.id, L.text);
+  return true;
+}
+function saveCaption(id, text) {
+  var t = String(text || '').replace(/\s+/g, ' ').trim();
+  return organizerWrite(id, { caption: t }).then(function (r) {
+    if (!S.drafts.cap) S.drafts.cap = {};
+    if (r.ok) delete S.drafts.cap[id]; else { S.drafts.cap[id] = t; showError(r.code); }
+    return r;
+  });
+}
+/* an organizer edit from a sheet: its primary shows ◷ while the write is out, then the sheet closes, or ⚠ ↻ stays
+   on it to try again (P-error instead when the sheet was closed meanwhile). failed(r, D) may rebuild the sheet's state
+   first (and clear D.failed when the sheet says what is wrong another way). */
+function sheetWrite(sh, delta, after, failed) {
+  var D = sh.local.d || sh.local;
+  D.busy = true; D.failed = ''; if (S.sheet === sh) renderSheet(false);
+  return organizerWrite(sh.p.id, delta).then(function (r) {
+    D.busy = false;
+    if (r.ok) { if (after) after(); if (S.sheet === sh) closeSheet(); return r; }
+    D.failed = r.code || 'network';
+    if (failed) failed(r, D);
+    if (S.sheet === sh) renderSheet(false); else showError(r.code || 'network');
+    return r;
+  });
+}
+/* ＋: the one create path. A legacy ?tripIdea= link fills it; else the draft a failed Create kept; else it starts empty */
+function openCreate(o) {
+  o = o || {};
+  if (!RT) RT = runCtx();
+  var d = o.draft || (o.legacy ? draftFromLegacy(o.legacy) : (keptDraft() || newDraft(o.start)));
+  openSheet('new', {}, { local: { d: d }, focus: d.step === 1 ? 'new-title' : null });
+}
+/* a create sheet closed before Create, with something in it (⌄, the scrim, Back): nothing is stored, but the toast's ↩
+   (5s) brings it back as it was. A failed Create's draft is already kept (＋ reopens it), so it needs none. */
+function draftWorth(D) { return !!D && !D.edit && !D.busy && !D.kept && !D.failed && !!(spaced(D.name) || D.dest || D.s || D.step > 1 || spaced(D.caption)); }
+/* a join request on the phone that organizes the trip: the people editor opens with them added, once the trip is read
+   (the trip view comes forward for it, whatever tab the link named) */
+function joinAnswered(id) {
+  var j = S && S.joinNext; if (!j || j.id !== id) return;
+  if (!DOCS[id]) { if (STAT[id] === 'missing') S.joinNext = null; return; }
+  S.joinNext = null;
+  var m = modelOf(id);
+  if (!m || !m.org || m.legacy || m.closed || S.sheet || S.tab !== 'trips' || S.trip !== id) return;
+  openSheet('new', { edit: true, id: id, join: true }, { local: { d: editDraft2(m, j) }, focus: 'mem-name' });
+}
+/* ▶ looks ready exactly when it will go on (a name on step 1; a named 🙋 on step 2), as the person types */
+function nextReady(D) { return D.step === 1 ? !!D.name.trim() : D.rows.some(function (r) { return r.me && r.name.trim(); }); }
+function syncNext(D) {
+  var nb = $('#sheet [data-act="nnext"]'); if (!nb || !D || D.edit) return;
+  var ok = nextReady(D); nb.classList.toggle('dis', !ok);
+  if (ok) nb.removeAttribute('aria-disabled'); else nb.setAttribute('aria-disabled', 'true');
+}
+/* a capped text field took a change (fitTyped): everything already there stays and a paste is cut to the words that
+   fit, with the caret after what went in, the field nudged and ⚠ beside it (in place: holder.cuts keeps it for a redraw) */
+function setCut(holder, fid, on) { holder.cuts = holder.cuts || {}; holder.cuts[fid] = !!on; var m = document.getElementById('cut-' + fid); if (m) m.hidden = !on; }
+function takeTyped(t, prev, max, holder, nudge) {
+  var f = fitTyped(t.value, prev, max);
+  if (f.text !== t.value) { t.value = f.text; try { t.setSelectionRange(f.at, f.at); } catch (e) { /* not a text field */ } nudge(); }
+  setCut(holder, t.id, f.cut);
+  return f.text;
+}
+/* what follows a typed value, redrawn without touching the field being typed in: the picture that follows the name,
+   and the other people's chips when they shorten (or grow back) to keep the sheet within its words */
+function patchScene(D) {
+  var pc = $('#sheet .pcrow'); if (pc) pc.innerHTML = postcard({ emoji: D.scene || '💡', members: [], locked: false }, 'md');
+  $$('#sheet [data-act="nscene"]').forEach(function (b) { b.setAttribute('aria-pressed', String(SCENES[+b.dataset.v] === D.scene)); });
+}
+function patchChips(D) {
+  var mode = whoMode(D, whoLimit(D)), kids = $$('#sheet .mlist > .mrow');
+  D.rows.forEach(function (r, i) {
+    if (i === D.ed || !kids[i]) return;
+    var tmp = document.createElement('div'); tmp.innerHTML = chipRow(D, r, i, mode);
+    if (tmp.firstChild) kids[i].parentNode.replaceChild(tmp.firstChild, kids[i]);
+  });
+}
+function onTyped(t) {
+  if (!t || !S || !S.sheet) return;
+  var L = S.sheet.local;
+  if (t.id === 'org-token' || t.id === 'org-url') {   // a token or a URL has no spaces, so a typed value is one word at most
+    var v = t.value.replace(/\s+/g, ''); if (v !== t.value) t.value = v;
+    if (t.id === 'org-token') { L.tok = v; L.badTok = false; L.tokEdited = true; } else { L.url = v; L.badUrl = false; L.urlEdited = true; }
+  } else if (t.id === 'new-title' && L.d) {   // PIA-136: never past 12 words (an existing longer name: never longer)
+    var D = L.d, nv = takeTyped(t, D.name, TITLE_WORDS, D, function () { pulseFld('new-title'); });
+    D.name = nv;
+    if (!D.scenePicked && !D.edit) { var g = guessScene(nv); if (g !== D.scene) { D.scene = g; patchScene(D); } }   // the picture follows the name until one is tapped
+    syncNext(D);
+    var sb = $('#sheet [data-act="esave1"]'); if (sb && !D.busy) sb.disabled = !nv.trim();
+  } else if (t.id === 'new-dest' && L.d) {
+    var cv = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); if (cv !== t.value) t.value = cv;
+    L.d.dest = cv;
+    var w = $('#dest-warn'); if (w) w.hidden = !(cv.length === 3 && !airportInfo(cv).known);
+  } else if ((t.id === 'mem-name' || t.id === 'mem-ap') && L.d) {
+    var D2 = L.d, r = D2.ed != null ? D2.rows[D2.ed] : null; if (!r) return;
+    var mode0 = whoMode(D2, whoLimit(D2));
+    if (t.id === 'mem-ap') { var a = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); if (a !== t.value) t.value = a; r.ap = a; }
+    else {
+      r.name = takeTyped(t, r.name, NAME_WORDS, D2, function () { pulseFld('mem-name'); });
+      var mt = $('#sheet .mrow.ed .metog'); if (mt) mt.setAttribute('aria-label', 'Me: ' + (shortName(r.name) || 'Person'));
+    }
+    if (mode0 !== whoMode(D2, whoLimit(D2))) patchChips(D2);
+    syncNext(D2);
+  } else if (t.id === 'note-text' && L.edit) {
+    L.text = takeTyped(t, L.text, CAPTION_WORDS, L, function () { pulseEl(t, 'pulsefld'); });
+    var c = $('#note-count .tn'); if (c) c.textContent = wordsIn(L.text) + '/' + CAPTION_WORDS;
+  }
+}
+function focusId(id) { var f = document.getElementById(id); if (f) { try { f.focus({ preventScroll: true }); var n = String(f.value || '').length; if (f.setSelectionRange) f.setSelectionRange(n, n); } catch (e) { /* not focusable */ } } }
+function pulseEl(el, cls) { if (!el) return; cls = cls || 'pulse'; el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+/* the trip's own 📣: the guest link only (navigator.share, else the clipboard, else P-link); the plan hash is recorded
+   once it went out (pialax_shared_at_v1[id]) */
+function recordTripShared(id, hash) { var m = writableMap(ST.shared); if (!m || !IDEA_ID_RE.test(String(id))) return; m[id] = String(hash || ''); lsSet(ST.shared, JSON.stringify(m)); }
 function renderSheet(first) {
   var sh = S.sheet; if (!sh) return;
   MC = {}; RT = RT || runCtx();
@@ -3173,8 +3962,8 @@ function renderSheet(first) {
   var el = $('#sheet'), act = document.activeElement, inside = !!(act && act !== el && el.contains(act)), fid = inside && act.id ? act.id : null, sig = inside && !fid && !first ? ctlSig(act) : null, sel = null;
   if (fid && act.selectionStart != null) { try { sel = [act.selectionStart, act.selectionEnd]; } catch (e) { sel = null; } }
   el.innerHTML = SHEETS[sh.type](sh);
-  el.setAttribute('data-popup', 'P-' + ({ organizer: 'organizer', soon: 'new' }[sh.type] || sh.type));
-  el.setAttribute('aria-label', SHEET_NAME[sh.type] || 'Sheet');
+  el.setAttribute('data-popup', popupName(sh));
+  el.setAttribute('aria-label', sheetName(sh));
   // shown before names are fitted: a hidden sheet counts no words, so nothing would ever be dropped on a first open
   el.hidden = false; $('#scrim').hidden = false; setInert(true);
   fitNames(el, function () { return countWords(el); }, 20);
@@ -3214,7 +4003,9 @@ function openSheet(type, p, o) {
 }
 function closeSheet(fromPop) {
   if (!S.sheet) return;
-  for (var s = S.sheet; s; s = s.back) keepDraft(s);
+  if (!leaveNote(S.sheet, fromPop)) return;   // PIA-136: a caption saves as its sheet closes (a longer v1 text asks twice)
+  var lost = null;
+  for (var s = S.sheet; s; s = s.back) { keepDraft(s); if (s.type === 'new' && draftWorth(s.local.d)) lost = s.local.d; }
   S.sheet = null;
   hideSheetEls();
   if (fromPop) S.histPushed = false;
@@ -3227,10 +4018,12 @@ function closeSheet(fromPop) {
   if (S.histPushed) { S.ignorePop++; S.histPushed = false; try { history.back(); } catch (e) { S.ignorePop--; } }
   render(true);
   refocus();
+  if (lost) toast('🗑', function () { if (!S.sheet) openCreate({ draft: lost }); return null; });   // PIA-136: an unsent create comes back with ↩
 }
 function sheetBack() {
   var b = S.sheet && S.sheet.back;
   if (!b) { closeSheet(); return; }
+  if (!leaveNote(S.sheet, false)) return;
   keepDraft(S.sheet);
   S.sheet = b; render(true); renderSheet(true);
 }
@@ -3242,14 +4035,16 @@ function showError(code) {
 
 /* ---- toasts and copying ---- */
 var toastTimer = null;
-function toast(text) {
+/* undo (PIA-136): the toast carries ↩ for 5s, the one tap that takes the last action back */
+function toast(text, undo) {
   var t = $('#toast');
-  t.innerHTML = '<span class="tt">' + esc(text) + '</span>';
+  S.undo = typeof undo === 'function' ? undo : null;
+  t.innerHTML = '<span class="tt">' + esc(text) + (S.undo ? '<button class="undo" data-act="undo" aria-label="Undo">↩</button>' : '') + '</span>';
   t.classList.toggle('top', !!S.sheet);
   t.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 1600);
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, S.undo ? 5000 : 1600);
 }
-function hideToast() { var t = $('#toast'); clearTimeout(toastTimer); if (t) t.hidden = true; }
+function hideToast() { var t = $('#toast'); clearTimeout(toastTimer); if (t) t.hidden = true; if (S) S.undo = null; }
 function linkSheet(url, copied) { openSheet('link', { url: url, copied: typeof copied === 'function' ? copied : null }, { back: !!S.sheet, focus: 'link-url' }); var f = $('#link-url'); if (f) { try { f.select(); } catch (e) { /* not selectable */ } } }
 /* secret links (#k=, #ks=, a token) are only ever copied, never handed to a share sheet */
 function copyLink(url, ok) {
@@ -3356,7 +4151,184 @@ var ACTS = {
   pick: function (el) { S.sel = el.dataset.id; uiSet({ sel: S.sel }); render(true); },
   tomap: function (el) { popTrip(); S.tripFrom = ''; S.sel = el.dataset.id; uiSet({ sel: S.sel }); S.tab = 'map'; render(); window.scrollTo(0, 0); },
   shelf: function () { uiSet({ shelfOpen: !uiRead().shelfOpen }); render(true); },
-  new: function () { openSheet('soon', {}); },
+  new: function (el) { openCreate({ start: el.dataset.date || '' }); },
+  /* PIA-136: P-new-what → P-new-who → P-new-when */
+  nscene: function (el) { var D = S.sheet.local.d, e = SCENES[+el.dataset.v]; if (!e) return; D.scene = e; D.scenePicked = true; renderSheet(false); },
+  nrecent: function (el) { var D = S.sheet.local.d; D.dest = normIata(el.dataset.v); renderSheet(false); },
+  nnext: function () {
+    var sh = S.sheet, D = sh.local.d;
+    if (D.step === 1) {
+      if (!D.name.trim()) { pulseFld('new-title'); return; }
+      if (D.dest && D.dest.length !== 3) { pulseFld('new-dest'); return; }   // a code cut short is never dropped silently
+      D.step = 2; sh.focus = null; renderSheet(true); return;
+    }
+    if (D.step !== 2) return;
+    closeEditor(D);
+    var bad = rowProblem(D);
+    if (bad) { D.ed = bad.i; renderSheet(false); pulseFld(bad.f); return; }
+    if (!D.rows.length) { renderSheet(false); pulseEl($('#sheet [data-act="nadd"]')); return; }
+    // the sheet asks, and never guesses, which one is me: no 🙋, no ▶ (the 🙋 column pulses)
+    if (!D.rows.some(function (r) { return r.me; })) { renderSheet(false); $$('#sheet .metog').forEach(function (b) { pulseEl(b); }); return; }
+    D.step = 3; sh.focus = null; renderSheet(true);
+  },
+  nprev: function () { var sh = S.sheet, D = sh.local.d; if (D.step === 2) closeEditor(D); D.arm = null; D.step = Math.max(1, D.step - 1); sh.focus = D.step === 1 ? 'new-title' : null; renderSheet(true); },
+  nedit: function (el) { var D = S.sheet.local.d, keep = D.rows[+el.dataset.v]; if (!keep) return; closeEditor(D); D.ed = D.rows.indexOf(keep); D.arm = null; setCut(D, 'mem-name', false); renderSheet(false); focusId('mem-name'); },
+  npreset: function (el) { var D = S.sheet.local.d, c = presetChips()[+el.dataset.v]; if (!c) return; D.rows = withMe(clone(c.rows)); D.preset = c.key; D.ed = null; D.arm = null; renderSheet(false); },
+  nadd: function () {
+    var D = S.sheet.local.d, cur = D.ed != null ? D.rows[D.ed] : null;
+    if (cur && !cur.name.trim()) { pulseFld('mem-name'); return; }   // the empty open row is used, not stacked
+    closeEditor(D);
+    if (D.rows.length >= IDEA_MAX_MEMBERS) { renderSheet(false); return; }
+    // the first person on an empty sheet is me (🙋) by default; nobody else ever is
+    D.rows.push({ face: freeFace(D.rows.map(function (r) { return r.face; }), phoneFaces()), name: '', ap: '', n: 1, me: !D.edit && !D.rows.length, preset: '' });
+    D.ed = D.rows.length - 1; D.arm = null; if (!D.edit) D.preset = null; setCut(D, 'mem-name', false);
+    renderSheet(false); focusId('mem-name');
+  },
+  nface: function (el) {
+    var D = S.sheet.local.d, r = D.rows[+el.dataset.v]; if (!r) return;
+    var used = D.rows.filter(function (x) { return x !== r; }).map(function (x) { return x.face; }), i = FACES.indexOf(r.face);
+    for (var j = 1; j <= FACES.length; j++) { var f = FACES[(i + j) % FACES.length]; if (used.indexOf(f) < 0) { r.face = f; break; } }
+    renderSheet(false);
+  },
+  ncount: function (el) { var r = S.sheet.local.d.rows[+el.dataset.v]; if (!r) return; r.n = r.n >= 9 ? 1 : r.n + 1; renderSheet(false); },
+  nme: function (el) { var D = S.sheet.local.d, i = +el.dataset.v; if (!D.rows[i]) return; D.rows.forEach(function (r, k) { r.me = k === i; }); renderSheet(false); },
+  ndel: function (el) {
+    var D = S.sheet.local.d, i = +el.dataset.v, r = D.rows[i]; if (!r) return;
+    if (D.edit && r.ans && D.arm !== i) { D.arm = i; renderSheet(false); return; }   // they answered: a second tap (their answers go too)
+    D.rows.splice(i, 1); D.ed = null; D.arm = null; if (!D.edit) D.preset = null; renderSheet(false);
+  },
+  nmode: function (el) { var D = S.sheet.local.d; D.mode = el.dataset.v === 'window' ? 'window' : 'dates'; D.s = D.e = D.pin = ''; D.stage = 0; D.pinMode = false; renderSheet(false); },
+  nmonth: function (el) { var D = S.sheet.local.d, nx = shiftMonth(D.ym, +el.dataset.v); if (nx < ym(RT.today)) return; D.ym = nx; renderSheet(false); },
+  nday: function (el) {
+    var D = S.sheet.local.d, d = el.dataset.v; if (!isIso(d) || d < RT.today) return;
+    if (D.pinMode && D.mode === 'dates') { D.pin = D.pin === d ? '' : d; D.pinMode = false; renderSheet(false); return; }
+    if (D.stage === 0 || !D.s) { D.s = d; D.e = ''; D.stage = 1; } else if (d < D.s) D.s = d; else { D.e = d; D.stage = 0; }
+    if (D.mode === 'window' && D.s && D.e) D.nights = Math.max(1, Math.min(D.nights, diffD(D.s, D.e) || 1));
+    renderSheet(false);
+  },
+  nhol: function (el) {
+    var D = S.sheet.local.d, hd = holidayOn(el.dataset.v); if (!hd) return;
+    D.s = maxD(addD(hd.d, hd.r[0]), RT.today); D.e = maxD(addD(hd.d, hd.r[1]), D.s); D.stage = 0; D.ym = ym(hd.d);
+    if (D.mode === 'dates') D.pin = hd.d; else D.nights = Math.max(1, Math.min(D.nights, diffD(D.s, D.e) || 1));
+    renderSheet(false);
+  },
+  npin: function () { var D = S.sheet.local.d; D.pinMode = !D.pinMode; renderSheet(false); },
+  nnights: function (el) { var D = S.sheet.local.d, st = whenState(D); D.nights = Math.max(1, Math.min(30, st.room, D.nights + (+el.dataset.v))); renderSheet(false); },
+  /* Create: POST /idea, the edit key kept here, then the trip opens. A failure keeps the draft (⚠ ↻ here, and ＋ later) */
+  ncreate: function () {
+    var sh = S.sheet, D = sh.local.d; if (D.busy || !whenState(D).ok) return null;
+    closeEditor(D);
+    var draft = requestDraft(D);
+    D.busy = true; D.failed = ''; renderSheet(false);
+    // the create sheet, wherever it is now (↩ may have brought it back as a new sheet over the same draft)
+    var mine = function () { return !!(S.sheet && S.sheet.type === 'new' && S.sheet.local.d === D); };
+    return createTrip(draft, { me: draft.me }).then(function (r) {
+      D.busy = false;
+      if (!r.ok) {
+        D.failed = r.code || 'network'; uiSet({ draft: draftOut(D) });
+        if (mine()) renderSheet(false); else showError(D.failed);
+        return r;
+      }
+      uiSet({ draft: undefined });
+      flyIn(r.id);
+      // the trip opens over the create sheet (or when nothing is open); a sheet opened meanwhile is left as it is
+      if (!S.sheet || mine()) openTrip(r.id); else { changed(); toast(D.scene); }
+      return r;
+    });
+  },
+  ndiscard: function () { uiSet({ draft: undefined }); var sh = S.sheet; sh.local.d = newDraft(); sh.focus = 'new-title'; renderSheet(true); focusId('new-title'); },
+  /* 📝 on the create sheet: its caption, shown and editable (the v1 link's note, a kept draft's) */
+  nnote: function () { if (S.sheet && S.sheet.type === 'new') openSheet('note', { draft: true }, { back: true, focus: 'note-text' }); },
+  nnoteclr: function () { var L = S.sheet.local; L.text = ''; if (L.cuts) L.cuts['note-text'] = false; renderSheet(false); focusId('note-text'); },
+  /* P-edit and its parts (the organizer's phone) */
+  edit: function (el) { if (modelOf(el.dataset.id)) openSheet('edit', { id: el.dataset.id }); },
+  etitle: function (el) { var m = modelOf(el.dataset.id); if (m) openSheet('new', { edit: true, id: m.id }, { back: true, local: { d: editDraft1(m) }, focus: 'new-title' }); },
+  epeople: function (el) { var m = modelOf(el.dataset.id); if (m) openSheet('new', { edit: true, id: m.id }, { back: true, local: { d: editDraft2(m) } }); },
+  esave1: function () {
+    var sh = S.sheet, D = sh.local.d, m = modelOf(sh.p.id); if (!m || D.busy) return null;
+    if (!D.name.trim()) { pulseFld('new-title'); return null; }
+    var fixed = m.locked || m.closed;
+    if (!fixed && D.dest && D.dest.length !== 3) { pulseFld('new-dest'); return null; }
+    var title = titleOf(D.scene, spaced(D.name)), delta = {};
+    if (title !== m.title) delta.title = title;
+    if (!fixed && D.dest !== m.dest) delta.destination = { airport: D.dest };   // the answered members' flights follow (organizerEdit)
+    // nothing changed: done, unless an earlier Save's update landed and its answers did not (⚠ ↻ sends just those)
+    if (!Object.keys(delta).length && !OWED[m.id]) { closeSheet(); return null; }
+    return sheetWrite(sh, delta);
+  },
+  esave2: function () {
+    var sh = S.sheet, D = sh.local.d, m = modelOf(sh.p.id); if (!m || D.busy) return null;
+    closeEditor(D);
+    var bad = rowProblem(D);
+    if (bad) { D.ed = bad.i; renderSheet(false); pulseFld(bad.f); return null; }
+    if (!D.rows.length) { renderSheet(false); return null; }
+    if (D.rows.length > IDEA_MAX_MEMBERS) { renderSheet(false); pulseEl($('#who-cap')); return null; }   // ⚠ 9/8: someone has to go first
+    var id = m.id, known = (D.known || []).slice(), oldMe = meFor(id);
+    var rows = D.rows.map(function (r) { return { code0: r.code0 || '', e: rowDelta(r), me: !!r.me, label: memberLabel(r.face, nameFor(r)), name: nameFor(r) }; });
+    var mine = rows.filter(function (r) { return r.me; })[0] || null;
+    // this phone's 🙋 on the trip, once the Worker has the members (a new member's code is the Worker's answer: found
+    // by their label, else by their name, among the members this editor did not start with)
+    var setMine = function () {
+      var ms = (DOCS[id] && DOCS[id].idea && DOCS[id].idea.members) || [], hit = null;
+      if (mine && mine.code0) hit = ms.filter(function (x) { return x.code === mine.code0; })[0] || null;
+      else if (mine) {
+        var added = ms.filter(function (x) { return known.indexOf(x.code) < 0; });
+        hit = added.filter(function (x) { return x.label === mine.label; })[0] || added.filter(function (x) { return normName(splitLabel(x.label).name) === normName(mine.name); })[0] || null;
+      }
+      var code = hit ? hit.code : '';
+      if (code !== oldMe) setMe(id, code);
+      if (hit) saveProfile(hit.label);
+    };
+    var changes = rows.some(function (r) { return !r.code0 || Object.keys(r.e).length > 1; }) || known.some(function (c) { return !rows.some(function (r) { return r.code0 === c; }); });
+    if (!changes && !OWED[id]) { setMine(); closeSheet(); return null; }
+    // only this edit's own changes, against the record as it is when the Save goes out: the members still there in the
+    // editor's order (one this edit did not touch is its code alone), then anyone added meanwhile on another device (as
+    // they are), then the new people; a member removed meanwhile stays gone
+    var over = false;
+    var delta = function (doc) {
+      if (!changes) return {};   // only the answers an earlier Save still owes
+      var cur = (doc.idea && doc.idea.members) || [], have = {}, list = [];
+      cur.forEach(function (x) { have[x.code] = 1; });
+      rows.forEach(function (r) { if (r.code0 && have[r.code0]) list.push(r.e); });
+      cur.forEach(function (x) { if (known.indexOf(x.code) < 0) list.push({ code: x.code }); });
+      rows.forEach(function (r) { if (!r.code0) list.push(r.e); });
+      over = list.length > IDEA_MAX_MEMBERS;
+      return { members: list };
+    };
+    return sheetWrite(sh, delta, setMine, function (r, D1) {
+      MC = {};   // the record the write left (DOCS) is what the editor is rebuilt from
+      var now = modelOf(id); if (!now) return;
+      if (over) { rebaseWho(D1, now); D1.failed = ''; return; }   // more than 8 with the people added meanwhile: the editor shows them all, ⚠ 9/8
+      if (r.updated) {   // the members landed, an answer did not: the editor is the trip as it now is, and ⚠ ↻ sends what is owed
+        setMine(); MC = {};
+        var F = editDraft2(modelOf(id) || now); F.failed = D1.failed; sh.local.d = F;
+      }
+    });
+  },
+  ecap: function (el) { openSheet('note', { id: el.dataset.id }, { back: true, focus: 'note-text' }); },
+  cap: function (el) { openSheet('note', { id: el.dataset.id }, { focus: 'note-text' }); },
+  ekey: function (el) { var u = organizerLink(el.dataset.id); if (!u) return; S.sheet.local.copied = true; renderSheet(false); copyLink(u, '🔑 ⧉'); },
+  edrop: function (el) { openSheet('drop', { id: el.dataset.id }, { back: true }); },
+  dropkeep: function () { sheetBack(); },
+  /* 🗑 Drop: one organizer edit; the trip goes to the shelf and ↩ (the toast, or the shelf card) brings it back as it stood */
+  dropyes: function () {
+    var sh = S.sheet, L = sh.local, id = sh.p.id; if (L.busy) return null;
+    L.busy = true; L.failed = ''; renderSheet(false);
+    return organizerWrite(id, { decision: { stage: 'dropped' } }).then(function (r) {
+      L.busy = false;
+      if (!r.ok) { L.failed = r.code || 'network'; if (S.sheet === sh) renderSheet(false); else showError(L.failed); return r; }
+      if (S.sheet) closeSheet();
+      if (S.tab === 'trips' && S.trip === id) { leaveTrip(); render(); window.scrollTo(0, 0); }
+      toast('🗑', function () { return organizerWrite(id, restoreDelta).then(function (x) { if (!x.ok) showError(x.code); return x; }); });
+      return r;
+    });
+  },
+  undo: function () { var f = S.undo; hideToast(); return typeof f === 'function' ? f() : null; },
+  tshare: function (el) {
+    var id = el.dataset.id, m = modelOf(id); if (!m) return;
+    var url = handoffs(m, '', RT.hctx).share, hash = m.planHash; if (!url) return;
+    shareLink(url, function (how) { if (how === 'link') return; recordTripShared(id, hash); toast('📣'); }, function () { recordTripShared(id, hash); });
+  },
   key: function () { S.keyPulse = false; uiSet({ keySeen: true }); openSheet('key', {}); },
   settings: function () { openSheet('organizer', {}, { back: !!(S.sheet && S.sheet.type === 'key') }); },
   offline: function () { openSheet('error', { code: 'network' }); },
@@ -3425,30 +4397,31 @@ var TABS = { trips: 1, map: 1, cal: 1 };
 function wire() {
   document.addEventListener('click', function (e) {
     if (lp.fired) { lp.fired = false; e.preventDefault(); e.stopPropagation(); return; }
-    var el = e.target.closest && e.target.closest('[data-act]'); if (!el || el.disabled || el.getAttribute('aria-disabled') === 'true') return;
+    // a control that is aria-disabled does nothing, unless it explains itself when tapped (data-why: ▶ pulses what it needs)
+    var el = e.target.closest && e.target.closest('[data-act]'); if (!el || el.disabled || (el.getAttribute('aria-disabled') === 'true' && !el.hasAttribute('data-why'))) return;
     var fn = ACTS[el.dataset.act]; if (!fn) return;
     S.lastCtl = el.closest('#sheet') ? null : el;   // a sheet this opens gives focus back to it on close
     try { fn(el, e); } finally { S.lastCtl = null; }
   }, true);
   // a tap on the scrim around a sheet closes it (as ⌄ does); what was typed in ⚙ is kept for the next open
   document.addEventListener('click', function (e) { if (e.target && e.target.id === 'scrim') closeSheet(); });
-  document.addEventListener('input', function (e) {
-    var t = e.target; if (!S || !S.sheet) return;
-    var L = S.sheet.local;
-    if (t.id === 'org-token' || t.id === 'org-url') {   // a token or a URL has no spaces, so a typed value is one word at most
-      var v = t.value.replace(/\s+/g, ''); if (v !== t.value) t.value = v;
-      if (t.id === 'org-token') { L.tok = v; L.badTok = false; L.tokEdited = true; } else { L.url = v; L.badUrl = false; L.urlEdited = true; }
-    }
-  });
+  // PIA-136: a keyboard still composing a word (IME, predictive text, autocorrect) is left alone; its word is taken
+  // when the composition ends. Typing never rebuilds the field being typed in: what follows it (the picture, the chips,
+  // a ⚠) is updated in place.
+  document.addEventListener('input', function (e) { if (!e.isComposing) onTyped(e.target); });
+  document.addEventListener('compositionend', function (e) { onTyped(e.target); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (S && S.sheet) { e.preventDefault(); closeSheet(); } return; }
     if (e.key === 'Tab' && S && S.sheet) {   // Tab wraps inside the open sheet (the page behind it is inert)
-      var f = $$('#sheet button:not([disabled]), #sheet a[href], #sheet input, #sheet textarea').filter(isShown), a = document.activeElement, i = f.indexOf(a);
+      var f = $$('#sheet button:not([disabled]), #sheet a[href], #sheet input:not([disabled]), #sheet textarea').filter(isShown), a = document.activeElement, i = f.indexOf(a);
       if (!f.length) { e.preventDefault(); return; }
       if (e.shiftKey ? i <= 0 : (i < 0 || i === f.length - 1)) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
       return;
     }
     if (e.key === 'Enter' && S && S.sheet && document.activeElement && document.activeElement.tagName === 'INPUT') {
+      var aid = document.activeElement.id;
+      if (aid === 'mem-name') { e.preventDefault(); focusId('mem-ap'); return; }   // name → airport → the row closes into a chip
+      if (aid === 'mem-ap' && S.sheet.local.d) { e.preventDefault(); closeEditor(S.sheet.local.d); renderSheet(false); var ad = $('#sheet [data-act="nadd"]') || $('#sheet .btn.pri'); if (ad) ad.focus(); return; }
       var pri = $('#sheet .btn.pri:not([disabled])'); if (pri) { e.preventDefault(); pri.click(); }
     }
   });
@@ -3492,7 +4465,8 @@ function boot() {
   var nav = navRead(), ui = uiRead();
   S = { tab: hasOwn(TABS, nav.tab) ? nav.tab : 'trips', seg: nav.seg === 'family' ? 'family' : 'ideas', trip: null, sel: IDEA_ID_RE.test(String(ui.sel || '')) ? ui.sel : '',
     sheet: null, linkTrip: '', linkFresh: false, errNext: '', drafts: {}, opener: null, lastCtl: null, shown: '', hint: null, toastNext: '', keyPulse: !ui.keySeen, saveNext: null, fly: null,
-    histPushed: false, tripPushed: false, tripFrom: '', ignorePop: 0, booted: false };
+    histPushed: false, tripPushed: false, tripFrom: '', ignorePop: 0, booted: false,
+    joinNext: null, newNext: null, errNext0: '', undo: null };   // PIA-136: a join request, a v1 ?tripIdea= link, ↩
   importV1Once();
   applyLink(readLink(location.search || '', location.hash || '', location.pathname || ''));
   // a reload of a trip view keeps its own history entry (the one a tap pushed); a trip view a link opened has none
@@ -3502,6 +4476,8 @@ function boot() {
   render();
   if (S.toastNext) { toast(S.toastNext); S.toastNext = ''; }
   if (S.saveNext) { var sv = S.saveNext; S.saveNext = null; openSaveList(sv); }   // a list link: the receiving sheet
+  if (S.newNext && !S.sheet) { var nn = S.newNext; S.newNext = null; openCreate({ legacy: nn }); }   // v1's ?tripIdea=: a filled create sheet
+  if (S.errNext0) { var e0 = S.errNext0; S.errNext0 = ''; showError(e0); }                          // …or, broken, "Link broken"
   // the link's own trip is decided by its own answer (linkAnswered), however long the other trips take
   return refreshAll(true);
 }

@@ -56,7 +56,10 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   'tripModel', 'POLL_MS', 'LEGEND', 'anyFailed', 'boot', 'render', 'qsParse', 'WORKER_OK', 'openSheet', 'closeSheet', 'showError', 'FOCUS_GAP_MS',
   // PIA-135
   'ACTS', 'renderIdeas', 'renderTabbar', 'renderSelected', 'activeItems', 'shelfItems', 'tripsBadge', 'unsharedIds', 'shareModels', 'sharedWl', 'recordShared', 'saveState',
-  'SAVED_NEW', 'freshCodes', 'myFace', 'dirBase', 'seenFor', 'readFares', 'listAdd', 'uiSet'];
+  'SAVED_NEW', 'freshCodes', 'myFace', 'dirBase', 'seenFor', 'readFares', 'listAdd', 'uiSet',
+  // PIA-136
+  'uiRead', 'openCreate', 'presetChips', 'keptDraft', 'requestDraft', 'whoMode', 'whoWords', 'profileLabel', 'renderTrip', 'popupName', 'openTrip', 'renderSheet', 'meFor',
+  'sheetName', 'OWED'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -102,7 +105,7 @@ function makeServer(worker) {
   const env = { IDEAS: { async get(k) { return map.has(k) ? map.get(k) : null; }, async put(k, v) { map.set(k, String(v)); }, async delete(k) { map.delete(k); } } };
   const hash = crypto.createHash('sha256').update(KEY).digest('hex');
   const srv = {
-    map, env, hold: null, failNext: null,
+    map, env, hold: null, failNext: null, failOn: null,
     seed(doc) { const d = clone(doc); d.edit_hash = hash; map.set('idea:' + d.id, JSON.stringify(d)); return d.id; },
     read(id) { return JSON.parse(map.get('idea:' + id)); },
     write(doc) { map.set('idea:' + doc.id, JSON.stringify(doc)); },
@@ -110,6 +113,8 @@ function makeServer(worker) {
     fetch: async (url, opts) => {
       if (String(url).indexOf(W + '/') !== 0) throw new Error('not the Worker: ' + url);
       if (srv.failNext) { const f = srv.failNext; srv.failNext = null; if (f === 'network') throw new TypeError('Failed to fetch'); return new Response(JSON.stringify(f.body), { status: f.status }); }
+      // PIA-136: the next request to one route drops (an update that lands, then its airport-sync answer that does not)
+      if (srv.failOn && new URL(String(url)).pathname === srv.failOn) { srv.failOn = null; throw new TypeError('Failed to fetch'); }
       if (srv.hold) await srv.hold;
       const headers = Object.assign({ Origin: ORIGIN }, (opts && opts.headers) || {});
       return worker.fetch(new Request(url, { method: (opts && opts.method) || 'GET', headers, body: opts && opts.body }), env);
@@ -360,7 +365,12 @@ function norm(doc) {
   {
     const t = loadApp({ ls: seedLs({ pialax_idea_keys_v1: { [A]: { edit_key: KEY, title: '', created_at: 'c' } }, pialax_proxy_token: TOKEN, pialax_watchlist_v2: listOf([A, B]) }) });
     const org = t.api.organizerLink(A), dev = t.api.devicesLink();
-    check(org === BASE + '?idea=' + A + '#k=' + KEY + '&t=' + TOKEN && t.api.organizerLink(B) === '', "the organizer link is v1's format ?idea=<id>#k=<key>&t=<token> (only for a trip this phone holds the key to)");
+    // PIA-136: on the app's folder, exactly as v1 builds it (index.html sends it to v1 today, to app.html after the cutover)
+    const v1loc = { search: '', hash: '', pathname: '/PIALAX/pialax-mobile.html', origin: ORIGIN, href: ORIGIN + '/PIALAX/pialax-mobile.html', hostname: 'shwinster101.github.io' };
+    const v1w = makeShim().window; v1w.location = v1loc; v1w.localStorage = t.ls;   // v1 reads window.location
+    const v1l = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['tripIdeaOrganizerLink'], { localStorage: t.ls, location: v1loc, window: v1w, console: QUIET }).api;
+    check(org === ORIGIN + '/PIALAX/?idea=' + A + '#k=' + KEY + '&t=' + TOKEN && org === v1l.tripIdeaOrganizerLink(A) && org.indexOf('app.html') < 0 && t.api.organizerLink(B) === '',
+      "the organizer link is v1's own, byte for byte (v1's tripIdeaOrganizerLink): <folder>/?idea=<id>#k=<key>&t=<token>, never naming app.html (only for a trip this phone holds the key to)", [org, v1l.tripIdeaOrganizerLink(A)]);
     const back = t.api.readLink(new URL(dev).search, new URL(dev).hash, new URL(dev).pathname);
     check(eq(back.ids.sort(), [A, B].sort()) && eq(back.keys, { [A]: KEY }) && back.token === TOKEN, 'the devices link round-trips through the router: every listed id, every key, the token');
   }
@@ -890,6 +900,573 @@ function norm(doc) {
     t.api.render();
     check(/data-ghost="map"/.test(t.api.renderSelected('map', 'map').html) && /data-ghost="cal"/.test(t.api.renderSelected('calendar', 'cal').html) && t.api.renderIdeas().id === 'trips-empty',
       'PIA-135 AC8 with an empty list, Trips, Map and Calendar each show the empty-state picture with ＋');
+  }
+
+  // ═══ PIA-136: the one create path and organizer edits ═══
+  section('PIA-136 create (3 steps, never prefilled from hidden state, draft kept on failure), edits, join requests, drop and ↩, v1 idea links');
+  const TM = require(path.join(ROOT, 'scripts', 'trip-model.js'));
+  let nSeed = 0;
+  // a fixture under a fresh id, so every scenario starts from the same record
+  const seedAs = (doc, f) => { const d = clone(doc); d.id = (d.id.slice(0, 16) + 'p136' + String(++nSeed).padStart(2, '0')).slice(0, 22); if (f) f(d); srv.seed(d); return d.id; };
+  const act = (t, name, ds) => t.api.ACTS[name]({ dataset: ds || {} });   // a tap on a control (what the click handler calls)
+  const D = (t) => (t.api.S.sheet && t.api.S.sheet.local.d) || null;
+  const posts = (t, from) => t.fetches.slice(from || 0).filter((f) => f.method === 'POST').map((f) => ({ path: f.url.replace(W, '').split('?')[0], body: JSON.parse(f.body) }));
+  // wait for a write the app started on its own (a caption saves as its sheet closes): no fixed number of turns
+  const until = async (f, n) => { for (let i = 0; i < (n || 2000) && !f(); i++) await tick(2); return f(); };
+  const boot136 = async (o) => { const t = loadApp(Object.assign({ fetch: srv.fetch }, o)); await t.api.refreshAll(true); await tick(); t.api.render(); return t; };
+  const lsOf = (ids, extra) => seedLs(Object.assign({ pialax_watchlist_v2: ids.map((id, i) => ({ id, t: '', e: '', at: i + 1, pin: false, arch: false })), pialax_ui_v1: { v1read: 1 } }, extra || {}));
+  const DW1 = seedAs(fx('idea-diwali.json')), TH1 = seedAs(fx('idea-tahoe.json'));
+  const orgLs136 = () => lsOf([TH1, DW1], { pialax_idea_keys_v1: keyOf([DW1]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [DW1]: 'ashwin-p8', [TH1]: 'ashwin-l2' }, pialax_ui_v1: { v1read: 1, sel: DW1 } });
+  {
+    // AC1 the sheet starts empty, whatever another screen shows (the dated Diwali trip view is open behind it)
+    const t = await boot136({ ls: orgLs136() });
+    act(t, 'open', { id: DW1 });
+    const n0 = t.fetches.length;
+    act(t, 'new');
+    const d = D(t);
+    check(t.api.S.sheet.type === 'new' && t.api.popupName(t.api.S.sheet) === 'P-new-what' && d.step === 1 && d.name === '' && d.dest === '' && d.s === '' && d.e === '' && d.pin === '' && d.scene === '🌆' && !d.kept,
+      'PIA-136 AC1 ＋ opens P-new-what empty: no name, no place, no dates, the city picture, even with a dated trip open behind it (nothing comes from hidden state)', { name: d.name, dest: d.dest, s: d.s });
+    check(d.preset === 'family' && eq(d.rows.map((r) => r.face + r.name + r.ap + r.n + (r.me ? '🙋' : '')), ['🌽Mom & DadPIA2', '🌴AshwinLAX1🙋', '🗽AnjoLGA1']) && d.rows.every((r) => r.preset),
+      'PIA-136 AC1/AC4 step 2 starts from a visible group: 👪 (this token phone\'s trip added last is the family\'s), Anjo at LGA (after 9/1), 🙋 Ashwin from this phone\'s identity', d.rows);
+    act(t, 'nnext');
+    check(d.step === 1, '▶ without a name stays on step 1 (the name field pulses)');
+    d.name = 'Diwali in Raleigh'; act(t, 'nscene', { v: '2' }); d.dest = 'RD';
+    act(t, 'nnext');
+    check(d.step === 1 && d.scene === '🪔', 'a destination cut short (2 letters) is never dropped silently: ▶ stays and its field pulses');
+    d.dest = 'RDU'; act(t, 'nnext'); act(t, 'nnext');
+    check(d.step === 3 && d.ym === '2026-11', 'steps 2 → 3; the date grid opens on next month (November)');
+    act(t, 'nday', { v: '2026-11-06' }); act(t, 'nday', { v: '2026-11-09' }); act(t, 'npin'); act(t, 'nday', { v: '2026-11-08' });
+    check(d.s === '2026-11-06' && d.e === '2026-11-09' && d.pin === '2026-11-08' && /11\/6–11\/9<\/span> · <span data-k="nights">3/.test(t.api.SHEETS.new(t.api.S.sheet)), 'tap start, tap end, 📌 then the event day: 11/6–11/9 · 3🌙 📌11/8');
+    const made = await act(t, 'ncreate'); await tick();
+    const cp = posts(t, n0).filter((p) => p.path === '/idea')[0], id = made && made.id;
+    const keys = JSON.parse(t.ls.getItem('pialax_idea_keys_v1'));
+    check(made && made.ok && cp && eq(cp.body.idea.dates, { departure: '2026-11-06', return: '2026-11-09', searchStart: '', searchEnd: '' }) && cp.body.idea.title === '🪔 Diwali in Raleigh' &&
+      eq(cp.body.idea.destination, { city: 'Raleigh', airport: 'RDU' }) && cp.body.idea.notes === '📌2026-11-08' && cp.body.idea.recommendation === null &&
+      eq(cp.body.idea.members.map((x) => [x.label, x.airport, x.headcount]), [['🌽 Mom & Dad', 'PIA', 2], ['🌴 Ashwin', 'LAX', 1], ['🗽 Anjo', 'LGA', 1]]),
+      'PIA-136 AC1 Create: one POST /idea through createRequest (the title with its picture, the place and its city, the plan, 📌, a face on every label, no recommendation)', cp && cp.body.idea);
+    check(keys[id] && /^[A-Za-z0-9_-]{32,64}$/.test(keys[id].edit_key) && keys[id].title === '🪔 Diwali in Raleigh' && eq(Object.keys(keys[id]), ['edit_key', 'title', 'created_at']) && keys[DW1].edit_key === KEY,
+      'PIA-136 AC1 the edit key is kept on this phone in v1\'s format (and the keys already there are untouched)');
+    const me = t.api.meFor(id), meMem = srv.read(id).idea.members.find((x) => x.code === me);
+    check(t.api.S.tab === 'trips' && t.api.S.trip === id && !t.api.S.sheet && t.api.listIds().indexOf(id) >= 0 && meMem && meMem.label === '🌴 Ashwin' && JSON.parse(t.ls.getItem('pialax_me_profile_v1')).label === '🌴 Ashwin' &&
+      t.api.modelOf(id).stage === 'idea' && t.api.modelOf(id).org && Object.keys(srv.read(id).responses).length === 0 && !('draft' in t.api.uiRead()),
+      'PIA-136 AC1 then the trip opens (its organizer view, 💡 Idea, nobody has answered yet), listed, with 🙋 = Ashwin on this phone and as my profile; no draft is left', { trip: t.api.S.trip, me });
+    check(/data-act="edit" data-id="[^"]+" aria-label="Edit" data-k="edit">✎<\/button><button class="ib" data-act="tshare"/.test(t.api.renderTrip(id).html), 'the new trip\'s view offers the organizer ✎ and 📣');
+  }
+  {
+    // AC9 the Diwali job, step by step: each tap is dispatched to the app's own action and the state it must reach is
+    // checked before the next one, so the job is done in exactly these taps (no step needs another). The 📍 field tap is
+    // a tap with no action here (typing is not a tap). The rendered count, with real clicks, is test-words'.
+    let shared = null, taps = 0;
+    const t = await boot136({ ls: orgLs136(), navigator: { share: (o) => { shared = o; return Promise.resolve(); }, clipboard: { writeText: () => Promise.resolve() } } });
+    const steps = [
+      [() => act(t, 'new'), () => t.api.popupName(t.api.S.sheet) === 'P-new-what' && D(t).name === '' && D(t).preset === 'family'],
+      [() => { D(t).name = 'Diwali in Raleigh'; return act(t, 'nscene', { v: '2' }); }, () => D(t).scene === '🪔' && D(t).scenePicked],
+      [() => { D(t).dest = 'RDU'; }, () => D(t).dest === 'RDU'],   // the 📍 field
+      [() => act(t, 'nnext'), () => D(t).step === 2 && D(t).rows.filter((r) => r.me).map((r) => r.name).join() === 'Ashwin'],
+      [() => act(t, 'nnext'), () => D(t).step === 3 && D(t).ym === '2026-11'],
+      [() => act(t, 'nday', { v: '2026-11-06' }), () => D(t).s === '2026-11-06' && D(t).e === ''],
+      [() => act(t, 'nday', { v: '2026-11-09' }), () => D(t).e === '2026-11-09'],
+      [() => act(t, 'npin'), () => D(t).pinMode],
+      [() => act(t, 'nday', { v: '2026-11-08' }), () => D(t).pin === '2026-11-08' && !D(t).pinMode],
+      [() => act(t, 'ncreate'), () => !t.api.S.sheet && /^[A-Za-z0-9_-]{22}$/.test(String(t.api.S.trip)) && t.api.modelOf(t.api.S.trip).org]
+    ];
+    const stuck = [];
+    for (let i = 0; i < steps.length; i++) { taps++; await steps[i][0](); await tick(); if (!steps[i][1]()) stuck.push(i + 1); }
+    const id = t.api.S.trip;
+    taps++; act(t, 'tshare', { id }); await tick();
+    check(stuck.length === 0 && taps === 11 && shared && shared.url === W + '/i/' + id && Object.keys(shared).length === 1 && JSON.parse(t.ls.getItem('pialax_shared_at_v1'))[id] === '2026-11-06|2026-11-09',
+      'PIA-136 AC9 the Diwali job: ＋ 🪔 📍 ▶ ▶ 11/6 11/9 📌 11/8 Create, each reaching its state, then the trip\'s 📣 (11 taps in the app; the chat and Send make the spec\'s 13): 📣 hands the share sheet the guest link only, and records the plan it carried', { stuck, taps, shared });
+  }
+  {
+    // AC1 / AC3 / AC4 a phone with no token and no trips (Priya): ＋ only; 🙋 = the first person added; a failed Create keeps the draft
+    const t = loadApp({ fetch: srv.fetch, ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    t.api.render();
+    act(t, 'new');
+    const d = D(t);
+    check(d.rows.length === 0 && d.preset === null && t.api.presetChips().length === 0, 'PIA-136 AC4 a phone with no token and no trips has no preset: step 2 starts with ＋ only');
+    d.name = 'Tahoe ski weekend'; act(t, 'nscene', { v: '10' }); d.dest = 'RNO'; act(t, 'nnext');
+    act(t, 'nnext');
+    check(d.step === 2, 'no people: ▶ stays on step 2 (＋ pulses)');
+    [['Priya', 'DEN'], ['Maya', 'SFO'], ['Ashwin', 'LAX'], ['Leo', 'SEA']].forEach(([n, a], i) => { act(t, 'nadd'); d.rows[i].name = n; d.rows[i].ap = a; });
+    check(d.rows[0].me && d.rows.slice(1).every((r) => !r.me) && new Set(d.rows.map((r) => r.face)).size === 4, 'PIA-136 AC3 the first person on an empty sheet is 🙋 me, nobody added after; every face is a different one', d.rows.map((r) => r.face + (r.me ? '🙋' : '')));
+    act(t, 'nface', { v: '1' });
+    check(new Set(d.rows.map((r) => r.face)).size === 4, 'PIA-136 AC3 🙂 a face cycles to the next one nobody on the trip has');
+    d.rows.forEach((r) => { r.me = false; }); act(t, 'nnext');
+    check(d.step === 2, 'PIA-136 AC3 with no 🙋 the sheet refuses to continue (▶ stays; the 🙋 column pulses)');
+    act(t, 'nme', { v: '0' }); d.rows[2].name = 'Me'; act(t, 'nnext');
+    check(d.step === 2 && d.ed === 2, 'a person named "Me" (v1\'s nameless word) is refused: their row opens for a real name');
+    d.rows[2].name = 'Ashwin'; act(t, 'nnext');
+    check(d.step === 3, '🙋 Priya: on to step 3');
+    act(t, 'nday', { v: '2026-11-27' }); act(t, 'nday', { v: '2026-11-30' });
+    srv.failNext = 'network';
+    const r1 = await act(t, 'ncreate'); await tick();
+    const kept = t.api.uiRead().draft;
+    check(!r1.ok && d.failed === 'network' && t.api.S.sheet && t.api.S.sheet.type === 'new' && /aria-label="Retry">⚠ ↻<\/button>/.test(t.api.SHEETS.new(t.api.S.sheet)) && kept && kept.name === 'Tahoe ski weekend' && kept.rows.length === 4 && kept.s === '2026-11-27' && t.api.listIds().length === 0,
+      'PIA-136 AC1 a failed Create: ⚠ ↻ on Create, the sheet stays, the draft is kept (pialax_ui_v1.draft), nothing is listed', { failed: d.failed, kept: !!kept });
+    t.api.closeSheet();
+    act(t, 'new');
+    const k = D(t);
+    check(k.kept && k.step === 3 && k.name === 'Tahoe ski weekend' && k.dest === 'RNO' && k.scene === '🎿' && eq(k.rows.map((r) => r.name), ['Priya', 'Maya', 'Ashwin', 'Leo']) && k.rows[0].me && k.s === '2026-11-27' && k.e === '2026-11-30',
+      'PIA-136 AC1 ＋ reopens the kept draft at Create, as it was typed (the only state ＋ ever restores)', { step: k.step, name: k.name });
+    const r2 = await act(t, 'ncreate'); await tick();
+    const doc = r2.ok && srv.read(r2.id);
+    check(r2.ok && !('draft' in t.api.uiRead()) && doc.idea.members.map((x) => x.airport).join() === 'DEN,SFO,LAX,SEA' && t.api.meFor(r2.id) === doc.idea.members[0].code && t.api.S.trip === r2.id &&
+      t.fetches.filter((f) => f.method === 'POST' && /\/idea$/.test(f.url)).length === 2,
+      'the retry creates it once (the failed POST never reached the Worker) and clears the draft; 🙋 Priya is this phone', doc && doc.idea.members.map((x) => x.label));
+    act(t, 'new');
+    check(!D(t).kept && D(t).name === '' && D(t).step === 1, 'after a successful Create, ＋ starts empty again');
+    t.api.uiSet({ draft: { name: 'x', rows: 'junk', s: 'not a day', scene: '<b>', ym: '1999-01' } });
+    t.api.closeSheet(); act(t, 'new');
+    check(D(t).kept && D(t).rows.length === 0 && D(t).s === '' && D(t).scene === '🌆' && D(t).ym >= '2026-10', 'a kept draft that is off-shape is cleaned as it is read (nothing junk reaches the sheet)');
+    check(/data-act="ndiscard" aria-label="Discard draft"/.test(t.api.SHEETS.new(t.api.S.sheet)), 'a kept draft can be thrown away (🗑 in its header)');
+    act(t, 'ndiscard');
+    check(!D(t).kept && D(t).step === 1 && D(t).name === '' && !('draft' in t.api.uiRead()), '🗑 Discard draft: the sheet starts empty and nothing is kept');
+  }
+  {
+    // AC2 any 3-letter code; an unknown one is marked, never blocks; no place at all is fine; a rough window keeps 🌙N
+    const t = loadApp({ fetch: srv.fetch, ls: seedLs({ pialax_ui_v1: { v1read: 1 }, pialax_me_profile_v1: { label: '🦊 Priya' } }) });
+    t.api.render();
+    const run = async (dest, setup) => {
+      t.api.closeSheet(); act(t, 'new');
+      const d = D(t);
+      d.name = 'Somewhere'; d.dest = dest;
+      const html = t.api.SHEETS.new(t.api.S.sheet);
+      act(t, 'nnext'); act(t, 'nadd'); d.rows[0].name = 'Priya'; d.rows[0].ap = 'DEN'; act(t, 'nnext');
+      if (setup) setup(d);
+      const r = await act(t, 'ncreate'); await tick();
+      return { html, r, doc: r && r.ok ? srv.read(r.id) : null };
+    };
+    const zz = await run('ZZQ'), none = await run('');
+    check(/<span id="dest-warn" class="w" data-k="unknown">📍⚠<\/span>/.test(zz.html) && zz.r.ok && eq(zz.doc.idea.destination, { city: '', airport: 'ZZQ' }) && none.r.ok && eq(none.doc.idea.destination, { city: '', airport: '' }) &&
+      /<span id="dest-warn" class="w" data-k="unknown" hidden>/.test(none.html),
+      'PIA-136 AC2 an unknown code (ZZQ) is marked 📍⚠ and still creates the trip (no city); an idea may start with no place at all');
+    const win = await run('CUN', () => { act(t, 'nmode', { v: 'window' }); act(t, 'nday', { v: '2026-12-10' }); act(t, 'nday', { v: '2026-12-31' }); act(t, 'nnights', { v: '1' }); act(t, 'nnights', { v: '1' }); });
+    check(win.r.ok && eq(win.doc.idea.dates, { departure: '', return: '', searchStart: '2026-12-10', searchEnd: '2026-12-31' }) && win.doc.idea.notes === '🌙5' && t.api.modelOf(win.r.id).undated && t.api.modelOf(win.r.id).nightsN === 5,
+      'PIA-136 AC1 a rough window with nights: ⟦12/10–12/31⟧ 🌙5 (no plan dates), read back by the model as an undated idea', win.doc && win.doc.idea);
+    const undated = await run('LHR', () => {});
+    check(undated.r.ok && eq(undated.doc.idea.dates, { departure: '', return: '', searchStart: '', searchEnd: '' }) && undated.doc.idea.notes === '', 'dates are optional: an idea may start with none');
+  }
+  {
+    // AC4 the 👪 preset only on the token phone; other phones offer the groups of trips they have seen
+    const guest = await boot136({ ls: lsOf([B, A], { pialax_idea_me_v1: { [A]: 'anjo-z5', [B]: 'maya-s9' } }) });
+    const chips = guest.api.presetChips();
+    check(chips.every((c) => !c.family) && chips.length === 2 && eq(chips[0].faces, ['🌽', '🌴', '🗽']) && eq(chips[1].faces, ['🦊', '🐼', '🌴', '🐸']),
+      'PIA-136 AC4 a phone without the token never offers 👪; it offers the people of the trips it has seen (Diwali\'s, Tahoe\'s), newest first', chips.map((c) => c.key));
+    act(guest, 'new');
+    const d = D(guest);
+    check(d.preset === chips[0].key && d.rows.find((r) => r.name === 'Anjo').me && d.rows.filter((r) => r.me).length === 1, 'its pre-applied group is the latest trip\'s, with 🙋 = who this phone is on that trip (Anjo)');
+    const tok = await boot136({ ls: seedLs({ pialax_proxy_token: TOKEN, pialax_ui_v1: { v1read: 1 } }) });
+    const fam = tok.api.presetChips();
+    check(fam.length === 1 && fam[0].family && eq(fam[0].rows.map((r) => r.ap), TM.familyPreset('', '2026-10-17').map((f) => f.airport)) && fam[0].rows.every((r) => r.preset) && fam[0].rows[2].ap === 'LGA',
+      'a fresh token phone offers 👪 alone, its airports resolved for today (Anjo LGA from 9/1; Create re-resolves them against the departure)', fam[0].rows.map((r) => r.ap));
+  }
+  {
+    // AC5 organizer edits: name, picture and place (the answered members' flights follow); not the place while 🔒
+    const E1 = seedAs(fx('idea-diwali.json'));
+    const ls = () => lsOf([E1], { pialax_idea_keys_v1: keyOf([E1]), pialax_idea_me_v1: { [E1]: 'ashwin-p8' } });
+    const t = await boot136({ ls: ls() });
+    act(t, 'open', { id: E1 }); act(t, 'edit', { id: E1 });
+    const tiles = (t.api.SHEETS.edit(t.api.S.sheet).match(/data-act="(\w+)"/g) || []).map((s) => s.slice(10, -1));
+    check(t.api.S.sheet.type === 'edit' && eq(tiles, ['etitle', 'epeople', 'ecap', 'ekey', 'edrop']), 'PIA-136 AC5 ✎ opens P-edit: 🏷📍 name and place, 👥 people, 📝 caption, 🔑 organizer link, 🗑 drop', tiles);
+    act(t, 'etitle', { id: E1 });
+    const d = D(t);
+    check(t.api.popupName(t.api.S.sheet) === 'P-edit-what' && d.name === 'Diwali in Raleigh' && d.scene === '🪔' && d.dest === 'RDU' && t.api.S.sheet.back && t.api.S.sheet.back.type === 'edit', 'P-edit 🏷📍 is step 1 filled from the trip, stacked on P-edit');
+    d.name = 'Diwali in Charlotte'; d.dest = 'CLT';
+    const n0 = t.fetches.length;
+    const r = await act(t, 'esave1'); await tick();
+    const ps = posts(t, n0), doc = srv.read(E1);
+    check(r.ok && ps[0].path === '/idea/update' && ps[0].body.idea.title === '🪔 Diwali in Charlotte' && eq(ps[0].body.idea.destination, { airport: 'CLT', city: 'Charlotte' }) &&
+      eq(ps.slice(1).map((p) => p.path + ':' + p.body.member).sort(), ['/idea/respond:ashwin-p8', '/idea/respond:momdad-k3']) && doc.responses['momdad-k3'].status === 'in' &&
+      doc.responses['ashwin-p8'].note === fx('idea-diwali.json').responses['ashwin-p8'].note && doc.idea.destination.airport === 'CLT' && !t.api.S.sheet,
+      'PIA-136 AC5 a new place: one update, then one complete answer per answered member (their flights now go to CLT; answers and notes kept), and the sheets close', ps.map((p) => p.path + (p.body.member ? ':' + p.body.member : '')));
+    // 🔒: the place cannot change (the field is disabled and Save leaves it alone); the name still can
+    const t2 = await boot136({ ls: ls() });
+    await t2.api.organizerWrite(E1, { decision: { stage: 'chosen' } }); await tick(); t2.api.render();
+    act(t2, 'open', { id: E1 }); act(t2, 'edit', { id: E1 }); act(t2, 'etitle', { id: E1 });
+    const d2 = D(t2), html = t2.api.SHEETS.new(t2.api.S.sheet);
+    d2.dest = 'RDU'; d2.name = 'Diwali at last';
+    const n1 = t2.fetches.length, r2 = await act(t2, 'esave1'); await tick();
+    const up = posts(t2, n1)[0];
+    check(/id="new-dest"[^>]*disabled/.test(html) && /data-k="lock">🔒/.test(html) && r2.ok && up.body.idea.destination.airport === 'CLT' && up.body.idea.title === '🪔 Diwali at last' && srv.read(E1).decision.stage === 'chosen',
+      'PIA-136 AC5 while the dates are 🔒 the destination is locked (disabled, 🔒) and Save leaves it alone; the name still changes', up && up.body.idea.destination);
+    // a longer name already on the trip (v1, another client) is shown whole and free (a trip name), never cut by the editor
+    const longTitle = '🌊 A really long trip name that somebody typed in full because they could not stop';
+    const E1b = seedAs(fx('idea-tahoe.json'), (x) => { x.idea.title = longTitle; });
+    const t3 = await boot136({ ls: lsOf([E1b], { pialax_idea_keys_v1: keyOf([E1b]) }) });
+    act(t3, 'edit', { id: E1b }); act(t3, 'etitle', { id: E1b });
+    const h3 = t3.api.SHEETS.new(t3.api.S.sheet);
+    check(D(t3).name === longTitle.slice(3) && /<div class="fld" id="fld-title" data-free>/.test(h3) && TM.capTyped(D(t3).name + ' more', D(t3).name, TM.TITLE_WORDS) === D(t3).name,
+      'PIA-136 AC5 a longer existing name opens whole (marked free, as trip names are) and typing can shorten it but never adds a word past the cap');
+  }
+  {
+    // AC3 / AC5 the people editor: stable codes, an airport change resends that member's answer, removing someone who answered asks
+    // twice, and a member added on another device meanwhile survives
+    const E2 = seedAs(fx('idea-diwali.json'));
+    const t = await boot136({ ls: lsOf([E2], { pialax_idea_keys_v1: keyOf([E2]), pialax_idea_me_v1: { [E2]: 'ashwin-p8' } }) });
+    act(t, 'open', { id: E2 }); act(t, 'edit', { id: E2 }); act(t, 'epeople', { id: E2 });
+    const d = D(t);
+    check(t.api.popupName(t.api.S.sheet) === 'P-edit-who' && eq(d.rows.map((r) => r.code0), ['momdad-k3', 'ashwin-p8', 'anjo-z5']) && d.rows[1].me && d.rows[0].ans && !d.rows[2].ans, 'P-edit 👥: every member with their code kept, 🙋 this phone, and who has answered');
+    act(t, 'nedit', { v: '1' }); d.rows[1].ap = 'SFO';
+    act(t, 'nadd'); d.rows[3].name = 'Sam Lee'; d.rows[3].ap = 'OAK';
+    check(!d.rows[3].me && new Set(d.rows.map((r) => r.face)).size === 4, 'someone added in an edit is never 🙋 and gets a free face');
+    act(t, 'nedit', { v: '0' }); act(t, 'ndel', { v: '0' });
+    const armed = d.rows.length === 4 && d.arm === 0 && /aria-label="Remove anyway">🗑⚠<\/button>/.test(t.api.SHEETS.new(t.api.S.sheet));
+    act(t, 'ndel', { v: '0' });
+    check(armed && d.rows.length === 3 && d.rows.every((r) => r.code0 !== 'momdad-k3'), 'PIA-136 AC5 🗑 on Mom & Dad (they answered) first only shows ⚠; the second tap removes them (their answers go with them)');
+    const late = clone(srv.read(E2)); late.idea.members.push({ code: 'priya-q1', label: '🦊 Priya', airport: 'DEN', headcount: 1 }); srv.write(late);   // meanwhile, on another device
+    const n0 = t.fetches.length;
+    const r = await act(t, 'esave2'); await tick();
+    const ps = posts(t, n0), doc = srv.read(E2), codes = doc.idea.members.map((x) => x.code), sam = doc.idea.members.find((x) => /Sam Lee$/.test(x.label));
+    check(r.ok && ps[0].path === '/idea/update' && eq(codes.slice(0, 2), ['ashwin-p8', 'anjo-z5']) && codes.indexOf('priya-q1') >= 0 && codes.indexOf('momdad-k3') < 0 && sam && sam.airport === 'OAK' && /^samlee-[a-z0-9]{2}$/.test(sam.code) &&
+      !doc.responses['momdad-k3'] && doc.responses['ashwin-p8'].origin === 'SFO' && doc.responses['ashwin-p8'].status === 'in' && ps.some((p) => p.path === '/idea/respond' && p.body.member === 'ashwin-p8') && t.api.meFor(E2) === 'ashwin-p8',
+      'PIA-136 AC3/AC5 one Save: codes never rewritten, Sam Lee gets a new code, Mom & Dad go (with their answer), Ashwin\'s answer is resent from SFO (his flights follow), and Priya, added elsewhere meanwhile, stays', { codes, ps: ps.map((p) => p.path) });
+  }
+  {
+    // AC5 the caption (P-note): saved as the sheet closes; a longer v1 text asks twice and is never cut silently; guests only read it
+    const longCap = Array.from({ length: 30 }, (_, i) => 'word' + i).join(' ');
+    const E3 = seedAs(fx('idea-diwali.json'), (x) => { x.idea.notes = '📌2026-11-08 ' + longCap; });
+    const t = await boot136({ ls: lsOf([E3], { pialax_idea_keys_v1: keyOf([E3]), pialax_idea_me_v1: { [E3]: 'ashwin-p8' } }) });
+    act(t, 'open', { id: E3 });
+    check(/data-act="cap" data-id="[^"]+" aria-label="Note" data-k="note"/.test(t.api.renderTrip(E3).html), 'a trip with a caption shows 📝 on its hero');
+    act(t, 'cap', { id: E3 });
+    let sh = t.api.S.sheet;
+    const html = t.api.SHEETS.note(sh), n0 = t.fetches.length;
+    check(sh.local.edit && sh.local.long && sh.local.text.split(' ').length === 20 && /<textarea id="note-text"/.test(html) && /data-k="warn">⚠<\/span> <span id="cut-note-text" class="w" data-k="warn" hidden>⚠<\/span> <span class="tn">20\/20/.test(html),
+      'P-note opens the organizer\'s caption at its first 20 words, marked ⚠ (the v1 text is longer)');
+    t.api.closeSheet();
+    check(!t.api.S.sheet && posts(t, n0).length === 0, 'closing it unchanged sends nothing (the longer text stays as it is)');
+    act(t, 'cap', { id: E3 }); sh = t.api.S.sheet;
+    sh.local.text = 'Puja moved to Saturday';
+    t.api.closeSheet();
+    const armedOpen = t.api.S.sheet === sh && sh.local.armed && posts(t, n0).length === 0 && /data-k="close">⌄/.test(t.api.SHEETS.note(sh));
+    t.api.closeSheet(); await until(() => srv.read(E3).idea.notes !== '📌2026-11-08 ' + longCap);
+    const doc = srv.read(E3);
+    check(armedOpen && !t.api.S.sheet && doc.idea.notes === '📌2026-11-08 Puja moved to Saturday', 'PIA-136 AC5 replacing the longer v1 text: the first ⌄ shows ⚠ and keeps the sheet, the second saves it (📌 kept): never lost silently', doc.idea.notes);
+    srv.failNext = 'network';
+    act(t, 'cap', { id: E3 }); t.api.S.sheet.local.text = 'Puja at 6'; t.api.closeSheet(); await until(() => t.api.S.sheet && t.api.S.sheet.type === 'error');
+    const errSheet = t.api.S.sheet && t.api.S.sheet.type === 'error';
+    t.api.closeSheet(); act(t, 'cap', { id: E3 });
+    check(errSheet && t.api.S.sheet.local.text === 'Puja at 6' && srv.read(E3).idea.notes === '📌2026-11-08 Puja moved to Saturday', 'a caption that fails to save says so (P-error) and comes back in P-note to try again');
+    t.api.closeSheet(); await until(() => /Puja at 6$/.test(srv.read(E3).idea.notes));
+    const g = await boot136({ ls: lsOf([E3], { pialax_idea_me_v1: { [E3]: 'anjo-z5' } }) });
+    act(g, 'cap', { id: E3 });
+    const gh = g.api.SHEETS.note(g.api.S.sheet);
+    check(!/textarea/.test(gh) && /<p class="notev">Puja at 6<\/p>/.test(gh) && !/data-act="edit"/.test(g.api.renderTrip(E3).html), 'a guest reads the caption (no field) and has no ✎');
+  }
+  {
+    // AC5 the organizer link: copied for my own devices, with the warning; never handed to a share sheet. The phone HAS a
+    // share sheet here (it records every call and accepts it), so a link sent to it would be caught, not fall back to copying.
+    let copied = null;
+    const shared = [];
+    const E4 = seedAs(fx('idea-tahoe.json'));
+    const t = await boot136({ navigator: { share: (o) => { shared.push(o); return Promise.resolve(); }, clipboard: { writeText: (u) => { copied = u; return Promise.resolve(); } } },
+      ls: lsOf([E4], { pialax_idea_keys_v1: keyOf([E4]), pialax_proxy_token: TOKEN }) });
+    act(t, 'open', { id: E4 }); act(t, 'edit', { id: E4 }); act(t, 'ekey', { id: E4 }); await tick();
+    const secret = (s) => /#k=|#ks=|[#&]t=/.test(String(s)) || String(s).indexOf(TOKEN) >= 0 || String(s).indexOf(KEY) >= 0;
+    check(copied === ORIGIN + '/PIALAX/?idea=' + E4 + '#k=' + KEY + '&t=' + TOKEN && /<p class="warnline">🔑⚠ Your devices only<\/p>/.test(t.api.SHEETS.edit(t.api.S.sheet)),
+      'PIA-136 AC5 🔑 copies the organizer link (v1\'s <folder>/?idea=…#k=…&t=…) and P-edit then says "Your devices only"', copied);
+    const afterKey = shared.length;
+    t.api.closeSheet(); act(t, 'tshare', { id: E4 }); await tick();
+    check(afterKey === 0 && shared.length === 1 && Object.keys(shared[0]).join() === 'url' && !secret(shared[0].url) && !secret(t.loc.href) && t.hist.calls.every((u) => !secret(u)),
+      'PIA-136 AC5 with a share sheet on the phone, ✎ → 🔑 never calls it (only 📣 does, with the guest link alone); no shared, copied-elsewhere or address-bar URL carries #k=, &t=, the key or the token', { shared, href: t.loc.href });
+    const legacy = seedAs(fx('idea-thanksgiving-legacy.json'));
+    const lg = await boot136({ ls: lsOf([legacy], { pialax_idea_keys_v1: keyOf([legacy]) }) });
+    check(lg.api.modelOf(legacy).org && lg.api.modelOf(legacy).legacy && !/data-act="edit"/.test(lg.api.renderTrip(legacy).html), 'no ✎ on an unmigrated v1 trip, even for its organizer (P-migrate comes first)');
+  }
+  {
+    // AC7 Drop asks once, with buttons named by outcome; ↩ undoes it (a 🔒 trip comes back locked)
+    const E5 = seedAs(fx('idea-tahoe.json'));
+    const t = await boot136({ ls: lsOf([E5], { pialax_idea_keys_v1: keyOf([E5]), pialax_idea_me_v1: { [E5]: 'ashwin-l2' } }) });
+    await t.api.organizerWrite(E5, { decision: { stage: 'chosen' } }); await tick(); t.api.render();
+    act(t, 'open', { id: E5 }); act(t, 'edit', { id: E5 }); act(t, 'edrop', { id: E5 });
+    const html = t.api.SHEETS.drop(t.api.S.sheet);
+    check(t.api.S.sheet.type === 'drop' && /<button class="btn danger" data-act="dropyes">🗑 Drop<\/button><button class="btn pri" data-act="dropkeep">Keep<\/button>/.test(html) && srv.read(E5).decision.stage === 'chosen',
+      'PIA-136 AC7 P-drop: the trip, a red-outlined 🗑 Drop and the primary Keep (nothing is sent yet)');
+    act(t, 'dropkeep');
+    check(t.api.S.sheet && t.api.S.sheet.type === 'edit' && srv.read(E5).decision.stage === 'chosen', 'Keep goes back to P-edit, the trip untouched');
+    act(t, 'edrop', { id: E5 });
+    const r = await act(t, 'dropyes'); await tick();
+    check(r.ok && srv.read(E5).decision.stage === 'dropped' && !t.api.S.sheet && t.api.S.trip === null && t.api.shelfItems().some((x) => x.id === E5) && typeof t.api.S.undo === 'function',
+      'PIA-136 AC7 🗑 Drop: one update (dropped), the sheets close, the trip view goes back to the list and the trip to the shelf; the toast offers ↩');
+    const u = await act(t, 'undo'); await tick();
+    check(u.ok && srv.read(E5).decision.stage === 'chosen' && srv.read(E5).decision.chosen.departure === '2026-11-27' && t.api.activeItems().some((x) => x.id === E5),
+      'PIA-136 AC7 ↩ undoes it as it stood: the trip is back, still 🔒 on its dates');
+    await t.api.organizerWrite(E5, { decision: { stage: 'dropped' } }); await tick(); t.api.render();
+    act(t, 'open', { id: E5 }); act(t, 'edit', { id: E5 });
+    const dt = (t.api.SHEETS.edit(t.api.S.sheet).match(/data-act="(\w+)"/g) || []).map((x) => x.slice(10, -1));
+    act(t, 'etitle', { id: E5 });
+    check(eq(dt, ['etitle', 'ecap', 'ekey', 'restore']) && /id="new-dest"[^>]*disabled/.test(t.api.SHEETS.new(t.api.S.sheet)),
+      'a dropped trip: P-edit offers its name, caption, organizer link and ↩ (no people and no place: a closed trip takes no answers to resync)', dt);
+    t.api.closeSheet();
+  }
+  {
+    // AC6 a join request opens the people editor prefilled on the organizer's phone; one Save adds the person. Elsewhere it does nothing.
+    const E6 = seedAs(fx('idea-tahoe.json'));
+    const url = TM.joinLink(ORIGIN + '/PIALAX/app.html', E6, 'Sam', 'OAK');
+    const t = loadApp({ url, fetch: srv.fetch, ls: lsOf([E6], { pialax_idea_keys_v1: keyOf([E6]), pialax_idea_me_v1: { [E6]: 'priya-d4' } }) });
+    await t.api.refreshAll(true); await tick();
+    const sh = t.api.S.sheet, d = sh && sh.local.d;
+    check(sh && t.api.popupName(sh) === 'P-edit-who' && d.ed === 4 && d.rows[4].name === 'Sam' && d.rows[4].ap === 'OAK' && !d.rows[4].me && t.loc.search === '?idea=' + E6 && t.api.S.trip === E6,
+      'PIA-136 AC6 ?idea=<id>&add=Sam.OAK on the organizer\'s phone: the trip opens with the people editor, Sam (OAK) added and open; ?add leaves the address bar', d && d.rows.map((r) => r.name));
+    const n0 = t.fetches.length;
+    const r = await act(t, 'esave2'); await tick();
+    const doc = srv.read(E6), sam = doc.idea.members.find((x) => / Sam$/.test(x.label));
+    check(r.ok && posts(t, n0).length === 1 && sam && sam.airport === 'OAK' && doc.idea.members.length === 5 && !t.api.S.sheet, 'one Save adds Sam (one update; nobody else\'s answer is touched)', doc.idea.members.map((x) => x.label));
+    const g = loadApp({ url, fetch: srv.fetch, ls: lsOf([E6], { pialax_idea_me_v1: { [E6]: 'maya-s9' } }) });
+    await g.api.refreshAll(true); await tick();
+    check(!g.api.S.sheet && g.api.S.trip === E6 && g.loc.search === '?idea=' + E6, 'the same link on a phone without the trip\'s key just opens the trip (and drops ?add)');
+    const again = loadApp({ url, fetch: srv.fetch, ls: lsOf([E6], { pialax_idea_keys_v1: keyOf([E6]) }) });
+    await again.api.refreshAll(true); await tick();
+    check(again.api.S.sheet && D(again).rows.length === 5 && D(again).ed === null, 'a join request for someone already on the trip adds nobody');
+    const L = t.api.readLink('?add=Sam.OAK', '', '/');
+    check(L.join === null && eq(L.drop, ['add']) && t.api.readLink('?idea=' + E6 + '&add=Me.LAX', '', '/').join === null, 'without ?idea= (or for the name Me) there is no join request; ?add is still consumed');
+  }
+  {
+    // AC8 v1's read-only ?tripIdea= link (built here by v1's own encoder) opens a prefilled create sheet; a broken one says so
+    const v1 = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['serializeTripIdeaSharePayload', 'encodeTripIdeaSharePayload', 'createTripIdeaBuilderState'], { console: QUIET }).api;
+    const builder = v1.createTripIdeaBuilderState({ destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: '2026-11-06', return: '2026-11-09' }, constraints: { eventDate: '2026-11-08' } });
+    const raw = v1.encodeTripIdeaSharePayload(v1.serializeTripIdeaSharePayload(builder, { airport: 'RDU', city: 'Raleigh-Durham', departure: '2026-11-06', return: '2026-11-09', totalFare: 955 }, { notes: 'Puja Sunday', timestamp: '2026-10-01T00:00:00.000Z' }));
+    const sp = new URLSearchParams(); sp.set('tripIdea', raw);
+    const t = loadApp({ url: BASE + '?' + sp.toString(), ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    const d = D(t);
+    check(t.api.S.sheet && t.api.popupName(t.api.S.sheet) === 'P-new-what' && d.name === 'Raleigh-Durham' && d.dest === 'RDU' && d.s === '2026-11-06' && d.e === '2026-11-09' && d.pin === '2026-11-08' && d.caption === 'Puja Sunday' && t.loc.search === '' && t.api.listIds().length === 0 &&
+      JSON.stringify(d).indexOf('955') < 0,
+      'PIA-136 AC8 a v1 ?tripIdea= link (v1\'s own encoder) opens P-new-what filled from it (place, plan, event day, note; never its price); nothing is created yet, and the link is read once', d && { name: d.name, dest: d.dest, s: d.s });
+    const bad = loadApp({ url: BASE + '?tripIdea=not-a-payload', ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    check(bad.api.S.sheet && bad.api.S.sheet.type === 'error' && bad.api.S.sheet.p.code === 'bad_id', 'a broken ?tripIdea= says "Link broken" (by code)');
+  }
+  {
+    // AC9 the word guard on P-new-who with 8 long names: 1-word chips with their codes; the open row keeps its full value
+    const t = loadApp({ ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    const m8 = t.api.tripModel(fx('idea-8members.json'), { today: '2026-10-17', now: NOW });
+    const rows = m8.members.map((x) => ({ face: x.face, name: x.name, ap: x.airport, n: x.headcount, me: false, preset: '' }));
+    const Dx = { rows, ed: null, edit: false }, Dy = { rows, ed: 0, edit: true };
+    const wide = { rows: rows.map((r) => Object.assign({}, r, { name: 'Ana Maria Lopez', ap: 'ABC' })), ed: 0, edit: true };
+    const six = { rows: wide.rows.slice(0, 6), ed: 0, edit: true };
+    check(t.api.whoMode(Dx, 20) === 'one' && t.api.whoWords(Dx, 'one') === 16 && t.api.whoWords(Dy, t.api.whoMode(Dy, 19)) <= 19 && t.api.whoWords(wide, t.api.whoMode(wide, 19)) <= 19 &&
+      t.api.whoMode(six, 19) === 'short' && t.api.whoWords(six, 'short') === 19,
+      'PIA-136 AC9 eight long names: 1-word chips with codes (16 words); with a 3-word name open in the edit sheet still ≤19 (+ Save = 20); six 3-word names keep 2 words each (19)',
+      [t.api.whoWords(Dx, 'one'), t.api.whoWords(wide, t.api.whoMode(wide, 19)), t.api.whoMode(six, 19)]);
+  }
+  // ── the people editor sends only its own changes, against the real Worker ──
+  const orgOf = (id, me) => lsOf([id], { pialax_idea_keys_v1: keyOf([id]), pialax_idea_me_v1: me ? { [id]: me } : {} });
+  const editPeople = async (id, me) => { const t = await boot136({ ls: orgOf(id, me) }); act(t, 'open', { id }); act(t, 'edit', { id }); act(t, 'epeople', { id }); return t; };
+  const DWL = fx('idea-diwali.json').idea.members.map((x) => x.label);
+  {
+    // an airport-only change for someone who answered: one update, then their answer resent from the new airport
+    const E = seedAs(fx('idea-diwali.json')), t = await editPeople(E, 'ashwin-p8'), d = D(t);
+    act(t, 'nedit', { v: '1' }); d.rows[1].ap = 'SFO';
+    const n0 = t.fetches.length, r = await act(t, 'esave2'); await tick();
+    const ps = posts(t, n0), doc = srv.read(E);
+    check(r && r.ok && ps.length === 2 && ps[0].path === '/idea/update' && ps[1].path === '/idea/respond' && ps[1].body.member === 'ashwin-p8' && ps[1].body.origin === '' &&
+      doc.idea.members[1].airport === 'SFO' && doc.responses['ashwin-p8'].origin === 'SFO' && eq(doc.idea.members.map((x) => x.label), DWL) && !t.api.S.sheet,
+      'PIA-136 AC5 an airport-only change (Ashwin LAX → SFO, nothing else touched) is saved: one update, then his answer resent from SFO; every label as it was', ps.map((p) => p.path + (p.body.member ? ':' + p.body.member + '/' + p.body.origin : '')));
+  }
+  {
+    // a member changed on another device meanwhile (Anjo moved to JFK and renamed): a Save of Ashwin's ×2 alone keeps it
+    const E = seedAs(fx('idea-diwali.json')), t = await editPeople(E, 'ashwin-p8');
+    const late = clone(srv.read(E)); late.idea.members[2].airport = 'JFK'; late.idea.members[2].label = '🗽 Anjo K'; srv.write(late);
+    act(t, 'nedit', { v: '1' }); act(t, 'ncount', { v: '1' });
+    const r = await act(t, 'esave2'); await tick();
+    const doc = srv.read(E);
+    check(r && r.ok && doc.idea.members[1].headcount === 2 && doc.idea.members[2].airport === 'JFK' && doc.idea.members[2].label === '🗽 Anjo K' && doc.idea.members[0].label === DWL[0],
+      'PIA-136 AC3 a member changed on another device meanwhile keeps that change when this phone saves only Ashwin\'s ×2 (an untouched member goes back as their code alone)', doc.idea.members.map((x) => x.label + ' ' + x.airport + ' ×' + x.headcount));
+  }
+  {
+    // a new row took a face; someone added on another device meanwhile with that same face keeps it
+    const E = seedAs(fx('idea-diwali.json')), t = await editPeople(E, 'ashwin-p8'), d = D(t);
+    act(t, 'nadd'); d.rows[3].name = 'Sam'; d.rows[3].ap = 'OAK';
+    const samFace = d.rows[3].face;
+    const late = clone(srv.read(E)); late.idea.members.push({ code: 'priya-q1', label: samFace + ' Priya', airport: 'DEN', headcount: 1 }); srv.write(late);
+    const r = await act(t, 'esave2'); await tick();
+    const doc = srv.read(E), faces = doc.idea.members.map((x) => TM.splitLabel(x.label).face), pr = doc.idea.members.find((x) => x.code === 'priya-q1'), sam = doc.idea.members.find((x) => / Sam$/.test(x.label));
+    check(r && r.ok && pr && pr.label === samFace + ' Priya' && sam && TM.splitLabel(sam.label).face !== samFace && new Set(faces).size === faces.length && doc.idea.members.length === 5 && eq(doc.idea.members.slice(0, 3).map((x) => x.label), DWL),
+      'PIA-136 AC3 a member added on another device meanwhile keeps their face (' + samFace + ' Priya) though this Save\'s new row (Sam) had taken it: Sam gets a free one; faces stay unique, kept labels verbatim', doc.idea.members.map((x) => x.label));
+  }
+  {
+    // a 4-word name already on the trip (another client) never blocks an unrelated change; a typed one still cannot pass 3
+    const E = seedAs(fx('idea-tahoe.json'), (x) => { x.idea.members.push({ code: 'mary-v1', label: '🐙 Mary Ann Van Dyke', airport: 'BOS', headcount: 1 }); });
+    const t = await editPeople(E, 'priya-d4'), d = D(t);
+    act(t, 'nedit', { v: '3' }); d.rows[3].ap = 'PDX';
+    const r = await act(t, 'esave2'); await tick();
+    const doc = srv.read(E);
+    const t2 = await editPeople(E, 'priya-d4'), d2 = D(t2);
+    act(t2, 'nedit', { v: '0' }); d2.rows[0].name = 'Priya Ann Van Dyke';
+    const r2 = act(t2, 'esave2');
+    check(r && r.ok && doc.idea.members[3].airport === 'PDX' && doc.idea.members[4].label === '🐙 Mary Ann Van Dyke' && r2 === null && d2.ed === 0 && t2.api.S.sheet && t2.api.S.sheet.type === 'new',
+      'PIA-136 AC5 a 4-word name already on the trip never blocks a Save: Leo\'s new airport is saved and Mary\'s label goes back verbatim; a name typed past 3 words is still refused (its row opens)', doc.idea.members.map((x) => x.label));
+    act(t2, 'nedit', { v: '4' }); d2.rows[4].name = ''; act(t2, 'nedit', { v: '1' });
+    check(d2.rows.length === 5 && d2.rows[4].name === 'Mary Ann Van Dyke', 'clearing a member\'s name never removes them (only 🗑 does, asking again when they answered): the name comes back');
+    // the same group on ＋: Mary's name came from a trip, so the new trip takes it as it is
+    const t3 = await boot136({ ls: lsOf([E], { pialax_idea_me_v1: { [E]: 'priya-d4' } }) });
+    act(t3, 'new'); D(t3).name = 'Reunion'; act(t3, 'nnext'); act(t3, 'nnext');
+    const s3 = D(t3) && D(t3).step, r3 = await act(t3, 'ncreate'); await tick();
+    const mary = r3 && r3.ok ? srv.read(r3.id).idea.members.find((x) => /Mary/.test(x.label)) : null;
+    check(s3 === 3 && mary && mary.label === '🐙 Mary Ann Van Dyke', 'PIA-136 AC4 a group from another trip with a 4-word name (Mary Ann Van Dyke) creates a trip with her name as it is: never refused, never cut', mary);
+  }
+  {
+    // a Save whose update lands and whose airport-sync answer drops: ⚠ ↻ sends exactly what is owed (nobody added twice)
+    const E = seedAs(fx('idea-diwali.json')), t = await editPeople(E, 'ashwin-p8'), d = D(t);
+    act(t, 'nedit', { v: '1' }); d.rows[1].ap = 'SFO'; act(t, 'nadd'); d.rows[3].name = 'Sam'; d.rows[3].ap = 'OAK';
+    srv.failOn = '/idea/respond';
+    const r1 = await act(t, 'esave2'); await tick();
+    const mid = srv.read(E), sh1 = t.api.S.sheet, html1 = sh1 && t.api.SHEETS.new(sh1), owed = clone(t.api.OWED[E] ? t.api.OWED[E].codes : null);
+    const coded = D(t) ? D(t).rows.map((x) => !!x.code0) : [];
+    const n0 = t.fetches.length, r2 = await act(t, 'esave2'); await tick();
+    const ps = posts(t, n0), doc = srv.read(E), m = t.api.modelOf(E);
+    check(r1 && !r1.ok && r1.updated && mid.idea.members[1].airport === 'SFO' && mid.idea.members.length === 4 && mid.responses['ashwin-p8'].origin === 'LAX' && sh1 && /aria-label="Retry">⚠ ↻<\/button>/.test(html1) && eq(owed, ['ashwin-p8']) &&
+      coded.length === 4 && coded.every(Boolean),
+      'PIA-136 a Save whose update lands but whose airport-sync answer drops: ⚠ ↻ stays, the editor is the trip as it now is (Sam has his code), and Ashwin\'s answer is owed (the record still reads LAX)', { r1, owed });
+    check(r2 && r2.ok && ps.length === 1 && ps[0].path === '/idea/respond' && ps[0].body.member === 'ashwin-p8' && ps[0].body.origin === '' && doc.responses['ashwin-p8'].origin === 'SFO' &&
+      m.members[1].override === '' && !t.api.OWED[E] && !t.api.S.sheet && doc.idea.members.length === 4,
+      'PIA-136 ↻ then sends just the owed answer, from SFO (no second update, Sam not added twice); the model reads no override and the sheet closes', ps.map((p) => p.path));
+  }
+  {
+    // a destination change that lands without its answers: ↻ on P-edit-what sends them (nothing else changed)
+    const E = seedAs(fx('idea-diwali.json')), t = await boot136({ ls: orgOf(E, 'ashwin-p8') });
+    act(t, 'open', { id: E }); act(t, 'edit', { id: E }); act(t, 'etitle', { id: E }); D(t).dest = 'CLT';
+    srv.failOn = '/idea/respond';
+    const r1 = await act(t, 'esave1'); await tick();
+    const n0 = t.fetches.length, r2 = await act(t, 'esave1'); await tick();
+    const ps = posts(t, n0), doc = srv.read(E);
+    check(r1 && !r1.ok && r2 && r2.ok && ps.length === 2 && ps.every((p) => p.path === '/idea/respond') && eq(ps.map((p) => p.body.member).sort(), ['ashwin-p8', 'momdad-k3']) && doc.idea.destination.airport === 'CLT' && !t.api.S.sheet,
+      'PIA-136 a new place that lands without its answers: ↻ sends the answers it still owes (both answered members, to CLT), not "nothing changed"', ps.map((p) => p.path + ':' + p.body.member));
+  }
+  {
+    // a join request on a full trip: the joiner is shown, ⚠ 9/8, and Save waits until someone is removed
+    const E = seedAs(fx('idea-8members.json'));
+    const t = loadApp({ url: TM.joinLink(ORIGIN + '/PIALAX/', E, 'Nina', 'BOS'), fetch: srv.fetch, ls: lsOf([E], { pialax_idea_keys_v1: keyOf([E]), pialax_idea_me_v1: { [E]: 'grandmajosephine-nf' } }) });
+    await t.api.refreshAll(true); await tick();
+    const d = D(t), html = d ? t.api.SHEETS.new(t.api.S.sheet) : '', d0 = d && { n: d.rows.length, last: d.rows[8] && d.rows[8].name, ed: d.ed };
+    const n0 = t.fetches.length, r0 = act(t, 'esave2'); await tick();
+    const sent0 = t.fetches.length - n0;
+    act(t, 'ndel', { v: '5' });   // Guadalupe has not answered
+    const r = await act(t, 'esave2'); await tick();
+    const doc = srv.read(E);
+    check(d0 && d0.n === 9 && d0.last === 'Nina' && d0.ed === 8 && /id="who-cap"[^>]*><span class="w" data-k="warn">⚠<\/span> <span class="tn">9\/8/.test(html) && /data-act="esave2" aria-disabled="true" data-why="1">Save/.test(html) && r0 === null && sent0 === 0,
+      'PIA-136 AC6 a join request on a full trip (8 people): Nina is added and open, the sheet shows ⚠ 9/8 and Save waits (nothing is sent): the request is never dropped silently', d0);
+    check(r && r.ok && doc.idea.members.length === 8 && doc.idea.members.some((x) => / Nina$/.test(x.label) && x.airport === 'BOS') && !doc.idea.members.some((x) => x.code === 'guadalupehernndezvillanueva-5m'),
+      'removing someone makes room: one Save adds Nina (BOS)', doc.idea.members.map((x) => x.label));
+  }
+  {
+    // a join request that also names ?tab=map is still acted on
+    const E = seedAs(fx('idea-tahoe.json'));
+    const t = loadApp({ url: TM.joinLink(BASE, E, 'Sam', 'OAK') + '&tab=map', fetch: srv.fetch, ls: lsOf([E], { pialax_idea_keys_v1: keyOf([E]) }) });
+    await t.api.refreshAll(true); await tick();
+    check(t.api.S.sheet && t.api.popupName(t.api.S.sheet) === 'P-edit-who' && D(t).rows[D(t).ed].name === 'Sam' && t.api.S.tab === 'trips' && t.api.S.trip === E && !/add=|tab=/.test(t.loc.search),
+      'PIA-136 AC6 a join request with ?tab=map is still acted on: the trip view comes forward with the people editor, Sam open; both params leave the address bar', { tab: t.api.S.tab, search: t.loc.search });
+  }
+  {
+    // a Save that would make 9 because someone was added meanwhile: the editor is rebuilt from the record, with the cap
+    const E = seedAs(fx('idea-8members.json'), (x) => { x.idea.members.splice(5, 1); delete x.responses['guadalupehernndezvillanueva-5m']; });
+    const t = await editPeople(E, 'grandmajosephine-nf'), d = D(t);
+    act(t, 'nadd'); d.rows[7].name = 'Zed'; d.rows[7].ap = 'MIA';
+    const late = clone(srv.read(E)); late.idea.members.push({ code: 'yuki-q2', label: '🦄 Yuki', airport: 'SFO', headcount: 1 }); srv.write(late);
+    const n0 = t.fetches.length, r = await act(t, 'esave2'); await tick();
+    const html = t.api.SHEETS.new(t.api.S.sheet), sent = posts(t, n0).length, r2 = act(t, 'esave2');
+    const re = { n: d.rows.length, failed: d.failed, names: d.rows.map((x) => x.name), yuki: d.rows[7] && d.rows[7].code0 };
+    act(t, 'ndel', { v: '3' }); act(t, 'ndel', { v: '3' });   // Sam Lee (SEA) answered: two taps
+    const r3 = await act(t, 'esave2'); await tick();
+    const doc = srv.read(E);
+    check(r && !r.ok && re.n === 9 && !re.failed && re.names[7] === 'Yuki' && re.yuki === 'yuki-q2' && re.names[8] === 'Zed' && /9\/8/.test(html) && !/⚠ ↻/.test(html) && r2 === null && sent === 0,
+      'PIA-136 a Save that would make 9 (Yuki was added on another device meanwhile): nothing is sent; the editor now shows everyone, Yuki included, with ⚠ 9/8 instead of a ⚠ ↻ that fails on every try', re);
+    check(r3 && r3.ok && doc.idea.members.length === 8 && doc.idea.members.some((x) => x.code === 'yuki-q2') && doc.idea.members.some((x) => / Zed$/.test(x.label)) && !doc.idea.members.some((x) => x.code === 'samlee-kz'),
+      'removing someone (twice: he answered), then Save: Zed joins and Yuki stays', doc.idea.members.map((x) => x.label));
+  }
+  // ── the create sheet ──
+  {
+    // 👪 is date-aware: a token phone whose today is 8/1 creates 8/20 (Anjo JAX), 9/10 (LGA) and an undated idea (JAX)
+    CLOCK = Date.UTC(2026, 7, 1, 19, 0, 0);
+    const t = await boot136({ ls: seedLs({ pialax_proxy_token: TOKEN, pialax_ui_v1: { v1read: 1 } }) });
+    const chips = t.api.presetChips();
+    const mk = async (name, s, e) => {
+      t.api.closeSheet(); act(t, 'new'); const d = D(t);
+      d.name = name; act(t, 'nnext'); act(t, 'nme', { v: '1' }); act(t, 'nnext');
+      if (s) { act(t, 'nday', { v: s }); act(t, 'nday', { v: e }); }
+      const r = await act(t, 'ncreate'); await tick();
+      const a = r && r.ok ? srv.read(r.id).idea.members.find((x) => / Anjo$/.test(x.label)) : null;
+      return a ? a.airport : null;
+    };
+    const aug = await mk('Labor Day', '2026-08-20', '2026-08-23'), sep = await mk('Fall visit', '2026-09-10', '2026-09-13'), idea = await mk('Someday', '', '');
+    CLOCK = NOW;
+    check(chips.length === 1 && chips[0].family && chips[0].rows[2].ap === 'JAX' && aug === 'JAX' && sep === 'LGA' && idea === 'JAX',
+      'PIA-136 AC4 👪 is date-aware: on 8/1 the chip shows Anjo at JAX, and Create re-resolves her against the departure — 8/20 JAX, 9/10 LGA, an undated idea JAX (today)', { chip: chips[0] && chips[0].rows.map((r) => r.ap), aug, sep, idea });
+  }
+  {
+    // a kept draft whose start has passed reopens with no dates
+    const t = loadApp({ ls: seedLs({ pialax_ui_v1: { v1read: 1, draft: { name: 'Old plan', scene: '🎿', rows: [{ face: '🦊', name: 'Priya', ap: 'DEN', n: 1, me: true }], s: '2026-10-10', e: '2026-10-20', pin: '2026-10-12', mode: 'dates', ym: '2026-10', caption: '' } } }) });
+    act(t, 'new'); const d = D(t);
+    check(d.kept && d.name === 'Old plan' && d.s === '' && d.e === '' && d.pin === '' && d.ym >= '2026-10' && !/aria-pressed="true"[^>]*><span class="dn">/.test(t.api.SHEETS.new(t.api.S.sheet)),
+      'PIA-136 AC1 a kept draft whose start has passed reopens with no dates and no 📌: a day the picker cannot choose is never restored', { s: d.s, e: d.e, pin: d.pin });
+  }
+  {
+    // v1's note is on the sheet: 📝 (⚠ when cut) opens it, and Create posts exactly what was shown
+    const words40 = Array.from({ length: 40 }, (_, i) => 'spark' + i).join(' ');
+    const linkWith = (notes) => {
+      const p = { version: 'trip-idea-v1', builder: { destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: '2026-11-06', return: '2026-11-09' }, constraints: { eventDate: '2026-11-08' } },
+        recommendation: { airport: 'RDU', city: 'Raleigh-Durham', departure: '2026-11-06', return: '2026-11-09', totalFare: 955 }, notes };
+      const sp = new URLSearchParams(); sp.set('tripIdea', Buffer.from(encodeURIComponent(JSON.stringify(p)), 'binary').toString('base64'));
+      return BASE + '?' + sp.toString();
+    };
+    const toWhen = (t) => { act(t, 'nnext'); act(t, 'nadd'); D(t).rows[0].name = 'Priya'; D(t).rows[0].ap = 'DEN'; act(t, 'nnext'); };
+    const t = loadApp({ url: linkWith(words40), fetch: srv.fetch, ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    const d = D(t), what = t.api.SHEETS.new(t.api.S.sheet);
+    act(t, 'nnote'); const ns = t.api.S.sheet, nh = t.api.SHEETS.note(ns), shown = ns.local.text;
+    act(t, 'sh-back');
+    toWhen(t);
+    const when = t.api.SHEETS.new(t.api.S.sheet);
+    const r = await act(t, 'ncreate'); await tick();
+    const doc = r && r.ok ? srv.read(r.id) : null;
+    const chip = /data-act="nnote" aria-label="Note" data-k="note">📝<span class="w">⚠<\/span><\/button>/;
+    check(d.captionCut && TM.wordsIn(d.caption) === 20 && chip.test(what) && chip.test(when) && ns.type === 'note' && t.api.popupName(ns) === 'P-note' && /<textarea id="note-text"[^>]*>spark0 spark1 /.test(nh) &&
+      TM.wordsIn(shown) === 20 && /<span class="w" data-k="warn">⚠<\/span> <span id="cut-note-text"/.test(nh) && doc && doc.idea.notes === '📌2026-11-08 ' + shown,
+      'PIA-136 AC8 a v1 link\'s note is on the sheet, never hidden: 📝⚠ on P-new-what and P-new-when opens it (its first 20 words, ⚠: v1\'s 40 were cut), and Create posts exactly what was shown', doc && doc.idea.notes);
+    const t2 = loadApp({ url: linkWith('Bring the sparklers'), fetch: srv.fetch, ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    act(t2, 'nnote'); t2.api.S.sheet.local.text = 'Bring the sparklers and cake'; act(t2, 'sh-back');
+    const edited = D(t2).caption;
+    act(t2, 'nnote'); act(t2, 'nnoteclr'); act(t2, 'sh-back');
+    const what2 = t2.api.SHEETS.new(t2.api.S.sheet);
+    toWhen(t2);
+    const r2 = await act(t2, 'ncreate'); await tick();
+    const doc2 = r2 && r2.ok ? srv.read(r2.id) : null;
+    check(edited === 'Bring the sparklers and cake' && !/data-act="nnote"/.test(what2) && doc2 && doc2.idea.notes === '📌2026-11-08',
+      'the note can be changed or cleared before Create (‹ takes it back to the sheet); cleared, the trip is created with none', doc2 && doc2.idea.notes);
+  }
+  {
+    // screen-reader names: the step, whose 🙋, and the headcount's value
+    const t = loadApp({ ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    act(t, 'new'); const d = D(t); const n1 = t.api.sheetName(t.api.S.sheet);
+    d.name = 'X'; act(t, 'nnext');
+    const n2 = t.api.sheetName(t.api.S.sheet);
+    act(t, 'nadd'); d.rows[0].name = 'Priya Shah'; act(t, 'nadd'); d.rows[1].name = 'Leo'; d.rows[1].n = 2;
+    const h = t.api.SHEETS.new(t.api.S.sheet);
+    check(n1 === 'New trip, step 1 of 3' && n2 === 'New trip, step 2 of 3' && /aria-label="Me: Priya Shah" data-lbl="Me"/.test(h) && /aria-label="Me: Leo" data-lbl="Me"/.test(h) && /aria-label="Headcount 2" data-lbl="Headcount" data-k="count">×2/.test(h),
+      'PIA-136 a screen reader hears the create step ("New trip, step 2 of 3"), whose 🙋 each toggle is ("Me: Priya Shah"), and the headcount\'s value ("Headcount 2"); long-press labels stay "Me" and "Headcount"', [n1, n2]);
+  }
+  {
+    // an unsent create closed by mistake (⌄, the scrim, Back) comes back with the toast's ↩; nothing is stored
+    const t = loadApp({ ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    act(t, 'new'); const d = D(t); d.name = 'Tahoe'; d.dest = 'RNO'; act(t, 'nnext');
+    t.api.closeSheet();
+    const undo = typeof t.api.S.undo === 'function', stored = 'draft' in t.api.uiRead();
+    act(t, 'undo');
+    const back = D(t);
+    t.api.closeSheet(); act(t, 'new');
+    const fresh = D(t);
+    t.api.closeSheet();
+    check(undo && !stored && back === d && back.step === 2 && back.name === 'Tahoe' && back.dest === 'RNO' && fresh !== d && fresh.name === '' && typeof t.api.S.undo !== 'function',
+      'PIA-136 closing an unsent create keeps nothing, but the toast\'s ↩ brings it back as it was (step 2, Tahoe, RNO); ＋ still starts empty; an empty sheet closes with no ↩', { undo, stored, step: back && back.step });
+  }
+  {
+    // a Create still in flight when its sheet is closed and another opened: the trip is listed, the other sheet stays
+    const t = loadApp({ fetch: srv.fetch, ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    act(t, 'new'); const d = D(t); d.name = 'Busy'; act(t, 'nnext'); act(t, 'nadd'); d.rows[0].name = 'Priya'; act(t, 'nnext');
+    const hold = deferred(); srv.hold = hold.p;
+    const p = act(t, 'ncreate');
+    t.api.closeSheet(); act(t, 'key');
+    srv.hold = null; hold.res(); const r = await p; await tick();
+    check(r && r.ok && t.api.S.sheet && t.api.S.sheet.type === 'key' && t.api.listIds().indexOf(r.id) >= 0 && t.api.S.trip !== r.id,
+      'PIA-136 a Create that lands after its sheet was closed and ⓘ opened: the trip is listed, ⓘ stays open (it is never thrown away)', { sheet: t.api.S.sheet && t.api.S.sheet.type });
   }
 
   // ═══ AC12 / AC14 ═══

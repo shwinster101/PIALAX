@@ -970,13 +970,23 @@ function faceOf(f) { return typeof f === 'string' && f && splitLabel(f).face ===
 /* members for a write: existing codes are kept as they are (answers hang off them); new rows get fresh codes.
    Every label written is '<face> <name>' and never reads as legacy (docLegacy): a row with no face gets an
    auto-assigned one, and a blank name or the v1 word 'Me' builds nothing (the screen asks for a real name). A kept
-   row's label is resent verbatim when it already starts with a face. */
+   row's label is resent verbatim when it already starts with a face. PIA-136: faces are unique within the trip. A
+   member resent as it is (its code alone, with a face already on its label) is KEPT: its label goes back verbatim
+   whatever it holds, and its face is reserved before any other row is built, wherever it sits in the list. Any
+   other row (new, renamed, re-faced) whose face a kept member or an earlier row already has gets a free one (a
+   nameless face-only label, which has nothing to rebuild its label from, is the only exception). So nobody else's
+   face is ever rewritten by an edit that does not touch them. */
 function buildMembers(list, prev, rand) {
   if (!Array.isArray(list) || !list.length || list.length > IDEA_MAX_MEMBERS) return null;
   var byCode = {}; (prev || []).forEach(function (m) { if (m) byCode[m.code] = m; });
   var taken = list.map(function (e) { return e && e.code; }).filter(function (c) { return typeof c === 'string' && MEMBER_CODE_RE.test(c); }).concat((prev || []).map(function (m) { return m && m.code; }));
-  var faces = [], out = [];
+  var faces = [], out = [], used = [];
   list.forEach(function (e) { var f = e && (faceOf(e.face) || splitLabel(e.label || (byCode[e.code] || {}).label).face); if (f) faces.push(f); });
+  var kept = list.map(function (e) {
+    var base = e && typeof e.code === 'string' && byCode[e.code];
+    return !!base && !hasOwn(e, 'name') && !hasOwn(e, 'face') && !hasOwn(e, 'label') && typeof base.label === 'string' && !!splitLabel(base.label).face;
+  });
+  list.forEach(function (e, k) { if (kept[k]) used.push(splitLabel(byCode[e.code].label).face); });
   for (var i = 0; i < list.length; i++) {
     var e = list[i] || {}, base = (typeof e.code === 'string' && byCode[e.code]) || null;
     var code = typeof e.code === 'string' && MEMBER_CODE_RE.test(e.code) ? e.code : null;
@@ -988,14 +998,16 @@ function buildMembers(list, prev, rand) {
     else if (base) { raw = typeof base.label === 'string' ? base.label : ''; lab = splitLabel(raw); }
     else lab = { face: null, name: '' };
     if (isMeLabel(lab.name)) return null;
-    var label;
-    if (raw && lab.face && (lab.name || base)) label = raw;   // already '<face> <name>' (an existing face-only row stays)
+    var label, dup = !kept[i] && !!lab.face && used.indexOf(lab.face) >= 0;
+    if (kept[i]) label = raw;                                                          // as it is on the trip
+    else if (raw && lab.face && (lab.name || base) && (!dup || !lab.name)) label = raw;   // already '<face> <name>' (an existing face-only row stays)
     else {
       if (!lab.name) return null;
-      var face = lab.face;
-      if (!face) { face = autoFace(normName(lab.name), faces); faces.push(face); }
+      var face = dup ? null : lab.face;
+      if (!face) { face = autoFace(normName(lab.name), faces.concat(used)); faces.push(face); }
       label = memberLabel(face, lab.name);
     }
+    if (!kept[i]) used.push(splitLabel(label).face);
     if (!code) { code = memberCode(lab.name, taken, rand); if (!code) return null; taken.push(code); }
     var hc = hasOwn(e, 'headcount') ? +e.headcount : (base ? +base.headcount : 1);
     out.push({ code: code, label: label, airport: normIata(hasOwn(e, 'airport') ? e.airport : (base && base.airport)), headcount: Math.max(1, Math.min(9, Math.round(hc) || 1)) });
@@ -1185,10 +1197,25 @@ function airportSyncRequests(fresh, idea) {
    4. a decision that closes the trip (dropped, or 💵 booked) goes in its own update after them, because the
       Worker refuses answers on a closed trip.
    On a trip that is already closed the Worker takes no answers, so an edit that would need step 1, or step 3
-   without this very update reopening the trip, builds nothing: reopen first, then edit. */
+   without this very update reopening the trip, builds nothing: reopen first, then edit.
+   PIA-136 opts.owed = {base, codes}: the airport-sync answers an earlier edit still owes (its update landed, these
+   answers did not). They are rebuilt here against the record as it is now, with base (the record that earlier edit
+   started from) as the old side, so a member's flights follow the move they really made; they ride the next idea
+   edit (replacing that edit's own answer for the same member), or go alone when the delta is empty. A closed trip
+   takes no answers, so on one they are not sent. */
+function owedSync(fresh, responses, decision, idea, owed) {
+  var old = { id: fresh.id, idea: owed.base.idea, responses: responses || {}, decision: decision };
+  return airportSyncRequests(old, idea).filter(function (q) { return owed.codes.indexOf(q.body.member) >= 0; });
+}
 function organizerEdit(fresh, editKey, delta, opts) {
-  delta = delta || {};
+  delta = delta || {}; opts = opts || {};
+  var owed = opts.owed && opts.owed.base && opts.owed.base.idea && Array.isArray(opts.owed.codes) ? opts.owed : null;
   var ideaEdit = IDEA_DELTA_KEYS.some(function (k) { return hasOwn(delta, k); });
+  if (!ideaEdit && !delta.decision) {   // nothing to change: only what an earlier edit still owes
+    if (!owed || !fresh || !fresh.id || !fresh.idea || docClosed(fresh)) return null;
+    var only = owedSync(fresh, fresh.responses, fresh.decision, fresh.idea, owed);
+    return only.length ? only : null;
+  }
   var dst = delta.decision && delta.decision.stage, closes = dst === 'booked' || dst === 'dropped';
   if (ideaEdit && closes && !docClosed(fresh)) {
     var tail = updateRequest(fresh, editKey, { decision: delta.decision }, opts);
@@ -1216,6 +1243,10 @@ function organizerEdit(fresh, editKey, delta, opts) {
   });
   // the sync answers resend dates too, so they start from the answers as they stand after step 1
   var after = airportSyncRequests({ id: fresh.id, idea: fresh.idea, responses: pinned, decision: open }, up.body.idea);
+  if (owed && (!closed || reopens)) {
+    var ows = owedSync(fresh, pinned, open, up.body.idea, owed);
+    after = after.filter(function (q) { return !ows.some(function (o) { return o.body.member === q.body.member; }); }).concat(ows);
+  }
   if (closed && (before.length || (after.length && !reopens))) return null;
   return before.concat([up], after);
 }
@@ -1361,6 +1392,145 @@ function usPoint(lat, lon) {
 }
 /* where an airport sits on the US map, or null (an unknown code, or a place off the map) */
 function mapXY(code) { var a = airportInfo(code); return a.known ? usPoint(a.lat, a.lon) : null; }
+
+/* ---- the one create path, organizer edits and join requests (PIA-136) ---- */
+var NAME_WORDS = 3;                                                      // a person's name: ≤3 words wherever it is typed
+var TITLE_WORDS = 12;                                                    // a trip name being typed (it counts on P-new-what)
+var CAPTION_WORDS = 20;                                                  // a caption (or a note): ≤20 words
+var NAME_CHARS = TEXT_MAX.label - 3;                                     // '<face> <name>' ≤40 UTF-16 units; a face is ≤2, then a space
+var TITLE_CHARS = TEXT_MAX.title - 3;                                    // '<scene> <name>' ≤80
+var CAPTION_CHARS = TEXT_MAX.notes - 13;                                 // a new trip's caption: room left after '📌YYYY-MM-DD ' (a new trip has 📌 or 🌙N, never both)
+var V1_IDEA_VERSIONS = { 'trip-idea-v1': 1, 'trip-idea-v0': 1 };         // = v1 TRIP_IDEA_BUILDER_VERSION (and its v0)
+function wordsIn(s) { return String(s == null ? '' : s).split(/\s+/).filter(function (w) { return /\p{L}/u.test(w); }).length; }
+/* a typed value under a word cap: the change is taken while it stays within the cap, or when it adds no word to a
+   text that was already longer (so nothing already there is ever cut); otherwise it is refused and prev stays */
+function capTyped(next, prev, max) { var n = wordsIn(next); return n <= max || n <= wordsIn(prev) ? String(next) : String(prev == null ? '' : prev); }
+/* the same rule for a change that inserts more than one keystroke (a paste, autocorrect): everything that was there
+   stays, and as much of the inserted text as fits under the cap goes in. {text, cut: some of the insertion was left
+   out, at: where the caret goes (after what went in; -1 when nothing was cut)}. The insertion is what lies between
+   the longest common start and end of prev and next. */
+function fitTyped(next, prev, max) {
+  var nx = String(next == null ? '' : next), pv = String(prev == null ? '' : prev), lim = Math.max(max, wordsIn(pv));
+  if (wordsIn(nx) <= lim) return { text: nx, cut: false, at: -1 };
+  var p = 0, s = 0;
+  while (p < nx.length && p < pv.length && nx.charCodeAt(p) === pv.charCodeAt(p)) p++;
+  if (p > 0 && /[\uD800-\uDBFF]/.test(nx.charAt(p - 1))) p--;                       // never split an emoji in two
+  while (s < nx.length - p && s < pv.length - p && nx.charCodeAt(nx.length - 1 - s) === pv.charCodeAt(pv.length - 1 - s)) s++;
+  if (s > 0 && /[\uDC00-\uDFFF]/.test(nx.charAt(nx.length - s))) s--;
+  var head = nx.slice(0, p), tail = nx.slice(nx.length - s), parts = nx.slice(p, nx.length - s).split(/(\s+)/), ins = '', best = '';
+  var apart = !tail || /^\s/.test(tail);                                            // a word may end the cut only if it cannot run into the text after it
+  for (var i = 0; i < parts.length; i++) {
+    ins += parts[i];
+    if (/\S/.test(parts[i]) && !apart) continue;
+    if (wordsIn(head + ins + tail) > lim) break;
+    best = ins;
+  }
+  return { text: head + best + tail, cut: true, at: head.length + best.length };
+}
+/* the first n words of a text, and whether words were left out (tokens with no letter ride along for free) */
+function firstWords(s, n) {
+  var parts = String(s == null ? '' : s).trim().split(/(\s+)/), out = '', w = 0, more = false;
+  for (var i = 0; i < parts.length; i++) {
+    var t = parts[i];
+    if (/\p{L}/u.test(t)) { if (w === n) { more = true; break; } w++; }
+    out += t;
+  }
+  return { text: out.trim(), more: more };
+}
+/* a person's name as typed (P-new-who, a join request): one space between words, ≤3 words, ≤37 units, a letter in
+   it and never the v1 word 'Me'; '' when it is not a usable name */
+function cleanName(s) {
+  var t = keepName(s);
+  return t && wordsIn(t) <= NAME_WORDS ? t : '';
+}
+/* a name that is already on a trip (a member's, or a group's from another trip): kept as it is, however many words it
+   has (the cap is for typing); '' when it is no name (no letter, or the v1 word 'Me') */
+function keepName(s) {
+  var t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (!t || !/\p{L}/u.test(t) || isMeLabel(t)) return '';
+  return clip(t, NAME_CHARS);
+}
+/* a join request: <base>?idea=<id>&add=<name>.<IATA>. Someone not on the list shares it (P-face 🙋＋); on the
+   organizer's phone it opens the people editor with them added. The airport may be blank. */
+function joinLink(base, id, name, airport) {
+  var b = String(base || ''), n = cleanName(name);
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^?#\s]*$/i.test(b) || !IDEA_ID_RE.test(String(id || '')) || !n) return '';
+  return b + '?idea=' + id + '&add=' + encodeURIComponent(n + '.' + normIata(airport));
+}
+/* ?add=<name>.<IATA> → {name, airport}, or null (no usable name, or something after the last '.' that is no code) */
+function parseJoin(v) {
+  var s = String(v == null ? '' : v), i = s.lastIndexOf('.');
+  var tail = i >= 0 ? s.slice(i + 1).trim() : '', ap = normIata(tail);
+  if (tail && !ap) return null;
+  var name = cleanName(i >= 0 ? s.slice(0, i) : s);
+  return name ? { name: name, airport: ap } : null;
+}
+function b64text(s) {
+  var t = String(s).replace(/\s/g, '+').replace(/-/g, '+').replace(/_/g, '/');
+  while (t.length % 4) t += '=';
+  return typeof atob === 'function' ? atob(t) : Buffer.from(t, 'base64').toString('binary');
+}
+/* A v1 read-only ?tripIdea= link (v1's encodeTripIdeaSharePayload: base64 of the URI-encoded JSON payload, or the
+   URI-encoded JSON itself) → the draft P-new opens with: {name, code, mode 'dates'|'window', s, e, pin, nights,
+   caption, cut}. Only the place, the plan or window, the event day, the nights and the note are read; v1's prices, hub
+   and mode never are. Days already past are not offered again (the picker cannot choose them). v1's note has no
+   limit: the caption is its first 20 words within CAPTION_CHARS, and cut says that some of it was left out (the
+   sheet shows it with ⚠). null when the value is not such a payload. */
+function legacyDraft(raw, today) {
+  var s = String(raw == null ? '' : raw), p = null;
+  if (!s || s.length > 32768 || !isIso(today)) return null;
+  [function () { return decodeURIComponent(b64text(s)); }, function () { return decodeURIComponent(s); }].some(function (dec) {
+    try { var v = JSON.parse(dec()); if (v && typeof v === 'object' && hasOwn(V1_IDEA_VERSIONS, v.version)) { p = v; return true; } } catch (e) { /* not this encoding */ }
+    return false;
+  });
+  if (!p) return null;
+  var obj = function (v) { return v && typeof v === 'object' ? v : {}; };
+  var b = obj(p.builder), r = obj(p.recommendation), dest = obj(b.destination), d = obj(b.dates), c = obj(b.constraints);
+  var iso = function (v) { return isIso(v) ? v : ''; };
+  var code = normIata(r.airport) || normIata(dest.airport);
+  var name = clip(String(r.city || dest.city || '').replace(/\s+/g, ' '), TITLE_CHARS);
+  var out = { name: capTyped(name, '', TITLE_WORDS) === name ? name : firstWords(name, TITLE_WORDS).text, code: code, mode: 'dates', s: '', e: '', pin: '', nights: 3, caption: '', cut: false };
+  var dep = iso(r.departure) || iso(d.departure), ret = iso(r.return) || iso(d.return);
+  var w1 = iso(d.searchStart), w2 = iso(d.searchEnd), L = Math.round(+c.tripLength);
+  if (dep && ret && dep <= ret && dep >= today) { out.s = dep; out.e = ret; }
+  else if (w1 && w2 && w1 <= w2 && w2 >= today) { out.mode = 'window'; out.s = maxD(w1, today); out.e = w2; out.nights = L >= 1 && L <= 30 ? Math.min(L, Math.max(1, diffD(out.s, out.e))) : Math.max(1, Math.min(3, diffD(out.s, out.e))); }
+  var pin = iso(c.eventDate) || iso(p.eventContext);
+  if (out.mode === 'dates' && pin && pin >= today && (!out.s || (pin >= out.s && pin <= out.e))) out.pin = pin;
+  var notes = typeof p.notes === 'string' ? p.notes.replace(/\s+/g, ' ').trim() : '';
+  if (notes) { var fw = firstWords(notes, CAPTION_WORDS), c = clip(fw.text, CAPTION_CHARS); out.caption = c; out.cut = fw.more || c !== fw.text; }
+  return out;
+}
+/* the people of the trips this phone has seen, as ready groups for P-new-who: one per distinct set of people (by
+   name), in the order given (newest trip first). An unmigrated v1 trip offers no group: its faces are only read-time
+   stand-ins (a hashed face nobody chose), so a group built from it would hand someone a face they never had. Each:
+   {key, faces, rows [{face, name, airport, headcount, me}], family: it is the 👪 three (the token phone shows its
+   own 👪 chip)} */
+var FAMILY_KEY = FAMILY.map(function (f) { return normName(f.name); }).sort().join('|');
+function groupPresets(models) {
+  var out = [], seen = {};
+  (models || []).forEach(function (m) {
+    if (!m || !m.members || m.legacy) return;
+    var ms = m.members.filter(function (x) { return !!x.norm; });
+    if (!ms.length) return;
+    var key = ms.map(function (x) { return x.norm; }).sort().join('|');
+    if (hasOwn(seen, key)) return;
+    seen[key] = 1;
+    var faces = [], rows = ms.map(function (x) {
+      var f = faces.indexOf(x.face) < 0 ? x.face : freeFace(faces); faces.push(f);
+      return { face: f, name: x.name, airport: x.airport, headcount: x.headcount, me: !!(m.me && m.me.code === x.code) };
+    });
+    out.push({ key: key, faces: faces, rows: rows, family: key === FAMILY_KEY });
+  });
+  return out;
+}
+/* a face for someone new on a trip: the first face nobody on it has, preferring one nobody on this phone's other
+   trips has either (so faces stay telling when names are dropped to fit the words) */
+function freeFace(used, avoid) {
+  var u = used || [], a = avoid || [], i;
+  for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0 && a.indexOf(FACES[i]) < 0) return FACES[i];
+  for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0) return FACES[i];
+  return FACES[0];
+}
 /* === pialax trip-model: end === */
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -1386,6 +1556,10 @@ if (typeof module !== 'undefined' && module.exports) {
     updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit,
     migrateOptions: migrateOptions, migrateRequests: migrateRequests,
     LIST_LINK_MAX: LIST_LINK_MAX, answerTimes: answerTimes, newestAnswerAt: newestAnswerAt, newAnswers: newAnswers, awaitsMe: awaitsMe, bookByCue: bookByCue, togoCue: togoCue,
-    tripGroups: tripGroups, listLink: listLink, US_MAP: US_MAP, usPoint: usPoint, mapXY: mapXY
+    tripGroups: tripGroups, listLink: listLink, US_MAP: US_MAP, usPoint: usPoint, mapXY: mapXY,
+    NAME_WORDS: NAME_WORDS, TITLE_WORDS: TITLE_WORDS, CAPTION_WORDS: CAPTION_WORDS, NAME_CHARS: NAME_CHARS, TITLE_CHARS: TITLE_CHARS,
+    wordsIn: wordsIn, capTyped: capTyped, firstWords: firstWords, cleanName: cleanName, joinLink: joinLink, parseJoin: parseJoin,
+    legacyDraft: legacyDraft, groupPresets: groupPresets, freeFace: freeFace, FAMILY_KEY: FAMILY_KEY,
+    fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync
   };
 }
