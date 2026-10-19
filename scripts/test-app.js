@@ -63,7 +63,11 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-137
   'whoFor', 'meCode', 'listEntry', 'sharePulse', 'faceCheck',
   // PIA-138
-  'flushSoon', 'SOON_MS', 'soonResume', 'soonReplay', 'SOON_KEEP_MS'];
+  'flushSoon', 'SOON_MS', 'soonResume', 'soonReplay', 'SOON_KEEP_MS',
+  // PIA-139
+  'bookOut', 'bookAway', 'bookBack', 'invited', 'INVITE_MS', 'onTyped', 'saveTimes', 'lanesHTML', 'paidRow',
+  // PIA-139 fix pass
+  'TIMES_PULSE_MS', 'LEAVE_MS', 'RET_KEY', 'bookResume', 'flushTimes', 'timesHold', 'timesLeft', 'typedOf', 'pickupChip', 'paidDoor', 'keyLabel', 'keyPages'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -84,7 +88,7 @@ function loadApp(o) {
   (o.rec || []).forEach((s) => { rec[s] = recEl(); });
   const doc = Object.assign({}, shim.document, { visibilityState: o.hidden ? 'hidden' : 'visible' },
     o.rec ? { querySelector: (s) => (rec[s] || shim.document.querySelector(s)) } : {});
-  const ss = makeLocalStorage();
+  const ss = o.ss || makeLocalStorage();   // PIA-139: a tab's sessionStorage can outlive its page (a page the phone discarded)
   const over = {
     localStorage: ls, sessionStorage: ss, location: loc, history: hist, Date: FixedDate, document: doc,
     fetch: (url, opts) => { fetches.push({ url: String(url), method: (opts && opts.method) || 'GET', headers: Object.assign({}, (opts && opts.headers) || {}), body: opts && opts.body, keepalive: !!(opts && opts.keepalive) }); return fetchImpl(url, opts); },
@@ -95,7 +99,7 @@ function loadApp(o) {
   };
   const { api, missing } = loadApi(APP, 'app.html', EXPECT, over);
   const flush = () => { const n = frames.length; frames.splice(0).forEach((f) => f()); return n; };
-  return { api, missing, ls, loc, hist, fetches, timers, ss, frames, flush, rec };
+  return { api, missing, ls, loc, hist, fetches, timers, ss, frames, flush, rec, doc };
 }
 // an element stub (as harness.js's: every property and call chains back to it) that keeps what is written to innerHTML
 function recEl() {
@@ -935,7 +939,7 @@ function norm(doc) {
   const TM = require(path.join(ROOT, 'scripts', 'trip-model.js'));
   let nSeed = 0;
   // a fixture under a fresh id, so every scenario starts from the same record
-  const seedAs = (doc, f) => { const d = clone(doc); d.id = (d.id.slice(0, 16) + 'p136' + String(++nSeed).padStart(2, '0')).slice(0, 22); if (f) f(d); srv.seed(d); return d.id; };
+  const seedAs = (doc, f) => { const d = clone(doc); d.id = (d.id.slice(0, 16) + 'p' + String(++nSeed).padStart(5, '0')).slice(0, 22); if (f) f(d); srv.seed(d); return d.id; };   // PIA-139: ids stay unique past 99 seeds
   const act = (t, name, ds) => t.api.ACTS[name]({ dataset: ds || {} });   // a tap on a control (what the click handler calls)
   const D = (t) => (t.api.S.sheet && t.api.S.sheet.local.d) || null;
   const posts = (t, from) => t.fetches.slice(from || 0).filter((f) => f.method === 'POST').map((f) => ({ path: f.url.replace(W, '').split('?')[0], body: JSON.parse(f.body) }));
@@ -1718,14 +1722,14 @@ function norm(doc) {
     check(g0.prim === '' && g0.navShare && hst.prim === '' && hst.navShare && /data-act="answer"/.test(g0.h),
       'PIA-137 AC6 a guest who has not answered has no primary (the answer row is the call); hosts have none; both keep the nav\'s 📣');
     const lk = await view(locked, 'anjo-z5', false, async () => { const d = srv.read(locked); d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); srv.write(d); });
-    check(/<a class="btn pri" href="https:\/\/www\.google\.com\/travel[^"]*" target="_blank" rel="noopener noreferrer" data-k="gf"><span aria-hidden="true">✈<\/span> Book <span aria-hidden="true">↗<\/span><\/a><button class="btn sq" data-act="mybook"/.test(lk.prim),
+    check(/<a class="btn pri" href="https:\/\/www\.google\.com\/travel[^"]*" target="_blank" rel="noopener noreferrer" data-ret="[A-Za-z0-9_-]{22}"[^>]*data-k="gf"><span aria-hidden="true">✈<\/span> Book <span aria-hidden="true">↗<\/span><\/a><button class="btn sq" data-act="mybook"/.test(lk.prim),
       'PIA-137 AC6 once the dates are set (🔒): [✈ Book ↗ | 🎫]');
     const p0 = nPosts(lk.t);
     await tap(lk.t, lk.h, 'mybook'); await tick();
     const after = screen(lk.t), bp = posts(lk.t, 0).slice(-1)[0];
     check(nPosts(lk.t) - p0 === 1 && bp.path === '/idea/booked' && eq(bp.body, { member: 'anjo-z5', booked: true }) && srv.read(locked).responses['anjo-z5'].booked === true &&
-      /<a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*aria-label="Flighty" data-k="flighty">✈⏱↗<\/a><span class="btn stat" role="img" aria-label="Booked"/.test(after) && !/data-act="mybook"/.test(after),
-      'PIA-137 AC6 🎫 marks me booked (one /idea/booked) and the primary becomes [✈⏱↗ Flighty | 🎫]', bp);
+      /<button class="btn pri tmb[^"]*" data-act="mytimes"[^>]*aria-label="Booked, add flight times"[^>]*data-k="booked"><span aria-hidden="true">🎫<\/span>[\s\S]*?<\/button><a class="btn sq fl" href="https:\/\/www\.flighty\.com\/"[^>]*data-k="flighty">✈⏱↗<\/a><\/div>$/.test(after) && !/data-act="mybook"/.test(after),
+      'PIA-137 AC6 🎫 marks me booked (one /idea/booked) and the primary becomes [🎫 🛬 | ✈⏱↗ Flighty] (PIA-139: my flight times first)', bp);
   }
   {
     // AC7 the organizer answers for anyone (📞), marks other travelers booked, and nudges one person with their hint
@@ -2683,6 +2687,389 @@ function norm(doc) {
     t2.api.closeSheet(); tap(t2, screen(t2), 'dates');
     check(noBest && srv.read(id2).responses['momdad-k3'].note === '📞' && /data-act="dbest"[^>]*>⬚ 11\/12–11\/15<\/button>/.test(sheet(t2)),
       'PIA-138 AC6 no best window while everyone follows the plan; once the organizer sets Mom & Dad\'s own 11/12–11/16 (📞), ⬚ 11/12–11/15 appears');
+  }
+
+  // ═══ PIA-139 ═══
+  section('PIA-139 booking: Book and 🎫 together, the 🎫 inviting its tap after Google Flights, Flighty after, booked times for the pickups, the board\'s 🎫, a stage that moves by itself, 💵, calendars');
+  const lock139 = (d) => chosenAt(d, '2026-11-06', '2026-11-09', 'RDU');
+  const anjoIn = (extra) => (d) => { d.responses['anjo-z5'] = RESP('in', Object.assign({ member: 'anjo-z5', origin: 'LGA' }, extra || {})); };
+  const typed = (t, fid, value, code) => t.api.onTyped({ id: fid, value, dataset: { code: code || '' }, closest: () => null });
+  const prim139 = (h) => (/<div class="split prim">([\s\S]*)<\/div>$/.exec(h) || [])[1] || '';
+  {
+    // AC1 [✈ Book ↗ | 🎫] once the dates are set; back from Google Flights after a Book tap the 🎫 invites the tap once; Flighty after
+    const id = seedAs(DWX, (d) => { lock139(d); anjoIn()(d); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t, 'open', { id });
+    const p0 = prim139(screen(t));
+    const href = (/<a class="btn pri" href="([^"]+)"[^>]*data-ret="([^"]+)"/.exec(p0) || []);
+    // back without a Book tap first, and a Book tap that never left the app: no invitation
+    const noTap = t.api.bookBack();
+    t.api.bookOut(id, 'anjo-z5'); const stayed = t.api.bookBack();
+    // a Book tap, the app hidden while Google Flights is open, then shown again
+    t.api.bookOut(id, 'anjo-z5'); t.doc.visibilityState = 'hidden'; t.api.bookAway(); t.doc.visibilityState = 'visible';
+    const back = t.api.bookBack(), p1 = prim139(screen(t));
+    act(t, 'person', { id, code: 'anjo-z5' }); const mySheet = sheet(t); t.api.closeSheet();
+    const again = t.api.bookBack();   // a second "return" with no new Book tap invites nothing more
+    check(TM.isQuery(href[1].replace(/&amp;/g, '&')) === false && href[2] === id && /data-ret="[^"]+" data-code="anjo-z5"/.test(p0) && /data-act="mybook"/.test(p0) && !/glow/.test(p0) && !noTap && !stayed &&
+      back && /class="btn sq glow" data-act="mybook"[^>]*aria-label="Booked\? Tap to mark"/.test(p1) && /class="btn sq glow" data-act="mybook"/.test(mySheet) && /data-ret="[^"]+"[^>]*data-k="gf"><span aria-hidden="true">✈<\/span> Book/.test(mySheet) && !again,
+      'PIA-139 AC1 once 🔒, [✈ Book ↗ | 🎫] on her trip view and in her own sheet; after a Book tap and the app hidden then shown again, the 🎫 glows ("Booked? Tap to mark") in both, once: no glow without a Book tap, without leaving, or on the next return', { back, noTap, stayed, again });
+    CLOCK += t.api.INVITE_MS + 1;
+    const faded = !t.api.invited(id) && !/glow/.test(prim139(screen(t)));
+    CLOCK = NOW;
+    t.api.bookOut(id, 'anjo-z5'); t.api.bookAway(); t.api.bookBack();
+    const p2 = posts(t).length;
+    await tap(t, screen(t), 'mybook'); await tick();
+    const after = prim139(screen(t)), bp = posts(t).slice(p2), undoOffered = typeof t.api.S.undo === 'function';
+    check(faded && !t.api.S.invite && bp.length === 1 && bp[0].path === '/idea/booked' && eq(bp[0].body, { member: 'anjo-z5', booked: true }) && srv.read(id).responses['anjo-z5'].booked === true &&
+      /^<button class="btn pri tmb pulse" data-act="mytimes"[^>]*aria-label="Booked, add flight times" data-lbl="Flight times" data-k="booked"><span aria-hidden="true">🎫<\/span><span class="tmv"><span data-k="arrive" aria-hidden="true">🛬<\/span><span class="tn">––:––<\/span><\/span><\/button><a class="btn sq fl" href="https:\/\/www\.flighty\.com\/"[^>]*data-lbl="Track flight" data-k="flighty">✈⏱↗<\/a>$/.test(after) &&
+      !/data-act="mybook"|glow|role="img"/.test(after) && undoOffered,
+      'PIA-139 AC1 the invitation fades by itself; a tap on the glowing 🎫 spends it and marks her booked (one /idea/booked); the bar becomes her flight times, [🎫 🛬 ––:–– | ✈⏱↗], the times button pulsing once (a real button, never a static pill), and the 🎫 toast carries ↩', { paths: bp.map((x) => x.path), after });
+    CLOCK += t.api.TIMES_PULSE_MS + 1; const pulseGone = !/pulse/.test(prim139(screen(t))); CLOCK = NOW;
+    act(t, 'mytimes', { id });
+    const s2 = sheet(t), focusArr = t.api.S.sheet && t.api.S.sheet.focus === 'tm-arr' && t.api.S.sheet.type === 'person' && t.api.S.sheet.p.code === 'anjo-z5';
+    check(pulseGone && focusArr && /<div class="split"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*data-k="flighty">✈⏱↗<\/a><button class="btn sq tkon" data-act="unbook"/.test(s2) && /<span class="fld tiny invite"><label for="tm-arr"/.test(s2) && /id="tm-dep"/.test(s2) && /placeholder="––:––"/.test(s2),
+      'PIA-139 AC1/AC2 the times button opens her own sheet with 🛬 focused: [✈⏱↗ Flighty | 🎫] and the 🛬 / 🛫 time fields, 🛬 inviting the time once (the pulse ends by itself)');
+    t.api.closeSheet();
+    // a mistaken 🎫 is one ↩ away: the toast's undo takes it back
+    const reBook = seedAs(DWX, (d) => { lock139(d); anjoIn()(d); });
+    const tu = await boot136({ ls: lsOf([reBook], { pialax_idea_me_v1: { [reBook]: 'anjo-z5' } }) });
+    act(tu, 'open', { id: reBook }); await tap(tu, screen(tu), 'mybook'); await tick();
+    const und = tu.api.S.undo, booked1 = srv.read(reBook).responses['anjo-z5'].booked === true;
+    await (typeof und === 'function' ? tu.api.ACTS.undo() : null); await tick();
+    check(booked1 && typeof und === 'function' && srv.read(reBook).responses['anjo-z5'].booked === false && /data-act="mybook"/.test(prim139(screen(tu))),
+      'PIA-139 a 🎫 tapped by mistake (it glows after any return from Google Flights): the toast\'s ↩ takes it back, and [Book | 🎫] is there again');
+    // the organizer's sheet on someone else: her Book link and his 🎫 for her, side by side
+    const o = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([id]) }) });
+    act(o, 'open', { id }); act(o, 'person', { id, code: 'momdad-k3' });
+    const os0 = sheet(o), hk = /<a class="btn pri" href="([^"]+)"[^>]*data-ret="[^"]+" data-code="momdad-k3"[^>]*data-k="gf">/.exec(os0);
+    // he taps their Book and comes back: HIS 🎫 for them glows (in their sheet and on their row), not his own 🎫 beside his Book
+    o.api.bookOut(id, 'momdad-k3'); o.api.bookAway(); const oBack = o.api.bookBack();
+    const os = sheet(o), ov = screen(o);
+    check(oBack && /class="btn sq tkoff glow" data-act="booked"[^>]*data-code="momdad-k3"/.test(os) && /class="tk glow" data-act="booked"[^>]*data-code="momdad-k3"/.test(ov) && !/class="btn sq glow" data-act="mybook"/.test(ov),
+      'PIA-139 AC1 the organizer back from the Book he tapped for Mom & Dad: his 🎫 for them glows in their sheet and on their board row, never his own 🎫');
+    const p3 = nPosts(o);
+    await tap(o, os, 'booked', { code: 'momdad-k3' }); await tick();
+    const os2 = sheet(o);
+    check(!!hk && hk[1].replace(/&amp;/g, '&') === TM.handoffs(o.api.modelOf(id), 'momdad-k3', { today: '2026-10-17', now: NOW }).gf.href && /data-act="booked" data-id="[^"]+" data-code="momdad-k3" aria-pressed="false"/.test(os) &&
+      nPosts(o) - p3 === 1 && srv.read(id).responses['momdad-k3'].booked === true && /<div class="split"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*data-k="flighty">✈⏱↗<\/a><button class="btn sq tkon" data-act="booked"[^>]*aria-pressed="true"/.test(os2),
+      'PIA-139 AC1 the organizer on Mom & Dad\'s sheet: their ✈ Book ↗ (their own search) beside his 🎫 for them; one tap (they answered In) marks them booked, and the slot becomes [✈⏱↗ | 🎫]');
+  }
+  {
+    // AC2 booked times: typed in her sheet, saved as it closes, kept in the note's prefix, on everyone's pickup chips
+    const id = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn({ note: 'Taking the red-eye', available_from: '2026-11-05', leave_from: 'ORD', booked: true, booked_at: '2026-10-16T00:00:00.000Z' })(d); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
+    const p0 = nPosts(t);
+    typed(t, 'tm-arr', '1510', 'anjo-z5'); typed(t, 'tm-dep', '18:05', 'anjo-z5');
+    const keptOnRedraw = /id="tm-arr"[^>]*value="1510"/.test(sheet(t));
+    t.api.closeSheet(); await until(() => /🛬/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    const ps = posts(t).slice(-1)[0], r = srv.read(id).responses['anjo-z5'];
+    check(keptOnRedraw && nPosts(t) - p0 === 1 && ps.path === '/idea/respond' && r.note === '🛬15:10 🛫18:05 Taking the red-eye' && r.available_from === '2026-11-05' && r.leave_from === 'ORD' && r.origin === 'LGA' && r.booked === true && r.status === 'in',
+      'PIA-139 AC2 she types 1510 and 18:05 in her sheet (kept through a redraw); closing it sends ONE complete answer: 🛬15:10 🛫18:05 before her note, her own arrival, the ORD leave, LGA and her 🎫 all kept', r);
+    // everyone's map: the host's phone and a guest's phone read the times on their pickup chips
+    const host = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'momdad-k3' } }) });
+    act(host, 'tab', { v: 'map' });
+    const mh = host.api.renderSelected('map', 'map').html;
+    const guest = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'ashwin-p8' } }) });
+    const mg = guest.api.renderSelected('map', 'map').html;
+    const chipRe = /<button class="pk arr" data-act="pickup" data-id="[^"]+" data-v="2026-11-05" data-code="anjo-z5" aria-label="Lands PIA 11\/5 at 15:10, booked, Anjo"[^>]*>[\s\S]*?<span class="t tn">15:10<\/span><span class="dp" data-k="tday" aria-hidden="true">☀<\/span><span class="pf" data-pic>🗽<\/span><span class="bk" data-k="booked" aria-hidden="true">🎫<\/span><\/button>/;
+    const depRe = /<button class="pk dep" data-act="pickup" data-id="[^"]+" data-v="2026-11-09" data-code="anjo-z5" aria-label="Leaves ORD 11\/9 at 18:05, booked, Anjo"[\s\S]*?18:05<\/span><span class="dp" data-k="tnight" aria-hidden="true">🌃<\/span>/;
+    check(chipRe.test(mh) && depRe.test(mh) && chipRe.test(mg) && depRe.test(mg) && /<b class="lc">PIA<\/b>/.test(mh) && /<b class="lc">ORD<\/b>/.test(mh) && mh.indexOf('$') < 0,
+      'PIA-139 AC2 her times reach everyone\'s Map: the host\'s and a guest\'s pickup chips read →🛬 11/5 15:10☀ 🗽 under PIA and 🛫→ 11/9 18:05🌃 🗽 under ORD, each with its 🎫 corner (booked) and its half of the day (no price anywhere)');
+    act(host, 'pickup', { id, v: '2026-11-05', code: 'anjo-z5' });
+    const pkPerson = host.api.S.sheet && host.api.S.sheet.type === 'person' && host.api.S.sheet.p.code === 'anjo-z5';
+    host.api.closeSheet();
+    act(host, 'pickup', { id, v: '2026-11-05' });
+    check(pkPerson && host.api.S.sheet && host.api.S.sheet.type === 'day' && host.api.S.sheet.p.date === '2026-11-05', 'a pickup chip of one traveler opens their sheet (who lands, when, where); a chip of several opens that day (P-day)');
+    host.api.closeSheet();
+    // her note still reads, and the organizer changes only her 🛫 for her (📞 kept as it reads)
+    const mid = srv.read(id); mid.responses['anjo-z5'].note = '📞 ' + mid.responses['anjo-z5'].note; srv.write(mid);
+    const o = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([id]) }) });
+    act(o, 'open', { id }); act(o, 'person', { id, code: 'anjo-z5' });
+    const os = sheet(o);
+    typed(o, 'tm-dep', '1930', 'anjo-z5'); o.api.closeSheet();
+    await until(() => /19:30/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    check(/id="tm-arr"[^>]*value="15:10"/.test(os) && srv.read(id).responses['anjo-z5'].note === '📞 🛬15:10 🛫19:30 Taking the red-eye' && o.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').noteText === 'Taking the red-eye',
+      'PIA-139 AC2 the organizer records her 🛫 19:30 for her: only that time changes; her 🛬 15:10 and her note stay, the 📞 as it was');
+    // a guest looking at her sees the times beside her days (no field); nothing is typed for someone not booked
+    await guest.api.refresh(id); await tick();
+    act(guest, 'open', { id }); act(guest, 'person', { id, code: 'anjo-z5' });
+    const gs = sheet(guest); guest.api.closeSheet(); act(guest, 'person', { id, code: 'ashwin-p8' });
+    const ms = sheet(guest);
+    check(!/id="tm-/.test(gs) && /<span class="lt" role="img" aria-label="Lands at 15:10" data-lbl="Lands at"><span class="tn">15:10<\/span><span class="dp" data-k="tday" aria-hidden="true">☀<\/span><\/span>/.test(gs) &&
+      /<span class="lt" role="img" aria-label="Leaves at 19:30" data-lbl="Leaves at"><span class="tn">19:30<\/span><span class="dp" data-k="tnight"/.test(gs) && !/id="tm-/.test(ms),
+      'PIA-139 AC2 a guest looking at her reads 15:10☀ and 19:30🌃 beside her days, with no field; my own sheet has no time fields until I have booked');
+    // a time that is not HH:MM is not sent; neither is one that would cut her note
+    const t2 = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t2, 'open', { id }); act(t2, 'person', { id, code: 'anjo-z5' });
+    const q0 = nPosts(t2);
+    typed(t2, 'tm-arr', '25:99', 'anjo-z5'); t2.api.closeSheet(); await tick();
+    const held = t2.api.S.sheet && t2.api.S.sheet.type === 'person', heldHtml = sheet(t2);
+    t2.api.closeSheet(); await tick();
+    check(nPosts(t2) === q0 && srv.read(id).responses['anjo-z5'].note === '📞 🛬15:10 🛫19:30 Taking the red-eye' && held && /<span class="fld tiny bad"><label for="tm-arr"/.test(heldHtml) && !t2.api.S.sheet,
+      'PIA-139 AC2 a typed 25:99 is not a time: the first close keeps the sheet open with the field marked ⚠ (to fix in place); the second lets it go; nothing is sent');
+    // a 12-hour reader's "440" (4:40 PM) never silently becomes 04:40: it waits for ☀ / 🌃, and the pick is what is sent
+    act(t2, 'person', { id, code: 'anjo-z5' });
+    typed(t2, 'tm-arr', '440', 'anjo-z5');
+    const typing = sheet(t2);
+    t2.api.timesLeft({ id: 'tm-arr' });
+    const halves = sheet(t2), q1 = nPosts(t2);
+    t2.api.closeSheet(); await tick();
+    const stillOpen = t2.api.S.sheet && t2.api.S.sheet.type === 'person' && nPosts(t2) === q1;
+    const hOrder = (/role="radiogroup" aria-label="Lands, which half of the day">([\s\S]*?)<\/div>/.exec(halves) || [])[1] || '';
+    act(t2, 'tmhalf', { end: 'arr', v: 'pm' });
+    const picked = sheet(t2);
+    t2.api.closeSheet(); await until(() => /🛬16:40/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    check(/id="tm-half" data-sig="" hidden/.test(typing) && /data-act="tmhalf" data-end="arr" data-v="pm" aria-label="Daytime 16:40"><span class="dp" data-k="tday" aria-hidden="true">☀<\/span><span class="tn">16:40<\/span>/.test(hOrder) &&
+      /data-act="tmhalf" data-end="arr" data-v="am" aria-label="Night 04:40"><span class="dp" data-k="tnight" aria-hidden="true">🌃<\/span><span class="tn">04:40<\/span>/.test(hOrder) && hOrder.indexOf('16:40') < hOrder.indexOf('04:40') &&
+      stillOpen && /id="tm-arr"[^>]*value="16:40"/.test(picked) && /id="tm-half" data-sig="" hidden/.test(picked) && nPosts(t2) === q1 + 1 &&
+      srv.read(id).responses['anjo-z5'].note === '🛬16:40 🛫19:30 Taking the red-eye',
+      'PIA-139 AC2 "440" asks nothing while typed; left in the field it asks [☀ 16:40 | 🌃 04:40] (no words; daytime first) and holds the close; ☀ puts 16:40 in the field, and that is what is sent (her own write clears 📞)', srv.read(id).responses['anjo-z5'].note);
+    // "6:05 pm" typed on a keyboard with letters decides its half at once; "905" closed twice without a pick is not sent
+    act(t2, 'person', { id, code: 'anjo-z5' });
+    const fake = { id: 'tm-dep', value: '6:05 pm', dataset: { code: 'anjo-z5' }, closest: () => null };
+    t2.api.onTyped(fake);
+    const q2 = nPosts(t2); t2.api.closeSheet(); await until(() => /🛫18:05/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    act(t2, 'person', { id, code: 'anjo-z5' });
+    typed(t2, 'tm-arr', '905', 'anjo-z5'); const q3 = nPosts(t2);
+    t2.api.closeSheet(); t2.api.closeSheet(); await tick();
+    check(fake.value === '18:05' && q3 === q2 + 1 && srv.read(id).responses['anjo-z5'].note === '🛬16:40 🛫18:05 Taking the red-eye' && nPosts(t2) === q3 && !t2.api.S.sheet,
+      'PIA-139 AC2 "6:05 pm" becomes 18:05 in the field and is sent as 🛫18:05; "905" with no ☀ / 🌃 picked is never sent as 09:05 (two closes: not sent)', srv.read(id).responses['anjo-z5'].note);
+  }
+  {
+    // AC3 the organizer marks someone booked from the people board; someone who has not answered is recorded in first (📞)
+    const id = seedAs(DWX, lock139);
+    const o = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([id]) }) });
+    act(o, 'open', { id });
+    const p0 = nPosts(o);
+    tap(o, screen(o), 'booked', { code: 'anjo-z5' }); await tick();
+    const armedFirst = nPosts(o) === p0;
+    await tap(o, screen(o), 'booked', { code: 'anjo-z5' }); await tick();
+    const ps = posts(o).slice(-2), r = srv.read(id).responses['anjo-z5'];
+    const g = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    check(armedFirst && eq(ps.map((q) => q.path), ['/idea/respond', '/idea/booked']) && ps[0].body.status === 'in' && ps[0].body.note === '📞' && r.status === 'in' && r.booked && r.note === '📞' &&
+      o.api.modelOf(id).stage === 'booking' && g.api.modelOf(id).stage === 'booking' && /data-act="answer"/.test(g.api.renderTrip(id).html),
+      'PIA-139 AC3 his 🎫 on Anjo\'s row (she had not answered): a confirming tap, then she is recorded In (📞) and booked; the stage reads 🎫 Booking on his phone and on hers, and her answer row is still there');
+  }
+  {
+    // AC4 the stage advances to Booking and then Done from the booked flags, the same on every phone; nobody is locked out
+    const id = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn()(d); });
+    const ls = (me, key) => lsOf([id], Object.assign({ pialax_idea_me_v1: { [id]: me } }, key ? { pialax_idea_keys_v1: keyOf([id]), pialax_proxy_token: TOKEN } : {}));
+    const look = async () => {
+      const out = [];
+      for (const [me, key] of [['ashwin-p8', true], ['anjo-z5', false], ['momdad-k3', false]]) {
+        const t = await boot136({ ls: ls(me, key) });
+        const card = t.api.renderIdeas().html, i = card.indexOf('data-trip="' + id + '"'), c = card.slice(i, card.indexOf('</article>', i));
+        act(t, 'open', { id }); if (t.api.S.sheet) t.api.closeSheet();
+        act(t, 'stage', { id }); const st = (/class="srow now"><span class="pip now" data-k="(st-[a-z]+)"/.exec(sheet(t)) || [])[1]; t.api.closeSheet();
+        out.push([(/<span class="pip now" data-k="(st-[a-z]+|dropped)"/.exec(c) || [])[1], (/<span class="pip now" data-k="(st-[a-z]+)"/.exec(screen(t)) || [])[1], st].join('/'));
+      }
+      return out;
+    };
+    const set = await look();
+    let d = srv.read(id); d.responses['ashwin-p8'].booked = true; srv.write(d);
+    const booking = await look();
+    d = srv.read(id); d.responses['anjo-z5'].booked = true; srv.write(d);
+    const done = await look();
+    const h = await boot136({ ls: ls('momdad-k3') });
+    act(h, 'open', { id });
+    const hv = screen(h);
+    await tap(h, hv, 'answer', { v: 'in' }); await tick();
+    check(set.every((x) => x === 'st-set/st-set/st-set') && booking.every((x) => x === 'st-booking/st-booking/st-booking') && done.every((x) => x === 'st-done/st-done/st-done') &&
+      /data-act="answer"/.test(hv) && srv.read(id).responses['momdad-k3'].status === 'in' && srv.read(id).decision.stage === 'chosen',
+      'PIA-139 AC4 the card, the trip view and P-stage read 🔒 → 🎫 Booking → 🏁 Done on the organizer\'s, Anjo\'s and the host\'s phones alike, from the booked flags alone; at 🏁 the host (not answered yet) still answers In', { set, booking, done });
+  }
+  {
+    // AC5 the paid total can be recorded only once every traveler has booked (P-stage, the organizer's token phone)
+    const allBooked = (d) => { lock139(d); d.responses['momdad-k3'].booked = true; d.responses['ashwin-p8'].booked = true; anjoIn({ booked: true })(d); };
+    const half = seedAs(DWX, (d) => { allBooked(d); d.responses['anjo-z5'].booked = false; }), done = seedAs(DWX, allBooked);
+    const tok = (ids) => lsOf(ids, { pialax_idea_me_v1: Object.fromEntries(ids.map((i) => [i, 'ashwin-p8'])), pialax_idea_keys_v1: keyOf(ids), pialax_proxy_token: TOKEN });
+    const o = await boot136({ ls: tok([half, done]) });
+    act(o, 'open', { id: half }); act(o, 'stage', { id: half });
+    const hs = sheet(o); o.api.closeSheet(); act(o, 'back');
+    const noTok = await boot136({ ls: lsOf([done], { pialax_idea_me_v1: { [done]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([done]) }) });
+    act(noTok, 'open', { id: done }); act(noTok, 'stage', { id: done }); const ns = sheet(noTok);
+    const gst = await boot136({ ls: lsOf([done], { pialax_idea_me_v1: { [done]: 'anjo-z5' }, pialax_proxy_token: TOKEN }) });
+    act(gst, 'open', { id: done }); act(gst, 'stage', { id: done }); const gs = sheet(gst);
+    check(/<button class="tool wordy dis" data-act="paidwhy" aria-disabled="true" data-why="1" aria-label="Paid, not everyone booked" data-lbl="Not everyone booked" data-k="paid">💵<span class="uf" aria-hidden="true">🗽<\/span><\/button>/.test(hs) && !/paid-amt/.test(hs) &&
+      !/data-k="paid"|paid-amt/.test(ns) && !/data-k="paid"|paid-amt/.test(gs),
+      'PIA-139 AC5 before everyone has booked, 💵 is greyed with who is still to book (🗽), and a tap says why; no 💵 at all on the organizer\'s phone without the token, or on a guest\'s');
+    act(o, 'open', { id: done }); act(o, 'stage', { id: done });
+    const ds = sheet(o), p0 = nPosts(o);
+    typed(o, 'paid-amt', '0'); await tap(o, sheet(o), 'paidsave'); await tick();
+    const bad = o.api.S.sheet.local.paidBad && nPosts(o) === p0;
+    // paying closes the answers and freezes everyone's times, so Save always asks first: ⚠ 🛬 (the three booked travelers have no
+    // landing time) 🔒, the amount read back as dollars; the confirm lapses by itself, and a new amount puts it back
+    typed(o, 'paid-amt', '1490'); await tap(o, sheet(o), 'paidsave'); await tick();
+    const ask1 = sheet(o), asked1 = nPosts(o) === p0;
+    CLOCK += 6001; const lapsed = !/>Confirm<\/button>/.test(sheet(o)); CLOCK = NOW; o.api.S.armTk = null;   // (as the app's own timer does then)
+    await tap(o, sheet(o), 'paidsave'); typed(o, 'paid-amt', '$1,490'); const reset = !/>Confirm<\/button>/.test(sheet(o)) && nPosts(o) === p0;
+    await tap(o, sheet(o), 'paidsave'); await tick();
+    const ask2 = sheet(o);
+    await tap(o, ask2, 'paidsave'); await tick(); await until(() => srv.read(done).decision.stage === 'booked'); await tick();
+    const ps = posts(o).slice(p0), dd = srv.read(done);
+    const after = sheet(o), card = (() => { act(o, 'back'); const c = o.api.renderIdeas().html, i = c.indexOf('data-trip="' + done + '"'); return c.slice(i, c.indexOf('</article>', i)); })();
+    const gcard = (() => { const g2 = loadApp({ fetch: srv.fetch, ls: lsOf([done], { pialax_idea_me_v1: { [done]: 'anjo-z5' } }) }); return g2; })();
+    await gcard.api.refreshAll(true); await tick();
+    const gh = gcard.api.renderIdeas().html;
+    check(asked1 && /<span class="w paidw" role="img" aria-label="Closes answers and flight times; no landing time from Mom &amp; Dad, Ashwin, Anjo" data-lbl="Closes answers" data-k="closes">⚠<span aria-hidden="true"><span data-k="arrive">🛬<\/span>🌽🌴🗽🔒<\/span><\/span>/.test(ask1) &&
+      /id="paid-amt"[^>]*value="\$1,490"/.test(ask1) && /class="btn pri paidb arm" data-act="paidsave"[^>]*>Confirm<\/button>/.test(ask1) && lapsed && reset,
+      'PIA-139 AC5 Save asks first even with everyone answered (paying closes the answers and freezes the times): ⚠ 🛬🌽🌴🗽 🔒 names who has no landing time (read out in words), 1490 reads back as $1,490; the confirm lapses after 6s, and a new amount puts it back', { ask1: ask1.slice(ask1.indexOf('paidask') - 20, ask1.indexOf('paidask') + 400) });
+    check(/<input id="paid-amt"[^>]*placeholder="\$"/.test(ds) && /data-act="paidsave"[^>]*>Save<\/button>/.test(ds) && bad && ps.length === 1 && ps[0].path === '/idea/update' && eq(ps[0].body.decision, { stage: 'booked', actual_total: 1490 }) &&
+      dd.decision.stage === 'booked' && dd.decision.actual_total === 1490 && /<div class="paidv" role="img" aria-label="Paid \$1,490"/.test(after) && /data-k="paid"><span class="g">💵<\/span>\$1,490<\/span>/.test(card) && gh.indexOf('$') < 0,
+      'PIA-139 AC5 at 🏁 Done: 💵 field and Save; "0" is refused (nothing sent); $1,490 confirmed is ONE update {booked, 1490}; P-stage then reads 💵 $1,490 and so does his card, while a guest\'s card shows no $', ps.map((q) => q.path));
+    // a typo is fixable: ✎ beside the paid amount gives the field again, and Save (one tap: nothing more closes) records 1,940
+    act(o, 'open', { id: done }); act(o, 'stage', { id: done });
+    const paidS = sheet(o), p1 = nPosts(o);
+    await tap(o, paidS, 'paidedit');
+    const editS = sheet(o);
+    typed(o, 'paid-amt', '1,940'); await tap(o, sheet(o), 'paidsave'); await until(() => srv.read(done).decision.actual_total === 1940); await tick();
+    const rp = posts(o).slice(p1);
+    check(/data-act="paidedit"[^>]*aria-label="Change amount paid"[^>]*data-k="edit">✎<\/button>/.test(paidS) && /id="paid-amt"[^>]*value="\$1,490"/.test(editS) && rp.length === 1 && eq(rp[0].body.decision, { stage: 'booked', actual_total: 1940 }) &&
+      srv.read(done).decision.stage === 'booked' && /aria-label="Paid \$1,940"/.test(sheet(o)),
+      'PIA-139 AC5 ✎ on a paid trip: the field holds $1,490; 1,940 is one more booked update, and P-stage reads 💵 $1,940');
+    o.api.closeSheet(); act(o, 'back');
+    // with a host who has not answered, Save asks first (paying closes the answers); a trip never 🔒 is chosen first
+    const pe = seedAs(DWX, (d) => { atPeoria(d); d.responses['ashwin-p8'].booked = true; anjoIn({ booked: true })(d); });
+    const o2 = await boot136({ ls: tok([pe]) });
+    act(o2, 'open', { id: pe }); act(o2, 'stage', { id: pe });
+    typed(o2, 'paid-amt', '905'); const q0 = nPosts(o2);
+    tap(o2, sheet(o2), 'paidsave'); await tick();
+    const ask = sheet(o2), asked = nPosts(o2) === q0;
+    await tap(o2, ask, 'paidsave'); await until(() => srv.read(pe).decision.stage === 'booked'); await tick();
+    const ps2 = posts(o2).slice(-3).filter((q) => q.path === '/idea/update');
+    check(asked && /<span class="w paidw" role="img" aria-label="Closes answers and flight times; no answer from Mom &amp; Dad; no landing time from Ashwin, Anjo" data-lbl="Closes answers" data-k="closes">⚠<span aria-hidden="true">🌽<span data-k="arrive">🛬<\/span>🌴🗽🔒<\/span><\/span>/.test(ask) &&
+      /class="btn pri paidb arm" data-act="paidsave"[^>]*>Confirm<\/button>/.test(ask) &&
+      ps2.length === 2 && ps2[0].body.decision.stage === 'chosen' && eq(ps2[1].body.decision, { stage: 'booked', actual_total: 905 }) && srv.read(pe).decision.actual_total === 905,
+      'PIA-139 AC5 with Mom & Dad (hosts) not answered yet, Save asks first (⚠🌽 🛬🌴🗽 🔒 Confirm: paying closes their answers and freezes the times; a screen reader hears who); the confirm on a trip never 🔒 sends 🔒 the plan, then 💵 905', ps2.map((q) => q.body.decision.stage));
+    // many still to answer: three faces then +n, and every one is named for a screen reader
+    const many = TM.tripModel(Object.assign({}, srv.read(pe), { decision: { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-11-06', return: '2026-11-09' } } }), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true });
+    many.members = many.members.concat([1, 2, 3, 4].map((i) => Object.assign({}, many.members[0], { code: 'h' + i, face: ['🐝', '🦉', '🐸', '🐙'][i - 1], short: 'Host ' + i, resp: null, host: true, traveler: false })));
+    o2.api.S.armTk = many.id + '||paid'; o2.api.S.armAt = NOW;   // as a first Save tap leaves it
+    const mh2 = o2.api.paidRow(many, {}); o2.api.S.armTk = null;
+    check(/⚠<span aria-hidden="true">🌽🐝🦉\+2<span data-k="arrive">🛬<\/span>/.test(mh2) && /no answer from Mom &amp; Dad, Host 1, Host 2 \+2/.test(mh2),
+      'PIA-139 AC5 five still to answer: ⚠🌽🐝🦉+2 (three faces, then +n), and the label names three of them +2', mh2.slice(mh2.indexOf('paidask'), mh2.indexOf('paidask') + 300));
+    // a 🎫 taken away on another phone after this one drew 🏁: nothing is paid, the sheet shows who is still to book
+    const race = seedAs(DWX, allBooked);
+    const o3 = await boot136({ ls: tok([race]) });
+    act(o3, 'open', { id: race }); act(o3, 'stage', { id: race });
+    const rd = srv.read(race); rd.responses['anjo-z5'].booked = false; srv.write(rd);
+    typed(o3, 'paid-amt', '700'); const r0 = posts(o3).length;
+    await tap(o3, sheet(o3), 'paidsave'); await tap(o3, sheet(o3), 'paidsave'); await tick();   // Save, Confirm
+    check(posts(o3).slice(r0).length === 0 && srv.read(race).decision.stage === 'chosen' && /data-act="paidwhy"/.test(sheet(o3)),
+      'PIA-139 AC5 a 🎫 taken away on another phone after this one drew 🏁: Save sends nothing (re-checked on the fresh record), and 💵 is greyed again with who is to book');
+  }
+  {
+    // AC6 calendar-plus at any dated stage: Apple (.ics) or Google, tentative before the dates are set, only the guest link inside
+    const open = seedAs(DWX), locked = seedAs(DWX, (d) => { lock139(d); anjoIn()(d); }), undated = seedAs(fx('idea-undated.json')), dropped = seedAs(DWX, (d) => { d.decision.stage = 'dropped'; });
+    const o = await boot136({ ls: lsOf([open, locked, undated, dropped], { pialax_idea_me_v1: { [open]: 'ashwin-p8', [locked]: 'ashwin-p8', [undated]: 'momdad-c1', [dropped]: 'ashwin-p8' },
+      pialax_idea_keys_v1: keyOf([open, locked, undated, dropped]), pialax_proxy_token: TOKEN }) });
+    const sheetOf = (id) => { act(o, 'open', { id }); const nav = screen(o).slice(0, screen(o).indexOf('<div class="hero">')), has = /data-act="caladd"/.test(nav); if (has) tap(o, nav, 'caladd'); const s = has ? sheet(o) : ''; const pn = o.api.S.sheet ? o.api.popupName(o.api.S.sheet) : ''; o.api.closeSheet(); act(o, 'back'); return { has, s, pn }; };
+    const so = sheetOf(open), sl = sheetOf(locked), su = sheetOf(undated), sd = sheetOf(dropped);
+    const ics = (s) => { const m = /<a class="btn" href="data:text\/calendar;charset=utf-8,([^"]+)" download="([^"]+)"/.exec(s); return m ? { text: decodeURIComponent(m[1].replace(/&amp;/g, '&')).replace(/\r\n /g, ''), file: m[2] } : null; };
+    const gcal = (s) => ((/<a class="btn" href="(https:\/\/calendar\.google\.com\/[^"]+)" target="_blank" rel="noopener noreferrer"/.exec(s) || [])[1] || '').replace(/&amp;/g, '&');
+    const io = ics(so.s), il = ics(sl.s), go = gcal(so.s), gl = gcal(sl.s);
+    const secret = (x) => [KEY, TOKEN, '#k=', 'k=' + KEY, 't=' + TOKEN, 'edit_key'].some((s) => x.indexOf(s) >= 0);
+    check(so.has && sl.has && !su.has && !sd.has && so.pn === 'P-calendar-add' && io && il && io.file === 'diwaliinraleigh.ics' &&
+      /\nSTATUS:TENTATIVE\r?\n/.test(io.text) && /SUMMARY:\? 🪔 Diwali in Raleigh/.test(io.text) && /<span class="tq" data-k="tentative">\?<\/span>/.test(so.s) &&
+      /\nSTATUS:CONFIRMED\r?\n/.test(il.text) && !/class="tq"/.test(sl.s) && /DTSTART;VALUE=DATE:20261106\r\nDTEND;VALUE=DATE:20261110/.test(il.text),
+      'PIA-139 AC6 calendar-plus sits in the nav of a dated trip (none on an undated idea or a dropped one); P-calendar-add\'s .ics is tentative ("? ", STATUS:TENTATIVE, the ? corner) before 🔒 and confirmed after (11/6–11/9, end 11/10)');
+    check([io.text, il.text, go, gl, so.s, sl.s].every((x) => !secret(x)) && (io.text.match(/https?:\/\/[^\s\\]+/g) || []).join() === W + '/i/' + open && /[?&]details=([^&]*)/.exec(gl) && decodeURIComponent(/[?&]details=([^&]*)/.exec(gl)[1]) === W + '/i/' + locked &&
+      /^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE&text=%3F%20/.test(go),
+      'PIA-139 AC6 on the organizer\'s phone holding the edit key and the token, neither rides into the event: the .ics and the Google link carry only the guest /i/<id> link');
+    check(/<a class="btn" href="data:text\/calendar[^"]*" download="[^"]+" data-cal="ics" aria-label="\.ics calendar file, for Apple Calendar"[^>]*data-k="ics"><span aria-hidden="true">📅<\/span> \.ics<\/a>/.test(sl.s) && /data-cal="gcal" aria-label="Google Calendar"/.test(sl.s),
+      'PIA-139 AC6 each calendar link\'s spoken name starts with what it shows (".ics calendar file", "Google Calendar": WCAG 2.5.3), the file one under the phone\'s own 📅');
+  }
+  {
+    // PIA-139 fix pass: the way back from Google Flights — a Book tap that never left is dropped; one that did survives a reload
+    const id = seedAs(DWX, (d) => { lock139(d); anjoIn()(d); });
+    const ls = () => lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } });
+    const t = await boot136({ ls: ls() });
+    act(t, 'open', { id });
+    t.api.bookOut(id, 'anjo-z5'); CLOCK += t.api.LEAVE_MS + 1; t.api.bookAway(); const dropped = t.api.S.ret === null;
+    t.doc.visibilityState = 'hidden'; t.api.bookAway(); t.doc.visibilityState = 'visible'; const later1 = t.api.bookBack();
+    CLOCK = NOW;
+    check(dropped && !later1 && !/glow/.test(prim139(screen(t))) && t.ss.getItem(t.api.RET_KEY) === null,
+      'PIA-139 a Book tap that has not left the app 8s later is dropped: a later trip away and back (📣\'s share sheet, another app) makes nothing glow');
+    // away in Google Flights, the page is discarded; the tab loads it again: the 🎫 invites its tap once
+    const ss = t.ss;
+    t.api.bookOut(id, 'anjo-z5'); t.doc.visibilityState = 'hidden'; t.api.bookAway();
+    const kept = JSON.parse(ss.getItem(t.api.RET_KEY) || 'null');
+    const t2 = await boot136({ ls: ls(), ss });
+    act(t2, 'open', { id });
+    const p2 = prim139(screen(t2)), gone = ss.getItem(t2.api.RET_KEY) === null;
+    const t3 = await boot136({ ls: ls(), ss });
+    act(t3, 'open', { id });
+    check(kept && kept.id === id && kept.code === 'anjo-z5' && !('away' in kept) && /class="btn sq glow" data-act="mybook"[^>]*aria-label="Booked\? Tap to mark"/.test(p2) && gone && !/glow/.test(prim139(screen(t3))),
+      'PIA-139 a Book tap away in Google Flights is kept in the tab ({id, code, at}); a page the phone discarded and loads again makes the 🎫 glow once ("Booked? Tap to mark"), and only once', kept);
+    ss.setItem(t.api.RET_KEY, JSON.stringify({ id, code: 'anjo-z5', at: NOW - 4 * 36e5 }));
+    const t4 = await boot136({ ls: ls(), ss }); act(t4, 'open', { id });
+    ss.setItem(t.api.RET_KEY, '{"id":"<b>","code":"x","at":1}');
+    const t5 = await boot136({ ls: ls(), ss }); act(t5, 'open', { id });
+    check(!/glow/.test(prim139(screen(t4))) && !/glow/.test(prim139(screen(t5))) && ss.getItem(t.api.RET_KEY) === null,
+      'PIA-139 a kept Book tap older than 3h, or one that is not a trip id, invites nothing (and is dropped)');
+  }
+  {
+    // PIA-139 fix pass: a hostile or malformed cached landing time never reaches a chip's markup or a ⏱ run
+    const id = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn({ available_from: '2026-11-05' })(d); });
+    const o = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([id]), pialax_proxy_token: TOKEN }) });
+    const k = o.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').keys[0].key, ashK = o.api.modelOf(id).members.find((x) => x.code === 'ashwin-p8').keys[0].key;
+    const fares = {}; fares[k] = { p: 300, f: NOW - 36e5, ar: '<img src=x onerror=alert(1)>', off: [{ ar: '"><b>x</b>' }] }; fares[ashK] = { p: 250, f: NOW - 36e5, off: [{ ar: '2026-11-06 15:20' }] };
+    o.ls.setItem('pialax_fares_v2', JSON.stringify(fares));
+    const lanes = o.api.lanesHTML(o.api.modelOf(id));
+    const chip = o.api.pickupChip(o.api.modelOf(id), { kind: 'arr', date: '2026-11-05', time: '<img src=x onerror=alert(1)>', pred: true, faces: ['🗽'], codes: ['anjo-z5'], maybe: false, booked: false }, 'PIA');
+    check(!/<img|<b>|onerror/.test(lanes) && !/<img|onerror/.test(chip) && /aria-label="Lands PIA 11\/5, Anjo"/.test(lanes) && /<span class="t tn pred">≈15:20<\/span>/.test(lanes) && !/class="t tn/.test(chip),
+      'PIA-139 the organizer\'s cached offers: a landing time that is markup or junk draws no time and no markup (her chip reads "Lands PIA 11/5"); a "YYYY-MM-DD HH:MM" stamp reads as ≈15:20; pickupChip itself drops a time that is not HH:MM', { lanes: lanes.slice(0, 600) });
+  }
+  {
+    // PIA-139 fix pass: taking a 🎫 back (a sticky confirm) clears its times; times typed when the page is hidden go then;
+    // a time typed for someone who was unbooked meanwhile is not sent
+    const id = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn({ note: '🛬11:05 🛫17:20 Back Sunday', booked: true, booked_at: '2026-10-16T00:00:00.000Z' })(d); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
+    const p0 = nPosts(t);
+    typed(t, 'tm-dep', '1930', 'anjo-z5');
+    t.doc.visibilityState = 'hidden'; t.api.flushTimes(); t.doc.visibilityState = 'visible';
+    await until(() => /🛫19:30/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    const flushed = nPosts(t) === p0 + 1 && t.api.S.sheet && t.api.S.sheet.type === 'person' && !t.api.S.sheet.local.times;
+    t.api.render(); const s0 = sheet(t);
+    await tap(t, s0, 'unbook', { code: 'anjo-z5' }); await tick();
+    CLOCK += 30000; const s1 = sheet(t), stillArmed = /data-act="unbook"[^>]*aria-label="Confirm not booked"/.test(s1); CLOCK = NOW;
+    const p1 = nPosts(t);
+    await tap(t, s1, 'unbook', { code: 'anjo-z5' }); await until(() => srv.read(id).responses['anjo-z5'].booked === false); await tick();
+    const up = posts(t).slice(p1), r = srv.read(id).responses['anjo-z5'];
+    const host = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'momdad-k3' } }) }); act(host, 'tab', { v: 'map' });
+    const mh = host.api.renderSelected('map', 'map').html;
+    check(flushed && nPosts(t) - p1 === 2 && stillArmed && eq(up.map((q) => q.path), ['/idea/respond', '/idea/booked']) && r.note === 'Back Sunday' && r.booked === false && r.status === 'in' && !/11:05|19:30/.test(mh) && /aria-label="Lands PIA 11\/6[^"]*Anjo"/.test(mh),
+      'PIA-139 her 🛫 19:30 typed with the sheet open goes when the page is hidden; her 🎫 taken back waits for its second tap past 6s (sticky), then one answer clears 🛬 / 🛫 (her note kept) before the 🎫 goes; the host\'s Map shows no time for her', { flushed, stillArmed, n: nPosts(t) - p1, up: up.map((q) => q.path), note: r.note, mh: mh.slice(mh.indexOf('lanes'), mh.indexOf('lanes') + 500) });
+    // the organizer types a time for her while another phone takes her 🎫 back: nothing is sent
+    const id2 = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn({ booked: true, booked_at: '2026-10-16T00:00:00.000Z' })(d); });
+    const o = await boot136({ ls: lsOf([id2], { pialax_idea_me_v1: { [id2]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([id2]) }) });
+    act(o, 'open', { id: id2 }); act(o, 'person', { id: id2, code: 'anjo-z5' });
+    typed(o, 'tm-arr', '1510', 'anjo-z5');
+    const d2 = srv.read(id2); d2.responses['anjo-z5'].booked = false; srv.write(d2);
+    await o.api.refresh(id2); await tick();
+    const q0 = nPosts(o); o.api.closeSheet(); await tick();
+    check(nPosts(o) === q0 && !o.api.S.sheet && !/🛬/.test(srv.read(id2).responses['anjo-z5'].note || ''),
+      'PIA-139 a time typed for someone whose 🎫 was taken back on another phone meanwhile is not sent (🎫⚠ says so)');
+  }
+  {
+    // PIA-139 fix pass: the doors and labels — 💵 from the trip view at 🏁, the no-link reason in a person's slot, the key
+    const allB = (d) => { lock139(d); d.responses['momdad-k3'].booked = true; d.responses['ashwin-p8'].booked = true; anjoIn({ booked: true })(d); };
+    const done = seedAs(DWX, allB), noAp = seedAs(DWX, (d) => { lock139(d); anjoIn()(d); d.idea.members.forEach((m) => { if (m.code === 'anjo-z5') m.airport = ''; }); d.responses['anjo-z5'].origin = ''; });
+    const o = await boot136({ ls: lsOf([done, noAp], { pialax_idea_me_v1: { [done]: 'ashwin-p8', [noAp]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([done, noAp]), pialax_proxy_token: TOKEN }) });
+    act(o, 'open', { id: done });
+    const v = screen(o), door = /<button class="btn wide" data-act="paidopen" data-id="[^"]+" aria-label="Record what we paid" data-lbl="Paid" data-k="paid">/.test(v);
+    act(o, 'paidopen', { id: done });
+    const opened = o.api.S.sheet && o.api.S.sheet.type === 'stage' && o.api.S.sheet.focus === 'paid-amt';
+    o.api.closeSheet(); act(o, 'back');
+    const g = await boot136({ ls: lsOf([done], { pialax_idea_me_v1: { [done]: 'anjo-z5' } }) }); act(g, 'open', { id: done });
+    act(o, 'open', { id: noAp }); act(o, 'person', { id: noAp, code: 'anjo-z5' });
+    const ns = sheet(o); o.api.closeSheet();
+    const kl = o.api.keyLabel({ k: 'st-booking', keys: ['st-booking', 'mybook', 'booked'] });
+    check(door && opened && !/paidopen/.test(screen(g)) && /<span class="btn pri dis" role="img" aria-label="No home airport" data-lbl="No home airport" data-k="noairport">📍\?<\/span><button class="btn sq tkoff" data-act="booked"/.test(ns) &&
+      kl === 'Booking · I booked · Booked' && o.api.keyPages([{ k: 'st-booking', keys: ['st-booking', 'mybook'] }]).length === 1,
+      'PIA-139 at 🏁 the organizer\'s trip view has 💵 ＋ opening P-stage at the 💵 field (not on a guest\'s); a person\'s [Book | 🎫] without a link says why (📍? No home airport), as the trip view does; the key reads a two-meaning 🎫 as "Booking · I booked"', { kl });
   }
 
   // ═══ AC12 / AC14 ═══

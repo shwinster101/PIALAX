@@ -734,6 +734,48 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .tk, .stagetools .tool { background: var(--chip); }
 .tk .tkg { opacity: var(--tkdim); }
 @media (prefers-reduced-motion: reduce) { .tk.arm, .ans.arm, .tool.arm, .answers[aria-busy="true"] .ans[aria-pressed="true"] { animation: none; } }
+/* PIA-139: booking. My 🎫 beside Book glows once I am back from Google Flights (a ring that stays while it invites, even
+   with reduced motion); 🎫 in a person's sheet reads on / off like the board's; the times row; 💵 in P-stage; the calendar */
+.btn.sq { position: relative; }
+.btn.sq.glow, .tk.glow { border-color: var(--in); box-shadow: 0 0 0 4px color-mix(in srgb, var(--in) 45%, transparent); }
+.tk.glow { animation: pulse 1.2s ease-in-out 3; }
+.tk.glow .tkg { filter: none; opacity: 1; }
+.btn.sq.tkoff .tkg { filter: grayscale(1); opacity: var(--tkdim); }
+.btn.sq.tkon { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
+.btn.sq.arm { animation: confirm 1s ease-in-out infinite; }
+.btn.sq.arm .tkg { filter: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) { .btn.sq.arm { animation: none; } }
+.times { gap: 8px; }
+.times .fld.tiny { flex: 1 1 0; width: auto; min-width: 0; }
+.leg .lt { font-size: 15px; font-weight: 700; color: var(--ink2); padding: 0 2px; }
+.paidrow .fld { flex: 1 1 auto; min-width: 0; }
+.paidrow .btn { min-height: 48px; flex: none; }
+.paidrow .paidw { font-size: 16px; white-space: nowrap; flex: none; }
+.paidv { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.tool.wordy .uf { font-size: 15px; letter-spacing: -.02em; }
+.ib .calp { width: 24px; height: 24px; }
+.calh .calp { width: 28px; height: 28px; display: block; }
+.calcard { display: flex; align-items: center; gap: 14px; min-height: 64px; }
+.calpc { position: relative; flex: none; display: inline-flex; }
+.calpc .tq { position: absolute; right: -6px; top: -6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 800; background: var(--surface); box-shadow: 0 0 0 1.5px var(--ink); }
+.caldays { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 22px; border: 2px dashed var(--ink2); font-size: 18px; font-weight: 700; }
+.caldays.set { border-style: solid; border-color: var(--ink); }
+.pk .pf { letter-spacing: -2px; }
+.altw { display: inline-grid; place-items: center; width: 22px; }
+/* PIA-139 fix pass: after my 🎫 the bar is my flight times (Flighty a square beside it); ☀ / 🌃 the half of the day a time
+   falls in, and the pick between the two readings of an hour 1–12; a booked chip's 🎫 corner; a time 💵 has frozen 🔒 */
+.btn.tmb { gap: 6px; font-variant-numeric: tabular-nums; }
+.btn.tmb .tmv { display: inline-flex; align-items: center; gap: 4px; }
+.btn.sq.fl { font-size: 15px; letter-spacing: -.04em; }
+.dp { font-size: 12px; line-height: 1; flex: none; }
+.fld.invite { animation: pulse 1.6s ease-in-out 3; border-color: var(--in); }
+.halves { gap: 8px; }
+.halves .half { flex: 1 1 0; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 18px; }
+.halves .half .dp { font-size: 18px; }
+.paidask { gap: 6px; font-size: 18px; min-height: 44px; }
+.pk { position: relative; }
+.pk .bk { position: absolute; right: -7px; top: -9px; font-size: 13px; line-height: 1; }
+.leg .lt { display: inline-flex; align-items: center; gap: 2px; }
 </style>
 </head>
 <body>
@@ -1482,9 +1524,16 @@ function cheapCandidates(model, fares, now, today) {
   if (filledBars.length >= 2) { var min = Math.min.apply(null, filledBars.map(function (c) { return c.total; })); filledBars.forEach(function (c) { if (c.total === min) c.star = true; }); }
   return out;
 }
-/* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone;
-   with showPredicted (the organizer's token phone) a not-yet-booked arrival shows the cheapest cached offer's time,
-   from any cached search (fresh or stale; `now` is unused, kept so every fare reader takes the same arguments). */
+/* PIA-139: a cached offer's landing time as 'HH:MM', from 'HH:MM' or a 'YYYY-MM-DD HH:MM' stamp; anything else (a
+   malformed or hostile value in the fare cache) is no time at all, so it can never reach a chip, its markup or a ⏱ run */
+function cachedTime(v) {
+  var m = typeof v === 'string' ? /^(?:\d{4}-\d{2}-\d{2}[ T])?(\d{2}:\d{2})$/.exec(v) : null;
+  return m && HHMM_RE.test(m[1]) ? m[1] : '';
+}
+/* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone, while
+   that traveler is booked; with showPredicted (the organizer's token phone) an arrival with no recorded time shows the
+   cheapest cached offer's time (cachedTime), from any cached search (fresh or stale; `now` is unused, kept so every
+   fare reader takes the same arguments). Chips merge only with chips of the same kind, day, maybe and 🎫. */
 function pickups(model, fares, now, showPredicted) {
   var lanes = {};
   if (!model.dest) return lanes;
@@ -1493,17 +1542,18 @@ function pickups(model, fares, now, showPredicted) {
     if (!m.answered || !m.d1 || m.bad) return;
     var inKey = m.keys[0] && m.keys[0].key, f = inKey && fares && hasOwn(fares, inKey) ? fares[inKey] : null;
     var offer = f && f.off && f.off[0] ? f.off[0] : null;
-    var predicted = (model.prices || showPredicted) && f ? (f.ar || (offer && offer.ar) || '') : '';  // any cached offer, fresh or stale
-    var arrT = m.arrTime || predicted;
-    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !m.arrTime && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
-    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: m.depTime, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    var predicted = (model.prices || showPredicted) && f ? cachedTime(f.ar || (offer && offer.ar)) : '';  // any cached offer, fresh or stale
+    // PIA-139: a recorded time is a firm pickup only while its traveler is booked (a 🎫 taken back leaves none behind)
+    var arrT = (m.booked && m.arrTime) || predicted, depT = m.booked ? m.depTime : '';
+    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: depT, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
   });
   Object.keys(lanes).forEach(function (a) {
     var L = lanes[a], merged = [];
     L.sort(function (x, y) { return (x.date + (x.time || '99') + x.kind).localeCompare(y.date + (y.time || '99') + y.kind); });
     L.forEach(function (c) {
       var p = merged[merged.length - 1];
-      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
+      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe && p.booked === c.booked) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
       else merged.push(c);
     });
     // ⏱ one pickup run: arrivals at one airport on one day, chained ≤ 2h apart
@@ -1562,13 +1612,14 @@ function icsText(ev) {
    reversed ⚠ range gets the plan, so a reversed pair never becomes an event. Tentative ('? ' and STATUS:TENTATIVE)
    until the days are set: 🔒 (a legacy 🔒 reads as proposed), my own 🎫 on my own days, or 🏁 Done (every
    traveler booked, or 💵). The only link inside is the guest /i/<id> link. Both the Google TEMPLATE link and the
-   .ics text come from the same event. null when there are no days (an undated idea), the days are over, or the
-   trip is dropped (🗑). ctx = {today, now, worker}. */
+   .ics text come from the same event. null when the trip has no plan (an undated idea, even for someone who set
+   their own window: PIA-139, a window is not trip days), the days are over, or the trip is dropped (🗑).
+   ctx = {today, now, worker}. */
 function calendarAdd(model, ctx) {
   ctx = ctx || {};
   if (!isIso(ctx.today)) throw new Error('calendarAdd: ctx.today must be a YYYY-MM-DD day');
   if (typeof ctx.now !== 'number' || !isFinite(ctx.now)) throw new Error('calendarAdd: ctx.now must be epoch milliseconds');
-  if (model.decision === 'dropped') return null;
+  if (model.decision === 'dropped' || !model.plan) return null;
   var me = model.me, plan = model.plan, own = !!(me && me.traveler && !me.bad && me.d1 && me.d2);
   var d1 = own ? me.d1 : plan ? plan.s : '', d2 = own ? me.d2 : plan ? plan.e : '';
   if (!d1 || !d2 || d1 > d2 || d2 < ctx.today) return null;
@@ -1806,8 +1857,10 @@ function respondRequest(doc, code, patch, opts) {
   var arr = has('arrTime') ? patch.arrTime || '' : n.arr, dep = has('depTime') ? patch.depTime || '' : n.dep;
   if ((arr && !HHMM_RE.test(arr)) || (dep && !HHMM_RE.test(dep))) return null;
   var called = opts.by === 'self' ? false : opts.by === 'proxy' ? true : n.called;
-  var body = { member: code, status: status, origin: origin, available_from: from, available_to: to,
-    note: buildRespNote(called, arr, dep, has('note') ? typedNote(patch.note) : n.text) };
+  var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text);
+  // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing
+  if ((has('arrTime') || has('depTime')) && parseRespNote(note).text !== String(text || '').trim()) return null;
+  var body = { member: code, status: status, origin: origin, available_from: from, available_to: to, note: note };
   var hub = hubPair(docDest(doc));
   var bad = ['arrive_at', 'leave_from'].some(function (k) {
     if (!has(k)) return false;
@@ -1820,7 +1873,10 @@ function respondRequest(doc, code, patch, opts) {
   return bad ? null : { method: 'POST', path: reqPath('/idea/respond', doc.id), body: body };
 }
 /* POST /idea/booked, preceded by a complete 'in' answer when the member has none (the Worker's answer_first).
-   Unbooking someone with no in/maybe answer builds nothing (the Worker would answer 400 answer_first). */
+   Unbooking someone with no in/maybe answer builds nothing (the Worker would answer 400 answer_first).
+   PIA-139: taking a 🎫 back clears the booked times that went with it (🛬 / 🛫), in one complete answer sent first (the
+   Worker keeps the 🎫 through it), so no phone shows a pickup for a flight that is no longer booked; their own write
+   clears 📞 as their own answer does, the organizer's keeps it as it reads. */
 function bookedRequests(doc, code, booked, opts) {
   if (!memberOf(doc, code) || !doc.id || (doc.decision && doc.decision.stage === 'dropped')) return null;
   var r = validResp(doc.responses && doc.responses[code]), out = [];
@@ -1830,6 +1886,11 @@ function bookedRequests(doc, code, booked, opts) {
     var first = respondRequest(doc, code, { status: 'in' }, opts);
     if (!first) return null;
     out.push(first);
+  }
+  var had = parseRespNote(r && r.note);
+  if (!booked && r.booked && (had.arr || had.dep)) {
+    var clear = respondRequest(doc, code, { arrTime: '', depTime: '' }, { by: opts && opts.by === 'self' ? 'self' : 'keep' });
+    if (clear) out.push(clear);
   }
   out.push({ method: 'POST', path: reqPath('/idea/booked', doc.id), body: { member: code, booked: !!booked } });
   return out;
@@ -1944,6 +2005,16 @@ function organizerEdit(fresh, editKey, delta, opts) {
     return only.length ? only : null;
   }
   var dst = delta.decision && delta.decision.stage, closes = dst === 'booked' || dst === 'dropped';
+  // PIA-139: 💵 paid on an open trip goes only once every traveler on the fresh record has booked; on a trip whose dates
+  // were never 🔒 (or were unlocked since), the plan is chosen first, because the Worker's booked needs a choice
+  if (dst === 'booked' && !docClosed(fresh)) {
+    if (paidHeld(fresh)) return null;
+    if (!ideaEdit && !(fresh.decision && fresh.decision.chosen)) {
+      var ch = updateRequest(fresh, editKey, { decision: { stage: 'chosen' } }, opts);
+      var bk = ch && updateRequest(Object.assign({}, fresh, { decision: ch.body.decision }), editKey, { decision: delta.decision }, opts);
+      return bk ? [ch, bk] : null;
+    }
+  }
   if (ideaEdit && closes && !docClosed(fresh)) {
     var tail = updateRequest(fresh, editKey, { decision: delta.decision }, opts);
     var rest = {}; Object.keys(delta).forEach(function (k) { if (k !== 'decision') rest[k] = delta[k]; });
@@ -2432,6 +2503,110 @@ function datesRole(model) {
   var me = model.me;
   if (!me || me.host || me.status === 'out') return 'look';
   return me.answered ? 'mine' : 'answer';
+}
+
+/* ---- booking (PIA-139): one booked control, flight times for pickups, and a trip that reaches Done by itself ----
+   The stage is derived in tripModel from the booked flags (🎫 Booking once any traveler has booked, 🏁 Done once every one
+   has), so every phone reads the same stage from the same record. A 🎫 never closes the answers: only 💵 paid (the Worker's
+   booked decision) or 🗑 does. */
+/* one traveler's hand-off slot in P-person, by the trip view's own rule (primaryAction, bookToggle): their Google Flights
+   search before the dates are set; [✈ Book ↗ | 🎫] side by side once they are; [✈⏱↗ Flighty | 🎫] after their 🎫. tk is
+   whose 🎫 sits there: 'self' (my own: one tap, taking it back asks first), 'org' (the organizer marking someone else:
+   bookToggle, a confirming tap for someone waiting or out), '' none. → {slot: 'gf' | 'book' | 'booked' | '', tk} */
+function bookSlot(model, code, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler) return { slot: '', tk: '' };
+  var mine = !!model.me && model.me.code === code;
+  var tk = model.closed ? '' : mine ? (x.booked || primaryAction(model, today) === 'book' ? 'self' : '') : bookToggle(model, code) ? 'org' : '';
+  return { slot: x.booked ? 'booked' : tk ? 'book' : 'gf', tk: tk };
+}
+/* a typed time → 'HH:MM' (24h); blank → ''; anything else → null. '15:10', '1510', '0905', '0:30' are times, and so
+   are '6:05 pm', '6pm', '11:05a' (am / pm typed). An hour 1–12 typed with no leading 0 and no am / pm ('310', '9:05',
+   '1105', '12:30') could be either half of the day, so it is not a time until its half is picked (half 'am' | 'pm',
+   the two readings timeHalves offers): a 12-hour reader's 3:10 PM never silently becomes 03:10 (PIA-139). */
+var TYPED_TIME_RE = /^(\d{1,2})(?::?(\d{2}))?(?:([ap])\.?m?\.?)?$/;
+function timeParts(s) {
+  var t = String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+  if (!t) return { blank: true };
+  var m = TYPED_TIME_RE.exec(t);
+  if (!m || (m[2] === undefined && !m[3]) || (m[2] !== undefined && +m[2] > 59)) return null;   // '15' alone is not a time; '6pm' is
+  return { h: +m[1], mi: m[2] === undefined ? 0 : +m[2], half: m[3] || '', lead: m[1].length === 2 && m[1].charAt(0) === '0' };
+}
+function hhmm(h, mi) { return ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2); }
+function typedTime(s, half) {
+  var p = timeParts(s);
+  if (!p) return null;
+  if (p.blank) return '';
+  var h = p.h, hf = p.half || (h >= 1 && h <= 12 && !p.lead ? (half === 'am' ? 'a' : half === 'pm' ? 'p' : '?') : '');
+  if (hf === '?') return null;                                   // either half of the day: timeHalves offers both
+  if (hf) { if (h < 1 || h > 12) return null; h = hf === 'p' ? (h % 12) + 12 : h % 12; }
+  else if (h > 23) return null;
+  return hhmm(h, p.mi);
+}
+/* the two readings of a time that could be either half of the day ('310' → {am: '03:10', pm: '15:10'}), else null */
+function timeHalves(s) {
+  var p = timeParts(s);
+  if (!p || p.blank || p.half || p.lead || p.h < 1 || p.h > 12) return null;
+  return { am: typedTime(s, 'am'), pm: typedTime(s, 'pm') };
+}
+/* the part of the day a booked time falls in, for its glyph: 'day' 06:00–17:59 (☀), 'night' otherwise (🌃), '' no time.
+   The two readings of one typed hour always fall in different parts, so the pick between them is never two of a kind. */
+function dayPart(t) { return typeof t === 'string' && HHMM_RE.test(t) ? (+t.slice(0, 2) >= 6 && +t.slice(0, 2) < 18 ? 'day' : 'night') : ''; }
+/* who may record a traveler's booked times (🛬 landing, 🛫 leaving) on this phone: 'self' (their own, once booked), 'proxy'
+   (the organizer for them), '' nobody (not booked, a host, someone out, a closed trip: the Worker takes no answer on a paid
+   one, a guest looking at someone else, a v1 doc on the organizer's phone) */
+function timesBy(model, code) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler || !x.booked || model.closed) return '';
+  if (model.me && model.me.code === code) return 'self';
+  return model.org && !model.legacy ? 'proxy' : '';
+}
+/* the answer that records booked times, built on the record it is sent against: the answer as it stands (days, airports,
+   origin, the 🎫 and the note's text all kept) with arr / dep as the 🛬 / 🛫 prefixes of the note ('HH:MM', '' clears one,
+   undefined leaves it). Their own times clear 📞 (as their own answer does); the organizer's keep it as it reads. null for
+   someone not booked, a time that is not HH:MM, no change, or times that would leave the note's text no room. */
+function timesRequest(doc, code, arr, dep, by) {
+  var r = validResp(doc && doc.responses && doc.responses[code]);
+  if (!r || !r.booked || (r.status !== 'in' && r.status !== 'maybe')) return null;
+  var n = parseRespNote(r.note), patch = {};
+  if (arr !== undefined && arr !== n.arr) patch.arrTime = arr;
+  if (dep !== undefined && dep !== n.dep) patch.depTime = dep;
+  if (!hasOwn(patch, 'arrTime') && !hasOwn(patch, 'depTime')) return null;
+  return respondRequest(doc, code, patch, { by: by === 'self' ? 'self' : 'keep' });
+}
+/* 💵 paid (P-stage): what the trip cost, recorded by the organizer once every traveler has booked, on his phone with the
+   token (the amount is a price, and prices stay there). → {why, unbooked, unanswered}: why '' it can be recorded; 'org' not
+   the organizer's phone; 'token' no token here; 'legacy' (P-migrate first); 'closed' (paid already, or dropped); 'nobody'
+   (no one travels); 'unbooked' (a traveler has no 🎫 yet: unbooked lists them); 'nodates' (no plan or no destination to 🔒,
+   which the Worker's booked needs first). unanswered: the people with no answer yet (hosts, in by default), whom 💵 closes
+   out, because the Worker takes no answer on a paid trip. notimes: the booked travelers with no 🛬 time recorded yet,
+   whose times 💵 freezes for the same reason (PIA-139: the confirm names both). again: a paid trip whose amount the
+   organizer can enter again on this phone (a typo fixed: the Worker takes a second booked decision). */
+function paidCheck(model) {
+  var unbooked = model.travelers.filter(function (x) { return !x.booked; }).map(function (x) { return x.code; });
+  var unanswered = model.members.filter(function (x) { return !x.resp; }).map(function (x) { return x.code; });
+  var notimes = model.travelers.filter(function (x) { return x.booked && !x.arrTime; }).map(function (x) { return x.code; });
+  var why = !model.org ? 'org' : !model.prices ? 'token' : model.legacy ? 'legacy' : model.closed ? 'closed' : !model.travelers.length ? 'nobody'
+    : unbooked.length ? 'unbooked' : !model.locked && (!model.plan || !model.dest) ? 'nodates' : '';
+  return { why: why, unbooked: unbooked, unanswered: unanswered, notimes: notimes, again: why === 'closed' && model.decision === 'booked' && model.paid != null };
+}
+/* the same rule on the record a 💵 is sent against: 'closed' (paid or dropped meanwhile), 'unbooked' (a 🎫 was taken away
+   on another phone since this one drew 🏁), '' it can go. Who travels and who has booked does not depend on the day, so
+   the model is read with any day. again (💵 entered again on a paid trip): '' while it is still paid, 'closed' once it
+   was dropped or reopened meanwhile. */
+function paidHeld(fresh, again) {
+  if (!fresh || !fresh.idea) return 'unbooked';
+  if (again === true) return fresh.decision && fresh.decision.stage === 'booked' && fresh.decision.chosen ? '' : 'closed';
+  if (docClosed(fresh)) return 'closed';
+  return tripModel(fresh, { today: '2000-01-01', now: 0 }).stage === 'done' ? '' : 'unbooked';
+}
+/* the 💵 amount as typed: whole dollars ('$1,490', '1490', '1490.40' → 1490); null when it is not an amount the Worker keeps
+   (at least $1, under $1,000,000) */
+function typedPaid(s) {
+  var t = String(s == null ? '' : s).replace(/[\s$,]/g, '');
+  if (!/^\d+(?:\.\d{0,2})?$/.test(t)) return null;
+  var v = Math.round(+t);
+  return v >= 1 && v < 1e6 ? v : null;
 }
 /* === pialax trip-model: end === */
 
@@ -3235,11 +3410,14 @@ var LOC_GLOBE = '<svg viewBox="0 0 26 17" aria-hidden="true"><circle cx="13" cy=
 var LOC_NONE = '<svg viewBox="0 0 26 17" aria-hidden="true"><text x="13" y="13" text-anchor="middle" style="font-size:12px;font-weight:800;fill:var(--ink)">?</text></svg>';
 var LOC_KEY_US = '<span class="loc">' + locUS([196, 112]) + '</span>', LOC_KEY_GLOBE = '<span class="loc">' + LOC_GLOBE + '</span>', LOC_KEY_NONE = '<span class="loc">' + LOC_NONE + '</span>';
 var BBA_KEY = '<i class="bba"><i style="width:60%"></i></i>';
+/* PIA-139: calendar-plus (add the trip to my calendar) and the hub's other airport as a small hollow pin */
+var CALPLUS = '<svg class="calp" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" style="fill:none;stroke:currentColor;stroke-width:1.8"/><path d="M3.5 9.5h17M8 3v4M16 3v4M12 12v6M9 15h6" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"/></svg>';
+var ALTPIN = '<span class="minipin alt" aria-hidden="true"><span></span></span>';
 /* the context key: every data-k on a screen has an entry here (P-key lists the ones shown; long-press names a control) */
 var LEGEND = {
   key: ['ⓘ', 'Key'], settings: ['⚙', 'Settings'], back: ['‹', 'Back'], close: ['⌄', 'Close'], newtrip: ['＋', 'New trip'],
   offline: ['📶⚠', 'Offline'], stale: ['◷', 'Not updated'],
-  gf: ['✈↗', 'Google Flights'], flighty: ['✈⏱↗', 'Flighty'], explore: ['🧭↗', 'Explore'], fixdates: ['✈⚠', 'Fix dates'],
+  gf: ['✈↗', 'Google Flights'], flighty: ['✈⏱↗', 'Track flight'], explore: ['🧭↗', 'Explore'], fixdates: ['✈⚠', 'Fix dates'],
   dates: ['🗓', 'Dates'], nights: ['🌙', 'Nights'], window: ['⟦ ⟧', 'Flex window'], pin: ['📌', 'Event day'], togo: ['⏳', 'Days left'], warn: ['⚠', 'Problem'],
   lock: ['🔒', 'Locked'], dest: ['📍', 'Destination'], heads: ['3/4', 'Heads in'], count: ['×2', 'Headcount'], star: ['⭐', 'Pinned'], shelf: ['🗄', 'Shelf'],
   in: ['<span class="shape sh-in">' + MK.in + '</span>', 'In'], maybe: ['<span class="shape sh-maybe">' + MK.maybe + '</span>', 'Maybe'],
@@ -3263,7 +3441,13 @@ var LEGEND = {
   // PIA-138: the date grid's marks, for P-dates' ⓘ
   dotin: ['●', 'There'], dotmaybe: ['◌', 'Maybe'], dotwait: ['○', 'Not there yet'], daycount: ['3', 'People there'], planprop: ['┅', 'Plan'], planset: ['▭', 'Plan locked'],
   mydays: ['▁', 'My days'], outw: ['▨', 'Outside window'], offplan: ['⚠🗓', 'Outside plan'],
-  'h-ny': ['🎉', 'New Year'], 'h-mem': ['🎗', 'Memorial Day'], 'h-jul': ['🎆', 'July 4'], 'h-lab': ['🌭', 'Labor Day'], 'h-tg': ['🦃', 'Thanksgiving'], 'h-xm': ['🎄', 'Christmas']
+  'h-ny': ['🎉', 'New Year'], 'h-mem': ['🎗', 'Memorial Day'], 'h-jul': ['🎆', 'July 4'], 'h-lab': ['🌭', 'Labor Day'], 'h-tg': ['🦃', 'Thanksgiving'], 'h-xm': ['🎄', 'Christmas'],
+  // PIA-139: booking, flight times, the calendar and the pickups
+  calplus: [CALPLUS, 'Add calendar'], ics: ['📅', 'Calendar file'], gcal: ['↗', 'Google Calendar'], tentative: ['?', 'Not final'],
+  pickup: ['⏱', 'Pickup run'], altpin: [ALTPIN, 'Other airport'],
+  // PIA-139 fix pass: the 🎫 I tap, a time's half of the day, how long a pickup run waits, what 💵 closes, a time 💵 froze
+  mybook: ['🎫', 'I booked'], tday: ['☀', 'Daytime'], tnight: ['🌃', 'Night'], runwait: ['0:35', 'Pickup wait'],
+  closes: ['⚠🔒', 'Closes answers'], timelock: ['🔒', 'Times locked']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -3477,7 +3661,7 @@ function slotHTML(m) {
   if (me.host) return '<span class="slot plain z" role="img" aria-label="Host" data-lbl="Host" data-k="host">🏠</span>';
   if (!m.dest) return h.explore ? '<a class="slot gf z" ' + handoffAttrs(h.explore) + ' aria-label="Explore" data-k="explore">🧭↗</a>' : '';
   if (me.status === 'out') return '';
-  if (h.flighty) return '<a class="slot wide z" ' + handoffAttrs(h.flighty) + ' aria-label="Flighty" data-k="flighty">✈⏱↗</a>';
+  if (h.flighty) return '<a class="slot wide z" ' + handoffAttrs(h.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight" data-k="flighty">✈⏱↗</a>';
   if (h.gf) return '<a class="slot gf z" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>';
   if (me.traveler) return '<span class="slot off z" role="img" aria-label="Fix dates" data-lbl="Fix dates" data-k="fixdates">✈⚠</span>';
   return '';
@@ -3674,7 +3858,8 @@ function anyPriced(m) { return !!(m.prices && m.price && m.price.total != null);
 /* the organizer's 🎫 on someone's row. Its confirming state keeps the 🎫 and pulses with ✓ (to mark) or ↩ (to take it away) */
 function tkBtn(m, x, tk) {
   var arm = armed(armKey(m.id, x.code, 'tk')), lbl = arm ? (tk.on ? 'Confirm not booked' : 'Confirm booked') : 'Booked';
-  return '<button class="tk' + (tk.on ? ' on' : '') + (arm ? ' arm' : '') + '" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="' + tk.on + '" aria-label="' + esc(lbl + ', ' + faceLabel(x)) + '" data-lbl="' + lbl + '" data-k="booked">' +
+  // PIA-139: back from the Book he tapped for this traveler, his 🎫 on their row invites the tap once too
+  return '<button class="tk' + (tk.on ? ' on' : '') + (arm ? ' arm' : '') + (!tk.on && invited(m.id, x.code) ? ' glow' : '') + '" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="' + tk.on + '" aria-label="' + esc(lbl + ', ' + faceLabel(x)) + '" data-lbl="' + lbl + '" data-k="booked">' +
     '<span class="tkg">🎫</span>' + (arm ? '<span class="cfm" aria-hidden="true">' + (tk.on ? '↩' : '✓') + '</span>' : '') + '</button>';
 }
 function priceCell(m, x) {
@@ -3725,6 +3910,15 @@ function totalRow(m) {
   }
   return '<div class="totalblk"><span class="big">' + totalHTML(m) + '</span>' + segs + '</div>';
 }
+/* why a traveler has no Google Flights link (handoffs.why), as [glyph, label, key]: the trip view's primary and a person's
+   [Book | 🎫] slot say the same thing */
+function noFlight(why) {
+  return { nodest: ['📍?', 'No destination', 'noairport'], noairport: ['📍?', 'No home airport', 'noairport'], local: ['🚗', 'No flight needed', 'drive'], nolink: ['✈⚠', 'No flight link', 'nolink'] }[why] || ['✈⚠', 'Fix dates', 'fixdates'];
+}
+function noFlightHTML(why, cls) { var w = noFlight(why); return '<span class="btn ' + cls + ' dis" role="img" aria-label="' + w[1] + '" data-lbl="' + w[1] + '" data-k="' + w[2] + '">' + w[0] + '</span>'; }
+/* PIA-139: the half of the day a booked time falls in (☀ 06:00–17:59, 🌃 otherwise), beside the time wherever it is shown, so
+   a time typed for the wrong half (03:10 for 3:10 PM) stands out; free under the word rule */
+function dayGlyph(t) { var p = dayPart(t); return p ? '<span class="dp" data-k="' + (p === 'day' ? 'tday' : 'tnight') + '" aria-hidden="true">' + (p === 'day' ? '☀' : '🌃') + '</span>' : ''; }
 /* the one primary action (the model's primaryAction) */
 function primaryHTML(m, k) {
   if (k === 'none') return '';
@@ -3732,21 +3926,45 @@ function primaryHTML(m, k) {
   // no flight link: say why (handoffs.why), and an idea with no place yet offers 🧭↗ Explore instead
   var fix = function (cls) {
     if (h.explore && h.why === 'nodest') return '<a class="btn ' + cls + '" ' + handoffAttrs(h.explore) + ' aria-label="Explore" data-k="explore">🧭↗</a>';
-    var w = { nodest: ['📍?', 'No destination', 'noairport'], noairport: ['📍?', 'No home airport', 'noairport'], local: ['🚗', 'No flight needed', 'drive'], nolink: ['✈⚠', 'No flight link', 'nolink'] }[h.why] || ['✈⚠', 'Fix dates', 'fixdates'];
-    return '<span class="btn ' + cls + ' dis" role="img" aria-label="' + w[1] + '" data-lbl="' + w[1] + '" data-k="' + w[2] + '">' + w[0] + '</span>';
+    return noFlightHTML(h.why, cls);
   };
   var share = '<button class="btn pri' + (sharePulse(m) ? ' pulse' : '') + '" data-act="tshare" data-id="' + m.id + '"><span data-k="share">📣</span> Share</button>';
   if (k === 'share-only') return wrap(share);
   if (k === 'share') return wrap(share + (h.gf ? '<a class="btn sq" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : fix('sq')));
-  if (k === 'book') return wrap((h.gf ? '<a class="btn pri" ' + handoffAttrs(h.gf) + ' data-k="gf"><span aria-hidden="true">✈</span> Book <span aria-hidden="true">↗</span></a>' : fix('pri')) +
-    '<button class="btn sq" data-act="mybook" data-id="' + m.id + '" aria-pressed="false" aria-label="I booked" data-k="booked">🎫</button>');
-  return wrap((h.flighty ? '<a class="btn pri" ' + handoffAttrs(h.flighty) + ' aria-label="Flighty" data-k="flighty">✈⏱↗</a>' : '') +
-    '<span class="btn stat" role="img" aria-label="Booked" data-lbl="Booked" data-k="booked">🎫</span>');
+  // PIA-139: ✈ Book ↗ and my 🎫 side by side; back from Google Flights after a Book tap, the 🎫 invites the tap once
+  if (k === 'book') return wrap((h.gf ? bookLink(m, h.gf, 'btn pri', m.me.code) : fix('pri')) + myTk(m));
+  // PIA-139: after my 🎫 the bar is my flight times for the pickups, [🎫 🛬 ––:–– | ✈⏱↗]: the times button opens my sheet at
+  // 🛬 (it pulses once right after the 🎫), Flighty is the square beside it
+  return wrap(timesBtn(m) + (h.flighty ? '<a class="btn sq fl" ' + handoffAttrs(h.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight" data-k="flighty">✈⏱↗</a>' : ''));
 }
+/* PIA-139: my booked bar: 🎫 and the time I land (––:–– until I record it), a button to my own sheet with 🛬 focused. On a
+   paid trip (times frozen) it shows the time with 🔒 and opens my sheet to read; with no time there, just 🎫. */
+function timesBtn(m) {
+  var me = m.me, can = !!timesBy(m, me.code), t = me.arrTime;
+  var lbl = 'Booked' + (t ? ', lands at ' + t : '') + (can ? (t ? ', change flight times' : ', add flight times') : t ? ', times locked' : '');
+  var inner = can || t ? '<span class="tmv"><span data-k="arrive" aria-hidden="true">🛬</span><span class="tn">' + (t ? esc(t) : '––:––') + '</span>' + dayGlyph(t) + (can ? '' : '<span data-k="timelock" aria-hidden="true">🔒</span>') + '</span>' : '';
+  return '<button class="btn pri tmb' + (timesPulse(m.id, me.code) ? ' pulse' : '') + '" data-act="mytimes" data-id="' + m.id + '" aria-label="' + esc(lbl) + '" data-lbl="' + (can ? 'Flight times' : 'Booked') + '" data-k="booked"><span aria-hidden="true">🎫</span>' + inner + '</button>';
+}
+/* right after a 🎫 (mine, or the organizer's for someone), that traveler's time entry pulses once: the bar's times button
+   and the 🛬 field in their sheet, for the length of one pulse (re-drawn in the meantime, it starts again) */
+var TIMES_PULSE_MS = 4800;
+function timesPulse(id, code) { return !!(S && S.timesPulse && S.timesPulse.id === id && S.timesPulse.code === String(code || '') && nowMs() - S.timesPulse.at < TIMES_PULSE_MS); }
+/* PIA-139: a Book hand-off (my own, or the organizer's for someone): Google Flights in a new tab, and this phone waits for
+   the way back to the app (data-ret: the trip, data-code: whose search it is), when that traveler's 🎫 invites the tap once */
+function bookLink(m, gf, cls, code) {
+  return '<a class="' + cls + '" ' + handoffAttrs(gf) + ' data-ret="' + m.id + '" data-code="' + esc(code || '') + '" aria-label="Book on Google Flights" data-lbl="Google Flights" data-k="gf"><span aria-hidden="true">✈</span> Book <span aria-hidden="true">↗</span></a>';
+}
+/* my own 🎫 beside Book: one tap marks me booked (it glows once on my return from Google Flights) */
+function myTk(m) {
+  var inv = invited(m.id, m.me && m.me.code);
+  return '<button class="btn sq' + (inv ? ' glow' : '') + '" data-act="mybook" data-id="' + m.id + '" aria-pressed="false" aria-label="' + (inv ? 'Booked? Tap to mark' : 'I booked') + '" data-lbl="I booked" data-k="mybook">🎫</button>';
+}
+/* PIA-139: calendar-plus in the nav at any dated stage (P-calendar-add): my own days, else the plan, tentative until set */
+function calBtn(m) { return handoffs(m, '', RT.hctx).calendar ? '<button class="ib" data-act="caladd" data-id="' + m.id + '" aria-label="Add to calendar" data-lbl="Add calendar" data-k="calplus">' + CALPLUS + '</button>' : ''; }
 function renderTrip(id) {
   var m = modelOf(id), x = listEntry(id) || { id: id, t: '', e: '' };
   var prim = m ? primaryAction(m, RT.today) : 'none';
-  var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + tripShareBtn(m, prim) : '') + keyBtn() + setBtn() + '</div>';
+  var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + calBtn(m) + tripShareBtn(m, prim) : '') + keyBtn() + setBtn() + '</div>';
   if (!m) return { id: 'trip-loading', html: nav + '<div class="hero">' + postcard(stubModel(x), 'lg') + '</div><h2 class="ttl" data-free>' + esc(x.t) + '</h2><div class="rowc">' + staleMark() + '</div>' };
   // the destination is one tap from the Map on every trip view (a host's too)
   var hero = '<div class="hero">' + postcard(m, 'lg', { noLock: true }) +
@@ -3754,7 +3972,7 @@ function renderTrip(id) {
     (m.caption ? '<button class="nt" data-act="cap" data-id="' + m.id + '" aria-label="Note" data-k="note"><span>📝</span></button>' : '') +
     '<div class="cap"><button class="pipbtn" data-act="stage" data-id="' + m.id + '" aria-label="' + esc(stageName(m)) + '">' + pip1(m, true) + '</button></div>' +
     '<button class="ring" data-act="ring" data-id="' + m.id + '" aria-label="Heads in" data-k="heads">' + headsRing(m) + '</button></div><h2 class="ttl" data-free>' + esc(m.title) + '</h2>';
-  var html = nav + hero + meRow(m) + dateRow(m) + mineLine(m) + answerRow(m, m.me) + peopleBoard(m) + totalRow(m) + primaryHTML(m, prim);
+  var html = nav + hero + meRow(m) + dateRow(m) + mineLine(m) + answerRow(m, m.me) + peopleBoard(m) + totalRow(m) + paidDoor(m) + primaryHTML(m, prim);
   return { id: m.org ? 'trip-organizer' : m.iHost ? 'trip-portal-host' : 'trip-portal', html: html };
 }
 /* Map and Calendar (PIA-143 / PIA-144) show the selected trip, the one Trips opened last */
@@ -3783,7 +4001,40 @@ function renderSelected(id, scope) {
   }
   var sel = selectedId(act), m = act.filter(function (x) { return x.id === sel; })[0];
   S.shown = m.id;
-  return { id: id, html: tabTop(act.length > 1 ? tripChips(act, sel) : '') + '<p class="subttl" id="sel-title" data-free>' + esc(m.title) + '</p>' + miniCard(m) };
+  return { id: id, html: tabTop(act.length > 1 ? tripChips(act, sel) : '') + '<p class="subttl" id="sel-title" data-free>' + esc(m.title) + '</p>' + miniCard(m) + (scope === 'map' ? lanesHTML(m) : '') };
+}
+/* PIA-139: the pickups under the Map's trip, one lane per labelled airport (the destination, and the hub's other airport):
+   who lands (🛬) and leaves (🛫) on which day, with the times booked travelers recorded, for everyone, hosts included (the
+   organizer's token phone also shows a cached offer's time, ≈ grey, for someone not booked yet). Arrivals at one airport
+   ≤2h apart are bracketed ⏱ as one pickup run, with how long it waits. A chip opens that day (P-day). The full map with its
+   pins and arcs is PIA-143's; these chips are the model's pickups and will hang under its pins. */
+function pickupChip(m, c, ap) {
+  var arr = c.kind === 'arr', who = c.codes.map(function (code) { var x = memberIn(m, code); return x ? faceLabel(x) : ''; }).filter(Boolean).join(', ');
+  var faces = c.faces.slice(0, 4).join('') + (c.faces.length > 4 ? '+' + (c.faces.length - 4) : '');
+  // PIA-139: only an HH:MM time is drawn, escaped (the model's pickups already refuse anything else); a booked traveler's
+  // chip carries a 🎫 corner, so a host tells "booked, no time yet" from "not booked"; a chip of one traveler opens their sheet
+  var t = typeof c.time === 'string' && HHMM_RE.test(c.time) ? c.time : '', one = c.codes.length === 1 && memberIn(m, c.codes[0]) ? c.codes[0] : '';
+  return '<button class="pk ' + (arr ? 'arr' : 'dep') + (c.maybe ? ' maybe' : '') + '" data-act="pickup" data-id="' + m.id + '" data-v="' + esc(c.date) + '"' + (one ? ' data-code="' + esc(one) + '"' : '') + ' aria-label="' +
+    esc((arr ? 'Lands ' : 'Leaves ') + ap + ' ' + md(c.date) + (t ? (c.pred ? ' about ' : ' at ') + t : '') + (c.booked ? ', booked' : '') + (who ? ', ' + who : '')) + '" data-lbl="' + (arr ? 'Arrive' : 'Leave') + '">' +
+    (arr ? '<span data-k="arrive">→🛬</span>' : '<span data-k="leave">🛫→</span>') + '<span class="tn">' + md(c.date) + '</span>' +
+    (t ? '<span class="t tn' + (c.pred ? ' pred' : '') + '">' + (c.pred ? '≈' : '') + esc(t) + '</span>' + dayGlyph(t) : '') + '<span class="pf" data-pic>' + faces + '</span>' +
+    (c.booked ? '<span class="bk" data-k="booked" aria-hidden="true">🎫</span>' : '') + '</button>';
+}
+function lanesHTML(m) {
+  var L = pickups(m, m.prices ? readFares() : {}, RT.now, false), tmin = function (x) { return +x.time.slice(0, 2) * 60 + +x.time.slice(3, 5); }, h = '';
+  Object.keys(L).forEach(function (ap) {
+    var chips = L[ap], inner = '', i = 0; if (!chips.length) return;
+    while (i < chips.length) {
+      var c = chips[i];
+      if (!c.group) { inner += pickupChip(m, c, ap); i++; continue; }
+      var grp = []; while (i < chips.length && chips[i].group === c.group) grp.push(chips[i++]);
+      var gap = tmin(grp[grp.length - 1]) - tmin(grp[0]);
+      inner += '<span class="grp"><span class="gh"><span data-k="pickup">⏱</span><span class="tn" data-k="runwait">' + Math.floor(gap / 60) + ':' + ('0' + gap % 60).slice(-2) + '</span></span>' + grp.map(function (x) { return pickupChip(m, x, ap); }).join('') + '</span>';
+    }
+    var head = ap === m.dest ? '<span class="minipin" data-k="dest"><span>' + m.emoji + '</span></span>' : '<span class="altw" data-k="altpin">' + ALTPIN + '</span>';
+    h += '<div class="lane"><span class="lh">' + head + '<b class="lc">' + esc(ap) + '</b></span><div class="cl">' + inner + '</div></div>';
+  });
+  return h ? '<div class="lanes" id="lanes-' + m.id + '">' + h + '</div>' : '';
 }
 /* the Trips tab carries a numeral: trips waiting on my answer or holding answers I have not seen */
 function renderTabbar() {
@@ -3864,10 +4115,12 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
    back on the control that opened it. ---- */
 var SHEETS = {};
 var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
-  edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day' };   // each sheet's accessible name
+  edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
+  caladd: 'Add to calendar' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
+  if (sh.type === 'caladd') return 'P-calendar-add';   // PIA-139: the spec's name
   return 'P-' + sh.type;
 }
 /* a screen reader hears which step of the create sheet it is on (its step dots are pictures only) */
@@ -3900,9 +4153,11 @@ function keyEntries(roots) {
   });
   return groups;
 }
+/* PIA-139: a glyph with two meanings on one screen (🎫: the Booking stage and the I-booked button) reads both: "Booking · I booked" */
+function keyLabel(g) { var out = []; (g.keys || [g.k]).forEach(function (k) { var l = LEGEND[k] && LEGEND[k][1]; if (l && out.indexOf(l) < 0) out.push(l); }); return out.join(' · '); }
 function keyPages(groups) {
   var pages = [], cur = [], w = 0;
-  groups.forEach(function (g) { var n = LEGEND[g.k][1].split(/\s+/).length; if (w + n > 18 && cur.length) { pages.push(cur); cur = []; w = 0; } cur.push(g); w += n; });
+  groups.forEach(function (g) { var n = keyLabel(g).split(/\s+/).filter(function (x) { return /\p{L}/u.test(x); }).length; if (w + n > 18 && cur.length) { pages.push(cur); cur = []; w = 0; } cur.push(g); w += n; });
   if (cur.length) pages.push(cur);
   return pages.length ? pages : [[]];
 }
@@ -3912,7 +4167,7 @@ SHEETS.key = function (sh) {
   var pages = keyPages(L.keys);
   L.page = Math.max(0, Math.min(L.page || 0, pages.length - 1));
   var h = shHd('ⓘ', { right: pages.length > 1 ? '<button class="ib" data-act="kpage" data-v="-1" aria-label="Previous page"' + (L.page ? '' : ' disabled') + '>◀</button><span class="tn" style="font-size:14px">' + (L.page + 1) + '/' + pages.length + '</span><button class="ib" data-act="kpage" data-v="1" aria-label="Next page"' + (L.page < pages.length - 1 ? '' : ' disabled') + '>▶</button>' : '' });
-  h += '<div class="legend">' + pages[L.page].map(function (g) { return '<div class="li" data-keys="' + g.keys.join(' ') + '"><span class="gl">' + LEGEND[g.k][0] + '</span><span>' + LEGEND[g.k][1] + '</span></div>'; }).join('') + '</div>';
+  h += '<div class="legend">' + pages[L.page].map(function (g) { return '<div class="li" data-keys="' + g.keys.join(' ') + '"><span class="gl">' + LEGEND[g.k][0] + '</span><span>' + keyLabel(g) + '</span></div>'; }).join('') + '</div>';
   h += '<div class="rowc"><button class="tool" data-act="settings" aria-label="Settings">⚙</button></div>';
   return h;
 };
@@ -4026,7 +4281,9 @@ function errInfo(code) {
     no_kv: ['⚠', 'Sharing unavailable', true], bad_body: ['⚠', 'Not saved', true], bad_id: ['⚠', 'Link broken', false],
     answer_first: ['🎫⚠', 'Answer first', false], bad_decision: ['⚠', 'Not saved', false], too_large: ['⚠', 'Too long', false],
     // PIA-138: a date move held back on the fresh record (another phone locked the dates, or someone booked meanwhile)
-    locked: ['🔒', 'Dates locked', false], booked: ['⚠🎫', 'Someone booked', false]
+    locked: ['🔒', 'Dates locked', false], booked: ['⚠🎫', 'Someone booked', false],
+    // PIA-139: 💵 held back on the fresh record (a 🎫 was taken away meanwhile)
+    unbooked: ['🎫⚠', 'Not everyone booked', false]
   })[code] || ['⚠', 'Not saved', true];
 }
 SHEETS.error = function (sh) {
@@ -4523,9 +4780,14 @@ function legRows(m, x, edit, links) {
       if (no) return '<button class="tool dis" ' + b + ' aria-disabled="true" data-why="1" aria-label="' + lbl + ', ' + no[1] + '" data-lbl="' + no[1] + '" data-k="' + no[2] + '">' + no[0] + '</button>';
       return '<button class="tool' + (arm ? ' arm' : '') + '" ' + b + ' aria-label="' + (arm ? 'Confirm move' : lbl) + '"' + (arm ? ' data-lbl="Confirm move"' : '') + ' data-k="shift">' + (arm ? '⚠🎫' : k < 0 ? '−1' : '+1') + '</button>';
     };
+    // PIA-139: a booked time shows beside its day wherever it cannot be typed here (the times row below takes it otherwise),
+    // with its ☀ / 🌃; once 💵 froze the answers it carries 🔒 (a long press says why). A time left behind without a 🎫 is not shown.
+    var tm = x.booked ? (r[0] ? x.depTime : x.arrTime) : '', lockT = m.closed;
+    var tmv = tm && !timesBy(m, x.code) ? '<span class="lt" role="img" aria-label="' + (r[0] ? 'Leaves at ' : 'Lands at ') + tm + (lockT ? ', times locked' : '') + '" data-lbl="' + (lockT ? 'Times locked' : r[0] ? 'Leaves at' : 'Lands at') + '"><span class="tn">' + esc(tm) + '</span>' + dayGlyph(tm) +
+      (lockT ? '<span data-k="timelock" aria-hidden="true">🔒</span>' : '') + '</span>' : '';
     h += '<div class="leg" style="--pc:var(--p' + x.color + ')">' +
       (one ? '<a class="lg1" ' + handoffAttrs(one) + ' aria-label="' + r[6] + ' search" data-k="' + r[5] + '">' + r[1] + '↗</a>' : '<span class="lg0" data-k="' + r[5] + '">' + r[1] + '</span>') +
-      day + (edit ? step(-1) + step(1) : '') + drive +
+      day + tmv + (edit ? step(-1) + step(1) : '') + drive +
       (cells ? '<span class="radg" role="radiogroup" aria-label="' + r[6] + '">' + hub.map(function (a) {
         return '<button class="rad" role="radio" aria-checked="' + (r[4] === a) + '" data-act="legair" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + r[0] + '" data-v="' + a + '" aria-label="' + r[6] + ' ' + a + '"><i></i></button>';
       }).join('') + '</span>' : '<b class="lc">' + esc(r[4]) + '</b>') + '</div>';
@@ -4573,23 +4835,187 @@ SHEETS.person = function (sh) {
     // where they fly from can be set as soon as they answer, dated or not; the legs need the days
     if (edit) h += originRow(m, x, L);
     if (x.d1 && (!x.bad || edit)) h += legRows(m, x, edit, links);   // PIA-138: reversed days (⚠) can be fixed from here
+    if (timesBy(m, x.code)) h += timesRow(m, x, L);   // PIA-139: once booked, the times they land and leave (saved as the sheet closes)
   }
   if (canAct && (!isMe || sh.p.outside)) h += answerRow(m, x, { proxy: !isMe });
   var fw = firstWords(x.noteText, 8);
   if (x.noteText) h += '<button class="notep" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Note"><span data-k="note">📝</span><span>' + esc(fw.text) + (fw.more ? '…' : '') + '</span></button>';
   else if (canAct && x.resp) h += '<button class="notep" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Add note"><span data-k="note">📝</span><span aria-hidden="true">＋</span></button>';
-  if (links && x.traveler) {
-    if (ho.flighty) h += '<a class="btn pri wide" ' + handoffAttrs(ho.flighty) + ' aria-label="Flighty" data-k="flighty">✈⏱↗</a>';
-    else if (ho.gf) h += '<a class="btn pri wide" ' + handoffAttrs(ho.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>';
-  }
-  if (isMe && x.booked && !m.closed) {
-    var arm = armed(armKey(m.id, x.code, 'un'));
-    h += '<div class="rowc"><button class="tool' + (arm ? ' arm' : '') + '" data-act="unbook" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="true" aria-label="' + (arm ? 'Confirm not booked' : 'Booked') + '" data-k="booked">🎫' +
-      (arm ? '<span class="cfm" aria-hidden="true">↩</span>' : '') + '</button></div>';
-  }
+  if (links && x.traveler) h += bookRow(m, x, ho);
   if (ho.nudge && !m.closed) h += '<button class="btn wide" data-act="nudge" data-id="' + m.id + '" data-code="' + esc(x.code) + '"><span data-k="share">📣</span> Share</button>';
   return h;
 };
+/* PIA-139: one traveler's hand-off slot (bookSlot): their ✈↗ before the dates are set; [✈ Book ↗ | 🎫] once they are; after
+   their 🎫, [✈⏱↗ Flighty | 🎫]. My own 🎫 marks me in one tap and takes it back with a second; the organizer's for someone
+   else is bookToggle's (a confirming tap for someone waiting or out, and for taking it away) */
+function bookRow(m, x, ho) {
+  var bs = bookSlot(m, x.code, RT.today), tk = '';
+  if (bs.tk === 'self' && x.booked) {
+    // taking my 🎫 back asks for a second tap, which waits until another control is tapped or the sheet closes (🎫↩? says so)
+    var arm = armed(armKey(m.id, x.code, 'un'));
+    tk = '<button class="btn sq tkon' + (arm ? ' arm' : '') + '" data-act="unbook" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="true" aria-label="' + (arm ? 'Confirm not booked' : 'Booked, tap twice to take back') + '" data-lbl="' + (arm ? 'Confirm not booked' : 'Booked') + '" data-k="booked">🎫' +
+      (arm ? '<span class="cfm" aria-hidden="true">↩</span>' : '') + '</button>';
+  } else if (bs.tk === 'self') tk = myTk(m);
+  else if (bs.tk === 'org') {
+    var t = bookToggle(m, x.code), ak = armed(armKey(m.id, x.code, 'tk')), lbl = ak ? (t.on ? 'Confirm not booked' : 'Confirm booked') : 'Booked';
+    tk = '<button class="btn sq' + (t.on ? ' tkon' : ' tkoff') + (ak ? ' arm' : '') + (!t.on && invited(m.id, x.code) ? ' glow' : '') + '" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="' + t.on + '" aria-label="' + esc(lbl + ', ' + faceLabel(x)) + '" data-lbl="' + lbl + '" data-k="booked">' +
+      '<span class="tkg">🎫</span>' + (ak ? '<span class="cfm" aria-hidden="true">' + (t.on ? '↩' : '✓') + '</span>' : '') + '</button>';
+  }
+  var flighty = ho.flighty ? '<a class="btn pri' + (tk ? '' : ' wide') + '" ' + handoffAttrs(ho.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight" data-k="flighty">✈⏱↗</a>' : '';
+  if (bs.slot === 'booked') return tk ? '<div class="split">' + flighty + tk + '</div>' : flighty;
+  // no Google Flights link: the same reason the trip view's primary gives (past days, no dates, no home airport…)
+  if (bs.slot === 'book') return '<div class="split">' + (ho.gf ? bookLink(m, ho.gf, 'btn pri', x.code) : noFlightHTML(ho.why, 'pri')) + tk + '</div>';
+  return ho.gf ? '<a class="btn pri wide" ' + handoffAttrs(ho.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : '';
+}
+/* PIA-139: the times a booked traveler lands (🛬) and leaves (🛫), as HH:MM, for the pickups on everyone's map. Typed here
+   (by them, or by the organizer for them) and saved as the sheet closes (or on ↵), inside one complete answer: their note's
+   text, days, airports and 🎫 stay. A time that is not HH:MM is marked ⚠ and is not sent. */
+function timesRow(m, x, L) {
+  var T = L.times && L.times.code === x.code ? L.times : null, cur = { arr: x.arrTime, dep: x.depTime };
+  var fld = function (k, glyph, lbl) {
+    var typed = !!T && T[k] != null, v = typed ? T[k] : cur[k], got = typed ? typedOf(T, k, cur[k]) : cur[k];
+    // right after the 🎫, the 🛬 field invites the time once; the field reads back its half of the day (☀ / 🌃)
+    var inv = k === 'arr' && !typed && !cur.arr && timesPulse(m.id, x.code);
+    return '<span class="fld tiny' + (typed && timeBad(L, k) ? ' bad' : '') + (inv ? ' invite' : '') + '"><label for="tm-' + k + '" data-k="' + (k === 'arr' ? 'arrive' : 'leave') + '" aria-hidden="true">' + glyph + '</label><input id="tm-' + k + '" data-code="' + esc(x.code) + '" data-sel="1" aria-label="' + lbl + '" inputmode="numeric" maxlength="8" autocomplete="off" spellcheck="false" placeholder="––:––" value="' + esc(v) + '">' +
+      '<span class="dpw" id="dp-' + k + '">' + (got ? dayGlyph(got) : '') + '</span></span>';
+  };
+  return '<div class="rowc nw times">' + fld('arr', '🛬', 'Lands at, 24-hour') + fld('dep', '🛫', 'Leaves at, 24-hour') + '</div>' + halvesHTML(L, cur);
+}
+/* a typed time is marked ⚠ once its field was left (or a close held it) and it is not a time and not waiting for its half */
+function timeBad(L, k) {
+  var T = L.times; if (!T || T[k] == null || !(L.timesAsk && L.timesAsk[k])) return false;
+  return typedOf(T, k, null) === null && !timeHalves(T[k]);
+}
+/* what a typed time field holds: undefined untouched, its own saved time when retyped as it was, the HH:MM picked between the
+   two readings (☀ / 🌃), else typedTime's reading (null: not a time yet: bad, or waiting for its half) */
+function typedOf(T, k, cur) {
+  var v = T ? T[k] : null; if (v == null) return undefined;
+  if (v === cur) return cur;
+  return T.ok && T.ok[k] === v ? v : typedTime(v);
+}
+/* PIA-139: an hour 1–12 typed with no leading 0 ('310', '1105') could be either half of the day, so once its field is left
+   (or ↵, or a close) the times row offers both readings, [☀ 15:10 | 🌃 03:10] by their own glyph (numerals and glyphs: no
+   words); one tap puts it in the field. One field at a time (🛬 first). Hidden while nothing waits, and while typing. */
+function halvesHTML(L, cur) {
+  var T = L.times, ask = L.timesAsk || {};
+  var k = T ? ['arr', 'dep'].filter(function (q) { return ask[q] && T[q] != null && T[q] !== cur[q] && !(T.ok && T.ok[q] === T[q]) && !!timeHalves(T[q]); })[0] : '';
+  var hv = k ? timeHalves(T[k]) : null;
+  if (!hv) return '<div class="rowc nw halves" id="tm-half" data-sig="" hidden></div>';
+  var b = function (half, t) { return '<button class="tool half" role="radio" aria-checked="false" data-act="tmhalf" data-end="' + k + '" data-v="' + half + '" aria-label="' + (dayPart(t) === 'day' ? 'Daytime ' : 'Night ') + t + '">' + dayGlyph(t) + '<span class="tn">' + t + '</span></button>'; };
+  // daytime first: the reading most flights mean
+  var pair = dayPart(hv.am) === 'day' ? [['am', hv.am], ['pm', hv.pm]] : [['pm', hv.pm], ['am', hv.am]];
+  return '<div class="rowc nw halves" id="tm-half" data-sig="' + k + '|' + esc(T[k]) + '" role="radiogroup" aria-label="' + (k === 'arr' ? 'Lands' : 'Leaves') + ', which half of the day">' + b(pair[0][0], pair[0][1]) + b(pair[1][0], pair[1][1]) + '</div>';
+}
+/* the times row redrawn around the field being typed in: the ☀ / 🌃 each field reads back, and the pick between halves */
+function syncTimes(sh) {
+  var L = sh.local, T = L.times, m = modelOf(sh.p.id), x = T && memberIn(m, T.code); if (!x) return;
+  var cur = { arr: x.arrTime, dep: x.depTime };
+  ['arr', 'dep'].forEach(function (k) {
+    var g = document.getElementById('dp-' + k), got = T[k] != null ? typedOf(T, k, cur[k]) : cur[k]; if (g) g.innerHTML = got ? dayGlyph(got) : '';
+    var f = document.getElementById('tm-' + k), w = f && f.closest ? f.closest('.fld') : null; if (w) w.classList.toggle('bad', timeBad(L, k));
+  });
+  // replaced only when what it offers changes: a pick being tapped (its press moves the focus) keeps its button
+  var hr = document.getElementById('tm-half'); if (!hr) return;
+  var tmp = document.createElement('div'); tmp.innerHTML = halvesHTML(L, cur);
+  var nw = tmp.firstChild; if (nw && nw.getAttribute && nw.getAttribute('data-sig') !== hr.getAttribute('data-sig')) hr.parentNode.replaceChild(nw, hr);
+}
+/* a time field left (another field, a button, the scrim): it now says what it holds, ⚠ or the pick between halves */
+function timesLeft(t, to) {
+  var sh = S && S.sheet; if (!sh || sh.type !== 'person' || !t || (t.id !== 'tm-arr' && t.id !== 'tm-dep')) return;
+  var L = sh.local; if (!L.times) return;
+  L.timesAsk = L.timesAsk || {}; L.timesAsk[t.id === 'tm-arr' ? 'arr' : 'dep'] = true;
+  // left for a button or link in the sheet: its tap lands first (the row the pick adds would move it), then the row says so
+  var go = function () { if (S.sheet === sh) syncTimes(sh); };
+  if (to && to.closest && to.closest('#sheet') && /^(?:BUTTON|A)$/.test(to.tagName || '')) later(go, 300); else go();
+}
+/* a sheet closing (⌄, ‹, the scrim, Back) with a typed time that cannot go yet (not a time, or still waiting for ☀ / 🌃) stays
+   open once: the field is marked ⚠ and focused, and the toast says which (🛬⚠, or 🛬☀🌃?). The next close lets it go, unsent. */
+function timesHold(sh, fromPop) {
+  var L = sh && sh.type === 'person' ? sh.local : null, T = L && L.times; if (!T) return true;
+  var m = modelOf(sh.p.id), x = memberIn(m, T.code); if (!x || !timesBy(m, T.code)) return true;
+  var cur = { arr: x.arrTime, dep: x.depTime }, wait = ['arr', 'dep'].filter(function (k) { return T[k] != null && typedOf(T, k, cur[k]) === null; });
+  if (!wait.length) return true;
+  var sig = wait.map(function (k) { return k + '=' + T[k]; }).join('|');
+  if (L.timesHeld === sig) return true;
+  L.timesHeld = sig; L.timesAsk = L.timesAsk || {}; wait.forEach(function (k) { L.timesAsk[k] = true; });
+  if (fromPop) { try { history.pushState({ pialaxSheet: 1 }, ''); S.histPushed = true; } catch (e) { /* no history */ } }
+  renderSheet(false); focusId('tm-' + wait[0]);
+  toast((wait[0] === 'arr' ? '🛬' : '🛫') + (timeHalves(T[wait[0]]) ? '☀🌃?' : '⚠'));
+  return false;
+}
+/* the times typed in a P-person go as it closes (or on ↵): one complete answer rebuilt from the fresh record (timesRequest:
+   the note's text, days, airports and 🎫 kept), by the person (their 📞 cleared) or by the organizer for them (📞 kept).
+   A time that is not one yet is not sent (⚠ toast); one that would leave the note no room says "Too long". o.flush (the page
+   hidden while the sheet is open): what can go goes now, and a time still waiting stays typed in the sheet, unsent and unsaid. */
+function saveTimes(sh, o) {
+  o = o || {};
+  var L = sh && sh.type === 'person' ? sh.local : null, T = L && L.times; if (!T) return null;
+  var id = sh.p.id, code = T.code, m = modelOf(id), x = memberIn(m, code), by = x ? timesBy(m, code) : '';
+  var cur = { arr: x ? x.arrTime : '', dep: x ? x.depTime : '' }, arr = typedOf(T, 'arr', cur.arr), dep = typedOf(T, 'dep', cur.dep);
+  var badA = arr === null, badD = dep === null, bad = badA || badD;
+  L.times = o.flush && bad ? { code: code, arr: badA ? T.arr : null, dep: badD ? T.dep : null, ok: T.ok } : null;
+  if (!o.flush) { L.timesHeld = null; L.timesAsk = null; }
+  // the traveler is no longer booked here (their 🎫 taken back on another phone meanwhile, or 💵 recorded): nothing can go
+  if (!by) { if (!o.flush && ((arr && arr !== cur.arr) || (dep && dep !== cur.dep) || bad)) toast('🎫⚠'); return null; }
+  if (badA) arr = undefined;
+  if (badD) dep = undefined;
+  if (bad && !o.flush) toast((badA ? '🛬' : '🛫') + '⚠');
+  if ((arr === undefined || arr === cur.arr) && (dep === undefined || dep === cur.dep)) return null;
+  if (!timesRequest(DOCS[id], code, arr, dep, by)) { if (!bad && !o.flush) showError('too_large'); return null; }
+  if (by === 'self') confirmHinted(id, code);
+  return freshWrite(id, function (doc) { var q = timesRequest(doc, code, arr, dep, by); return q ? [q] : null; }).then(function (r) {
+    if (!r.ok) showError(r.code, r.retry); else if (!bad && !o.flush) toast((arr ? '🛬' : '') + (dep ? '🛫' : '') + '✓');
+    return r;
+  });
+}
+/* the page hidden (the app switcher, another app, a call) with a person's sheet open: the times typed there go now, so a
+   page the phone discards meanwhile loses nothing that could already go */
+function flushTimes() { for (var s = S && S.sheet; s; s = s.back) if (s.type === 'person') saveTimes(s, { flush: true }); }
+/* PIA-139: a Book hand-off was tapped (an <a data-ret>): this phone waits for the traveler to come back from Google Flights.
+   Back (the page shown again, or focused, after it was hidden or lost focus), the 🎫 beside Book glows: it invites the tap
+   once, for INVITE_MS, and a tap on it (or the time running out) ends it. A Book tap waits RET_MS at most. */
+var INVITE_MS = 8000, RET_MS = 3 * 36e5, inviteTimer = null;
+/* PIA-139: a Book tap that does not leave the app within LEAVE_MS (the hand-off opened nothing, a background tab) is dropped,
+   as it is on the next tap in the app, so a later unrelated trip away (📣's share sheet, another app) invites nothing. A Book
+   tap that did leave is kept in this tab's sessionStorage (RET_KEY {id, code, at}), so a page the phone discarded while
+   Google Flights was open still invites the tap once when it loads again. */
+var LEAVE_MS = 8000, RET_KEY = 'pialax_ret_v2';
+function retKeep(r) { try { if (r) sessionStorage.setItem(RET_KEY, JSON.stringify({ id: r.id, code: r.code, at: r.at })); else sessionStorage.removeItem(RET_KEY); } catch (e) { /* session storage is optional */ } }
+function bookOut(id, code) {
+  if (!S || !IDEA_ID_RE.test(String(id || ''))) return;
+  S.ret = { id: String(id), code: MEMBER_CODE_RE.test(String(code || '')) ? String(code) : '', away: !pageVisible(), at: nowMs() };
+  if (S.ret.away) retKeep(S.ret);
+}
+function bookAway() {
+  var r = S && S.ret; if (!r || r.away) return;
+  if (nowMs() - r.at > LEAVE_MS) { S.ret = null; retKeep(null); return; }   // it never left: a later trip away is not a return
+  r.away = true; retKeep(r);
+}
+function bookBack() {
+  var r = S && S.ret; if (!r || !r.away || !pageVisible()) return false;
+  S.ret = null; retKeep(null);
+  if (nowMs() - r.at > RET_MS) return false;
+  inviteFor(r.id, r.code);
+  render(true, true);
+  return true;
+}
+function inviteFor(id, code) {
+  S.invite = { id: id, code: code, at: nowMs() };
+  clearTimeout(inviteTimer);
+  inviteTimer = setTimeout(function () { if (S.invite && S.invite.id === id) { S.invite = null; render(true, true); } }, INVITE_MS);
+  if (inviteTimer && typeof inviteTimer.unref === 'function') inviteTimer.unref();   // (Node test runs only)
+}
+/* boot: this tab's page was reloaded (discarded by the phone) while a Book tap was away: the return happens now, once */
+function bookResume() {
+  var raw = null; try { raw = sessionStorage.getItem(RET_KEY); } catch (e) { raw = null; }
+  if (!raw) return false;
+  retKeep(null);
+  var r = jparse(raw), age = plainObj(r) && typeof r.at === 'number' ? nowMs() - r.at : -1;
+  if (!plainObj(r) || !IDEA_ID_RE.test(String(r.id)) || age < 0 || age > RET_MS) return false;
+  inviteFor(String(r.id), MEMBER_CODE_RE.test(String(r.code || '')) ? String(r.code) : '');
+  return true;
+}
+function invited(id, code) { return !!(S && S.invite && S.invite.id === id && S.invite.code === String(code || '') && nowMs() - S.invite.at < INVITE_MS); }
 /* P-stage: the five stages by name (the trip's own one enlarged), ⭐ pin it in my list, 🗄 hide it on this phone */
 SHEETS.stage = function (sh) {
   var m = modelOf(sh.p.id), e = listEntry(sh.p.id) || {}, h = shHd(m ? pip1(m, true) : '');
@@ -4600,7 +5026,62 @@ SHEETS.stage = function (sh) {
     return '<div class="srow ' + c + '"><span class="pip ' + c + '" data-k="st-' + s[0] + '"><span>' + s[1] + '</span></span><span>' + s[2] + '</span></div>';
   }).join('') + '</div>';
   return h + '<div class="rowc stagetools"><button class="tool" data-act="star" data-id="' + m.id + '" aria-pressed="' + !!e.pin + '" aria-label="Pin" data-k="star">' + (e.pin ? '⭐' : '☆') + '</button>' +
-    '<button class="tool" data-act="hidehere" data-id="' + m.id + '" aria-pressed="' + !!e.arch + '" aria-label="Hide here" data-k="hidehere">🗄</button></div>';
+    '<button class="tool" data-act="hidehere" data-id="' + m.id + '" aria-pressed="' + !!e.arch + '" aria-label="Hide here" data-k="hidehere">🗄</button></div>' + paidRow(m, sh.local);
+};
+/* PIA-139: 💵 what the trip cost, on the organizer's token phone only (paidCheck). Recorded once every traveler has booked
+   (🏁 Done): before that the 💵 is shown greyed with the faces still to book, and a tap says why. Paying closes the trip's
+   answers (the Worker takes none on a paid trip), so with anyone not answered yet (a host, in by default) Save asks for a
+   confirming tap, their faces beside it. Once paid it reads 💵 $905. */
+function paidRow(m, L) {
+  var pc = paidCheck(m), faces = function (codes, n) { return codes.slice(0, n).map(function (c) { var x = memberIn(m, c); return x ? x.face : ''; }).join('') + (codes.length > n ? '+' + (codes.length - n) : ''); };
+  var names = function (codes) { var n = codes.slice(0, 3).map(function (c) { var x = memberIn(m, c); return x ? faceLabel(x) : ''; }).filter(Boolean).join(', '); return n + (codes.length > 3 ? ' +' + (codes.length - 3) : ''); };
+  if (pc.why === 'closed') {
+    if (m.paid == null || !m.prices) return '';
+    // PIA-139: a paid amount can be entered again on his token phone (✎: a typo fixed), one more booked decision
+    if (pc.again && L.paidEdit) return paidField(m, L, false);
+    return '<div class="rowc nw"><div class="paidv" role="img" aria-label="' + esc('Paid ' + money(m.paid)) + '" data-lbl="Paid" data-k="paid"><span aria-hidden="true">💵</span><span class="tn">' + money(m.paid) + '</span></div>' +
+      (pc.again ? '<button class="tool" data-act="paidedit" data-id="' + m.id + '" aria-label="Change amount paid" data-lbl="Change amount" data-k="edit">✎</button>' : '') + '</div>';
+  }
+  if (pc.why === 'unbooked' || pc.why === 'nodates') {
+    var why = pc.why === 'unbooked' ? 'Not everyone booked' : 'No dates';
+    return '<div class="rowc"><button class="tool wordy dis" data-act="paidwhy" aria-disabled="true" data-why="1" aria-label="' + esc('Paid, ' + why.toLowerCase()) + '" data-lbl="' + why + '" data-k="paid">💵' +
+      (pc.why === 'unbooked' ? '<span class="uf" aria-hidden="true">' + faces(pc.unbooked, 6) + '</span>' : '') + '</button></div>';
+  }
+  if (pc.why) return '';
+  // PIA-139: paying closes the trip's answers and freezes every flight time (the Worker takes no answer on a paid trip), so
+  // Save always asks for a second tap: ⚠ with who has not answered, 🛬 with who has no landing time yet, 🔒; the amount reads
+  // back as dollars. The confirm is the app's own (it lapses, another tap puts it back) and a quick double tap is one tap.
+  var arm = armed(armKey(m.id, '', 'paid'));
+  var ask = arm ? '<div class="rowc nw paidask"><span class="w paidw" role="img" aria-label="' + esc('Closes answers and flight times' + (pc.unanswered.length ? '; no answer from ' + names(pc.unanswered) : '') + (pc.notimes.length ? '; no landing time from ' + names(pc.notimes) : '')) + '" data-lbl="Closes answers" data-k="closes">⚠' +
+    '<span aria-hidden="true">' + faces(pc.unanswered, 3) + (pc.notimes.length ? '<span data-k="arrive">🛬</span>' + faces(pc.notimes, 3) : '') + '🔒</span></span></div>' : '';
+  return ask + paidField(m, L, arm);
+}
+/* the 💵 field and its Save (Confirm while asking; ◷ while it is out; ⚠↻ after a failure) */
+function paidField(m, L, arm) {
+  var busy = !!L.paidBusy, bad = !!L.paidBad, failed = !!L.paidFailed;
+  return '<div class="rowc nw paidrow"><span class="fld' + (bad ? ' bad' : '') + '"><label for="paid-amt" data-k="paid" aria-hidden="true">💵</label><input id="paid-amt" aria-label="Paid in all, in dollars" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="$" value="' + esc(L.amt || '') + '"></span>' +
+    '<button class="btn pri paidb' + (arm ? ' arm' : '') + '" data-act="paidsave" data-id="' + m.id + '"' + (busy ? ' aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving"' : failed ? ' aria-label="Retry" data-lbl="Retry"' : '') + '>' +
+    (busy ? '◷' : failed ? '⚠↻' : arm ? 'Confirm' : 'Save') + '</button></div>';
+}
+/* PIA-139: at 🏁 Done on the organizer's token phone, the trip view itself opens 💵 (P-stage, the field focused) */
+function paidDoor(m) {
+  return paidCheck(m).why === '' ? '<div class="rowc"><button class="btn wide" data-act="paidopen" data-id="' + m.id + '" aria-label="Record what we paid" data-lbl="Paid" data-k="paid"><span aria-hidden="true">💵</span> <span aria-hidden="true">＋</span></button></div>' : '';
+}
+/* PIA-139: P-calendar-add: hold the trip in the phone's own calendar. A mini postcard and the days (my own, else the plan;
+   a '?' corner while they are not final), then [📅 .ics] (an all-day event file for Apple Calendar and most apps, from a
+   data: URL) and [↗ Google] (Google Calendar's own form, in a new tab). Both come from calendarAdd: the only link inside is
+   the guest /i/<id> link, never an edit key or the token. */
+SHEETS.caladd = function (sh) {
+  var m = modelOf(sh.p.id), h = shHd('<span class="calh" data-k="calplus">' + CALPLUS + '</span>');
+  var c = m ? handoffs(m, '', RT.hctx).calendar : null;
+  if (!c) return h;
+  var days = md(c.d1) + '–' + md(c.d2);
+  h += '<div class="calcard"><span class="calpc">' + postcard(m, '', { noLock: true }) + (c.tentative ? '<span class="tq" data-k="tentative">?</span>' : '') + '</span>' +
+    '<span class="caldays' + (c.tentative ? '' : ' set') + '" role="img" aria-label="' + esc(days + (c.tentative ? ', not final' : '')) + '"><span class="tn">' + days + '</span>' + (c.tentative ? '' : ' <span data-k="lock">🔒</span>') + '</span></div>';
+  // PIA-139: 📅 (the phone's own calendar: Apple Calendar opens the file); each link's spoken name starts with what it shows
+  // (WCAG 2.5.3), and a tap says it happened (📅✓ / ↗✓), since a download is silent in the page
+  return h + '<div class="split two"><a class="btn" href="' + esc('data:' + c.ics.mime + ',' + encodeURIComponent(c.ics.text)) + '" download="' + esc(c.ics.filename) + '" data-cal="ics" aria-label=".ics calendar file, for Apple Calendar" data-lbl="Calendar file" data-k="ics"><span aria-hidden="true">📅</span> .ics</a>' +
+    '<a class="btn" ' + handoffAttrs(c.google) + ' data-cal="gcal" aria-label="Google Calendar" data-lbl="Google Calendar" data-k="gcal"><span aria-hidden="true">↗</span> Google</a></div>';
 };
 /* one person's note: ≤20 words (typing stops there), written by them, or by the organizer for them (marked 📞); everyone
    else reads it. It saves as the sheet closes, inside one complete answer (their days, airports and origin go back as
@@ -5234,6 +5715,22 @@ function onTyped(t) {
   } else if (t.id === 'note-text' && L.edit) {
     L.text = takeTyped(t, L.text, CAPTION_WORDS, L, function () { pulseEl(t, 'pulsefld'); });
     var c = $('#note-count .tn'); if (c) c.textContent = wordsIn(L.text) + '/' + CAPTION_WORDS;
+  } else if ((t.id === 'tm-arr' || t.id === 'tm-dep') && S.sheet.type === 'person') {
+    // PIA-139: a booked time: digits and a colon only (no letter, so a typed value is never a word); kept until the sheet goes.
+    // An am / pm typed with it ('6:05 pm', '6p') decides its half at once: the field becomes the 24-hour time (18:05).
+    var tk2 = t.id === 'tm-arr' ? 'arr' : 'dep', hit = /[ap]/i.test(t.value) ? typedTime(t.value) : null;
+    var tv = hit || t.value.replace(/[^0-9:]/g, '').slice(0, 5); if (tv !== t.value) t.value = tv;
+    if (!L.times || L.times.code !== t.dataset.code) L.times = { code: t.dataset.code, ok: {} };
+    L.times[tk2] = tv; L.times.ok = L.times.ok || {}; if (hit) L.times.ok[tk2] = hit;
+    if (L.timesAsk) L.timesAsk[tk2] = false;   // while typing, no ⚠ and no pick between halves
+    L.timesHeld = null;
+    syncTimes(S.sheet);
+  } else if (t.id === 'paid-amt' && S.sheet.type === 'stage') {
+    var pv = t.value.replace(/[^0-9$.,]/g, '').slice(0, 12); if (pv !== t.value) t.value = pv;
+    L.amt = pv; L.paidBad = false; L.paidFailed = false;
+    var pf = t.closest('.fld'); if (pf) pf.classList.remove('bad');
+    // PIA-139: a new amount puts back a confirm that was asked for the old one
+    if (S.armTk && /\|paid$/.test(S.armTk)) { disarm(); renderSheet(false); }
   }
 }
 function focusId(id) { var f = document.getElementById(id); if (f) { try { f.focus({ preventScroll: true }); var n = String(f.value || '').length; if (f.setSelectionRange) f.setSelectionRange(n, n); } catch (e) { /* not focusable */ } } }
@@ -5256,7 +5753,7 @@ function renderSheet(first) {
   fitNames(el, function () { return countWords(el); }, 20);
   if (first) { el.classList.remove('open'); void el.offsetWidth; el.classList.add('open'); el.scrollTop = 0; }
   var f = fid ? document.getElementById(fid) : findCtl(el, sig);
-  if (f) { f.focus({ preventScroll: true }); if (sel && f.setSelectionRange) { try { f.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } } }
+  if (f) { S.refocusing = true; try { f.focus({ preventScroll: true }); } finally { S.refocusing = false; } if (sel && f.setSelectionRange) { try { f.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } } }
   else if (first) { var fe = sh.focus ? document.getElementById(sh.focus) : null; (fe || el).focus({ preventScroll: true }); }
 }
 /* the screen and tab bar behind an open sheet take no focus, taps or screen-reader reading (aria-modal plus inert) */
@@ -5293,9 +5790,11 @@ function openSheet(type, p, o) {
 function closeSheet(fromPop) {
   if (!S.sheet) return;
   if (!leaveNote(S.sheet, fromPop)) return;   // PIA-136: a caption saves as its sheet closes (a longer v1 text asks twice)
+  if (!timesHold(S.sheet, fromPop)) return;   // PIA-139: a typed time that cannot go yet keeps the sheet open once
   var lost = null;
   var dated = false, picked = null;
   for (var s = S.sheet; s; s = s.back) {
+    if (s.type === 'person') saveTimes(s);   // PIA-139: booked times typed in a person's sheet go as it closes
     keepDraft(s); if (s.type === 'new' && draftWorth(s.local.d)) lost = s.local.d;
     if (s.type === 'dates') { dated = true; if (!picked && datesUnsaved(s)) picked = s; }   // PIA-138: a pick not saved
   }
@@ -5326,7 +5825,8 @@ function sheetBack() {
   var b = S.sheet && S.sheet.back;
   if (!b) { closeSheet(); return; }
   if (!leaveNote(S.sheet, false)) return;
-  keepDraft(S.sheet);
+  if (!timesHold(S.sheet, false)) return;
+  keepDraft(S.sheet); saveTimes(S.sheet);
   S.sheet = b; render(true); renderSheet(true);
 }
 /* P-error by code. It never replaces an open sheet: it waits until that sheet closes, then opens. retry (a write that
@@ -5338,16 +5838,19 @@ function showError(code, retry) {
 }
 /* a control that asks for a confirming tap (a 🎫 for someone waiting or out, taking a 🎫 away, Out on someone booked):
    the first tap arms it for a few seconds; any other tap, a sheet closing or another trip opening disarms it */
-var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1, shift: 1, legshift: 1 }, armTimer = null;   // PIA-138: ±1 once anyone booked
+var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1, shift: 1, legshift: 1, paidsave: 1 }, armTimer = null;   // PIA-138: ±1 once anyone booked; PIA-139: 💵
 function armKey(id, code, what) { return id + '|' + code + '|' + what; }
-function armed(k) { return !!S.armTk && S.armTk === k && nowMs() - (S.armAt || 0) < ARM_MS; }
-function arm(k) {
-  S.armTk = k; S.armAt = nowMs(); render(true);
+function armed(k) { return !!S.armTk && S.armTk === k && (S.armSticky || nowMs() - (S.armAt || 0) < ARM_MS); }
+/* o.sticky (PIA-139: taking my own 🎫 back): no time limit; it waits for its second tap until another control is tapped or
+   the sheet closes, for someone who stops to work out what ↩ means */
+function arm(k, o) {
+  S.armTk = k; S.armAt = nowMs(); S.armSticky = !!(o && o.sticky); render(true);
   clearTimeout(armTimer);
+  if (S.armSticky) return;
   armTimer = setTimeout(function () { if (S.armTk === k) { S.armTk = null; render(true); } }, ARM_MS);
   if (armTimer && typeof armTimer.unref === 'function') armTimer.unref();   // (Node test runs only)
 }
-function disarm() { if (!S.armTk) return false; S.armTk = null; clearTimeout(armTimer); return true; }
+function disarm() { if (!S.armTk) return false; S.armTk = null; S.armSticky = false; clearTimeout(armTimer); return true; }
 
 /* ---- toasts and copying ---- */
 var toastTimer = null;
@@ -5802,22 +6305,33 @@ var ACTS = {
      waiting or out (recorded in first, 📞) and for taking a 🎫 away */
   booked: function (el) {
     var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), tk = m ? bookToggle(m, code) : null; if (!tk) return null;
+    if (S.invite && S.invite.id === id && S.invite.code === code) S.invite = null;   // PIA-139: the invitation is spent
     var k = armKey(id, code, 'tk');
     if (tk.confirm && !armed(k)) { arm(k); return null; }
     disarm();
     var was = m.stage;
+    if (!tk.on) S.timesPulse = { id: id, code: code, at: nowMs() };   // PIA-139: their 🛬 field (in their sheet) is what is next
     return setBooked(id, code, !tk.on, { by: 'proxy' }).then(function (r) {
       if (!r.ok) showError(r.code, r.retry); else { var n = modelOf(id); if (n && n.stage === 'done' && was !== 'done') toast('🏁'); }
       return r;
     });
   },
-  /* my own 🎫 beside ✈ Book ↗ */
+  /* my own 🎫 beside ✈ Book ↗ (on the trip view and in my sheet): the invitation it carried after Google Flights is spent */
   mybook: function (el) {
     var id = el.dataset.id, m = modelOf(id), me = m && m.me; if (!me || !me.traveler || me.booked || m.closed) return null;
+    if (S.invite && S.invite.id === id) S.invite = null;
     confirmHinted(id, me.code);
-    var was = m.stage;
-    return setBooked(id, me.code, true, { by: 'self' }).then(function (r) {
-      if (!r.ok) showError(r.code, r.retry); else { var n = modelOf(id); if (n && n.stage === 'done' && was !== 'done') toast('🏁'); }
+    // PIA-139: my flight times are what is next: the bar's 🛬 (or the 🛬 field in my sheet) pulses once; and since the 🎫
+    // glows after any return from Google Flights, a mistaken tap is one ↩ away for 5s
+    var was = m.stage, code = me.code;
+    S.timesPulse = { id: id, code: code, at: nowMs() };
+    return setBooked(id, code, true, { by: 'self' }).then(function (r) {
+      if (!r.ok) { S.timesPulse = null; showError(r.code, r.retry); return r; }
+      var n = modelOf(id), done = !!(n && n.stage === 'done' && was !== 'done');
+      toast(done ? '🎫 🏁' : '🎫', function () {
+        S.timesPulse = null;
+        return setBooked(id, code, false, { by: 'self' }).then(function (x) { if (!x.ok) showError(x.code, x.retry); return x; });
+      });
       return r;
     });
   },
@@ -5826,8 +6340,9 @@ var ACTS = {
     var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), x = memberIn(m, code);
     if (!x || !m.me || m.me.code !== code || !x.booked || m.closed) return null;
     var k = armKey(id, code, 'un');
-    if (!armed(k)) { arm(k); return null; }
-    disarm();
+    if (!armed(k)) { arm(k, { sticky: true }); toast('🎫↩?'); return null; }
+    disarm(); hideToast();
+    // PIA-139: the times that went with the 🎫 are cleared in the same write (bookedRequests)
     return setBooked(id, code, false, { by: 'self' }).then(function (r) { if (!r.ok) showError(r.code, r.retry); return r; });
   },
   /* an airport cell: only the Worker's hub pairs (PIA/ORD, LGA/JFK); the person's link and bar follow at once */
@@ -5876,6 +6391,67 @@ var ACTS = {
     shareLink(url, function (how) { if (how !== 'link') toast('📣'); });
   },
   stage: function (el) { if (modelOf(el.dataset.id)) openSheet('stage', { id: el.dataset.id }); },
+  /* PIA-139: 💵 greyed until every traveler has booked: a tap says why (its faces are who is still to book) */
+  paidwhy: function (el) { explain(el); },
+  /* 💵 Save: the amount in whole dollars, once every traveler has booked (re-checked on the fresh record: a 🎫 taken away
+     meanwhile, or a trip paid or dropped meanwhile, sends nothing). Paying closes the answers and freezes the times, so the
+     first tap always asks (arm: it lapses after ARM_MS, any other tap or a new amount puts it back, and the second tap of a
+     quick double tap is dropped); the amount reads back as dollars. A trip whose dates were never 🔒 is chosen first
+     (organizerEdit). On a paid trip (✎) the amount entered again goes in one tap: it closes nothing more. */
+  paidsave: function (el) {
+    var sh = S.sheet; if (!sh || sh.type !== 'stage') return null;
+    var L = sh.local, id = el.dataset.id, m = modelOf(id); if (!m || L.paidBusy) return null;
+    var pc = paidCheck(m), again = pc.why === 'closed' && pc.again && !!L.paidEdit;
+    if (pc.why && !again) { disarm(); renderSheet(false); return null; }
+    var v = typedPaid(L.amt), k = armKey(id, '', 'paid');
+    if (v == null) { disarm(); L.paidBad = true; renderSheet(false); pulseFld('paid-amt'); return null; }
+    if (!again && !armed(k)) { L.amt = money(v); arm(k); holdTaps(); return null; }
+    disarm();
+    L.paidBusy = true; L.paidFailed = false; L.paidBad = false; renderSheet(false);
+    return organizerWrite(id, { decision: { stage: 'booked', actual_total: v } }, { guard: again ? function (f) { return paidHeld(f, true); } : paidHeld }).then(function (r) {
+      L.paidBusy = false;
+      if (r.ok) { L.amt = ''; L.paidEdit = false; toast('💵 ' + money(v)); }
+      else if (r.held) toast(r.code === 'closed' ? '🏁' : '🎫⚠');
+      else L.paidFailed = true;
+      if (S.sheet === sh) renderSheet(false);
+      else if (!r.ok && !r.held) showError(r.code || 'network', r.retry);
+      return r;
+    });
+  },
+  /* PIA-139: ✎ beside a paid amount: the field again, holding it, to fix a typo */
+  paidedit: function (el) {
+    var sh = S.sheet, m = modelOf(el.dataset.id); if (!sh || sh.type !== 'stage' || !m || !paidCheck(m).again) return null;
+    sh.local.paidEdit = true; sh.local.amt = money(m.paid); sh.local.paidBad = false; sh.local.paidFailed = false;
+    renderSheet(false); focusId('paid-amt'); return null;
+  },
+  /* the trip view's 💵 at 🏁 Done: P-stage with the 💵 field focused */
+  paidopen: function (el) { var m = modelOf(el.dataset.id); if (m && paidCheck(m).why === '') openSheet('stage', { id: m.id }, { focus: 'paid-amt' }); },
+  /* PIA-139: calendar-plus: P-calendar-add (my days, else the plan; tentative until set; only the guest link inside) */
+  caladd: function (el) { var m = modelOf(el.dataset.id); if (m && handoffs(m, '', RT.hctx).calendar) openSheet('caladd', { id: m.id }); },
+  /* the bar's 🎫 🛬 after my 🎫: my own sheet, with 🛬 focused where times can still be recorded */
+  mytimes: function (el) {
+    var m = modelOf(el.dataset.id), me = m && m.me; if (!me) return null;
+    openSheet('person', { id: m.id, code: me.code, outside: !tripShowing() }, { focus: timesBy(m, me.code) ? 'tm-arr' : null });
+    return null;
+  },
+  /* ☀ / 🌃: the half of the day an hour 1–12 meant; the field takes that 24-hour time */
+  tmhalf: function (el) {
+    var sh = S.sheet; if (!sh || sh.type !== 'person') return null;
+    var L = sh.local, T = L.times, k = el.dataset.end; if (!T || (k !== 'arr' && k !== 'dep') || T[k] == null) return null;
+    var v = typedTime(T[k], el.dataset.v); if (!v) return null;
+    T[k] = v; T.ok = T.ok || {}; T.ok[k] = v; if (L.timesAsk) L.timesAsk[k] = false; L.timesHeld = null;
+    renderSheet(false);
+    var nx = k === 'arr' ? document.getElementById('tm-dep') : null;
+    if (nx && !String(nx.value || '')) focusId('tm-dep'); else focusId('tm-' + k);
+    return null;
+  },
+  /* a pickup chip on the Map: the one traveler it names (their sheet: days, times, airports), else who is there that day
+     (P-day), until PIA-143's map mode names who lands when */
+  pickup: function (el) {
+    var m = modelOf(el.dataset.id); if (!m || !isIso(el.dataset.v)) return;
+    if (el.dataset.code && memberIn(m, el.dataset.code)) openSheet('person', { id: m.id, code: el.dataset.code, outside: true });
+    else openSheet('day', { id: m.id, date: el.dataset.v });
+  },
   star: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.pin = !x.pin; listWrite(L); render(true); },
   hidehere: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.arch = !x.arch; listWrite(L); render(true); toast('🗄'); },
   ring: function (el) {
@@ -6091,7 +6667,15 @@ function wire() {
   document.addEventListener('click', function (e) {
     if (lp.fired) { lp.fired = false; e.preventDefault(); e.stopPropagation(); return; }
     // PIA-138: just after a P-dates write redrew the sheet (🔒, 🔓, 🗓⊘, ⬚), the second tap of a quick double tap is dropped
-    if (tapHeld && e.target && e.target.closest && e.target.closest('#sheet')) { e.preventDefault(); e.stopPropagation(); return; }
+    // (PIA-139: ⌄ and ‹ are never the second tap of a pair, so they always go)
+    if (tapHeld && e.target && e.target.closest && e.target.closest('#sheet') && !e.target.closest('[data-act="sh-close"], [data-act="sh-back"]')) { e.preventDefault(); e.stopPropagation(); return; }
+    // PIA-139: a Book hand-off opens Google Flights in a new tab (its default, untouched); this phone waits for the way back.
+    // Any other tap while it has not left yet means it never did: the wait is dropped.
+    var ret = e.target && e.target.closest && e.target.closest('a[data-ret]');
+    if (ret) bookOut(ret.getAttribute('data-ret'), ret.getAttribute('data-code'));
+    else if (S && S.ret && !S.ret.away) S.ret = null;
+    // P-calendar-add's two links do their own thing (a download, a new tab); the sheet says it happened
+    var cal = e.target && e.target.closest && e.target.closest('#sheet a[data-cal]'); if (cal) toast(cal.getAttribute('data-cal') === 'ics' ? '📅✓' : '↗✓');
     // a control that is aria-disabled does nothing, unless it explains itself when tapped (data-why: ▶ pulses what it needs)
     var el = e.target.closest && e.target.closest('[data-act]'); if (!el || el.disabled || (el.getAttribute('aria-disabled') === 'true' && !el.hasAttribute('data-why'))) return;
     var fn = ACTS[el.dataset.act]; if (!fn) return;
@@ -6106,6 +6690,13 @@ function wire() {
   // a ⚠) is updated in place.
   document.addEventListener('input', function (e) { if (!e.isComposing) onTyped(e.target); });
   document.addEventListener('compositionend', function (e) { onTyped(e.target); });
+  // PIA-139: a time field selects what it holds when it is entered, so typing replaces it; leaving it says what it holds
+  // (only a field that holds something, entered by a person: a redraw putting the focus back, or typing already begun, keeps the caret)
+  document.addEventListener('focusin', function (e) {
+    var t = e.target, v0 = t && t.value; if (!t || !t.getAttribute || !t.getAttribute('data-sel') || !v0 || (S && S.refocusing)) return;
+    later(function () { try { if (document.activeElement === t && t.value === v0) t.select(); } catch (x) { /* not selectable */ } }, 0);
+  });
+  document.addEventListener('focusout', function (e) { timesLeft(e.target, e.relatedTarget); });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (S && S.sheet) { e.preventDefault(); closeSheet(); } return; }
     if (e.key === 'Tab' && S && S.sheet) {   // Tab wraps inside the open sheet (the page behind it is inert)
@@ -6120,6 +6711,18 @@ function wire() {
       if (aid === 'mem-ap' && S.sheet.local.d) { e.preventDefault(); closeEditor(S.sheet.local.d); renderSheet(false); var ad = $('#sheet [data-act="nadd"]') || $('#sheet .btn.pri'); if (ad) ad.focus(); return; }
       // PIA-137: a join request's name → its airport → 📣; a home airport → ↵
       if (aid === 'join-name') { e.preventDefault(); focusId('join-ap'); return; }
+      // PIA-139: 🛬 → 🛫 → the times go (the sheet stays open); 💵 → Save
+      // (a time still waiting for ☀ / 🌃, or not a time, holds ↵ where it is: the row says which)
+      if (aid === 'tm-arr' || aid === 'tm-dep') {
+        e.preventDefault(); var ps = S.sheet, pk = aid === 'tm-arr' ? 'arr' : 'dep';
+        timesLeft(document.activeElement);
+        var pT = ps.local.times, pm = modelOf(ps.p.id), px = pT && memberIn(pm, pT.code);
+        if (pT && px && typedOf(pT, pk, pk === 'arr' ? px.arrTime : px.depTime) === null) { focusId(aid); return; }
+        if (aid === 'tm-arr') { focusId('tm-dep'); return; }
+        saveTimes(ps); if (S.sheet === ps) renderSheet(false); return;
+      }
+      // 💵 → Save (straight to the handler: a deliberate ↵ is never a stray second tap)
+      if (aid === 'paid-amt') { e.preventDefault(); var pb = $('#sheet [data-act="paidsave"]'); if (pb && !(pb.getAttribute('aria-disabled') === 'true')) ACTS.paidsave(pb); return; }
       var own = aid === 'join-ap' ? $('#sheet [data-act="joinshare"]') : aid === 'orig-code' ? $('#sheet [data-act="origsave"]') : null;
       if (own) { e.preventDefault(); own.click(); return; }
       var pri = $('#sheet .btn.pri:not([disabled])'); if (pri) { e.preventDefault(); pri.click(); }
@@ -6159,6 +6762,13 @@ function wire() {
   });
   window.addEventListener('focus', onFocus);
   document.addEventListener('visibilitychange', onFocus);
+  // PIA-139: away to Google Flights after a Book tap (the page hidden, or the window blurred), then back: the 🎫 invites once
+  window.addEventListener('blur', bookAway);
+  window.addEventListener('focus', bookBack);
+  document.addEventListener('visibilitychange', function () { if (!pageVisible()) bookAway(); else bookBack(); });
+  // PIA-139: times typed in an open P-person go when the page is hidden (a discarded page would lose them)
+  document.addEventListener('visibilitychange', function () { if (!pageVisible()) flushTimes(); });
+  window.addEventListener('pagehide', function () { flushTimes(); });
   // PIA-138: a run of ±1 taps still waiting goes at once when the page is hidden; when it is left (pagehide) it is kept
   // on this phone and sends nothing (soonKeep): the page shown again (pageshow) sends it, else the next open does
   document.addEventListener('visibilitychange', function () { if (!pageVisible()) flushSoon(); else soonResume(); });
@@ -6177,8 +6787,10 @@ function boot() {
     histPushed: false, tripPushed: false, tripFrom: '', ignorePop: 0, booted: false,
     joinNext: null, newNext: null, errNext0: '', undo: null,   // PIA-136: a join request, a v1 ?tripIdea= link, ↩
     faceAsked: {}, facePulse: null, pulseAns: null, armTk: null, armAt: 0, picked: {}, errRetry: null, mapFrom: null,
-    dateAck: {}, replay: null };   // PIA-138: the confirming taps for moving dates already given this visit (per trip, per person); this open's send of the kept runs   // PIA-137: P-face once per trip and visit, one-time pulses, a control waiting for its confirming tap, this visit's picks, P-error's ↻
+    dateAck: {}, replay: null,
+    ret: null, invite: null, timesPulse: null, armSticky: false };   // PIA-139: a Book tap waiting for the way back from Google Flights; the 🎫 that invites its tap; the time entry pulsing after a 🎫; a confirm with no time limit   // PIA-138: the confirming taps for moving dates already given this visit (per trip, per person); this open's send of the kept runs   // PIA-137: P-face once per trip and visit, one-time pulses, a control waiting for its confirming tap, this visit's picks, P-error's ↻
   importV1Once();
+  bookResume();   // PIA-139: a page reloaded while a Book tap was away in Google Flights: the 🎫 invites its tap once
   applyLink(readLink(location.search || '', location.hash || '', location.pathname || ''));
   // a reload of a trip view keeps its own history entry (the one a tap pushed); a trip view a link opened has none
   try { if (S.trip && history.state && history.state.pialaxTrip === S.trip) S.tripPushed = true; } catch (e) { /* no history */ }

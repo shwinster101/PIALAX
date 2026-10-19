@@ -744,7 +744,8 @@ function makeServer(worker) {
   check(ended.past && ended.shelf && !ended.bookByPassed, 'a plan that ended yesterday (10/16) is past and on the shelf, and never nags about book-by');
   const nd = mem(model(pricedDocs.noDest), 'ashwin-p8');
   check(nd.why === 'nodest' && !nd.link && nd.keys.length === 0, 'no destination: no link and no search');
-  const pk = model(tweak(DW, (d) => { d.responses['ashwin-p8'].note = '🛬10:00'; d.responses['momdad-k3'].note = '📞 🛬14:00'; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { note: '🛬11:30' }); }));
+  // (PIA-139: a recorded time is a pickup while its traveler is booked)
+  const pk = model(tweak(DW, (d) => { d.responses['ashwin-p8'].note = '🛬10:00'; d.responses['momdad-k3'].note = '📞 🛬14:00'; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { note: '🛬11:30' }); ['ashwin-p8', 'momdad-k3', 'anjo-z5'].forEach((c) => { d.responses[c].booked = true; }); }));
   const pkL = M.pickups(pk, {}, NOW, false), arr = pkL.RDU.filter((c) => c.kind === 'arr'), dep = pkL.RDU.filter((c) => c.kind === 'dep');
   check(eq(Object.keys(pkL), ['RDU']) && eq(arr.map((c) => c.time), ['10:00', '11:30', '14:00']) && !!arr[0].group && arr[0].group === arr[1].group && !arr[2].group,
     '⏱ one pickup run: arrivals 10:00 and 11:30 (90 min apart) share a run; 14:00 (150 min later) does not');
@@ -1272,6 +1273,178 @@ function makeServer(worker) {
       role(tg, { me: 'PIA' }) === 'look' && role(DW, {}) === 'look' && role(past, { me: 'ashwin-p8', hasEditKey: true }) === 'look' && role(LEG, { me: 'LAX', hasEditKey: true }) === 'mine' &&
       role(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { hasEditKey: true }) === 'look' && role(CY, { me: 'anjo-c4' }) === 'mine',
       'PIA-138 the date pill opens the plan for the organizer, my own days once I have answered (the answer row asks first otherwise), and the plan to read for a host, someone out, nobody, or a trip that is over, dropped or a v1 doc\'s guest');
+  }
+
+  // ═══ PIA-139 ════════════════════════════════════════════════════════════
+  section('PIA-139 booking: one booked control, flight times for pickups, a stage that reaches Done by itself, 💵 only once everyone booked, calendars');
+  {
+    const lockAt = (d) => { d.decision = clone(CHOSEN); };
+    const peoria = (d) => { d.idea.destination = { city: 'Peoria', airport: 'PIA' }; delete d.responses['momdad-k3']; };
+    // AC4 the stage moves on from the booked flags alone, read the same by every phone; a 🎫 never locks out anyone who has not answered
+    const id = srv.seed(tweak(DW, (d) => { peoria(d); lockAt(d); d.decision.chosen.airport = 'PIA'; d.decision.chosen.city = 'Peoria'; }));
+    const phones = async () => {
+      const o = await srv.get(id, KEY), g = await srv.get(id);
+      const ms = [model(o, { me: 'ashwin-p8', hasEditKey: true, hasToken: true }), model(g, { me: 'anjo-z5' }), model(g, { me: 'momdad-k3' }), model(g, {})];
+      return ms.map((m) => m.stage);
+    };
+    const s0 = await phones();
+    await srv.send(M.bookedRequests(await srv.get(id), 'ashwin-p8', true, { by: 'self' }));
+    const s1 = await phones();
+    const ans = await srv.send(M.respondRequest(await srv.get(id), 'anjo-z5', { status: 'maybe' }, { by: 'self' }));
+    const s2 = await phones();
+    // the organizer marks Anjo (she said maybe) booked: one /idea/booked
+    const tk = M.bookedRequests(await srv.get(id), 'anjo-z5', true, { by: 'proxy' });
+    await srv.send(tk);
+    const s3 = await phones();
+    const host = await srv.send(M.respondRequest(await srv.get(id), 'momdad-k3', { status: 'in' }, { by: 'self' }));
+    const s4 = await phones(), fin = await srv.get(id);
+    check(eq(s0, ['set', 'set', 'set', 'set']) && eq(s1, ['booking', 'booking', 'booking', 'booking']) && eq(s3, ['done', 'done', 'done', 'done']) && eq(s4, s3),
+      'PIA-139 AC4 through the real Worker: 🔒 Dates set, then Ashwin\'s 🎫 makes it 🎫 Booking, and Anjo\'s makes it 🏁 Done, the same on the organizer\'s, Anjo\'s, the host\'s and a faceless phone', { s0, s1, s3, s4 });
+    check(srv.allOk(ans) && eq(s2, s1) && tk.length === 1 && srv.allOk(host) && fin.responses['momdad-k3'].status === 'in' && fin.decision.stage === 'chosen' &&
+      fin.responses['ashwin-p8'].booked && fin.responses['anjo-z5'].booked && fin.responses['anjo-z5'].status === 'maybe' && !model(fin).closed,
+      'PIA-139 AC4 a 🎫 never locks anyone out: while Booking, Anjo (not answered) still answers Maybe; at 🏁 Done the hosts (not answered) still answer In; the record is still open, the 🎫s kept', { ans: ans.map((r) => r.status), host: host.map((r) => r.status) });
+    // AC3 the organizer marks someone who has not answered: recorded in first (📞), then booked
+    const wid = srv.seed(tweak(DW, lockAt));
+    const wq = M.bookedRequests(await srv.get(wid), 'anjo-z5', true, { by: 'proxy' }), wres = await srv.send(wq), wd = await srv.get(wid);
+    const om = model(await srv.get(wid, KEY), { me: 'ashwin-p8', hasEditKey: true });
+    const out = srv.seed(tweak(DW, (d) => { lockAt(d); d.responses['anjo-z5'] = R('out', 'LGA', '', '', { note: 'Work trip' }); }));
+    const oq = M.bookedRequests(await srv.get(out), 'anjo-z5', true, { by: 'proxy' }), ores = await srv.send(oq), od = await srv.get(out);
+    check(eq(wq.map((q) => q.path.split('?')[0]), ['/idea/respond', '/idea/booked']) && wq[0].body.status === 'in' && wq[0].body.note === '📞' && srv.allOk(wres) &&
+      wd.responses['anjo-z5'].status === 'in' && wd.responses['anjo-z5'].booked === true && wd.responses['anjo-z5'].note === '📞' && om.stage === 'booking' &&
+      srv.allOk(ores) && od.responses['anjo-z5'].status === 'in' && od.responses['anjo-z5'].booked && od.responses['anjo-z5'].note === '📞 Work trip',
+      'PIA-139 AC3 the organizer marks Anjo booked before she answered: one complete In (📞) first, then the 🎫, through the Worker; marking someone who said Out does the same and keeps her note', wq.map((q) => q.path));
+    check(eq(M.bookToggle(model(tweak(DW, lockAt), { me: 'ashwin-p8', hasEditKey: true }), 'anjo-z5'), { on: false, confirm: true }) &&
+      M.bookToggle(model(tweak(DW, lockAt), { me: 'ashwin-p8', hasEditKey: true }), 'momdad-k3').confirm === false &&
+      M.bookToggle(model(tweak(DW, (d) => { peoria(d); lockAt(d); }), { me: 'ashwin-p8', hasEditKey: true }), 'momdad-k3') === null && M.bookToggle(model(tweak(DW, lockAt), { me: 'anjo-z5' }), 'momdad-k3') === null,
+      'PIA-139 AC3 the board\'s 🎫 is the organizer\'s only: a confirming tap for someone not answered (one tap for someone in), none on a host, none on a guest\'s phone');
+
+    // AC1 the booking slot: Book and 🎫 together once the dates are set, Flighty after
+    const slot = (doc, me, code, over) => M.bookSlot(model(doc, Object.assign({ me }, over || {})), code, TODAY);
+    const lk = tweak(DW, (d) => { lockAt(d); d.responses['anjo-z5'] = R('in', 'LGA'); });
+    const lkB = tweak(lk, (d) => { d.responses['anjo-z5'].booked = true; });
+    const ORGK = { hasEditKey: true };
+    check(eq(slot(DW, 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }) && eq(slot(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA'); }), 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }) &&
+      eq(slot(lk, 'anjo-z5', 'anjo-z5'), { slot: 'book', tk: 'self' }) && eq(slot(lkB, 'anjo-z5', 'anjo-z5'), { slot: 'booked', tk: 'self' }) &&
+      eq(slot(lk, 'ashwin-p8', 'anjo-z5', ORGK), { slot: 'book', tk: 'org' }) && eq(slot(lkB, 'ashwin-p8', 'anjo-z5', ORGK), { slot: 'booked', tk: 'org' }) &&
+      eq(slot(lk, 'momdad-k3', 'anjo-z5'), { slot: 'gf', tk: '' }) && eq(slot(tweak(DW, (d) => { peoria(d); lockAt(d); }), 'momdad-k3', 'momdad-k3'), { slot: '', tk: '' }) &&
+      eq(slot(tweak(lkB, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 900; }), 'anjo-z5', 'anjo-z5'), { slot: 'booked', tk: '' }) &&
+      eq(slot(tweak(lk, (d) => { d.idea.dates.departure = '2026-10-10'; d.idea.dates.return = '2026-10-20'; d.decision.chosen.departure = '2026-10-10'; d.decision.chosen.return = '2026-10-20'; }), 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }),
+      'PIA-139 AC1 one slot rule: before 🔒 their ✈↗ alone; once 🔒 [✈ Book ↗ | 🎫] (mine, or the organizer\'s for someone); after the 🎫 [✈⏱↗ | 🎫]; a host has none; a paid trip keeps Flighty with no 🎫 to take away; days already begun book nothing');
+    const lkH = M.handoffs(model(lkB, { me: 'anjo-z5' }), 'anjo-z5', ctx()), lkH0 = M.handoffs(model(lk, { me: 'anjo-z5' }), 'anjo-z5', ctx());
+    check(lkH.flighty && lkH.flighty.href === M.FLIGHTY_URL && lkH.flighty.target === '_blank' && !lkH0.flighty && !!lkH0.gf && M.primaryAction(model(lkB, { me: 'anjo-z5' }), TODAY) === 'booked',
+      'PIA-139 AC1 after her 🎫 the slot hands off to Flighty (a new tab); before it, Google Flights');
+
+    // AC2 booked times: typed, recorded by her or by the organizer for her, kept in the note's prefix without erasing it
+    check(eq(['15:10', '1510', '0905', ' 07:45 ', '0:30', '', '24:00', '15:60', '15:1', 'abc', '12345', '15', '13:00pm'].map((s) => M.typedTime(s)), ['15:10', '15:10', '09:05', '07:45', '00:30', '', null, null, null, null, null, null, null]),
+      'PIA-139 AC2 a typed time reads as HH:MM (15:10, 1510, 0905, 0:30); blank clears it; anything else is not a time');
+    // a 12-hour reader's 3:10 PM never silently becomes 03:10: an hour 1–12 with no leading 0 and no am / pm is not a time until
+    // its half is picked (the two readings differ in ☀ / 🌃), and an am / pm typed with it decides
+    check(eq(['310', '6:05', '905', '1105', '12:30'].map((s) => M.typedTime(s)), [null, null, null, null, null]) &&
+      eq(M.timeHalves('310'), { am: '03:10', pm: '15:10' }) && eq(M.timeHalves('6:05'), { am: '06:05', pm: '18:05' }) && eq(M.timeHalves('12:30'), { am: '00:30', pm: '12:30' }) &&
+      M.timeHalves('1510') === null && M.timeHalves('0310') === null && M.timeHalves('6:05 pm') === null && M.timeHalves('') === null && M.timeHalves('25:99') === null &&
+      M.typedTime('310', 'pm') === '15:10' && M.typedTime('310', 'am') === '03:10' && M.typedTime('12:30', 'am') === '00:30' && M.typedTime('1510', 'am') === '15:10' &&
+      eq(['6:05 pm', '6:05pm', '6pm', '3PM', '11:05a', '11:05 a.m.', '12am', '12:15 pm'].map((s) => M.typedTime(s)), ['18:05', '18:05', '18:00', '15:00', '11:05', '11:05', '00:00', '12:15']) &&
+      ['310', '905', '1105', '12:30', '6:05', '1:00', '5:59'].every((s) => { const h = M.timeHalves(s); return M.dayPart(h.am) !== M.dayPart(h.pm); }) &&
+      eq(['05:59', '06:00', '17:59', '18:00', '00:30', '12:00', 'x'].map(M.dayPart), ['night', 'day', 'day', 'night', 'night', 'day', '']),
+      'PIA-139 AC2 "310" and "6:05" are never saved as 03:10 / 06:05: they wait for ☀ / 🌃 (03:10 or 15:10, 06:05 or 18:05; the two readings never share a glyph); "6:05 pm" is 18:05, "11:05a" 11:05, "0310" 03:10');
+    const tId = srv.seed(tweak(DW, (d) => { peoria(d); lockAt(d); d.responses['anjo-z5'] = R('in', 'EWR', '2026-11-05', '2026-11-09', { note: '📞 Taking the red-eye', leave_from: 'ORD', booked: true, booked_at: '2026-10-16T00:00:00.000Z' }); }));
+    const t0 = await srv.get(tId), mine = model(t0, { me: 'anjo-z5' }), orgM = model(await srv.get(tId, KEY), { me: 'ashwin-p8', hasEditKey: true }), guestM = model(t0, { me: 'ashwin-p8' });
+    check(M.timesBy(mine, 'anjo-z5') === 'self' && M.timesBy(orgM, 'anjo-z5') === 'proxy' && M.timesBy(guestM, 'anjo-z5') === '' && M.timesBy(mine, 'ashwin-p8') === '' &&
+      M.timesBy(orgM, 'ashwin-p8') === '' && M.timesBy(model(tweak(t0, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 1; }), { me: 'anjo-z5' }), 'anjo-z5') === '' &&
+      M.timesBy(model(tweak(DW, (d) => { peoria(d); d.responses['momdad-k3'] = R('in', 'PIA', '', '', { booked: true }); }), { me: 'momdad-k3' }), 'momdad-k3') === '',
+      'PIA-139 AC2 who records booked times: the traveler once booked (self), the organizer for her (proxy); nobody for someone not booked, a host, on a paid trip, or on a guest\'s phone looking at someone else');
+    const tq = M.timesRequest(t0, 'anjo-z5', '15:10', '18:05', 'self'), tRes = await srv.send(tq), t1 = await srv.get(tId);
+    const r1 = t1.responses['anjo-z5'];
+    check(srv.allOk(tRes) && r1.note === '🛬15:10 🛫18:05 Taking the red-eye' && r1.available_from === '2026-11-05' && r1.available_to === '2026-11-09' && r1.origin === 'EWR' && r1.leave_from === 'ORD' && r1.booked === true && r1.status === 'in' &&
+      !('arrive_at' in tq.body) && !('leave_from' in tq.body),
+      'PIA-139 AC2 her own 🛬 15:10 / 🛫 18:05 go as the note\'s prefixes in one complete answer through the Worker: her note\'s text, own days, EWR, the ORD leave and her 🎫 all kept (her own write clears 📞)', r1);
+    const pk1 = (doc, ctxOver) => M.pickups(model(doc, ctxOver), {}, NOW, false);
+    const host1 = pk1(t1, { me: 'momdad-k3' }), guest1 = pk1(t1, { me: 'ashwin-p8' });
+    const aChip = (ln) => (ln.PIA || []).find((c) => c.kind === 'arr' && c.codes.indexOf('anjo-z5') >= 0), dChip = (ln) => (ln.ORD || []).find((c) => c.kind === 'dep' && c.codes.indexOf('anjo-z5') >= 0);
+    check(aChip(host1).time === '15:10' && aChip(host1).date === '2026-11-05' && !aChip(host1).pred && dChip(host1).time === '18:05' && dChip(host1).date === '2026-11-09' && eq(aChip(guest1), aChip(host1)) && eq(dChip(guest1), dChip(host1)) &&
+      mem(model(t1, { me: 'momdad-k3' }), 'anjo-z5').noteText === 'Taking the red-eye',
+      'PIA-139 AC2 the times reach everyone\'s pickup chips from the record: the host\'s phone and another guest\'s both read 🛬 PIA 11/5 15:10 and 🛫 ORD 11/9 18:05, and her note still reads "Taking the red-eye"');
+    const pq = M.timesRequest(await srv.get(tId), 'anjo-z5', '16:40', undefined, 'proxy'), pRes = await srv.send(pq), t2 = await srv.get(tId);
+    const t2b = tweak(t2, (d) => { d.responses['anjo-z5'].note = '📞 ' + d.responses['anjo-z5'].note; });
+    const keepCalled = M.timesRequest(t2b, 'anjo-z5', undefined, '', 'proxy');
+    check(srv.allOk(pRes) && t2.responses['anjo-z5'].note === '🛬16:40 🛫18:05 Taking the red-eye' && keepCalled.body.note === '📞 🛬16:40 Taking the red-eye' &&
+      M.timesRequest(t2, 'anjo-z5', '16:40', '18:05', 'self') === null && M.timesRequest(t2, 'anjo-z5', '25:00', undefined, 'self') === null && M.timesRequest(t2, 'ashwin-p8', '10:00', undefined, 'self') === null,
+      'PIA-139 AC2 the organizer changes only her 🛬 (16:40; 🛫 stays); his write keeps a 📞 as it reads, and a blank clears one time; no change, a bad time or someone not booked builds nothing');
+    const room = M.noteRoom(false, '', ''), longId = srv.seed(tweak(t2, (d) => { d.responses['anjo-z5'].note = 'z'.repeat(room); }));
+    const longQ = M.timesRequest(await srv.get(longId), 'anjo-z5', '15:10', '', 'self');
+    const shortId = srv.seed(tweak(t2, (d) => { d.responses['anjo-z5'].note = 'z'.repeat(room - 8); }));
+    const shortQ = M.timesRequest(await srv.get(shortId), 'anjo-z5', '15:10', '', 'self'), shortRes = await srv.send(shortQ);
+    check(longQ === null && srv.allOk(shortRes) && (await srv.get(shortId)).responses['anjo-z5'].note === '🛬15:10 ' + 'z'.repeat(room - 8),
+      'PIA-139 AC2 times never cut a note short: a 280-character note leaves no room, so nothing is built; one with room takes 🛬15:10 and keeps every character');
+    const paidT = srv.seed(tweak(t2, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 900; }));
+    const late = await srv.send(M.respondRequest(tweak(await srv.get(paidT), (d) => { d.decision.stage = 'chosen'; }), 'anjo-z5', { arrTime: '11:00' }, { by: 'self' }));
+    check(late[0].status === 409 && M.timesRequest(await srv.get(paidT), 'anjo-z5', '11:00', undefined, 'self') === null,
+      'once 💵 is recorded the Worker takes no answer (409), and times are not offered then (timesBy is nobody on a closed trip; see Owed)');
+    // taking the 🎫 back clears the times that went with it (one complete answer first, then the 🎫), so no pickup outlives it
+    const unQ = M.bookedRequests(await srv.get(tId), 'anjo-z5', false, { by: 'self' }), unRes = await srv.send(unQ), t3 = await srv.get(tId), r3 = t3.responses['anjo-z5'];
+    const plainUn = M.bookedRequests(tweak(t3, (d) => { d.responses['anjo-z5'].booked = true; }), 'anjo-z5', false, { by: 'self' });
+    const orgUn = M.bookedRequests(tweak(t2b, () => {}), 'anjo-z5', false, { by: 'proxy' });
+    check(eq(unQ.map((q) => q.path.split('?')[0]), ['/idea/respond', '/idea/booked']) && srv.allOk(unRes) && r3.note === 'Taking the red-eye' && r3.booked === false && r3.status === 'in' &&
+      r3.available_from === '2026-11-05' && r3.leave_from === 'ORD' && r3.origin === 'EWR' && !aChip(pk1(t3, { me: 'momdad-k3' })).time && !dChip(pk1(t3, { me: 'momdad-k3' })).time &&
+      eq(plainUn.map((q) => q.path.split('?')[0]), ['/idea/booked']) && orgUn[0].body.note === '📞 Taking the red-eye',
+      'PIA-139 her 🎫 taken back: one complete answer clears 🛬 / 🛫 (her note, days, EWR and the ORD leave kept), then the 🎫 goes; the hosts\' chips no longer show a time. With no times only the 🎫 goes; the organizer\'s keeps 📞', r3);
+    // a time left in a note without a 🎫 (an older write) is never drawn as a pickup; nor is a cached offer's time that is not HH:MM
+    const stale = pk1(tweak(t3, (d) => { d.responses['anjo-z5'].note = '🛬09:00 🛫21:00'; }), { me: 'momdad-k3' });
+    const hk = mem(model(t3, ORG), 'anjo-z5').keys[0].key, hostile = {}, stamp = {};
+    hostile[hk] = { p: 300, f: at(30), ar: '<img src=x onerror=alert(1)>', off: [{ ar: '"><b>' }] }; stamp[hk] = { p: 300, f: at(30), off: [{ ar: '2026-11-05 15:10' }] };
+    const hc = aChip(M.pickups(model(t3, Object.assign({ fares: hostile }, ORG)), hostile, NOW, false)), sc = aChip(M.pickups(model(t3, Object.assign({ fares: stamp }, ORG)), stamp, NOW, false));
+    check(!aChip(stale).time && !dChip(stale).time && hc.time === '' && !hc.pred && sc.time === '15:10' && sc.pred &&
+      eq(['<img src=x onerror=alert(1)>', '2026-11-05 15:10', '2026-11-05T07:05', '15:10', '25:00', '1510', 3, null].map(M.cachedTime), ['', '15:10', '07:05', '15:10', '', '', '', '']),
+      'PIA-139 a 🛬 / 🛫 left in an unbooked traveler\'s note is never drawn; a cached offer\'s time is drawn only as HH:MM (a "YYYY-MM-DD HH:MM" stamp reads as its time), so markup or junk never reaches a chip or a ⏱ run');
+
+    // AC5 💵 only once every traveler has booked, on the organizer's token phone
+    const pc = (doc, over) => M.paidCheck(model(doc, over));
+    const ORGT = { me: 'ashwin-p8', hasEditKey: true, hasToken: true };
+    const doneL = tweak(DW, (d) => { lockAt(d); d.responses['momdad-k3'].booked = true; d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const doneHostWait = tweak(DW, (d) => { peoria(d); lockAt(d); d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const NT = ['momdad-k3', 'ashwin-p8', 'anjo-z5'];   // booked with no 🛬 time recorded yet
+    check(eq(pc(tweak(DW, lockAt), ORGT), { why: 'unbooked', unbooked: ['momdad-k3', 'ashwin-p8', 'anjo-z5'], unanswered: ['anjo-z5'], notimes: [], again: false }) &&
+      pc(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }), ORGT).why === 'unbooked' && eq(pc(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }), ORGT).unbooked, ['anjo-z5']) &&
+      eq(pc(doneL, ORGT), { why: '', unbooked: [], unanswered: [], notimes: NT, again: false }) && eq(pc(doneHostWait, ORGT), { why: '', unbooked: [], unanswered: ['momdad-k3'], notimes: ['ashwin-p8', 'anjo-z5'], again: false }) &&
+      eq(pc(tweak(doneL, (d) => { d.responses['anjo-z5'].note = '🛬15:10'; d.responses['ashwin-p8'].note = '🛫18:00'; }), ORGT).notimes, ['momdad-k3', 'ashwin-p8']) &&
+      pc(doneL, { me: 'ashwin-p8', hasEditKey: true }).why === 'token' && pc(doneL, { me: 'anjo-z5', hasToken: true }).why === 'org' &&
+      pc(tweak(doneL, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), ORGT).why === 'closed' && pc(tweak(doneL, (d) => { d.decision.stage = 'dropped'; }), ORGT).why === 'closed' &&
+      pc(tweak(doneL, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), ORGT).again === true && pc(tweak(doneL, (d) => { d.decision.stage = 'dropped'; d.decision.actual_total = 905; }), ORGT).again === false &&
+      pc(tweak(doneL, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), { me: 'ashwin-p8', hasEditKey: true }).again === false &&
+      pc(tweak(LX, (d) => { ['priya-x1', 'leo-x4', 'anjo-x5'].forEach((c) => { d.responses[c] = R('out', ''); }); }), { hasEditKey: true, hasToken: true }).why === 'nobody' && pc(LEG, { me: 'LAX', hasEditKey: true, hasToken: true }).why === 'legacy',
+      'PIA-139 AC5 💵 can be recorded only at 🏁 Done (every traveler booked; the unbooked are listed otherwise), only on the organizer\'s phone with the token, never twice or on a dropped, all-host or v1 trip; the hosts still unanswered are named (paying closes their answers)');
+    const pdId = srv.seed(doneL), pdFresh = await srv.get(pdId, KEY);
+    const pdReq = M.organizerEdit(pdFresh, KEY, { decision: { stage: 'booked', actual_total: M.typedPaid('$1,490') } }), pdRes = await srv.send(pdReq), pdDoc = await srv.get(pdId, KEY), pdGuest = await srv.get(pdId);
+    check(pdReq.length === 1 && eq(pdReq[0].body.decision, { stage: 'booked', actual_total: 1490 }) && srv.allOk(pdRes) && pdDoc.decision.stage === 'booked' && pdDoc.decision.actual_total === 1490 &&
+      model(pdDoc, ORGT).paid === 1490 && model(pdGuest, { me: 'anjo-z5' }).paid === null && model(pdGuest).closed,
+      'PIA-139 AC5 at 🏁 Done on a 🔒 trip, 💵 $1,490 is one update {stage booked, actual_total 1490}; the organizer\'s record reads it, the guest view never carries the amount');
+    const upId = srv.seed(tweak(doneL, (d) => { d.decision = { stage: 'proposed', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null }; }));
+    const upReq = M.organizerEdit(await srv.get(upId, KEY), KEY, { decision: { stage: 'booked', actual_total: 905 } }), upRes = await srv.send(upReq), upDoc = await srv.get(upId, KEY);
+    check(upReq.length === 2 && eq(upReq[0].body.decision, { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }) && eq(upReq[1].body.decision, { stage: 'booked', actual_total: 905 }) &&
+      srv.allOk(upRes) && upDoc.decision.stage === 'booked' && upDoc.decision.actual_total === 905 && upDoc.decision.chosen.departure === '2026-11-06',
+      'PIA-139 AC5 on a trip whose dates were never 🔒 (or were unlocked), 💵 chooses the plan first, then records 905: two updates the Worker takes in order');
+    const halfId = srv.seed(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }));
+    const halfFresh = await srv.get(halfId, KEY);
+    check(M.organizerEdit(halfFresh, KEY, { decision: { stage: 'booked', actual_total: 905 } }) === null && M.paidHeld(halfFresh) === 'unbooked' && M.paidHeld(pdFresh) === '' && M.paidHeld(pdDoc) === 'closed' &&
+      M.updateRequest(pdDoc, KEY, { decision: { stage: 'booked', actual_total: 905 } }) !== null &&
+      M.organizerEdit(tweak(pdDoc, (d) => { d.decision.stage = 'dropped'; }), KEY, { decision: { stage: 'booked', actual_total: 1490 } }) !== null,
+      'PIA-139 AC5 on the record it is sent against: a 🎫 taken away meanwhile builds no 💵 (paidHeld unbooked), a paid record is closed; ↩ restoring a dropped paid trip still re-records its amount');
+    // a typo in 💵 can be fixed: the amount entered again on a paid trip is one more booked update the Worker takes
+    const agQ = M.organizerEdit(pdDoc, KEY, { decision: { stage: 'booked', actual_total: M.typedPaid('1,940') } }), agRes = await srv.send(agQ), agDoc = await srv.get(pdId, KEY);
+    check(agQ.length === 1 && eq(agQ[0].body.decision, { stage: 'booked', actual_total: 1940 }) && srv.allOk(agRes) && agDoc.decision.stage === 'booked' && agDoc.decision.actual_total === 1940 &&
+      M.paidHeld(pdDoc, true) === '' && M.paidHeld(tweak(pdDoc, (d) => { d.decision.stage = 'dropped'; }), true) === 'closed' && M.paidHeld(tweak(pdDoc, (d) => { d.decision.stage = 'chosen'; }), true) === 'closed',
+      'PIA-139 AC5 💵 entered again on a paid trip (149 meant 1,490): one update {booked, 1940} through the Worker; held back once the trip was dropped or reopened meanwhile');
+    check(eq(['905', '$1,490', '1490.40', '0.6', ' 12 ', '', '0', '-5', '1e3', 'abc', '1000000', '12.345'].map(M.typedPaid), [905, 1490, 1490, 1, 12, null, null, null, null, null, null, null]),
+      'PIA-139 AC5 the 💵 amount reads as whole dollars ($1,490 → 1490); nothing under $1 or from $1,000,000, and no other text');
+
+    // AC6 at any dated stage the trip can go into a calendar: tentative before the dates are set, only the guest link inside
+    const stages = [['idea', tweak(DW, (d) => { d.responses = {}; })], ['asking', DW], ['set', tweak(DW, lockAt)], ['booking', tweak(DW, (d) => { lockAt(d); d.responses['ashwin-p8'].booked = true; })], ['done', doneL]];
+    const calRows = stages.map(([st, doc]) => { const m = model(doc, { me: 'anjo-z5' }), c = M.handoffs(m, '', ctx()).calendar; return { st, stage: m.stage, tentative: c && c.tentative, ok: !!c && c.details === M.WORKER_URL + '/i/' + DW.id && c.google.href.indexOf(KEY) < 0 && c.ics.text.indexOf('#k=') < 0 }; });
+    check(calRows.every((r) => r.ok && r.stage === r.st) && eq(calRows.map((r) => r.tentative), [true, true, false, false, false]) &&
+      M.handoffs(model(CY, { me: 'momdad-c1' }), '', ctx()).calendar === null && M.handoffs(model(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { me: 'anjo-z5' }), '', ctx()).calendar === null &&
+      M.handoffs(model(tweak(CY, (d) => { d.responses['ashwin-c3'] = R('in', 'LAX', '2026-12-19', '2026-12-26'); }), { me: 'ashwin-c3' }), '', ctx()).calendar === null &&
+      M.calendarAdd(model(tweak(CY, (d) => { d.responses['ashwin-c3'] = R('in', 'LAX', '2026-12-19', '2026-12-26'); }), { me: 'ashwin-c3' }), ctx()) === null,
+      'PIA-139 AC6 calendar-plus at every dated stage (💡 🗳 🔒 🎫 🏁): tentative ("? ", STATUS:TENTATIVE) until 🔒, set from then on; the event carries only the guest link; none for an undated idea (even for someone with their own 12/19–12/26 window) or a dropped trip', calRows);
   }
 
   // ═══ AC11 ═══════════════════════════════════════════════════════════════

@@ -1129,6 +1129,22 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     d.decision = { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-12-22', return: '2026-12-27' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
     return d;
   })();
+  // PIA-139: the 8-member long-name trip with its dates set and every traveler booked (🏁 Done): times for the pickups (a ⏱ run
+  // on 12/11), the hosts not answered yet, so 💵 asks first
+  const BKV = 'bkViewportBookedDone01';
+  docs[BKV] = (() => {
+    const d = JSON.parse(JSON.stringify(docs.m8GrandmaNinetieth0c03)); d.id = BKV;
+    d.decision = { stage: 'chosen', chosen: { airport: 'SAV', city: 'Savannah', departure: '2026-12-11', return: '2026-12-14' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+    ['bartholomewmontgomeryfitzgera-dj', 'anastasiakonstantinopoulou-x1', 'maximilianoyelaranwhitfield-5u', 'samlee-sb', 'oluwaseunadebayorichardson-ew'].forEach((c) => { d.responses[c].booked = true; });
+    d.responses['bartholomewmontgomeryfitzgera-dj'].note = '🛬15:10 🛫18:05 ' + d.responses['bartholomewmontgomeryfitzgera-dj'].note;
+    d.responses['anastasiakonstantinopoulou-x1'].note = '🛬15:40';
+    d.responses['oluwaseunadebayorichardson-ew'].note = '📞 🛬15:05 🛫20:00';
+    return d;
+  })();
+  // PIA-139 fix pass: the same Done trip on Bartholomew's phone (his booked bar), and paid (💵 $1,490, ✎; times 🔒)
+  const BKM = 'bkViewportBookedMine02', BKP = 'bkViewportBookedPaid03';
+  docs[BKM] = Object.assign(JSON.parse(JSON.stringify(docs[BKV])), { id: BKM });
+  docs[BKP] = (() => { const d = JSON.parse(JSON.stringify(docs[BKV])); d.id = BKP; d.decision.stage = 'booked'; d.decision.actual_total = 1490; d.decision.booked_at = '2026-10-17T00:00:00.000Z'; return d; })();
   const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
@@ -1139,8 +1155,10 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     pialax_watchlist_v2: JSON.stringify(ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))),
     // PIA-136: this phone also organizes the 8-member trip (a join request on a full trip opens its people editor at ⚠ 9/8)
     pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
-      [CYV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-138: also organizes the undated idea
-    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3' }),
+      [CYV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [BKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
+      [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy)
+    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 })
   };
   const LAYOUT = () => {
@@ -1194,7 +1212,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -1255,7 +1273,55 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await tapJs('#screen .pb [data-act="booked"][data-code="anjo-z5"]'); await measure('trip with a 🎫 waiting for its confirming tap');
         await tapJs('#screen .me [data-act="person"]'); await measure('P-person (me, PIA | ORD cells)');
         if ((await page.$$('#sheet [data-act="legair"]')).length !== 4) fails.push('my sheet on a Peoria trip should have the PIA | ORD cells for each end');
+        // PIA-139: my sheet once the dates are set: [✈ Book ↗ | 🎫] side by side
+        if (!(await page.$('#sheet .split a[data-ret] + [data-act="mybook"]'))) fails.push('my sheet on a set trip should have [Book | 🎫] side by side');
+        await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-139: back from Google Flights after a Book tap, the 🎫 glows (the hand-off itself is not followed: offline)
+        await page.$eval('#screen .split.prim a[data-ret]', (a) => { a.addEventListener('click', (e) => e.preventDefault(), { once: true }); a.click(); });
+        await page.evaluate(() => { for (const st of ['hidden', 'visible']) { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => st }); document.dispatchEvent(new Event('visibilitychange')); } });
+        await page.waitForTimeout(120); await measure('trip with the 🎫 glowing after Google Flights');
+        if (!(await page.$('#screen .split.prim [data-act="mybook"].glow'))) fails.push('back from a Book tap, the 🎫 beside Book should glow');
+        await tapJs('#screen .nav [data-act="caladd"]'); await measure('P-calendar-add (dates set)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        // PIA-139: the Done 8-member trip: a booked traveler's sheet (times, [Flighty | 🎫]), P-stage with 💵 asking first, the Map's pickups
+        await page.click('#screen [data-trip="' + BKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the Done 8-member trip');
+        await tapJs('#screen .pb [data-act="person"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await measure('P-person (booked: times, Flighty | 🎫)');
+        if (!(await page.$('#sheet #tm-arr')) || !(await page.$('#sheet .split a[data-k="flighty"]'))) fails.push('a booked traveler\'s sheet should have the time fields and [Flighty | 🎫]');
+        await page.fill('#sheet #tm-arr', '23:59'); await measure('P-person (a time typed)');
+        // PIA-139 fix pass: "310" left in the field asks [☀ 15:10 | 🌃 03:10]; "25:99" left is marked ⚠
+        await page.fill('#sheet #tm-arr', '310'); await page.fill('#sheet #tm-dep', '25:99'); await page.$eval('#sheet #tm-arr', (e) => e.focus()); await page.waitForTimeout(60);
+        await measure('P-person (☀ / 🌃 asked, a time marked ⚠)');
+        if ((await page.$$('#sheet #tm-half:not([hidden]) [data-act="tmhalf"]')).length !== 2 || !(await page.$('#sheet .fld.bad #tm-dep'))) fails.push('"310" left should ask ☀ / 🌃, and "25:99" left should be marked ⚠');
+        await page.evaluate(() => { ['tm-arr', 'tm-dep'].forEach((id) => { const f = document.getElementById(id); f.value = f.defaultValue; f.dispatchEvent(new Event('input', { bubbles: true })); }); });
+        await tapJs('#sheet [data-act="sh-close"]');
+        if (!(await page.$('#screen [data-act="paidopen"]'))) fails.push('at 🏁 the organizer\'s trip view should have 💵 ＋');
+        await tapJs('#screen [data-act="paidopen"]'); await page.type('#sheet #paid-amt', '$123,456'); await measure('P-stage (💵 typed)');
+        await tapJs('#sheet [data-act="paidsave"]'); await measure('P-stage (💵 Save asks first)');
+        if (!(await page.$('#sheet .paidb.arm')) || !(await page.$('#sheet .paidask .paidw'))) fails.push('💵 Save should ask first (⚠ … 🔒 above the field)');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        // PIA-139 fix pass: my booked bar on the Done trip [🎫 🛬 15:10 ☀ | ✈⏱↗], and a paid trip's 💵 entered again (✎)
+        await page.click('#screen [data-trip="' + BKM + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip with my booked bar (🎫 🛬 | ✈⏱↗)');
+        if (!(await page.$('#screen .split.prim [data-act="mytimes"] + a[data-k="flighty"]'))) fails.push('a booked traveler\'s bar should be [🎫 🛬 | ✈⏱↗]');
+        await tapJs('#screen .split.prim [data-act="mytimes"]'); await measure('P-person from my booked bar');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="' + BKP + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('a paid trip (🏁, times 🔒)');
+        await tapJs('#screen [data-act="stage"]'); await measure('P-stage (💵 paid, ✎)');
+        await tapJs('#sheet [data-act="paidedit"]'); await measure('P-stage (💵 entered again)');
+        if (!(await page.$('#sheet #paid-amt'))) fails.push('✎ on a paid trip should give the 💵 field again');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .nav [data-act="caladd"]'); await measure('P-calendar-add (tentative ?)');
+        if (!(await page.$('#sheet .tq'))) fails.push('P-calendar-add before the dates are set should carry the ? corner');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="stage"]'); await measure('P-stage (💵 greyed: not everyone booked)');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#tabbar [data-v="map"]'); await page.waitForTimeout(120);
+        if (await page.$('#screen [data-act="pick"][data-id="' + BKV + '"]')) { await page.click('#screen [data-act="pick"][data-id="' + BKV + '"]'); await page.waitForTimeout(120); }
+        await measure('Map (the Done trip\'s pickups, a ⏱ run)');
+        if (!(await page.$('#screen .lanes .grp .pk'))) fails.push('the Map should show the Done trip\'s pickup chips with a ⏱ run');
+        if (!(await page.$('#screen .lanes .pk .bk'))) fails.push('a booked traveler\'s pickup chip should carry its 🎫 corner');
+        await tapJs('#screen .lanes .pk[data-code]'); await measure('P-person from a pickup chip');
+        await tapJs('#sheet [data-act="sh-close"]');
+        await page.click('#tabbar [data-v="trips"]'); await page.waitForTimeout(100);
         // PIA-138: P-dates in each state (the plan, a holiday picked, a start picked, my own days on one end), P-day, the undated
         // idea's ⟦window⟧ with ⬚ the best window, and a locked plan to read with 🔓
         await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
@@ -1352,7 +1418,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];

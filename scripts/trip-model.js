@@ -756,9 +756,16 @@ function cheapCandidates(model, fares, now, today) {
   if (filledBars.length >= 2) { var min = Math.min.apply(null, filledBars.map(function (c) { return c.total; })); filledBars.forEach(function (c) { if (c.total === min) c.star = true; }); }
   return out;
 }
-/* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone;
-   with showPredicted (the organizer's token phone) a not-yet-booked arrival shows the cheapest cached offer's time,
-   from any cached search (fresh or stale; `now` is unused, kept so every fare reader takes the same arguments). */
+/* PIA-139: a cached offer's landing time as 'HH:MM', from 'HH:MM' or a 'YYYY-MM-DD HH:MM' stamp; anything else (a
+   malformed or hostile value in the fare cache) is no time at all, so it can never reach a chip, its markup or a ⏱ run */
+function cachedTime(v) {
+  var m = typeof v === 'string' ? /^(?:\d{4}-\d{2}-\d{2}[ T])?(\d{2}:\d{2})$/.exec(v) : null;
+  return m && HHMM_RE.test(m[1]) ? m[1] : '';
+}
+/* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone, while
+   that traveler is booked; with showPredicted (the organizer's token phone) an arrival with no recorded time shows the
+   cheapest cached offer's time (cachedTime), from any cached search (fresh or stale; `now` is unused, kept so every
+   fare reader takes the same arguments). Chips merge only with chips of the same kind, day, maybe and 🎫. */
 function pickups(model, fares, now, showPredicted) {
   var lanes = {};
   if (!model.dest) return lanes;
@@ -767,17 +774,18 @@ function pickups(model, fares, now, showPredicted) {
     if (!m.answered || !m.d1 || m.bad) return;
     var inKey = m.keys[0] && m.keys[0].key, f = inKey && fares && hasOwn(fares, inKey) ? fares[inKey] : null;
     var offer = f && f.off && f.off[0] ? f.off[0] : null;
-    var predicted = (model.prices || showPredicted) && f ? (f.ar || (offer && offer.ar) || '') : '';  // any cached offer, fresh or stale
-    var arrT = m.arrTime || predicted;
-    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !m.arrTime && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
-    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: m.depTime, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    var predicted = (model.prices || showPredicted) && f ? cachedTime(f.ar || (offer && offer.ar)) : '';  // any cached offer, fresh or stale
+    // PIA-139: a recorded time is a firm pickup only while its traveler is booked (a 🎫 taken back leaves none behind)
+    var arrT = (m.booked && m.arrTime) || predicted, depT = m.booked ? m.depTime : '';
+    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: depT, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
   });
   Object.keys(lanes).forEach(function (a) {
     var L = lanes[a], merged = [];
     L.sort(function (x, y) { return (x.date + (x.time || '99') + x.kind).localeCompare(y.date + (y.time || '99') + y.kind); });
     L.forEach(function (c) {
       var p = merged[merged.length - 1];
-      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
+      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe && p.booked === c.booked) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
       else merged.push(c);
     });
     // ⏱ one pickup run: arrivals at one airport on one day, chained ≤ 2h apart
@@ -836,13 +844,14 @@ function icsText(ev) {
    reversed ⚠ range gets the plan, so a reversed pair never becomes an event. Tentative ('? ' and STATUS:TENTATIVE)
    until the days are set: 🔒 (a legacy 🔒 reads as proposed), my own 🎫 on my own days, or 🏁 Done (every
    traveler booked, or 💵). The only link inside is the guest /i/<id> link. Both the Google TEMPLATE link and the
-   .ics text come from the same event. null when there are no days (an undated idea), the days are over, or the
-   trip is dropped (🗑). ctx = {today, now, worker}. */
+   .ics text come from the same event. null when the trip has no plan (an undated idea, even for someone who set
+   their own window: PIA-139, a window is not trip days), the days are over, or the trip is dropped (🗑).
+   ctx = {today, now, worker}. */
 function calendarAdd(model, ctx) {
   ctx = ctx || {};
   if (!isIso(ctx.today)) throw new Error('calendarAdd: ctx.today must be a YYYY-MM-DD day');
   if (typeof ctx.now !== 'number' || !isFinite(ctx.now)) throw new Error('calendarAdd: ctx.now must be epoch milliseconds');
-  if (model.decision === 'dropped') return null;
+  if (model.decision === 'dropped' || !model.plan) return null;
   var me = model.me, plan = model.plan, own = !!(me && me.traveler && !me.bad && me.d1 && me.d2);
   var d1 = own ? me.d1 : plan ? plan.s : '', d2 = own ? me.d2 : plan ? plan.e : '';
   if (!d1 || !d2 || d1 > d2 || d2 < ctx.today) return null;
@@ -1080,8 +1089,10 @@ function respondRequest(doc, code, patch, opts) {
   var arr = has('arrTime') ? patch.arrTime || '' : n.arr, dep = has('depTime') ? patch.depTime || '' : n.dep;
   if ((arr && !HHMM_RE.test(arr)) || (dep && !HHMM_RE.test(dep))) return null;
   var called = opts.by === 'self' ? false : opts.by === 'proxy' ? true : n.called;
-  var body = { member: code, status: status, origin: origin, available_from: from, available_to: to,
-    note: buildRespNote(called, arr, dep, has('note') ? typedNote(patch.note) : n.text) };
+  var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text);
+  // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing
+  if ((has('arrTime') || has('depTime')) && parseRespNote(note).text !== String(text || '').trim()) return null;
+  var body = { member: code, status: status, origin: origin, available_from: from, available_to: to, note: note };
   var hub = hubPair(docDest(doc));
   var bad = ['arrive_at', 'leave_from'].some(function (k) {
     if (!has(k)) return false;
@@ -1094,7 +1105,10 @@ function respondRequest(doc, code, patch, opts) {
   return bad ? null : { method: 'POST', path: reqPath('/idea/respond', doc.id), body: body };
 }
 /* POST /idea/booked, preceded by a complete 'in' answer when the member has none (the Worker's answer_first).
-   Unbooking someone with no in/maybe answer builds nothing (the Worker would answer 400 answer_first). */
+   Unbooking someone with no in/maybe answer builds nothing (the Worker would answer 400 answer_first).
+   PIA-139: taking a 🎫 back clears the booked times that went with it (🛬 / 🛫), in one complete answer sent first (the
+   Worker keeps the 🎫 through it), so no phone shows a pickup for a flight that is no longer booked; their own write
+   clears 📞 as their own answer does, the organizer's keeps it as it reads. */
 function bookedRequests(doc, code, booked, opts) {
   if (!memberOf(doc, code) || !doc.id || (doc.decision && doc.decision.stage === 'dropped')) return null;
   var r = validResp(doc.responses && doc.responses[code]), out = [];
@@ -1104,6 +1118,11 @@ function bookedRequests(doc, code, booked, opts) {
     var first = respondRequest(doc, code, { status: 'in' }, opts);
     if (!first) return null;
     out.push(first);
+  }
+  var had = parseRespNote(r && r.note);
+  if (!booked && r.booked && (had.arr || had.dep)) {
+    var clear = respondRequest(doc, code, { arrTime: '', depTime: '' }, { by: opts && opts.by === 'self' ? 'self' : 'keep' });
+    if (clear) out.push(clear);
   }
   out.push({ method: 'POST', path: reqPath('/idea/booked', doc.id), body: { member: code, booked: !!booked } });
   return out;
@@ -1218,6 +1237,16 @@ function organizerEdit(fresh, editKey, delta, opts) {
     return only.length ? only : null;
   }
   var dst = delta.decision && delta.decision.stage, closes = dst === 'booked' || dst === 'dropped';
+  // PIA-139: 💵 paid on an open trip goes only once every traveler on the fresh record has booked; on a trip whose dates
+  // were never 🔒 (or were unlocked since), the plan is chosen first, because the Worker's booked needs a choice
+  if (dst === 'booked' && !docClosed(fresh)) {
+    if (paidHeld(fresh)) return null;
+    if (!ideaEdit && !(fresh.decision && fresh.decision.chosen)) {
+      var ch = updateRequest(fresh, editKey, { decision: { stage: 'chosen' } }, opts);
+      var bk = ch && updateRequest(Object.assign({}, fresh, { decision: ch.body.decision }), editKey, { decision: delta.decision }, opts);
+      return bk ? [ch, bk] : null;
+    }
+  }
   if (ideaEdit && closes && !docClosed(fresh)) {
     var tail = updateRequest(fresh, editKey, { decision: delta.decision }, opts);
     var rest = {}; Object.keys(delta).forEach(function (k) { if (k !== 'decision') rest[k] = delta[k]; });
@@ -1707,6 +1736,110 @@ function datesRole(model) {
   if (!me || me.host || me.status === 'out') return 'look';
   return me.answered ? 'mine' : 'answer';
 }
+
+/* ---- booking (PIA-139): one booked control, flight times for pickups, and a trip that reaches Done by itself ----
+   The stage is derived in tripModel from the booked flags (🎫 Booking once any traveler has booked, 🏁 Done once every one
+   has), so every phone reads the same stage from the same record. A 🎫 never closes the answers: only 💵 paid (the Worker's
+   booked decision) or 🗑 does. */
+/* one traveler's hand-off slot in P-person, by the trip view's own rule (primaryAction, bookToggle): their Google Flights
+   search before the dates are set; [✈ Book ↗ | 🎫] side by side once they are; [✈⏱↗ Flighty | 🎫] after their 🎫. tk is
+   whose 🎫 sits there: 'self' (my own: one tap, taking it back asks first), 'org' (the organizer marking someone else:
+   bookToggle, a confirming tap for someone waiting or out), '' none. → {slot: 'gf' | 'book' | 'booked' | '', tk} */
+function bookSlot(model, code, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler) return { slot: '', tk: '' };
+  var mine = !!model.me && model.me.code === code;
+  var tk = model.closed ? '' : mine ? (x.booked || primaryAction(model, today) === 'book' ? 'self' : '') : bookToggle(model, code) ? 'org' : '';
+  return { slot: x.booked ? 'booked' : tk ? 'book' : 'gf', tk: tk };
+}
+/* a typed time → 'HH:MM' (24h); blank → ''; anything else → null. '15:10', '1510', '0905', '0:30' are times, and so
+   are '6:05 pm', '6pm', '11:05a' (am / pm typed). An hour 1–12 typed with no leading 0 and no am / pm ('310', '9:05',
+   '1105', '12:30') could be either half of the day, so it is not a time until its half is picked (half 'am' | 'pm',
+   the two readings timeHalves offers): a 12-hour reader's 3:10 PM never silently becomes 03:10 (PIA-139). */
+var TYPED_TIME_RE = /^(\d{1,2})(?::?(\d{2}))?(?:([ap])\.?m?\.?)?$/;
+function timeParts(s) {
+  var t = String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+  if (!t) return { blank: true };
+  var m = TYPED_TIME_RE.exec(t);
+  if (!m || (m[2] === undefined && !m[3]) || (m[2] !== undefined && +m[2] > 59)) return null;   // '15' alone is not a time; '6pm' is
+  return { h: +m[1], mi: m[2] === undefined ? 0 : +m[2], half: m[3] || '', lead: m[1].length === 2 && m[1].charAt(0) === '0' };
+}
+function hhmm(h, mi) { return ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2); }
+function typedTime(s, half) {
+  var p = timeParts(s);
+  if (!p) return null;
+  if (p.blank) return '';
+  var h = p.h, hf = p.half || (h >= 1 && h <= 12 && !p.lead ? (half === 'am' ? 'a' : half === 'pm' ? 'p' : '?') : '');
+  if (hf === '?') return null;                                   // either half of the day: timeHalves offers both
+  if (hf) { if (h < 1 || h > 12) return null; h = hf === 'p' ? (h % 12) + 12 : h % 12; }
+  else if (h > 23) return null;
+  return hhmm(h, p.mi);
+}
+/* the two readings of a time that could be either half of the day ('310' → {am: '03:10', pm: '15:10'}), else null */
+function timeHalves(s) {
+  var p = timeParts(s);
+  if (!p || p.blank || p.half || p.lead || p.h < 1 || p.h > 12) return null;
+  return { am: typedTime(s, 'am'), pm: typedTime(s, 'pm') };
+}
+/* the part of the day a booked time falls in, for its glyph: 'day' 06:00–17:59 (☀), 'night' otherwise (🌃), '' no time.
+   The two readings of one typed hour always fall in different parts, so the pick between them is never two of a kind. */
+function dayPart(t) { return typeof t === 'string' && HHMM_RE.test(t) ? (+t.slice(0, 2) >= 6 && +t.slice(0, 2) < 18 ? 'day' : 'night') : ''; }
+/* who may record a traveler's booked times (🛬 landing, 🛫 leaving) on this phone: 'self' (their own, once booked), 'proxy'
+   (the organizer for them), '' nobody (not booked, a host, someone out, a closed trip: the Worker takes no answer on a paid
+   one, a guest looking at someone else, a v1 doc on the organizer's phone) */
+function timesBy(model, code) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler || !x.booked || model.closed) return '';
+  if (model.me && model.me.code === code) return 'self';
+  return model.org && !model.legacy ? 'proxy' : '';
+}
+/* the answer that records booked times, built on the record it is sent against: the answer as it stands (days, airports,
+   origin, the 🎫 and the note's text all kept) with arr / dep as the 🛬 / 🛫 prefixes of the note ('HH:MM', '' clears one,
+   undefined leaves it). Their own times clear 📞 (as their own answer does); the organizer's keep it as it reads. null for
+   someone not booked, a time that is not HH:MM, no change, or times that would leave the note's text no room. */
+function timesRequest(doc, code, arr, dep, by) {
+  var r = validResp(doc && doc.responses && doc.responses[code]);
+  if (!r || !r.booked || (r.status !== 'in' && r.status !== 'maybe')) return null;
+  var n = parseRespNote(r.note), patch = {};
+  if (arr !== undefined && arr !== n.arr) patch.arrTime = arr;
+  if (dep !== undefined && dep !== n.dep) patch.depTime = dep;
+  if (!hasOwn(patch, 'arrTime') && !hasOwn(patch, 'depTime')) return null;
+  return respondRequest(doc, code, patch, { by: by === 'self' ? 'self' : 'keep' });
+}
+/* 💵 paid (P-stage): what the trip cost, recorded by the organizer once every traveler has booked, on his phone with the
+   token (the amount is a price, and prices stay there). → {why, unbooked, unanswered}: why '' it can be recorded; 'org' not
+   the organizer's phone; 'token' no token here; 'legacy' (P-migrate first); 'closed' (paid already, or dropped); 'nobody'
+   (no one travels); 'unbooked' (a traveler has no 🎫 yet: unbooked lists them); 'nodates' (no plan or no destination to 🔒,
+   which the Worker's booked needs first). unanswered: the people with no answer yet (hosts, in by default), whom 💵 closes
+   out, because the Worker takes no answer on a paid trip. notimes: the booked travelers with no 🛬 time recorded yet,
+   whose times 💵 freezes for the same reason (PIA-139: the confirm names both). again: a paid trip whose amount the
+   organizer can enter again on this phone (a typo fixed: the Worker takes a second booked decision). */
+function paidCheck(model) {
+  var unbooked = model.travelers.filter(function (x) { return !x.booked; }).map(function (x) { return x.code; });
+  var unanswered = model.members.filter(function (x) { return !x.resp; }).map(function (x) { return x.code; });
+  var notimes = model.travelers.filter(function (x) { return x.booked && !x.arrTime; }).map(function (x) { return x.code; });
+  var why = !model.org ? 'org' : !model.prices ? 'token' : model.legacy ? 'legacy' : model.closed ? 'closed' : !model.travelers.length ? 'nobody'
+    : unbooked.length ? 'unbooked' : !model.locked && (!model.plan || !model.dest) ? 'nodates' : '';
+  return { why: why, unbooked: unbooked, unanswered: unanswered, notimes: notimes, again: why === 'closed' && model.decision === 'booked' && model.paid != null };
+}
+/* the same rule on the record a 💵 is sent against: 'closed' (paid or dropped meanwhile), 'unbooked' (a 🎫 was taken away
+   on another phone since this one drew 🏁), '' it can go. Who travels and who has booked does not depend on the day, so
+   the model is read with any day. again (💵 entered again on a paid trip): '' while it is still paid, 'closed' once it
+   was dropped or reopened meanwhile. */
+function paidHeld(fresh, again) {
+  if (!fresh || !fresh.idea) return 'unbooked';
+  if (again === true) return fresh.decision && fresh.decision.stage === 'booked' && fresh.decision.chosen ? '' : 'closed';
+  if (docClosed(fresh)) return 'closed';
+  return tripModel(fresh, { today: '2000-01-01', now: 0 }).stage === 'done' ? '' : 'unbooked';
+}
+/* the 💵 amount as typed: whole dollars ('$1,490', '1490', '1490.40' → 1490); null when it is not an amount the Worker keeps
+   (at least $1, under $1,000,000) */
+function typedPaid(s) {
+  var t = String(s == null ? '' : s).replace(/[\s$,]/g, '');
+  if (!/^\d+(?:\.\d{0,2})?$/.test(t)) return null;
+  var v = Math.round(+t);
+  return v >= 1 && v < 1e6 ? v : null;
+}
 /* === pialax trip-model: end === */
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -1739,6 +1872,8 @@ if (typeof module !== 'undefined' && module.exports) {
     fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
     whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle,
     SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
-    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, datesRole: datesRole, datesHeld: datesHeld
+    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, datesRole: datesRole, datesHeld: datesHeld,
+    bookSlot: bookSlot, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
+    timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime
   };
 }

@@ -454,9 +454,10 @@ function main() {
     'once 🔒 (and once paid) the event is confirmed: no "? " and STATUS:CONFIRMED (golden Diwali link, 11/06–11/10)');
   check(cal(DW, 'ashwin-p8').tentative && /^\? /.test(cal(DW, 'ashwin-p8').title) && /\r\nSTATUS:TENTATIVE\r\n/.test(cal(DW, 'ashwin-p8').ics.text) && cal(LEG, 'LAX').tentative,
     'before 🔒 it is tentative ("? " title, STATUS:TENTATIVE); a legacy 🔒 reads as proposed, so it stays tentative');
-  const cyAsh = cal(CY, 'ashwin-c3');
-  check(cal(CY, 'momdad-c1') === null && cal(CY, undefined) === null && cyAsh.d1 === '2026-12-19' && cyAsh.end === '2026-12-27' && cyAsh.tentative,
-    'an undated idea: no event without days; Ashwin’s own window still makes a tentative 12/19–12/27 (exclusive) event');
+  // PIA-139: a window is not trip days: an undated idea makes no event at all, even for someone with their own window
+  // (Ashwin's 12/19–12/26 on a 🌙4 idea would have been an 8-day event)
+  check(cal(CY, 'momdad-c1') === null && cal(CY, undefined) === null && mem(model(CY), 'ashwin-c3').d1 === '2026-12-19' && cal(CY, 'ashwin-c3') === null,
+    'an undated idea: no event without the trip\'s days, even for Ashwin with his own 12/19–12/26 window');
   const orderCal = cal(order, 'ashwin-p8');
   check(!orderCal.own && orderCal.d1 === '2026-11-06' && orderCal.d2 === '2026-11-09' && orderCal.end === '2026-11-10' &&
     cal(tweak(DW, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-16'; d.idea.notes = ''; }), 'ashwin-p8') === null && !!cal(past, 'ashwin-p8'),
