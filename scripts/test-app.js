@@ -53,7 +53,10 @@ class FixedDate extends Date {
 const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 'readLink', 'applyLink', 'importV1Once', 'refresh', 'refreshAll', 'poll', 'onFocus',
   'respond', 'setBooked', 'organizerWrite', 'createTrip', 'applyLocal', 'api', 'errCode', 'errInfo', 'SHEETS', 'saveKey', 'editKeyFor', 'keysMap', 'setMe', 'meFor',
   'markSeen', 'setToken', 'tokenStr', 'setWorker', 'workerBase', 'listRead', 'listIds', 'organizerLink', 'devicesLink', 'modelOf', 'items', 'v1ShortIds', 'v1LegacyIds',
-  'tripModel', 'POLL_MS', 'LEGEND', 'anyFailed', 'boot', 'render', 'qsParse', 'WORKER_OK', 'openSheet', 'closeSheet', 'showError', 'FOCUS_GAP_MS'];
+  'tripModel', 'POLL_MS', 'LEGEND', 'anyFailed', 'boot', 'render', 'qsParse', 'WORKER_OK', 'openSheet', 'closeSheet', 'showError', 'FOCUS_GAP_MS',
+  // PIA-135
+  'ACTS', 'renderIdeas', 'renderTabbar', 'renderSelected', 'activeItems', 'shelfItems', 'tripsBadge', 'unsharedIds', 'shareModels', 'sharedWl', 'recordShared', 'saveState',
+  'SAVED_NEW', 'freshCodes', 'myFace', 'dirBase', 'seenFor', 'readFares', 'listAdd', 'uiSet'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -77,7 +80,7 @@ function loadApp(o) {
     setInterval: (fn, ms) => { timers.push({ fn, ms }); return { unref() {} }; },
     // every re-render the store asks for is queued here (and run with flush()), so a case can count them
     requestAnimationFrame: (f) => { frames.push(f); return frames.length; },
-    navigator: { userAgent: 'test-app', clipboard: { writeText: () => Promise.resolve() } }
+    navigator: o.navigator || { userAgent: 'test-app', clipboard: { writeText: () => Promise.resolve() } }
   };
   const { api, missing } = loadApi(APP, 'app.html', EXPECT, over);
   const flush = () => { const n = frames.length; frames.splice(0).forEach((f) => f()); return n; };
@@ -207,7 +210,10 @@ function norm(doc) {
     L = api.readLink('?l=' + A + '.' + B, '#ks=' + A + '.' + KEY + ',' + B + '.' + KEY2 + '&t=' + TOKEN, '/PIALAX/app.html');
     check(eq(L.ids, [A, B]) && eq(L.keys, { [A]: KEY, [B]: KEY2 }) && L.token === TOKEN && L.stripHash && eq(L.drop, ['l']), 'the devices link ?l=…#ks=<id>.<key>,…&t=: every id, every key, the token');
     L = api.readLink('?ks=x', '#ks=&t=' + TOKEN, '/');
-    check(L.token === TOKEN && eq(L.keys, {}) && L.stripHash, 'a devices link from a phone with a token and no keys still carries the token');
+    check(L.token === TOKEN && eq(L.keys, {}) && L.stripHash && L.devices, 'a devices link from a phone with a token and no keys still carries the token');
+    const dj = [api.readLink('?l=' + A + '.' + B, '#ks=junk', '/'), api.readLink('?l=' + A, '#ks=', '/'), api.readLink('?l=' + A, '#ks=' + A + '.short', '/')];
+    check(dj.every((x) => !x.devices && x.list && x.stripHash && eq(x.keys, {})) && api.readLink('?l=' + A, '#ks=' + A + '.' + KEY, '/').devices,
+      'PIA-135 only a #ks= that proves it (a valid key or the token) is my own devices link; a junk, empty or broken one leaves a list link someone else\'s', dj.map((x) => x.devices));
     L = api.readLink('?l=' + A + '.' + B + '.' + C + '.nope.' + A + '&f=' + encodeURIComponent('🌴'), '', '/');
     check(eq(L.ids, [A, B, C]) && L.face === '🌴' && L.list && eq(L.drop, ['l', 'f']) && !L.stripHash, 'a v2 list link ?l=<id>.<id>…&f=<face>: valid ids once each, the sender face');
     const big = Array.from({ length: 60 }, (_, i) => ('x' + i).padEnd(22, 'q'));
@@ -286,15 +292,18 @@ function norm(doc) {
       'devices link: every key and the token saved, every trip listed, then ?l= and the hash are stripped');
   }
   {
+    // PIA-135: someone else's list link opens the receiving sheet; nothing is added until ⤓ Save
     const t = loadApp({ url: BASE + '?l=' + A + '.' + B + '&f=' + encodeURIComponent('🌴') + '&flags=assistant' });
-    check(eq(t.api.listIds(), [A, B]) && t.loc.search === '?flags=assistant' && !t.ls.getItem('pialax_idea_keys_v1') && !t.ls.getItem('pialax_proxy_token'),
-      'list link: ids imported (no keys, no token), ?l and ?f consumed, ?flags kept');
+    const sh = t.api.S.sheet;
+    check(eq(t.api.listIds(), []) && sh && sh.type === 'savelist' && eq(sh.p.ids, [A, B]) && sh.p.face === '🌴' && t.loc.search === '?flags=assistant' && !t.ls.getItem('pialax_idea_keys_v1') && !t.ls.getItem('pialax_proxy_token'),
+      'list link: the receiving sheet opens with its ids and the sender\'s face (nothing listed yet, no keys, no token); ?l and ?f consumed, ?flags kept', { list: t.api.listIds(), sheet: sh && sh.type });
   }
   {
     const v1 = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['wlShareEncode'], { console: QUIET }).api;
     const w = v1.wlShareEncode({ overrides: { thanksgiving: { sharedIdeaId: C } }, added: [] });
     const t = loadApp({ url: BASE + '?w=' + w });
-    check(eq(t.api.listIds(), [C]) && t.loc.search === '', 'a v1 ?w= share link opened in v2 imports its shared trip and is read once (dropped from the address bar)');
+    check(eq(t.api.listIds(), []) && t.api.S.sheet && t.api.S.sheet.type === 'savelist' && eq(t.api.S.sheet.p.ids, [C]) && t.api.S.sheet.p.face === '' && t.loc.search === '',
+      'a v1 ?w= share link opened in v2 offers its shared trip on the receiving sheet and is read once (dropped from the address bar)');
   }
   {
     const v1raw = fs.readFileSync(path.join(ROOT, 'scripts', 'fixtures', 'v1-watchlist-storage.json'), 'utf8').trim();
@@ -615,6 +624,272 @@ function norm(doc) {
     slow.res(); await tick(); t.api.closeSheet();
     await t.api.refreshAll(); await tick();
     check(!t.api.S.sheet, 'later reads (background) never open P-error again');
+  }
+
+  // ═══ PIA-135: Trips › Ideas, the shared watchlist ═══
+  section('PIA-135 Trips › Ideas: cards, the one total, hand-offs, list share, the receiving sheet, the shelf, new answers');
+  const LX = 'lxBeachWeekendLAX00d05', DROP = 'drTahoeDroppedTrip00d1', UO = 'uoUndatedOldWindow0u01', PAST = 'psTahoePastSeptember01';
+  [fx('idea-diwali.json'), fx('idea-tahoe.json'), fx('idea-8members.json'), fx('idea-undated.json'), fx('idea-lax-local.json')].forEach((d) => srv.seed(d));   // the fixtures as they are (earlier groups wrote to them)
+  srv.seed(Object.assign(clone(fx('idea-tahoe.json')), { id: DROP, decision: { stage: 'dropped', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null } }));
+  srv.seed(Object.assign(clone(fx('idea-undated.json')), { id: UO, idea: Object.assign(clone(fx('idea-undated.json').idea), { dates: { departure: '', return: '', searchStart: '2026-08-01', searchEnd: '2026-08-20' } }) }));
+  srv.seed(Object.assign(clone(fx('idea-tahoe.json')), { id: PAST, idea: Object.assign(clone(fx('idea-tahoe.json').idea), { dates: { departure: '2026-09-11', return: '2026-09-14', searchStart: '', searchEnd: '' } }) }));
+  const keyOf = (ids) => { const o = {}; ids.forEach((id) => { o[id] = { edit_key: KEY, title: '', created_at: 'c' }; }); return o; };
+  const cardOf = (html, id) => { const i = html.indexOf('<article class="card'), parts = html.slice(i).split('<article '); return parts.find((p) => p.indexOf('data-trip="' + id + '"') >= 0) || ''; };
+  const ME = { [A]: 'ashwin-p8', [B]: 'ashwin-l2', [C]: 'ashwin-c3', [LX]: 'ashwin-x3', [DROP]: 'ashwin-l2', [UO]: 'ashwin-c3', [PAST]: 'ashwin-l2' };
+  const boot135 = async (o) => {
+    const t = loadApp(Object.assign({ fetch: srv.fetch }, o));
+    await t.api.refreshAll(true); await tick(); t.api.render();
+    return t;
+  };
+  {
+    // the organizer's phone with the token: a real total from cached real fares on the trips it organizes, nowhere else
+    const fares = {};
+    const dwm = loadApp().api.tripModel(srv.read(A), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true });
+    dwm.travelers.forEach((x, i) => x.keys.forEach((k) => { fares[k.key] = { p: 200 + i * 100, f: NOW - 36e5 }; }));
+    const want = dwm.travelers.reduce((s, x, i) => s + (200 + i * 100) * x.keys.length, 0);
+    const t = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([C, M8, B, A]).map((x) => Object.assign(x, { pin: x.id === M8 })), pialax_idea_keys_v1: keyOf([A]), pialax_proxy_token: TOKEN,
+      pialax_idea_me_v1: ME, pialax_fares_v2: fares, pialax_ui_v1: { v1read: 1 } }) });
+    const html = t.api.renderIdeas().html, cA = cardOf(html, A), cB = cardOf(html, B);
+    const totA = (/<span class="tot[^"]*" data-k="total">([^<]*)/.exec(cA) || [])[1];
+    check(totA === '$' + want.toLocaleString('en-US') && cB.indexOf('class="tot') < 0 && cardOf(html, M8).indexOf('class="tot') < 0,
+      'PIA-135 AC1 the one total ($' + want + ', the sum of the cached real fares) sits only on the card of a trip this token phone organizes', { totA, want });
+    check(/<span data-k="pin"><span class="g">📌<\/span>8<\/span>/.test(cA) && /<span class="tg w" data-k="togo"><span class="g">⏳<\/span>20<i class="bba" data-k="bookby"><i style="width:0\.0%"><\/i><\/i><\/span>/.test(cA),
+      'PIA-135 AC1 Diwali\'s pill: the event day (📌8) and ⏳20 days to go, red with an empty book-by arc (book-by 10/16 has passed with travelers unbooked)');
+    check(/<span class="tg" data-k="togo"><span class="g">⏳<\/span>41<i class="bba" data-k="bookby"><i style="width:48\.8%"><\/i><\/i><\/span>/.test(cB) && cB.indexOf('class="tg w"') < 0,
+      'PIA-135 AC1 Tahoe\'s pill: ⏳41 days to go, neutral, over a book-by arc 20/41 full (it books by 11/06)');
+    check(/<span class="loc" data-k="place"><svg viewBox="0 0 360 230" aria-hidden="true"><use href="#us-o"[^>]*\/><circle cx="303.5" cy="125.9"/.test(cA),
+      'PIA-135 AC1 the postcard carries a mini locator: Raleigh (RDU) as a dot on the US outline (a glyph with its key: Place)');
+    check(/class="card-open"[^>]*>🪔 Diwali in Raleigh<\/button>/.test(cA) && /<h3 class="card-t" data-free>/.test(cA) && /data-k="heads">3\/4</.test(cA) && /class="pip now" data-k="st-asking"/.test(cA) && /class="pip now" data-k="st-asking"/.test(cB),
+      'PIA-135 AC1 the card: title (free of the word budget), faces with answer shapes, n/N, and the stage disc on every card (Tahoe, which this phone does not organize, too)');
+    const order = (html.match(/data-trip="([^"]+)"/g) || []).map((s) => s.slice(11, -1));
+    check(eq(order, [M8, A, B, C]), 'cards sort ⭐ pinned first, then by departure, undated last', order);
+    const gf = /<a class="slot gf z" href="(https:\/\/www\.google\.com\/travel\/flights\/search\?tfs=[^"]+)" target="_blank" rel="noopener noreferrer" aria-label="Google Flights" data-k="gf">/.exec(cA);
+    check(!!gf && gf[1].replace(/&amp;/g, '&') === t.api.modelOf(A).me.link.href, 'PIA-135 AC2 my own Google Flights search is the card\'s one tap (a new tab), the model\'s own link');
+    const noTok = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([A, B]), pialax_idea_keys_v1: keyOf([A]), pialax_idea_me_v1: ME, pialax_fares_v2: fares, pialax_ui_v1: { v1read: 1 } }) });
+    const guest = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([A, B, C]), pialax_idea_me_v1: { [A]: 'anjo-z5', [B]: 'maya-s9', [C]: 'anjo-c4' }, pialax_proxy_token: TOKEN, pialax_fares_v2: fares, pialax_ui_v1: { v1read: 1 } }) });
+    const gh = guest.api.renderIdeas().html;
+    check(noTok.api.renderIdeas().html.indexOf('class="tot') < 0 && gh.indexOf('class="tot') < 0 && guest.api.modelOf(A).price === null,
+      'PIA-135 AC1 guests\' cards have no price slot at all (a guest phone with a token too), and an organizer phone without the token shows none');
+    check([A, B].every((id) => /class="pip now" data-k="st-asking"/.test(cardOf(gh, id))) && /data-k="togo"><span class="g">⏳<\/span>20</.test(cardOf(gh, A)) && cardOf(gh, A).indexOf('class="tg w"') < 0,
+      'PIA-135 AC1 a guest sees the same stage disc and ⏳ days to go; the red book-by cue stays with those it matters to (Anjo has not answered Diwali)');
+  }
+  {
+    // AC1 the one total never reads as final while a traveler is half priced: Diwali moved to New York (LGA, hub LGA/JFK),
+    // Mom & Dad fly into JFK and home from LGA (open-jaw) with only their inbound leg cached; Anjo hosts there
+    const OJ = 'ojDiwaliOpenJawLGA0001', oj = clone(fx('idea-diwali.json'));
+    oj.id = OJ; oj.idea.destination = { city: 'New York', airport: 'LGA' };
+    oj.responses['momdad-k3'] = Object.assign({}, oj.responses['momdad-k3'], { arrive_at: 'JFK', leave_from: 'LGA' });
+    srv.seed(oj);
+    const om = loadApp().api.tripModel(srv.read(OJ), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true });
+    const md = om.travelers.filter((x) => x.code === 'momdad-k3')[0], ash = om.travelers.filter((x) => x.code === 'ashwin-p8')[0];
+    const fares = {}; fares[md.keys[0].key] = { p: 200, f: NOW - 36e5 }; ash.keys.forEach((k) => { fares[k.key] = { p: 300, f: NOW - 36e5 }; });
+    const t = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([OJ]), pialax_idea_keys_v1: keyOf([OJ]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [OJ]: 'ashwin-p8' }, pialax_fares_v2: fares, pialax_ui_v1: { v1read: 1 } }) });
+    const p = t.api.modelOf(OJ).price, c = cardOf(t.api.renderIdeas().html, OJ);
+    check(md.openJaw && md.keys.length === 2 && p.total === 500 && !p.complete && p.per['momdad-k3'].hollow && p.per['momdad-k3'].sum === 200 &&
+      /<span class="tot part" data-k="total">\$500 <span class="uf" data-k="unpriced">\+🌽<\/span><\/span>/.test(c),
+      'PIA-135 AC1 an open-jaw traveler with one of two legs cached: the total is outlined as partial with their face (+🌽), never a bare $500', { total: p.total, complete: p.complete, tot: (/<span class="tot[\s\S]*?<\/span><\/span>|<span class="tot[^>]*>[^<]*<\/span>/.exec(c) || [])[0] });
+  }
+  {
+    // AC2 hand-offs: a host sees 🏠, a booked traveler the Flighty hand-off, an idea without a place Explore
+    const booked = clone(srv.read(B)); booked.id = 'bkTahoeBookedAshwin0b1'; booked.responses['ashwin-l2'] = Object.assign({}, booked.responses['ashwin-l2'], { status: 'in', booked: true }); srv.seed(booked);
+    const nowhere = clone(srv.read(B)); nowhere.id = 'nwNoPlaceYetIdea000n02'; nowhere.idea.destination = { city: '', airport: '' }; srv.seed(nowhere);
+    // a guest who has not answered yet (Leo on Tahoe), a place off the US map (London) and a code the app does not know
+    const UN = 'unTahoeUnansweredLe001', LHR = 'lnLondonCallingLHR0001', ZZ = 'zqUnknownAirportZZQ001';
+    srv.seed(Object.assign(clone(fx('idea-tahoe.json')), { id: UN }));
+    const lon = clone(fx('idea-tahoe.json')); lon.id = LHR; lon.idea.destination = { city: 'London', airport: 'LHR' }; srv.seed(lon);
+    const zz = clone(fx('idea-tahoe.json')); zz.id = ZZ; zz.idea.destination = { city: '', airport: 'ZZQ' }; srv.seed(zz);
+    const t = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([LX, booked.id, nowhere.id, UN, LHR, ZZ]), pialax_idea_me_v1: { [LX]: 'ashwin-x3', [booked.id]: 'ashwin-l2', [nowhere.id]: 'ashwin-l2', [UN]: 'leo-w6', [LHR]: 'ashwin-l2', [ZZ]: 'ashwin-l2' }, pialax_ui_v1: { v1read: 1 } }) });
+    const html = t.api.renderIdeas().html;
+    check(/aria-label="Host" data-lbl="Host" data-k="host">🏠</.test(cardOf(html, LX)) && /href="https:\/\/www\.flighty\.com\/"[^>]*data-k="flighty">✈⏱↗</.test(cardOf(html, booked.id)) &&
+      /href="https:\/\/www\.google\.com\/travel\/explore[^"]*"[^>]*data-k="explore">🧭↗</.test(cardOf(html, nowhere.id)),
+      'PIA-135 AC2 the card\'s slot: 🏠 for a host, ✈⏱↗ Flighty once I have booked, 🧭↗ Explore for an idea with no place');
+    const un = t.api.modelOf(UN), ugf = /<a class="slot gf z" href="([^"]+)"[^>]*data-k="gf">✈↗<\/a>/.exec(cardOf(html, UN));
+    check(!un.me.answered && un.me.status === 'waiting' && !!ugf && ugf[1].replace(/&amp;/g, '&') === un.me.link.href && /^https:\/\/www\.google\.com\/travel\/flights\/search\?tfs=/.test(un.me.link.href),
+      'PIA-135 AC2 nothing is gated behind answering: Leo, who has not answered Tahoe, has his own Google Flights search one tap from the list (SEA→RNO, the plan\'s dates)');
+    check(/<span class="loc" data-k="noplace">/.test(cardOf(html, nowhere.id)) && /<span class="loc" data-k="abroad">/.test(cardOf(html, LHR)) && /<span class="loc" data-k="noplace">/.test(cardOf(html, ZZ)) &&
+      /<span class="loc" data-k="place">/.test(cardOf(html, LX)) && t.api.LEGEND.place && t.api.LEGEND.abroad && t.api.LEGEND.noplace && t.api.LEGEND.bookby,
+      'PIA-135 AC1 the locator\'s states: a dot on the US map (LA), a globe for a known place off it (London), ? for no place yet or a code the app does not know (ZZQ, never a globe); each has its key');
+  }
+  {
+    // AC3 opening any trip link adds it with no taps, and the card flies in when the list is next drawn
+    const t = loadApp({ url: BASE + '?idea=' + B, fetch: srv.fetch });
+    check(eq(t.api.listIds(), [B]) && t.api.S.trip === B && t.api.S.fly && t.api.S.fly[B] === 1, 'PIA-135 AC3 a trip link saves the trip with no taps and marks its card to fly into the list');
+    t.api.S.trip = null;
+    check(/<article class="card dim fly" data-trip="thTahoeSkiWeekend26b02">/.test(t.api.renderIdeas().html), 'an arrival flies in even when the list draws it before its first read (the snapshot card)');
+  }
+  {
+    // AC4 / AC5 the list share: groups by people, the largest pre-checked, shelf and dropped left out, my face, no secrets
+    const mk = (nav) => boot135({ navigator: nav, ls: seedLs({ pialax_watchlist_v2: listOf([A, B, C, M8, DROP, PAST]), pialax_idea_keys_v1: keyOf([A, DROP]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: ME, pialax_ui_v1: { v1read: 1 } }) });
+    let shared = null;
+    const t = await mk({ userAgent: 'x', share: (o) => { shared = o; return Promise.resolve(); }, clipboard: { writeText: () => Promise.reject(new Error('no')) } });
+    check(eq(t.api.unsharedIds().sort(), [A, B, C, M8].sort()) && /data-act="sharelist" aria-label="Share list, 4 not shared" data-lbl="Share list"[^>]*>[\s\S]*?<span class="badge" data-lbl="Not shared">\+4<\/span>/.test(t.api.renderIdeas().html),
+      'PIA-135 AC5 the list-share control counts every trip in my list that no list share has carried yet, whoever organizes it (+4; the shelf\'s two are not counted), and says so to a screen reader');
+    t.api.openSheet('sharelist', {});
+    const shHtml = t.api.SHEETS.sharelist(t.api.S.sheet), L = t.api.S.sheet.local;
+    const listed = (shHtml.match(/data-act="sltoggle" data-id="([^"]+)"/g) || []).map((s) => s.split('"')[3]);
+    check(eq(Object.keys(L.checked).sort(), [A, C].sort()) && eq(listed.sort(), [A, B, C, M8].sort()) && (shHtml.match(/data-act="slgroup"/g) || []).length === 3 && /Share <span class="tn">2<\/span>/.test(shHtml),
+      'PIA-135 AC4 P-sharelist: trips grouped by who is in them (3 groups), the largest (🌽🗽 Diwali + the shower) pre-checked, shelf and dropped trips never listed', { checked: L.checked, listed });
+    t.api.ACTS.slgroup({ dataset: { v: '1' } });
+    const g1 = Object.keys(L.checked);
+    t.api.ACTS.sltoggle({ dataset: { id: M8 } });
+    check(g1.length === 1 && Object.keys(L.checked).length === 2 && L.checked[M8], 'a group chip checks that group\'s trips only; a card toggles itself');
+    t.api.ACTS.slgroup({ dataset: { v: '0' } });
+    t.api.ACTS.slshare(); await tick();
+    const u = shared && new URL(shared.url);
+    check(!!u && u.href === ORIGIN + '/PIALAX/?l=' + A + '.' + C + '&f=' + encodeURIComponent('🌴') && Object.keys(shared).length === 1 && !u.hash && shared.url.indexOf(KEY) < 0 && shared.url.indexOf(TOKEN) < 0,
+      'PIA-135 AC4 📣 Share hands the phone\'s share sheet the URL only: the app\'s folder ?l=<checked ids>&f=<my face>, no key, token, hash or price', shared);
+    check(eq(t.api.sharedWl().sort(), [A, C].sort()) && eq(t.api.unsharedIds().sort(), [B, M8].sort()) && !t.api.S.sheet && /<span class="badge" data-lbl="Not shared">\+2<\/span>/.test(t.api.renderIdeas().html),
+      'PIA-135 AC5 once shared: pialax_shared_at_v1.wl holds the ids, the sheet closes, and the count drops by exactly those two (+4 → +2)');
+    const g2 = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([A, B]), pialax_idea_me_v1: { [A]: 'anjo-z5', [B]: 'maya-s9' }, pialax_ui_v1: { v1read: 1 } }) });
+    check(eq(g2.api.unsharedIds().sort(), [A, B].sort()) && /<span class="badge" data-lbl="Not shared">\+2<\/span>/.test(g2.api.renderIdeas().html),
+      'PIA-135 AC5 a guest who organizes nothing and has never shared sees +2 too');
+    const cancelled = await mk({ share: () => Promise.reject(Object.assign(new Error('x'), { name: 'AbortError' })), clipboard: { writeText: () => Promise.resolve() } });
+    cancelled.api.openSheet('sharelist', {}); cancelled.api.SHEETS.sharelist(cancelled.api.S.sheet);
+    cancelled.api.ACTS.slshare(); await tick();
+    check(cancelled.api.S.sheet && cancelled.api.S.sheet.type === 'sharelist' && eq(cancelled.api.sharedWl(), []), 'cancelling the phone\'s share sheet shares nothing and records nothing');
+    const refNav = { clipboard: { writeText: () => Promise.reject(new Error('denied')) } };
+    const refused = await mk(refNav);
+    refused.api.openSheet('sharelist', {}); refused.api.SHEETS.sharelist(refused.api.S.sheet);
+    refused.api.ACTS.slshare(); await tick();
+    check(refused.api.S.sheet && refused.api.S.sheet.type === 'link' && /\?l=/.test(refused.api.S.sheet.p.url) && refused.api.S.sheet.back && refused.api.S.sheet.back.type === 'sharelist' && eq(refused.api.sharedWl(), []),
+      'no share sheet and a refused clipboard: P-link with the list link, over the list-share sheet; nothing is recorded yet (nothing has gone out)');
+    refNav.clipboard.writeText = () => Promise.resolve();
+    refused.api.ACTS.lcopy(); await tick();
+    check(eq(refused.api.sharedWl().sort(), [A, C].sort()), 'P-link\'s ⧉ copies the link, and only then are its trips recorded as shared');
+    const closed = await mk({ clipboard: { writeText: () => Promise.reject(new Error('denied')) } });
+    closed.api.openSheet('sharelist', {}); closed.api.SHEETS.sharelist(closed.api.S.sheet);
+    closed.api.ACTS.slshare(); await tick();
+    closed.api.closeSheet();
+    check(eq(closed.api.sharedWl(), []) && eq(closed.api.unsharedIds().sort(), [A, B, C, M8].sort()), 'closing P-link without copying records nothing: the +n count stays');
+    const copied = await mk({ clipboard: { writeText: () => Promise.resolve() } });
+    copied.api.openSheet('sharelist', {}); copied.api.SHEETS.sharelist(copied.api.S.sheet);
+    copied.api.ACTS.slshare(); await tick();
+    check(!copied.api.S.sheet && copied.api.sharedWl().length === 2, 'no share sheet: the link is copied and the sheet closes');
+    const empty = loadApp({ ls: seedLs({ pialax_watchlist_v2: listOf([PAST]), pialax_ui_v1: { v1read: 1 } }), fetch: srv.fetch });
+    await empty.api.refreshAll(true); await tick(); empty.api.render();
+    check(empty.api.renderIdeas().html.indexOf('data-act="sharelist"') < 0 && loadApp().api.renderIdeas().html.indexOf('data-act="sharelist"') < 0, 'the list-share control is hidden while there is nothing to share (an empty list, or only shelf trips)');
+  }
+  {
+    // AC4 the receiving sheet: the sender's face, only the trips that are new here, ⤓ Save in one tap
+    const Z = 'zzTripThatIsGone0000z1';
+    const t = loadApp({ url: BASE + '?l=' + A + '.' + B + '.' + Z + '&f=' + encodeURIComponent('🦊'), fetch: srv.fetch, ls: seedLs({ pialax_watchlist_v2: listOf([A]), pialax_ui_v1: { v1read: 1 } }) });
+    await tick(); await t.api.refreshAll(); await tick();
+    const sh = t.api.S.sheet, st = t.api.saveState(sh.p), html = t.api.SHEETS.savelist(sh);
+    check(sh.type === 'savelist' && eq(st.fresh, [B]) && /<span class="svf" data-face>🦊<\/span>/.test(html) && (html.match(/class="mini/g) || []).length === 1 && /Tahoe ski weekend/.test(html) && /Save <span class="tn">1<\/span>/.test(html) && html.indexOf('Diwali') < 0,
+      'PIA-135 AC4 P-savelist shows the sender\'s face and only the trips new to this phone (Tahoe; Diwali is already here, the gone trip is left out): ⤓ Save 1', { fresh: st.fresh });
+    const gets = t.fetches.filter((f) => f.method === 'GET').map((f) => new URL(f.url).searchParams.get('id'));
+    check([B, Z].every((id) => gets.indexOf(id) >= 0) && eq(t.api.listIds(), [A]), 'the sheet reads the offered trips from the Worker (free GET /idea) and saves nothing by itself');
+    t.api.ACTS.svsave();
+    const savedNow = t.api.listIds().slice();
+    await tick();
+    check(eq(savedNow, [A, B]) && eq(t.api.listIds(), [A, B]) && !t.api.S.sheet && t.api.S.tab === 'trips' && t.api.S.seg === 'ideas', 'PIA-135 AC4 one tap on ⤓ Save adds the new trips (and only them) and shows the list (test-words sees them fly in)',
+      { list: t.api.listIds(), sheet: t.api.S.sheet && t.api.S.sheet.type, tab: t.api.S.tab });
+    const mixed = loadApp({ url: BASE + '?l=' + DROP + '.' + PAST + '.' + B, fetch: srv.fetch, ls: seedLs({ pialax_watchlist_v2: listOf([A]), pialax_ui_v1: { v1read: 1 } }) });
+    await tick(); await mixed.api.refreshAll(); await tick();
+    const mst = mixed.api.saveState(mixed.api.S.sheet.p), mh = mixed.api.SHEETS.savelist(mixed.api.S.sheet);
+    check(eq(mst.fresh, [B]) && /Save <span class="tn">1<\/span>/.test(mh), 'a list link that carries a dropped and a past trip (a crafted link, or a v1 payload) offers neither: ⤓ Save 1 (Tahoe)', mst);
+    mixed.api.ACTS.svsave();
+    check(eq(mixed.api.listIds(), [A, B]), '⤓ Save adds only the trip that was offered');
+    const junk = loadApp({ url: BASE + '?l=' + A + '.' + B + '#ks=junk', fetch: srv.fetch, ls: seedLs({ pialax_watchlist_v2: listOf([A]), pialax_ui_v1: { v1read: 1 } }) });
+    check(junk.api.S.sheet && junk.api.S.sheet.type === 'savelist' && eq(junk.api.listIds(), [A]) && junk.loc.hash === '', 'a list link with a junk #ks= (no key, no token) is someone else\'s list: P-savelist opens, nothing is added, and the hash leaves the address bar');
+    const none = loadApp({ url: BASE + '?l=' + A + '.' + B, fetch: srv.fetch, ls: seedLs({ pialax_watchlist_v2: listOf([A, B]), pialax_ui_v1: { v1read: 1 } }) });
+    await none.api.refreshAll(); await tick();
+    const nh = none.api.SHEETS.savelist(none.api.S.sheet);
+    check((nh.match(/class="mini dim"/g) || []).length === 2 && nh.indexOf('svsave') < 0, 'with nothing new: the dimmed stack and no Save button');
+    const shut = loadApp({ url: BASE + '?l=' + B, fetch: srv.fetch });
+    await tick(); shut.api.closeSheet();
+    check(eq(shut.api.listIds(), []), '⌄ on the receiving sheet saves nothing');
+    const gone = loadApp({ url: BASE + '?l=' + Z, fetch: srv.fetch });
+    await tick(); await tick();
+    check(/Trip not found/.test(gone.api.SHEETS.savelist(gone.api.S.sheet)) && gone.api.S.sheet.type === 'savelist', 'a list link whose trips are all gone says "Trip not found" on the sheet itself');
+    const held = deferred(), Z2 = 'zzAnotherGoneTrip000z2';
+    const slow = loadApp({ url: BASE + '?l=' + Z2, fetch: async (u, o) => { if (String(u).indexOf(Z2) >= 0) { await held.p; return reply(404, { code: 'not_found' }); } return srv.fetch(u, o); } });
+    slow.api.ACTS.svsave(); await tick();
+    const listedFirst = slow.api.listIds().slice();
+    held.res(); await tick(); await tick();
+    check(eq(listedFirst, [Z2]) && eq(slow.api.listIds(), []), 'a trip saved before its first answer, which the Worker does not have, leaves the list again');
+  }
+  {
+    // AC6 the shelf: past, dropped and hidden trips; really collapses; undated ideas never fall onto it; ↩ for the organizer
+    const ls = seedLs({ pialax_watchlist_v2: listOf([A, DROP, PAST, UO, C]).map((x) => Object.assign(x, { arch: x.id === C })), pialax_idea_keys_v1: keyOf([DROP]), pialax_idea_me_v1: ME, pialax_ui_v1: { v1read: 1 } });
+    const t = await boot135({ ls });
+    const act = t.api.activeItems().map((x) => x.id), shelf = t.api.shelfItems().map((x) => x.id).sort();
+    check(eq(act, [A, UO]) && eq(shelf, [C, DROP, PAST].sort()), 'PIA-135 AC6 the shelf holds the past, the dropped and the hidden trip; an undated idea whose window has passed stays on the list', { act, shelf });
+    const shut = t.api.renderIdeas().html;
+    check(/data-act="shelf" aria-expanded="false"[^>]*><span data-k="shelf">🗄<\/span> <span class="tn">3<\/span>/.test(shut) && [C, DROP, PAST].every((id) => shut.indexOf('data-trip="' + id + '"') < 0),
+      'PIA-135 AC6 collapsed, the shelf is one row (🗄 3) and none of its cards are drawn');
+    t.api.uiSet({ shelfOpen: true }); t.api.render();
+    const open = t.api.renderIdeas().html;
+    check([C, DROP, PAST].every((id) => /^class="card dim/.test(cardOf(open, id))) && /data-act="restore" data-id="drTahoeDroppedTrip00d1"/.test(cardOf(open, DROP)) && (open.match(/data-act="restore"/g) || []).length === 1,
+      'PIA-135 AC6 expanded, the shelf cards are dimmed, and only the organizer\'s dropped trip offers ↩');
+    const restoring = t.api.ACTS.restore({ dataset: { id: DROP } });
+    const optimistic = t.api.DOCS[DROP].decision.stage;
+    const rr = await restoring; await tick();   // the write's own promise: no fixed number of turns to wait
+    t.api.render();
+    const up = t.fetches.filter((f) => f.method === 'POST').pop();
+    check(rr && rr.ok && t.api.PEND[DROP] === 0 && optimistic === 'proposed' && up && up.url === W + '/idea/update?id=' + DROP && JSON.parse(up.body).decision.stage === 'proposed' && srv.read(DROP).decision.stage === 'proposed' && t.api.activeItems().some((x) => x.id === DROP),
+      'PIA-135 AC6 ↩ restores a trip dropped while proposed: /idea/update decision proposed (optimistic, then the Worker\'s), and it leaves the shelf', { optimistic, up: up && up.url, server: srv.read(DROP).decision.stage, act: t.api.activeItems().map((x) => x.id) });
+    {
+      // a trip dropped after its dates were 🔒 set, and one dropped after it was 💵 paid, come back as they were
+      const TM = require(path.join(ROOT, 'scripts', 'trip-model.js'));
+      const LK = 'lkTahoeLockedDropped01', PD = 'pdTahoePaidDropped0001';
+      const post = async (id, delta) => { const q = TM.updateRequest(srv.read(id), KEY, delta); const r = await srv.fetch(W + q.path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q.body) }); return r.status; };
+      srv.seed(Object.assign(clone(fx('idea-tahoe.json')), { id: LK })); srv.seed(Object.assign(clone(fx('idea-tahoe.json')), { id: PD }));
+      const st = [await post(LK, { decision: { stage: 'chosen' } }), await post(LK, { decision: { stage: 'dropped' } }),
+        await post(PD, { decision: { stage: 'chosen' } }), await post(PD, { decision: { stage: 'booked', actual_total: 905 } }), await post(PD, { decision: { stage: 'dropped' } })];
+      const t2 = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([LK, PD]), pialax_idea_keys_v1: keyOf([LK, PD]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [LK]: 'ashwin-l2', [PD]: 'ashwin-l2' }, pialax_ui_v1: { v1read: 1, shelfOpen: true } }) });
+      const onShelf = t2.api.shelfItems().map((x) => x.id).sort();
+      const r1 = await t2.api.ACTS.restore({ dataset: { id: LK } }), r2 = await t2.api.ACTS.restore({ dataset: { id: PD } }); await tick(); t2.api.render();
+      const sl = srv.read(LK).decision, sp = srv.read(PD).decision, ml = t2.api.modelOf(LK), mp = t2.api.modelOf(PD);
+      const sent = t2.fetches.filter((f) => f.method === 'POST').map((f) => JSON.parse(f.body).decision);
+      check(st.every((s) => s === 200) && eq(onShelf, [LK, PD].sort()) && r1.ok && r2.ok && sl.stage === 'chosen' && sl.chosen && sl.chosen.departure === '2026-11-27' && ml.locked && ml.stage === 'set' &&
+        sp.stage === 'booked' && sp.actual_total === 905 && mp.paid === 905 && eq(sent, [{ stage: 'chosen', chosen: { airport: 'RNO', city: 'Reno', departure: '2026-11-27', return: '2026-11-30' } }, { stage: 'booked', actual_total: 905 }]),
+        'PIA-135 AC6 ↩ puts a trip back where it stood: dropped after 🔒 it is locked again (Dates set); dropped after 💵 it is booked again with the $905 paid kept', { st, onShelf, sl: sl.stage, sp: [sp.stage, sp.actual_total], sent });
+    }
+    srv.write(Object.assign(clone(srv.read(DROP)), { decision: { stage: 'dropped', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null } }));
+    const guest = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([DROP, PAST]), pialax_idea_me_v1: ME, pialax_ui_v1: { v1read: 1, shelfOpen: true } }) });
+    const gh = guest.api.renderIdeas().html;
+    check(cardOf(gh, DROP).indexOf('🗑') > 0 && gh.indexOf('data-act="restore"') < 0, 'no ↩ on a phone without the trip\'s edit key (the dropped trip is on its shelf, 🗑, without it)');
+  }
+  {
+    // AC7 new answers: a ● on each face that answered since my last look, the Trips tab's numeral, cleared by a look
+    let offline = false;   // the look counts even when the trip's refresh on open fails (the doc on screen is what I saw)
+    const t = await boot135({ fetch: (u, o) => (offline ? Promise.reject(new TypeError('Failed to fetch')) : srv.fetch(u, o)),
+      ls: seedLs({ pialax_watchlist_v2: listOf([A, B]), pialax_idea_me_v1: { [A]: 'anjo-z5', [B]: 'ashwin-l2' }, pialax_idea_seen_v1: { [B]: '2026-10-12T23:00:00.000Z' }, pialax_ui_v1: { v1read: 1 } }) });
+    const cB = cardOf(t.api.renderIdeas().html, B);
+    check(eq(t.api.freshCodes(t.api.modelOf(B)), ['maya-s9']) && (cB.match(/data-k="new"/g) || []).length === 1 && t.api.tripsBadge() === 2 && /<span class="badge" data-k="look" data-lbl="Needs a look">2<\/span>/.test(t.api.renderTabbar()),
+      'PIA-135 AC7 Maya answered after my last look: one ● on her face; the Trips tab counts 2 (Tahoe\'s new answer, Diwali still waiting on mine)');
+    offline = true;
+    t.api.ACTS.open({ dataset: { id: B } }); await tick();
+    check(t.api.seenFor(B) === '2026-10-14T18:45:00.000Z' && t.api.freshCodes(t.api.modelOf(B)).length === 0 && t.api.tripsBadge() === 1, 'opening the trip marks its answers seen (even offline): the ● goes and the numeral drops to 1');
+  }
+  {
+    // AC7 the numeral's other half alone: a trip awaiting my answer with every answer already seen still counts
+    const AW = 'awDiwaliAwaitsAnjo0001', aw = Object.assign(clone(fx('idea-diwali.json')), { id: AW });
+    srv.seed(aw);
+    const TM = require(path.join(ROOT, 'scripts', 'trip-model.js'));
+    const t = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([AW]), pialax_idea_me_v1: { [AW]: 'anjo-z5' }, pialax_idea_seen_v1: { [AW]: TM.newestAnswerAt(srv.read(AW)) }, pialax_ui_v1: { v1read: 1 } }) });
+    const m = t.api.modelOf(AW);
+    check(t.api.freshCodes(m).length === 0 && TM.awaitsMe(m) && t.api.tripsBadge() === 1 && /<span class="badge" data-k="look" data-lbl="Needs a look">1<\/span>/.test(t.api.renderTabbar()),
+      'PIA-135 AC7 a trip still waiting on my answer counts on the Trips tab even with no unseen answers (1)');
+    const done = await t.api.respond(AW, 'anjo-z5', { status: 'in' }, { by: 'self' }); await tick(); t.api.render();
+    check(done.ok && t.api.tripsBadge() === 0 && !/data-k="look"/.test(t.api.renderTabbar()), 'once I answer, the trip no longer counts and the numeral goes');
+  }
+  {
+    // AC7 a failed refresh: 📶⚠ on the top row, the stale cards dimmed with ◷, no sheet
+    let fail = false;
+    const t = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([A, B]), pialax_idea_me_v1: ME, pialax_ui_v1: { v1read: 1 } }), fetch: (u, o) => (fail ? Promise.reject(new TypeError('Failed to fetch')) : srv.fetch(u, o)) });
+    fail = true; await t.api.refreshAll(); await tick(); t.api.render();
+    const html = t.api.renderIdeas().html;
+    check(/data-act="offline"[^>]*>📶⚠</.test(html) && [A, B].every((id) => /^class="card dim/.test(cardOf(html, id)) && cardOf(html, id).indexOf('data-k="stale"') > 0) && !t.api.S.sheet,
+      'PIA-135 AC7 a failed refresh shows the 📶⚠ badge and dims the stale cards with ◷, without a sheet');
+  }
+  {
+    // AC8 Map and Calendar show the empty-state picture while the list is empty
+    const t = loadApp();
+    t.api.render();
+    check(/data-ghost="map"/.test(t.api.renderSelected('map', 'map').html) && /data-ghost="cal"/.test(t.api.renderSelected('calendar', 'cal').html) && t.api.renderIdeas().id === 'trips-empty',
+      'PIA-135 AC8 with an empty list, Trips, Map and Calendar each show the empty-state picture with ＋');
   }
 
   // ═══ AC12 / AC14 ═══

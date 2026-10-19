@@ -137,6 +137,11 @@ svg { display: block; }
 .pill > span[data-k] { white-space: nowrap; }
 .pill .dr { position: relative; display: inline-block; }
 .pill .myu { position: absolute; bottom: -5px; height: 3px; border-radius: 2px; background: var(--pc); } /* my own days under the plan */
+.pill .tg { position: relative; display: inline-block; } /* ⏳ days to go, the book-by arc under it */
+.bba { position: absolute; left: 1px; right: 1px; bottom: -5px; height: 3px; border-radius: 2px; background: var(--line); overflow: hidden; }
+.bba > i { display: block; height: 100%; border-radius: 2px; background: var(--ink2); }
+.gl .bba { position: relative; display: inline-block; left: auto; right: auto; bottom: auto; width: 30px; vertical-align: middle; }
+.gl .loc { display: inline-block; width: 30px; height: 20px; } .gl .loc svg { width: 100%; height: 100%; }
 .tot { min-width: 44px; justify-content: flex-end; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 2px; border-radius: 12px; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; }
 .tot.stale { color: var(--mute); }
 .tot.part { color: var(--ink2); border: 1.5px solid var(--ink3); padding: 0 8px; } /* a partial total is outlined */
@@ -607,9 +612,28 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .mgfaces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .tile.mg { min-height: 84px; } .tile.mg .mf { font-size: 30px; line-height: 1; }
 .hchip.mplan { min-height: 48px; font-size: 16px; }
+/* PIA-135: the shared watchlist */
+.ib.share { font-size: 15px; }
+.ib.share .badge { right: -6px; }
+.lshare { position: relative; display: inline-block; width: 30px; height: 28px; }
+.lshare svg { position: absolute; inset: 0; width: 30px; height: 28px; }
+.lshare > span { position: absolute; left: 5px; top: -4px; font-size: 15px; line-height: 1; }
+.card .rst { border: 1.5px solid var(--ink); }
+.card-b .pill { flex: 0 1 auto; }   /* never squeezed below its content: row B wraps instead */
+.tot { cursor: default; }
+.kbadge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 9px; background: var(--ink); color: var(--on-ink); font-size: 12px; font-weight: 700; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.mini .mf { letter-spacing: -2px; }
+.svhd { display: inline-flex; align-items: center; gap: 4px; }
+.svhd .svf { font-size: 30px; line-height: 1; }
+.svhd .svt { font-size: 24px; line-height: 1; }
+.svhd svg { width: 60px; height: 24px; }
+.preset .more { margin-left: 2px; }
 </style>
 </head>
 <body>
+<!-- PIA-135: the US outline the mini locators (and later the Map) draw: us-atlas states-10m (public domain), simplified to 6%,
+     projected with d3-geo geoAlbersUsa fitted to 360x230 (the projection the model's mapXY ports). -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs><symbol id="us-o" viewBox="0 0 360 230"><path d="M248,177.7L248,177.7L248,177.7ZM293.3,168.7L295.6,175.4L301.7,184.1L302.4,187.8L307,195.5L308.3,205.6L306.9,209.8L302.5,211.1L300.4,207L297.4,206.2L295.5,202.3L292.4,199.8L288.5,194.6L290.2,191.7L287.1,192L287.1,183.8L281.6,179.7L279.7,177.1L275.2,176L270.5,180.6L264.1,176.2L259.2,175.4L253.4,176.9L251.7,177.2L249.9,174L247.5,176.7L244.1,176.8L240,178.7L240.6,184.9L242.7,185L243.3,187.8L238.3,185.6L235.9,187.5L234.3,185.6L231.9,188.1L228.2,186.3L224.3,182.3L221.5,184.8L215.6,183.1L211.2,183.9L204.8,186.4L205.4,183.4L203.3,184.2L205.2,186.8L200.8,190.4L193.6,194.5L191.1,194.2L186.8,202.3L186.7,208.8L188.5,212.9L186.9,213.8L181.1,212L174.7,208.9L172.5,204.3L172.4,200.7L167.1,194.3L164.8,187.8L159.6,182.3L154.1,181.2L151.7,182.1L148.1,187.7L141.4,184.1L139.1,181.9L136.5,173.4L134.1,171.9L127.4,163.9L116.4,162.5L115.9,166L110.4,165.3L97.1,163.3L74.6,150L75.5,148.4L59.9,146.6L58.9,139.9L53.7,133L49.7,131.2L48.1,128.6L42.5,126.9L42.9,121.5L40.2,116.5L37.8,109.1L39.4,106.9L36.6,102.9L37.2,98.3L39,101.5L38.1,97L34.8,95.8L35.6,94L32.7,87.4L34,80.6L32.1,76.5L36.5,68.1L36.9,63.7L37,56.8L40.8,51.2L45.4,40.5L48.1,33L50.1,32.9L47.4,32L49.7,29.1L48.4,28.5L49.3,15.4L52.1,18.1L58.2,20.1L58.8,23.5L57,27.2L58.7,26.6L60.7,21.7L60.9,16L60.1,13.8L88.7,21.1L93.7,22.2L155,31.4L190.2,33.1L200.9,33.1L200.9,30.1L202.6,30.8L203.6,35.1L208.1,36.7L212.2,35.8L219,38.8L219.8,39.9L223.3,38.2L224,39.3L230.3,39.7L225.4,42.3L217.5,49.8L217.9,50.4L223.4,48.3L226.5,51L231.6,48.6L237.9,43.3L240.4,43.5L237.8,45.3L237.9,47.4L241,47.9L242.7,50.1L247.1,50.2L249.3,48.3L255.6,46.9L255.4,49.2L259.6,48.2L260.9,51.5L263.8,52.6L257,53.7L253.1,52.4L252.4,53.5L245.2,55.3L242.6,61.3L240.9,65.9L245.6,61.1L243.7,65.5L242.1,75.9L243.3,81.7L245.4,87.6L249.4,86.9L252,81.2L251.7,76.7L249.5,71.9L250.3,63.7L253.3,59.5L253.8,62.8L254.6,58.7L257,57.5L255.7,56.2L257.4,54.3L264.7,56.8L266.3,59.2L266.7,64.6L263.8,69.6L265.5,70.6L269.2,66.3L271,67.8L273.1,74.2L273,77.4L271.3,77.4L268.7,84.9L274.6,86.8L278.8,85.4L285.1,80.5L289,77.5L293.4,72.6L291.5,69.2L294.6,67.7L303.2,66.9L306.8,64.1L305.3,59L309.6,53L311.9,51.1L319.9,49.2L329.7,46.7L331.3,43.9L334.4,38.4L334.1,32L336.4,25.2L338.7,26.8L341.7,24.5L344.6,25.9L347.7,36.2L349.7,36.2L350.3,38.7L354,41.3L351.6,45L347.1,47.9L345.1,46.6L344.1,51.6L340.6,53.7L338.8,56.2L337.9,60.3L337.7,61.9L339.3,63.2L337.7,65.7L341.4,69.5L345,69.5L338.8,72.8L338,71.5L337.8,71.3L337,74.2L335,75.2L329.3,77.3L325.5,80.3L334.3,78L328.7,82.4L324.7,84L323.9,83L323.8,83.3L323,84.8L324.9,85.4L325.2,90.2L321.6,97.7L321.7,95.9L317.1,93.3L317,93.1L317.2,92.6L317.1,94.5L321.1,98.9L322,101.5L321.6,105L319.5,112.4L318.2,112L319.2,106.2L314.3,102.9L316,101.9L313.5,100.1L314.2,105.5L312,105.4L309.4,102.7L309.1,105.2L315.9,107.4L315.6,111.3L320.3,117.2L320.5,119.6L316.4,122.9L321.6,121.6L322.5,124.5L320.6,126.9L314.9,126.6L318.7,127.9L317.4,130.9L320.4,130.1L319.4,133.1L316.2,133.2L313.3,135.7L311.6,140.6L307.9,141.3L305,144.7L303.9,148.7L297.4,154.2L295.4,157.9L294.2,160.5ZM63.8,195.7L63.8,195.7L63.8,195.7ZM63.4,200.7L63.4,200.7L63.4,200.7ZM62.4,201.3L62.4,201.3L62.4,201.3ZM62.1,201.3L62.1,201.3L62.1,201.3ZM61.9,201.2L61.9,201.2L61.9,201.2ZM61.9,203.8L61.9,203.8L61.9,203.8ZM61.6,201.9L61.6,201.9L61.6,201.9ZM61.5,198L61.5,198L61.5,198ZM61.2,201.9L61.2,201.9L61.2,201.9ZM60.8,198.5L60.8,198.5L60.8,198.5ZM59.8,204.3L60.1,204.2L60.8,202.9L61.8,203.5L60.4,204.5ZM59.5,200.6L59.5,200.6L59.5,200.6ZM58.7,208L58.7,208L58.7,208ZM58.4,208.4L58.4,208.4L58.4,208.4ZM57.8,206.2L59.7,204.6L61.1,204.5L61.4,206L60.8,205.8L59,207.9L59.2,206.8L58.5,207.6ZM57.7,208.7L57.7,208.7L57.7,208.7ZM56.2,210.4L56.2,210.4L56.2,210.4ZM54.7,209.7L54.7,209.7L54.7,209.7ZM54.7,209.3L54.7,209.3L54.7,209.3ZM53.9,208.3L53.9,208.3L53.9,208.3ZM53,208.8L53,208.8L53,208.8ZM51.4,210.1L51.4,210.1L51.4,210.1ZM51.1,209.9L51.1,209.9L51.1,209.9ZM50.6,212.6L50.6,212.6L50.6,212.6ZM50.7,210.3L50.7,210.3L50.7,210.3ZM50.4,212.4L50.4,212.4L50.4,212.4ZM50.1,212.8L50.1,212.8L50.1,212.8ZM50.1,211.7L50.1,211.7L50.1,211.7ZM49.8,212.7L49.8,212.7L49.8,212.7ZM49.8,212.1L49.8,212.1L49.8,212.1ZM49.5,211.3L49.5,211.3L49.5,211.3ZM49.2,212.4L49.2,212.4L49.2,212.4ZM50,202.1L50,202.1L50,202.1ZM49.1,211L49.1,211L49.1,211ZM49.9,202.1L49.9,202.1L49.9,202.1ZM48.3,211.2L48.3,211.2L48.3,211.2ZM48.9,202.3L48.9,202.3L48.9,202.3ZM47.4,211.4L47.4,211.4L47.4,211.4ZM47,211.4L47,211.4L47,211.4ZM46.6,211.6L46.6,211.6L46.6,211.6ZM45.8,212L45.8,212L45.8,212ZM48.5,188.5L48.5,188.5L48.5,188.5ZM45,213.2L45,213.2L45,213.2ZM44.8,210.5L44.8,210.5L44.8,210.5ZM41.7,213.4L41.7,213.4L41.7,213.4ZM41.1,213.6L41.1,213.6L41.1,213.6ZM40.6,213.6L40.6,213.6L40.6,213.6ZM40.5,213.6L40.5,213.6L40.5,213.6ZM40.4,213L40.4,213L40.4,213ZM39.7,213.2L39.7,213.2L39.7,213.2ZM39.5,213.6L39.5,213.6L39.5,213.6ZM40.9,196.6L41.6,196.7L42.7,196.3L43.3,196.8L43.2,197.9L42.4,198.1L41,197ZM36.5,214.9L38.2,214.1L38.8,213.4L39.5,214L38.3,214.9ZM43.2,181.9L45.2,180.9L47.7,180.2L48.4,180.3L48.1,181.7L50.2,182L50.6,181.5L51.2,181.6L49.7,179.7L50,179.5L50.2,180.3L50.6,179.3L49.9,179.4L48.6,178.8L48.5,177.7L47.4,176.2L46.1,175L46.7,174.5L46.9,173.7L48.8,173.9L49.9,173L50.3,171.7L51.6,170.5L52.6,170.5L53.8,169.5L55.2,169.5L56.4,168.3L57.5,168.7L57.1,169.2L57.4,169.6L58,168.7L58.4,169.6L59.6,169.3L60.5,169.6L60.4,170.2L61.6,170.7L63.1,170.3L64.8,171L66.6,170.9L67.5,171.3L69,170.6L71.3,171.5L76.3,196.4L77.7,196.5L78.8,195.8L78.8,196.5L81.4,198.3L81.9,199.1L82.9,198.1L82.9,196.9L83.9,196L84.6,196.5L86.2,198L87.8,198.8L90.8,201.7L91.5,202.8L94.4,203.1L95.4,205.2L94.8,207L93.8,206L92.3,205.7L90.7,204.5L91,203.7L90.3,202.7L88.6,202.1L87.8,200.6L86.9,199.7L86.2,199.8L84.4,197.3L85.7,200.1L85,199.7L83.5,200.6L81.8,199.9L80.6,199L78.2,198.2L78.3,197.2L77.5,197.9L75.7,197.5L73.9,197.5L72.2,198L69.9,197L68.7,197.7L69.8,196.7L68.9,196.6L68,195.5L67.7,196.2L66.4,196.6L67,197.4L67.3,198.4L66.7,198.8L65.3,198.8L64,200.4L62.3,201.2L61.8,200.5L62.7,200L61.8,199.5L62.4,198.3L62.4,196.9L63.7,196L64.2,196.5L64.2,195.4L63.3,195.3L62.2,196.2L61.2,197.6L61.3,197.9L60.2,199.8L58.8,200.7L58.6,201.3L59.8,201.8L59.8,202.4L59.1,202.8L58.6,204.1L57.5,204.4L55.2,206.3L55.1,207.2L53.9,207.4L52.2,208.8L52.7,209.1L52.1,209.7L50.1,209.9L48.9,210.8L47.3,211L47.2,210.3L46.5,211.6L44.8,211.8L43.8,212.6L41.8,212.8L41.8,212.3L42.7,211.5L45.2,211.2L46.3,210L47,209.5L48.9,209.5L49.3,208.7L51.6,207.3L52,207.5L52.5,206.3L53.6,205.5L54,202.9L54.6,202L53.1,202.6L52.5,202L51.8,203L50.9,201.6L50.6,202L50.1,201.1L48,202.3L48.1,201.2L47.8,200.3L48.3,199.8L47.7,197.8L47.4,198.3L45.8,198.6L43.8,196.2L44.4,195.8L44.6,195L43.3,193.4L44.1,192.6L44.2,191.8L45.5,190.5L45.9,189.5L46.7,189.2L47.8,189.9L48.9,188.8L50.3,188.9L50.8,188.3L50.7,187L50.3,186.1L51,185.7L50.6,185.1L49,186L46.8,185.6L46,185.8L44.7,185.2L44.5,183.7L44.8,183.1L43.8,182.7ZM34.3,215.6L35.8,214.3L36.5,214.7ZM33.9,215.8L33.9,215.8L33.9,215.8ZM33.2,215.1L33.2,215.1L33.2,215.1ZM35.5,205.4L35.5,205.4L35.5,205.4ZM33.3,214.8L33.3,214.8L33.3,214.8ZM32.8,215.3L32.8,215.3L32.8,215.3ZM32.6,215.1L32.6,215.1L32.6,215.1ZM32.4,215.6L32.4,215.6L32.4,215.6ZM35,203.7L35,203.7L35,203.7ZM31.3,215.6L31.3,215.6L31.3,215.6ZM30.8,215.5L30.8,215.5L30.8,215.5ZM30.4,215.7L30.4,215.7L30.4,215.7ZM37.6,186.4L37.9,186.1L38.7,186.6L39.3,186.4L40.2,187.6L41.1,188L40.2,188.2L39.8,188.7L39.1,187.6L38.4,187L37.9,187.2ZM28.2,215.6L28.2,215.6L28.2,215.6ZM33.8,194L33.8,194L33.8,194ZM33.9,193.5L33.9,193.5L33.9,193.5ZM25.8,215.4L25.8,215.4L25.8,215.4ZM23.6,215L25.4,215L24.6,215.4ZM23.3,215L23.3,215L23.3,215ZM23.4,214.5L23.4,214.5L23.4,214.5ZM22.9,214.9L22.9,214.9L22.9,214.9ZM22.6,214.8L22.6,214.8L22.6,214.8ZM22.3,214.4L22.3,214.4L22.3,214.4ZM22,215L22,215L22,215ZM20.6,215.1L21.3,214.4L22,214.9ZM20.1,214.1L20.1,214.1L20.1,214.1ZM19.5,214.5L20.8,214.4L20.4,214.8ZM18.9,213.7L18.9,213.7L18.9,213.7ZM17.9,214.1L17.9,214.1L17.9,214.1ZM17.6,214.1L17.6,214.1L17.6,214.1ZM17.8,213.6L17.8,213.6L17.8,213.6ZM17.2,214.5L17.2,214.5L17.2,214.5ZM16.9,214.7L16.9,214.7L16.9,214.7ZM15.4,212L15.4,212L15.4,212ZM13.7,212.3L13.7,212.3L13.7,212.3ZM13.8,211.4L13.8,211.4L13.8,211.4ZM13.3,211.6L13.3,211.6L13.3,211.6ZM13.3,211L13.3,211L13.3,211ZM11.8,210.7L11.8,210.7L11.8,210.7ZM10.3,208.6L10.3,208.6L10.3,208.6ZM8.1,206.3L8.1,206.3L8.1,206.3ZM7.9,206.2L7.9,206.2L7.9,206.2ZM7.8,206.1L7.8,206.1L7.8,206.1ZM6.6,206.6L6.6,206.6L6.6,206.6ZM6,204.6L7,205L7.3,205.6ZM93.7,206.4L93.7,206.4L93.7,206.4ZM93.5,206.9L93.5,206.9L93.5,206.9ZM93.3,206.9L93.3,206.9L93.3,206.9ZM93.2,206.7L93.2,206.7L93.2,206.7ZM92.5,206L92.5,206L92.5,206ZM90.6,203.4L90.6,203.4L90.6,203.4ZM90.6,203.7L90.6,203.7L90.6,203.7ZM90.4,203.5L90.4,203.5L90.4,203.5ZM91.4,207.5L91.4,207.5L91.4,207.5ZM90.1,204.3L90.1,204.3L90.1,204.3ZM89.9,204L89.9,204L89.9,204ZM90.4,206.5L90.4,206.5L90.4,206.5ZM90.5,208.1L90.5,208.1L90.5,208.1ZM89.7,206.2L89.7,206.2L89.7,206.2ZM89.6,206.1L89.6,206.1L89.6,206.1ZM89.6,206.7L89.6,206.7L89.6,206.7ZM89.2,205.4L89.2,204.3L89.8,204.2L92.1,205.9L92.9,207.8L90.8,206.9L91.9,208.2L91,207.7L90.7,206.5ZM88,201.9L88,201.9L88,201.9ZM89,205.6L89,205.6L89,205.6ZM88.4,205.8L88.4,205.8L88.4,205.8ZM87.6,203.3L88.4,203.1L88.2,202.5L89.3,202.3L90.5,203.2L89,204L88.9,205.1L88.4,205.2ZM85.6,199.5L86.9,199.8L87.9,201.5L87.3,202.9L87.1,201.9ZM85.5,199.2L85.5,199.2L85.5,199.2ZM84.6,198L84.6,198L84.6,198ZM85.4,202.5L85.6,201.9L86.6,202.1L87.4,203.7L87.8,205.2L86.1,204L86,202.7ZM84.6,199.9L84.6,199.9L84.6,199.9ZM85.3,202.9L85.3,202.9L85.3,202.9ZM83.9,199.5L83.9,199.5L83.9,199.5ZM84.1,200.3L84.1,200.3L84.1,200.3ZM83.8,201.4L83.7,201L84.6,200.1L85.9,200.4L86.5,201.8L85.3,201.7L85.4,202.5ZM70.1,197.3L70.1,197.3L70.1,197.3ZM69.6,197.3L69.6,197.3L69.6,197.3ZM67.7,196.1L67.7,196.1L67.7,196.1ZM67.6,196.8L67.6,196.8L67.6,196.8ZM67.7,197.9L67.7,197.9L67.7,197.9ZM67.2,199.2L68.2,197.5L68.4,197.8ZM67.1,197.9L67.1,197.9L67.1,197.9ZM66.8,196.6L66.8,196.6L66.8,196.6ZM305.1,212.7L305.1,212.7L305.1,212.7ZM304.5,213.2L304.5,213.2L304.5,213.2ZM302.7,214.3L302.7,214.3L302.7,214.3ZM298,216.1L298,216.1L298,216.1ZM296.6,216.5L296.6,216.5L296.6,216.5ZM295.5,216.5L295.5,216.5L295.5,216.5ZM292.4,200.3L292.4,200.3L292.4,200.3ZM289.9,216.7L289.9,216.7L289.9,216.7ZM272.8,178.7L272.8,178.7L272.8,178.7ZM348.1,48.2L348.1,48.2L348.1,48.2ZM347.5,48.7L347.5,48.7L347.5,48.7ZM346.9,47.3L346.9,47.3L346.9,47.3ZM345.5,48.6L345.5,48.6L345.5,48.6ZM345.9,51.6L345.9,51.6L345.9,51.6ZM345.2,49.7L345.2,49.7L345.2,49.7ZM344.8,48.7L344.8,48.7L344.8,48.7ZM343.9,72.9L343.9,72.9L343.9,72.9ZM340.7,73.4L340.7,73.4L340.7,73.4ZM322.2,121.7L322.2,121.7L322.2,121.7ZM321.8,128.7L321.8,128.7L321.8,128.7ZM52.2,137.2L52.2,137.2L52.2,137.2ZM51.4,140.6L51.4,140.6L51.4,140.6ZM49.4,136.4L49.4,136.4L49.4,136.4ZM48.1,131.7L48.1,131.7L48.1,131.7ZM45.8,137.2L45.8,137.2L45.8,137.2ZM45.2,130.6L45.2,130.6L45.2,130.6ZM43,130.6L43,130.6L43,130.6ZM41.8,130L41.8,130L41.8,130ZM130.5,209.3L131.8,205.2L136.2,207.1L139.7,211L131.8,214.7ZM125.8,200.2L130.9,201.1L127.7,202.6ZM125.8,203.2L125.8,203.2L125.8,203.2ZM123.1,200.3L123.1,200.3L123.1,200.3ZM121.3,198.8L121.3,198.8L121.3,198.8ZM114.3,195.1L116.5,194L118.8,197.2L115.5,197.2ZM103.3,191.5L103.3,191.5L103.3,191.5ZM99.9,192.8L99.9,192.8L99.9,192.8ZM316.9,106.6L317.2,106.6L316.9,106.6ZM316.3,105.4L316.3,105.4L316.3,105.4ZM313.5,100.8L313.5,100.8L313.5,100.8ZM258,53.7L258,53.7L258,53.7ZM254,54.8L254,54.8L254,54.8ZM253.3,54.5L253.3,54.5L253.3,54.5ZM252.9,56.4L252.9,56.4L252.9,56.4ZM252.4,55.3L252.4,55.3L252.4,55.3ZM251.7,57.7L251.7,57.7L251.7,57.7ZM250.9,60.2L250.9,60.2L250.9,60.2ZM250.6,61.2L250.6,61.2L250.6,61.2ZM247.2,56.8L247.2,56.8L247.2,56.8ZM232,40.5L232,40.5L232,40.5ZM246.8,177.9L246.8,177.9L246.8,177.9ZM245,177.9L245,177.9L245,177.9ZM243.6,178.2L243.6,178.2L243.6,178.2ZM242.4,178.1L242.4,178.1L242.4,178.1ZM334.2,75.9L334.2,75.9L334.2,75.9ZM333.9,77.3L333.9,77.3L333.9,77.3ZM333.3,76.7L333.3,76.7L333.3,76.7ZM305.4,61.6L305.4,61.6L305.4,61.6ZM305,61.6L305,61.6L305,61.6ZM272.9,85.3L272.9,85.3L272.9,85.3ZM272.3,85.1L272.3,85.1L272.3,85.1ZM317.4,107.4L317.4,107.4L317.4,107.4ZM57.7,26.3L57.7,26.3L57.7,26.3ZM59.6,17.3L59.6,17.3L59.6,17.3ZM59.7,15.8L59.7,15.8L59.7,15.8ZM59.3,16.9L59.3,16.9L59.3,16.9ZM58.4,19.5L58.4,19.5L58.4,19.5ZM58.5,15L58.5,15L58.5,15ZM57.9,15.5L57.9,15.5L57.9,15.5ZM58.4,13.3L58.4,13.3L58.4,13.3ZM57,16.1L57,16.1L57,16.1ZM57,15.4L57,15.4L57,15.4ZM245.9,59L245.9,59L245.9,59ZM243.7,60.4L243.7,60.4L243.7,60.4ZM226.1,47.7L226.1,47.7L226.1,47.7ZM225.8,48.7L225.8,48.7L225.8,48.7ZM225.1,48.3L225.1,48.3L225.1,48.3ZM224.6,49L224.6,49L224.6,49ZM224.6,48.1L224.6,48.1L224.6,48.1ZM224.4,47.6L224.4,47.6L224.4,47.6ZM224.4,49.5L224.4,49.5L224.4,49.5ZM223.3,48L223.3,48L223.3,48ZM244.4,179.4L244.4,179.4L244.4,179.4ZM241.3,179.6L241.3,179.6L241.3,179.6ZM239.7,183.8L239.7,183.8L239.7,183.8ZM234.8,187.4L234.8,187.4L234.8,187.4ZM233.6,187.6L233.6,187.6L233.6,187.6ZM232.3,188L232.3,188L232.3,188ZM223.5,184.2L223.5,184.2L223.5,184.2ZM337.1,71.9L337.1,71.9L337.1,71.9ZM337.3,73.4L337.3,73.4L337.3,73.4ZM336.7,76L336.7,76L336.7,76Z"/></symbol></defs></svg>
 <div class="app" id="app"><main id="screen" class="screen"></main></div>
 <nav id="tabbar" class="tabbar" aria-label="Tabs"></nav>
 <div id="scrim" class="scrim" hidden></div>
@@ -1110,6 +1134,7 @@ function tripModel(doc, ctx) {
   var span = plan && win ? { s: minD(plan.s, win.s), e: maxD(plan.e, win.e) } : (win || plan);
   var others = (ctx.otherTrips || []).filter(function (od) { return od && od.id !== doc.id; });
   var rows = (I.members || []).filter(function (m) { return m && typeof m.code === 'string'; });
+  var times = answerTimes(doc);                                           // when each member last answered (PIA-135)
   // a label with no face (v1) reads with the hashed face of its name, moved on to the next free face if the trip
   // already shows it, so two tiles never share a face (the face is the primary identity)
   var shown = rows.map(function (m) { return splitLabel(m.label).face; }).filter(Boolean);
@@ -1171,7 +1196,7 @@ function tripModel(doc, ctx) {
       own1: own1, own2: own2, d1: hasDates ? d1 : '', d2: hasDates ? d2 : '', bad: bad, warn: warn, clash: clash,
       A: A, H: H, openJaw: A !== H, override: override, origin: originCode, O: O, from: from,
       traveler: traveler, booked: booked, called: note.called, arrTime: note.arr, depTime: note.dep, noteText: note.text,
-      link: link, why: why, keys: keys, at: (r && r.updated_at) || ''
+      link: link, why: why, keys: keys, at: (r && r.updated_at) || '', ansAt: (r && times[m.code]) || ''
     };
   });
   var travelers = members.filter(function (x) { return x.traveler; });
@@ -1856,6 +1881,106 @@ function migrateRequests(fresh, editKey, choice) {
   });
   return out;
 }
+
+/* ---- the shared watchlist (PIA-135): new answers, what needs me, list links, groups, book-by, the US map ---- */
+var LIST_LINK_MAX = 20;                                                  // trips one list link carries
+/* when each member last answered: the newest 'rsvp:' log entry by that member, or the answer's own updated_at when
+   the log no longer holds it (the Worker keeps its last 50 entries). Both are the Worker's ISO times. */
+function answerTimes(doc) {
+  var out = Object.create(null), R = (doc && doc.responses) || {};
+  var put = function (code, at) { if (typeof code === 'string' && MEMBER_CODE_RE.test(code) && typeof at === 'string' && at && (!out[code] || at > out[code])) out[code] = at; };
+  ((doc && doc.log) || []).forEach(function (l) { if (l && /^rsvp:/.test(String(l.event || ''))) put(l.by, l.at); });
+  Object.keys(R).forEach(function (c) { var r = validResp(R[c]); if (r) put(c, r.updated_at); });
+  return out;
+}
+/* the newest answer on the trip: what "seen" records (pialax_idea_seen_v1, v1's format: never older than v1's own
+   newest-rsvp-log rule, so v1 reads the same trip as seen too) */
+function newestAnswerAt(doc) { var t = answerTimes(doc), last = ''; Object.keys(t).forEach(function (c) { if (t[c] > last) last = t[c]; }); return last; }
+/* faces with an answer that arrived since my last look (seenAt), never my own; only on a trip I am in, off the shelf */
+function newAnswers(model, seenAt) {
+  if (!model || !model.me || model.shelf) return [];
+  var s = typeof seenAt === 'string' ? seenAt : '';
+  return model.members.filter(function (x) { return x.code !== model.me.code && !!x.resp && !!x.ansAt && x.ansAt > s; }).map(function (x) { return x.code; });
+}
+/* a trip still waiting on my own answer (a host's default In is not an answer yet) */
+function awaitsMe(model) {
+  var me = model && model.me;
+  return !!(me && !model.shelf && !model.closed && (me.status === 'waiting' || me.status === 'host-default'));
+}
+/* the book-by cue: the days to go, in red, only when it matters (the organizer, or a traveler who answered and has
+   not booked) and the book-by day (departure − 21) has passed with travelers unbooked; else null */
+function bookByCue(model) {
+  var me = model && model.me;
+  if (!model || !model.plan || model.shelf || !model.bookByPassed || model.daysTo == null || model.daysTo < 0) return null;
+  return model.org || !!(me && me.traveler && me.answered && !me.booked) ? model.daysTo : null;
+}
+/* the card's days to go (⏳N), on every upcoming dated trip off the shelf, for everyone. frac is the book-by arc
+   under it: the share of the days left that still come before the book-by day, (days to book-by) / (days to go),
+   so it empties as book-by nears and is empty once it has passed; null once every traveler has booked (nothing
+   left to book). late = the red cue (bookByCue: book-by passed, and it matters to this phone). null without a
+   plan, on the shelf, or once the trip has begun. */
+function togoCue(model) {
+  if (!model || !model.plan || model.shelf || model.daysTo == null || model.daysTo < 0) return null;
+  var open = model.travelers.some(function (x) { return !x.booked; });
+  var frac = !open ? null : model.daysTo > 0 ? Math.round(Math.max(0, Math.min(1, model.bookByLeft / model.daysTo)) * 1000) / 1000 : 0;
+  return { days: model.daysTo, frac: frac, late: bookByCue(model) != null };
+}
+/* trips grouped by who is in them: two trips share a group when they share anyone but me (a chain joins them).
+   Most trips first, then the group whose first trip comes first in the list. A trip with nobody else is in none.
+   Each group: {ids, people (normalized names), faces, names (short names, for a screen reader), first}. */
+function tripGroups(models, mine) {
+  var groups = [], order = {};
+  (models || []).forEach(function (m, i) {
+    if (!m) return;
+    order[m.id] = i;
+    var others = m.members.filter(function (x) { return x.norm && x.norm !== mine && !(m.me && x.code === m.me.code); });
+    if (!others.length) return;
+    var hit = groups.filter(function (g) { return others.some(function (x) { return g.people.indexOf(x.norm) >= 0; }); });
+    var g = { ids: [], people: [], faces: [], names: [] };
+    var add = function (norm, face, name) { if (g.people.indexOf(norm) < 0) { g.people.push(norm); g.faces.push(face); g.names.push(name); } };
+    hit.forEach(function (h) { g.ids = g.ids.concat(h.ids); h.people.forEach(function (n, k) { add(n, h.faces[k], h.names[k]); }); });
+    groups = groups.filter(function (x) { return hit.indexOf(x) < 0; });
+    g.ids.push(m.id);
+    others.forEach(function (x) { add(x.norm, x.face, x.short || x.one || x.name); });
+    groups.push(g);
+  });
+  groups.forEach(function (g) { g.ids.sort(function (a, b) { return order[a] - order[b]; }); g.first = order[g.ids[0]]; });
+  return groups.sort(function (a, b) { return b.ids.length - a.ids.length || a.first - b.first; });
+}
+/* the v2 list link: <base>?l=<id>.<id>…&f=<my face>. Trip ids and one face only: never a key, a token or a price. */
+function listLink(base, ids, face) {
+  var b = String(base || ''), list = uniq((ids || []).filter(function (id) { return IDEA_ID_RE.test(String(id)); })).slice(0, LIST_LINK_MAX);
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^?#\s]*$/i.test(b) || !list.length) return '';
+  var f = faceOf(face);
+  return b + '?l=' + list.join('.') + (f ? '&f=' + encodeURIComponent(f) : '');
+}
+/* The US map: d3-geo's geoAlbersUsa fitted to a 360×230 box with 6px margins (scale 445.842, translate
+   192.959, 113.430), with its Alaska and Hawaii insets and clip boxes, ported exactly (checked against d3 for
+   every airport in the table). A point outside all three boxes is off the map: null. */
+var US_MAP = { w: 360, h: 230, k: 445.84219085444704, x: 192.95931303862665, y: 113.43020120431142 };
+function conicEqualArea(p0, p1, rot, cen, k, tx, ty, box) {
+  var R = Math.PI / 180, s0 = Math.sin(p0 * R), n = (s0 + Math.sin(p1 * R)) / 2, c = 1 + s0 * (2 * n - s0), r0 = Math.sqrt(c) / n;
+  var raw = function (lam, phi) { var r = Math.sqrt(c - 2 * n * Math.sin(phi)) / n, x = lam * n; return [r * Math.sin(x), r0 - r * Math.cos(x)]; };
+  var c0 = raw(cen[0] * R, cen[1] * R);
+  return function (lon, lat) {
+    var lam = (lon + rot) * R; if (lam > Math.PI) lam -= 2 * Math.PI; else if (lam < -Math.PI) lam += 2 * Math.PI;
+    var p = raw(lam, lat * R), X = tx + k * (p[0] - c0[0]), Y = ty - k * (p[1] - c0[1]);
+    return X >= box[0] && X <= box[2] && Y >= box[1] && Y <= box[3] ? [X, Y] : null;
+  };
+}
+var US_PROJ = (function (k, x, y) {
+  var e = 1e-6;
+  return [conicEqualArea(29.5, 45.5, 96, [-0.6, 38.7], k, x, y, [x - 0.455 * k, y - 0.238 * k, x + 0.455 * k, y + 0.238 * k]),
+    conicEqualArea(55, 65, 154, [-2, 58.5], k * 0.35, x - 0.307 * k, y + 0.201 * k, [x - 0.425 * k + e, y + 0.120 * k + e, x - 0.214 * k - e, y + 0.234 * k - e]),
+    conicEqualArea(8, 18, 157, [-3, 19.9], k, x - 0.205 * k, y + 0.212 * k, [x - 0.214 * k + e, y + 0.166 * k + e, x - 0.115 * k - e, y + 0.234 * k - e])];
+})(US_MAP.k, US_MAP.x, US_MAP.y);
+function usPoint(lat, lon) {
+  if (typeof lat !== 'number' || typeof lon !== 'number' || !isFinite(lat) || !isFinite(lon)) return null;
+  for (var i = 0; i < US_PROJ.length; i++) { var p = US_PROJ[i](lon, lat); if (p) return [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; }
+  return null;
+}
+/* where an airport sits on the US map, or null (an unknown code, or a place off the map) */
+function mapXY(code) { var a = airportInfo(code); return a.known ? usPoint(a.lat, a.lon) : null; }
 /* === pialax trip-model: end === */
 
 /* =====================================================================================================
@@ -1875,6 +2000,12 @@ function migrateRequests(fresh, editKey, choice) {
      Worker's free /idea routes.
    Screens a later ticket owns (the trip view, Family board, Map, Calendar, create) are placeholders that render
    real store data; their tickets replace them.
+   PIA-135: Trips › Ideas is the shared watchlist. Each card: the postcard with its mini locator, the title, the plan
+   pill with 📌 and ⏳ days to go over the book-by arc (red once book-by has passed, where it matters), faces with
+   answer shapes and a ● on new answers, n/N, the stage disc (the same on every phone), my own one-tap hand-off,
+   and the one total on the organizer's token phone only.
+   The 🗄 shelf collapses for real (the organizer can ↩ a dropped trip). The list-share sheet sends a ?l= list link
+   of the trips I pick (grouped by people) with my face; a list link opens the receiving sheet (⤓ Save).
    ===================================================================================================== */
 
 /* ---- constants (outside the model region) ---- */
@@ -1885,7 +2016,8 @@ var TOKEN_RE = /^[A-Za-z0-9_\-]{16,128}$/;    // = v1 setProxyToken
 var ST = {                                    // localStorage keys (the first seven are shared with v1, byte-compatible)
   keys: 'pialax_idea_keys_v1', me: 'pialax_idea_me_v1', seen: 'pialax_idea_seen_v1', token: 'pialax_proxy_token',
   url: 'pialax_proxy_url', multi: 'pialax_multi_airport_v1', v1list: 'pialax_watchlist_v1',
-  list: 'pialax_watchlist_v2', ui: 'pialax_ui_v1'
+  list: 'pialax_watchlist_v2', ui: 'pialax_ui_v1',
+  fares: 'pialax_fares_v2', shared: 'pialax_shared_at_v1', profile: 'pialax_me_profile_v1'   // PIA-135 (v2 only)
 };
 var NAV_KEY = 'pialax_nav_v2';                // sessionStorage {tab, seg}: a cold open always lands on Trips › Ideas
 /* the Worker origins this page may talk to: exactly the CSP's connect-src list (test-app checks the two agree).
@@ -1934,15 +2066,12 @@ function setMe(id, code) {
   if (code) m[id] = code; else delete m[id];
   return lsSet(ST.me, JSON.stringify(m));
 }
-/* pialax_idea_seen_v1 {id: the newest 'rsvp:' log time seen}: v1's tripIdeaMarkSeen rule */
-function lastAnswerAt(doc) {
-  var last = '';
-  ((doc && doc.log) || []).forEach(function (l) { if (l && /^rsvp:/.test(l.event || '') && typeof l.at === 'string' && l.at > last) last = l.at; });
-  return last;
-}
+/* pialax_idea_seen_v1 {id: the newest answer time seen}: v1's tripIdeaMarkSeen format. The model's newestAnswerAt is
+   v1's newest-rsvp-log rule, or an answer's own time when the log has lost it, so v1 reads the trip as seen too. */
+function seenFor(id) { var v = readMap(ST.seen)[id]; return typeof v === 'string' ? v : ''; }
 function markSeen(doc) {
   if (!doc || !IDEA_ID_RE.test(String(doc.id))) return false;
-  var seen = writableMap(ST.seen), last = lastAnswerAt(doc);
+  var seen = writableMap(ST.seen), last = newestAnswerAt(doc);
   if (!seen || !last || seen[doc.id] === last) return false;
   seen[doc.id] = last;
   return lsSet(ST.seen, JSON.stringify(seen));
@@ -2009,6 +2138,23 @@ function uiRead() { return readMap(ST.ui); }
 function uiSet(patch) { var u = uiRead(); Object.keys(patch).forEach(function (k) { u[k] = patch[k]; }); lsSet(ST.ui, JSON.stringify(u)); }
 function navRead() { try { var v = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null'); return plainObj(v) ? v : {}; } catch (e) { return {}; } }
 function navWrite() { try { sessionStorage.setItem(NAV_KEY, JSON.stringify({ tab: S.tab, seg: S.seg })); } catch (e) { /* session storage is optional */ } }
+/* pialax_fares_v2 {fare key: {p, f, …}}: the cached real fares the one total is built from (read only here; the
+   organizer's 🔍 searches fill it, PIA-140). Only entries that are objects are passed to the model. */
+function readFares() {
+  var v = readMap(ST.fares), out = {};
+  Object.keys(v).forEach(function (k) { if (!BAD_KEY_RE.test(k) && plainObj(v[k])) out[k] = v[k]; });
+  return out;
+}
+/* pialax_shared_at_v1 {id: plan hash at my last 📣, wl: [ids in my list shares]}: what the list-share control counts */
+var SHARED_MAX = 200;
+function sharedWl() { var w = readMap(ST.shared).wl; return Array.isArray(w) ? w.filter(function (id) { return IDEA_ID_RE.test(String(id)); }) : []; }
+function recordShared(ids) {
+  var m = readMap(ST.shared);
+  m.wl = uniq(sharedWl().concat(ids || [])).slice(-SHARED_MAX);
+  return lsSet(ST.shared, JSON.stringify(m));
+}
+/* pialax_me_profile_v1 {label: '<face> <name>'}: who I am across trips (written by create and P-face) */
+function profileFace() { var l = readMap(ST.profile).label; return typeof l === 'string' ? splitLabel(l).face || '' : ''; }
 
 /* ---- the Worker: free /idea routes only ---- */
 var ERR_CODES = { network: 1, not_found: 1, closed: 1, forbidden: 1, no_token: 1, daily_cap: 1, no_kv: 1, bad_body: 1, bad_id: 1, answer_first: 1, bad_decision: 1, too_large: 1 };
@@ -2079,6 +2225,7 @@ function refresh(id) {
     else { STAT[id] = DOCS[id] ? 'stale' : 'error'; FAIL[id] = true; }   // never opens a sheet: 📶⚠ and dimmed cards only
     if (storeSig(id) !== s0) changed();
     linkAnswered(id, missing);
+    savedAnswered(id, missing);
     return r;
   });
   INFL[id] = { p: p, seq: seq };
@@ -2096,6 +2243,13 @@ function linkAnswered(id, missing) {
   if (S.trip === id) S.trip = null;
   changed();
   showError('not_found');
+}
+/* trips just saved from a list link before their first answer: one the Worker does not have leaves the list again */
+var SAVED_NEW = {};
+function savedAnswered(id, missing) {
+  if (!hasOwn(SAVED_NEW, id)) return;
+  delete SAVED_NEW[id];
+  if (missing) { listDrop([id]); changed(); }
 }
 /* every listed trip (on open: all of them; the poll and focus skip trips the Worker said it does not have) */
 function refreshAll(all) { LAST_ALL = nowMs(); return Promise.all(listIds().filter(function (id) { return all || STAT[id] !== 'missing'; }).map(refresh)); }
@@ -2153,17 +2307,19 @@ function setBooked(id, code, booked, opts) {
   if (!reqs) return Promise.resolve({ ok: false, code: doc ? 'bad_body' : 'not_found' });
   return commitWrite(id, reqs, doc);
 }
-/* an organizer edit: drawn at once from the doc on screen, then rebuilt from a fresh GET (with the edit key) and sent */
+/* an organizer edit: drawn at once from the doc on screen, then rebuilt from a fresh GET (with the edit key) and sent.
+   delta may be a function of the doc (read again from the fresh one), for an edit that depends on what is there. */
 function organizerWrite(id, delta, opts) {
   var key = editKeyFor(id), before = DOCS[id];
   if (!key || KEYBAD[id]) return Promise.resolve({ ok: false, code: 'forbidden' });
+  var dl = typeof delta === 'function' ? delta : function () { return delta; };
   beginWrite(id);
-  var pre = before ? organizerEdit(before, key, delta, opts) : null;
+  var pre = before ? organizerEdit(before, key, dl(before), opts) : null;
   if (pre) { DOCS[id] = applyLocal(before, pre); changed(); }
   return api('GET', reqPath('/idea', id)).then(function (g) {
     if (!g.ok || !plainObj(g.json.doc) || g.json.doc.id !== id) return finishWrite(id, { ok: false, code: g.code || 'network' }, before);
     if (g.json.organizer === false) { KEYBAD[id] = true; return finishWrite(id, { ok: false, code: 'forbidden' }, g.json.doc); }
-    var fresh = g.json.doc, reqs = organizerEdit(fresh, key, delta, opts);
+    var fresh = g.json.doc, reqs = organizerEdit(fresh, key, dl(fresh), opts);
     if (!reqs) return finishWrite(id, { ok: false, code: 'bad_body' }, fresh);
     DOCS[id] = applyLocal(fresh, reqs); changed();
     return sendAll(reqs).then(function (r) { return finishWrite(id, r, fresh); });
@@ -2256,7 +2412,7 @@ function v1ShortIds(s) {
 }
 /* v1's legacy ?wl= payload (base64 of URI-encoded JSON {overrides, added}) */
 function v1LegacyIds(s) { try { return v1SharedIds(JSON.parse(decodeURIComponent(atob(String(s || ''))))); } catch (e) { return []; } }
-/* What a URL asks for. Pure: (search, hash, pathname) → {idea, ids, face, tab, keys, token, hint, list, drop, stripHash}.
+/* What a URL asks for. Pure: (search, hash, pathname) → {idea, ids, face, tab, keys, token, hint, list, devices, drop, stripHash}.
    ?idea=<id> or /i/<id>       the trip to save and open
    ?l=<id>.<id>…&f=<face>      a v2 list link (v1 owns ?w= and ?wl=); ?w= / ?wl= v1 share payloads are read for ids
    #k=<key>&t=<token>          v1's organizer link (with ?idea=)        #ks=<id>.<key>,…&t=<token>   the devices link
@@ -2277,7 +2433,7 @@ function hashParams(hash) {
 }
 function readLink(search, hash, pathname) {
   var q = qsParse(search), h = String(hash || '');
-  var out = { idea: '', ids: [], face: '', tab: '', keys: {}, token: '', hint: '', list: false, drop: [], stripHash: false };
+  var out = { idea: '', ids: [], face: '', tab: '', keys: {}, token: '', hint: '', list: false, devices: false, drop: [], stripHash: false };
   var pm = /\/i\/([A-Za-z0-9_-]{22})\/?$/.exec(String(pathname || '')), id = pm ? pm[1] : String(q.idea || '');
   if (IDEA_ID_RE.test(id)) out.idea = id;
   var ids = [];
@@ -2291,20 +2447,28 @@ function readLink(search, hash, pathname) {
   var k = hasOwn(P, 'k') && IDEA_KEY_RE.test(P.k) ? P.k : '', ks = hasOwn(P, 'ks') && /^[A-Za-z0-9_.,-]{0,8000}$/.test(P.ks) ? P.ks : null;
   var t = hasOwn(P, 't') && TOKEN_RE.test(P.t) ? P.t : '', m = hasOwn(P, 'm') && MEMBER_CODE_RE.test(P.m) ? P.m : '';
   if (k && out.idea) out.keys[out.idea] = k;
+  var ksKeys = 0;
   if (ks) ks.split(',').forEach(function (pair) {
     var p = pair.split('.');
-    if (p.length === 2 && IDEA_ID_RE.test(p[0]) && IDEA_KEY_RE.test(p[1]) && !hasOwn(out.keys, p[0])) out.keys[p[0]] = p[1];
+    if (p.length === 2 && IDEA_ID_RE.test(p[0]) && IDEA_KEY_RE.test(p[1]) && !hasOwn(out.keys, p[0])) { out.keys[p[0]] = p[1]; ksKeys++; }
   });
   if (t && (k || ks !== null)) out.token = t;
+  // my own devices link (#ks=): its trips are mine, saved with no taps. Only a hash that proves it (a valid key or
+  // the token, as devicesLink always writes) counts: a junk #ks= on someone's list link still opens P-savelist.
+  out.devices = ks !== null && (ksKeys > 0 || !!out.token);
   if (m && out.idea) out.hint = m;
   out.stripHash = hp.any;
   return out;
 }
-/* save what the link carries, add its trips to this phone's list (no taps), then strip secrets and consumed params */
+/* save what the link carries, add a trip link's trip to this phone's list (no taps), then strip secrets and consumed
+   params. A list link from someone else (?l=, or v1's ?w= / ?wl=) is not added on its own: it opens the receiving
+   sheet (P-savelist), where ⤓ Save adds the trips that are new here. My own devices link (#ks=) adds every trip. */
 function applyLink(L) {
   Object.keys(L.keys).forEach(function (id) { saveKey(id, L.keys[id], ''); });
   if (L.token) setToken(L.token);
-  var fromList = listAdd(L.ids), more = listAdd((L.idea ? [L.idea] : []).concat(Object.keys(L.keys)));
+  var fromList = L.devices ? listAdd(L.ids) : [], more = listAdd((L.idea ? [L.idea] : []).concat(Object.keys(L.keys)));
+  if (!L.devices && L.list && L.ids.length) S.saveNext = { ids: L.ids.slice(), face: L.face };
+  fromList.concat(more).forEach(function (id) { flyIn(id); });
   if (L.idea) { S.linkTrip = L.idea; S.linkFresh = more.indexOf(L.idea) >= 0; }   // see linkAnswered: new to this phone = dropped again if the Worker has no such trip
   if (L.tab) S.tab = L.tab;
   if (L.idea) {
@@ -2312,7 +2476,7 @@ function applyLink(L) {
     if (!L.tab) { S.tab = 'trips'; S.trip = L.idea; }
     if (L.hint) S.hint = { id: L.idea, code: L.hint };
   }
-  if (L.list) S.toastNext = (L.face ? L.face + ' ' : '') + '⤓ ' + fromList.length;
+  if (fromList.length) S.toastNext = '⤓ ' + fromList.length;
   cleanUrl(L);
   return { listed: fromList, added: more };
 }
@@ -2367,7 +2531,9 @@ function docOnShelf(doc, id, entry) { var p = docPlan(doc); return !!((p && p.e 
 function ctxFor(id) {
   var L = listRead(), entry = L.filter(function (x) { return x.id === id; })[0];
   var others = L.filter(function (x) { return x.id !== id && DOCS[x.id] && STAT[x.id] !== 'missing' && !docOnShelf(DOCS[x.id], x.id, x); }).map(function (x) { return DOCS[x.id]; });
-  return { today: RT.today, now: RT.now, me: meFor(id) || null, hasEditKey: !!editKeyFor(id) && !KEYBAD[id], hasToken: hasToken(), fares: {},
+  var org = !!editKeyFor(id) && !KEYBAD[id], tok = hasToken();
+  // the cached real fares reach the model only where the one total is shown: the organizer's phone with the token
+  return { today: RT.today, now: RT.now, me: meFor(id) || null, hasEditKey: org, hasToken: tok, fares: org && tok ? readFares() : {},
     multiAirport: lsGet(ST.multi) === '1', hidden: !!(entry && entry.arch), otherTrips: others };
 }
 function modelOf(id) {
@@ -2380,10 +2546,11 @@ function modelOf(id) {
 function items() {
   return listRead().filter(function (x) { return STAT[x.id] !== 'missing'; }).map(function (x) { return { id: x.id, x: x, m: modelOf(x.id) }; });
 }
+/* ⭐ pinned first, then by departure; undated ideas (and trips not read yet) last, in list order */
 function sortItems(a) {
   return a.slice().sort(function (p, q) {
     var pp = p.x.pin ? 0 : 1, pq = q.x.pin ? 0 : 1; if (pp !== pq) return pp - pq;
-    var dp = p.m && p.m.plan ? p.m.plan.s : p.m && p.m.win ? p.m.win.s : '9999', dq = q.m && q.m.plan ? q.m.plan.s : q.m && q.m.win ? q.m.win.s : '9999';
+    var dp = p.m && p.m.plan ? p.m.plan.s : '9999', dq = q.m && q.m.plan ? q.m.plan.s : '9999';
     return dp < dq ? -1 : dp > dq ? 1 : 0;
   });
 }
@@ -2400,6 +2567,25 @@ function selectedId(act) {
 }
 /* phones that organize (a token or any edit key) keep ⚙ in every top row; every phone reaches it from ⓘ */
 function orgPhone() { return hasToken() || keyIds().length > 0; }
+/* the trips Trips › Ideas can share as a list: every loaded trip off the shelf */
+function shareModels() { return activeModels(); }
+/* the list-share control's count: every trip in my list (off the shelf) that no list share of mine has carried yet,
+   whoever organizes it */
+function unsharedIds() { var wl = sharedWl(); return shareModels().filter(function (m) { return wl.indexOf(m.id) < 0; }).map(function (m) { return m.id; }); }
+/* new answers since my last look, per trip (faces marked ●) */
+function freshCodes(m) { return newAnswers(m, seenFor(m.id)); }
+/* the Trips tab's numeral: active trips still waiting on my answer, or with answers I have not seen */
+function tripsBadge() { return activeModels().filter(function (m) { return awaitsMe(m) || freshCodes(m).length > 0; }).length; }
+/* my face for a list link: my profile, else my face on the trips being sent, else on any trip */
+function myFace(ids) {
+  var f = profileFace(); if (f) return f;
+  var ms = activeModels(), pick = ms.filter(function (m) { return ids.indexOf(m.id) >= 0 && m.me; }).concat(ms.filter(function (m) { return m.me; }))[0];
+  return pick ? pick.me.face : '';
+}
+/* a list link points at the app's own folder (the address the family opens, as v1's share links do) */
+function dirBase() { return String(location.href || '').split(/[?#]/)[0].replace(/[^\/]*$/, ''); }
+/* cards that just arrived (a link, a ⤓ Save) fly into the list the next time it is drawn */
+function flyIn(id) { if (!S.fly) S.fly = {}; S.fly[id] = 1; }
 
 /* ---- glyphs, faces, pictures (from the verified prototype) ---- */
 var MK = {
@@ -2407,7 +2593,18 @@ var MK = {
   maybe: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5.6 6a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1.1.9-1.1 1.6v.4" style="fill:none;stroke:currentColor;stroke-width:2.1;stroke-linecap:round"/><circle cx="8" cy="13" r="1.3" style="fill:currentColor"/></svg>',
   out: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.6" style="fill:none;stroke:currentColor;stroke-width:2"/><path d="M4 12L12 4" style="stroke:currentColor;stroke-width:2"/></svg>'
 };
+/* the list-share glyph: 📣 over two stacked cards (from the verified prototype) */
+var LISTSHARE = '<span class="lshare" aria-hidden="true"><svg viewBox="0 0 30 28"><rect x="7" y="9" width="20" height="15" rx="3" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.6"/>' +
+  '<rect x="3" y="13" width="20" height="13" rx="3" style="fill:var(--surface);stroke:var(--ink);stroke-width:1.6"/></svg><span>📣</span></span>';
+var CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 8.6l3 3 6.2-7.2" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"/></svg>';
 var STAGES = [['idea', '💡', 'Idea'], ['asking', '🗳', 'Asking'], ['set', '🔒', 'Dates set'], ['booking', '🎫', 'Booking'], ['done', '🏁', 'Done']];
+/* the postcard's mini locator: the destination as a dot on the US outline, a small globe off the US map, ? when the
+   idea has no place yet or its code is not one the app knows (never a globe for an unknown code) */
+function locUS(p) { return '<svg viewBox="0 0 360 230" aria-hidden="true"><use href="#us-o" width="360" height="230" style="fill:var(--ink3);opacity:.55"/><circle cx="' + p[0] + '" cy="' + p[1] + '" r="30" style="fill:var(--ink);stroke:var(--surface);stroke-width:10"/></svg>'; }
+var LOC_GLOBE = '<svg viewBox="0 0 26 17" aria-hidden="true"><circle cx="13" cy="8.5" r="7" style="fill:none;stroke:var(--ink3);stroke-width:1.2"/><path d="M6 8.5h14M13 1.5v14" style="stroke:var(--ink3);stroke-width:.8"/><circle cx="17" cy="6" r="2" style="fill:var(--ink)"/></svg>';
+var LOC_NONE = '<svg viewBox="0 0 26 17" aria-hidden="true"><text x="13" y="13" text-anchor="middle" style="font-size:12px;font-weight:800;fill:var(--ink)">?</text></svg>';
+var LOC_KEY_US = '<span class="loc">' + locUS([196, 112]) + '</span>', LOC_KEY_GLOBE = '<span class="loc">' + LOC_GLOBE + '</span>', LOC_KEY_NONE = '<span class="loc">' + LOC_NONE + '</span>';
+var BBA_KEY = '<i class="bba"><i style="width:60%"></i></i>';
 /* the context key: every data-k on a screen has an entry here (P-key lists the ones shown; long-press names a control) */
 var LEGEND = {
   key: ['ⓘ', 'Key'], settings: ['⚙', 'Settings'], back: ['‹', 'Back'], close: ['⌄', 'Close'], newtrip: ['＋', 'New trip'],
@@ -2420,7 +2617,10 @@ var LEGEND = {
   hostdef: ['<span class="shape sh-hostdef">' + MK.in + '</span>', 'Host, unconfirmed'],
   host: ['🏠', 'Host'], booked: ['🎫', 'Booked'], called: ['📞', 'Called'], note: ['📝', 'Note'], you: ['👋', 'You'],
   'st-idea': ['💡', 'Idea'], 'st-asking': ['🗳', 'Asking'], 'st-set': ['🔒', 'Dates set'], 'st-booking': ['🎫', 'Booking'], 'st-done': ['🏁', 'Done'], dropped: ['🗑', 'Dropped'],
-  trips: ['🧳', 'Trips'], map: ['🗺', 'Map'], cal: ['🗓', 'Calendar'], all: ['▦', 'All trips']
+  trips: ['🧳', 'Trips'], map: ['🗺', 'Map'], cal: ['🗓', 'Calendar'], all: ['▦', 'All trips'],
+  sharelist: [LISTSHARE, 'Share list'], share: ['📣', 'Share'], save: ['⤓', 'Save list'], new: ['<span class="av s28" style="--pc:var(--p0)"><span class="f">🙂</span><span class="new"></span></span>', 'New answer'],
+  look: ['<span class="kbadge">1</span>', 'Needs a look'], total: ['$', 'Group total'], paid: ['💵', 'Paid'], unpriced: ['+🙂', 'Not priced'], search: ['🔍', 'Search fares'],
+  restore: ['↩', 'Restore'], bookby: [BBA_KEY, 'Book by'], place: [LOC_KEY_US, 'Place'], abroad: [LOC_KEY_GLOBE, 'Abroad'], noplace: [LOC_KEY_NONE, 'Place unknown']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -2446,6 +2646,7 @@ function avatar(m, size, o) {
     b.slice(0, o.max || 1).forEach(function (x, i) { h += '<span class="bd' + (i ? ' bd2' : '') + '" data-k="' + x[1] + '">' + x[0] + '</span>'; });
     if (m.headcount > 1) h += '<span class="cnt" data-k="count">×' + m.headcount + '</span>';
   }
+  if (o.isNew) h += '<span class="new" data-k="new"></span>';   // an answer since my last look
   return h + '</span>';
 }
 function polar(cx, cy, r, a) { var t = (a - 90) * Math.PI / 180; return (cx + r * Math.cos(t)).toFixed(2) + ' ' + (cy + r * Math.sin(t)).toFixed(2); }
@@ -2503,11 +2704,20 @@ function sceneSVG(kind, emoji, hostFaces) {
   }
   return s + '</svg>';
 }
+/* the mini locator in a postcard's corner: the destination as a dot on the US outline (the model's mapXY), a small
+   globe for a known place off the US map, ? for an idea with no place yet or a code the app does not know. It is a
+   glyph with a key entry, so ⓘ explains it and a long press names it. */
+function locator(m) {
+  var p = m.dest ? mapXY(m.dest) : null;
+  if (p) return '<span class="loc" data-k="place">' + locUS(p) + '</span>';
+  if (m.dest && airportInfo(m.dest).known) return '<span class="loc" data-k="abroad">' + LOC_GLOBE + '</span>';
+  return '<span class="loc" data-k="noplace">' + LOC_NONE + '</span>';
+}
 function postcard(m, cls, o) {
   o = o || {};
   var hostFaces = (m.members || []).filter(function (x) { return x.host; }).map(function (x) { return x.face; });
   return '<span class="pc ' + (cls || '') + '" aria-hidden="true">' + sceneSVG(sceneKind(m), m.emoji, hostFaces) +
-    (m.locked && !o.noLock ? '<span class="lk" data-k="lock">🔒</span>' : '') + '</span>';
+    (m.locked && !o.noLock ? '<span class="lk" data-k="lock">🔒</span>' : '') + (o.loc && m.members ? locator(m) : '') + '</span>';
 }
 function ghostPicture() {
   var faces = [['🦊', 'p0', 150], ['🐼', 'p2', 176], ['🐸', 'p3', 202]];
@@ -2541,56 +2751,101 @@ function datesText(m, long) {
   return '<span data-k="dates">' + G('🗓') + '?</span>';
 }
 function myOwn(m) { var me = m.me; return me && me.answered && (me.own1 || me.own2) && me.d1 && !me.bad ? me : null; }
-/* the card pill: the plan (or the ⟦window⟧), my own days as an underline in my colour (the picker is PIA-138's) */
+/* 📌 the event day: the day alone when the plan sits in that one month, else month/day */
+function pinTag(m) {
+  if (!m.pin) return '';
+  var one = m.plan && ym(m.plan.s) === ym(m.plan.e) && ym(m.pin) === ym(m.plan.s);
+  return ' <span data-k="pin">' + G('📌') + (one ? String(+m.pin.slice(8)) : md(m.pin)) + '</span>';
+}
+/* ⏳ the days to go on every upcoming dated card, with the book-by arc under it (the model's togoCue: it empties as
+   book-by nears, and is gone once everyone has booked); red once book-by has passed, where that matters */
+function togoTag(tg) {
+  return '<span class="tg' + (tg.late ? ' w' : '') + '" data-k="togo">' + G('⏳') + tg.days +
+    (tg.frac != null ? '<i class="bba" data-k="bookby"><i style="width:' + (tg.frac * 100).toFixed(1) + '%"></i></i>' : '') + '</span>';
+}
+/* the card pill: the plan (or the ⟦window⟧) with 📌, my own days as an underline in my colour (the picker is
+   PIA-138's), ⚠ with its cause, and ⏳ the days to go with the book-by arc */
 function cardPill(m) {
-  var warn = cardWarn(m), mine = myOwn(m), inner;
+  var warn = cardWarn(m), mine = myOwn(m), tg = togoCue(m), inner;
   if (m.plan) {
     var u = '';
     if (mine) {
       var n = diffD(m.plan.s, m.plan.e) + 1, a = Math.max(0, diffD(m.plan.s, mine.d1)), b = Math.min(n, diffD(m.plan.s, mine.d2) + 1);
       if (b > a) u = '<i class="myu" style="--pc:var(--p' + mine.color + ');left:' + (a / n * 100).toFixed(1) + '%;width:' + ((b - a) / n * 100).toFixed(1) + '%"></i>';
     }
-    inner = '<span class="dt"><span data-k="dates">' + G('🗓') + '</span><span class="dr">' + md(m.plan.s) + '–' + md(m.plan.e) + u + '</span></span>';
-  } else inner = datesText(m, false);
-  return '<span class="pill' + (m.locked ? ' set' : '') + '">' + inner + (warn ? ' <span class="w" data-k="warn">' + warn + '</span>' : '') + '</span>';
+    inner = '<span class="dt"><span data-k="dates">' + G('🗓') + '</span><span class="dr">' + md(m.plan.s) + '–' + md(m.plan.e) + u + '</span></span>' + pinTag(m);
+  } else inner = datesText(m, false) + pinTag(m);
+  return '<span class="pill' + (m.locked ? ' set' : '') + '">' + inner + (warn ? ' <span class="w" data-k="warn">' + warn + '</span>' : '') +
+    (tg ? ' ' + togoTag(tg) : '') + '</span>';
 }
-/* my own one-tap hand-off for this trip, from the model's link builder */
+/* the one total, on the organizer's phone with the token only (model.prices); a guest's card has no slot at all.
+   $— before any fare is cached; outlined with the faces still unpriced when part of the sum is missing (a traveler
+   with no fare at all, or one leg of two: an open-jaw traveler can be half priced, and a half-priced sum is never
+   shown as final); grey with 🔍 when a fare is stale; 💵 once paid. Tapping it opens P-total (PIA-140); until then
+   a tap there opens the trip like the rest of the card. */
+function money(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+function totalHTML(m) {
+  if (!m.prices) return '';
+  if (m.paid != null) return '<span class="tot" data-k="paid">' + G('💵') + money(m.paid) + '</span>';
+  var p = m.price;
+  if (!p || p.total == null) return '<span class="tot stale" data-k="total">$—</span>';
+  // the faces whose sum is missing any leg (hollow); a stale fare still counts, greyed with 🔍
+  var un = m.travelers.filter(function (x) { var q = p.per[x.code]; return !q || q.sum == null || q.hollow; }).map(function (x) { return x.face; });
+  var part = un.length > 0 || (!p.complete && !p.stale);
+  return '<span class="tot' + (part ? ' part' : '') + (p.stale ? ' stale' : '') + '" data-k="total">' + money(p.total) +
+    (un.length ? ' <span class="uf" data-k="unpriced">+' + un.slice(0, 3).join('') + (un.length > 3 ? '+' + (un.length - 3) : '') + '</span>' : '') +
+    (p.stale ? ' <span data-k="search">🔍</span>' : '') + '</span>';
+}
+/* my own one-tap hand-off for this trip, from the model's link builder. Nothing is gated behind answering: an
+   unanswered traveler's search is built from their home airport and the plan, like everyone's. */
 function slotHTML(m) {
   var me = m.me; if (!me || m.shelf) return '';
   var h = handoffs(m, '', RT.hctx);
   if (me.host) return '<span class="slot plain z" role="img" aria-label="Host" data-lbl="Host" data-k="host">🏠</span>';
   if (!m.dest) return h.explore ? '<a class="slot gf z" ' + handoffAttrs(h.explore) + ' aria-label="Explore" data-k="explore">🧭↗</a>' : '';
   if (me.status === 'out') return '';
-  if (!m.org && !me.answered) return '';   // a guest answers first, then gets the link
   if (h.flighty) return '<a class="slot wide z" ' + handoffAttrs(h.flighty) + ' aria-label="Flighty" data-k="flighty">✈⏱↗</a>';
   if (h.gf) return '<a class="slot gf z" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>';
   if (me.traveler) return '<span class="slot off z" role="img" aria-label="Fix dates" data-lbl="Fix dates" data-k="fixdates">✈⚠</span>';
   return '';
 }
-function faceStack(m, max) {
-  var arr = m.members.slice(0, max);
-  return '<span class="faces">' + arr.map(function (x) { return avatar(x, 28); }).join('') + (m.members.length > max ? '<span class="more">+' + (m.members.length - max) + '</span>' : '') + '</span>';
+/* ≤max faces with their answer shapes; a ● on each face in fresh (an answer since my last look) */
+function faceStack(m, max, fresh) {
+  var arr = m.members.slice(0, max), nw = fresh || [];
+  return '<span class="faces">' + arr.map(function (x) { return avatar(x, 28, { isNew: nw.indexOf(x.code) >= 0 }); }).join('') + (m.members.length > max ? '<span class="more">+' + (m.members.length - max) + '</span>' : '') + '</span>';
 }
 function staleMark() { return '<span class="slot plain z" role="img" aria-label="Not updated" data-lbl="Not updated" data-k="stale">◷</span>'; }
 function cardHTML(it, o) {
   o = o || {};
-  var m = it.m, x = it.x, stale = !!FAIL[it.id];
-  if (!m) {   // not read yet (or the read failed): the list's snapshot
-    return '<article class="card dim" data-trip="' + it.id + '"><div class="card-a">' + postcard(stubModel(x)) +
+  var m = it.m, x = it.x, stale = !!FAIL[it.id], fly = S.fly && S.fly[it.id] ? ' fly' : '';
+  if (!m) {   // not read yet (or the read failed): the list's snapshot (an arrival flies in as it is drawn first)
+    return '<article class="card dim' + fly + '" data-trip="' + it.id + '"><div class="card-a">' + postcard(stubModel(x)) +
       '<h3 class="card-t" data-free><button class="card-open" data-act="open" data-id="' + it.id + '"' + (x.t ? '' : ' aria-label="Trip"') + '>' + (esc(x.t) || '…') + '</button></h3>' + staleMark() + '</div></article>';
   }
-  return '<article class="card' + (o.dim || stale ? ' dim' : '') + '" data-trip="' + m.id + '">' +
-    '<div class="card-a">' + postcard(m) + '<h3 class="card-t" data-free><button class="card-open" data-act="open" data-id="' + m.id + '"' + (m.title ? '' : ' aria-label="Trip"') + '>' + (esc(m.title) || '…') + '</button></h3>' +
-    (stale ? staleMark() : slotHTML(m)) + '</div>' +
-    '<div class="card-b">' + cardPill(m) + '</div>' +
-    '<div class="card-c">' + faceStack(m, 4) + '<span class="heads" data-k="heads">' + m.headsIn + '/' + m.heads + '</span>' + (m.org ? pip1(m) : '<span class="sp"></span>') +
+  // the organizer brings a dropped trip back (↩ = /idea/update decision proposed); nobody else sees the control
+  var restore = m.org && m.decision === 'dropped' ? '<button class="ib z rst" data-act="restore" data-id="' + m.id + '" aria-label="Restore" data-k="restore">↩</button>' : '';
+  return '<article class="card' + (o.dim || stale ? ' dim' : '') + fly + '" data-trip="' + m.id + '">' +
+    '<div class="card-a">' + postcard(m, '', { loc: true }) + '<h3 class="card-t" data-free><button class="card-open" data-act="open" data-id="' + m.id + '"' + (m.title ? '' : ' aria-label="Trip"') + '>' + (esc(m.title) || '…') + '</button></h3>' +
+    (stale ? staleMark() : slotHTML(m)) + restore + '</div>' +
+    '<div class="card-b">' + cardPill(m) + totalHTML(m) + '</div>' +
+    '<div class="card-c">' + faceStack(m, 4, freshCodes(m)) + '<span class="heads" data-k="heads">' + m.headsIn + '/' + m.heads + '</span>' +
+    pip1(m) +   // the stage reads the same on every phone (🗑 once dropped); only ↩ is the organizer's
     (x.pin ? '<span data-k="star" aria-hidden="true">⭐</span>' : '') + '</div></article>';
 }
 function offBtn() { return anyFailed() ? '<button class="ib" data-act="offline" aria-label="Offline" data-k="offline">📶⚠</button>' : ''; }
 function keyBtn() { return '<button class="ib' + (S.keyPulse ? ' pulse' : '') + '" data-act="key" aria-label="Key" data-k="key">ⓘ</button>'; }
 function setBtn() { return orgPhone() ? '<button class="ib" data-act="settings" aria-label="Settings" data-k="settings">⚙</button>' : ''; }
-function topRow(noNew) {
-  return '<div class="toprow">' + (noNew ? '' : '<button class="ib newb" data-act="new" aria-label="New trip" data-k="newtrip">＋</button>') + offBtn() + '<span class="sp"></span>' + keyBtn() + setBtn() + '</div>';
+/* the list-share control (Trips › Ideas only): hidden with nothing to share; +n and a pulse while trips in my list
+   have not gone out in a list share yet. A screen reader hears the count in the name; a long press names the
+   control alone (data-lbl). */
+function shareBtn() {
+  if (!shareModels().length) return '';
+  var n = unsharedIds().length;
+  return '<button class="ib share' + (n ? ' pulse' : '') + '" data-act="sharelist" aria-label="Share list' + (n ? ', ' + n + ' not shared' : '') + '" data-lbl="Share list" data-k="sharelist">' + LISTSHARE +
+    (n ? '<span class="badge" data-lbl="Not shared">+' + n + '</span>' : '') + '</button>';
+}
+function topRow(noNew, share) {
+  return '<div class="toprow">' + (noNew ? '' : '<button class="ib newb" data-act="new" aria-label="New trip" data-k="newtrip">＋</button>') + offBtn() + '<span class="sp"></span>' + (share ? shareBtn() : '') + keyBtn() + setBtn() + '</div>';
 }
 function segRow(which) {
   return '<div class="seg" role="group" aria-label="Trips view"><button data-act="seg" data-v="ideas" aria-pressed="' + (which === 'ideas') + '">Ideas</button>' +
@@ -2604,7 +2859,7 @@ function renderIdeas() {
   var act = activeItems(), sh = shelfItems();
   if (!act.length && !sh.length) return { id: 'trips-empty', html: topRow(true) + ghostCard('trips') };
   // [Ideas | Family] appears once the phone holds two trips (one trip has no family view to switch to)
-  var h = topRow() + (act.length + sh.length >= 2 ? segRow('ideas') : '');
+  var h = topRow(false, true) + (act.length + sh.length >= 2 ? segRow('ideas') : '');
   h += act.map(function (it) { return cardHTML(it); }).join('');
   if (sh.length) {
     var open = !!uiRead().shelfOpen;
@@ -2680,9 +2935,11 @@ function renderSelected(id, scope) {
   S.shown = m.id;
   return { id: id, html: tabTop(act.length > 1 ? tripChips(act, sel) : '') + '<p class="subttl" id="sel-title" data-free>' + esc(m.title) + '</p>' + miniCard(m) };
 }
+/* the Trips tab carries a numeral: trips waiting on my answer or holding answers I have not seen */
 function renderTabbar() {
-  function b(v, g, word) { return '<button data-act="tab" data-v="' + v + '"' + (S.tab === v ? ' aria-current="page"' : '') + '><span class="g" aria-hidden="true">' + g + '</span>' + word + '</button>'; }
-  return b('trips', '🧳', 'Trips') + b('map', '🗺', 'Map') + b('cal', '🗓', 'Calendar');
+  function b(v, g, word, extra) { return '<button data-act="tab" data-v="' + v + '"' + (S.tab === v ? ' aria-current="page"' : '') + '><span class="g" aria-hidden="true">' + g + '</span>' + word + (extra || '') + '</button>'; }
+  var n = tripsBadge();
+  return b('trips', '🧳', 'Trips', n ? '<span class="badge" data-k="look" data-lbl="Needs a look">' + n + '</span>' : '') + b('map', '🗺', 'Map') + b('cal', '🗓', 'Calendar');
 }
 
 /* ---- rendering ---- */
@@ -2701,6 +2958,7 @@ function render(keep, bg) {
   $('#tabbar').innerHTML = renderTabbar();
   fitNames(scr, screenWords, 10);
   shrinkNames(scr);
+  if (out.id === 'trips-ideas') S.fly = null;   // the arrivals flew in once
   if (keep) window.scrollTo(0, y);
   centerChips();
   if (S.sheet && !(bg && typingInSheet())) renderSheet(false);
@@ -2750,7 +3008,7 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
    failed read). While a sheet is open the screen and tab bar behind it are inert, and closing it puts focus
    back on the control that opened it. ---- */
 var SHEETS = {};
-var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', soon: 'New trip' };   // each sheet's accessible name
+var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', soon: 'New trip', sharelist: 'Share list', savelist: 'Save list' };   // each sheet's accessible name
 function shHd(left, o) {
   o = o || {};
   if (o.back === undefined && S.sheet && S.sheet.back) o.back = true;
@@ -2815,6 +3073,81 @@ SHEETS.link = function (sh) {
   return shHd('⧉') + '<textarea id="link-url" class="linkfld" rows="3" readonly spellcheck="false" aria-label="Link">' + esc(url) + '</textarea>' +
     (secret ? '<p class="warnline">🔑⚠ Your devices only</p>' : '') + '<button class="btn pri wide" data-act="lcopy" aria-label="Copy">⧉</button>';
 };
+/* ---- P-sharelist / P-savelist (PIA-135) ---- */
+/* a sheet's mini postcard: scene, title, first day (or the ⟦window⟧), up to four faces; a pick ring or the stage disc */
+function sheetMini(m, o) {
+  o = o || {};
+  var tag = o.act ? 'button' : 'div', faces = m.members.slice(0, 4).map(function (x) { return x.face; }).join('') + (m.members.length > 4 ? '+' + (m.members.length - 4) : '');
+  var when = m.plan ? md(m.plan.s) : m.win ? '<span data-k="window">⟦' + md(m.win.s) + '⟧</span>' : '';
+  return '<' + tag + ' class="mini' + (o.dim ? ' dim' : '') + '"' + (o.act ? ' data-act="' + o.act + '" data-id="' + m.id + '" aria-pressed="' + !!o.pressed + '"' : '') + '>' + postcard(m, '', { loc: true }) +
+    '<span style="display:grid;gap:3px;flex:1;min-width:0"><span class="mt" data-free>' + esc(m.title) + '</span><span class="md">' + when + ' <span class="mf" aria-hidden="true">' + faces + '</span></span>' +
+    (o.act ? '' : '<span class="mp">' + pip1(m) + '</span>') + '</span>' + (o.act ? '<span class="ck">' + (o.pressed ? CHECK : '') + '</span>' : '') + '</' + tag + '>';
+}
+/* a trip the sheet is still reading (or could not read): its snapshot and ◷ */
+function stubMini(id) {
+  var x = listEntry(id) || { t: '', e: '' };
+  return '<div class="mini dim">' + postcard(stubModel(x)) + '<span class="mt" data-free>' + esc(x.t) + '</span><span data-k="stale">◷</span></div>';
+}
+/* a group chip's accessible name: its people, so two chips are told apart ('Group: Anjo, Mom & Dad, Leo') */
+function groupName(g) {
+  var n = (g.names || []).filter(Boolean), head = n.slice(0, 6).join(', ');
+  return 'Group: ' + (head || g.faces.join(' ')) + (n.length > 6 ? ' +' + (n.length - 6) : '');
+}
+/* P-sharelist: pick exactly which trips a list link carries. Group chips (faces of the people other than me) check
+   one group; the largest group starts checked; shelf and dropped trips are never listed; 📣 Share N. */
+SHEETS.sharelist = function (sh) {
+  var L = sh.local, act = shareModels(), ids = act.map(function (m) { return m.id; });
+  var groups = tripGroups(act, myNorm(act) || '');
+  if (!L.checked) { L.checked = {}; (groups[0] ? groups[0].ids : []).slice(0, LIST_LINK_MAX).forEach(function (id) { L.checked[id] = true; }); }
+  Object.keys(L.checked).forEach(function (id) { if (ids.indexOf(id) < 0) delete L.checked[id]; });
+  var n = ids.filter(function (id) { return L.checked[id]; }).length;
+  var h = shHd('<span data-k="sharelist">' + LISTSHARE + '</span>');
+  if (groups.length > 1) h += '<div class="rowc" role="group" aria-label="Groups">' + groups.map(function (g, i) {
+    var on = g.ids.length === n && g.ids.every(function (id) { return L.checked[id]; });
+    // named by its people for a screen reader (not visible, so no words); a long press says "Group"
+    return '<button class="preset" data-act="slgroup" data-v="' + i + '" aria-pressed="' + on + '" aria-label="' + esc(groupName(g)) + '" data-lbl="Group">' + g.faces.slice(0, 4).join('') + (g.faces.length > 4 ? '<span class="more">+' + (g.faces.length - 4) + '</span>' : '') + '</button>';
+  }).join('') + '</div>';
+  h += '<div class="cards-mini">' + act.map(function (m) { return sheetMini(m, { act: 'sltoggle', pressed: !!L.checked[m.id] }); }).join('') + '</div>';
+  h += '<button class="btn pri wide" data-act="slshare"' + (n ? '' : ' disabled') + '><span data-k="share">📣</span> Share <span class="tn">' + n + '</span></button>';
+  return h;
+};
+/* P-savelist: a list link from someone: their face, the trips that are new on this phone (live from the Worker), and
+   one ⤓ Save. Trips already in my list are not shown again; with none new, the dimmed stack and no button. ⌄ saves
+   nothing (any trip opened later still saves itself). */
+/* A trip the link carries that turns out to be past or dropped (a crafted link, or a v1 ?w= payload) is never
+   offered: the sending side leaves shelf trips out, and so does this one. */
+function saveState(p) {
+  var have = listIds(), ids = (p.ids || []).filter(function (id) { return STAT[id] !== 'missing'; });
+  var fresh = ids.filter(function (id) { var m = have.indexOf(id) < 0 ? modelOf(id) : null; return have.indexOf(id) < 0 && !(m && m.shelf); });
+  return { ids: ids, fresh: fresh, gone: (p.ids || []).length > 0 && !ids.length };
+}
+SHEETS.savelist = function (sh) {
+  var st = saveState(sh.p), show = st.fresh.length ? st.fresh : st.ids;
+  var h = shHd('<span class="svhd">' + (sh.p.face ? '<span class="svf" data-face>' + esc(sh.p.face) + '</span>' : '') +
+    '<svg viewBox="0 0 60 24" aria-hidden="true"><path d="M4 16 C20 0 38 2 50 12" style="fill:none;stroke:var(--ink);stroke-width:2"/><path d="M46 8 L54 14 L45 17 Z" style="fill:var(--ink)"/></svg><span class="svt" data-k="trips">🧳</span></span>');
+  if (st.gone) { var e = errInfo('not_found'); return h + '<div class="errline"><span class="eg" aria-hidden="true">' + e[0] + '</span><span class="tn">' + esc(e[1]) + '</span></div>'; }
+  h += '<div class="cards-mini">' + show.map(function (id) { var m = modelOf(id); return m ? sheetMini(m, { dim: !st.fresh.length }) : stubMini(id); }).join('') + '</div>';
+  if (st.fresh.length) h += '<button class="btn pri wide" data-act="svsave"><span data-k="save">⤓</span> Save <span class="tn">' + st.fresh.length + '</span></button>';
+  return h;
+};
+function openSaveList(p) {
+  openSheet('savelist', { ids: p.ids.slice(0, APP_LIST_MAX), face: faceOf(p.face) || '' });
+  p.ids.forEach(function (id) { if (!DOCS[id]) refresh(id); });   // the trips I do not have yet are read now (free GET /idea)
+}
+/* hand a list link to the phone's share sheet (URL only), else the clipboard, else P-link; done(how) once it is out
+   ('share', 'copy'), or 'link' when P-link opened over the sheet: then nothing has gone out yet, and P-link's own ⧉
+   calls copied() once the person copies it */
+function shareLink(url, done, copied) {
+  var copy = function () {
+    try { navigator.clipboard.writeText(url).then(function () { done('copy'); }, function () { done('link'); linkSheet(url, copied); }); }
+    catch (e) { done('link'); linkSheet(url, copied); }
+  };
+  var nav = typeof navigator !== 'undefined' ? navigator : null, p = null;
+  if (nav && typeof nav.share === 'function') { try { p = nav.share({ url: url }); } catch (e) { p = null; } }
+  if (p && typeof p.then === 'function') { p.then(function () { done('share'); }, function (e) { if (!(e && e.name === 'AbortError')) copy(); }); return; }
+  copy();
+}
+
 /* P-error: a glyph and at most 3 words chosen by the Worker's error code (never its text); ↻ only when a retry can help */
 function nextUtcMidnightLocal() { var n = new Date(nowMs()), d = new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate() + 1)); return ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2); }
 function errInfo(code) {
@@ -2835,7 +3168,9 @@ SHEETS.soon = function () { return shHd('＋') + '<div class="ghost">' + ghostPi
 function renderSheet(first) {
   var sh = S.sheet; if (!sh) return;
   MC = {}; RT = RT || runCtx();
-  var el = $('#sheet'), act = document.activeElement, fid = act && el.contains(act) ? act.id : null, sel = null;
+  // the focused control comes back after the rebuild: by its id, else (on a redraw of the same sheet) by what it does
+  // (a toggle or a chip has no id)
+  var el = $('#sheet'), act = document.activeElement, inside = !!(act && act !== el && el.contains(act)), fid = inside && act.id ? act.id : null, sig = inside && !fid && !first ? ctlSig(act) : null, sel = null;
   if (fid && act.selectionStart != null) { try { sel = [act.selectionStart, act.selectionEnd]; } catch (e) { sel = null; } }
   el.innerHTML = SHEETS[sh.type](sh);
   el.setAttribute('data-popup', 'P-' + ({ organizer: 'organizer', soon: 'new' }[sh.type] || sh.type));
@@ -2844,7 +3179,7 @@ function renderSheet(first) {
   el.hidden = false; $('#scrim').hidden = false; setInert(true);
   fitNames(el, function () { return countWords(el); }, 20);
   if (first) { el.classList.remove('open'); void el.offsetWidth; el.classList.add('open'); el.scrollTop = 0; }
-  var f = fid ? document.getElementById(fid) : null;
+  var f = fid ? document.getElementById(fid) : findCtl(el, sig);
   if (f) { f.focus({ preventScroll: true }); if (sel && f.setSelectionRange) { try { f.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } } }
   else if (first) { var fe = sh.focus ? document.getElementById(sh.focus) : null; (fe || el).focus({ preventScroll: true }); }
 }
@@ -2853,6 +3188,11 @@ function setInert(on) { ['#app', '#tabbar'].forEach(function (q) { var e = $(q);
 function hideSheetEls() { var el = $('#sheet'); el.hidden = true; el.innerHTML = ''; $('#scrim').hidden = true; setInert(false); }
 /* the control a sheet was opened from, to focus again when it closes (found again after the re-render) */
 function ctlSig(el) { return el && el.dataset ? { act: el.dataset.act || '', id: el.dataset.id || '', v: el.dataset.v || '' } : null; }
+/* the control with that signature under root (only plain ids and values make it into a selector) */
+function findCtl(root, o) {
+  if (!root || !o || !o.act || !/^[a-z-]+$/.test(o.act) || !/^[A-Za-z0-9_-]*$/.test(o.id + o.v)) return null;
+  return root.querySelector('[data-act="' + o.act + '"]' + (o.id ? '[data-id="' + o.id + '"]' : '') + (o.v ? '[data-v="' + o.v + '"]' : ''));
+}
 function refocus() {
   var o = S.opener; S.opener = null;
   if (!o || !o.act || !/^[a-z-]+$/.test(o.act) || !/^[A-Za-z0-9_-]*$/.test(o.id + o.v)) return;
@@ -2910,7 +3250,7 @@ function toast(text) {
   clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, 1600);
 }
 function hideToast() { var t = $('#toast'); clearTimeout(toastTimer); if (t) t.hidden = true; }
-function linkSheet(url) { openSheet('link', { url: url }, { back: !!S.sheet, focus: 'link-url' }); var f = $('#link-url'); if (f) { try { f.select(); } catch (e) { /* not selectable */ } } }
+function linkSheet(url, copied) { openSheet('link', { url: url, copied: typeof copied === 'function' ? copied : null }, { back: !!S.sheet, focus: 'link-url' }); var f = $('#link-url'); if (f) { try { f.select(); } catch (e) { /* not selectable */ } } }
 /* secret links (#k=, #ks=, a token) are only ever copied, never handed to a share sheet */
 function copyLink(url, ok) {
   try { navigator.clipboard.writeText(url).then(function () { toast(ok || '⧉'); }, function () { linkSheet(url); }); } catch (e) { linkSheet(url); }
@@ -2919,8 +3259,8 @@ function pulseFld(fid) { var f = document.getElementById(fid); if (!f) return; v
 
 /* ---- long-press: P-label names the icon under the finger and never triggers it ----
    The icon is the labelled control there (a button, link or picture with its own aria-label / data-lbl), else
-   the glyph there: a card's faces, heads, pill and stage disc sit under the card's tap overlay, so they are
-   found by position and named from the key (LEGEND). Containers (the tab bar, a segment, a chip row, the sheet)
+   the glyph there: a card's faces, heads, pill, locator and stage disc sit under the card's tap overlay, so they
+   are found by position (on the screen or in the open sheet) and named from the key (LEGEND). Containers (the tab bar, a segment, a chip row, the sheet)
    are never named. A text control (a tab, Ideas, Save) has no label: a long press on it is just a tap. */
 var lp = { t: null, x: 0, y: 0, fired: false, hide: null, unfire: null };
 var CTL_SEL = 'button[aria-label],a[aria-label],[role="img"][aria-label],[data-lbl]';
@@ -2938,7 +3278,7 @@ function pressTarget(t, x, y) {
   if (!t || !t.closest || t.closest('input,textarea')) return null;
   var ctl = t.closest(CTL_SEL);
   if (ctl && !ctl.classList.contains('card-open')) return ctl;
-  var scope = t.closest('#screen');
+  var scope = t.closest('#screen') || t.closest('#sheet');   // a sheet's glyphs (◷, ⟦ ⟧, a stage disc, a locator) are named too
   return (scope && glyphAt(scope, x, y)) || ctl;
 }
 function showLabel(el) {
@@ -2979,6 +3319,15 @@ function popTrip() {
 function leaveTrip() { popTrip(); S.trip = null; S.tab = S.tripFrom || 'trips'; S.tripFrom = ''; }
 
 /* ---- actions ---- */
+/* ↩ puts a dropped trip back where it stood. Dropping keeps the decision's choice and paid amount, but the Worker's
+   'proposed' clears the whole decision, so: booked again (💵, the amount paid) or 🔒 chosen again (from the plan,
+   as every lock is) while the record still holds that choice, else proposed. */
+function restoreDelta(doc) {
+  var D = (doc && doc.decision) || {};
+  if (D.chosen && typeof D.actual_total === 'number' && D.actual_total >= 1) return { decision: { stage: 'booked', actual_total: D.actual_total } };
+  if (D.chosen && docPlan(doc) && docDest(doc)) return { decision: { stage: 'chosen' } };
+  return { decision: { stage: 'proposed' } };
+}
 function openTrip(id) {
   var from = S.tab;
   if (S.sheet) {   // the sheet's history entry becomes the trip's
@@ -3028,10 +3377,44 @@ var ACTS = {
   devlink: function () { var u = devicesLink(); if (!u) return; S.sheet.local.copied = true; renderSheet(false); copyLink(u, '🔑 ⧉'); },
   orglink: function (el) { var u = organizerLink(el.dataset.id); if (!u) return; S.sheet.local.copied = true; renderSheet(false); copyLink(u, '🔑 ⧉'); },
   lcopy: function () {
-    var f = $('#link-url'), url = S.sheet && S.sheet.p.url; if (!url) return;
-    var done = function () { toast('⧉'); };
+    var f = $('#link-url'), url = S.sheet && S.sheet.p.url, copied = S.sheet && S.sheet.p.copied; if (!url) return;
+    var done = function () { if (copied) copied(); toast('⧉'); };
     try { navigator.clipboard.writeText(url).then(done, function () { if (f) { f.focus(); f.select(); try { if (document.execCommand('copy')) done(); } catch (e) { /* the selection stays for a manual copy */ } } }); }
     catch (e) { if (f) { f.focus(); f.select(); } }
+  },
+  /* PIA-135: the shared watchlist */
+  sharelist: function () { openSheet('sharelist', {}); },
+  slgroup: function (el) {
+    var L = S.sheet.local, act = shareModels(), g = tripGroups(act, myNorm(act) || '')[+el.dataset.v]; if (!g) return;
+    L.checked = {}; g.ids.slice(0, LIST_LINK_MAX).forEach(function (id) { L.checked[id] = true; }); renderSheet(false);
+  },
+  sltoggle: function (el) {   // at most LIST_LINK_MAX trips go in one link
+    var L = S.sheet.local, id = el.dataset.id; if (!L.checked) L.checked = {};
+    if (L.checked[id]) delete L.checked[id]; else if (Object.keys(L.checked).length < LIST_LINK_MAX) L.checked[id] = true;
+    renderSheet(false);
+  },
+  slshare: function () {
+    var L = S.sheet.local, ids = shareModels().filter(function (m) { return L.checked && L.checked[m.id]; }).map(function (m) { return m.id; });
+    var url = listLink(dirBase(), ids, myFace(ids)); if (!url) return;
+    // what went out is recorded only once it has: the share sheet took it, or it was copied (here, or with P-link's ⧉)
+    shareLink(url, function (how) {
+      if (how === 'link') return;   // P-link opens over this sheet, to copy by hand; nothing is out yet
+      recordShared(ids);
+      if (S.sheet && S.sheet.type === 'sharelist') closeSheet(); else render(true);
+      toast('📣 ' + ids.length);
+    }, function () { recordShared(ids); render(true); });
+  },
+  svsave: function () {
+    var st = saveState(S.sheet.p); if (!st.fresh.length) return;
+    var added = listAdd(st.fresh);
+    added.forEach(function (id) { flyIn(id); if (STAT[id] !== 'ok') SAVED_NEW[id] = 1; });
+    if (!tripShowing()) { S.tab = 'trips'; S.seg = 'ideas'; }   // the new cards fly into the list
+    closeSheet(); window.scrollTo(0, 0);
+    toast('⤓ ' + added.length);
+    added.forEach(function (id) { if (STAT[id] !== 'ok') refresh(id); });
+  },
+  restore: function (el) {
+    return organizerWrite(el.dataset.id, restoreDelta).then(function (r) { if (!r.ok) showError(r.code); return r; });
   },
   'sh-close': function () { closeSheet(); },
   'sh-back': function () { sheetBack(); }
@@ -3108,7 +3491,7 @@ function wire() {
 function boot() {
   var nav = navRead(), ui = uiRead();
   S = { tab: hasOwn(TABS, nav.tab) ? nav.tab : 'trips', seg: nav.seg === 'family' ? 'family' : 'ideas', trip: null, sel: IDEA_ID_RE.test(String(ui.sel || '')) ? ui.sel : '',
-    sheet: null, linkTrip: '', linkFresh: false, errNext: '', drafts: {}, opener: null, lastCtl: null, shown: '', hint: null, toastNext: '', keyPulse: !ui.keySeen,
+    sheet: null, linkTrip: '', linkFresh: false, errNext: '', drafts: {}, opener: null, lastCtl: null, shown: '', hint: null, toastNext: '', keyPulse: !ui.keySeen, saveNext: null, fly: null,
     histPushed: false, tripPushed: false, tripFrom: '', ignorePop: 0, booted: false };
   importV1Once();
   applyLink(readLink(location.search || '', location.hash || '', location.pathname || ''));
@@ -3118,6 +3501,7 @@ function boot() {
   S.booted = true;
   render();
   if (S.toastNext) { toast(S.toastNext); S.toastNext = ''; }
+  if (S.saveNext) { var sv = S.saveNext; S.saveNext = null; openSaveList(sv); }   // a list link: the receiving sheet
   // the link's own trip is decided by its own answer (linkAnswered), however long the other trips take
   return refreshAll(true);
 }

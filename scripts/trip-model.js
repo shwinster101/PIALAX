@@ -514,6 +514,7 @@ function tripModel(doc, ctx) {
   var span = plan && win ? { s: minD(plan.s, win.s), e: maxD(plan.e, win.e) } : (win || plan);
   var others = (ctx.otherTrips || []).filter(function (od) { return od && od.id !== doc.id; });
   var rows = (I.members || []).filter(function (m) { return m && typeof m.code === 'string'; });
+  var times = answerTimes(doc);                                           // when each member last answered (PIA-135)
   // a label with no face (v1) reads with the hashed face of its name, moved on to the next free face if the trip
   // already shows it, so two tiles never share a face (the face is the primary identity)
   var shown = rows.map(function (m) { return splitLabel(m.label).face; }).filter(Boolean);
@@ -575,7 +576,7 @@ function tripModel(doc, ctx) {
       own1: own1, own2: own2, d1: hasDates ? d1 : '', d2: hasDates ? d2 : '', bad: bad, warn: warn, clash: clash,
       A: A, H: H, openJaw: A !== H, override: override, origin: originCode, O: O, from: from,
       traveler: traveler, booked: booked, called: note.called, arrTime: note.arr, depTime: note.dep, noteText: note.text,
-      link: link, why: why, keys: keys, at: (r && r.updated_at) || ''
+      link: link, why: why, keys: keys, at: (r && r.updated_at) || '', ansAt: (r && times[m.code]) || ''
     };
   });
   var travelers = members.filter(function (x) { return x.traveler; });
@@ -1260,6 +1261,106 @@ function migrateRequests(fresh, editKey, choice) {
   });
   return out;
 }
+
+/* ---- the shared watchlist (PIA-135): new answers, what needs me, list links, groups, book-by, the US map ---- */
+var LIST_LINK_MAX = 20;                                                  // trips one list link carries
+/* when each member last answered: the newest 'rsvp:' log entry by that member, or the answer's own updated_at when
+   the log no longer holds it (the Worker keeps its last 50 entries). Both are the Worker's ISO times. */
+function answerTimes(doc) {
+  var out = Object.create(null), R = (doc && doc.responses) || {};
+  var put = function (code, at) { if (typeof code === 'string' && MEMBER_CODE_RE.test(code) && typeof at === 'string' && at && (!out[code] || at > out[code])) out[code] = at; };
+  ((doc && doc.log) || []).forEach(function (l) { if (l && /^rsvp:/.test(String(l.event || ''))) put(l.by, l.at); });
+  Object.keys(R).forEach(function (c) { var r = validResp(R[c]); if (r) put(c, r.updated_at); });
+  return out;
+}
+/* the newest answer on the trip: what "seen" records (pialax_idea_seen_v1, v1's format: never older than v1's own
+   newest-rsvp-log rule, so v1 reads the same trip as seen too) */
+function newestAnswerAt(doc) { var t = answerTimes(doc), last = ''; Object.keys(t).forEach(function (c) { if (t[c] > last) last = t[c]; }); return last; }
+/* faces with an answer that arrived since my last look (seenAt), never my own; only on a trip I am in, off the shelf */
+function newAnswers(model, seenAt) {
+  if (!model || !model.me || model.shelf) return [];
+  var s = typeof seenAt === 'string' ? seenAt : '';
+  return model.members.filter(function (x) { return x.code !== model.me.code && !!x.resp && !!x.ansAt && x.ansAt > s; }).map(function (x) { return x.code; });
+}
+/* a trip still waiting on my own answer (a host's default In is not an answer yet) */
+function awaitsMe(model) {
+  var me = model && model.me;
+  return !!(me && !model.shelf && !model.closed && (me.status === 'waiting' || me.status === 'host-default'));
+}
+/* the book-by cue: the days to go, in red, only when it matters (the organizer, or a traveler who answered and has
+   not booked) and the book-by day (departure − 21) has passed with travelers unbooked; else null */
+function bookByCue(model) {
+  var me = model && model.me;
+  if (!model || !model.plan || model.shelf || !model.bookByPassed || model.daysTo == null || model.daysTo < 0) return null;
+  return model.org || !!(me && me.traveler && me.answered && !me.booked) ? model.daysTo : null;
+}
+/* the card's days to go (⏳N), on every upcoming dated trip off the shelf, for everyone. frac is the book-by arc
+   under it: the share of the days left that still come before the book-by day, (days to book-by) / (days to go),
+   so it empties as book-by nears and is empty once it has passed; null once every traveler has booked (nothing
+   left to book). late = the red cue (bookByCue: book-by passed, and it matters to this phone). null without a
+   plan, on the shelf, or once the trip has begun. */
+function togoCue(model) {
+  if (!model || !model.plan || model.shelf || model.daysTo == null || model.daysTo < 0) return null;
+  var open = model.travelers.some(function (x) { return !x.booked; });
+  var frac = !open ? null : model.daysTo > 0 ? Math.round(Math.max(0, Math.min(1, model.bookByLeft / model.daysTo)) * 1000) / 1000 : 0;
+  return { days: model.daysTo, frac: frac, late: bookByCue(model) != null };
+}
+/* trips grouped by who is in them: two trips share a group when they share anyone but me (a chain joins them).
+   Most trips first, then the group whose first trip comes first in the list. A trip with nobody else is in none.
+   Each group: {ids, people (normalized names), faces, names (short names, for a screen reader), first}. */
+function tripGroups(models, mine) {
+  var groups = [], order = {};
+  (models || []).forEach(function (m, i) {
+    if (!m) return;
+    order[m.id] = i;
+    var others = m.members.filter(function (x) { return x.norm && x.norm !== mine && !(m.me && x.code === m.me.code); });
+    if (!others.length) return;
+    var hit = groups.filter(function (g) { return others.some(function (x) { return g.people.indexOf(x.norm) >= 0; }); });
+    var g = { ids: [], people: [], faces: [], names: [] };
+    var add = function (norm, face, name) { if (g.people.indexOf(norm) < 0) { g.people.push(norm); g.faces.push(face); g.names.push(name); } };
+    hit.forEach(function (h) { g.ids = g.ids.concat(h.ids); h.people.forEach(function (n, k) { add(n, h.faces[k], h.names[k]); }); });
+    groups = groups.filter(function (x) { return hit.indexOf(x) < 0; });
+    g.ids.push(m.id);
+    others.forEach(function (x) { add(x.norm, x.face, x.short || x.one || x.name); });
+    groups.push(g);
+  });
+  groups.forEach(function (g) { g.ids.sort(function (a, b) { return order[a] - order[b]; }); g.first = order[g.ids[0]]; });
+  return groups.sort(function (a, b) { return b.ids.length - a.ids.length || a.first - b.first; });
+}
+/* the v2 list link: <base>?l=<id>.<id>…&f=<my face>. Trip ids and one face only: never a key, a token or a price. */
+function listLink(base, ids, face) {
+  var b = String(base || ''), list = uniq((ids || []).filter(function (id) { return IDEA_ID_RE.test(String(id)); })).slice(0, LIST_LINK_MAX);
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^?#\s]*$/i.test(b) || !list.length) return '';
+  var f = faceOf(face);
+  return b + '?l=' + list.join('.') + (f ? '&f=' + encodeURIComponent(f) : '');
+}
+/* The US map: d3-geo's geoAlbersUsa fitted to a 360×230 box with 6px margins (scale 445.842, translate
+   192.959, 113.430), with its Alaska and Hawaii insets and clip boxes, ported exactly (checked against d3 for
+   every airport in the table). A point outside all three boxes is off the map: null. */
+var US_MAP = { w: 360, h: 230, k: 445.84219085444704, x: 192.95931303862665, y: 113.43020120431142 };
+function conicEqualArea(p0, p1, rot, cen, k, tx, ty, box) {
+  var R = Math.PI / 180, s0 = Math.sin(p0 * R), n = (s0 + Math.sin(p1 * R)) / 2, c = 1 + s0 * (2 * n - s0), r0 = Math.sqrt(c) / n;
+  var raw = function (lam, phi) { var r = Math.sqrt(c - 2 * n * Math.sin(phi)) / n, x = lam * n; return [r * Math.sin(x), r0 - r * Math.cos(x)]; };
+  var c0 = raw(cen[0] * R, cen[1] * R);
+  return function (lon, lat) {
+    var lam = (lon + rot) * R; if (lam > Math.PI) lam -= 2 * Math.PI; else if (lam < -Math.PI) lam += 2 * Math.PI;
+    var p = raw(lam, lat * R), X = tx + k * (p[0] - c0[0]), Y = ty - k * (p[1] - c0[1]);
+    return X >= box[0] && X <= box[2] && Y >= box[1] && Y <= box[3] ? [X, Y] : null;
+  };
+}
+var US_PROJ = (function (k, x, y) {
+  var e = 1e-6;
+  return [conicEqualArea(29.5, 45.5, 96, [-0.6, 38.7], k, x, y, [x - 0.455 * k, y - 0.238 * k, x + 0.455 * k, y + 0.238 * k]),
+    conicEqualArea(55, 65, 154, [-2, 58.5], k * 0.35, x - 0.307 * k, y + 0.201 * k, [x - 0.425 * k + e, y + 0.120 * k + e, x - 0.214 * k - e, y + 0.234 * k - e]),
+    conicEqualArea(8, 18, 157, [-3, 19.9], k, x - 0.205 * k, y + 0.212 * k, [x - 0.214 * k + e, y + 0.166 * k + e, x - 0.115 * k - e, y + 0.234 * k - e])];
+})(US_MAP.k, US_MAP.x, US_MAP.y);
+function usPoint(lat, lon) {
+  if (typeof lat !== 'number' || typeof lon !== 'number' || !isFinite(lat) || !isFinite(lon)) return null;
+  for (var i = 0; i < US_PROJ.length; i++) { var p = US_PROJ[i](lon, lat); if (p) return [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; }
+  return null;
+}
+/* where an airport sits on the US map, or null (an unknown code, or a place off the map) */
+function mapXY(code) { var a = airportInfo(code); return a.known ? usPoint(a.lat, a.lon) : null; }
 /* === pialax trip-model: end === */
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -1283,6 +1384,8 @@ if (typeof module !== 'undefined' && module.exports) {
     typedNote: typedNote, noteRoom: noteRoom, faceOf: faceOf, decisionBody: decisionBody,
     memberCode: memberCode, createRequest: createRequest, respondRequest: respondRequest, bookedRequests: bookedRequests,
     updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit,
-    migrateOptions: migrateOptions, migrateRequests: migrateRequests
+    migrateOptions: migrateOptions, migrateRequests: migrateRequests,
+    LIST_LINK_MAX: LIST_LINK_MAX, answerTimes: answerTimes, newestAnswerAt: newestAnswerAt, newAnswers: newAnswers, awaitsMe: awaitsMe, bookByCue: bookByCue, togoCue: togoCue,
+    tripGroups: tripGroups, listLink: listLink, US_MAP: US_MAP, usPoint: usPoint, mapXY: mapXY
   };
 }

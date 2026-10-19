@@ -1,5 +1,6 @@
 'use strict';
 // test-words.js — PIA-134: the strict word gate for app.html, plus the shell's browser-only criteria.
+// PIA-135 adds Trips › Ideas: totals, new-answer marks, the list-share and receiving sheets, the shelf, card fit.
 //
 // THE RULE (CLAUDE.md, PIALAX_HQ.md): a word is a visible whitespace-separated token that contains a Unicode
 // letter. Tab labels, codes, month names, names, buttons, placeholders and typed values all count. Trip names
@@ -24,6 +25,12 @@
 //   AC6  a missing trip shows the app's own words, never the Worker's text, however slowly other trips load
 //   AC7  organizer links leave the address bar; list links import ids
 //   AC9  a focus refresh reads every listed trip
+//   PIA-135  cards fit at 360px; the one total only on the organizer's token phone (none at all on a guest's), and
+//        partial when a traveler is priced by one leg of two; ⏳ over the book-by arc and the stage disc on every
+//        card; P-sharelist (groups, the largest pre-checked, shelf and dropped left out, the exact +n count, the
+//        link it hands over, keyboard focus, chip names); P-savelist (the sender's face, only new trips, ⤓ Save,
+//        cards fly in); long-press inside both sheets; ● new answers and the exact Trips numeral; a failed refresh
+//        dims cards; the empty Map and Calendar
 // Offline: the Worker is a route over fixture docs, every other request is aborted and fails the suite.
 // The clock is pinned to 2026-10-17 19:00 UTC (12:00 in Los Angeles).
 //
@@ -64,6 +71,7 @@ const section = (t) => console.log('\n▶ ' + t);
 
 // ---- fixtures: the repo's /idea docs plus a few built here ----
 const fx = (n) => JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'fixtures', n), 'utf8'));
+const MODEL = require(path.join(ROOT, 'scripts', 'trip-model.js'));
 const DOC = {};
 ['idea-diwali.json', 'idea-tahoe.json', 'idea-8members.json', 'idea-undated.json', 'idea-thanksgiving-legacy.json', 'idea-lax-local.json'].forEach((f) => { const d = fx(f); DOC[d.id] = d; });
 const A = 'dwDiwaliRaleigh2026a01', B = 'thTahoeSkiWeekend26b02', M8 = 'm8GrandmaNinetieth0c03', C = 'cyCaryShowerUndated004', TG = 'tgLegacyThanksgiving01', LX = 'lxBeachWeekendLAX00d05';
@@ -86,21 +94,48 @@ DOC[LT] = mkDoc(LT, LONG_TITLE.slice(0, 80), 'SAN', { departure: '2026-12-18', r
   [['ashwin-t1', '🌴 Ashwin', 'LAX'], ['anjo-t2', '🗽 Anjo', 'LGA'], ['leo-t3', '🐸 Leonardo Bartholomew', 'SEA'], ['maya-t4', '🐼 Maya', 'SFO']], { 'ashwin-t1': { origin: 'LAX' } });
 DOC[PAST] = mkDoc(PAST, '🌆 Chicago weekend', 'ORD', { departure: '2026-09-11', return: '2026-09-14' }, '', [['ashwin-p1', '🌴 Ashwin', 'LAX'], ['anjo-p2', '🗽 Anjo', 'LGA']], { 'ashwin-p1': { origin: 'LAX' }, 'anjo-p2': { origin: 'LGA' } });
 DOC[DROP] = mkDoc(DROP, '⚾ Spring training', 'PHX', { departure: '2027-03-05', return: '2027-03-09' }, '', [['ashwin-d1', '🌴 Ashwin', 'LAX'], ['leo-d2', '🐸 Leo', 'SEA']], { 'ashwin-d1': { origin: 'LAX' } }, 'dropped');
+// PIA-135: the widest card row B the app can draw: a plan across two months with 📌 in the second, my days off the
+// plan, missing 📌 and double-booked (⚠ + three causes), a three-digit ⏳ over its book-by arc, and a partial stale
+// total with six faces unpriced
+const WC1 = 'wcWidestCardRowB000w01', WC2 = 'wcClashingTripIdea0w02', OJ = 'ojNewYorkOpenJaw000o01';
+DOC[WC1] = mkDoc(WC1, '🎂 Widest card', 'SAV', { departure: '2027-11-30', return: '2027-12-02' }, '📌2027-12-01 Party',
+  [['ashwin-w1', '🌴 Ashwin', 'LAX'], ['priya-w2', '🦊 Priya', 'DEN'], ['maya-w3', '🐻 Maya', 'SFO'], ['leo-w4', '🐼 Leo', 'SEA'], ['sam-w5', '🐨 Sam', 'PDX', 2], ['ana-w6', '🦁 Ana', 'ATL'], ['bo-w7', '🐯 Bo', 'BOS']],
+  { 'ashwin-w1': { origin: 'LAX', available_from: '2027-11-29', available_to: '2027-11-30' } });
+DOC[WC2] = mkDoc(WC2, '⛺ Clashing trip', 'DEN', { departure: '2027-11-29', return: '2027-12-01' }, '', [['ashwin-w9', '🌴 Ashwin', 'LAX'], ['leo-w8', '🐼 Leo', 'SEA']], { 'ashwin-w9': { origin: 'LAX' } });
+// an open-jaw traveler priced by one leg of two (Mom & Dad fly into JFK and home from LGA; only their inbound is cached)
+DOC[OJ] = mkDoc(OJ, '🗽 New York weekend', 'LGA', { departure: '2026-12-11', return: '2026-12-14' }, '',
+  [['ashwin-o1', '🌴 Ashwin', 'LAX'], ['momdad-o2', '🌽 Mom & Dad', 'PIA', 2], ['anjo-o3', '🗽 Anjo', 'LGA']],
+  { 'ashwin-o1': { origin: 'LAX' }, 'momdad-o2': { origin: 'PIA', arrive_at: 'JFK', leave_from: 'LGA' } });
 const idOk = Object.keys(DOC).every((id) => /^[A-Za-z0-9_-]{22}$/.test(id) && DOC[id].id === id);
+// PIA-135: cached real fares on the organizer's token phone (keys from the model itself): Diwali complete and fresh,
+// the long-title trip partly priced, the unknown-airports trip priced from a stale search
+const NOW_MS = Date.parse(NOW_ISO);
+const FARES = (() => {
+  const out = {}, keysOf = (id, me) => MODEL.tripModel(DOC[id], { today: '2026-10-17', now: NOW_MS, me, hasEditKey: true, hasToken: true }).travelers;
+  keysOf(A, 'ashwin-p8').forEach((x, i) => x.keys.forEach((k) => { out[k.key] = { p: 310 + 95 * i, f: NOW_MS - 2 * 36e5 }; }));
+  keysOf(LT, 'ashwin-t1').slice(0, 1).forEach((x) => x.keys.forEach((k) => { out[k.key] = { p: 189, f: NOW_MS - 36e5 }; }));
+  keysOf(UK, 'ashwin-u3').forEach((x) => x.keys.forEach((k) => { out[k.key] = { p: 402, f: NOW_MS - 30 * 36e5 }; }));
+  keysOf(WC1, 'ashwin-w1').slice(0, 1).forEach((x) => x.keys.forEach((k) => { out[k.key] = { p: 123456, f: NOW_MS - 30 * 36e5 }; }));
+  keysOf(OJ, 'ashwin-o1').forEach((x) => { (x.code === 'momdad-o2' ? x.keys.slice(0, 1) : x.keys).forEach((k) => { out[k.key] = { p: x.code === 'momdad-o2' ? 260 : 199, f: NOW_MS - 36e5 }; }); });
+  return out;
+})();
 
 // ---- phones ----
 const keyRec = (ids) => { const o = {}; ids.forEach((id) => { o[id] = { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }; }); return o; };
 const listRec = (ids, pin) => ids.map((id) => ({ id, t: '', e: '', at: 1, pin: (pin || []).indexOf(id) >= 0, arch: false }));
 const PHONES = {
-  organizer: { ls: { pialax_watchlist_v2: listRec([A, B, M8, C, LT, UK, ND, PAST, DROP, LX], [B]), pialax_idea_keys_v1: keyRec([A, LT, UK, DROP]), pialax_proxy_token: TOKEN,
+  organizer: { ls: { pialax_watchlist_v2: listRec([A, B, M8, C, LT, UK, ND, PAST, DROP, LX], [B]), pialax_idea_keys_v1: keyRec([A, LT, UK, DROP]), pialax_proxy_token: TOKEN, pialax_fares_v2: FARES,
+    pialax_idea_seen_v1: { [UK]: '2026-10-16T09:00:00.000Z', [B]: '2026-10-13T00:00:00.000Z' },
     pialax_idea_me_v1: { [A]: 'ashwin-p8', [B]: 'ashwin-l2', [C]: 'ashwin-c3', [LT]: 'ashwin-t1', [UK]: 'ashwin-u3', [ND]: 'ashwin-n1', [PAST]: 'ashwin-p1', [DROP]: 'ashwin-d1', [LX]: 'ashwin-x3' }, pialax_ui_v1: { v1read: 1 } } },
   guest: { ls: { pialax_watchlist_v2: listRec([A, TG, C]), pialax_idea_me_v1: { [A]: 'anjo-z5', [TG]: 'LGA', [C]: 'anjo-c4' }, pialax_ui_v1: { v1read: 1 } } },
   host: { ls: { pialax_watchlist_v2: listRec([TG, A]), pialax_idea_me_v1: { [TG]: 'PIA' }, pialax_ui_v1: { v1read: 1 } } },
   eight: { ls: { pialax_watchlist_v2: listRec([M8]), pialax_idea_me_v1: { [M8]: 'grandmajosephine-nf' }, pialax_ui_v1: { v1read: 1 } } },
   shelf: { ls: { pialax_watchlist_v2: listRec([PAST, DROP]), pialax_idea_me_v1: { [PAST]: 'ashwin-p1', [DROP]: 'ashwin-d1' }, pialax_ui_v1: { v1read: 1 } } },   // every trip on the shelf
-  fresh: { ls: {} }
+  fresh: { ls: {} },
+  widest: { ls: { pialax_watchlist_v2: listRec([WC1, WC2, OJ]), pialax_idea_keys_v1: keyRec([WC1, OJ]), pialax_proxy_token: TOKEN, pialax_fares_v2: FARES,   // PIA-135: the widest card, and a half-priced open-jaw traveler
+    pialax_idea_me_v1: { [WC1]: 'ashwin-w1', [WC2]: 'ashwin-w9', [OJ]: 'ashwin-o1' }, pialax_ui_v1: { v1read: 1 } } }
 };
-const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY };
+const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY, [WC1]: KEY, [OJ]: KEY };
 
 // ---- the strict counter, evaluated in the page (independent of the app's own countWords) ----
 const COUNT = (sels) => {
@@ -146,6 +181,7 @@ async function main() {
   // long-press coverage is kept per phone and width (phones walk in parallel, so nothing shared decides what is pressed)
   const pressLog = {};
   const seenOn = (who) => (pressLog[who] = pressLog[who] || { labels: new Set(), glyphs: new Set(), faces: 0 });
+  const a11yLog = [];   // PIA-135: keyboard focus and group-chip names in P-sharelist, per phone and width
 
   async function phone(name, o) {
     o = o || {};
@@ -172,14 +208,16 @@ async function main() {
     page.on('pageerror', (e) => consoleErrs.push(name + ': PAGEERROR ' + e.message));
     if (o.installClock) await page.clock.install({ time: new Date(NOW_ISO) });
     else await page.clock.setFixedTime(new Date(NOW_ISO));
-    await page.addInitScript(([seed, clipOk]) => {
+    await page.addInitScript(([seed, clipOk, share]) => {
       if (!sessionStorage.getItem('__seeded')) {
         sessionStorage.setItem('__seeded', '1');
         Object.keys(seed).forEach((k) => localStorage.setItem(k, typeof seed[k] === 'string' ? seed[k] : JSON.stringify(seed[k])));
       }
       // the clipboard refuses, so copying a link falls back to P-link (the sheet with the link and its warning)
       try { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => (clipOk ? Promise.resolve() : Promise.reject(new Error('denied'))) } }); } catch (e) { /* keep the real one */ }
-    }, [o.ls || PHONES[name].ls, !!o.clipOk]);
+      // PIA-135: a phone share sheet that records what it was handed
+      if (share) try { Object.defineProperty(navigator, 'share', { configurable: true, value: (d) => { window.__shared = (window.__shared || []).concat([d]); return Promise.resolve(); } }); } catch (e) { /* none */ }
+    }, [o.ls || PHONES[name].ls, !!o.clipOk, !!o.share]);
     await page.goto(APP_URL + (o.url || ''), { waitUntil: 'load' });
     await settle(page);
     return { ctx, page, net };
@@ -195,11 +233,12 @@ async function main() {
     if (w.length > SCREEN_MAX) bad('screen over ' + SCREEN_MAX + ' words: ' + label + ' (' + w.length + ')', w.join(' '));
     return w;
   }
-  async function measurePopup(page, label) {
-    const sel = await page.evaluate(() => {
+  async function measurePopup(page, label, only) {
+    const sel = await page.evaluate((q0) => {
       const on = (q) => { const e = document.querySelector(q); return e && !e.hidden; };
+      if (q0) return on(q0) ? q0 : null;   // a named popup (a long-press label over an open sheet is its own popup)
       return on('#sheet') ? '#sheet' : on('#lbl') ? '#lbl' : on('#toast') ? '#toast' : null;
-    });
+    }, only || null);
     if (!sel) { bad('no popup visible to count: ' + label); return []; }
     const w = await page.evaluate(COUNT, [sel]);   // a popup's count is its own text; the screen behind it is not added
     popupsCounted++;
@@ -246,31 +285,36 @@ async function main() {
     await closeSheet(page);
     return { onScreen, missing };
   }
-  // every icon-only control has a 1–3 word label; a long-press shows it (≤20 words) and never triggers the control
-  async function labelCheck(page, label, who) {
-    const els = await page.evaluate(() => {
+  // every icon-only control has a 1–3 word label; a long-press shows it (≤20 words) and never triggers the control.
+  // where = 'screen' (the screen and tab bar) or 'sheet' (the open sheet: its glyphs are named too, PIA-135)
+  async function labelCheck(page, label, who, where) {
+    const inSheet = where === 'sheet';
+    const els = await page.evaluate((sh) => {
       const out = [], vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !el.closest('[hidden]'); };
-      [...document.querySelectorAll('#screen button, #screen a, #screen [role="img"], #tabbar button')].filter(vis).forEach((el, i) => {
+      [...document.querySelectorAll(sh ? '#sheet button, #sheet a, #sheet [role="img"]' : '#screen button, #screen a, #screen [role="img"], #tabbar button')].filter(vis).forEach((el, i) => {
         const txt = (el.innerText || '').trim(), lbl = el.getAttribute('data-lbl') || el.getAttribute('aria-label') || '';
         const iconOnly = !/\p{L}/u.test(txt) && !el.closest('[data-free]');
         el.setAttribute('data-tw', String(i));
         out.push({ i, tag: el.tagName, txt, lbl, iconOnly, face: !!el.querySelector('.av'), pe: getComputedStyle(el).pointerEvents });
       });
       return out;
-    });
+    }, inSheet);
     const unlabeled = els.filter((e) => e.iconOnly && !e.lbl), long = els.filter((e) => e.iconOnly && e.lbl.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length > 3);
     if (unlabeled.length) bad('icon-only controls without a label on ' + label, unlabeled);
     if (long.length) bad('icon labels longer than 3 words on ' + label, long);
-    const seen = seenOn(who);
-    // a long press at (x, y): the bubble's text, and whether anything changed (screen, sheet, address)
+    const seen = seenOn(inSheet ? who + ' sheet' : who);
+    // what a press could change: the screen, the sheet, the address, and (in a sheet) which toggles are on
+    const state = async () => [await screenId(page), await popupId(page), page.url(),
+      await page.evaluate(() => [...document.querySelectorAll('#sheet [aria-pressed]')].map((e) => e.getAttribute('aria-pressed')).join())];
+    // a long press at (x, y): the bubble's text, and whether anything changed
     const press = async (x, y) => {
-      const before = [await screenId(page), await popupId(page), page.url()];
+      const before = await state();
       await page.mouse.move(x, y); await page.mouse.down();
       await page.waitForTimeout(650);
       const shown = await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
-      if (shown) await measurePopup(page, label + ' › P-label "' + shown + '"');
+      if (shown) await measurePopup(page, label + ' › P-label "' + shown + '"', '#lbl');
       await page.mouse.up(); await settle(page, 120);
-      const after = [await screenId(page), await popupId(page), page.url()];
+      const after = await state();
       pressed++;
       return { shown, moved: JSON.stringify(after) !== JSON.stringify(before), before, after };
     };
@@ -290,22 +334,23 @@ async function main() {
       if (r.shown !== e.lbl) bad('long-press on "' + e.lbl + '" (' + label + ') showed ' + JSON.stringify(r.shown));
       if (r.moved) bad('long-press on "' + e.lbl + '" triggered the control', { before: r.before, after: r.after });
     }
-    // 2. every glyph that is not a control (a card's faces, heads, pill, stage disc, ⭐; 🗓, 🌙, 👋 in a trip view):
-    //    a long press on it names it with its key's label, even under a card's tap overlay, and opens nothing
-    const glyphs = await page.evaluate((ctl) => {
+    // 2. every glyph that is not a control (a card's faces, heads, pill, locator, stage disc, ⭐; 🗓, 🌙, 👋 in a trip
+    //    view; in a sheet ◷, ⟦ ⟧, a mini's locator or stage disc, the header glyphs): a long press on it names it with
+    //    its key's label, even under a card's tap overlay or inside a toggle, and changes nothing
+    const glyphs = await page.evaluate(([ctl, sh]) => {
       const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !el.closest('[hidden]'); };
-      return [...document.querySelectorAll('#screen [data-k]')].filter(vis).map((el, i) => {
+      return [...document.querySelectorAll(sh ? '#sheet [data-k]' : '#screen [data-k]')].filter(vis).map((el, i) => {
         const inCtl = el.closest(ctl);
         el.setAttribute('data-tg', String(i));
         return { i, k: el.getAttribute('data-k'), ctl: !!(inCtl && !inCtl.classList.contains('card-open')) };
       }).filter((g) => !g.ctl);
-    }, CTL);
+    }, [CTL, inSheet]);
     for (const g of glyphs) {
       if (seen.glyphs.has(g.k) || !LEGEND_LABEL[g.k]) continue;
       const c = await centre('[data-tg="' + g.i + '"]'); if (!c) continue;
       const hit = await page.evaluate(([x, y, i]) => {
         const t = document.elementFromPoint(x, y), el = document.querySelector('[data-tg="' + i + '"]');
-        return !!(t && el && (el.contains(t) || t.closest('.card-open')));   // the glyph itself, or the card overlay above it
+        return !!(t && el && (el.contains(t) || t.closest('.card-open, .mini')));   // the glyph itself, or the card overlay or sheet toggle above it
       }, [c.x, c.y, g.i]);
       if (!hit) continue;
       seen.glyphs.add(g.k); glyphsPressed++;
@@ -359,6 +404,36 @@ async function main() {
     if (deep) {
       const plus = await page.$('#screen [data-act="new"]');
       if (plus) { await plus.click(); await settle(page, 120); await measurePopup(page, tag('P-new')); await closeSheet(page); }
+      // PIA-135: the list-share sheet in each state (group chips, a toggled card, P-link when the clipboard refuses)
+      if (await page.$('#screen [data-act="sharelist"]')) {
+        await page.click('#screen [data-act="sharelist"]'); await settle(page, 120);
+        await measurePopup(page, tag('P-sharelist'));
+        await labelCheck(page, tag('P-sharelist'), name + '@' + W0, 'sheet');
+        // the keyboard: Space on a trip toggle keeps focus on that toggle (the sheet is rebuilt), and each group chip
+        // is told apart by its people
+        const kb = await page.evaluate(() => [...document.querySelectorAll('#sheet [data-act="sltoggle"]')].map((e) => e.getAttribute('data-id')));
+        if (kb.length > 1) {
+          await page.focus('#sheet [data-act="sltoggle"][data-id="' + kb[1] + '"]');
+          const was = await page.getAttribute('#sheet [data-act="sltoggle"][data-id="' + kb[1] + '"]', 'aria-pressed');
+          await page.keyboard.press('Space'); await settle(page, 80);
+          const f = await page.evaluate(() => { const a = document.activeElement; return { act: a && a.getAttribute('data-act'), id: a && a.getAttribute('data-id'), pressed: a && a.getAttribute('aria-pressed'), tag: a && a.tagName }; });
+          const good = f.act === 'sltoggle' && f.id === kb[1] && f.pressed !== was;
+          a11yLog.push({ who: tag(''), what: 'toggle focus', good, f });
+          await page.keyboard.press('Space'); await settle(page, 80);
+        }
+        const chipNames = await page.evaluate(() => [...document.querySelectorAll('#sheet [data-act="slgroup"]')].map((e) => e.getAttribute('aria-label')));
+        if (chipNames.length) a11yLog.push({ who: tag(''), what: 'chip names', good: new Set(chipNames).size === chipNames.length && chipNames.every((n) => /^Group: \p{L}/u.test(n || '')), chipNames });
+        const ng = (await page.$$('#sheet [data-act="slgroup"]')).length;
+        for (let i = 0; i < ng; i++) { await page.click('#sheet [data-act="slgroup"][data-v="' + i + '"]'); await settle(page, 60); await measurePopup(page, tag('P-sharelist group ' + i)); }
+        const one = await page.$('#sheet [data-act="sltoggle"]'); if (one) { await one.click(); await settle(page, 60); await measurePopup(page, tag('P-sharelist toggled')); }
+        if (await page.$('#sheet [data-act="slshare"]:not([disabled])')) {
+          await page.click('#sheet [data-act="slshare"]'); await settle(page, 150);
+          await measurePopup(page, tag('P-link (list)'));
+          if ((await popupId(page)) !== 'P-link' || (await page.$('#sheet .warnline'))) bad('a refused clipboard shows the list link on P-link, with no own-devices warning (it carries no secret) (' + tag('') + ')');
+          await page.click('#sheet [data-act="sh-back"]'); await settle(page, 100);
+        }
+        await closeSheet(page);
+      }
       if (await page.$('#screen [data-act="settings"]')) await page.click('#screen [data-act="settings"]');
       else { await page.click('#screen [data-act="key"]'); await settle(page, 100); await page.click('#sheet [data-act="settings"]'); }
       await settle(page, 120);
@@ -448,11 +523,47 @@ async function main() {
     await ctx.close();
   }
   {
-    const { ctx, page } = await phone('fresh', { url: '?l=' + A + '.' + B + '&f=' + encodeURIComponent('🌴') });
-    const toastTxt = await page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent : null; });
-    if (toastTxt) await measurePopup(page, 'toast after a list link');
-    const cards = await page.evaluate(() => [...document.querySelectorAll('#screen [data-trip]')].map((e) => e.getAttribute('data-trip')));
-    check(toastTxt === '🌴 ⤓ 2' && cards.length === 2 && !/[?&]l=/.test(page.url()), 'AC7 a list link imports its ids with no taps (toast: sender face ⤓ 2) and leaves the address bar', { toastTxt, cards, url: page.url() });
+    // PIA-135: someone's list link opens the receiving sheet (their face, the trips new here, ⤓ Save); the address is cleaned
+    const Z = 'zzTripThatIsGone0000z1';
+    const { ctx, page } = await phone('guest', { url: '?l=' + A + '.' + B + '.' + Z + '&f=' + encodeURIComponent('🦊') });
+    await settle(page, 200);
+    const pop = await popupId(page);
+    await measurePopup(page, 'P-savelist (one new trip of three)');
+    const sv = await page.evaluate(() => ({ face: (document.querySelector('#sheet [data-face]') || {}).textContent || '', minis: [...document.querySelectorAll('#sheet .mini .mt')].map((e) => e.textContent),
+      save: (document.querySelector('#sheet [data-act="svsave"]') || {}).textContent || '', listed: localStorage.getItem('pialax_watchlist_v2') }));
+    check(pop === 'P-savelist' && sv.face === '🦊' && sv.minis.length === 1 && /Tahoe/.test(sv.minis[0]) && /Save\s*1/.test(sv.save) && sv.listed.indexOf(B) < 0 && !/[?&]l=/.test(page.url()),
+      'PIA-135 a list link opens P-savelist: the sender\'s face and only the trip that is new here (Diwali is already listed, the gone trip is left out), ⤓ Save 1; nothing saved yet; ?l= leaves the address bar', sv);
+    await labelCheck(page, 'P-savelist', 'guest-savelist', 'sheet');
+    const sg = seenOn('guest-savelist sheet').glyphs;
+    check((await popupId(page)) === 'P-savelist' && !(await page.evaluate(() => localStorage.getItem('pialax_watchlist_v2'))).includes(B) && ['trips', 'place', 'save'].every((k) => sg.has(k)) && [...sg].some((k) => /^st-/.test(k)),
+      'PIA-135 long-press names the sheet\'s glyphs (🧳, the mini\'s locator and stage disc, ⤓) and saves nothing', [...sg]);
+    await page.click('#sheet [data-act="svsave"]'); await page.waitForTimeout(60);
+    const after = await page.evaluate(() => ({ fly: [...document.querySelectorAll('#screen .card.fly')].map((e) => e.getAttribute('data-trip')), toast: (document.querySelector('#toast:not([hidden])') || {}).textContent || null,
+      listed: JSON.parse(localStorage.getItem('pialax_watchlist_v2')).map((x) => x.id) }));
+    if (after.toast) await measurePopup(page, 'toast after ⤓ Save');
+    check((await popupId(page)) === null && after.fly.length === 1 && after.fly[0] === B && after.toast === '⤓ 1' && after.listed.indexOf(B) >= 0 && after.listed.indexOf(Z) < 0,
+      'PIA-135 one tap on ⤓ Save: the new trip is listed and its card flies into the list (toast ⤓ 1); the gone trip is not saved', after);
+    await measureScreen(page, 'guest › after ⤓ Save');
+    await ctx.close();
+  }
+  {
+    // a receiving sheet whose trips could not be read (yet): the snapshot minis with ◷, named by a long press
+    const { ctx, page } = await phone('guest', { url: '?l=' + B + '.' + LT, mode: 'fail' });
+    await settle(page, 150);
+    const stub = await page.$('#sheet .mini.dim [data-k="stale"]');
+    await measurePopup(page, 'P-savelist (not read)');
+    await labelCheck(page, 'P-savelist not read', 'guest-loading', 'sheet');
+    const g = seenOn('guest-loading sheet').glyphs;
+    check(!!stub && g.has('stale') && (await popupId(page)) === 'P-savelist', 'PIA-135 a trip the receiving sheet could not read yet shows ◷, and a long press names it', [...g]);
+    await ctx.close();
+  }
+  for (const [label, url, ls] of [['nothing new', '?l=' + A + '.' + C, null], ['every trip gone', '?l=zzTripThatIsGone0000z1', null], ['a v1 ?w= payload (no face)', '?w=' + Buffer.from(JSON.stringify({ v: 2, o: { thanksgiving: { sh: B } }, a: [] })).toString('base64url'), null]]) {
+    const { ctx, page } = await phone('guest', { url, ls });
+    await settle(page, 200);
+    const pop = await popupId(page), w = await measurePopup(page, 'P-savelist (' + label + ')');
+    const st = await page.evaluate(() => ({ dim: document.querySelectorAll('#sheet .mini.dim').length, save: !!document.querySelector('#sheet [data-act="svsave"]'), txt: document.querySelector('#sheet').innerText }));
+    const okState = label === 'nothing new' ? st.dim === 2 && !st.save && w.length === 0 : label === 'every trip gone' ? /Trip not found/.test(st.txt) && !st.save : st.save && /Tahoe/.test(st.txt);
+    check(pop === 'P-savelist' && okState, 'PIA-135 P-savelist with ' + label + (label === 'nothing new' ? ': the dimmed stack, no Save, no words' : label === 'every trip gone' ? ': "Trip not found", no Save' : ': the shared trip, ⤓ Save'), st);
     await ctx.close();
   }
   {
@@ -468,7 +579,7 @@ async function main() {
   section('AC2 three labelled tabs, no wordmark, the Ideas | Family segment, cold opens and the selected trip');
   {
     const { ctx, page } = await phone('organizer');
-    const tabs = await page.$$eval('#tabbar button', (bs) => bs.map((b) => b.innerText.replace(/\s+/g, ' ').trim()));
+    const tabs = await page.$$eval('#tabbar button', (bs) => bs.map((b) => [...b.childNodes].filter((n) => !(n.classList && n.classList.contains('badge'))).map((n) => n.textContent).join(' ').replace(/\s+/g, ' ').trim()));
     check(JSON.stringify(tabs.map((t) => t.replace(/^\S+\s/, ''))) === '["Trips","Map","Calendar"]' && tabs.every((t) => /^\S+ \S+$/.test(t)), 'three tabs, each a glyph and its label: Trips, Map, Calendar', tabs);
     const brand = await page.evaluate(() => /PIALAX/i.test(document.body.innerText));
     check(!brand, 'no wordmark anywhere on screen');
@@ -630,6 +741,122 @@ async function main() {
     await ctx.close();
   }
 
+  // ═══ PIA-135: Trips › Ideas ═══
+  section('PIA-135 Trips › Ideas: cards fit at 360px, the one total, list share, new answers, the shelf');
+  {
+    // every card fits inside its own box at 360px (nothing pokes out or scrolls), on the busiest phones, shelf open
+    const misfit = [];
+    for (const name of ['widest', 'organizer', 'guest', 'eight', 'host', 'shelf']) {
+      const { ctx, page } = await phone(name, { width: 360 });
+      if (name === 'widest') {
+        const row = await page.$eval('#screen [data-trip="' + WC1 + '"] .card-b', (e) => e.textContent.replace(/\s+/g, ' ').trim());
+        if (!/^🗓11\/30–12\/2 📌12\/1 ⚠⛺📌🗓 ⏳409\$123,456 \+🦊🐻🐼\+3 🔍$/.test(row)) misfit.push('widest: the worst-case row B is not drawn as expected: ' + row);
+        const oj = await page.$eval('#screen [data-trip="' + OJ + '"] .tot', (e) => [e.className, e.textContent.replace(/\s+/g, ' ').trim()]).catch(() => null);
+        check(!!oj && oj[0] === 'tot part' && oj[1] === '$459 +🌽', 'PIA-135 AC1 a traveler priced by one leg of two (open-jaw into JFK, home from LGA): the total is outlined as partial with that face, never a bare $459', oj);
+        for (const w of WIDTHS) { await page.setViewportSize({ width: w, height: 800 }); await settle(page, 120); await measureScreen(page, 'widest @' + w + ' Trips'); }
+        await page.setViewportSize({ width: 360, height: 800 }); await settle(page, 120);
+      }
+      if (await page.$('#screen [data-act="shelf"][aria-expanded="false"]')) { await page.click('#screen [data-act="shelf"]'); await settle(page, 120); }
+      const r = await page.evaluate(() => {
+        const out = [], vis = (el) => { const b = el.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+        document.querySelectorAll('#screen .card').forEach((card) => {
+          const c = card.getBoundingClientRect();
+          if (card.scrollWidth > card.clientWidth + 0.5) out.push(card.getAttribute('data-trip') + ' scrolls');
+          card.querySelectorAll('*').forEach((el) => {
+            if (!vis(el) || el.closest('svg')) return;
+            const b = el.getBoundingClientRect();
+            if (b.right > c.right + 0.5 || b.left < c.left - 0.5) out.push(card.getAttribute('data-trip') + ' <' + el.tagName.toLowerCase() + ' class="' + el.className + '"> ' + Math.round(b.left) + '–' + Math.round(b.right) + ' outside ' + Math.round(c.left) + '–' + Math.round(c.right));
+          });
+          // nothing spills out of its own box (a squeezed pill or total), and nothing in a row sits on top of its neighbour
+          card.querySelectorAll('.pill, .tot, .slot, .faces, .heads, .card-t').forEach((el) => { if (vis(el) && el.scrollWidth > el.clientWidth + 1) out.push(card.getAttribute('data-trip') + ' .' + el.className.split(' ')[0] + ' overflows itself by ' + (el.scrollWidth - el.clientWidth) + 'px'); });
+          card.querySelectorAll('.card-a, .card-b, .card-c').forEach((row) => {
+            const kids = [...row.children].filter(vis).map((k) => [k, k.getBoundingClientRect()]);
+            kids.forEach(([k, r], i) => kids.slice(i + 1).forEach(([k2, r2]) => {
+              const ox = Math.min(r.right, r2.right) - Math.max(r.left, r2.left), oy = Math.min(r.bottom, r2.bottom) - Math.max(r.top, r2.top);
+              if (ox > 1 && oy > 1) out.push(card.getAttribute('data-trip') + ' .' + (k.className || k.tagName).split(' ')[0] + ' overlaps .' + (k2.className || k2.tagName).split(' ')[0]);
+            }));
+          });
+        });
+        return { out, cards: document.querySelectorAll('#screen .card').length, page: document.documentElement.scrollWidth - innerWidth };
+      });
+      if (r.out.length || r.page > 0) misfit.push(name + ': ' + r.out.slice(0, 3).join('; ') + (r.page > 0 ? ' page scroll ' + r.page : ''));
+      if (!r.cards) misfit.push(name + ': no cards drawn');
+      await ctx.close();
+    }
+    check(misfit.length === 0, 'PIA-135 AC9 every card fits at 360px (the widest row B the app draws: 📌 across months, ⚠ with three causes, ⏳, a partial stale total; the organizer, guest, 8 long names, host, the shelf open), and the page never scrolls sideways', misfit);
+  }
+  {
+    // the one total: on the organizer's token phone, on the trips it organizes; none at all on a guest's phone
+    const { ctx, page } = await phone('organizer');
+    const tots = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('#screen .card')].map((c) => [c.getAttribute('data-trip'), (c.querySelector('.tot') || {}).textContent || null])));
+    check(/^\$1,215$/.test(tots[A] || '') && /^\$189 \+/.test(tots[LT] || '') && /^\$1,206 🔍$/.test(tots[UK] || '') && tots[B] === null && tots[M8] === null && tots[C] === null,
+      'PIA-135 AC1 the organizer\'s token phone shows the one total on its own trips only: $1,215 (complete), $189 +faces (partial), grey with 🔍 (a stale search)', tots);
+    const marks = await page.evaluate(() => ({ news: [...document.querySelectorAll('#screen .card')].map((c) => [c.getAttribute('data-trip'), c.querySelectorAll('[data-k="new"]').length]).filter((x) => x[1]),
+      badge: (document.querySelector('#tabbar .badge') || {}).textContent || null, share: (document.querySelector('#screen [data-act="sharelist"] .badge') || {}).textContent || null,
+      pin: (document.querySelector('#screen [data-trip="' + 'dwDiwaliRaleigh2026a01' + '"] [data-k="pin"]') || {}).textContent || null, togo: (document.querySelector('#screen [data-trip="dwDiwaliRaleigh2026a01"] [data-k="togo"]') || {}).textContent || null }));
+    const news = Object.fromEntries(marks.news);
+    const srt = (o) => JSON.stringify(Object.keys(o).sort().map((k) => [k, o[k]]));
+    check(srt(news) === srt({ [B]: 1, [A]: 1, [C]: 1, [UK]: 2, [LX]: 2 }) && marks.badge === '5' && marks.share === '+8' && marks.pin === '📌8' && marks.togo === '⏳20',
+      'PIA-135 AC1/AC5/AC7 the organizer\'s cards: ● on the faces with new answers, a numeral on the Trips tab, +8 unshared (every trip off the shelf, whoever organizes it), 📌8 and ⏳20 on Diwali', marks);
+    const cue = await page.evaluate(() => [...document.querySelectorAll('#screen .card')].map((c) => [c.getAttribute('data-trip'), (c.querySelector('[data-k="togo"]') || {}).className || null, !!c.querySelector('[data-k="bookby"]'), !!c.querySelector('.pip.now')]));
+    const cueOf = Object.fromEntries(cue.map((x) => [x[0], x.slice(1)]));
+    check(cueOf[A][0] === 'tg w' && cueOf[B][0] === 'tg' && cueOf[B][1] && cueOf[C][0] === null && cue.every((x) => x[3]),
+      'PIA-135 AC1 ⏳ days to go over the book-by arc on every dated card (red on Diwali, whose book-by passed; neutral on Tahoe), none on an undated idea; a stage disc on every card', cue);
+    // P-sharelist: the largest group pre-checked, no shelf or dropped trip, a share sheet handed the list link only
+    await ctx.close();
+    const p2 = await phone('organizer', { share: true });
+    await p2.page.click('#screen [data-act="sharelist"]'); await settle(p2.page, 150);
+    const sh = await p2.page.evaluate(() => ({ trips: [...document.querySelectorAll('#sheet [data-act="sltoggle"]')].map((e) => [e.getAttribute('data-id'), e.getAttribute('aria-pressed')]), groups: document.querySelectorAll('#sheet [data-act="slgroup"]').length,
+      btn: (document.querySelector('#sheet [data-act="slshare"]') || {}).textContent || '' }));
+    const listed = sh.trips.map((x) => x[0]), checkedIds = sh.trips.filter((x) => x[1] === 'true').map((x) => x[0]);
+    check(listed.indexOf(PAST) < 0 && listed.indexOf(DROP) < 0 && listed.length === 8 && sh.groups >= 2 && checkedIds.length > 0 && new RegExp('Share\\s*' + checkedIds.length).test(sh.btn),
+      'PIA-135 AC4 P-sharelist lists every trip off the shelf (no past or dropped one), with group chips and the largest group pre-checked', sh);
+    await p2.page.click('#sheet [data-act="slshare"]'); await settle(p2.page, 200);
+    const handed = await p2.page.evaluate(() => window.__shared || []);
+    const url = handed[0] && new URL(handed[0].url);
+    const ids = url ? (url.searchParams.get('l') || '').split('.') : [];
+    const toastTxt = await p2.page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent : null; });
+    if (toastTxt) await measurePopup(p2.page, 'toast after 📣 Share');
+    check(handed.length === 1 && Object.keys(handed[0]).join() === 'url' && JSON.stringify(ids.slice().sort()) === JSON.stringify(checkedIds.slice().sort()) && url.searchParams.get('f') === '🌴' && !url.hash &&
+      handed[0].url.indexOf(KEY) < 0 && handed[0].url.indexOf(TOKEN) < 0 && (await popupId(p2.page)) === null && toastTxt === '📣 ' + ids.length,
+      'PIA-135 AC4 📣 Share hands the phone\'s share sheet one URL: ?l=<the checked ids>&f=<my face>, no key or token; the sheet closes', { handed, toastTxt });
+    const after = await p2.page.evaluate(() => ({ badge: (document.querySelector('#screen [data-act="sharelist"] .badge') || {}).textContent || null, wl: JSON.parse(localStorage.getItem('pialax_shared_at_v1') || '{}').wl }));
+    check(JSON.stringify((after.wl || []).slice().sort()) === JSON.stringify(checkedIds.slice().sort()) && checkedIds.length > 0 && after.badge === (8 - checkedIds.length ? '+' + (8 - checkedIds.length) : null),
+      'PIA-135 AC5 the shared ids are recorded and the unshared count drops by exactly them (+8 → +' + (8 - checkedIds.length) + ')', after);
+    await p2.ctx.close();
+  }
+  {
+    // ● new answers clear with a look; the Trips numeral follows
+    const ls = Object.assign({}, PHONES.guest.ls, { pialax_idea_seen_v1: { [A]: '2026-10-11T02:10:30.000Z' } });
+    const { ctx, page } = await phone('guest', { ls });
+    const count = () => page.evaluate(() => ({ dots: document.querySelectorAll('#screen [data-trip="dwDiwaliRaleigh2026a01"] [data-k="new"]').length, badge: (document.querySelector('#tabbar .badge') || {}).textContent || '' }));
+    const before = await count();
+    await openCard(page, A); await settle(page, 150);
+    await page.click('#screen [data-act="back"]'); await settle(page, 150);
+    const after = await count();
+    check(before.dots === 1 && after.dots === 0 && before.badge !== '' && after.badge === before.badge,
+      'PIA-135 AC7 Ashwin answered after my last look: ● on his face; opening the trip clears it, and the Trips numeral stays (Diwali still waits on my own answer)', { before, after });
+    await ctx.close();
+  }
+  {
+    // the numeral counts each trip once: Tahoe has an unseen answer and does not wait on me (I answered), so a look takes exactly one off
+    const { ctx, page } = await phone('organizer');
+    const count = () => page.evaluate((id) => ({ dots: document.querySelectorAll('#screen [data-trip="' + id + '"] [data-k="new"]').length, badge: (document.querySelector('#tabbar .badge') || {}).textContent || '' }), B);
+    const before = await count();
+    await openCard(page, B); await settle(page, 150);
+    await page.click('#screen [data-act="back"]'); await settle(page, 150);
+    const after = await count();
+    check(before.dots === 1 && after.dots === 0 && before.badge === '5' && after.badge === '4', 'PIA-135 AC7 a look at Tahoe clears its ● and the Trips numeral drops by exactly one (5 → 4)', { before, after });
+    await ctx.close();
+  }
+  {
+    // a failed refresh dims every stale card with ◷
+    const { ctx, page } = await phone('guest', { mode: 'fail' });
+    const st = await page.evaluate(() => [...document.querySelectorAll('#screen .card')].map((c) => c.classList.contains('dim') && !!c.querySelector('[data-k="stale"]')));
+    check(st.length > 0 && st.every(Boolean) && !!(await page.$('#screen [data-act="offline"]')) && (await popupId(page)) === null, 'PIA-135 AC7 a failed refresh dims every stale card with ◷ and shows 📶⚠, no sheet', st);
+    await ctx.close();
+  }
+
   // ═══ AC5 summary, network, console ═══
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');
   {
@@ -637,6 +864,13 @@ async function main() {
     check(org.labels.size >= 12 && org.glyphs.size >= 10 && deep.every((w) => pressLog[w].labels.size + pressLog[w].glyphs.size > 0),
       'long-press named every labelled control and glyph once per phone (organizer: ' + org.labels.size + ' controls, ' + org.glyphs.size + ' glyphs; ' + pressed + ' presses on all phones) and triggered none of them',
       deep.map((w) => w + ' ' + pressLog[w].labels.size + '/' + pressLog[w].glyphs.size));
+  }
+  {
+    const tf = a11yLog.filter((x) => x.what === 'toggle focus'), cn = a11yLog.filter((x) => x.what === 'chip names');
+    check(tf.length >= 2 && tf.every((x) => x.good), 'PIA-135 P-sharelist by keyboard: Space on a trip toggle flips it and keeps focus on that toggle after the sheet is rebuilt (' + tf.length + ' runs)', tf.filter((x) => !x.good).slice(0, 3));
+    check(cn.length >= 1 && cn.every((x) => x.good), 'PIA-135 every P-sharelist group chip has its own accessible name, its people ("' + ((cn[0] || {}).chipNames || []).join('", "') + '")', cn.filter((x) => !x.good).slice(0, 3));
+    const sheetG = Object.keys(pressLog).filter((w) => / sheet$/.test(w)).reduce((s, w) => s + pressLog[w].glyphs.size + pressLog[w].labels.size, 0);
+    check(sheetG > 0 && pressLog['organizer@360 sheet'] && pressLog['organizer@360 sheet'].glyphs.size >= 3, 'PIA-135 long-press names the glyphs and controls in P-sharelist and P-savelist too (' + sheetG + ' named; organizer P-sharelist: ' + [...((pressLog['organizer@360 sheet'] || {}).glyphs || [])].join(', ') + ')');
   }
   check(stray.length === 0, 'no request left for anything but the Worker\'s /idea routes', [...new Set(stray)].slice(0, 5));
   check(consoleErrs.length === 0, 'no console error or page error on any phone', consoleErrs.slice(0, 5));

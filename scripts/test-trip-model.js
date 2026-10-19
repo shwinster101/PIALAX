@@ -684,8 +684,9 @@ function makeServer(worker) {
   const hubSrc = /const IDEA_HUBS = (\[\[[^;]*\]\]);/.exec(workerSrc);
   check(!!hubSrc && eq(JSON.parse(hubSrc[1].replace(/'/g, '"')), M.IDEA_HUBS), 'hub pairs are exactly worker.js IDEA_HUBS');
   const { loadApi } = require(path.join(ROOT, 'scripts', 'harness.js'));
-  const v1m = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['familyForDate', 'TRIP_NEARBY_GROUPS']);
-  const v1d = loadApi(path.join(ROOT, 'pialax.html'), 'pialax.html', ['familyForDate', 'TRIP_NEARBY_GROUPS']);
+  const QUIET = { console: { log() {}, warn() {}, error() {}, info() {} } };   // v1's boot notes (no CDN in Node), which surface at the next await
+  const v1m = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['familyForDate', 'TRIP_NEARBY_GROUPS'], QUIET);
+  const v1d = loadApi(path.join(ROOT, 'pialax.html'), 'pialax.html', ['familyForDate', 'TRIP_NEARBY_GROUPS'], QUIET);
   check(!v1m.missing.length && !v1d.missing.length && eq(v1m.api.TRIP_NEARBY_GROUPS, M.NEARBY_GROUPS) && eq(v1d.api.TRIP_NEARBY_GROUPS, M.NEARBY_GROUPS),
     'nearby groups are exactly v1 TRIP_NEARBY_GROUPS (both pialax.html and pialax-mobile.html)');
   const days = ['2026-06-25', '2026-08-15', '2026-08-31', '2026-09-01', '2026-10-17', '2026-11-26'];
@@ -758,6 +759,89 @@ function makeServer(worker) {
   const pGuest = chipOf(M.pickups(model(DW, { fares: pkF }), pkF, NOW, false));
   check(pOrg.time === '09:15' && pOrg.pred && pGuest.time === '' && !pGuest.pred && pGuest.codes.length === 2,
     "a predicted arrival (the cached offer's 09:15, even from a stale search) shows only on the organizer's token phone, marked predicted; elsewhere the untimed arrivals merge");
+
+  // ═══ PIA-135 ════════════════════════════════════════════════════════════
+  section('PIA-135 the shared watchlist: new answers, what waits on me, the book-by cue, groups, the list link, the US map');
+  {
+    // answer times come from the Worker's own record: answer through the real handler, read it back
+    const id = srv.seed(DW);
+    const d0 = await srv.get(id, KEY);
+    const seen0 = M.newestAnswerAt(d0);
+    const q = M.respondRequest(d0, 'anjo-z5', { status: 'maybe' }, { by: 'self' });
+    const rs = await srv.send([q]);
+    const d1 = await srv.get(id, KEY);
+    const t1 = M.answerTimes(d1), logAt = d1.log.filter((l) => l.event === 'rsvp:maybe' && l.by === 'anjo-z5').map((l) => l.at).pop();
+    check(srv.allOk(rs) && t1['anjo-z5'] === logAt && t1['anjo-z5'] >= d1.responses['anjo-z5'].updated_at && t1['momdad-k3'] === '2026-10-11T02:10:00.000Z' && M.newestAnswerAt(d1) === logAt,
+      'answerTimes: each member\'s newest rsvp log time from the Worker (the answer\'s updated_at when the log has none); newestAnswerAt is the trip\'s newest', { t1, logAt });
+    const mine = M.tripModel(d1, ctx({ me: 'ashwin-p8' }));
+    check(eq(M.newAnswers(mine, seen0), ['anjo-z5']) && eq(M.newAnswers(mine, M.newestAnswerAt(d1)), []) && eq(M.newAnswers(mine, '').sort(), ['anjo-z5', 'momdad-k3']),
+      'newAnswers: the faces that answered since my last look (never my own); nothing once I have seen the newest; all of them before any look');
+    check(eq(M.newAnswers(M.tripModel(d1, ctx()), ''), []) && eq(M.newAnswers(M.tripModel(tweak(d1, (d) => { d.decision.stage = 'dropped'; }), ctx({ me: 'ashwin-p8' })), ''), []),
+      'no new-answer marks on a trip where I am nobody yet, or on a shelf trip');
+    check(mem(mine, 'anjo-z5').ansAt === logAt && mem(M.tripModel(d0, ctx()), 'anjo-z5').ansAt === '', 'the model carries each face\'s answer time (ansAt; blank without an answer)');
+    // v1 reads what newestAnswerAt records as "seen" (v1's own rule is the newest rsvp log time, never later)
+    const v1rule = (doc) => { let last = ''; (doc.log || []).forEach((l) => { if (/^rsvp:/.test(l.event || '') && l.at > last) last = l.at; }); return last; };
+    check(M.newestAnswerAt(d1) >= v1rule(d1) && M.newestAnswerAt(DW) === '2026-10-11T02:11:00.000Z' && v1rule(DW) === '',
+      'seen = the newest answer, never older than v1\'s newest-rsvp-log rule (a doc whose log lost its rsvp lines still reads as seen)');
+  }
+  {
+    const anjo = M.tripModel(DW, ctx({ me: 'anjo-z5' })), ash = M.tripModel(DW, ctx({ me: 'ashwin-p8' }));
+    const host = M.tripModel(tweak(DW, (d) => { d.idea.destination.airport = 'PIA'; d.idea.destination.city = 'Peoria'; }), ctx({ me: 'momdad-k3' }));
+    const hostUn = M.tripModel(tweak(DW, (d) => { d.idea.destination.airport = 'PIA'; delete d.responses['momdad-k3']; }), ctx({ me: 'momdad-k3' }));
+    check(M.awaitsMe(anjo) && !M.awaitsMe(ash) && !M.awaitsMe(host) && M.awaitsMe(hostUn) && !M.awaitsMe(M.tripModel(DW, ctx())) &&
+      !M.awaitsMe(M.tripModel(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), ctx({ me: 'anjo-z5' }))),
+      'awaitsMe: a trip still waiting on my answer (a host\'s default In counts until confirmed); not once answered, not without an identity, not when dropped');
+  }
+  {
+    // Diwali (11/06) had to book by 10/16: 20 days to go. Tahoe (11/27) books by 11/06: no cue yet.
+    const cue = (doc, over) => M.bookByCue(M.tripModel(doc, ctx(over)));
+    const booked = tweak(DW, (d) => { d.responses['ashwin-p8'].booked = true; });
+    check(cue(DW, { me: 'ashwin-p8' }) === 20 && cue(DW, { hasEditKey: true }) === 20 && cue(TH, { me: 'ashwin-l2', hasEditKey: true }) === null,
+      'bookByCue: once book-by has passed, the days to go (Diwali ⏳20) for the organizer and for an answered traveler; none before (Tahoe)');
+    check(cue(DW, { me: 'anjo-z5' }) === null && cue(booked, { me: 'ashwin-p8' }) === null && cue(DW, {}) === null &&
+      cue(tweak(DW, (d) => { d.idea.destination.airport = 'LAX'; }), { me: 'ashwin-p8' }) === null && cue(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { hasEditKey: true }) === null,
+      'the cue shows only when it matters: never to someone who has not answered, who already booked, has no identity, hosts, or on a shelf trip');
+    // ⏳ days to go is on every upcoming dated card, for everyone; the book-by arc is (days to book-by) / (days to go)
+    const tg = (doc, over) => M.togoCue(M.tripModel(doc, ctx(over)));
+    const allBooked = tweak(TH, (d) => { Object.keys(d.responses).forEach((c) => { d.responses[c].status = 'in'; d.responses[c].booked = true; }); d.responses['leo-w6'] = { member: 'leo-w6', status: 'in', origin: 'SEA', available_from: '', available_to: '', note: '', arrive_at: '', leave_from: '', updated_at: '2026-10-16T10:00:00.000Z', booked: true }; });
+    check(eq(tg(TH, {}), { days: 41, frac: 0.488, late: false }) && eq(tg(DW, { me: 'anjo-z5' }), { days: 20, frac: 0, late: false }) && eq(tg(DW, { me: 'ashwin-p8' }), { days: 20, frac: 0, late: true }),
+      'togoCue: Tahoe ⏳41 with the arc 20/41 full, for anyone; Diwali ⏳20 with an empty arc, red only where the cue matters (Ashwin answered, Anjo has not)');
+    check(tg(allBooked, {}).frac === null && tg(CY, {}) === null && tg(tweak(TH, (d) => { d.decision.stage = 'dropped'; }), {}) === null && tg(tweak(TH, (d) => { d.idea.dates.departure = '2026-10-10'; }), {}) === null &&
+      eq(tg(tweak(TH, (d) => { d.idea.dates.departure = '2026-10-17'; }), {}), { days: 0, frac: 0, late: false }),
+      'no arc once every traveler has booked; no ⏳ on an undated idea, a shelf trip or one already under way; ⏳0 on the day');
+  }
+  {
+    // groups: 🌽🗽 family (Diwali, the shower, Thanksgiving) and 🦊🐼🐸 friends (Tahoe); a solo trip is in none
+    const solo = tweak(DW, (d) => { d.id = 'soSoloTripJustMe00s001'; d.idea.members = [d.idea.members[1]]; d.responses = {}; });
+    const ms = [M.tripModel(TH, ctx({ me: 'ashwin-l2' })), M.tripModel(DW, ctx({ me: 'ashwin-p8' })), M.tripModel(solo, ctx({ me: 'ashwin-p8' })), M.tripModel(CY, ctx({ me: 'ashwin-c3' })),
+      M.tripModel(tg, ctx({ me: 'LAX' }))];
+    const g = M.tripGroups(ms, 'ashwin');
+    check(g.length === 2 && eq(g[0].ids, [DW.id, CY.id, tg.id]) && eq(g[0].faces, ['🌽', '🗽']) && eq(g[1].ids, [TH.id]) && eq(g[1].faces, ['🦊', '🐼', '🐸']) && eq(g[1].names, ['Priya', 'Maya', 'Leo']) && g[0].names.length === 2,
+      'tripGroups: trips that share anyone but me form one group (a v1 "Me" is nobody), most trips first; a trip with nobody else is in none', g.map((x) => [x.ids, x.faces.join('')]));
+    // Anjo is on the LA beach weekend with the Tahoe friends, so that trip chains the two groups into one
+    const g2 = M.tripGroups([ms[0], M.tripModel(LX, ctx({ me: 'ashwin-x3' })), ms[1]], 'ashwin');
+    check(g2.length === 1 && eq(g2[0].ids, [TH.id, LX.id, DW.id]), 'a trip that shares someone with two groups joins them (connected, not first match), in list order', g2.map((x) => x.ids));
+    check(eq(M.tripGroups([], 'x'), []) && M.tripGroups([ms[2]], 'ashwin').length === 0, 'no trips, or only solo trips: no groups');
+  }
+  {
+    const A = 'dwDiwaliRaleigh2026a01', B = 'thTahoeSkiWeekend26b02', base = 'https://shwinster101.github.io/PIALAX/';
+    const L = M.listLink(base, [A, B, 'bad id', A], '🌴');
+    check(L === base + '?l=' + A + '.' + B + '&f=' + encodeURIComponent('🌴'), 'listLink: <base>?l=<id>.<id>&f=<my face>, valid ids once each', L);
+    const many = Array.from({ length: 30 }, (_, i) => ('t' + i).padEnd(22, 'q'));
+    check(M.LIST_LINK_MAX === 20 && new URL(M.listLink(base, many, '')).searchParams.get('l').split('.').length === 20 && !/[&?]f=/.test(M.listLink(base, many, 'not a face')),
+      'a list link carries at most 20 trips, and a face only when it is one emoji');
+    check(M.listLink(base, [], '🌴') === '' && M.listLink('javascript:alert(1)', [A], '') === '' && M.listLink(base + '?x=1', [A], '') === '', 'no link without trips or with a base that is not a plain address');
+    const u = new URL(L);
+    check(!u.hash && decodeURIComponent(u.search).replace(/[A-Za-z0-9_-]{22}/g, 'ID') === '?l=ID.ID&f=🌴', 'nothing in a list link but trip ids and one face: no key, token, hash or price');
+  }
+  {
+    // d3-geo's geoAlbersUsa fitted to 360×230 (the Map's box), golden values from d3 itself (rounded to 0.1)
+    const gold = { PIA: [233.4, 96.8], LAX: [54.3, 134], LGA: [324.7, 82.2], SEA: [59, 25.9], JAX: [292, 170.6], RDU: [303.5, 125.9], MIA: [307.2, 205], BOS: [337.7, 66.1], ANC: [64.2, 195.6], HNL: [116.9, 197.1] };
+    const off = Object.keys(gold).filter((k) => { const p = M.mapXY(k); return !p || Math.abs(p[0] - gold[k][0]) > 0.11 || Math.abs(p[1] - gold[k][1]) > 0.11; });
+    check(off.length === 0, 'mapXY: the US map projection matches d3\'s geoAlbersUsa (lower 48, Alaska and Hawaii insets)', off.map((k) => [k, M.mapXY(k), gold[k]]));
+    check(M.mapXY('LHR') === null && M.mapXY('CUN') === null && M.mapXY('ZZQ') === null && M.mapXY('') === null && M.usPoint(NaN, 0) === null,
+      'a place off the US map (London, Cancún), an unknown code or a bad point has no map position');
+  }
 
   // ═══ AC11 ═══════════════════════════════════════════════════════════════
   section('AC11 the inlined region is clean, the encoder port is exact, and the suite is offline and in preflight');

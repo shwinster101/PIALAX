@@ -1109,6 +1109,8 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
 }
 
 // ---- PIA-134: app.html, the v2 shell, at 360 / 390 / 430 in light and dark ----
+// PIA-135 adds the Ideas states: the organizer's total and ⏳ cue, the list-share sheet, the receiving sheet (with
+// ⤓ Save, and with nothing new).
 // Every state the shell can reach (empty, the list with its shelf open, Family, a trip view with eight long
 // names, Map, Calendar, ⓘ, ⚙ and P-link) must have no horizontal scroll, ≥44px targets with accessible names,
 // and the light or dark token set. The Worker is a route over the repo's fixtures; nothing else is reachable.
@@ -1119,7 +1121,12 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
   const docs = {};
   ['idea-diwali.json', 'idea-tahoe.json', 'idea-8members.json', 'idea-undated.json', 'idea-thanksgiving-legacy.json', 'idea-lax-local.json'].forEach((f) => { const d = fx(f); docs[d.id] = d; });
   const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03';
+  // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
+  const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
+  const NOWMS = Date.parse('2026-10-17T19:00:00Z'), fares = {};
+  TM.tripModel(docs[DW], { today: '2026-10-17', now: NOWMS, me: 'ashwin-p8', hasEditKey: true, hasToken: true }).travelers.forEach((x, i) => x.keys.forEach((k) => { fares[k.key] = { p: 1234 + 1000 * i, f: NOWMS - 36e5 }; }));
   const seed = {
+    pialax_fares_v2: JSON.stringify(fares),
     pialax_watchlist_v2: JSON.stringify(ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))),
     pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2' }),
@@ -1188,6 +1195,21 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         }
         for (const tab of ['map', 'cal']) { await page.click('#tabbar [data-v="' + tab + '"]'); await page.waitForTimeout(120); await measure(tab); }
         await page.click('#tabbar [data-v="trips"]'); await page.waitForTimeout(100);
+        // PIA-135: the list-share sheet, and the receiving sheet a list link opens
+        await page.click('#screen [data-act="sharelist"]'); await page.waitForTimeout(120); await measure('P-sharelist');
+        await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
+        // two of the linked trips are new on this phone, so the sheet shows them and ⤓ Save; then, once saved, the same
+        // link again shows the dimmed "nothing new" stack
+        await page.evaluate(() => { const L = JSON.parse(localStorage.getItem('pialax_watchlist_v2')); localStorage.setItem('pialax_watchlist_v2', JSON.stringify(L.filter((x) => x.id !== 'thTahoeSkiWeekend26b02' && x.id !== 'm8GrandmaNinetieth0c03'))); });
+        const listLink = pathToFileURL(path.join(ROOT, 'app.html')).href + '?l=' + ids.join('.') + '.zzTripThatIsGone0000z1&f=' + encodeURIComponent('🦊');
+        await page.goto(listLink, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await measure('P-savelist (⤓ Save 2)');
+        const save = await page.$eval('#sheet [data-act="svsave"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => null);
+        if (save !== '⤓ Save 2') fails.push('P-savelist: two new trips should offer ⤓ Save 2, got ' + JSON.stringify(save));
+        if (save) { await page.click('#sheet [data-act="svsave"]'); await page.waitForTimeout(150); await measure('list after ⤓ Save'); }
+        await page.goto(listLink, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await measure('P-savelist (nothing new)');
+        await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
         await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(100); await measure('⚙');
         await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); });
         await page.click('#sheet [data-act="devlink"]'); await page.waitForTimeout(150); await measure('P-link');
