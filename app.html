@@ -25,6 +25,7 @@
   --sea: #3A8DC1; --foam: #E7F4FB; --sand: #EED9A8; --mtn: #6F809A; --mtn2: #8D9BB2; --snow: #FFFFFF; --bldg: #4F5D75; --bldg2: #6D7A93; --lit: #FFE8A3;
   --frame: #D8DDE5; --cloud: #FFFFFF; --wire: #3A3A3A; --b1: #F5C344; --b2: #E2574C; --b3: #4CB7A5; --b4: #8F7CEC; --table: #C98B5B;
   --shade: rgba(16, 20, 28, .18); --land: #E6E9EE; --border-land: #C8CED8;
+  --chip: transparent; --tkdim: .45;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -36,6 +37,7 @@
     --sea: #23597F; --foam: #9DBBD0; --sand: #A68F69; --mtn: #4A5970; --mtn2: #5E6D86; --snow: #D7DDE7; --bldg: #2D394C; --bldg2: #3D4A60; --lit: #E7C36A;
     --frame: #3A414F; --cloud: #C7D0DC; --wire: #C8C8C8; --b1: #E7C36A; --b2: #E06A60; --b3: #4FB3A3; --b4: #9D8CEB; --table: #8E6343;
     --shade: rgba(0, 0, 0, .55); --land: #1C2028; --border-land: #343A45;
+    --chip: #3A414D; --tkdim: .8;
     color-scheme: dark;
   }
 }
@@ -48,6 +50,7 @@
   --sea: #23597F; --foam: #9DBBD0; --sand: #A68F69; --mtn: #4A5970; --mtn2: #5E6D86; --snow: #D7DDE7; --bldg: #2D394C; --bldg2: #3D4A60; --lit: #E7C36A;
   --frame: #3A414F; --cloud: #C7D0DC; --wire: #C8C8C8; --b1: #E7C36A; --b2: #E06A60; --b3: #4FB3A3; --b4: #9D8CEB; --table: #8E6343;
   --shade: rgba(0, 0, 0, .55); --land: #1C2028; --border-land: #343A45;
+  --chip: #3A414D; --tkdim: .8;
   color-scheme: dark;
 }
 
@@ -649,6 +652,53 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .notev { margin: 0; font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
 .counter .w { color: var(--bad); }
 .toprow .ib.edit, .nav .ib.edit { font-size: 22px; }
+/* PIA-137: the trip view (the organizer page and the open portal) and its sheets */
+.me .facebtn { min-width: 64px; min-height: 64px; }
+.me .nm { flex: 0 1 auto; overflow-wrap: anywhere; }
+.ib.whoami { border: 1.5px dashed var(--ink3); padding: 0 14px; font-size: 20px; gap: 4px; display: inline-flex; align-items: center; min-height: 48px; }
+.ans.in.def { border-color: var(--in); outline: 2px dotted var(--in); outline-offset: -8px; } /* a host's In until they tap it: counted, not confirmed */
+.closed { min-height: 64px; display: grid; place-items: center; border-radius: 16px; border: 2px solid var(--line); background: var(--sunk); }
+.hero .ring { border: 0; }
+.pb-row.dimrow .track, .pb-row.dimrow .fn, .pb-row.dimrow .pr { opacity: .4; }   /* someone who is out: still there, dimmed */
+.pb-row.own .who .facebtn .av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--pc); }
+.pb-row.own .who .facebtn .av.st-in { box-shadow: 0 0 0 2px var(--surface), 0 0 0 5px var(--in); }
+.pb.hl { animation: nudge .5s 1; }
+.av .bd > span + span { margin-left: 1px; }
+.pb-row .av .bd2 { bottom: -3px; left: -10px; }   /* clear of the name under the face */
+.pb-row.solo { height: 36px; }
+.pnm { font-size: 20px; font-weight: 700; margin-left: 8px; min-width: 0; overflow-wrap: anywhere; }
+.leg .lc { font-size: 15px; font-weight: 800; letter-spacing: .02em; margin-left: auto; }
+.leg .radg { display: inline-flex; margin-left: auto; }
+.leghd .lh0 { flex: 1; }
+.joinrow .fld.code { width: 96px; }
+.joinrow .w { color: var(--bad); }
+.tile .tn2 { overflow-wrap: anywhere; text-align: center; }
+.totalblk .big .tot { font-size: 28px; margin-left: 0; }
+/* PIA-137 fix pass */
+.pfq { font-size: 17px; font-weight: 700; margin-left: 6px; }
+.tile.hinted { border-style: dashed; border-color: var(--ink3); }   /* a nudge link's face that is not who this phone is: marked, never chosen */
+.tile.pend { border-style: dashed; font-size: 22px; }
+.tile.pend .jn { font-size: 15px; }
+.hintline { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
+.jfrow { display: flex; align-items: baseline; gap: 8px; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+.jfrow .lc { margin-left: 0; }
+.cfm { position: absolute; top: -6px; right: -6px; font-size: 13px; line-height: 1; padding: 2px 3px; border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); }
+.tk, .ans, .tool[data-act="unbook"] { position: relative; }
+.tk.arm, .ans.arm, .tool.arm { animation: confirm 1s ease-in-out infinite; }
+@keyframes confirm { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--ink) 24%, transparent); } }
+.tk.arm { box-shadow: none; border-color: var(--ink); }
+.tk.arm .tkg { filter: none; opacity: 1; }
+.answers[aria-busy="true"] .ans[aria-pressed="true"] { animation: breathe 1.2s ease-in-out infinite; }   /* on its way to the Worker */
+@keyframes breathe { 50% { opacity: .62; } }
+.ans.in.def { color: var(--ink2); border-color: var(--line); outline: 2px dotted var(--ink3); outline-offset: -8px; animation: none; }   /* a host's In until they tap it: a question, not an answer */
+.mk.k-hostdef { color: var(--ink3); box-shadow: 0 0 0 2px var(--ink3); }   /* hollow and grey until the host confirms */
+.me .ib.mynote { font-size: 22px; }
+.pav { display: inline-grid; place-items: center; flex: none; }
+.srow { cursor: default; }
+.srow:not(.now):not(.past) { opacity: .55; }   /* the ladder is a picture of where the trip is, not a menu */
+.tk, .stagetools .tool { background: var(--chip); }
+.tk .tkg { opacity: var(--tkdim); }
+@media (prefers-reduced-motion: reduce) { .tk.arm, .ans.arm, .tool.arm, .answers[aria-busy="true"] .ans[aria-pressed="true"] { animation: none; } }
 </style>
 </head>
 <body>
@@ -2172,6 +2222,58 @@ function freeFace(used, avoid) {
   for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0) return FACES[i];
   return FACES[0];
 }
+
+/* ---- the trip view and its answers (PIA-137): who this phone is, the one primary action, the organizer's 🎫 ---- */
+/* Who this phone is on one trip, from what it remembers and what the link says. o = {stored: the code this phone
+   remembers for the trip (pialax_idea_me_v1), hint: a personal nudge link's code (#m=), names: the names this phone
+   already is (its profile, its faces on other trips), join: the name this phone asked to join this trip with}.
+   • A remembered face that is on the trip wins. A hint never overrides it: a different hint only asks (P-face, with
+     the remembered face outlined and the hint marked), and one tap there decides.
+   • The names this phone already is count as remembered too: a hint greets its face for this visit (it writes
+     nothing: the first answer does) only when none of those names belongs to a different member of the trip. A
+     forwarded nudge link on a phone whose profile is someone else here asks instead, that someone preselected.
+   • Else P-face asks. pre = the one member whose name is who this phone already is (a preselected tile, never saved
+     by itself); two members with that name, or a nameless v1 'Me', preselect nobody.
+   → {me: the code to show as me ('' = nobody), from: 'stored' | 'hint' | '', ask: open P-face, hint, pre} */
+function whoAmI(doc, o) {
+  o = o || {};
+  var ms = ((doc && doc.idea && doc.idea.members) || []).filter(function (m) { return m && typeof m.code === 'string'; });
+  var on = function (c) { return typeof c === 'string' && !!c && ms.some(function (m) { return m.code === c; }); };
+  var stored = on(o.stored) ? o.stored : '', hint = on(o.hint) ? o.hint : '';
+  if (stored) return { me: stored, from: 'stored', ask: !!hint && hint !== stored, hint: hint !== stored ? hint : '', pre: '' };
+  var names = (o.names || []).concat(o.join ? [o.join] : []).map(normName).filter(Boolean);
+  var hits = ms.filter(function (m) { var n = splitLabel(m.label).name; return !!n && !isMeLabel(n) && names.indexOf(normName(n)) >= 0; });
+  var pre = hits.length === 1 ? hits[0].code : '';
+  if (hint && (!hits.length || hits.some(function (m) { return m.code === hint; }))) return { me: hint, from: 'hint', ask: false, hint: hint, pre: '' };
+  return { me: '', from: '', ask: true, hint: hint, pre: pre };
+}
+/* The one primary action of a trip view, the same rule for every role (hosts have none):
+   • before the dates are set: share and look: 'share' [📣 Share | ✈↗ my search] for a traveler who answered in or
+     maybe (and for the organizer even before he answers), 'share-only' for an organizer who does not travel;
+   • once set (🔒), with my days still ahead: 'book' [✈ Book ↗ | 🎫 I booked];
+   • after my own 🎫: 'booked' [🎫 | ✈⏱↗ Flighty] (kept on a paid trip: a booked flight is still real);
+   • 'none': a host, someone who is out, a guest who has not answered (the answer row is the call) or has no face
+     here, a set plan whose days have begun, and a closed trip (paid or dropped). */
+function primaryAction(model, today) {
+  var me = model.me;
+  if (model.decision === 'dropped' || (me && me.host)) return 'none';
+  if (me && me.traveler && me.booked) return 'booked';
+  if (model.closed) return 'none';
+  if (!me || !me.traveler) return model.org && !model.locked ? 'share-only' : 'none';
+  if (!model.org && !me.answered) return 'none';
+  if (model.locked) return me.d1 && me.d1 >= today ? 'book' : 'none';
+  return 'share';
+}
+/* The organizer's 🎫 on someone else's row of the people board, shown once the dates are set or anyone has booked:
+   never on a host, never on his own row (his is the primary's), never on a closed trip or an unmigrated v1 doc.
+   Marking someone who has not answered in or maybe (waiting, or out) records them as in first (📞, bookedRequests),
+   so it asks for a confirming tap; so does taking a 🎫 away. → null (no control) or {on, confirm} */
+function bookToggle(model, code) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !model.org || model.legacy || model.closed || x.host || (model.me && model.me.code === code)) return null;
+  if (!model.locked && !model.anyBooked) return null;
+  return { on: x.booked, confirm: x.booked || !x.answered };
+}
 /* === pialax trip-model: end === */
 
 /* =====================================================================================================
@@ -2201,6 +2303,12 @@ function freeFace(used, avoid) {
    window with nights), and the organizer's edits (✎ P-edit: name and place, people, caption, the organizer link, drop
    with ↩). Join requests (?idea=…&add=Name.IATA) open the people editor on the organizer's phone; v1's read-only
    ?tripIdea= link opens a filled create sheet.
+   PIA-137: the trip view is the organizer page and the open portal, one skeleton for every role: 📍 one tap to the Map,
+   me (or 👋 ? to pick myself), In / Maybe / Out (labelled, saved on the tap, never defaulted; a host's In unconfirmed
+   until tapped; 🏁 / 🗑 on a closed trip), the people board (everyone's answer, days and marks, the out dimmed), and one
+   primary action by the model's rule. P-face picks who I am (a nudge hint greets its face only when nothing is
+   remembered; 🙋＋ shares a join request), P-person shows one person (the organizer answers, marks 🎫 and nudges for
+   anyone), P-stage names the stages (⭐, 🗄 here), and P-note holds one person's ≤20-word note.
    ===================================================================================================== */
 
 /* ---- constants (outside the model region) ---- */
@@ -2231,9 +2339,14 @@ function nowMs() { return Date.now(); }
 function todayLocal() { var d = new Date(); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 
 /* ---- device storage ---- */
-function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
-function lsSet(k, v) { try { localStorage.setItem(k, v); return true; } catch (e) { return false; } }
-function lsDel(k) { try { localStorage.removeItem(k); } catch (e) { /* storage is optional */ } }
+/* PIA-137: a value this page could not store (storage that refuses writes or every access: blocked site data, a full
+   quota, some in-app browsers) is kept in memory and read first, for as long as the page is open. So on such a phone a
+   trip a link just added is still listed, read and drawn, and the face picked there still answers, for the visit; the
+   next write of that key that lands hands it back to storage. Callers still see the failed write (false). */
+var LS_MEM = Object.create(null);   // key → the value this page last failed to store (null: failed to remove)
+function lsGet(k) { if (k in LS_MEM) return LS_MEM[k]; try { return localStorage.getItem(k); } catch (e) { return null; } }
+function lsSet(k, v) { try { localStorage.setItem(k, v); delete LS_MEM[k]; return true; } catch (e) { LS_MEM[k] = String(v); return false; } }
+function lsDel(k) { try { localStorage.removeItem(k); delete LS_MEM[k]; } catch (e) { LS_MEM[k] = null; } }
 /* null = nothing stored, undefined = stored but unreadable (never written over when it holds keys) */
 function jparse(raw) { if (typeof raw !== 'string' || !raw) return null; try { return JSON.parse(raw); } catch (e) { return undefined; } }
 function readMap(k) { var v = jparse(lsGet(k)); return plainObj(v) ? v : {}; }
@@ -2253,10 +2366,17 @@ function saveKey(id, key, title) {
   keys[id] = { edit_key: key, title: typeof title === 'string' ? title : '', created_at: new Date().toISOString() };
   return lsSet(ST.keys, JSON.stringify(keys));
 }
-/* pialax_idea_me_v1 {id: member code}: v1's tripIdeaMe / tripIdeaSetMe */
-function meFor(id) { var c = readMap(ST.me)[id]; return typeof c === 'string' && MEMBER_CODE_RE.test(c) ? c : ''; }
+/* pialax_idea_me_v1 {id: member code}: v1's tripIdeaMe / tripIdeaSetMe. PIA-137: what this visit picked is kept in memory
+   too (S.picked) and read first, so the face just picked still answers, for as long as the page is open, even where
+   nothing can be written: storage that refuses writes (LS_MEM above) or a stored map v2 cannot read (left as it is) */
+function meFor(id) {
+  var p = S && S.picked && hasOwn(S.picked, id) ? S.picked[id] : null;
+  var c = p !== null ? p : readMap(ST.me)[id];
+  return typeof c === 'string' && MEMBER_CODE_RE.test(c) ? c : '';
+}
 function setMe(id, code) {
   if (!IDEA_ID_RE.test(String(id))) return false;
+  if (S) { S.picked = S.picked || {}; S.picked[id] = code ? String(code) : ''; }
   var m = writableMap(ST.me); if (!m) return false;
   if (code) m[id] = code; else delete m[id];
   return lsSet(ST.me, JSON.stringify(m));
@@ -2362,6 +2482,42 @@ function profileLabel() {
   return '';
 }
 function saveProfile(label) { var lab = splitLabel(label); if (lab.face && keepName(lab.name)) lsSet(ST.profile, JSON.stringify({ label: memberLabel(lab.face, lab.name) })); }
+/* PIA-137: who this phone is on a trip (the model's whoAmI). What it remembers (pialax_idea_me_v1) wins; a personal nudge
+   link's hint greets its face for this visit only while nothing is remembered, and is never written by itself (the first
+   answer is). To preselect a P-face tile (never saved by itself): the names this phone already is (its profile, its faces
+   on other trips) and the name it asked to join this trip with (pialax_ui_v1.joins). */
+function myNames() {
+  var out = [], l = readMap(ST.profile).label;
+  if (typeof l === 'string') out.push(splitLabel(l).name);
+  listIds().forEach(function (id) { var c = meFor(id), mem = c && DOCS[id] ? memberOf(DOCS[id], c) : null; if (mem) out.push(splitLabel(mem.label).name); });
+  return uniq(out.filter(function (n) { return !!keepName(n); }));
+}
+/* the join request this phone sent for a trip (pialax_ui_v1.joins[id] = {name, ap}; a bare name from an earlier build
+   reads as the name alone) */
+function joinAsk(id) {
+  var j = uiRead().joins, v = plainObj(j) ? j[id] : null;
+  if (typeof v === 'string') return v ? { name: v, ap: '' } : null;
+  return plainObj(v) && typeof v.name === 'string' && v.name ? { name: v.name, ap: isIata(v.ap) ? v.ap : '' } : null;
+}
+function joinAskFor(id) { var a = joinAsk(id); return a ? a.name : ''; }
+function hintFor(id) { return S && S.hint && S.hint.id === id ? S.hint.code : ''; }
+/* the names count every time: a hint greets its face only when this phone is not already someone else on the trip */
+function whoFor(id) {
+  var doc = DOCS[id]; if (!doc) return null;
+  return whoAmI(doc, { stored: meFor(id), hint: hintFor(id), names: myNames(), join: joinAskFor(id) });
+}
+function meCode(id) { var w = whoFor(id); return w ? w.me : meFor(id); }
+/* this phone is that face on the trip from now on (a P-face tap, or the first answer from a hinted face). A hinted
+   face's first write never replaces a profile that names someone else: that profile is who this phone is elsewhere. */
+function confirmMe(id, code, hinted) {
+  setMe(id, code);
+  var mem = DOCS[id] ? memberOf(DOCS[id], code) : null, pl = readMap(ST.profile).label, pn = typeof pl === 'string' ? splitLabel(pl).name : '';
+  if (mem && (!hinted || !keepName(pn) || normName(pn) === normName(splitLabel(mem.label).name))) saveProfile(mem.label);
+  if (S && S.hint && S.hint.id === id) S.hint = null;
+  var j = uiRead().joins; if (plainObj(j) && hasOwn(j, id)) { delete j[id]; uiSet({ joins: j }); }
+}
+/* a self write from a face a nudge link greeted makes it this phone's face (answer, 🎫, note, airport cell, origin) */
+function confirmHinted(id, code) { var w = whoFor(id); if (w && w.from === 'hint' && w.me === code) confirmMe(id, code, true); }
 
 /* ---- the Worker: free /idea routes only ---- */
 var ERR_CODES = { network: 1, not_found: 1, closed: 1, forbidden: 1, no_token: 1, daily_cap: 1, no_kv: 1, bad_body: 1, bad_id: 1, answer_first: 1, bad_decision: 1, too_large: 1 };
@@ -2409,7 +2565,7 @@ function changed() {
 }
 var RENDER_Q = false;
 function setDoc(id, doc) {
-  DOCS[id] = doc; STAT[id] = 'ok'; FAIL[id] = false; MC = {};   // a model read before the next render is built from this doc
+  DOCS[id] = doc; BASE[id] = doc; STAT[id] = 'ok'; FAIL[id] = false; MC = {};   // a model read before the next render is built from this doc
   listSnap(id, doc);
   if (S && S.tab === 'trips' && S.trip === id) markSeen(doc);
 }
@@ -2484,37 +2640,74 @@ function sendAll(reqs) {
   }
   return next();
 }
-function finishWrite(id, r, revertTo) {
-  endWrite(id);
-  var docIn = function (x) { return x && x.json && plainObj(x.json.doc) && x.json.doc.id === id ? x.json.doc : null; };
-  if (r.ok) {
-    // with another write still in flight, its optimistic doc (built on this one) stays until it answers
-    if (docIn(r) && !PEND[id]) setDoc(id, docIn(r));
-    changed();
-    return { ok: true };
-  }
-  // revert, then read what the Worker really holds. When an earlier request of this write did land (the
-  // 'in' answer before a 🎫, an update before its airport syncs), the screen shows that doc, not the old one.
-  var landed = docIn(r.landed);
-  if (!PEND[id]) { if (landed) setDoc(id, landed); else DOCS[id] = revertTo; changed(); refresh(id); }
-  return { ok: false, code: r.code || 'network', partial: !!landed };
+/* PIA-137: the writes of one trip go out one at a time, in the order they were made (WQ), and each is rebuilt from the
+   record as the Worker holds it when its turn comes (a free GET /idea first, as an organizer edit always did). A screen
+   up to a minute old, or a reply that overtakes another, never sends an older answer over a newer one, or blanks a
+   field someone else has just written (every /idea/respond replaces the whole answer). Each write is drawn at once, on
+   top of the Worker's last doc (BASE) and every write still queued ahead of it, and stays drawn until it is answered. */
+var WQ = {};      // id → the writes of the trip queued or in flight, oldest first: [{build}]
+var WTAIL = {};   // id → settles once the last queued write of the trip has
+var BASE = {};    // id → the last doc the Worker gave (DOCS without the writes still queued)
+function docOf(x, id) { return x && x.json && plainObj(x.json.doc) && x.json.doc.id === id ? x.json.doc : null; }
+/* the Worker's doc with every write still queued drawn on top, in order (build(doc) → that write's requests on doc) */
+function drawQueued(id, base) {
+  var d = base;
+  (WQ[id] || []).forEach(function (w) { var q = d ? w.build(d) : null; if (q && q.length) d = applyLocal(d, q); });
+  return d;
 }
-function commitWrite(id, reqs, before) {
-  beginWrite(id);
-  DOCS[id] = applyLocal(before, reqs); changed();
-  return sendAll(reqs).then(function (r) { return finishWrite(id, r, before); });
+/* the record a turn has just read (or a write has just been answered with): the store keeps it, drawn with the queue */
+function takeBase(id, doc) { setDoc(id, doc); DOCS[id] = drawQueued(id, doc); MC = {}; changed(); }
+/* one write of a trip: build(doc) → its requests against that doc (null: nothing to send); run(w) sends it when its turn
+   comes, resolving with writeDone's result. With nothing queued ahead it goes at once. */
+function queueWrite(id, build, run) {
+  var q = WQ[id] = WQ[id] || [], first = !q.length, w = { build: build };
+  var before = DOCS[id], pre = before ? build(before) : null;
+  q.push(w); beginWrite(id);
+  if (pre && pre.length) { DOCS[id] = applyLocal(before, pre); MC = {}; changed(); }
+  var go = function () { try { return run(w); } catch (e) { return Promise.resolve(writeDone(id, w, { ok: false, code: 'bad_body' }, null)); } };
+  var p = first || !WTAIL[id] ? go() : WTAIL[id].then(go);
+  WTAIL[id] = p.then(function () {}, function () {});
+  return p;
+}
+/* a queued write is done and leaves the queue. The trip shows the Worker's doc (its answer; after a refusal, what landed
+   before it, or the record read for this turn; else the last one it had) with the writes still queued on top. When an
+   earlier request of the write did land (the 'in' answer before a 🎫, an update before its airport syncs), the screen
+   shows that doc, not the old one. A failed write reads the trip again once nothing else is queued. */
+function writeDone(id, w, r, fresh) {
+  var q = WQ[id] || [], i = q.indexOf(w); if (i >= 0) q.splice(i, 1);
+  endWrite(id);
+  var got = docOf(r, id), landed = r.ok ? null : docOf(r.landed, id), base = r.ok ? got : landed || fresh;
+  if (base) takeBase(id, base);
+  else if (!r.ok) { DOCS[id] = drawQueued(id, BASE[id] || DOCS[id]); MC = {}; changed(); }
+  else changed();   // answered without a doc: what is drawn stays until the next read
+  if ((!r.ok || !got) && !q.length) refresh(id);
+  return r.ok ? { ok: true } : { ok: false, code: r.code || 'network', partial: !!landed };
+}
+/* a write any phone may make (an answer, a note, an airport cell, a 🎫): built against the doc on screen to draw it, then
+   against a fresh read to send it. A failure carries retry: the same write again (P-error's ↻), rebuilt as it goes. */
+function freshWrite(id, build) {
+  var doc = DOCS[id], pre = doc ? build(doc) : null;
+  if (!pre || !pre.length) return Promise.resolve({ ok: false, code: doc ? 'bad_body' : 'not_found' });
+  var again = function () { return freshWrite(id, build); };
+  return queueWrite(id, build, function (w) {
+    return api('GET', reqPath('/idea', id)).then(function (g) {
+      var fresh = docOf(g, id);
+      if (!g.ok || !fresh) return writeDone(id, w, { ok: false, code: g.code || 'network' }, null);
+      if (editKeyFor(id)) KEYBAD[id] = g.json.organizer === false;
+      var reqs = build(fresh);
+      if (!reqs || !reqs.length) return writeDone(id, w, { ok: false, code: docClosed(fresh) ? 'closed' : 'bad_body' }, fresh);
+      takeBase(id, fresh);   // the fresh record, this write and the ones queued behind it
+      return sendAll(reqs).then(function (r) { return writeDone(id, w, r, fresh); });
+    });
+  }).then(function (out) { if (!out.ok) out.retry = again; return out; });
 }
 /* one answer (always complete; see respondRequest) */
 function respond(id, code, patch, opts) {
-  var doc = DOCS[id], q = doc ? respondRequest(doc, code, patch, opts) : null;
-  if (!q) return Promise.resolve({ ok: false, code: doc ? 'bad_body' : 'not_found' });
-  return commitWrite(id, [q], doc);
+  return freshWrite(id, function (doc) { var q = respondRequest(doc, code, patch, opts); return q ? [q] : null; });
 }
 /* 🎫 booked / unbooked (with the complete 'in' answer first when the Worker needs one) */
 function setBooked(id, code, booked, opts) {
-  var doc = DOCS[id], reqs = doc ? bookedRequests(doc, code, booked, opts) : null;
-  if (!reqs) return Promise.resolve({ ok: false, code: doc ? 'bad_body' : 'not_found' });
-  return commitWrite(id, reqs, doc);
+  return freshWrite(id, function (doc) { return bookedRequests(doc, code, booked, opts); });
 }
 /* PIA-136: id → {base, codes}: the airport-sync answers an organizer edit still owes. Its update landed and these
    answers did not (the connection dropped between them), so the record would read the old home as an override. They
@@ -2534,34 +2727,39 @@ function owedAfter(reqs, r, ow, fresh) {
 /* an organizer edit: drawn at once from the doc on screen, then rebuilt from a fresh GET (with the edit key) and sent.
    delta may be a function of the doc (read again from the fresh one), for an edit that depends on what is there.
    An empty delta sends only what an earlier edit still owes (OWED). The result says partial when an earlier request
-   of the write landed, and updated when its update did. */
+   of the write landed, and updated when its update did. PIA-137: it waits its turn in the trip's queue (WQ) like every
+   other write, and reads what is owed when its turn comes. */
 function organizerWrite(id, delta, opts) {
-  var key = editKeyFor(id), before = DOCS[id];
+  var key = editKeyFor(id);
   if (!key || KEYBAD[id]) return Promise.resolve({ ok: false, code: 'forbidden' });
   var dl = typeof delta === 'function' ? delta : function () { return delta; };
-  var ow = OWED[id] || null, op = Object.assign({}, opts || {}, ow ? { owed: ow } : {});
+  var opNow = function () { var o = OWED[id] || null; return Object.assign({}, opts || {}, o ? { owed: o } : {}); };
   var idea = function (d) { return !!d && IDEA_DELTA_KEYS.some(function (k) { return hasOwn(d, k); }); };
-  beginWrite(id);
-  var d0 = before ? dl(before) : null, pre = before ? organizerEdit(before, key, d0, op) : null;
-  if (pre) { DOCS[id] = applyLocal(before, pre); changed(); }
-  return api('GET', reqPath('/idea', id)).then(function (g) {
-    if (!g.ok || !plainObj(g.json.doc) || g.json.doc.id !== id) return finishWrite(id, { ok: false, code: g.code || 'network' }, before);
-    if (g.json.organizer === false) { KEYBAD[id] = true; return finishWrite(id, { ok: false, code: 'forbidden' }, g.json.doc); }
-    var fresh = g.json.doc, d = dl(fresh) || {}, owedOnly = !idea(d) && !d.decision, reqs = organizerEdit(fresh, key, d, op);
-    if (!reqs) {
-      // only owed answers, and none can go (the trip closed meanwhile, or nobody owed still has an answer): settled
-      if (owedOnly && ow) { if (OWED[id] === ow) delete OWED[id]; endWrite(id); setDoc(id, fresh); changed(); return { ok: true }; }
-      return finishWrite(id, { ok: false, code: 'bad_body' }, fresh);
-    }
-    DOCS[id] = applyLocal(fresh, reqs); changed();
-    return sendAll(reqs).then(function (r) {
-      var out = finishWrite(id, r, fresh), carried = idea(d) || owedOnly;   // a decision-only edit carries nothing owed
-      if (out.ok) { if (carried && OWED[id] === ow) delete OWED[id]; return out; }
-      var up = reqs.map(reqRoute).indexOf('/idea/update');
-      out.updated = up >= 0 && r.at > up && idea(d);
-      if (carried) { var nx = owedAfter(reqs, r, ow, fresh); if (nx) OWED[id] = nx; else delete OWED[id]; }
-      return out;
-    });
+  var op0 = opNow(), again = function () { return organizerWrite(id, delta, opts); };
+  return queueWrite(id, function (doc) { return organizerEdit(doc, key, dl(doc), op0); }, function (w) {
+    var ow = OWED[id] || null, op = opNow();
+    return api('GET', reqPath('/idea', id)).then(function (g) {
+      var fresh = docOf(g, id);
+      if (!g.ok || !fresh) return writeDone(id, w, { ok: false, code: g.code || 'network' }, null);
+      if (g.json.organizer === false) { KEYBAD[id] = true; return writeDone(id, w, { ok: false, code: 'forbidden' }, fresh); }
+      var d = dl(fresh) || {}, owedOnly = !idea(d) && !d.decision, reqs = organizerEdit(fresh, key, d, op);
+      if (!reqs) {
+        // only owed answers, and none can go (the trip closed meanwhile, or nobody owed still has an answer): settled
+        if (owedOnly && ow) { if (OWED[id] === ow) delete OWED[id]; return writeDone(id, w, { ok: true, json: { doc: fresh } }, fresh); }
+        return writeDone(id, w, { ok: false, code: 'bad_body' }, fresh);
+      }
+      w.build = function (doc) { return doc === fresh ? reqs : organizerEdit(doc, key, dl(doc), op); };
+      takeBase(id, fresh);
+      return sendAll(reqs).then(function (r) {
+        var out = writeDone(id, w, r, fresh), carried = idea(d) || owedOnly;   // a decision-only edit carries nothing owed
+        if (out.ok) { if (carried && OWED[id] === ow) delete OWED[id]; return out; }
+        var up = reqs.map(reqRoute).indexOf('/idea/update');
+        out.updated = up >= 0 && r.at > up && idea(d);
+        if (carried) { var nx = owedAfter(reqs, r, ow, fresh); if (nx) OWED[id] = nx; else delete OWED[id]; }
+        out.retry = again;
+        return out;
+      });
+    }).then(function (out) { if (!out.ok && !out.retry) out.retry = again; return out; });
   });
 }
 /* POST /idea: the edit key is saved in v1's format and the trip joins the list. o.me = the index of the 🙋 member in
@@ -2660,7 +2858,7 @@ function v1LegacyIds(s) { try { return v1SharedIds(JSON.parse(decodeURIComponent
    ?idea=<id> or /i/<id>       the trip to save and open
    ?l=<id>.<id>…&f=<face>      a v2 list link (v1 owns ?w= and ?wl=); ?w= / ?wl= v1 share payloads are read for ids
    #k=<key>&t=<token>          v1's organizer link (with ?idea=)        #ks=<id>.<key>,…&t=<token>   the devices link
-   #m=<code>                   a nudge hint for the trip                ?tab=map|cal                  a starting tab
+   #m=<code> (or ?me=<code>)   a nudge hint for the trip (PIA-137)      ?tab=map|cal                  a starting tab
    ?idea=<id>&add=<name>.<IATA>  a join request (PIA-136)               ?tripIdea=<v1 payload>        v1's read-only idea link
    The hash patterns are v1's (_tripIdeaTakeHashKey); a token is taken only with a key or devices link.
    A hash that carries any k=, ks=, t= or m= at all leaves the address bar, valid or not, so a truncated or
@@ -2705,7 +2903,11 @@ function readLink(search, hash, pathname) {
   // my own devices link (#ks=): its trips are mine, saved with no taps. Only a hash that proves it (a valid key or
   // the token, as devicesLink always writes) counts: a junk #ks= on someone's list link still opens P-savelist.
   out.devices = ks !== null && (ksKeys > 0 || !!out.token);
-  if (m && out.idea) out.hint = m;
+  // PIA-137: the nudge hint rides the guest link's fragment (/i/<id>#m=<code>, kept across the Worker's 302); ?me=<code>
+  // on an app link is read the same way. Either leaves the address bar.
+  var mq = hasOwn(q, 'me') && MEMBER_CODE_RE.test(String(q.me)) ? String(q.me) : '';
+  if (hasOwn(q, 'me')) out.drop.push('me');
+  if ((m || mq) && out.idea) out.hint = m || mq;
   out.stripHash = hp.any;
   return out;
 }
@@ -2724,6 +2926,7 @@ function applyLink(L) {
     S.sel = L.idea; uiSet({ sel: L.idea });
     if (!L.tab || L.join) { S.tab = 'trips'; S.trip = L.idea; }   // a join request is acted on in the trip view, whatever ?tab= says
     if (L.hint) S.hint = { id: L.idea, code: L.hint };
+    if (meFor(L.idea)) S.facePulse = L.idea;   // PIA-137: a remembered face pulses once as the link opens it (it was not chosen just now)
     if (L.join) S.joinNext = { id: L.idea, name: L.join.name, airport: L.join.airport };   // see joinAnswered
   }
   if (L.tripIdea !== null) { S.newNext = legacyDraft(L.tripIdea, todayLocal()); if (!S.newNext) S.errNext0 = 'bad_id'; }
@@ -2787,7 +2990,7 @@ function ctxFor(id) {
   var others = L.filter(function (x) { return x.id !== id && DOCS[x.id] && STAT[x.id] !== 'missing' && !docOnShelf(DOCS[x.id], x.id, x); }).map(function (x) { return DOCS[x.id]; });
   var org = !!editKeyFor(id) && !KEYBAD[id], tok = hasToken();
   // the cached real fares reach the model only where the one total is shown: the organizer's phone with the token
-  return { today: RT.today, now: RT.now, me: meFor(id) || null, hasEditKey: org, hasToken: tok, fares: org && tok ? readFares() : {},
+  return { today: RT.today, now: RT.now, me: meCode(id) || null, hasEditKey: org, hasToken: tok, fares: org && tok ? readFares() : {},
     multiAirport: lsGet(ST.multi) === '1', hidden: !!(entry && entry.arch), otherTrips: others };
 }
 function modelOf(id) {
@@ -2876,7 +3079,11 @@ var LEGEND = {
   look: ['<span class="kbadge">1</span>', 'Needs a look'], total: ['$', 'Group total'], paid: ['💵', 'Paid'], unpriced: ['+🙂', 'Not priced'], search: ['🔍', 'Search fares'],
   restore: ['↩', 'Restore'], bookby: [BBA_KEY, 'Book by'], place: [LOC_KEY_US, 'Place'], abroad: [LOC_KEY_GLOBE, 'Abroad'], noplace: [LOC_KEY_NONE, 'Place unknown'],
   // PIA-136
-  edit: ['✎', 'Edit'], me: ['🙋', 'Me'], unknown: ['📍⚠', 'Unknown airport'], noairport: ['📍?', 'No airport']
+  edit: ['✎', 'Edit'], me: ['🙋', 'Me'], unknown: ['📍⚠', 'Unknown airport'], noairport: ['📍?', 'No airport'],
+  // PIA-137
+  switch: ['⇄', 'Switch person'], whoami: ['👋 ?', 'Pick yourself'], join: ['🙋＋', 'Ask to join'], hidehere: ['🗄', 'Hide here'],
+  arrive: ['🛬', 'Arrive'], leave: ['🛫', 'Leave'], drive: ['🚗', 'Drive'], today: ['▾', 'Today'],
+  fromlink: ['✉', 'From the link'], asked: ['🙋＋⏳', 'Asked to join'], nolink: ['✈⚠', 'No flight link'], ok: ['✓', 'Save']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -2884,6 +3091,8 @@ function G(e) { return '<span class="g">' + e + '</span>'; }
 function stageIdx(st) { for (var i = 0; i < STAGES.length; i++) if (STAGES[i][0] === st) return i; return -1; }
 function stageGlyph(m) { if (m.stage === 'dropped') return ['🗑', 'dropped']; var s = STAGES[Math.max(0, stageIdx(m.stage))]; return [s[1], 'st-' + s[0]]; }
 function pip1(m, lg) { var g = stageGlyph(m); return '<span class="pips one' + (lg ? ' lg' : '') + '" aria-hidden="true"><span class="pip now" data-k="' + g[1] + '"><span>' + g[0] + '</span></span></span>'; }
+/* PIA-137: the stage by its name (the stage button's label, for a screen reader and a long press) */
+function stageName(m) { var k = stageGlyph(m)[1]; return hasOwn(LEGEND, k) ? LEGEND[k][1] : 'Stage'; }
 function statusCls(st) { return { in: 'st-in', maybe: 'st-maybe', out: 'st-out', waiting: 'st-wait', 'host-default': 'st-hostdef' }[st] || ''; }
 function statusKey(st) { return { in: 'in', maybe: 'maybe', out: 'out', waiting: 'wait', 'host-default': 'hostdef' }[st] || ''; }
 function avatar(m, size, o) {
@@ -2893,17 +3102,31 @@ function avatar(m, size, o) {
   if (size >= 40 && !o.plain) {
     var mk = { in: ['k-in', MK.in], maybe: ['k-maybe', MK.maybe], out: ['k-out', MK.out], 'host-default': ['k-hostdef', MK.in] }[m.status];
     if (mk) h += '<span class="mk ' + mk[0] + '">' + mk[1] + '</span>';
-    var b = [];   // one badge on a screen, the most urgent first
-    if (m.warn && m.warn.length) b.push(['⚠', 'warn']);
-    if (m.booked) b.push(['🎫', 'booked']);
-    if (m.host) b.push(['🏠', 'host']);
-    if (m.noteText) b.push(['📝', 'note']);
-    if (m.called) b.push(['📞', 'called']);
-    b.slice(0, o.max || 1).forEach(function (x, i) { h += '<span class="bd' + (i ? ' bd2' : '') + '" data-k="' + x[1] + '">' + x[0] + '</span>'; });
+    if (o.marks) h += marksHTML(m);   // PIA-137: a trip view shows every mark (⚠ 🎫 🏠 top right, 📞 📝 bottom left)
+    else {
+      var b = [];   // one badge on a screen, the most urgent first
+      if (m.warn && m.warn.length) b.push(['⚠', 'warn']);
+      if (m.booked) b.push(['🎫', 'booked']);
+      if (m.host) b.push(['🏠', 'host']);
+      if (m.noteText) b.push(['📝', 'note']);
+      if (m.called) b.push(['📞', 'called']);
+      b.slice(0, o.max || 1).forEach(function (x, i) { h += '<span class="bd' + (i ? ' bd2' : '') + '" data-k="' + x[1] + '">' + x[0] + '</span>'; });
+    }
     if (m.headcount > 1) h += '<span class="cnt" data-k="count">×' + m.headcount + '</span>';
   }
   if (o.isNew) h += '<span class="new" data-k="new"></span>';   // an answer since my last look
   return h + '</span>';
+}
+/* PIA-137: every mark one person carries on a trip, visible to everyone: ⚠ a problem with their days, 🎫 booked (or 🏠 a
+   host) in the top corner; 📞 the organizer answered for them (a v1 proxy note too) and 📝 a note, in the bottom one */
+function marksHTML(x) {
+  var a = [], b = [];
+  if (x.warn && x.warn.length) a.push(['⚠', 'warn']);
+  if (x.booked) a.push(['🎫', 'booked']); else if (x.host) a.push(['🏠', 'host']);
+  if (x.called) b.push(['📞', 'called']);
+  if (x.noteText) b.push(['📝', 'note']);
+  var s = function (arr, cls) { return arr.length ? '<span class="bd' + cls + '">' + arr.map(function (g) { return '<span data-k="' + g[1] + '">' + g[0] + '</span>'; }).join('') + '</span>' : ''; };
+  return s(a, '') + s(b, ' bd2');
 }
 function polar(cx, cy, r, a) { var t = (a - 90) * Math.PI / 180; return (cx + r * Math.cos(t)).toFixed(2) + ' ' + (cy + r * Math.sin(t)).toFixed(2); }
 function arcD(cx, cy, r, a0, a1) { return 'M' + polar(cx, cy, r, a0) + ' A' + r + ' ' + r + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + polar(cx, cy, r, a1); }
@@ -3148,25 +3371,177 @@ function renderFamily() {
   }).join('') + '</div>';
   return { id: 'trips-family', html: h };
 }
-/* the trip view (PIA-137 builds the organizer page and the open portal on this frame) */
+/* ---- PIA-137: the trip view, the organizer page and the open portal ----
+   One skeleton for every role, drawn from the model alone: the nav, the postcard with 📍 (one tap to the Map), the stage
+   and the heads ring, the title, me (or 👋 ? to pick myself), the plan, my own days, the In / Maybe / Out row, the people
+   board (everyone's answer shape, days and marks; people who are out dimmed), the one total on the organizer's token
+   phone, and the one primary action (primaryAction). A guest's view has no price and no link but their own; the
+   organizer answers for anyone (📞), marks other travelers booked (bookToggle) and nudges one person from their sheet. */
+function memberIn(m, code) { return m && code ? m.members.filter(function (x) { return x.code === code; })[0] || null : null; }
 /* PIA-136: the organizer's ✎ (P-edit) sits in the nav of a trip this phone holds the key to (never on a v1 doc, which
-   P-migrate brings across first); 📣 shares the guest link; 📝 opens the caption */
+   P-migrate brings across first); 📝 opens the caption */
 function editBtn(m) { return m.org && !m.legacy ? '<button class="ib edit" data-act="edit" data-id="' + m.id + '" aria-label="Edit" data-k="edit">✎</button>' : ''; }
-function tripShareBtn(m) { return m.decision === 'dropped' ? '' : '<button class="ib" data-act="tshare" data-id="' + m.id + '" aria-label="Share" data-k="share">📣</button>'; }
+/* the organizer's 📣 asks for attention while anyone has not answered, and after the plan moved since his last 📣 */
+function sharePulse(m) { return !!m.org && m.decision !== 'dropped' && (m.waitingAny || readMap(ST.shared)[m.id] !== m.planHash); }
+/* the nav's 📣 (the guest link): hidden while the primary is Share, and on a dropped trip */
+function tripShareBtn(m, prim) {
+  if (m.decision === 'dropped' || prim === 'share' || prim === 'share-only') return '';
+  return '<button class="ib' + (sharePulse(m) ? ' pulse' : '') + '" data-act="tshare" data-id="' + m.id + '" aria-label="Share" data-k="share">📣</button>';
+}
+/* me on this trip: my face (my sheet), my name, ⇄ (P-face); a phone that is nobody here has 👋 ? to pick itself */
+function meRow(m) {
+  var me = m.me;
+  if (!me) return '<div class="me"><button class="ib whoami" data-act="face" data-id="' + m.id + '" aria-label="Pick yourself" data-k="whoami">👋 ?</button></div>';
+  // once I have answered, my own note is one tap away (📝＋, or 📝 when I have one): the hero's 📝 is the trip's caption
+  var note = !m.closed && me.resp ? '<button class="ib mynote" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(me.code) + '" aria-label="' + (me.noteText ? 'My note' : 'Add my note') + '" data-k="note">📝' + (me.noteText ? '' : '<span aria-hidden="true">＋</span>') + '</button>' : '';
+  return '<div class="me" style="--pc:var(--p' + me.color + ')"><button class="facebtn' + (S.facePulse === m.id ? ' pulse' : '') + '" data-act="person" data-id="' + m.id + '" data-code="' + esc(me.code) + '" aria-label="' + esc(personAria(me)) + '" data-lbl="' + esc(faceLabel(me)) + '">' +
+    avatar(me, 64, { marks: true }) + '</button><span class="nm"><span data-k="you">👋</span> ' + esc(me.short) + '</span><span class="sp"></span>' + note +
+    '<button class="ib" data-act="face" data-id="' + m.id + '" aria-label="Switch person" data-k="switch">⇄</button></div>';
+}
+/* my own days under the plan, in my colour (a reversed pair is never drawn as a range: ⚠) */
+function mineLine(m) {
+  var me = m.me; if (!me || !me.answered || !(me.own1 || me.own2) || !me.d1) return '';
+  return '<div class="mine" style="--pc:var(--p' + me.color + ')"><i></i>' + (me.bad ? '<span class="w" data-k="warn">⚠</span>' : '<span class="tn">' + md(me.d1) + '–' + md(me.d2) + '</span>') + '</div>';
+}
+/* In / Maybe / Out, labelled and equal: the answer there is filled, the others outlined. A host's In is drawn outlined
+   with a dotted ring until they tap it (counted, not confirmed). Nothing is pre-pressed for anyone. A closed trip (paid
+   or dropped) shows 🏁 or 🗑 instead of taps that would fail; a trip that is merely Done still takes answers.
+   o.proxy: the organizer answering for someone else (P-person), marked 📞. */
+function answerRow(m, x, o) {
+  o = o || {};
+  if (m.closed) {
+    var dr = m.decision === 'dropped';
+    return '<div class="closed" role="img" aria-label="' + (dr ? 'Dropped' : 'Trip closed') + '" data-k="' + (dr ? 'dropped' : 'st-done') + '">' + (dr ? '🗑' : '🏁') + '</div>';
+  }
+  var st = x ? x.status : '', code = x ? x.code : '', busy = !!(PEND[m.id] && x && x.resp);
+  var b = function (v, word) {
+    var def = v === 'in' && st === 'host-default', arm = v === 'out' && !!x && armed(armKey(m.id, code, 'out'));
+    // Out on someone booked waits for its confirming tap (it takes the 🎫 away): it pulses with 🎫↩
+    return '<button class="ans ' + v + (def ? ' def' : '') + (arm ? ' arm' : '') + '" data-act="answer" data-v="' + v + '" data-id="' + m.id + '" data-code="' + esc(code) + '"' + (o.proxy ? ' data-proxy="1"' : '') +
+      ' aria-pressed="' + (st === v) + '"' + (arm ? ' aria-label="Confirm Out"' : '') + ' data-k="' + (def ? 'hostdef' : v) + '">' + MK[v] + word + (arm ? '<span class="cfm" aria-hidden="true">🎫↩</span>' : '') + '</button>';
+  };
+  // while the answer is on its way the pressed one breathes (aria-busy); a failed one goes back and P-error says so
+  return '<div class="answers' + (!o.proxy && S.pulseAns === m.id ? ' nudge' : '') + '" role="group" aria-label="Answer"' + (busy ? ' aria-busy="true"' : '') + '>' + b('in', 'In') + b('maybe', 'Maybe') + b('out', 'Out') + '</div>';
+}
+/* one person's bar on a day track r: filled while in, dashed while maybe, dotted over the plan while waiting, a hatched
+   band with 🏠 for a host, nothing once out. Squared ends are their own days; ⚠ where they fall off the plan; 🚗 where they
+   use the hub's other airport. */
+function barHTML(m, x, r) {
+  var n = r.n, pos = function (a, b) { return 'left:' + (diffD(r.s, a) / n * 100).toFixed(2) + '%;width:' + ((diffD(a, b) + 1) / n * 100).toFixed(2) + '%'; };
+  var span = m.plan || m.win, h = '';
+  if (x.host) {
+    var hs = span ? maxD(span.s, r.s) : '', he = span ? minD(span.e, r.e) : '';
+    if (!span || hs > he || x.status === 'out') return '';
+    if (x.status === 'maybe') return '<i class="bar maybe" style="' + pos(hs, he) + '"></i>';
+    return '<i class="bar host" style="' + pos(hs, he) + '"></i><span class="tag" style="left:' + (diffD(r.s, hs) / n * 100).toFixed(1) + '%" data-k="host">🏠</span>';
+  }
+  if (x.status === 'out') return '';
+  if (x.status === 'waiting') return m.plan ? '<i class="bar wait" style="' + pos(maxD(m.plan.s, r.s), minD(m.plan.e, r.e)) + '"></i>' : '';
+  if (!x.d1 || x.bad) return x.bad ? '<span class="tag" style="left:0" data-k="warn">⚠</span>' : '';
+  var a = maxD(x.d1, r.s), b = minD(x.d2, r.e);
+  if (a > b) return '';
+  h += '<i class="bar' + (x.status === 'maybe' ? ' maybe' : '') + (x.own1 ? ' sq-l' : '') + (x.own2 ? ' sq-r' : '') + '" style="' + pos(a, b) + '"></i>';
+  if (m.plan && (x.d1 < m.plan.s || x.d2 > m.plan.e)) {
+    if (x.d1 < m.plan.s) h += '<i class="bar off" style="' + pos(a, minD(b, addD(m.plan.s, -1))) + '"></i>';
+    if (x.d2 > m.plan.e) h += '<i class="bar off" style="' + pos(maxD(a, addD(m.plan.e, 1)), b) + '"></i>';
+    h += '<span class="tag" style="left:' + (diffD(r.s, a) / n * 100).toFixed(1) + '%" data-k="warn">⚠</span>';
+  }
+  if (m.alt && x.A === m.alt) h += '<span class="tag" style="left:' + (diffD(r.s, a) / n * 100).toFixed(1) + '%" data-k="drive">🚗</span>';
+  if (m.alt && x.H === m.alt) h += '<span class="tag" style="left:calc(' + ((diffD(r.s, b) + 1) / n * 100).toFixed(1) + '% - 18px)" data-k="drive">🚗</span>';
+  return h;
+}
+/* the board's one tail column: the organizer's 🎫 marks once the dates are set (or anyone booked), else on his token
+   phone each traveler's sum (cached real fares only; $— unpriced) */
+function boardTail(m) {
+  if (m.members.some(function (x) { return !!bookToggle(m, x.code); })) return 'tk';
+  return anyPriced(m) && m.paid == null && !m.closed ? 'price' : '';
+}
+/* prices show on the organizer's token phone once any leg has a cached real fare; before that there is nothing to show
+   (a column of $— reads as broken; PIA-140's 🔍 is the way in) */
+function anyPriced(m) { return !!(m.prices && m.price && m.price.total != null); }
+/* the organizer's 🎫 on someone's row. Its confirming state keeps the 🎫 and pulses with ✓ (to mark) or ↩ (to take it away) */
+function tkBtn(m, x, tk) {
+  var arm = armed(armKey(m.id, x.code, 'tk')), lbl = arm ? (tk.on ? 'Confirm not booked' : 'Confirm booked') : 'Booked';
+  return '<button class="tk' + (tk.on ? ' on' : '') + (arm ? ' arm' : '') + '" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="' + tk.on + '" aria-label="' + esc(lbl + ', ' + faceLabel(x)) + '" data-lbl="' + lbl + '" data-k="booked">' +
+    '<span class="tkg">🎫</span>' + (arm ? '<span class="cfm" aria-hidden="true">' + (tk.on ? '↩' : '✓') + '</span>' : '') + '</button>';
+}
+function priceCell(m, x) {
+  if (!x.traveler) return '<span class="pr"></span>';
+  var pp = m.price && m.price.per[x.code];
+  if (!pp || pp.sum == null) return '<span class="pr hollow">$—</span>';
+  return '<span class="pr' + (pp.stale ? ' stale' : pp.hollow ? ' hollow' : '') + '">' + money(pp.sum) + (pp.hollow ? '+' : '') + '</span>';
+}
+/* the people board: day numerals over the plan and everyone's own days (every day while a day is ≥18px wide), weekends
+   tinted, the event day under the trip's own picture, today ▾; then one row per person, the same on every phone */
+function peopleBoard(m) {
+  var r = m.range, tail = boardTail(m), tailW = tail === 'tk' ? 44 : tail === 'price' ? 54 : 0;
+  var cw = +(document.documentElement && document.documentElement.clientWidth), W0 = Math.min(cw > 0 ? cw : 360, 430);
+  var h = '<div class="pb" id="board-' + m.id + '">';
+  if (r) {
+    var trackW = W0 - 32 - 76 - 8 - (tailW ? 8 + tailW : 0), dayW = trackW / r.n, every = dayW >= 18 ? 1 : dayW >= 9 ? 2 : dayW >= 6 ? 3 : 7, nums = '';
+    for (var i = 0; i < r.n; i++) {
+      var d = addD(r.s, i), w = dowOf(d);
+      var g = m.pin === d ? '<span class="hg" data-k="pin">' + m.emoji + '</span>' : d === RT.today ? '<span class="hg" data-k="today">▾</span>' : '';
+      nums += '<span class="' + (w === 0 || w === 6 ? 'we' : '') + '">' + g + (i % every === 0 ? String(+d.slice(8)) : '') + '</span>';
+    }
+    h += '<div class="pb-head" aria-hidden="true"><span class="lead"></span><span class="nums">' + nums + '</span>' + (tailW ? '<span class="tail"><span class="' + (tail === 'tk' ? 'tkpad' : 'pr') + '"></span></span>' : '') + '</div>';
+  }
+  var pinX = r && m.pin && m.pin >= r.s && m.pin <= r.e ? '<i class="pinline" style="left:' + ((diffD(r.s, m.pin) + 0.5) / r.n * 100).toFixed(2) + '%"></i>' : '';
+  m.members.forEach(function (x, xi) {
+    var isMe = !!(m.me && x.code === m.me.code), cell = '';
+    if (tail === 'price') cell = priceCell(m, x);
+    else if (tail === 'tk') { var tk = bookToggle(m, x.code); cell = tk ? tkBtn(m, x, tk) : '<span class="tkpad"></span>'; }
+    h += '<div class="pb-row' + (isMe ? ' own' : '') + (x.status === 'out' ? ' dimrow' : '') + '" style="--pc:var(--p' + x.color + ')"><span class="who">' +
+      '<button class="facebtn" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 44, { marks: true }) + '</button>' +
+      (isMe ? youTag() : nameTag(x.one, xi + 1)) + '</span><span class="track">' + (r ? pinX + barHTML(m, x, r) : '') + '</span>' + (cell ? '<span class="tail">' + cell + '</span>' : '') + '</div>';
+  });
+  return h + '</div>';
+}
+/* the one total on the organizer's token phone (the card's rule: real cached fares only), with each traveler's share */
+function totalRow(m) {
+  if (!m.prices || (m.paid == null && !anyPriced(m))) return '';
+  var p = m.price, segs = '';
+  if (m.paid == null && p) {
+    var tot = 0; p.segs.forEach(function (s) { tot += s.p || 0; });
+    segs = '<span class="stack" aria-hidden="true">' + p.segs.map(function (s) {
+      var empty = s.hollow && !s.p;
+      return '<i class="' + (s.hollow ? 'hollow' : s.stale ? 'stale' : '') + '" style="--pc:var(--p' + s.color + ');flex:' + (empty ? '0 0 24px' : '1 1 ' + (tot ? s.p / tot * 100 : 0).toFixed(1) + '%') + '"></i>';
+    }).join('') + '</span>';
+  }
+  return '<div class="totalblk"><span class="big">' + totalHTML(m) + '</span>' + segs + '</div>';
+}
+/* the one primary action (the model's primaryAction) */
+function primaryHTML(m, k) {
+  if (k === 'none') return '';
+  var h = handoffs(m, '', RT.hctx), wrap = function (x) { return '<div class="split prim">' + x + '</div>'; };
+  // no flight link: say why (handoffs.why), and an idea with no place yet offers 🧭↗ Explore instead
+  var fix = function (cls) {
+    if (h.explore && h.why === 'nodest') return '<a class="btn ' + cls + '" ' + handoffAttrs(h.explore) + ' aria-label="Explore" data-k="explore">🧭↗</a>';
+    var w = { nodest: ['📍?', 'No destination', 'noairport'], noairport: ['📍?', 'No home airport', 'noairport'], local: ['🚗', 'No flight needed', 'drive'], nolink: ['✈⚠', 'No flight link', 'nolink'] }[h.why] || ['✈⚠', 'Fix dates', 'fixdates'];
+    return '<span class="btn ' + cls + ' dis" role="img" aria-label="' + w[1] + '" data-lbl="' + w[1] + '" data-k="' + w[2] + '">' + w[0] + '</span>';
+  };
+  var share = '<button class="btn pri' + (sharePulse(m) ? ' pulse' : '') + '" data-act="tshare" data-id="' + m.id + '"><span data-k="share">📣</span> Share</button>';
+  if (k === 'share-only') return wrap(share);
+  if (k === 'share') return wrap(share + (h.gf ? '<a class="btn sq" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : fix('sq')));
+  if (k === 'book') return wrap((h.gf ? '<a class="btn pri" ' + handoffAttrs(h.gf) + ' data-k="gf"><span aria-hidden="true">✈</span> Book <span aria-hidden="true">↗</span></a>' : fix('pri')) +
+    '<button class="btn sq" data-act="mybook" data-id="' + m.id + '" aria-pressed="false" aria-label="I booked" data-k="booked">🎫</button>');
+  return wrap((h.flighty ? '<a class="btn pri" ' + handoffAttrs(h.flighty) + ' aria-label="Flighty" data-k="flighty">✈⏱↗</a>' : '') +
+    '<span class="btn stat" role="img" aria-label="Booked" data-lbl="Booked" data-k="booked">🎫</span>');
+}
 function renderTrip(id) {
   var m = modelOf(id), x = listEntry(id) || { id: id, t: '', e: '' };
-  var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + tripShareBtn(m) : '') + keyBtn() + setBtn() + '</div>';
+  var prim = m ? primaryAction(m, RT.today) : 'none';
+  var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + tripShareBtn(m, prim) : '') + keyBtn() + setBtn() + '</div>';
   if (!m) return { id: 'trip-loading', html: nav + '<div class="hero">' + postcard(stubModel(x), 'lg') + '</div><h2 class="ttl" data-free>' + esc(x.t) + '</h2><div class="rowc">' + staleMark() + '</div>' };
+  // the destination is one tap from the Map on every trip view (a host's too)
   var hero = '<div class="hero">' + postcard(m, 'lg', { noLock: true }) +
-    (m.iHost ? '' : '<button class="chip" data-act="tomap" data-id="' + m.id + '" aria-label="Map" data-k="dest">📍' + esc(m.dest || '?') + '</button>') +
+    '<button class="chip" data-act="tomap" data-id="' + m.id + '" aria-label="Map" data-k="dest">📍' + esc(m.dest || '?') + '</button>' +
     (m.caption ? '<button class="nt" data-act="cap" data-id="' + m.id + '" aria-label="Note" data-k="note"><span>📝</span></button>' : '') +
-    '<span class="ring" role="img" aria-label="Heads in" data-k="heads">' + headsRing(m) + '</span></div><h2 class="ttl" data-free>' + esc(m.title) + '</h2>';
+    '<div class="cap"><button class="pipbtn" data-act="stage" data-id="' + m.id + '" aria-label="' + esc(stageName(m)) + '">' + pip1(m, true) + '</button></div>' +
+    '<button class="ring" data-act="ring" data-id="' + m.id + '" aria-label="Heads in" data-k="heads">' + headsRing(m) + '</button></div><h2 class="ttl" data-free>' + esc(m.title) + '</h2>';
   var dr = '<div class="daterow"><span class="pill' + (m.locked ? ' set' : '') + '"><span class="inner">' + datesText(m, true) + (m.locked ? ' <span data-k="lock">🔒</span>' : '') + '</span></span></div>';
-  var faces = '<div class="dayfaces">' + m.members.map(function (p, i) {
-    var mine = !!(m.me && m.me.code === p.code);
-    return '<span class="dayf"><span class="facebtn" role="img" aria-label="' + esc(faceLabel(p)) + '" data-lbl="' + esc(faceLabel(p)) + '">' + avatar(p, 48) + '</span>' + (mine ? youTag() : nameTag(p.one, i)) + '</span>';
-  }).join('') + '</div>';
-  return { id: m.org ? 'trip-organizer' : m.iHost ? 'trip-portal-host' : 'trip-portal', html: nav + hero + dr + faces };
+  var html = nav + hero + meRow(m) + dr + mineLine(m) + answerRow(m, m.me) + peopleBoard(m) + totalRow(m) + primaryHTML(m, prim);
+  return { id: m.org ? 'trip-organizer' : m.iHost ? 'trip-portal-host' : 'trip-portal', html: html };
 }
 /* Map and Calendar (PIA-143 / PIA-144) show the selected trip, the one Trips opened last */
 /* a chip is named by what it shows (the trip's picture and its first day or 🌙 nights) and described by the
@@ -3220,10 +3595,12 @@ function render(keep, bg) {
   fitNames(scr, screenWords, 10);
   shrinkNames(scr);
   if (out.id === 'trips-ideas') S.fly = null;   // the arrivals flew in once
+  if (/^trip-(?:organizer|portal)/.test(out.id)) { S.facePulse = null; S.pulseAns = null; }   // PIA-137: each pulses once, as drawn
   if (keep) window.scrollTo(0, y);
   centerChips();
   if (S.sheet && !(bg && typingInSheet())) renderSheet(false);
   syncURL(); navWrite();
+  faceCheck();   // PIA-137: P-face, when this phone is nobody on the trip it shows (or a hint asks)
 }
 function typingInSheet() { var a = document.activeElement, el = $('#sheet'); return !!(a && el && el.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')); }
 function centerChips() {
@@ -3270,7 +3647,7 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
    back on the control that opened it. ---- */
 var SHEETS = {};
 var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
-  edit: 'Edit trip', drop: 'Drop trip', note: 'Note' };   // each sheet's accessible name
+  edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
@@ -3281,6 +3658,7 @@ function sheetName(sh) {
   var D = sh.type === 'new' ? sh.local.d : null;
   if (D && D.edit) return 'Edit trip';
   if (D) return 'New trip, step ' + Math.max(1, Math.min(3, D.step || 1)) + ' of 3';
+  if (sh.type === 'person') { var px = memberIn(modelOf(sh.p.id), sh.p.code); return px ? faceLabel(px) : 'Person'; }   // PIA-137: named by who it is
   return SHEET_NAME[sh.type] || 'Sheet';
 }
 function shHd(left, o) {
@@ -3433,8 +3811,8 @@ function errInfo(code) {
   })[code] || ['⚠', 'Not saved', true];
 }
 SHEETS.error = function (sh) {
-  var e = errInfo(sh.p.code);
-  return shHd('') + '<div class="errline"><span class="eg" aria-hidden="true">' + e[0] + '</span>' + (e[1] ? '<span class="tn">' + esc(e[1]) + '</span>' : '') + '</div>' +
+  var e = errInfo(sh.p.code), words = e[1] || (sh.p.retry ? 'Not saved' : '');   // PIA-137: a write that failed says so, even offline
+  return shHd('') + '<div class="errline"><span class="eg" aria-hidden="true">' + e[0] + '</span>' + (words ? '<span class="tn">' + esc(words) + '</span>' : '') + '</div>' +
     (e[2] ? '<button class="btn pri wide" data-act="eretry" aria-label="Retry">↻</button>' : '');
 };
 /* ---- PIA-136: the one create path (P-new-what → P-new-who → P-new-when) and the organizer's edits ----
@@ -3810,6 +4188,7 @@ function draftNoteHTML(sh) {
 }
 SHEETS.note = function (sh) {
   if (sh.p.draft) return draftNoteHTML(sh);
+  if (sh.p.code) return personNoteHTML(sh);   // PIA-137: one person's own note
   var m = modelOf(sh.p.id), L = sh.local;
   var h = shHd('<span data-k="note">📝</span>' + (m ? '<span style="font-size:24px" aria-hidden="true">' + m.emoji + '</span>' : ''));
   if (!m) return h;
@@ -3842,7 +4221,7 @@ function leaveNote(sh, fromPop) {
     return false;
   }
   L.init = L.text;
-  saveCaption(sh.p.id, L.text);
+  if (sh.p.code) savePersonNote(sh.p.id, sh.p.code, L.text, L.by); else saveCaption(sh.p.id, L.text);
   return true;
 }
 function saveCaption(id, text) {
@@ -3852,6 +4231,204 @@ function saveCaption(id, text) {
     if (r.ok) delete S.drafts.cap[id]; else { S.drafts.cap[id] = t; showError(r.code); }
     return r;
   });
+}
+/* ---- PIA-137: P-face, P-person, P-stage and one person's P-note ---- */
+/* P-face: login without an account. One tap on your face among the trip's own people (named first, a v1 'Me' last as a
+   dashed face with no word), or 🙋＋ to ask the organizer to add you (a join link, shared, nothing written). A nudge
+   link's face is outlined, and so is the one tile whose name this phone already is (preselected, never saved by
+   itself); the face this phone remembers carries 👋. ⌄ keeps browsing as nobody. Names: ≤2 words, 1 above six people. */
+SHEETS.face = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local;
+  // "Who are you?" while the join row is shut; open, the row says where its link goes instead (P-face stays ≤20 words)
+  var h = shHd('<span data-k="you">👋</span> ?' + (L.join ? '' : ' <span class="pfq">Who are you?</span>'));
+  if (!m) return h + '<div class="rowc">' + staleMark() + '</div>';
+  // the outlined (and focused) tile is who this phone already is: its remembered face, else the one its names preselect,
+  // else the nudge link's face; a hint for someone else is only marked (✉, a lighter dashed outline)
+  var many = m.members.length > 6, mine = meFor(m.id), mark = mine || sh.p.pre || sh.p.hint || '', you = mine || (sh.p.hint ? sh.p.pre : '');
+  var ask = joinAsk(m.id), asked = ask && !m.members.some(function (x) { return x.norm && x.norm === normName(ask.name); }) ? ask : null;
+  var tiles = m.members.filter(function (x) { return !!x.name; }).concat(m.members.filter(function (x) { return !x.name; }));
+  h += '<div class="ptile">' + tiles.map(function (x) {
+    var hinted = sh.p.hint === x.code && mark !== x.code;
+    return '<button class="tile' + (mark === x.code ? ' hint' : '') + (hinted ? ' hinted' : '') + (x.name ? '' : ' legacy') + '"' + (mark === x.code ? ' id="pf-mark"' : '') + ' data-act="pickface" data-id="' + m.id + '" data-code="' + esc(x.code) +
+      '" aria-label="' + esc(faceLabel(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' +
+      (you === x.code ? '<span class="tw" data-k="you">👋</span>' : hinted ? '<span class="tw" data-k="fromlink">✉</span>' : '') + (x.host ? '<span class="tb" data-k="host">🏠</span>' : '') +
+      avatar(x, 48, { plain: true }) + (x.name ? '<span class="tn2">' + esc(many ? x.one : x.short) + '</span>' : '') + (x.headcount > 1 ? '<span class="x" data-k="count">×' + x.headcount + '</span>' : '') + '</button>';
+  }).join('') + (m.closed ? '' : '<button class="tile join' + (asked ? ' pend' : '') + '" data-act="joinopen" data-id="' + m.id + '" aria-expanded="' + !!L.join + '" aria-label="' + (asked ? 'Asked to join' : 'Ask to join') + '" data-k="' + (asked ? 'asked' : 'join') + '">🙋＋' +
+    (asked ? '<span class="tw" aria-hidden="true">⏳</span>' + (L.join ? '' : '<span class="tn2 jn">' + esc(firstWords(asked.name, NAME_WORDS).text) + '</span>') : '') + '</button>') + '</div>';
+  if (L.join && !m.closed) {
+    var ap = String(L.jap || '');
+    h += '<div class="rowc nw joinrow"><span class="fld"><label for="join-name" aria-hidden="true">🙂</label><input id="join-name" aria-label="Name" autocomplete="name" spellcheck="false" value="' + esc(L.jname || '') + '"></span>' + cutMark(L, 'join-name') +
+      '<span class="fld code"><label for="join-ap" aria-hidden="true">📍</label><input id="join-ap" aria-label="Airport" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' + esc(ap) + '"></span>' + apWarn(L, 'join-ap', ap) +
+      '<button class="ib joinb" data-act="joinshare" data-id="' + m.id + '" aria-label="Share" data-k="share">📣</button></div>' +
+      '<p class="hintline jto"><span aria-hidden="true">📣 ✎</span> To organizer</p>';
+  }
+  return h;
+};
+/* ⚠ beside a 3-letter airport field: the app does not know the code (it still goes), or a longer word was cut to its
+   first three letters (a city typed there: it does not go until it is a code) */
+function apWarnOn(L, fid, v) { return !!(L.cuts && L.cuts[fid]) || (String(v || '').length === 3 && !airportInfo(v).known); }
+function apWarn(L, fid, v) { return '<span id="warn-' + fid + '" class="w" data-k="unknown"' + (apWarnOn(L, fid, v) ? '' : ' hidden') + '>📍⚠</span>'; }
+/* the join row opens with the request this phone already sent, to send again */
+function joinPrefill(sh) { var L = sh.local, a = joinAsk(sh.p.id); if (a && !L.jname && !L.jap) { L.jname = a.name; L.jap = a.ap; } }
+/* P-joinfwd: a join request opened on a phone that does not organize the trip. It is not lost: the joiner's name and
+   airport, and 📣 to send it on to the organizer (whose phone opens it as the people editor) */
+SHEETS.joinfwd = function (sh) {
+  var m = modelOf(sh.p.id), h = shHd('<span data-k="join">🙋＋</span>' + (m ? '<span style="font-size:24px" aria-hidden="true">' + m.emoji + '</span>' : ''));
+  h += '<div class="jfrow"><span class="jfn">' + esc(sh.p.name) + '</span>' + (sh.p.airport ? ' <b class="lc">' + esc(sh.p.airport) + '</b>' : '') + '</div>';
+  return h + '<button class="btn pri wide" data-act="joinfwd"><span data-k="share">📣</span> To organizer</button>';
+};
+/* a traveler's two ends: 🛬 the day they land and where, 🛫 the day they leave and from where. Where the destination is one
+   of the Worker's hub pairs (PIA/ORD, LGA/JFK) each end has a radio cell per airport (edit: their own answer, or the
+   organizer's); elsewhere, or read only, the airport is written out. Open-jaw: each end's one-way search (links). */
+function legRows(m, x, edit, links) {
+  var hub = m.hub.length === 2 ? m.hub : null, cells = !!(hub && edit), ho = links ? handoffs(m, x.code, RT.hctx) : null;
+  var h = '<div class="legs">' + (cells ? '<div class="leghd" aria-hidden="true"><span class="lh0"></span>' + hub.map(function (a) { return '<span>' + a + '</span>'; }).join('') + '</div>' : '');
+  [[0, '🛬', x.d1, x.own1, x.A, 'arrive', 'Arrive'], [1, '🛫', x.d2, x.own2, x.H, 'leave', 'Leave']].forEach(function (r) {
+    var one = ho && x.openJaw ? (r[0] ? ho.gfOut : ho.gfIn) : null, drive = m.alt && r[4] === m.alt ? '<span data-k="drive">🚗</span>' : '';
+    h += '<div class="leg" style="--pc:var(--p' + x.color + ')">' +
+      (one ? '<a class="lg1" ' + handoffAttrs(one) + ' aria-label="' + r[6] + ' search" data-k="' + r[5] + '">' + r[1] + '↗</a>' : '<span class="lg0" data-k="' + r[5] + '">' + r[1] + '</span>') +
+      '<span class="ld' + (r[3] ? ' own' : '') + '">' + md(r[2]) + '</span>' + drive +
+      (cells ? '<span class="radg" role="radiogroup" aria-label="' + r[6] + '">' + hub.map(function (a) {
+        return '<button class="rad" role="radio" aria-checked="' + (r[4] === a) + '" data-act="legair" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + r[0] + '" data-v="' + a + '" aria-label="' + r[6] + ' ' + a + '"><i></i></button>';
+      }).join('') + '</span>' : '<b class="lc">' + esc(r[4]) + '</b>') + '</div>';
+  });
+  return h + '</div>';
+}
+/* where they fly from: the home code (or their override) and how many nearby airports are searched with it; a tap gives
+   a 3-letter field (any code), and clearing it goes back to the home airport */
+function originRow(m, x, L) {
+  if (L.origEdit === x.code) {
+    var v = L.orig != null ? L.orig : x.origin;
+    return '<div class="rowc nw"><span class="fld code wide"><label for="orig-code" aria-hidden="true">🛫</label><input id="orig-code" aria-label="Home airport" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' +
+      esc(v) + '"></span>' + apWarn(L, 'orig-code', v) + '<button class="tool" data-act="origsave" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Save airport">↵</button></div>';
+  }
+  var alts = Math.max(0, x.O.length - 1);
+  return '<div class="rowc"><button class="hchip" data-act="origedit" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Home airport ' + esc(x.origin || '') + ', edit"><span aria-hidden="true">🛫</span><span class="tn">' + esc(x.origin || '?') + (alts ? ' +' + alts : '') + '</span><span aria-hidden="true">✎</span></button></div>';
+}
+/* what a screen reader hears for a face: the name, the answer and every mark (labels are free under the word rule) */
+function personAria(x) {
+  var st = { in: 'in', maybe: 'maybe', out: 'out', waiting: 'not answered', 'host-default': 'host, not confirmed' }[x.status] || '';
+  var marks = [];
+  if (x.booked) marks.push('booked'); else if (x.host && x.status !== 'host-default') marks.push('host');
+  if (x.warn && x.warn.length) marks.push('check dates');
+  if (x.called) marks.push('answered by the organizer');
+  if (x.noteText) marks.push('note');
+  return [faceLabel(x), st].concat(marks).filter(Boolean).join(', ');
+}
+/* P-person: everything about one person on one trip. Me, or the organizer on anyone (not on a v1 doc): their legs with
+   the hub's airport cells, where they fly from, their note, their flight link, and (the organizer, for someone else)
+   In / Maybe / Out marked 📞. A guest looking at someone else sees their face, marks, bar and ends only, their note to
+   read, and 📣 Share when they have not answered or said maybe: no control that would do nothing. */
+SHEETS.person = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local, x = memberIn(m, sh.p.code);
+  if (!m || !x) return shHd('') + (m ? '' : '<div class="rowc">' + staleMark() + '</div>');
+  var isMe = !!(m.me && m.me.code === x.code), canAct = !m.closed && (isMe || (m.org && !m.legacy)), links = isMe || m.org, edit = canAct && x.answered;
+  var ho = handoffs(m, x.code, RT.hctx);
+  // the 72px face is named by the person (long-press, a screen reader), its marks each by their own key
+  var h = '<div class="sh-hd pers">' + (sh.back ? '<button class="ib" data-act="sh-back" aria-label="Back" data-k="back">‹</button>' : '') +
+    '<span class="pav" role="img" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 72, { marks: true }) + '</span>' +
+    '<span class="pnm">' + esc(x.short) + '</span><span class="sp"></span>' + (isMe ? '<button class="ib" data-act="face" data-id="' + m.id + '" aria-label="Switch person" data-k="switch">⇄</button>' : '') +
+    '<button class="ib" data-act="sh-close" aria-label="Close" data-k="close">⌄</button></div>';
+  if (m.range && x.status !== 'out') h += '<div class="pb-row solo" style="--pc:var(--p' + x.color + ')"><span class="track">' + barHTML(m, x, m.range) + '</span></div>';
+  if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b></div>';
+  else if (x.traveler && m.dest) {
+    // where they fly from can be set as soon as they answer, dated or not; the legs need the days
+    if (edit) h += originRow(m, x, L);
+    if (x.d1 && !x.bad) h += legRows(m, x, edit, links);
+  }
+  if (canAct && (!isMe || sh.p.outside)) h += answerRow(m, x, { proxy: !isMe });
+  var fw = firstWords(x.noteText, 8);
+  if (x.noteText) h += '<button class="notep" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Note"><span data-k="note">📝</span><span>' + esc(fw.text) + (fw.more ? '…' : '') + '</span></button>';
+  else if (canAct && x.resp) h += '<button class="notep" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Add note"><span data-k="note">📝</span><span aria-hidden="true">＋</span></button>';
+  if (links && x.traveler) {
+    if (ho.flighty) h += '<a class="btn pri wide" ' + handoffAttrs(ho.flighty) + ' aria-label="Flighty" data-k="flighty">✈⏱↗</a>';
+    else if (ho.gf) h += '<a class="btn pri wide" ' + handoffAttrs(ho.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>';
+  }
+  if (isMe && x.booked && !m.closed) {
+    var arm = armed(armKey(m.id, x.code, 'un'));
+    h += '<div class="rowc"><button class="tool' + (arm ? ' arm' : '') + '" data-act="unbook" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="true" aria-label="' + (arm ? 'Confirm not booked' : 'Booked') + '" data-k="booked">🎫' +
+      (arm ? '<span class="cfm" aria-hidden="true">↩</span>' : '') + '</button></div>';
+  }
+  if (ho.nudge && !m.closed) h += '<button class="btn wide" data-act="nudge" data-id="' + m.id + '" data-code="' + esc(x.code) + '"><span data-k="share">📣</span> Share</button>';
+  return h;
+};
+/* P-stage: the five stages by name (the trip's own one enlarged), ⭐ pin it in my list, 🗄 hide it on this phone */
+SHEETS.stage = function (sh) {
+  var m = modelOf(sh.p.id), e = listEntry(sh.p.id) || {}, h = shHd(m ? pip1(m, true) : '');
+  if (!m) return h;
+  var k = stageIdx(m.stage);
+  h += '<div class="stepper' + (m.decision === 'dropped' ? ' droppc' : '') + '">' + STAGES.map(function (s, i) {
+    var c = i === k ? 'now' : i < k ? 'past' : '';
+    return '<div class="srow ' + c + '"><span class="pip ' + c + '" data-k="st-' + s[0] + '"><span>' + s[1] + '</span></span><span>' + s[2] + '</span></div>';
+  }).join('') + '</div>';
+  return h + '<div class="rowc stagetools"><button class="tool" data-act="star" data-id="' + m.id + '" aria-pressed="' + !!e.pin + '" aria-label="Pin" data-k="star">' + (e.pin ? '⭐' : '☆') + '</button>' +
+    '<button class="tool" data-act="hidehere" data-id="' + m.id + '" aria-pressed="' + !!e.arch + '" aria-label="Hide here" data-k="hidehere">🗄</button></div>';
+};
+/* one person's note: ≤20 words (typing stops there), written by them, or by the organizer for them (marked 📞); everyone
+   else reads it. It saves as the sheet closes, inside one complete answer (their days, airports and origin go back as
+   they are). A longer v1 note opens at its first 20 words with ⚠, and replacing it needs a second ⌄. */
+function personNoteHTML(sh) {
+  var m = modelOf(sh.p.id), L = sh.local, x = memberIn(m, sh.p.code);
+  if (!m || !x) return shHd('<span data-k="note">📝</span>');
+  var isMe = !!(m.me && m.me.code === x.code), fw = firstWords(x.noteText, CAPTION_WORDS);
+  if (L.text == null) {
+    var kept = S.drafts.pnote && S.drafts.pnote[m.id + '|' + x.code];
+    // the person writes their own; the organizer may write someone else's for them (📞), but their note opens to read
+    // first (✎ makes it a field), so reading it never turns into editing it
+    L.canEdit = !m.closed && !!x.resp && (isMe || (m.org && !m.legacy)); L.by = isMe ? 'self' : 'proxy';
+    L.edit = L.canEdit && (isMe || !x.noteText || typeof kept === 'string');
+    L.long = fw.more; L.init = fw.text; L.text = typeof kept === 'string' ? kept : fw.text;
+  }
+  // ✓ saves now (as ‹ or ⌄ do: the note saves as its sheet closes)
+  var right = L.edit ? '<button class="ib" data-act="notesave" aria-label="Save" data-k="ok">✓</button>' : L.canEdit ? '<button class="ib edit" data-act="noteedit" aria-label="Edit" data-k="edit">✎</button>' : '';
+  var h = shHd('<span data-k="note">📝</span>' + avatar(x, 40, { plain: true }), { right: right });
+  if (!L.edit) return h + '<p class="notev">' + esc(fw.text) + (fw.more ? '…' : '') + '</p>';
+  h += '<textarea id="note-text" class="txt" aria-label="Note" maxlength="' + noteRoom(L.by === 'proxy', x.arrTime, x.depTime) + '">' + esc(L.text) + '</textarea>';
+  h += '<div class="counter" id="note-count">' + (L.long ? '<span class="w" data-k="warn">⚠</span> ' : '') + cutMark(L, 'note-text') + ' <span class="tn">' + wordsIn(L.text) + '/' + CAPTION_WORDS + '</span></div>';
+  if (L.armed) h += '<p class="warnline"><span data-k="warn">⚠</span> <span data-k="close">⌄</span></p>';
+  return h;
+}
+function savePersonNote(id, code, text, by) {
+  var t = spaced(text), k = id + '|' + code;
+  if (by === 'self') confirmHinted(id, code);
+  return respond(id, code, { note: t }, { by: by }).then(function (r) {
+    if (!S.drafts.pnote) S.drafts.pnote = {};
+    if (r.ok) { delete S.drafts.pnote[k]; toast('📝✓'); } else { S.drafts.pnote[k] = t; showError(r.code, r.retry); }
+    return r;
+  });
+}
+/* P-face opens by itself once per trip and visit: when this phone is nobody there (no remembered face, no usable hint;
+   a tile may be preselected), or when a nudge link's face differs from the remembered one. Never over a sheet, never on
+   a trip that is over or dropped. A phone that asked to join gets it once more, its new tile preselected, as soon as the
+   organizer has added it. */
+function faceCheck() {
+  if (!S || S.sheet || !tripShowing()) return;
+  var id = S.trip, m = modelOf(id); if (!m || m.decision === 'dropped' || m.past) return;
+  S.faceAsked = S.faceAsked || {};
+  var asked = S.faceAsked[id];
+  if (asked && !joinAskFor(id)) return;   // asked once this visit, and no join request waiting
+  var w = whoFor(id); if (!w || !w.ask) return;
+  if (asked) {
+    var j = joinAskFor(id), pm = w.pre && w.pre !== asked.pre ? memberOf(DOCS[id], w.pre) : null;
+    if (!j || !pm || normName(splitLabel(pm.label).name) !== normName(j)) return;
+  }
+  S.faceAsked[id] = { pre: w.pre };
+  openSheet('face', { id: id, hint: w.hint, pre: w.pre }, { focus: w.hint || w.pre || meFor(id) ? 'pf-mark' : null });
+}
+/* In: a small burst of confetti from the button (none with reduced motion) */
+function burst(el) {
+  try {
+    if (!el || !el.getBoundingClientRect || !document.body || !document.body.appendChild || (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches)) return;
+    var r = el.getBoundingClientRect(), cols = ['--in', '--p0', '--p2', '--maybe', '--p3'];
+    for (var i = 0; i < 14; i++) {
+      var c = document.createElement('i'), a = (i / 14) * Math.PI * 2, d = 40 + (i % 3) * 18;
+      c.className = 'confetti'; c.setAttribute('aria-hidden', 'true');
+      c.style.left = (r.left + r.width / 2) + 'px'; c.style.top = (r.top + r.height / 2) + 'px'; c.style.background = 'var(' + cols[i % cols.length] + ')';
+      document.body.appendChild(c);
+      var an = c.animate([{ transform: 'translate(0, 0)', opacity: 1 }, { transform: 'translate(' + (Math.cos(a) * d).toFixed(1) + 'px, ' + (Math.sin(a) * d - 30).toFixed(1) + 'px) rotate(' + (i * 40) + 'deg)', opacity: 0 }], { duration: 700, easing: 'ease-out' });
+      an.onfinish = (function (n) { return function () { if (n.parentNode) n.parentNode.removeChild(n); }; })(c);
+    }
+  } catch (e) { /* no animation here */ }
 }
 /* an organizer edit from a sheet: its primary shows ◷ while the write is out, then the sheet closes, or ⚠ ↻ stays
    on it to try again (P-error instead when the sheet was closed meanwhile). failed(r, D) may rebuild the sheet's state
@@ -3885,7 +4462,12 @@ function joinAnswered(id) {
   if (!DOCS[id]) { if (STAT[id] === 'missing') S.joinNext = null; return; }
   S.joinNext = null;
   var m = modelOf(id);
-  if (!m || !m.org || m.legacy || m.closed || S.sheet || S.tab !== 'trips' || S.trip !== id) return;
+  if (!m || m.legacy || m.closed || S.sheet || S.tab !== 'trips' || S.trip !== id) return;
+  // PIA-137: on a phone that does not organize the trip the request is not dropped: P-joinfwd sends it on
+  if (!m.org) {
+    if (!m.members.some(function (x) { return x.norm && x.norm === normName(j.name); })) openSheet('joinfwd', { id: id, name: j.name, airport: j.airport || '' });
+    return;
+  }
   openSheet('new', { edit: true, id: id, join: true }, { local: { d: editDraft2(m, j) }, focus: 'mem-name' });
 }
 /* ▶ looks ready exactly when it will go on (a name on step 1; a named 🙋 on step 2), as the person types */
@@ -3944,6 +4526,14 @@ function onTyped(t) {
     }
     if (mode0 !== whoMode(D2, whoLimit(D2))) patchChips(D2);
     syncNext(D2);
+  } else if (t.id === 'join-name') {   // PIA-137: a join request's name (≤3 words, as every typed name)
+    L.jname = takeTyped(t, L.jname || '', NAME_WORDS, L, function () { pulseFld('join-name'); });
+  } else if (t.id === 'join-ap' || t.id === 'orig-code') {
+    // three letters; a longer word (a city name) is cut to its first three and marked ⚠ until it is a code
+    var raw = t.value.toUpperCase().replace(/[^A-Z]/g, ''), jc = raw.slice(0, 3); if (jc !== t.value) t.value = jc;
+    if (t.id === 'join-ap') L.jap = jc; else L.orig = jc;
+    L.cuts = L.cuts || {}; L.cuts[t.id] = raw.length > 3;
+    var wn = document.getElementById('warn-' + t.id); if (wn) wn.hidden = !apWarnOn(L, t.id, jc);
   } else if (t.id === 'note-text' && L.edit) {
     L.text = takeTyped(t, L.text, CAPTION_WORDS, L, function () { pulseEl(t, 'pulsefld'); });
     var c = $('#note-count .tn'); if (c) c.textContent = wordsIn(L.text) + '/' + CAPTION_WORDS;
@@ -3976,16 +4566,18 @@ function renderSheet(first) {
 function setInert(on) { ['#app', '#tabbar'].forEach(function (q) { var e = $(q); if (e) { e.inert = !!on; if (on) e.setAttribute('aria-hidden', 'true'); else e.removeAttribute('aria-hidden'); } }); }
 function hideSheetEls() { var el = $('#sheet'); el.hidden = true; el.innerHTML = ''; $('#scrim').hidden = true; setInert(false); }
 /* the control a sheet was opened from, to focus again when it closes (found again after the re-render) */
-function ctlSig(el) { return el && el.dataset ? { act: el.dataset.act || '', id: el.dataset.id || '', v: el.dataset.v || '' } : null; }
-/* the control with that signature under root (only plain ids and values make it into a selector) */
-function findCtl(root, o) {
-  if (!root || !o || !o.act || !/^[a-z-]+$/.test(o.act) || !/^[A-Za-z0-9_-]*$/.test(o.id + o.v)) return null;
-  return root.querySelector('[data-act="' + o.act + '"]' + (o.id ? '[data-id="' + o.id + '"]' : '') + (o.v ? '[data-v="' + o.v + '"]' : ''));
+/* PIA-137: a person's face, or one end's airport cell, is told apart by its member code and end too */
+function ctlSig(el) { return el && el.dataset ? { act: el.dataset.act || '', id: el.dataset.id || '', v: el.dataset.v || '', code: el.dataset.code || '', end: el.dataset.end || '' } : null; }
+function sigSel(o) {
+  if (!o || !o.act || !/^[a-z-]+$/.test(o.act) || !/^[A-Za-z0-9_-]*$/.test((o.id || '') + (o.v || '') + (o.code || '') + (o.end || ''))) return '';
+  return '[data-act="' + o.act + '"]' + (o.id ? '[data-id="' + o.id + '"]' : '') + (o.v ? '[data-v="' + o.v + '"]' : '') + (o.code ? '[data-code="' + o.code + '"]' : '') + (o.end ? '[data-end="' + o.end + '"]' : '');
 }
+/* the control with that signature under root (only plain ids, codes and values make it into a selector) */
+function findCtl(root, o) { var s = sigSel(o); return root && s ? root.querySelector(s) : null; }
 function refocus() {
   var o = S.opener; S.opener = null;
-  if (!o || !o.act || !/^[a-z-]+$/.test(o.act) || !/^[A-Za-z0-9_-]*$/.test(o.id + o.v)) return;
-  var t = $('#screen [data-act="' + o.act + '"]' + (o.id ? '[data-id="' + o.id + '"]' : '') + (o.v ? '[data-v="' + o.v + '"]' : '')) || $('#tabbar [data-act="' + o.act + '"]' + (o.v ? '[data-v="' + o.v + '"]' : ''));
+  var s = sigSel(o); if (!s) return;
+  var t = $('#screen ' + s) || $('#tabbar [data-act="' + o.act + '"]' + (o.v ? '[data-v="' + o.v + '"]' : ''));
   if (t) { try { t.focus({ preventScroll: true }); } catch (e) { /* not focusable */ } }
 }
 /* what was typed into ⚙ and not saved is kept (in memory, never stored) for the next open */
@@ -4007,12 +4599,13 @@ function closeSheet(fromPop) {
   var lost = null;
   for (var s = S.sheet; s; s = s.back) { keepDraft(s); if (s.type === 'new' && draftWorth(s.local.d)) lost = s.local.d; }
   S.sheet = null;
+  disarm();   // PIA-137: a confirming tap belongs to the sheet it was asked in
   hideSheetEls();
   if (fromPop) S.histPushed = false;
   if (S.errNext) {   // a P-error that waited for this sheet takes its place (and its history entry, if it still has one)
-    var code = S.errNext; S.errNext = '';
+    var code = S.errNext, rf = S.errRetry || null; S.errNext = ''; S.errRetry = null;
     render(true);
-    openSheet('error', { code: code });
+    openSheet('error', { code: code, retry: rf });
     return;
   }
   if (S.histPushed) { S.ignorePop++; S.histPushed = false; try { history.back(); } catch (e) { S.ignorePop--; } }
@@ -4027,11 +4620,25 @@ function sheetBack() {
   keepDraft(S.sheet);
   S.sheet = b; render(true); renderSheet(true);
 }
-/* P-error by code. It never replaces an open sheet: it waits until that sheet closes, then opens. */
-function showError(code) {
-  if (S.sheet) { S.errNext = code; return; }
-  openSheet('error', { code: code });
+/* P-error by code. It never replaces an open sheet: it waits until that sheet closes, then opens. retry (a write that
+   failed): its ↻ sends that write again, and the sheet says it was not saved. */
+function showError(code, retry) {
+  var f = typeof retry === 'function' ? retry : null;
+  if (S.sheet) { S.errNext = code; S.errRetry = f; return; }
+  openSheet('error', { code: code, retry: f });
 }
+/* a control that asks for a confirming tap (a 🎫 for someone waiting or out, taking a 🎫 away, Out on someone booked):
+   the first tap arms it for a few seconds; any other tap, a sheet closing or another trip opening disarms it */
+var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1 }, armTimer = null;
+function armKey(id, code, what) { return id + '|' + code + '|' + what; }
+function armed(k) { return !!S.armTk && S.armTk === k && nowMs() - (S.armAt || 0) < ARM_MS; }
+function arm(k) {
+  S.armTk = k; S.armAt = nowMs(); render(true);
+  clearTimeout(armTimer);
+  armTimer = setTimeout(function () { if (S.armTk === k) { S.armTk = null; render(true); } }, ARM_MS);
+  if (armTimer && typeof armTimer.unref === 'function') armTimer.unref();   // (Node test runs only)
+}
+function disarm() { if (!S.armTk) return false; S.armTk = null; clearTimeout(armTimer); return true; }
 
 /* ---- toasts and copying ---- */
 var toastTimer = null;
@@ -4060,10 +4667,15 @@ function pulseFld(fid) { var f = document.getElementById(fid); if (!f) return; v
 var lp = { t: null, x: 0, y: 0, fired: false, hide: null, unfire: null };
 var CTL_SEL = 'button[aria-label],a[aria-label],[role="img"][aria-label],[data-lbl]';
 function labelOf(el) { var k = el.getAttribute('data-k'); return el.getAttribute('data-lbl') || el.getAttribute('aria-label') || (k && hasOwn(LEGEND, k) ? LEGEND[k][1] : ''); }
+/* PIA-137: a glyph is found by position, but only in the layer the finger is on: the sticky primary bar, the nav or a top
+   row cover the board scrolling under them, so a press there never names a glyph underneath */
+function layerOf(el) { return el && el.closest ? el.closest('.split.prim, .nav, .toprow') : null; }
 function glyphAt(scope, x, y) {
-  var best = null, area = Infinity;
+  var best = null, area = Infinity, hit = null;
+  try { hit = document.elementFromPoint(x, y); } catch (e) { hit = null; }
+  var lay = layerOf(hit);
   $$('[data-k]', scope).forEach(function (el) {
-    if (!hasOwn(LEGEND, el.getAttribute('data-k')) || !isShown(el)) return;
+    if (!hasOwn(LEGEND, el.getAttribute('data-k')) || !isShown(el) || layerOf(el) !== lay) return;
     var r = el.getBoundingClientRect(), a = r.width * r.height;
     if (a > 0 && a < area && x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) { area = a; best = el; }
   });
@@ -4072,6 +4684,9 @@ function glyphAt(scope, x, y) {
 function pressTarget(t, x, y) {
   if (!t || !t.closest || t.closest('input,textarea')) return null;
   var ctl = t.closest(CTL_SEL);
+  // PIA-137: a mark on a face (⚠ 🎫 🏠 📞 📝, ×N) is named in place when the finger is on it; the face (its name) otherwise
+  var mk = t.closest('.av .bd [data-k], .av .bd[data-k], .av .cnt[data-k]');
+  if (mk && ctl && ctl.contains(mk) && hasOwn(LEGEND, mk.getAttribute('data-k'))) return mk;
   if (ctl && !ctl.classList.contains('card-open')) return ctl;
   var scope = t.closest('#screen') || t.closest('#sheet');   // a sheet's glyphs (◷, ⟦ ⟧, a stage disc, a locator) are named too
   return (scope && glyphAt(scope, x, y)) || ctl;
@@ -4099,6 +4714,7 @@ function endPress() {
 /* ---- the trip view's history entry: the phone's Back on a trip view returns to the list (or the tab the trip
    was opened from), like ‹. A sheet's entry sits on top of it while the sheet is open. ---- */
 function tripShowing() { return S.tab === 'trips' && !!S.trip; }
+function tripShowingAt(id) { return S.trip === id && listIds().indexOf(id) >= 0; }
 function pushTrip() {
   var st = { pialaxTrip: S.trip };
   try {
@@ -4111,7 +4727,7 @@ function popTrip() {
   S.tripPushed = false; S.ignorePop++;
   try { history.back(); } catch (e) { S.ignorePop--; }
 }
-function leaveTrip() { popTrip(); S.trip = null; S.tab = S.tripFrom || 'trips'; S.tripFrom = ''; }
+function leaveTrip() { popTrip(); disarm(); S.trip = null; S.tab = S.tripFrom || 'trips'; S.tripFrom = ''; }
 
 /* ---- actions ---- */
 /* ↩ puts a dropped trip back where it stood. Dropping keeps the decision's choice and paid amount, but the Worker's
@@ -4130,15 +4746,32 @@ function openTrip(id) {
     if (S.histPushed) { S.histPushed = false; S.tripPushed = true; }
   }
   if (!tripShowing()) S.tripFrom = from === 'trips' ? '' : from;
+  if (S.trip !== id) disarm();
+  if (S.mapFrom) { S.mapFrom = null; S.tripPushed = true; }   // the Map's own entry becomes this trip's (Back: the trip before)
   S.tab = 'trips'; S.trip = id; S.sel = id; uiSet({ sel: id });
   pushTrip();
   if (DOCS[id]) markSeen(DOCS[id]);
   render(); window.scrollTo(0, 0);
   refresh(id);
 }
+/* PIA-137: the Map a trip's 📍 opened has a history entry of its own, over the trip's, so the phone's Back comes back to
+   the trip. Leaving the Map any other way takes that entry with it (and the trip's too, unless Trips is where it goes). */
+function dropMapEntry(toTrip) {
+  if (!S.mapFrom) return;
+  S.mapFrom = null;
+  var n = !toTrip && S.tripPushed ? 2 : 1;
+  if (n === 2) S.tripPushed = false;
+  S.ignorePop++;
+  try { history.go(-n); } catch (e) { S.ignorePop--; }
+}
 var ACTS = {
   tab: function (el) {
     var v = el.dataset.v; if (!hasOwn(TABS, v)) return;
+    if (S.mapFrom && S.tab === 'map' && v !== 'map') {
+      var toTrip = v === 'trips' && tripShowingAt(S.mapFrom.id);
+      dropMapEntry(toTrip);
+      if (toTrip) { S.tab = 'trips'; render(); window.scrollTo(0, 0); return; }   // the trip it came from, as Back does
+    }
     if (S.tab === v && v === 'trips') { if (S.trip) { popTrip(); S.trip = null; S.tripFrom = ''; } }   // Trips again: back to the list
     else if (tripShowing()) { popTrip(); S.tripFrom = ''; }   // leaving a trip view: its entry goes (the view stays for Trips)
     S.tab = v;
@@ -4149,7 +4782,13 @@ var ACTS = {
   open: function (el) { openTrip(el.dataset.id); },
   back: function () { leaveTrip(); render(); window.scrollTo(0, 0); },
   pick: function (el) { S.sel = el.dataset.id; uiSet({ sel: S.sel }); render(true); },
-  tomap: function (el) { popTrip(); S.tripFrom = ''; S.sel = el.dataset.id; uiSet({ sel: S.sel }); S.tab = 'map'; render(); window.scrollTo(0, 0); },
+  tomap: function (el) {
+    var from = tripShowing() ? S.trip : '';
+    disarm();
+    if (from) { try { history.pushState({ pialaxMapOf: from }, ''); S.mapFrom = { id: from, tripFrom: S.tripFrom }; } catch (e) { S.mapFrom = null; } }
+    if (!S.mapFrom) { popTrip(); S.tripFrom = ''; }
+    S.sel = el.dataset.id; uiSet({ sel: S.sel }); S.tab = 'map'; render(); window.scrollTo(0, 0);
+  },
   shelf: function () { uiSet({ shelfOpen: !uiRead().shelfOpen }); render(true); },
   new: function (el) { openCreate({ start: el.dataset.date || '' }); },
   /* PIA-136: P-new-what → P-new-who → P-new-when */
@@ -4327,12 +4966,19 @@ var ACTS = {
   tshare: function (el) {
     var id = el.dataset.id, m = modelOf(id); if (!m) return;
     var url = handoffs(m, '', RT.hctx).share, hash = m.planHash; if (!url) return;
-    shareLink(url, function (how) { if (how === 'link') return; recordTripShared(id, hash); toast('📣'); }, function () { recordTripShared(id, hash); });
+    var shared = function () { recordTripShared(id, hash); render(true); };   // PIA-137: the 📣 stops pulsing at once
+    shareLink(url, function (how) { if (how === 'link') return; shared(); toast('📣'); }, shared);
   },
   key: function () { S.keyPulse = false; uiSet({ keySeen: true }); openSheet('key', {}); },
   settings: function () { openSheet('organizer', {}, { back: !!(S.sheet && S.sheet.type === 'key') }); },
   offline: function () { openSheet('error', { code: 'network' }); },
-  eretry: function () { refreshAll(); closeSheet(); },
+  /* ↻: the write that failed goes again (rebuilt from a fresh read); without one, every trip is read again */
+  eretry: function () {
+    var f = S.sheet && S.sheet.p ? S.sheet.p.retry : null;
+    closeSheet();
+    if (typeof f !== 'function') { refreshAll(); return null; }
+    return f().then(function (r) { if (!r.ok) showError(r.code, r.retry); else toast('✓'); return r; });
+  },
   kpage: function (el) { S.sheet.local.page = (S.sheet.local.page || 0) + (+el.dataset.v); renderSheet(false); },
   tokshow: function () { var L = S.sheet.local; L.show = !L.show; renderSheet(false); },
   /* only what was edited is checked and saved; a Worker the CSP does not allow is refused like a malformed one */
@@ -4388,6 +5034,146 @@ var ACTS = {
   restore: function (el) {
     return organizerWrite(el.dataset.id, restoreDelta).then(function (r) { if (!r.ok) showError(r.code); return r; });
   },
+  /* PIA-137: the trip view */
+  person: function (el) {
+    var m = modelOf(el.dataset.id); if (!m || !memberIn(m, el.dataset.code)) return;
+    openSheet('person', { id: m.id, code: el.dataset.code, outside: !tripShowing() });
+  },
+  face: function (el) {
+    var id = el.dataset.id, w = whoFor(id); if (!w) return;
+    var pre = w.me ? '' : w.pre;
+    openSheet('face', { id: id, hint: '', pre: pre }, { back: !!(S.sheet && S.sheet.type === 'person'), focus: pre || meFor(id) ? 'pf-mark' : null });
+  },
+  /* one tap on a face: this phone is that person on this trip (and my profile); an answer still waiting pulses */
+  pickface: function (el) {
+    var id = el.dataset.id, code = el.dataset.code, m = modelOf(id); if (!memberIn(m, code)) return;
+    confirmMe(id, code); MC = {};
+    var now = modelOf(id), me = now && now.me;
+    S.pulseAns = me && !now.closed && (me.status === 'waiting' || me.status === 'host-default') ? id : null;
+    S.facePulse = id;
+    closeSheet();
+  },
+  joinopen: function () { var L = S.sheet.local; L.join = !L.join; if (L.join) joinPrefill(S.sheet); renderSheet(false); if (L.join) focusId('join-name'); },
+  /* 🙋＋ 📣: the join request (<app>?idea=<id>&add=<name>.<IATA>) to the share sheet; nothing is written to the trip. A
+     code cut from a longer word (a city typed in the 3-letter field) is refused until it is a code; an unknown one goes. */
+  joinshare: function (el) {
+    var sh = S.sheet, L = sh.local, id = el.dataset.id, name = cleanName(L.jname), ap = String(L.jap || '');
+    if (!name) { pulseFld('join-name'); return; }
+    if ((ap && !normIata(ap)) || (L.cuts && L.cuts['join-ap'])) { pulseFld('join-ap'); return; }
+    var url = joinLink(dirBase(), id, name, ap); if (!url) return;
+    var asked = function () { var j = uiRead().joins; j = plainObj(j) ? j : {}; j[id] = { name: name, ap: normIata(ap) }; uiSet({ joins: j }); };
+    shareLink(url, function (how) { if (how === 'link') return; asked(); if (S.sheet === sh) closeSheet(); else render(true); toast('📣'); }, function () { asked(); render(true); });
+  },
+  /* a join request that reached a phone without the trip's edit key (P-joinfwd): 📣 sends the same link on */
+  joinfwd: function () {
+    var sh = S.sheet; if (!sh || sh.type !== 'joinfwd') return;
+    var url = joinLink(dirBase(), sh.p.id, sh.p.name, sh.p.airport || ''); if (!url) return;
+    shareLink(url, function (how) { if (how === 'link') return; if (S.sheet === sh) closeSheet(); toast('📣'); });
+  },
+  /* In / Maybe / Out: one complete answer, saved on the tap. Me (the person themselves: 📞 cleared), or the organizer for
+     someone else (📞). Nobody here yet: P-face first (an answer is never guessed). Tapping the answer already there sends
+     nothing, unless it is mine and the organizer entered it: my own tap takes it over (📞 goes). Out on someone booked
+     takes their 🎫 away (the Worker drops it), so it asks for a confirming tap. */
+  answer: function (el) {
+    var id = el.dataset.id, v = el.dataset.v, m = modelOf(id); if (!m || m.closed || !hasOwn(IDEA_STATUSES, v)) return null;
+    var code = el.dataset.code;
+    if (!code) { ACTS.face({ dataset: { id: id } }); return null; }
+    var x = memberIn(m, code), self = !!(m.me && m.me.code === code); if (!x) return null;
+    if (!self && !(el.dataset.proxy === '1' && m.org && !m.legacy)) return null;
+    if (x.resp && x.status === v && !(self && x.called)) return null;
+    if (v === 'out' && x.booked) { var k = armKey(id, code, 'out'); if (!armed(k)) { arm(k); return null; } }
+    disarm();
+    if (self) confirmHinted(id, code);   // a hinted face becomes this phone's with its first answer
+    S.pulseAns = null; S.keyPulse = false;
+    var p = respond(id, code, { status: v }, { by: self ? 'self' : 'proxy' });
+    if (self && v === 'in') burst(el);
+    return p.then(function (r) { if (!r.ok) showError(r.code, r.retry); else toast('✓'); return r; });
+  },
+  /* the organizer's 🎫 on someone else's row (bookToggle): one tap for someone in or maybe; a confirming tap for someone
+     waiting or out (recorded in first, 📞) and for taking a 🎫 away */
+  booked: function (el) {
+    var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), tk = m ? bookToggle(m, code) : null; if (!tk) return null;
+    var k = armKey(id, code, 'tk');
+    if (tk.confirm && !armed(k)) { arm(k); return null; }
+    disarm();
+    var was = m.stage;
+    return setBooked(id, code, !tk.on, { by: 'proxy' }).then(function (r) {
+      if (!r.ok) showError(r.code, r.retry); else { var n = modelOf(id); if (n && n.stage === 'done' && was !== 'done') toast('🏁'); }
+      return r;
+    });
+  },
+  /* my own 🎫 beside ✈ Book ↗ */
+  mybook: function (el) {
+    var id = el.dataset.id, m = modelOf(id), me = m && m.me; if (!me || !me.traveler || me.booked || m.closed) return null;
+    confirmHinted(id, me.code);
+    var was = m.stage;
+    return setBooked(id, me.code, true, { by: 'self' }).then(function (r) {
+      if (!r.ok) showError(r.code, r.retry); else { var n = modelOf(id); if (n && n.stage === 'done' && was !== 'done') toast('🏁'); }
+      return r;
+    });
+  },
+  /* taking my own 🎫 away (my sheet): a second tap */
+  unbook: function (el) {
+    var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), x = memberIn(m, code);
+    if (!x || !m.me || m.me.code !== code || !x.booked || m.closed) return null;
+    var k = armKey(id, code, 'un');
+    if (!armed(k)) { arm(k); return null; }
+    disarm();
+    return setBooked(id, code, false, { by: 'self' }).then(function (r) { if (!r.ok) showError(r.code, r.retry); return r; });
+  },
+  /* an airport cell: only the Worker's hub pairs (PIA/ORD, LGA/JFK); the person's link and bar follow at once */
+  legair: function (el) {
+    var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), x = memberIn(m, code);
+    if (!x || m.closed || !x.answered || !x.traveler || m.hub.length !== 2) return null;
+    var self = !!(m.me && m.me.code === code); if (!self && !(m.org && !m.legacy)) return null;
+    var v = normIata(el.dataset.v); if (m.hub.indexOf(v) < 0) return null;
+    var end = el.dataset.end === '1' ? 'leave_from' : 'arrive_at';
+    if ((end === 'leave_from' ? x.H : x.A) === v) return null;
+    var patch = {}; patch[end] = v === m.dest ? '' : v;
+    if (self) confirmHinted(id, code);
+    return respond(id, code, patch, { by: self ? 'self' : 'keep' }).then(function (r) { if (!r.ok) showError(r.code, r.retry); return r; });
+  },
+  origedit: function (el) {
+    var L = S.sheet.local; L.origEdit = el.dataset.code; L.orig = null; if (L.cuts) L.cuts['orig-code'] = false; renderSheet(false); focusId('orig-code');
+    var f = document.getElementById('orig-code'); if (f && f.select) { try { f.select(); } catch (e) { /* not selectable */ } }   // typing replaces the code
+  },
+  origsave: function (el) {
+    var L = S.sheet.local, id = el.dataset.id, code = el.dataset.code, m = modelOf(id), x = memberIn(m, code);
+    var raw = String(L.orig != null ? L.orig : (x ? x.origin : '')).toUpperCase().replace(/[^A-Z]/g, '');
+    if ((raw && raw.length !== 3) || (L.cuts && L.cuts['orig-code'])) { pulseFld('orig-code'); return null; }
+    L.origEdit = null; L.orig = null;
+    if (!x || m.closed || !x.answered) { renderSheet(false); return null; }
+    var self = !!(m.me && m.me.code === code); if (!self && !(m.org && !m.legacy)) { renderSheet(false); return null; }
+    var v = raw && raw !== x.airport ? raw : '';
+    if (v === (x.override || '')) { renderSheet(false); return null; }
+    if (self) confirmHinted(id, code);
+    return respond(id, code, { origin: v }, { by: self ? 'self' : 'keep' }).then(function (r) { if (!r.ok) showError(r.code, r.retry); return r; });
+  },
+  /* one person's note: to edit (the person, or the organizer for them), or to read; someone else's opens read-only */
+  pnote: function (el) {
+    var m = modelOf(el.dataset.id), x = memberIn(m, el.dataset.code), mine = !!(x && m.me && m.me.code === x.code);
+    openSheet('note', { id: el.dataset.id, code: el.dataset.code }, { back: !!(S.sheet && S.sheet.type === 'person'), focus: mine || !(x && x.noteText) ? 'note-text' : null });
+  },
+  /* someone else's note, opened to read on the organizer's phone: ✎ makes it a field (his words are marked 📞) */
+  noteedit: function () { var L = S.sheet && S.sheet.local; if (!L || !L.canEdit) return; L.edit = true; renderSheet(false); focusId('note-text'); },
+  /* ✓ on a note: save it now (the sheet goes back, as ‹ does) */
+  notesave: function () { if (S.sheet && S.sheet.back) sheetBack(); else closeSheet(); },
+  /* 📣 one person: on the organizer's phone their own link (the guest link with #m=<code>); on anyone else's the group
+     link, so a guest never hands out someone else's personal link */
+  nudge: function (el) {
+    var m = modelOf(el.dataset.id); if (!m || m.closed) return;
+    var ho = handoffs(m, el.dataset.code, RT.hctx); if (!ho || !ho.nudge) return;
+    var url = m.org ? ho.nudge : ho.share; if (!url) return;
+    shareLink(url, function (how) { if (how !== 'link') toast('📣'); });
+  },
+  stage: function (el) { if (modelOf(el.dataset.id)) openSheet('stage', { id: el.dataset.id }); },
+  star: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.pin = !x.pin; listWrite(L); render(true); },
+  hidehere: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.arch = !x.arch; listWrite(L); render(true); toast('🗄'); },
+  ring: function (el) {
+    var b = document.getElementById('board-' + el.dataset.id); if (!b) return;
+    try { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* no scrolling here */ }
+    pulseEl(b, 'hl');
+  },
   'sh-close': function () { closeSheet(); },
   'sh-back': function () { sheetBack(); }
 };
@@ -4401,7 +5187,8 @@ function wire() {
     var el = e.target.closest && e.target.closest('[data-act]'); if (!el || el.disabled || (el.getAttribute('aria-disabled') === 'true' && !el.hasAttribute('data-why'))) return;
     var fn = ACTS[el.dataset.act]; if (!fn) return;
     S.lastCtl = el.closest('#sheet') ? null : el;   // a sheet this opens gives focus back to it on close
-    try { fn(el, e); } finally { S.lastCtl = null; }
+    var dis = !ARM_ACTS[el.dataset.act] && disarm();   // PIA-137: any other tap puts an armed confirm back
+    try { fn(el, e); } finally { S.lastCtl = null; if (dis && S.booted) render(true); }
   }, true);
   // a tap on the scrim around a sheet closes it (as ⌄ does); what was typed in ⚙ is kept for the next open
   document.addEventListener('click', function (e) { if (e.target && e.target.id === 'scrim') closeSheet(); });
@@ -4422,6 +5209,10 @@ function wire() {
       var aid = document.activeElement.id;
       if (aid === 'mem-name') { e.preventDefault(); focusId('mem-ap'); return; }   // name → airport → the row closes into a chip
       if (aid === 'mem-ap' && S.sheet.local.d) { e.preventDefault(); closeEditor(S.sheet.local.d); renderSheet(false); var ad = $('#sheet [data-act="nadd"]') || $('#sheet .btn.pri'); if (ad) ad.focus(); return; }
+      // PIA-137: a join request's name → its airport → 📣; a home airport → ↵
+      if (aid === 'join-name') { e.preventDefault(); focusId('join-ap'); return; }
+      var own = aid === 'join-ap' ? $('#sheet [data-act="joinshare"]') : aid === 'orig-code' ? $('#sheet [data-act="origsave"]') : null;
+      if (own) { e.preventDefault(); own.click(); return; }
       var pri = $('#sheet .btn.pri:not([disabled])'); if (pri) { e.preventDefault(); pri.click(); }
     }
   });
@@ -4429,6 +5220,10 @@ function wire() {
   window.addEventListener('popstate', function (e) {
     if (S.ignorePop > 0) { S.ignorePop--; return; }
     if (S.sheet) { closeSheet(true); return; }
+    if (S.mapFrom && S.tab === 'map') {   // PIA-137: Back on the Map a trip's 📍 opened: that trip again
+      var mf = S.mapFrom; S.mapFrom = null;
+      if (tripShowingAt(mf.id)) { S.tab = 'trips'; S.tripFrom = mf.tripFrom || ''; render(); window.scrollTo(0, 0); refresh(mf.id); return; }
+    }
     var st = (e && e.state) || {};
     if (st.pialaxTrip && IDEA_ID_RE.test(String(st.pialaxTrip)) && listIds().indexOf(st.pialaxTrip) >= 0) {   // Forward onto a trip view
       if (S.trip !== st.pialaxTrip || S.tab !== 'trips') { S.tripPushed = true; S.tripFrom = S.tab === 'trips' ? '' : S.tab; S.tab = 'trips'; S.trip = st.pialaxTrip; render(); window.scrollTo(0, 0); refresh(S.trip); }
@@ -4466,7 +5261,8 @@ function boot() {
   S = { tab: hasOwn(TABS, nav.tab) ? nav.tab : 'trips', seg: nav.seg === 'family' ? 'family' : 'ideas', trip: null, sel: IDEA_ID_RE.test(String(ui.sel || '')) ? ui.sel : '',
     sheet: null, linkTrip: '', linkFresh: false, errNext: '', drafts: {}, opener: null, lastCtl: null, shown: '', hint: null, toastNext: '', keyPulse: !ui.keySeen, saveNext: null, fly: null,
     histPushed: false, tripPushed: false, tripFrom: '', ignorePop: 0, booted: false,
-    joinNext: null, newNext: null, errNext0: '', undo: null };   // PIA-136: a join request, a v1 ?tripIdea= link, ↩
+    joinNext: null, newNext: null, errNext0: '', undo: null,   // PIA-136: a join request, a v1 ?tripIdea= link, ↩
+    faceAsked: {}, facePulse: null, pulseAns: null, armTk: null, armAt: 0, picked: {}, errRetry: null, mapFrom: null };   // PIA-137: P-face once per trip and visit, one-time pulses, a control waiting for its confirming tap, this visit's picks, P-error's ↻
   importV1Once();
   applyLink(readLink(location.search || '', location.hash || '', location.pathname || ''));
   // a reload of a trip view keeps its own history entry (the one a tap pushed); a trip view a link opened has none

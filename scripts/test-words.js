@@ -110,6 +110,16 @@ DOC[OJ] = mkDoc(OJ, '🗽 New York weekend', 'LGA', { departure: '2026-12-11', r
 const LC = 'lcLongCaptionTrip00c01';
 DOC[LC] = mkDoc(LC, '🎄 Christmas in Peoria', 'PIA', { departure: '2026-12-22', return: '2026-12-27' }, '📌2026-12-25 ' + Array.from({ length: 30 }, (_, i) => 'longword' + i).join(' '),
   [['ashwin-c1', '🌴 Ashwin', 'LAX'], ['anjo-c2', '🗽 Anjo', 'LGA']], { 'ashwin-c1': { origin: 'LAX' } });
+// PIA-137: a trip whose dates are set (🔒) in Peoria (PIA/ORD): the organizer's 🎫 marks, a host, someone waiting and someone
+// out, a 2-word name and a leave from ORD; and a paid New Year trip (closed: 🏁) where the guest has booked
+const LK = 'lkLockedChristmas00k01', PD = 'pdPaidNewYearTrip00p01';
+DOC[LK] = mkDoc(LK, '🎄 Christmas at the Hernández-Villanuevas', 'PIA', { departure: '2026-12-22', return: '2026-12-27' }, '📌2026-12-25 Bring the good pie',
+  [['ashwin-k1', '🌴 Ashwin', 'LAX'], ['guadalupe-k2', '🦉 Guadalupe Hernández-Villanueva', 'PIA', 2], ['leo-k3', '🐸 Leonardo Bartholomew', 'SEA'], ['anjo-k4', '🗽 Anjo', 'LGA'], ['sam-k5', '🐨 Sam Lee', 'PDX']],
+  { 'ashwin-k1': { origin: 'LAX', available_from: '2026-12-21', leave_from: 'ORD' }, 'leo-k3': { origin: 'SEA', note: 'Red-eye Monday night then a train down from Chicago with the kids and the dog' }, 'sam-k5': { status: 'out', note: 'Work' } }, 'chosen');
+DOC[PD] = mkDoc(PD, '🎉 New Year in New York', 'LGA', { departure: '2026-12-30', return: '2027-01-02' }, '',
+  [['ashwin-q1', '🌴 Ashwin', 'LAX'], ['leo-q3', '🐸 Leonardo Bartholomew', 'SEA'], ['anjo-q4', '🗽 Anjo', 'LGA']], { 'ashwin-q1': { origin: 'LAX', booked: true }, 'leo-q3': { origin: 'SEA', booked: true } }, 'booked');
+DOC[PD].decision.actual_total = 1400;
+DOC[PD].decision.chosen = { airport: 'LGA', city: 'New York', departure: '2026-12-30', return: '2027-01-02' };
 const idOk = Object.keys(DOC).every((id) => /^[A-Za-z0-9_-]{22}$/.test(id) && DOC[id].id === id);
 // PIA-135: cached real fares on the organizer's token phone (keys from the model itself): Diwali complete and fresh,
 // the long-title trip partly priced, the unknown-airports trip priced from a stale search
@@ -139,7 +149,10 @@ const PHONES = {
   widest: { ls: { pialax_watchlist_v2: listRec([WC1, WC2, OJ]), pialax_idea_keys_v1: keyRec([WC1, OJ]), pialax_proxy_token: TOKEN, pialax_fares_v2: FARES,   // PIA-135: the widest card, and a half-priced open-jaw traveler
     pialax_idea_me_v1: { [WC1]: 'ashwin-w1', [WC2]: 'ashwin-w9', [OJ]: 'ashwin-o1' }, pialax_ui_v1: { v1read: 1 } } }
 };
-const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY, [WC1]: KEY, [OJ]: KEY, [M8]: KEY, [LC]: KEY };
+const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY, [WC1]: KEY, [OJ]: KEY, [M8]: KEY, [LC]: KEY, [LK]: KEY };
+// PIA-137 phones: the organizer of the set Christmas trip (his 🎫 marks on the board), and a guest on it and on the paid trip
+PHONES.lockorg = { ls: { pialax_watchlist_v2: listRec([LK]), pialax_idea_keys_v1: keyRec([LK]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [LK]: 'ashwin-k1' }, pialax_ui_v1: { v1read: 1 } } };
+PHONES.portal = { ls: { pialax_watchlist_v2: listRec([LK, PD]), pialax_idea_me_v1: { [LK]: 'leo-k3', [PD]: 'leo-q3' }, pialax_ui_v1: { v1read: 1 } } };
 // PIA-136 phones: Ashwin's token phone whose trip added last is the family's (Diwali), and one trip with a longer v1 caption
 PHONES.diwali = { ls: { pialax_watchlist_v2: [{ id: B, t: '', e: '', at: 1, pin: false, arch: false }, { id: A, t: '', e: '', at: 2, pin: false, arch: false }], pialax_idea_keys_v1: keyRec([A]), pialax_proxy_token: TOKEN,
   pialax_idea_me_v1: { [A]: 'ashwin-p8', [B]: 'ashwin-l2' }, pialax_ui_v1: { v1read: 1 } } };
@@ -483,6 +496,44 @@ async function main() {
     await closeSheet(page);
     return true;
   }
+  // PIA-137: the trip view's sheets on every trip a phone can open: P-person for every face (each one's note too), P-stage, and
+  // P-face (⇄, or 👋 ? on a trip where this phone is nobody) with its join row holding the longest name that can be typed.
+  // Long-press inside each kind of sheet once per phone. Controls are tapped as the app sees a tap (the sticky primary may
+  // sit over a row of the board).
+  const faceLog = [], sheetLog = [];
+  const jsClick = (page, sel) => page.$eval(sel, (e) => e.click());
+  async function tripWalk(page, tag, who, deep) {
+    const codes = await page.evaluate(() => [...document.querySelectorAll('#screen .pb [data-act="person"]')].map((e) => e.getAttribute('data-code')));
+    for (const c of deep ? codes : codes.slice(0, 2)) {
+      await jsClick(page, '#screen .pb [data-act="person"][data-code="' + c + '"]'); await settle(page, 80);
+      await measurePopup(page, tag('P-person ' + c));
+      if (deep && !seenOn(who + ' person').done) { seenOn(who + ' person').done = true; await labelCheck(page, tag('P-person ' + c), who + '-person', 'sheet'); }
+      if (await page.$('#sheet [data-act="pnote"]')) {
+        await jsClick(page, '#sheet [data-act="pnote"]'); await settle(page, 80);
+        await measurePopup(page, tag('P-note ' + c));
+        await jsClick(page, '#sheet [data-act="sh-back"]'); await settle(page, 60);
+      }
+      await closeSheet(page);
+    }
+    if (await page.$('#screen [data-act="stage"]')) {
+      await jsClick(page, '#screen [data-act="stage"]'); await settle(page, 80);
+      await measurePopup(page, tag('P-stage'));
+      if (deep && !seenOn(who + ' stage').done) { seenOn(who + ' stage').done = true; await labelCheck(page, tag('P-stage'), who + '-stage', 'sheet'); }
+      await closeSheet(page);
+    }
+    if (await page.$('#screen [data-act="face"]')) {
+      await jsClick(page, '#screen [data-act="face"]'); await settle(page, 80);
+      await measurePopup(page, tag('P-face'));
+      if (deep && !seenOn(who + ' face').done) { seenOn(who + ' face').done = true; await labelCheck(page, tag('P-face'), who + '-face', 'sheet'); }
+      if (await page.$('#sheet [data-act="joinopen"]')) {
+        await jsClick(page, '#sheet [data-act="joinopen"]'); await settle(page, 60);
+        await page.type('#join-name', 'Bartholomew Montgomery Fitzgerald Junior', { delay: 0 }); await page.type('#join-ap', 'zzq', { delay: 0 });
+        const w = await measurePopup(page, tag('P-face (join row, the longest name)'));
+        sheetLog.push({ who: tag(''), join: await page.$eval('#join-name', (e) => e.value), words: w.length });
+      }
+      await closeSheet(page);
+    }
+  }
   // every screen of one phone: list (shelf open and shut), Family, each trip view, Map and Calendar per chip
   async function walk(name, o) {
     o = o || {};
@@ -506,7 +557,10 @@ async function main() {
     let edited = false;
     for (const id of trips) {
       await openCard(page, id); await settle(page, 150);
+      // PIA-137: a trip this phone is nobody on opens P-face by itself (once a visit): counted, then ⌄ (browse as nobody)
+      if ((await popupId(page)) === 'P-face') { await measurePopup(page, tag('trip ' + id + ' › P-face (by itself)')); faceLog.push(tag(id)); await closeSheet(page); }
       await visit('trip ' + id);
+      await tripWalk(page, (s) => tag('trip ' + id + ' › ' + s), name + '@' + W0, deep);
       if (!edited) edited = await editWalk(page, (s) => tag('trip ' + id + ' › ' + s), name + '@' + W0, deep);   // PIA-136: P-edit on the first trip this phone organizes
       await page.click('#screen [data-act="back"]'); await settle(page, 120);
     }
@@ -587,7 +641,7 @@ async function main() {
 
   // ═══ AC3: every screen and popup within budget, at three widths, on every phone ═══
   section('AC3 the strict word gate: every screen ≤10 words and every popup ≤20, rendered, on every phone');
-  const NAMES = ['organizer', 'guest', 'host', 'eight', 'shelf', 'fresh'];
+  const NAMES = ['organizer', 'guest', 'host', 'eight', 'shelf', 'fresh', 'lockorg', 'portal'];
   for (const width of WIDTHS) await Promise.all(NAMES.map((name) => walk(name, { width })));   // phones in parallel, one width at a time
   ok('walked every screen of the ' + NAMES.join(', ') + ' phones at ' + WIDTHS.join(', ') + 'px');
   {
@@ -701,6 +755,7 @@ async function main() {
     check(!brand, 'no wordmark anywhere on screen');
     check((await screenId(page)) === 'trips-ideas' && !!(await page.$('#screen .seg [data-v="ideas"][aria-pressed="true"]')) && !!(await page.$('#screen .seg [data-v="family"]')), 'a cold open lands on Trips › Ideas, with the [Ideas | Family] segment (this phone holds several trips)');
     await openCard(page, M8); await settle(page, 120);
+    if ((await popupId(page)) === 'P-face') await closeSheet(page);   // PIA-137: this phone is nobody on that trip (P-face asks once; ⌄ browses)
     await page.click('#tabbar [data-v="map"]'); await settle(page, 120);
     const sel = async () => page.evaluate(() => { const p = document.querySelector('#screen [data-act="pick"][aria-pressed="true"]'); return p ? p.getAttribute('data-id') : null; });
     const mapSel = await sel();
@@ -979,8 +1034,8 @@ async function main() {
     const words = (s) => String(s || '').split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
     const off = createLog.filter((x) => x.first.pop !== 'P-new-what' || x.first.title !== '' || x.first.focus !== 'new-title' || x.typed.dest !== 'ZZQ' || !x.typed.warn ||
       words(x.typed.title) !== 12 || x.who2 !== 'P-new-who' || x.when !== 'P-new-when' || words(x.row.name) !== 3 || x.row.ap !== 'QQQ');
-    check(createLog.length === 18 && off.length === 0,
-      'PIA-136 AC1/AC2/AC9 ＋ on all six phones at 360/390/430: P-new-what opens empty with the name focused; a name takes 12 words at most and a person\'s 3 (typing past stops); an unknown code (ZZQ) is marked 📍⚠ and ▶ goes on; ▶ ▶ reaches P-new-when — every step counted ≤20 words',
+    check(createLog.length === NAMES.length * WIDTHS.length && off.length === 0,
+      'PIA-136 AC1/AC2/AC9 ＋ on every phone (' + NAMES.length + ') at 360/390/430: P-new-what opens empty with the name focused; a name takes 12 words at most and a person\'s 3 (typing past stops); an unknown code (ZZQ) is marked 📍⚠ and ▶ goes on; ▶ ▶ reaches P-new-when — every step counted ≤20 words',
       off.slice(0, 2));
     const eight = editLog.filter((x) => /^eight /.test(x.who)), org = editLog.filter((x) => /^organizer /.test(x.who));
     const good = (x) => JSON.stringify(x.tiles) === '["etitle","epeople","ecap","ekey","edrop"]' && x.linkPop === 'P-link' && /#k=pialax-test-edit-key/.test(x.linkTxt) && x.warned &&
@@ -1077,14 +1132,21 @@ async function main() {
     await measurePopup(page, 'join request › P-edit-who (Sam Lee open)');
     const p0 = net.posts;
     await page.click('#sheet [data-act="esave2"]'); await settle(page, 300);
-    const after = { pop: await popupId(page), scr: await screenId(page), faces: (await page.$$('#screen .dayf')).length, url: page.url() };
+    const after = { pop: await popupId(page), scr: await screenId(page), faces: (await page.$$('#screen .pb-row')).length, url: page.url() };
     await measureScreen(page, 'join request › the trip with Sam');
     check(pop === 'P-edit-who' && row.name === 'Sam Lee' && row.ap === 'OAK' && net.posts - p0 === 1 && after.pop === null && after.scr === 'trip-organizer' && after.faces === 4 && !/[?&]add=/.test(after.url),
       'PIA-136 AC6 ?idea=…&add=Sam Lee.OAK on the organizer\'s phone opens the people editor with Sam (OAK) added and open; one Save adds him (one update)', { pop, row, after });
     await ctx.close();
-    const g = await phone('guest', { url: '?idea=' + A + '&add=' + encodeURIComponent('Sam Lee.OAK') });
+    // PIA-137: on someone else's phone the request is not lost: the trip opens under P-joinfwd, whose 📣 sends it on
+    const g = await phone('guest', { url: '?idea=' + A + '&add=' + encodeURIComponent('Sam Lee.OAK'), share: true });
     await settle(g.page, 200);
-    check((await popupId(g.page)) === null && /^trip-/.test(await screenId(g.page)), 'the same link on someone else\'s phone just opens the trip');
+    const gpop = await popupId(g.page), gscr = await screenId(g.page);
+    const gw = await measurePopup(g.page, 'join request on a guest\'s phone › P-joinfwd');
+    await labelCheck(g.page, 'P-joinfwd', 'joinfwd', 'sheet');
+    await g.page.click('#sheet [data-act="joinfwd"]'); await settle(g.page, 200);
+    const fwd = await g.page.evaluate(() => window.__shared || []);
+    check(gpop === 'P-joinfwd' && /^trip-/.test(gscr) && gw.join(' ').indexOf('Sam Lee') >= 0 && fwd.length === 1 && /\?idea=[A-Za-z0-9_-]+&add=Sam%20Lee\.OAK$/.test(fwd[0].url) && Object.keys(fwd[0]).join() === 'url' && (await popupId(g.page)) === null,
+      'PIA-137 the same link on someone else\'s phone opens the trip under P-joinfwd (Sam Lee, OAK): its 📣 (a real tap) sends the same link on, URL only', { gpop, words: gw, fwd });
     await g.ctx.close();
   }
   {
@@ -1180,6 +1242,225 @@ async function main() {
   }
 
   // ═══ AC5 summary, network, console ═══
+  section('PIA-137 the trip view: the 3-tap and 2-tap answers with real clicks, P-face and its join row, one person\'s sheet and note, closed and set trips');
+  {
+    // the walk above: every trip view and its sheets on every phone, at every width
+    check(faceLog.length >= 6 && sheetLog.length >= 8 && sheetLog.every((x) => x.join.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 3 && x.words <= POPUP_MAX),
+      'PIA-137 the walk opened P-person for every face (and each one\'s note), P-stage and P-face on every trip of every phone; P-face opened by itself where a phone is nobody (' + faceLog.length + ' times); a join name stops at 3 words', sheetLog.slice(0, 2));
+  }
+  {
+    // AC1 the group link: the link (1) opens P-face; 🗽 (2); In (3). One answer, through the real Worker
+    const { ctx, page, net } = await phone('fresh', { worker: true, url: '?idea=' + A });
+    await settle(page, 200);
+    let taps = 1;
+    const pop = await popupId(page);
+    await measurePopup(page, 'group link › P-face (by itself)');
+    const tiles = await page.$$eval('#sheet [data-act="pickface"]', (els) => els.map((e) => e.getAttribute('data-code')));
+    taps++; await page.click('#sheet [data-act="pickface"][data-code="anjo-z5"]'); await settle(page, 200);
+    const w1 = await measureScreen(page, 'group link › the trip as Anjo (before she answers)');
+    const pulsed = await page.evaluate(() => !!document.querySelector('#screen .answers.nudge'));
+    const p0 = net.posts;
+    taps++; await page.click('#screen [data-act="answer"][data-v="in"]'); await settle(page, 400);
+    const r = JSON.parse(net.kv.map.get('idea:' + A)).responses['anjo-z5'];
+    const st = await page.evaluate(() => ({ me: JSON.parse(localStorage.getItem('pialax_idea_me_v1') || '{}'), pressed: (document.querySelector('#screen [data-act="answer"][aria-pressed="true"]') || {}).textContent || '' }));
+    await measureScreen(page, 'group link › the trip after In');
+    check(pop === 'P-face' && tiles.length === 3 && taps === 3 && net.posts - p0 === 1 && r && r.status === 'in' && st.me[A] === 'anjo-z5' && /In$/.test(st.pressed) && pulsed && w1.indexOf('Anjo') >= 0,
+      'PIA-137 AC1 from the plain group link Anjo answers in 3 taps with real clicks: the link (P-face opens by itself), 🗽 (the answer row pulses), In (one answer, saved)', { pop, taps, pulsed, status: r && r.status });
+    await ctx.close();
+  }
+  {
+    // AC1 a personal nudge link: the link (1) greets Anjo, In (2)
+    const { ctx, page, net } = await phone('fresh', { worker: true, url: '?idea=' + A + '#m=anjo-z5' });
+    await settle(page, 200);
+    const pop = await popupId(page), url = page.url();
+    const w = await measureScreen(page, 'nudge link › greeted as Anjo');
+    const p0 = net.posts;
+    await page.click('#screen [data-act="answer"][data-v="in"]'); await settle(page, 400);
+    const r = JSON.parse(net.kv.map.get('idea:' + A)).responses['anjo-z5'];
+    check(pop === null && url.indexOf('#') < 0 && w.indexOf('Anjo') >= 0 && net.posts - p0 === 1 && r && r.status === 'in',
+      'PIA-137 AC1 from a personal nudge link (#m=anjo-z5) the trip greets Anjo with no sheet and the hint leaves the address bar; In answers: 2 taps', { pop, words: w.join(' ') });
+    await ctx.close();
+    // the same link on a phone that is someone else there: P-face asks, the hint outlined; the remembered face stays until a tap
+    const g = await phone('organizer', { url: '?idea=' + A + '#m=anjo-z5' });
+    await settle(g.page, 200);
+    const gp = await popupId(g.page), outlined = await g.page.$eval('#sheet .tile.hint', (e) => e.getAttribute('data-code')).catch(() => null);
+    const hinted = await g.page.$eval('#sheet .tile.hinted', (e) => e.getAttribute('data-code')).catch(() => null);
+    const focused = await g.page.evaluate(() => (document.activeElement || {}).id === 'pf-mark' && document.activeElement.getAttribute('data-code'));
+    await measurePopup(g.page, 'nudge link on another face\'s phone › P-face (the remembered face outlined, the hint marked)');
+    await closeSheet(g.page);
+    const kept = await g.page.evaluate(() => JSON.parse(localStorage.getItem('pialax_idea_me_v1'))['dwDiwaliRaleigh2026a01']);
+    check(gp === 'P-face' && outlined === 'ashwin-p8' && focused === 'ashwin-p8' && hinted === 'anjo-z5' && kept === 'ashwin-p8' && (await g.page.$eval('#screen .me .nm', (e) => e.textContent)).indexOf('Ashwin') >= 0,
+      'PIA-137 AC1 a hint never silently overrides a different remembered face: P-face outlines and focuses Ashwin (the remembered face), marks Anjo (✉), and ⌄ leaves this phone Ashwin', { gp, outlined, focused, hinted, kept });
+    await g.ctx.close();
+    // a forwarded nudge link on a phone whose profile is someone else on the trip: never greeted as Anjo
+    const d = await phone('fresh', { worker: true, url: '?idea=' + A + '#m=anjo-z5', ls: { pialax_ui_v1: { v1read: 1 }, pialax_me_profile_v1: { label: '🌽 Mom & Dad' } } });
+    await settle(d.page, 200);
+    const dp = await popupId(d.page), dOut = await d.page.$eval('#sheet .tile.hint', (e) => e.getAttribute('data-code')).catch(() => null);
+    const dw = await measurePopup(d.page, 'forwarded nudge link on Dad\'s phone › P-face (Mom & Dad outlined, Anjo marked)');
+    check(dp === 'P-face' && dOut === 'momdad-k3' && dw.join(' ').indexOf('Who are you?') >= 0,
+      'PIA-137 Anjo\'s nudge link forwarded to Dad\'s phone (profile Mom & Dad) asks "Who are you?" with Mom & Dad outlined: nobody is greeted as Anjo', { dp, dOut });
+    await d.ctx.close();
+  }
+  {
+    // AC2 + AC12 the join row: a long name stops at 3 words, the airport takes 3 letters, 📣 hands over the join link only
+    const { ctx, page } = await phone('fresh', { url: '?idea=' + B, share: true });
+    await settle(page, 200);
+    await page.click('#sheet [data-act="joinopen"]'); await settle(page, 80);
+    const focus = await page.evaluate(() => (document.activeElement || {}).id);
+    await page.type('#join-name', 'Nina Okafor Adaeze Obi', { delay: 0 }); await page.type('#join-ap', 'bos', { delay: 0 });
+    const vals = await page.evaluate(() => [document.querySelector('#join-name').value, document.querySelector('#join-ap').value]);
+    await measurePopup(page, 'P-face › 🙋＋ join row (typed)');
+    await labelCheck(page, 'P-face › join row', 'join-face', 'sheet');
+    await page.click('#sheet [data-act="joinshare"]'); await settle(page, 200);
+    const shared = await page.evaluate(() => window.__shared || []);
+    check(focus === 'join-name' && vals[0].trim() === 'Nina Okafor Adaeze' && vals[1] === 'BOS' && shared.length === 1 && Object.keys(shared[0]).join() === 'url' &&
+      /\?idea=thTahoeSkiWeekend26b02&add=Nina%20Okafor%20Adaeze\.BOS$/.test(shared[0].url) && !/app\.html/.test(shared[0].url) && (await popupId(page)) === null,
+      'PIA-137 AC2 🙋＋ focuses the name, which stops at 3 words; the airport takes 3 letters; 📣 shares the app folder\'s ?idea=…&add=Nina Okafor Adaeze.BOS (URL only) and closes', { vals, shared });
+    await ctx.close();
+  }
+  {
+    // AC3 a host sees their In drawn as unconfirmed (dotted), not pressed
+    const { ctx, page } = await phone('host', { url: '?idea=' + TG });
+    await settle(page, 200);
+    const h = await page.$eval('#screen .ans.in', (e) => ({ cls: e.className, pressed: e.getAttribute('aria-pressed'), outline: getComputedStyle(e).outlineStyle, text: e.textContent }));
+    const others = await page.$$eval('#screen .ans', (els) => els.map((e) => e.textContent + ':' + e.getAttribute('aria-pressed')));
+    check(/\bdef\b/.test(h.cls) && h.pressed === 'false' && h.outline === 'dotted' && JSON.stringify(others) === JSON.stringify(['In:false', 'Maybe:false', 'Out:false']),
+      'PIA-137 AC3 Mom & Dad\'s In is drawn dotted, unconfirmed and not pressed until they tap it; In / Maybe / Out are labelled', { h, others });
+    await ctx.close();
+  }
+  {
+    // AC4 / AC7 / AC8 / AC12 the 8-member trip with long names, as its organizer: every person's sheet, a note typed past its cap
+    const { ctx, page, net } = await phone('eight', { worker: true, url: '?idea=' + M8 });
+    await settle(page, 200);
+    const codes = await page.$$eval('#screen .pb [data-act="person"]', (els) => els.map((e) => e.getAttribute('data-code')));
+    let proxy = 0, links = 0;
+    for (const c of codes) {
+      await jsClick(page, '#screen .pb [data-act="person"][data-code="' + c + '"]'); await settle(page, 80);
+      await measurePopup(page, '8 long names › P-person ' + c);
+      if (await page.$('#sheet [data-act="answer"][data-proxy="1"]')) proxy++;
+      if (await page.$('#sheet a[data-k="gf"]')) links++;
+      await closeSheet(page);
+    }
+    await jsClick(page, '#screen .pb [data-act="person"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await settle(page, 80);
+    await jsClick(page, '#sheet [data-act="pnote"]'); await settle(page, 100);
+    // his note opens to read on the organizer's phone (no field, no keyboard); ✎ (a real tap) makes it a field
+    const ro = await page.evaluate(() => ({ field: !!document.querySelector('#sheet textarea'), focus: (document.activeElement || {}).tagName, edit: !!document.querySelector('#sheet [data-act="noteedit"]') }));
+    await measurePopup(page, '8 long names › P-note (someone else\'s, read first)');
+    await page.click('#sheet [data-act="noteedit"]'); await settle(page, 80);
+    check(!ro.field && ro.focus !== 'TEXTAREA' && ro.edit && !!(await page.$('#sheet textarea#note-text')) && !!(await page.$('#sheet [data-act="notesave"]')),
+      'PIA-137 the organizer opening someone else\'s note reads it (no field, no keyboard); ✎ makes it a field with ✓ to save', ro);
+    await page.fill('#note-text', '');
+    await page.type('#note-text', Array.from({ length: 25 }, (_, i) => 'w' + i + 'x').join(' '), { delay: 0 });
+    const typed = await page.$eval('#note-text', (e) => e.value);
+    await measurePopup(page, '8 long names › P-note (the organizer, typed past 20 words)');
+    const p0 = net.posts;
+    await closeSheet(page); await settle(page, 400);
+    const r = JSON.parse(net.kv.map.get('idea:' + M8)).responses['bartholomewmontgomeryfitzgera-dj'];
+    const nw = typed.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
+    check(codes.length === 8 && proxy === 7 && links >= 4 && nw === 20 && net.posts - p0 === 1 && r.note === '📞 ' + typed.trim() && r.available_from === '2026-12-10' && r.origin === 'ORD',
+      'PIA-137 AC7 / AC8 the organizer opens all 8 sheets (an answer row, 📞, on each but his own; each traveler\'s link), and a note typed for Bartholomew stops at 20 words and saves marked 📞 with his days and origin kept', { proxy, links, nw, note: r.note.slice(0, 40) });
+    await jsClick(page, '#screen [data-act="stage"]'); await settle(page, 80);
+    const names = await page.evaluate(() => [...document.querySelectorAll('#sheet .srow')].map((e) => e.lastElementChild.textContent.trim()));
+    await measurePopup(page, '8 long names › P-stage');
+    await closeSheet(page);
+    check(names.join('|') === 'Idea|Asking|Dates set|Booking|Done', 'P-stage names the five stages', names);
+    await ctx.close();
+  }
+  {
+    // AC6 / AC7 / AC11 the set Christmas trip (organizer: 🎫 marks, Book), the paid New Year trip (closed: 🏁, Flighty)
+    const { ctx, page } = await phone('lockorg', { url: '?idea=' + LK });
+    await settle(page, 200);
+    const o = await page.evaluate(() => ({
+      tk: [...document.querySelectorAll('#screen .pb [data-act="booked"]')].map((e) => e.getAttribute('data-code')),
+      book: !!document.querySelector('#screen .split.prim a[data-k="gf"]') && /Book/.test((document.querySelector('#screen .split.prim') || {}).textContent || ''),
+      mine: !!document.querySelector('#screen .split.prim [data-act="mybook"]'), drive: !!document.querySelector('#screen [data-k="drive"]') }));
+    await jsClick(page, '#screen .pb [data-act="booked"][data-code="anjo-k4"]'); await settle(page, 100);
+    const armed = await page.$eval('#screen .pb [data-act="booked"][data-code="anjo-k4"]', (e) => e.className + '|' + e.getAttribute('aria-label'));
+    await measureScreen(page, 'set trip › a 🎫 waiting for its confirming tap');
+    check(JSON.stringify(o.tk) === JSON.stringify(['leo-k3', 'anjo-k4', 'sam-k5']) && o.book && o.mine && o.drive && /arm/.test(armed) && /Confirm booked/.test(armed),
+      'PIA-137 AC6 / AC7 once the dates are set the organizer\'s primary is [✈ Book ↗ | 🎫], and his 🎫 marks sit on other travelers\' rows (not the host, not his own); Anjo, who has not answered, needs a confirming tap', { o, armed });
+    await ctx.close();
+    const g = await phone('portal', { url: '?idea=' + PD });
+    await settle(g.page, 200);
+    const p = await g.page.evaluate(() => ({ closed: (document.querySelector('#screen .closed') || {}).textContent, answers: document.querySelectorAll('#screen [data-act="answer"]').length,
+      flighty: !!document.querySelector('#screen .split.prim a[data-k="flighty"]'), dollars: document.querySelector('#screen').textContent.indexOf('$') }));
+    await measureScreen(g.page, 'paid trip › closed');
+    await jsClick(g.page, '#screen .me [data-act="person"]'); await settle(g.page, 80);
+    const mine = await g.page.evaluate(() => ({ legair: document.querySelectorAll('#sheet [data-act="legair"]').length, unbook: !!document.querySelector('#sheet [data-act="unbook"]') }));
+    await measurePopup(g.page, 'paid trip › my P-person');
+    check(p.closed === '🏁' && p.answers === 0 && p.flighty && p.dollars < 0 && mine.legair === 0 && !mine.unbook,
+      'PIA-137 AC11 a paid trip shows 🏁 instead of the answer row (no taps that would fail), keeps my Flighty hand-off, and its sheets offer no airport cell or 🎫 to change', { p, mine });
+    await g.ctx.close();
+  }
+
+  section('PIA-137 fix pass: real taps (hit-tested, scrolled into view) on the trip view\'s controls, through the real Worker');
+  {
+    const { ctx, page, net } = await phone('lockorg', { worker: true, url: '?idea=' + LK, share: true });
+    await settle(page, 200);
+    const hit = async (sel) => { try { await page.click(sel, { timeout: 4000 }); await settle(page, 150); return true; } catch (e) { return false; } };
+    const rec = () => JSON.parse(net.kv.map.get('idea:' + LK)).responses;
+    const r = {};
+    r.ring = await hit('#screen [data-act="ring"]');
+    r.face = await hit('#screen .pb [data-act="person"][data-code="anjo-k4"]'); r.facePop = await popupId(page);
+    await closeSheet(page);
+    r.refocus = await page.evaluate(() => { const a = document.activeElement; return a && a.getAttribute('data-act') === 'person' ? a.getAttribute('data-code') : null; });
+    r.stage = await hit('#screen [data-act="stage"]'); r.stagePop = await popupId(page); await closeSheet(page);
+    r.swap = await hit('#screen .me [data-act="face"]'); r.swapPop = await popupId(page); await closeSheet(page);
+    const p0 = net.posts;
+    r.tk = await hit('#screen .pb [data-act="booked"][data-code="leo-k3"]'); await settle(page, 300);
+    r.tkPosts = net.posts - p0; r.leoBooked = rec()['leo-k3'].booked === true;
+    r.arm = await hit('#screen .pb [data-act="booked"][data-code="anjo-k4"]');
+    r.armed = await page.$eval('#screen .pb [data-act="booked"][data-code="anjo-k4"]', (e) => e.classList.contains('arm') && !!e.querySelector('.cfm'));
+    r.other = await hit('#screen [data-act="ring"]');
+    r.disarmed = await page.$eval('#screen .pb [data-act="booked"][data-code="anjo-k4"]', (e) => !e.classList.contains('arm'));
+    r.armPosts = net.posts - p0;
+    // my own sheet: a 🛫 cell (focus stays on that very cell), where I fly from (a city is refused, a code saves)
+    r.mine = await hit('#screen .me [data-act="person"]');
+    r.cell = await hit('#sheet [data-act="legair"][data-end="1"][data-v="PIA"]'); await settle(page, 300);
+    r.cellFocus = await page.evaluate(() => { const a = document.activeElement; return a && a.getAttribute('data-act') === 'legair' ? a.getAttribute('data-end') + a.getAttribute('data-v') : null; });
+    r.leave = rec()['ashwin-k1'].leave_from;
+    r.orig = await hit('#sheet [data-act="origedit"]');
+    r.selAll = await page.evaluate(() => { const f = document.querySelector('#orig-code'); return !!f && document.activeElement === f && f.selectionStart === 0 && f.selectionEnd === f.value.length && f.value.length === 3; });
+    await page.keyboard.type('San Francisco', { delay: 0 });
+    r.cut = await page.evaluate(() => ({ v: document.querySelector('#orig-code').value, warn: !document.querySelector('#warn-orig-code').hidden }));
+    await measurePopup(page, 'set trip › my P-person, a city typed where I fly from (⚠)');
+    await page.keyboard.press('Enter'); await settle(page, 150);
+    r.refused = !!(await page.$('#orig-code')) && rec()['ashwin-k1'].origin === 'LAX';
+    await page.fill('#orig-code', ''); await page.type('#orig-code', 'BUR', { delay: 0 });
+    await page.keyboard.press('Enter'); await settle(page, 400);
+    r.origin = rec()['ashwin-k1'].origin;
+    await closeSheet(page);
+    // my note from the me line (📝＋), saved with ✓
+    r.note = await hit('#screen .me [data-act="pnote"]'); r.notePop = await popupId(page);
+    await page.type('#note-text', 'Landing late Monday', { delay: 0 });
+    r.save = await hit('#sheet [data-act="notesave"]'); await settle(page, 300);
+    r.noteSaved = rec()['ashwin-k1'].note; r.toast = await page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent : ''; });
+    r.answer = await hit('#screen .answers [data-act="answer"][data-v="maybe"]'); await settle(page, 400);
+    r.status = rec()['ashwin-k1'].status;
+    await measureScreen(page, 'set trip › after my real taps');
+    check(r.ring && r.face && r.facePop === 'P-person' && r.refocus === 'anjo-k4' && r.stage && r.stagePop === 'P-stage' && r.swap && r.swapPop === 'P-face' &&
+      r.tk && r.tkPosts === 1 && r.leoBooked && r.arm && r.armed && r.other && r.disarmed && r.armPosts === 1 &&
+      r.mine && r.cell && r.cellFocus === '1PIA' && r.leave === '' && r.orig && r.selAll && r.cut.v === 'SAN' && r.cut.warn && r.refused && r.origin === 'BUR' &&
+      r.note && r.notePop === 'P-note' && r.save && r.noteSaved === 'Landing late Monday' && r.toast.indexOf('📝✓') >= 0 && r.answer && r.status === 'maybe',
+      'PIA-137 real taps reach every new control: the heads ring, a board face (P-person; ⌄ gives focus back to that face), the stage, ⇄, the 🎫 for Leo (one write), Anjo\'s 🎫 armed with ✓ and put back by the next tap, my 🛫 PIA cell (focus stays on it), where I fly from (all selected; a city is cut and refused, BUR saves), my note from the me line saved with ✓ (📝✓), and Maybe', r);
+    await ctx.close();
+  }
+  {
+    // the organizer's 📣 stops pulsing the moment it is shared (nobody is waiting once he has answered for Anjo)
+    const { ctx, page } = await phone('organizer', { worker: true, url: '?idea=' + A, share: true });
+    await settle(page, 200);
+    await page.click('#screen .pb [data-act="person"][data-code="anjo-z5"]'); await settle(page, 120);
+    await page.click('#sheet [data-act="answer"][data-v="maybe"][data-proxy="1"]'); await settle(page, 400);
+    await closeSheet(page);
+    const sel = '#screen .split.prim [data-act="tshare"]';
+    const before = await page.$eval(sel, (e) => e.classList.contains('pulse'));
+    await page.click(sel); await settle(page, 80);
+    const after = await page.$eval(sel, (e) => e.classList.contains('pulse')), shared = await page.evaluate(() => window.__shared || []);
+    check(before && !after && shared.length === 1 && /\/i\/dwDiwaliRaleigh2026a01$/.test(shared[0].url),
+      'PIA-137 the organizer\'s 📣 Share pulses until it is shared, and stops at once when it is (no other render needed)', { before, after, shared });
+    await ctx.close();
+  }
+
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');
   {
     const org = seenOn('organizer@360'), deep = NAMES.map((n) => n + '@360').filter((w) => pressLog[w]);

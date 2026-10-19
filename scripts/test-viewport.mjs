@@ -1120,6 +1120,15 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
   const fx = (n) => JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'fixtures', n), 'utf8'));
   const docs = {};
   ['idea-diwali.json', 'idea-tahoe.json', 'idea-8members.json', 'idea-undated.json', 'idea-thanksgiving-legacy.json', 'idea-lax-local.json'].forEach((f) => { const d = fx(f); docs[d.id] = d; });
+  // PIA-137: Diwali moved to Peoria with its dates set: the organizer's 🎫 marks and Book, a host (Mom & Dad, not answered yet),
+  // and my own sheet with the PIA | ORD airport cells (home from ORD)
+  const LKV = 'lkViewportLockedPIA001';
+  docs[LKV] = (() => {
+    const d = JSON.parse(JSON.stringify(docs.dwDiwaliRaleigh2026a01)); d.id = LKV; d.idea.title = '🎄 Christmas in Peoria'; d.idea.destination = { city: 'Peoria', airport: 'PIA' };
+    d.idea.dates.departure = '2026-12-22'; d.idea.dates.return = '2026-12-27'; d.idea.notes = '📌2026-12-25'; delete d.responses['momdad-k3']; d.responses['ashwin-p8'].leave_from = 'ORD';
+    d.decision = { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-12-22', return: '2026-12-27' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+    return d;
+  })();
   const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
@@ -1129,8 +1138,8 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     pialax_fares_v2: JSON.stringify(fares),
     pialax_watchlist_v2: JSON.stringify(ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))),
     // PIA-136: this phone also organizes the 8-member trip (a join request on a full trip opens its people editor at ⚠ 9/8)
-    pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),
-    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf' }),
+    pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),
+    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 })
   };
   const LAYOUT = () => {
@@ -1162,7 +1171,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -1194,6 +1203,31 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
           await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
           await page.click('#screen [data-act="back"]'); await page.waitForTimeout(100);
         }
+        // PIA-137: the trip view's sheets (tapped as the app sees a tap: the sticky primary may sit over a board row)
+        const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .pb [data-act="person"][data-code="anjo-z5"]'); await measure('P-person (the organizer on Anjo)'); await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen .me [data-act="person"]'); await measure('P-person (me)'); await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen [data-act="stage"]'); await measure('P-stage'); await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen .me [data-act="face"]'); await measure('P-face');
+        await tapJs('#sheet [data-act="joinopen"]'); await page.type('#join-name', 'Bartholomew Montgomery Fitzgerald'); await page.type('#join-ap', 'bos'); await measure('P-face (join row typed)');
+        await page.fill('#join-ap', ''); await page.type('#join-ap', 'San Francisco'); await measure('P-face (join row, a city cut to SAN ⚠)');
+        if (await page.$eval('#warn-join-ap', (e) => e.hidden)) fails.push('a city typed in the join airport field should show ⚠');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .pb [data-act="person"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await measure('P-person (8 long names)');
+        await tapJs('#sheet [data-act="pnote"]'); await measure('P-note (a person\'s note, read first)');
+        await tapJs('#sheet [data-act="noteedit"]'); await measure('P-note (a person\'s note, ✎ editing, ✓)'); await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="' + LKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip with its dates set (🎫 marks, Book)');
+        if (!(await page.$('#screen .pb [data-act="booked"]')) || !(await page.$('#screen .split.prim [data-act="mybook"]'))) fails.push('the set trip should show the organizer\'s 🎫 marks and [Book | 🎫]');
+        await tapJs('#screen .pb [data-act="booked"][data-code="anjo-z5"]'); await measure('trip with a 🎫 waiting for its confirming tap');
+        await tapJs('#screen .me [data-act="person"]'); await measure('P-person (me, PIA | ORD cells)');
+        if ((await page.$$('#sheet [data-act="legair"]')).length !== 4) fails.push('my sheet on a Peoria trip should have the PIA | ORD cells for each end');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="tgLegacyThanksgiving01"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(200); await measure('P-face (by itself, a v1 trip)');
+        await tapJs('#sheet [data-act="pickface"][data-code="PIA"]'); await measure('the host\'s trip view (In unconfirmed)');
+        await tapJs('#screen [data-act="back"]');
         for (const tab of ['map', 'cal']) { await page.click('#tabbar [data-v="' + tab + '"]'); await page.waitForTimeout(120); await measure(tab); }
         await page.click('#tabbar [data-v="trips"]'); await page.waitForTimeout(100);
         // PIA-135: the list-share sheet, and the receiving sheet a list link opens
@@ -1247,6 +1281,10 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?tripIdea=' + encodeURIComponent(tripIdea), { waitUntil: 'load' }); await page.waitForTimeout(300);
         await measure('P-new-what (a v1 idea link, 📝⚠)');
         await page.click('#sheet [data-act="nnote"]'); await page.waitForTimeout(120); await measure('P-note (the new trip\'s note)');
+        // PIA-137: a join request opened on a phone that does not organize that trip (Tahoe): P-joinfwd sends it on
+        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?idea=thTahoeSkiWeekend26b02&add=' + encodeURIComponent('Bartholomew Montgomery.OAK'), { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-joinfwd') fails.push('a join request on a trip this phone does not organize should open P-joinfwd');
+        await measure('P-joinfwd');
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }

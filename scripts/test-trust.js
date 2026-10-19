@@ -443,7 +443,7 @@ function makeRooms(IdeaRoom, env, gate) {
     ls2.setItem('pialax_ui_v1', JSON.stringify({ v1read: 1 }));
     const nav = { userAgent: 'test-trust', share: (o) => { shares.push(o); return Promise.resolve(); }, clipboard: { writeText: (u) => { copies.push(u); return Promise.resolve(); } } };
     const loc2 = Object.assign({}, loc, { search: '', href: ORIGIN + '/PIALAX/app.html' });
-    const two = loadApi(path.join(ROOT, 'app.html'), 'app.html', ['ACTS', 'openSheet', 'closeSheet', 'DOCS', 'STAT'],
+    const two = loadApi(path.join(ROOT, 'app.html'), 'app.html', ['ACTS', 'openSheet', 'closeSheet', 'DOCS', 'STAT', 'S'],
       { localStorage: ls2, fetch: spy, location: loc2, navigator: nav, history: { replaceState() {}, pushState() {}, back() {}, state: null }, setInterval: () => ({ unref() {} }) });
     if (two.missing.length) bad('A1 app.html: harness could not reach ' + two.missing.join(', '));
     else {
@@ -453,10 +453,12 @@ function makeRooms(IdeaRoom, env, gate) {
       a2.openSheet('organizer', {}); tap('orglink', { id: ID }); tap('devlink'); a2.closeSheet();   // ⚙: the organizer and devices links
       tap('tshare', { id: ID });                                                         // the trip's 📣
       a2.openSheet('sharelist', {}); tap('slshare'); a2.closeSheet();                    // the list share
+      a2.openSheet('person', { id: ID, code: 'anjo-z5' }); tap('nudge', { id: ID, code: 'anjo-z5' }); a2.closeSheet();   // PIA-137: 📣 one person (her hint)
+      a2.openSheet('face', { id: ID }); tap('joinopen'); a2.S.sheet.local.jname = 'Nina Okafor'; a2.S.sheet.local.jap = 'BOS'; tap('joinshare', { id: ID });   // PIA-137: 🙋＋ a join request
       await new Promise((r) => setTimeout(r, 20));
       const secret = (o) => { const s = JSON.stringify(o); return s.indexOf(TOKEN) >= 0 || s.indexOf(KEY) >= 0 || /#k=|#ks=|[#&]t=/.test(s); };
-      check(shares.length === 2 && shares.every((o) => !secret(o)) && copies.filter(secret).length === 3,
-        `A1 app.html: no share-sheet payload carries the token, an edit key, #k=, #ks= or &t= (${shares.length} shared: the trip and list links; the organizer and devices links went to the clipboard only)`, { shares, copies: copies.length });
+      check(shares.length === 4 && shares.every((o) => !secret(o) && Object.keys(o).join() === 'url') && /#m=anjo-z5$/.test(shares[2].url) && /&add=Nina%20Okafor\.BOS$/.test(shares[3].url) && copies.filter(secret).length === 3,
+        `A1 app.html: no share-sheet payload carries the token, an edit key, #k=, #ks= or &t= (${shares.length} shared, URL only: the trip and list links, PIA-137's nudge with its #m= hint and the join request; the organizer and devices links went to the clipboard only)`, { shares, copies: copies.length });
     }
   }
   finish(tmpDir);

@@ -979,6 +979,101 @@ function makeServer(worker) {
       'fitTyped: a paste past the cap keeps the text that was there (before and after the cursor) and the first words that fit, and says it was cut; numerals ride free', [f1.text, mid.text]);
   }
 
+  // ═══ PIA-137 ════════════════════════════════════════════════════════════
+  section('PIA-137 the trip view: who this phone is, the one primary action, the organizer\'s 🎫, and answers that keep everything');
+  {
+    // who this phone is: a remembered face wins, a hint greets only when nothing is remembered, else P-face asks
+    const w = (doc, o) => M.whoAmI(doc, o);
+    const a = w(DW, { stored: 'anjo-z5' }), b = w(DW, { stored: 'anjo-z5', hint: 'anjo-z5' }), c = w(DW, { stored: 'anjo-z5', hint: 'momdad-k3' }), d = w(DW, { stored: 'anjo-z5', hint: 'nobody-zz' });
+    check(a.me === 'anjo-z5' && a.from === 'stored' && !a.ask && b.me === 'anjo-z5' && !b.ask && !b.hint && d.me === 'anjo-z5' && !d.ask && !d.hint,
+      'a remembered face that is on the trip is me; the same hint (or one for nobody on the trip) asks nothing', [a, b, d]);
+    check(c.me === 'anjo-z5' && c.ask && c.hint === 'momdad-k3' && c.from === 'stored',
+      'a hint that differs from the remembered face never overrides it: P-face asks, the remembered face outlined and the hint marked (one tap decides)', c);
+    const h = w(DW, { hint: 'anjo-z5' }), gone = w(DW, { stored: 'removed-x1' });
+    check(h.me === 'anjo-z5' && h.from === 'hint' && !h.ask && gone.me === '' && gone.ask,
+      'with nothing remembered a hint greets that face (2 taps: the link, then In); a remembered face that left the trip counts as none', [h, gone]);
+    const pre = w(DW, { names: ['anjo'] }), none = w(DW, {}), twoSams = w(M8, { names: ['Sam Lee'] }), legacy = w(LEG, { names: ['me', 'Me'] }), lgAnjo = w(LEG, { names: ['ANJO '] });
+    check(pre.me === '' && pre.ask && pre.pre === 'anjo-z5' && none.ask && none.pre === '' && twoSams.ask && twoSams.pre === '' && legacy.pre === '' && lgAnjo.pre === 'LGA',
+      'with neither, P-face asks; the one member named as this phone already is (its profile, its faces elsewhere) is preselected, never saved; two "Sam Lee"s or a v1 "Me" preselect nobody', [pre.pre, twoSams.pre, legacy.pre, lgAnjo.pre]);
+    const joined = tweak(TH, (x) => { x.idea.members.push({ code: 'sam-j1', label: '🐨 Sam', airport: 'OAK', headcount: 1 }); });
+    check(w(joined, { join: 'Sam' }).pre === 'sam-j1' && w(TH, { join: 'Sam' }).pre === '',
+      'a phone that asked to join as Sam preselects Sam once the organizer has added him (and nobody before)');
+    // a forwarded nudge link: the names this phone already is count as remembered, so a hint for someone else here asks
+    const fwd = w(DW, { hint: 'anjo-z5', names: ['Mom & Dad'] }), fwd2 = w(DW, { hint: 'anjo-z5', names: ['Ashwin'] });
+    const own = w(DW, { hint: 'anjo-z5', names: ['Anjo', 'Mom & Dad'] }), stranger = w(DW, { hint: 'anjo-z5', names: ['Priya Raman'] }), asked = w(joined, { hint: 'ashwin-l2', join: 'Sam' });
+    check(fwd.me === '' && fwd.ask && fwd.hint === 'anjo-z5' && fwd.pre === 'momdad-k3' && fwd.from === '' && fwd2.ask && fwd2.pre === 'ashwin-p8' && !fwd2.me,
+      'PIA-137 a nudge link for Anjo on a phone whose profile (or face on another trip) is Mom & Dad here never greets Anjo: P-face asks, Mom & Dad preselected, the hint marked', [fwd, fwd2]);
+    check(own.me === 'anjo-z5' && own.from === 'hint' && !own.ask && stranger.me === 'anjo-z5' && !stranger.ask && stranger.from === 'hint',
+      'a hint still greets its face when one of this phone\'s names is that face, or when none of them is on the trip', [own, stranger]);
+    const twoHint = w(M8, { hint: 'samlee-kz', names: ['Sam Lee'] }), twoOther = w(M8, { hint: 'grandmajosephine-nf', names: ['Sam Lee'] });
+    check(twoHint.me === 'samlee-kz' && !twoHint.ask && twoOther.ask && twoOther.pre === '' && twoOther.hint === 'grandmajosephine-nf' && asked.ask && asked.pre === 'sam-j1' && asked.hint === 'ashwin-l2',
+      'two "Sam Lee"s: a hint for one of them greets; a hint for someone else asks with nobody preselected (the hint marked); the name a phone asked to join with counts too', [twoHint, twoOther, asked]);
+  }
+  {
+    // the one primary action: share and look before the dates are set, book and mark booked once set, Flighty after
+    const P = (doc, o, today) => M.primaryAction(model(doc, o), today || TODAY);
+    const locked = tweak(DW, (x) => { x.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }; });
+    const bookedAnjo = tweak(locked, (x) => { x.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const paid = tweak(bookedAnjo, (x) => { x.decision.stage = 'booked'; x.decision.actual_total = 900; });
+    const dropped = tweak(bookedAnjo, (x) => { x.decision.stage = 'dropped'; });
+    const outAnjo = tweak(DW, (x) => { x.responses['anjo-z5'] = R('out', 'LGA'); }), inAnjo = tweak(DW, (x) => { x.responses['anjo-z5'] = R('in', 'LGA'); });
+    check(P(DW, { me: 'ashwin-p8', hasEditKey: true }) === 'share' && P(DW, { me: 'anjo-z5', hasEditKey: true }) === 'share' && P(DW, { hasEditKey: true }) === 'share-only' &&
+      P(inAnjo, { me: 'anjo-z5' }) === 'share' && P(DW, { me: 'anjo-z5' }) === 'none' && P(outAnjo, { me: 'anjo-z5' }) === 'none' && P(DW, {}) === 'none',
+      'before the dates are set: [📣 Share | ✈↗] for the organizer and for a guest who answered; a guest who has not answered (the answer row is the call), who is out, or who has no face here has none');
+    check(P(tg, { me: 'PIA' }) === 'none' && P(tg, { me: 'PIA', hasEditKey: true }) === 'none', 'hosts have none, as guests and as the organizer');
+    check(P(locked, { me: 'anjo-z5', hasEditKey: true }) === 'book' && P(locked, { me: 'ashwin-p8' }) === 'book' && P(locked, { hasEditKey: true }) === 'none' && P(locked, { me: 'ashwin-p8' }, '2026-11-07') === 'none',
+      'once set (🔒): [✈ Book ↗ | 🎫] while my days are ahead; an organizer who does not travel has none once set, and nobody books days that have begun');
+    check(P(bookedAnjo, { me: 'anjo-z5' }) === 'booked' && P(paid, { me: 'anjo-z5' }) === 'booked' && P(paid, { me: 'ashwin-p8' }) === 'none' && P(dropped, { me: 'anjo-z5' }) === 'none',
+      'after my 🎫: [🎫 | ✈⏱↗ Flighty], kept on a paid trip; a paid trip offers nothing else, a dropped one nothing at all');
+    // the organizer's 🎫 on other rows
+    const T = (doc, me, code, org) => M.bookToggle(model(doc, { me, hasEditKey: org !== false }), code);
+    const lockedOut = tweak(locked, (x) => { x.responses['anjo-z5'] = R('out', 'LGA'); });
+    check(T(DW, 'ashwin-p8', 'anjo-z5') === null && eq(T(locked, 'ashwin-p8', 'anjo-z5'), { on: false, confirm: true }) && eq(T(locked, 'ashwin-p8', 'momdad-k3'), { on: false, confirm: false }) &&
+      eq(T(lockedOut, 'ashwin-p8', 'anjo-z5'), { on: false, confirm: true }) && eq(T(bookedAnjo, 'ashwin-p8', 'anjo-z5'), { on: true, confirm: true }),
+      'the organizer\'s 🎫 shows once the dates are set: one tap for someone in, a confirming tap for someone waiting or out (recorded in first, 📞) and for taking a 🎫 away');
+    check(T(locked, 'ashwin-p8', 'ashwin-p8') === null && T(locked, 'ashwin-p8', 'anjo-z5', false) === null && T(paid, 'ashwin-p8', 'momdad-k3') === null && T(dropped, 'ashwin-p8', 'momdad-k3') === null &&
+      M.bookToggle(model(tg, { me: 'LAX', hasEditKey: true, }), 'PIA') === null && T(LEG, 'LAX', 'LGA') === null,
+      'never on his own row, never for a guest, never on a closed trip, never on a host, never on an unmigrated v1 doc');
+    const anyB = tweak(DW, (x) => { x.responses['ashwin-p8'].booked = true; });
+    check(eq(T(anyB, 'ashwin-p8', 'momdad-k3'), { on: false, confirm: false }), 'someone booking early shows the column before the dates are set');
+  }
+  {
+    // answering never erases a person's dates, note or origin (each write the trip view makes, through the real Worker)
+    const id = srv.seed(tg), at = async () => (await srv.get(id)).responses.LGA;
+    const steps = [
+      ['she answers In with her own days, a note, an EWR override and home from ORD', (doc) => M.respondRequest(doc, 'LGA', { status: 'in', available_from: '2026-11-24', available_to: '2026-11-29', note: 'Arriving late', origin: 'EWR', leave_from: 'ORD' }, { by: 'self' })],
+      ['she changes to Maybe (the status alone)', (doc) => M.respondRequest(doc, 'LGA', { status: 'maybe' }, { by: 'self' })],
+      ['the organizer answers Out for her (📞)', (doc) => M.respondRequest(doc, 'LGA', { status: 'out' }, { by: 'proxy' })],
+      ['she answers In herself again', (doc) => M.respondRequest(doc, 'LGA', { status: 'in' }, { by: 'self' })],
+      ['she flies into ORD (an airport cell)', (doc) => M.respondRequest(doc, 'LGA', { arrive_at: 'ORD' }, { by: 'self' })],
+      ['the organizer moves her home airport cell back to PIA', (doc) => M.respondRequest(doc, 'LGA', { leave_from: '' }, { by: 'keep' })],
+      ['she marks herself booked', (doc) => M.bookedRequests(doc, 'LGA', true, { by: 'self' })],
+      ['she answers Maybe after booking', (doc) => M.respondRequest(doc, 'LGA', { status: 'maybe' }, { by: 'self' })]
+    ];
+    const log = [];
+    for (const [what, build] of steps) {
+      const doc = await srv.get(id), res = await srv.send(build(doc)), r = await at();
+      log.push({ what, ok: srv.allOk(res), status: r.status, from: r.available_from, to: r.available_to, note: r.note, origin: r.origin, A: r.arrive_at, H: r.leave_from, booked: !!r.booked });
+    }
+    const kept = log.every((x) => x.ok && x.from === '2026-11-24' && x.to === '2026-11-29' && M.parseRespNote(x.note).text === 'Arriving late' && x.origin === 'EWR');
+    check(kept, 'PIA-137 answering never erases her dates, note or origin: In, Maybe, the organizer\'s Out, In again, two airport cells, 🎫 and Maybe after it, each through the real Worker', log);
+    check(log[2].note === '📞 Arriving late' && log[3].note === 'Arriving late' && log[1].H === 'ORD' && log[4].A === 'ORD' && log[4].H === 'ORD' && log[5].H === '' && log[5].A === 'ORD' && log[6].booked && log[7].booked && log[7].status === 'maybe',
+      'the organizer\'s answer is marked 📞 and hers clears it; airport picks change only when a cell is tapped; the 🎫 stays through a later Maybe', log.map((x) => [x.status, x.note, x.A, x.H, x.booked]));
+    // a trip that is merely Done (every traveler booked) still takes answers; a paid one is closed
+    const did = srv.seed(tg);
+    await srv.send(M.bookedRequests(await srv.get(did), 'LAX', true, { by: 'self' }));
+    await srv.send(M.bookedRequests(await srv.get(did), 'LGA', true, { by: 'self' }));
+    const done = await srv.get(did, KEY), doneM = model(done, { me: 'LGA' });
+    const ans = M.respondRequest(done, 'LGA', { status: 'maybe' }, { by: 'self' }), ansRes = await srv.send(ans);
+    check(doneM.stage === 'done' && !doneM.closed && ans && srv.allOk(ansRes) && (await srv.get(did)).responses.LGA.status === 'maybe' && (await srv.get(did)).responses.LGA.booked === true,
+      'PIA-137 a trip that is merely Done (every traveler booked, nothing paid) still takes an answer, and keeps the 🎫', { stage: doneM.stage, closed: doneM.closed });
+    const payRes = await srv.send(M.updateRequest(await srv.get(did, KEY), KEY, { decision: { stage: 'booked', actual_total: 1180 } }));
+    const paidDoc = await srv.get(did, KEY), paidM = model(paidDoc, { me: 'LGA' });
+    const raw = await srv.call('POST', '/idea/respond?id=' + did, { member: 'LGA', status: 'in', origin: '', available_from: '', available_to: '', note: '' });
+    check(srv.allOk(payRes) && paidM.closed && paidM.paid === 1180 && M.respondRequest(paidDoc, 'LGA', { status: 'in' }, { by: 'self' }) === null && raw.status === 409 && raw.json.code === 'closed',
+      'once paid (💵) the trip is closed: no answer is built (the Worker would refuse it, 409 closed), so the trip view shows its closed state instead of taps that fail', { raw: raw.status });
+  }
+
   // ═══ AC11 ═══════════════════════════════════════════════════════════════
   section('AC11 the inlined region is clean, the encoder port is exact, and the suite is offline and in preflight');
   const modelSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'trip-model.js'), 'utf8');

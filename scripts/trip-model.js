@@ -1531,6 +1531,58 @@ function freeFace(used, avoid) {
   for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0) return FACES[i];
   return FACES[0];
 }
+
+/* ---- the trip view and its answers (PIA-137): who this phone is, the one primary action, the organizer's 🎫 ---- */
+/* Who this phone is on one trip, from what it remembers and what the link says. o = {stored: the code this phone
+   remembers for the trip (pialax_idea_me_v1), hint: a personal nudge link's code (#m=), names: the names this phone
+   already is (its profile, its faces on other trips), join: the name this phone asked to join this trip with}.
+   • A remembered face that is on the trip wins. A hint never overrides it: a different hint only asks (P-face, with
+     the remembered face outlined and the hint marked), and one tap there decides.
+   • The names this phone already is count as remembered too: a hint greets its face for this visit (it writes
+     nothing: the first answer does) only when none of those names belongs to a different member of the trip. A
+     forwarded nudge link on a phone whose profile is someone else here asks instead, that someone preselected.
+   • Else P-face asks. pre = the one member whose name is who this phone already is (a preselected tile, never saved
+     by itself); two members with that name, or a nameless v1 'Me', preselect nobody.
+   → {me: the code to show as me ('' = nobody), from: 'stored' | 'hint' | '', ask: open P-face, hint, pre} */
+function whoAmI(doc, o) {
+  o = o || {};
+  var ms = ((doc && doc.idea && doc.idea.members) || []).filter(function (m) { return m && typeof m.code === 'string'; });
+  var on = function (c) { return typeof c === 'string' && !!c && ms.some(function (m) { return m.code === c; }); };
+  var stored = on(o.stored) ? o.stored : '', hint = on(o.hint) ? o.hint : '';
+  if (stored) return { me: stored, from: 'stored', ask: !!hint && hint !== stored, hint: hint !== stored ? hint : '', pre: '' };
+  var names = (o.names || []).concat(o.join ? [o.join] : []).map(normName).filter(Boolean);
+  var hits = ms.filter(function (m) { var n = splitLabel(m.label).name; return !!n && !isMeLabel(n) && names.indexOf(normName(n)) >= 0; });
+  var pre = hits.length === 1 ? hits[0].code : '';
+  if (hint && (!hits.length || hits.some(function (m) { return m.code === hint; }))) return { me: hint, from: 'hint', ask: false, hint: hint, pre: '' };
+  return { me: '', from: '', ask: true, hint: hint, pre: pre };
+}
+/* The one primary action of a trip view, the same rule for every role (hosts have none):
+   • before the dates are set: share and look: 'share' [📣 Share | ✈↗ my search] for a traveler who answered in or
+     maybe (and for the organizer even before he answers), 'share-only' for an organizer who does not travel;
+   • once set (🔒), with my days still ahead: 'book' [✈ Book ↗ | 🎫 I booked];
+   • after my own 🎫: 'booked' [🎫 | ✈⏱↗ Flighty] (kept on a paid trip: a booked flight is still real);
+   • 'none': a host, someone who is out, a guest who has not answered (the answer row is the call) or has no face
+     here, a set plan whose days have begun, and a closed trip (paid or dropped). */
+function primaryAction(model, today) {
+  var me = model.me;
+  if (model.decision === 'dropped' || (me && me.host)) return 'none';
+  if (me && me.traveler && me.booked) return 'booked';
+  if (model.closed) return 'none';
+  if (!me || !me.traveler) return model.org && !model.locked ? 'share-only' : 'none';
+  if (!model.org && !me.answered) return 'none';
+  if (model.locked) return me.d1 && me.d1 >= today ? 'book' : 'none';
+  return 'share';
+}
+/* The organizer's 🎫 on someone else's row of the people board, shown once the dates are set or anyone has booked:
+   never on a host, never on his own row (his is the primary's), never on a closed trip or an unmigrated v1 doc.
+   Marking someone who has not answered in or maybe (waiting, or out) records them as in first (📞, bookedRequests),
+   so it asks for a confirming tap; so does taking a 🎫 away. → null (no control) or {on, confirm} */
+function bookToggle(model, code) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !model.org || model.legacy || model.closed || x.host || (model.me && model.me.code === code)) return null;
+  if (!model.locked && !model.anyBooked) return null;
+  return { on: x.booked, confirm: x.booked || !x.answered };
+}
 /* === pialax trip-model: end === */
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -1560,6 +1612,7 @@ if (typeof module !== 'undefined' && module.exports) {
     NAME_WORDS: NAME_WORDS, TITLE_WORDS: TITLE_WORDS, CAPTION_WORDS: CAPTION_WORDS, NAME_CHARS: NAME_CHARS, TITLE_CHARS: TITLE_CHARS,
     wordsIn: wordsIn, capTyped: capTyped, firstWords: firstWords, cleanName: cleanName, joinLink: joinLink, parseJoin: parseJoin,
     legacyDraft: legacyDraft, groupPresets: groupPresets, freeFace: freeFace, FAMILY_KEY: FAMILY_KEY,
-    fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync
+    fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
+    whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle
   };
 }
