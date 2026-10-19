@@ -2,6 +2,7 @@
   "permissions": {
     "allow": [
       "Bash(bash scripts/preflight.sh)",
+      "Bash(bash scripts/preflight.sh *)",
       "Bash(bash scripts/test-app.sh)",
       "Bash(bash scripts/test-trip-model.sh)",
       "Bash(bash scripts/test-words.sh)",
