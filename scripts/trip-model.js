@@ -1211,6 +1211,7 @@ function organizerEdit(fresh, editKey, delta, opts) {
   delta = delta || {}; opts = opts || {};
   var owed = opts.owed && opts.owed.base && opts.owed.base.idea && Array.isArray(opts.owed.codes) ? opts.owed : null;
   var ideaEdit = IDEA_DELTA_KEYS.some(function (k) { return hasOwn(delta, k); });
+  if (datesHeld(fresh, delta)) return null;   // PIA-138: locked or closed dates never move from a phone that has not seen it
   if (!ideaEdit && !delta.decision) {   // nothing to change: only what an earlier edit still owes
     if (!owed || !fresh || !fresh.id || !fresh.idea || docClosed(fresh)) return null;
     var only = owedSync(fresh, fresh.responses, fresh.decision, fresh.idea, owed);
@@ -1583,6 +1584,129 @@ function bookToggle(model, code) {
   if (!model.locked && !model.anyBooked) return null;
   return { on: x.booked, confirm: x.booked || !x.answered };
 }
+
+/* ---- dates: the one picker (PIA-138) ----
+   The plan is the organizer's; a person's own ends are theirs. Moving the plan carries every end that follows it (a
+   blank end), because every link, bar and pill is rebuilt from the record; an end someone set never moves with it. */
+var SHIFT_STEPS = [-7, -1, 1, 7];                                        // P-dates' day and week shifts
+/* a range moved by k days, keeping its length. why: '' it can go; 'past' it would start before today; 'pin' the event day
+   (📌) would fall outside it. null for no range. */
+function moveRange(s, e, k, pin, today) {
+  if (!isIso(s) || !isIso(e) || s > e || !isIso(today)) return null;
+  var a = addD(s, k), b = addD(e, k);
+  return { s: a, e: b, why: a < today ? 'past' : pin && (pin < a || pin > b) ? 'pin' : '' };
+}
+/* the organizer's one-tap shift on the trip view: the plan k days earlier or later, keeping its length and 📌. why also
+   says why the plan cannot move at all: 'org' (this phone does not organize it), 'legacy' (P-migrate first), 'closed'
+   (paid or dropped), 'locked' (🔓 first), 'none' (an undated idea has no plan to move) */
+function planShift(model, k, today) {
+  var why = !model.org ? 'org' : model.legacy ? 'legacy' : model.closed ? 'closed' : model.locked ? 'locked' : !model.plan ? 'none' : '';
+  return why ? { s: '', e: '', why: why } : moveRange(model.plan.s, model.plan.e, k, model.pin, today);
+}
+/* a phone that has not seen the 🔒 yet never moves a locked plan: a delta that changes the dates (the plan, the ⟦window⟧,
+   📌 or 🌙) of a record whose dates are 🔒 (chosen) or that is closed (paid or dropped) is held back, unless the same
+   update unlocks it (decision proposed). organizerEdit builds nothing for it, so it is checked on the fresh record every
+   write is rebuilt from, not on the screen it was tapped on. → 'locked' | 'closed' | '' (it can go) */
+function datesHeld(fresh, delta) {
+  var st = fresh && fresh.decision && fresh.decision.stage;
+  var why = st === 'booked' || st === 'dropped' ? 'closed' : st === 'chosen' && !docLegacy(fresh) ? 'locked' : '';
+  if (!why || !delta || !fresh.idea || (delta.decision && delta.decision.stage === 'proposed')) return '';
+  if (!hasOwn(delta, 'dates') && !hasOwn(delta, 'pin') && !hasOwn(delta, 'nights')) return '';
+  var a = cleanDates(fresh.idea.dates), b = cleanDates(hasOwn(delta, 'dates') ? delta.dates || {} : {}, a), N = parseNotes(fresh.idea.notes);
+  var pin = hasOwn(delta, 'pin') ? (isIso(delta.pin) ? delta.pin : '') : N.pin;
+  var nights = hasOwn(delta, 'nights') ? (delta.nights && +delta.nights > 0 ? Math.round(+delta.nights) : null) : N.nights;
+  var moved = ['departure', 'return', 'searchStart', 'searchEnd'].some(function (k) { return a[k] !== b[k]; }) || pin !== N.pin || nights !== N.nights;
+  return moved ? why : '';
+}
+/* a holiday chip: the holiday's whole long weekend (🦃 Wed–Sun; 🎗 and 🌭 Fri–Mon; 🎆 🎄 🎉 the day ±2), never before
+   today, with the holiday itself as the event day (📌) → {s, e, pin, g, k}; null for a day that is not a holiday (or is past) */
+function holidayPick(day, today) {
+  var h = isIso(day) && isIso(today) ? holidayOn(day) : null;
+  if (!h || h.d < today) return null;
+  var s = maxD(addD(h.d, h.r[0]), today);
+  return { s: s, e: maxD(addD(h.d, h.r[1]), s), pin: h.d, g: h.g, k: h.k };
+}
+/* what stops a picked plan (or ⟦window⟧ with o.window) from being saved: '' fine, 'empty' nothing picked, 'partial' only a
+   start, 'order', 'past' (it starts before today), 'pin' (the event day falls outside the plan: 📌⚠), 'nights' (a window
+   shorter than its 🌙 nights). o = {today, pin, window, nights} */
+function planCheck(s, e, o) {
+  o = o || {};
+  if (!s && !e) return 'empty';
+  if (!isIso(s) || !isIso(e)) return 'partial';
+  if (e < s) return 'order';
+  if (!isIso(o.today) || s < o.today) return 'past';
+  if (!o.window && o.pin && (o.pin < s || o.pin > e)) return 'pin';
+  if (o.window && o.nights && +o.nights > diffD(s, e)) return 'nights';
+  return '';
+}
+/* the organizer edits that change the dates (organizerEdit deltas; each touches nothing else):
+   • a plan (P-dates Save, ⬚ the best window): departure / return with 📌, and no 🌙 (a plan has its own length); the
+     ⟦window⟧ stays as it was;
+   • a ⟦window⟧ with 🌙 nights for an undated idea;
+   • 🗓⊘: the plan cleared, so the idea is undated again. It keeps a ⟦window⟧ (the flex window it had: the explicit one,
+     else the plan ± 7) and the plan's length as 🌙N, so its best window still has something to work with; 📌 stays. */
+function planDelta(s, e, pin) { return { dates: { departure: s, return: e }, pin: pin || '', nights: null }; }
+function windowDelta(s, e, nights) { return { dates: { departure: '', return: '', searchStart: s, searchEnd: e }, nights: nights || null }; }
+function clearDelta(model) {
+  var w = model.win;
+  return w ? { dates: { departure: '', return: '', searchStart: w.s, searchEnd: w.e }, nights: model.nights || null } : { dates: { departure: '', return: '' } };
+}
+/* one person's own days, set in P-dates or one leg at a time. end: null both ends (s, e); 0 the arrive end only (s); 1 the
+   leave end only (e). A blank value goes back to following the plan (s = e = '' with end null: follow the plan again). The
+   other end stays as it is (their own, or the plan's). → {patch (for respondRequest), d1, d2 (their days after it), why,
+   off} or null for someone not on the trip. why: '' fine; 'host' (a host is there all along: no days to set); 'out';
+   'answer' (no in / maybe answer yet: days are never set for someone who has not answered); 'partial' (an undated trip
+   needs both ends); 'order'; 'past' (an end set before today). off: an end set lands outside the plan (⚠, still allowed).
+   An end picked on the plan's own day for that side (the plan's first day as an arrival, its last as a departure) keeps
+   following the plan (blank), unless it is already their own: a pick that only repeats the plan never pins that end
+   against the next move (so "arrive a day later" with ↔ moves the arrival alone). same: the patch changes nothing they
+   have now (Save: No change). */
+function ownDays(model, code, s, e, end, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x) return null;
+  var plan = model.plan;
+  var pick = function (v, own, side) { v = v || ''; return v && v !== own && plan && v === side ? '' : v; };
+  var a = pick(s, x.own1, plan && plan.s), b = pick(e, x.own2, plan && plan.e);
+  var patch = end === 0 ? { available_from: a } : end === 1 ? { available_to: b } : { available_from: a, available_to: b };
+  var f = hasOwn(patch, 'available_from') ? patch.available_from : x.own1, t = hasOwn(patch, 'available_to') ? patch.available_to : x.own2;
+  var d1 = f || (plan ? plan.s : ''), d2 = t || (plan ? plan.e : '');
+  var bad = function (v) { return !!v && (!isIso(v) || v < today); };
+  var why = x.host ? 'host' : x.status === 'out' ? 'out' : !x.answered ? 'answer'
+    : (bad(patch.available_from) || bad(patch.available_to)) ? 'past' : !!d1 !== !!d2 ? 'partial' : d1 && d1 > d2 ? 'order' : '';
+  var off = !!plan && ((!!f && (f < plan.s || f > plan.e)) || (!!t && (t < plan.s || t > plan.e)));
+  return { patch: patch, d1: d1, d2: d2, why: why, off: off, same: f === x.own1 && t === x.own2 };
+}
+/* −1 / +1 on one leg (P-person's 🛬 / 🛫): that end alone moves a day and becomes the person's own (ownDays' rules) */
+function legShift(model, code, end, k, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x || !x.d1) return null;
+  var d = addD(end ? x.d2 : x.d1, k);
+  return ownDays(model, code, end ? '' : d, end ? d : '', end ? 1 : 0, today);
+}
+/* who is there on one day (P-day): in-members whose days cover it, and hosts (in, or in by default) on every day a screen
+   draws for the trip, are there: their heads are presentOn, so P-day agrees with the grid's numeral and never passes the
+   heads ring. Maybe-members whose days cover it are maybe; everyone else is away. → {day, n, there, maybe, away} (codes) */
+function dayPeople(model, day) {
+  var hd = hostDay(model, day), out = { day: day, n: presentOn(model, day), there: [], maybe: [], away: [] };
+  model.members.forEach(function (m) {
+    var cover = !!m.d1 && !m.bad && day >= m.d1 && day <= m.d2;
+    var there = m.host ? hd && (m.status === 'in' || m.status === 'host-default') : m.status === 'in' && cover;
+    var maybe = m.host ? hd && m.status === 'maybe' : m.status === 'maybe' && cover;
+    (there ? out.there : maybe ? out.maybe : out.away).push(m.code);
+  });
+  return out;
+}
+/* what the date pill (and my bar on the board) open on this phone: 'plan' the organizer's picker for the plan; 'mine' my
+   own days (I have answered in or maybe and travel); 'answer' nothing yet (I have not answered: the answer row asks
+   first, a day is never set for someone who has not answered); 'look' the plan to read (a host, someone out, a phone
+   that is nobody here, a trip that is closed or over) */
+function datesRole(model) {
+  if (model.closed || model.past) return 'look';
+  if (model.org && !model.legacy) return 'plan';
+  var me = model.me;
+  if (!me || me.host || me.status === 'out') return 'look';
+  return me.answered ? 'mine' : 'answer';
+}
 /* === pialax trip-model: end === */
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -1613,6 +1737,8 @@ if (typeof module !== 'undefined' && module.exports) {
     wordsIn: wordsIn, capTyped: capTyped, firstWords: firstWords, cleanName: cleanName, joinLink: joinLink, parseJoin: parseJoin,
     legacyDraft: legacyDraft, groupPresets: groupPresets, freeFace: freeFace, FAMILY_KEY: FAMILY_KEY,
     fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
-    whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle
+    whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle,
+    SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
+    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, datesRole: datesRole, datesHeld: datesHeld
   };
 }

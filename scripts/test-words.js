@@ -71,6 +71,7 @@ const section = (t) => console.log('\n▶ ' + t);
 
 // ---- fixtures: the repo's /idea docs plus a few built here ----
 const fx = (n) => JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'fixtures', n), 'utf8'));
+const eq = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const MODEL = require(path.join(ROOT, 'scripts', 'trip-model.js'));
 const DOC = {};
 ['idea-diwali.json', 'idea-tahoe.json', 'idea-8members.json', 'idea-undated.json', 'idea-thanksgiving-legacy.json', 'idea-lax-local.json'].forEach((f) => { const d = fx(f); DOC[d.id] = d; });
@@ -233,6 +234,7 @@ async function main() {
       if (net.kv) {   // PIA-136: the real Worker answers (a POST that net.failPost names fails once, as a dropped connection)
         if (q.method() === 'GET') net.gets++; else net.posts++;
         if (q.method() !== 'GET' && net.failPost) { net.failPost = false; return route.abort('internetdisconnected'); }
+        if (q.method() !== 'GET' && net.holdPost) await net.holdPost;   // PIA-138: a write held out (its control's ◷ state)
         const h = Object.assign({}, q.headers(), { origin: 'https://shwinster101.github.io' });
         const res = await WORKER.fetch(new Request(q.url(), { method: q.method(), headers: h, body: q.method() === 'GET' ? undefined : q.postData() }), net.kv.env);
         return route.fulfill({ status: res.status, headers: cors, body: await res.text() });
@@ -532,6 +534,73 @@ async function main() {
         sheetLog.push({ who: tag(''), join: await page.$eval('#join-name', (e) => e.value), words: w.length });
       }
       await closeSheet(page);
+    }
+    await datesWalk(page, tag, who, deep);
+  }
+  // PIA-138: P-dates from the plan pill on every trip view (the plan, my own days, or the plan to read), and P-day from 👥 then a
+  // day (or any day of a plan to read), the busiest day first; deep: the picker's other states (a holiday, a start picked, my
+  // own days on one end, following the plan, an undated idea's window) and one person's leg from P-person, with long-press once
+  const dateLog = [], dayLog = [], keyLog = [];
+  async function datesWalk(page, tag, who, deep) {
+    if (!(await page.$('#screen .daterow [data-act="dates"]'))) return;
+    await jsClick(page, '#screen .daterow [data-act="dates"]'); await settle(page, 100);
+    const pid = await popupId(page);
+    if (pid !== 'P-dates') { dateLog.push({ who: tag(''), pid, nudge: await page.evaluate(() => !!document.querySelector('#screen .answers.nudge')) }); if (pid) await closeSheet(page); return; }
+    dateLog.push({ who: tag(''), pid });
+    await measurePopup(page, tag('P-dates'));
+    if (deep && !seenOn(who + ' dates').done) { seenOn(who + ' dates').done = true; await labelCheck(page, tag('P-dates'), who + '-dates', 'sheet'); }
+    // PIA-138 fix pass: ⓘ in P-dates reads the key over this sheet (its grid's marks), ‹ back
+    if (deep && (await page.$('#sheet [data-act="dkey"]'))) {
+      await jsClick(page, '#sheet [data-act="dkey"]'); await settle(page, 60);
+      if ((await popupId(page)) === 'P-key') { await measurePopup(page, tag('P-key over P-dates')); keyLog.push(tag('')); }
+      await jsClick(page, '#sheet [data-act="sh-back"]'); await settle(page, 60);
+    }
+    const busiest = () => page.evaluate(() => {
+      let best = null, n = -1;
+      document.querySelectorAll('#sheet .grid [data-act="dday"]:not([aria-disabled="true"])').forEach((b) => { const c = b.querySelector('.pc-n'), k = c ? +c.textContent : 0; if (k > n) { n = k; best = b.getAttribute('data-v'); } });
+      return best;
+    });
+    if (await page.$('#sheet [data-act="dlook"]')) { await jsClick(page, '#sheet [data-act="dlook"]'); await settle(page, 60); await measurePopup(page, tag('P-dates (👥 then a day)')); }
+    const dv = await busiest();
+    if (dv) {
+      await jsClick(page, '#sheet [data-act="dday"][data-v="' + dv + '"]'); await settle(page, 80);
+      if ((await popupId(page)) === 'P-day') {
+        const w = await measurePopup(page, tag('P-day ' + dv));
+        dayLog.push({ who: tag(''), day: dv, words: w.length, faces: (await page.$$('#sheet .dayf')).length, n: await page.$eval('#sheet .dayn', (e) => e.textContent).catch(() => '') });
+        if (deep && !seenOn(who + ' day').done) { seenOn(who + ' day').done = true; await labelCheck(page, tag('P-day'), who + '-day', 'sheet'); }
+        await jsClick(page, '#sheet [data-act="sh-back"]'); await settle(page, 60);
+      }
+    }
+    if (deep) {
+      const tapIf = async (sel, label) => { if (!(await page.$(sel))) return false; await jsClick(page, sel); await settle(page, 60); if ((await popupId(page)) === 'P-dates') await measurePopup(page, tag('P-dates (' + label + ')')); return true; };
+      await tapIf('#sheet [data-act="dhol"]', 'a holiday picked');
+      const d0 = await page.$eval('#sheet .grid [data-act="dday"]:not([aria-disabled="true"]):not(.ro)', (e) => e.getAttribute('data-v')).catch(() => null);
+      if (d0) await tapIf('#sheet [data-act="dday"][data-v="' + d0 + '"]', 'a start picked');
+      await tapIf('#sheet [data-act="dmode"][data-v="window"]', 'the ⟦window⟧');
+      await tapIf('#sheet [data-act="dtarget"][data-v="me"]', 'my own days');
+      if (await tapIf('#sheet [data-act="dend"][data-v="0"]', 'my arrival only')) {
+        const d1 = await page.$eval('#sheet .grid [data-act="dday"]:not([aria-disabled="true"])', (e) => e.getAttribute('data-v')).catch(() => null);
+        if (d1) await tapIf('#sheet [data-act="dday"][data-v="' + d1 + '"]', 'my arrival moved (⚠ off the plan)');
+      }
+      await tapIf('#sheet [data-act="dfollow"]', 'following the plan');
+    }
+    await closeSheet(page);
+    // one person's leg (P-person's 🛬 / 🛫 day) opens P-dates for that end
+    if (deep && !seenOn(who + ' leg').done) {
+      const codes = await page.evaluate(() => [...document.querySelectorAll('#screen .pb [data-act="person"]')].map((e) => e.getAttribute('data-code')));
+      for (const c of codes) {
+        await jsClick(page, '#screen .pb [data-act="person"][data-code="' + c + '"]'); await settle(page, 80);
+        if (await page.$('#sheet [data-act="dates"][data-end="1"]')) {
+          seenOn(who + ' leg').done = true;
+          await measurePopup(page, tag('P-person ' + c + ' (−1 / +1 on each leg)'));
+          await jsClick(page, '#sheet [data-act="dates"][data-end="1"]'); await settle(page, 80);
+          await measurePopup(page, tag('P-dates (' + c + '\'s leave end)'));
+          dateLog.push({ who: tag(''), pid: await popupId(page), leg: c });
+          await closeSheet(page);
+          break;
+        }
+        await closeSheet(page);
+      }
     }
   }
   // every screen of one phone: list (shelf open and shut), Family, each trip view, Map and Calendar per chip
@@ -1458,6 +1527,190 @@ async function main() {
     const after = await page.$eval(sel, (e) => e.classList.contains('pulse')), shared = await page.evaluate(() => window.__shared || []);
     check(before && !after && shared.length === 1 && /\/i\/dwDiwaliRaleigh2026a01$/.test(shared[0].url),
       'PIA-137 the organizer\'s 📣 Share pulses until it is shared, and stops at once when it is (no other render needed)', { before, after, shared });
+    await ctx.close();
+  }
+
+  section('PIA-138 dates: the one picker with real clicks (±1 on the trip view, P-dates, P-day, a leg at a time), through the real Worker');
+  {
+    // the walk above: P-dates on every trip view of every phone, P-day where a day has people
+    const opened = dateLog.filter((x) => x.pid === 'P-dates'), asked = dateLog.filter((x) => x.pid !== 'P-dates');
+    check(opened.length >= 20 && dayLog.length >= 15 && dayLog.every((x) => x.words <= POPUP_MAX) && dateLog.some((x) => x.leg) && asked.every((x) => x.nudge && !x.pid) && keyLog.length >= 5,
+      'PIA-138 the walk opened P-dates from the plan pill on every trip view of every phone (' + opened.length + ' times; a phone that has not answered gets its answer row pulsed instead, ' + asked.length + ' times), P-day ' + dayLog.length + ' times (8 long-named faces at most ' + Math.max.apply(null, dayLog.map((x) => x.words)) + ' words), its ⓘ key ' + keyLog.length + ' times, and a person\'s leg', { asked: asked.slice(0, 3), day: dayLog.slice(0, 2) });
+  }
+  {
+    const { ctx, page, net } = await phone('diwali', { worker: true, url: '?idea=' + A });
+    await settle(page, 200);
+    const kv = () => JSON.parse(net.kv.map.get('idea:' + A));
+    const gfDates = async () => { const href = await page.$eval('#screen .split.prim a[data-k="gf"]', (e) => e.href).catch(() => ''); const d = MODEL.gfDecode(href); return d ? d.legs.map((L) => L.date) : null; };
+    const r = {};
+    r.link0 = await gfDates();
+    const p0 = net.posts;
+    await page.click('#screen .daterow [data-act="shift"][data-v="1"]'); await settle(page, 80);
+    r.pill = await page.$eval('#screen .daterow [data-act="dates"]', (e) => e.textContent.replace(/\s+/g, ' ').trim());
+    r.link1 = await gfDates();
+    r.focus = await page.evaluate(() => { const a = document.activeElement; return a ? a.getAttribute('data-act') + a.getAttribute('data-v') : null; });
+    r.early = net.posts - p0;
+    await measureScreen(page, 'diwali › trip view after +1 (before the write)');
+    await page.click('#screen .daterow [data-act="shift"][data-v="1"]'); await settle(page, 60);
+    r.blocked = await page.$eval('#screen .daterow [data-act="shift"][data-v="1"]', (e) => [e.getAttribute('aria-disabled'), e.getAttribute('data-lbl'), e.textContent]);
+    // a tap on the disabled +1 says why (its label), and so does a long press; nothing moves
+    await page.click('#screen .daterow [data-act="shift"][data-v="1"]', { force: true }); await settle(page, 60);
+    r.why = await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
+    await measurePopup(page, 'diwali › the disabled +1 explains itself', '#lbl');
+    await page.click('#screen .daterow [data-act="shift"][data-v="-1"]'); await settle(page, 1300);
+    r.posts = net.posts - p0; r.plan = MODEL.docPlan(kv());
+    check(eq(r.link0, ['2026-11-06', '2026-11-09']) && /11\/7–11\/10/.test(r.pill) && eq(r.link1, ['2026-11-07', '2026-11-10']) && r.focus === 'shift1' && r.early === 0 &&
+      r.blocked[0] === 'true' && r.blocked[1] === 'Event day outside' && r.blocked[2] === '📌⚠' && r.why === 'Event day outside' && r.posts === 1 && eq(r.plan, { s: '2026-11-07', e: '2026-11-10' }),
+      'PIA-138 AC1/AC2/AC3 a real +1 moves the pill and my ✈↗ to 11/7–11/10 in that render, focus staying on +1; the next +1 would drop 📌 (📌⚠, and a tap says "Event day outside"); +1 +1 −1 is ONE write (11/7–11/10)', r);
+    // P-dates: a holiday chip, Save (the sheet stays open), 👥 then a day (P-day)
+    await page.click('#screen .daterow [data-act="dates"]'); await settle(page, 120);
+    await page.click('#sheet [data-act="dhol"][data-v="2026-11-26"]'); await settle(page, 80);
+    const wHol = await measurePopup(page, 'diwali › P-dates after 🦃');
+    const n1 = net.posts;
+    await page.click('#sheet [data-act="dsave"]'); await page.click('#sheet [data-act="dsave"]', { force: true }).catch(() => {}); await settle(page, 500);
+    const k1 = kv();
+    r.saved = { posts: net.posts - n1, plan: MODEL.docPlan(k1), notes: k1.idea.notes, pop: await popupId(page), save: await page.$eval('#sheet [data-act="dsave"]', (e) => e.getAttribute('data-lbl')) };
+    await page.click('#sheet [data-act="dlook"]'); await settle(page, 60);
+    await page.click('#sheet [data-act="dday"][data-v="2026-11-27"]'); await settle(page, 100);
+    r.day = { pop: await popupId(page), faces: (await page.$$('#sheet .dayf')).length, n: await page.$eval('#sheet .dayn', (e) => e.textContent.trim()), dim: (await page.$$('#sheet .dayf.dimf')).length };
+    await measurePopup(page, 'diwali › P-day 11/27');
+    await page.click('#sheet [data-act="sh-back"]'); await settle(page, 80);
+    await closeSheet(page);
+    check(wHol.length <= POPUP_MAX && r.saved.posts === 1 && eq(r.saved.plan, { s: '2026-11-25', e: '2026-11-29' }) && /^📌2026-11-26 /.test(r.saved.notes) && r.saved.pop === 'P-dates' && r.saved.save === 'Saved' &&
+      r.day.pop === 'P-day' && r.day.faces === 3 && r.day.n === '👥3' && r.day.dim === 1,
+      'PIA-138 AC2/AC3 🦃 picks Wed 11/25–Sun 11/29 with 📌 11/26; Save (tapped twice) is one write and the sheet stays open (✓ "Saved"); 👥 then 11/27 opens P-day: 3 there (Anjo, who has not answered, dimmed)', { saved: r.saved, day: r.day });
+    // one leg at a time (P-person): Mom & Dad's 🛬 −1, focus stays, one write
+    await page.click('#screen .pb [data-act="person"][data-code="momdad-k3"]'); await settle(page, 120);
+    const n2 = net.posts;
+    await page.click('#sheet [data-act="legshift"][data-end="0"][data-v="-1"]'); await settle(page, 60);
+    const lf = await page.evaluate(() => { const a = document.activeElement; return a ? [a.getAttribute('data-act'), a.getAttribute('data-end'), a.getAttribute('data-v')].join() : null; });
+    const own = await page.$eval('#sheet [data-act="dates"][data-end="0"]', (e) => [e.textContent, e.classList.contains('own')]);
+    await measurePopup(page, 'diwali › Mom & Dad\'s P-person after 🛬 −1');
+    await settle(page, 1300);
+    const md = kv().responses['momdad-k3'];
+    check(lf === 'legshift,0,-1' && own[0] === '11/24' && own[1] && net.posts - n2 === 1 && md.available_from === '2026-11-24' && md.available_to === '' && md.note === '📞',
+      'PIA-138 AC4 the organizer moves Mom & Dad\'s 🛬 a day earlier (11/24, now their own, underlined; focus stays on −1): one answer, their leave end still following the plan, marked 📞', { lf, own, md });
+    await closeSheet(page);
+    await ctx.close();
+  }
+  {
+    // a reload within SOON_MS of a +1 (pagehide comes first, then hidden): nothing is sent from what the page read earlier;
+    // the reloaded page sends the kept run from a fresh read, where a lock another phone made meanwhile holds
+    const { ctx, page, net } = await phone('diwali', { worker: true, url: '?idea=' + A });
+    await settle(page, 200);
+    const kv = () => JSON.parse(net.kv.map.get('idea:' + A));
+    const stage = (st) => { const d = kv(); d.decision = Object.assign({}, d.decision, st === 'chosen' ? { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' }, chosen_at: '2026-10-17T18:00:00.000Z' } : { stage: 'proposed', chosen: null, chosen_at: null }); net.kv.map.set('idea:' + A, JSON.stringify(d)); };
+    const kept = () => page.evaluate(() => localStorage.getItem('pialax_soon_v2'));
+    stage('chosen');   // another organizer phone locks the dates; this one has not seen it
+    const p0 = net.posts;
+    await page.click('#screen .daterow [data-act="shift"][data-v="1"]'); await settle(page, 60);
+    await page.reload({ waitUntil: 'load' }); await settle(page, 900);
+    const r = { posts: net.posts - p0, plan: MODEL.docPlan(kv()), stage: kv().decision.stage, pop: await popupId(page), kept: await kept() };
+    r.words = r.pop ? (await measurePopup(page, 'diwali › P-error: a reload\'s kept +1 held by a lock made meanwhile')).join(' ') : '';
+    check(r.posts === 0 && eq(r.plan, { s: '2026-11-06', e: '2026-11-09' }) && r.stage === 'chosen' && r.pop === 'P-error' && /Dates locked/.test(r.words) && r.kept === null,
+      'PIA-138 AC3 a +1 then a reload in Chromium, after another phone locked: no write as the page goes, none from the reloaded page (the plan stays 11/6–11/9, 🔒), which says 🔒 "Dates locked"; nothing is kept', r);
+    await closeSheet(page);
+    stage('proposed');   // unlocked again, read by this phone: the same +1 and reload now moves the plan, from a fresh read
+    await page.reload({ waitUntil: 'load' }); await settle(page, 400);
+    const p1 = net.posts, g1 = net.gets;
+    await page.click('#screen .daterow [data-act="shift"][data-v="1"]'); await settle(page, 60);
+    await page.reload({ waitUntil: 'load' }); await settle(page, 900);
+    const c = { posts: net.posts - p1, gets: net.gets - g1, plan: MODEL.docPlan(kv()), pop: await popupId(page), kept: await kept(), pill: await page.$eval('#screen .daterow [data-act="dates"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '') };
+    check(c.posts === 1 && c.gets >= 2 && eq(c.plan, { s: '2026-11-07', e: '2026-11-10' }) && !c.pop && c.kept === null && /11\/7–11\/10/.test(c.pill),
+      'PIA-138 AC3 the same +1 then reload on an open plan: the reloaded page reads the trip and sends ONE update (11/7–11/10, drawn on its pill); nothing is kept', c);
+    await ctx.close();
+  }
+  {
+    // someone who has not answered: the pill pulses the answer row (no picker); after answering, the pill opens their own days
+    const { ctx, page, net } = await phone('guest', { worker: true, url: '?idea=' + A });
+    await settle(page, 200);
+    await page.click('#screen .daterow [data-act="dates"]'); await settle(page, 60);
+    const before = { pop: await popupId(page), nudge: await page.evaluate(() => !!document.querySelector('#screen .answers.nudge')),
+      toast: await page.$eval('#toast', (e) => (e.hidden ? null : e.textContent.trim())).catch(() => null) };
+    const wt = await measurePopup(page, 'guest › her pill before she answers (the toast)', '#toast');
+    await page.click('#screen [data-act="answer"][data-v="maybe"]'); await settle(page, 400);
+    await page.click('#screen .daterow [data-act="dates"]'); await settle(page, 120);
+    const after = { pop: await popupId(page), me: await page.$eval('#sheet [data-act="dend"][data-v="both"]', (e) => e.getAttribute('aria-pressed')).catch(() => null) };
+    await page.click('#sheet [data-act="dday"][data-v="2026-11-05"]'); await page.click('#sheet [data-act="dday"][data-v="2026-11-08"]'); await settle(page, 60);
+    const w = await measurePopup(page, 'guest › my own days picked (⚠🗓 off the plan)');
+    const amber = await page.$eval('#sheet .readout [data-k="offplan"]', (e) => [e.textContent, getComputedStyle(e).color, getComputedStyle(document.documentElement).getPropertyValue('--maybe').trim()]).catch(() => null);
+    await page.click('#sheet [data-act="dsave"]'); await settle(page, 400);
+    const r = JSON.parse(net.kv.map.get('idea:' + A)).responses['anjo-z5'];
+    check(before.pop === null && before.nudge && before.toast === '👋 In / Maybe / Out' && wt.length <= POPUP_MAX && after.pop === 'P-dates' && after.me === 'true' && w.length <= POPUP_MAX &&
+      !!amber && amber[0] === '⚠🗓' && r.status === 'maybe' && r.available_from === '2026-11-05' && r.available_to === '2026-11-08',
+      'PIA-138 AC4 before Anjo answers, her pill only pulses the answer row and says so ("👋 In / Maybe / Out"); after Maybe it opens her own days: 11/5 then 11/8 (⚠🗓 "Outside plan", amber), Save (her Maybe kept)', { before, after, amber, r });
+    await ctx.close();
+  }
+  {
+    // PIA-138 fix pass, on the 8-member long-name trip (Bartholomew has booked): P-dates names all seven weekdays, keeps 🔒 and
+    // Save in view at 360x740 and 375x667, explains itself (ⓘ: its grid's marks), asks its confirming taps in one word
+    // (Confirm), says Saving while a write is out (◷, focus kept), shows ✓ once saved, and a pick closed without Save comes
+    // back with ↩. Every state is counted.
+    const { ctx, page, net } = await phone('eight', { worker: true, url: '?idea=' + M8 });
+    const kv0 = JSON.parse(net.kv.map.get('idea:' + M8));
+    kv0.responses['bartholomewmontgomeryfitzgera-dj'].booked = true; kv0.responses['bartholomewmontgomeryfitzgera-dj'].booked_at = '2026-10-16T12:00:00.000Z';
+    net.kv.map.set('idea:' + M8, JSON.stringify(kv0));
+    await page.reload({ waitUntil: 'load' }); await settle(page, 300);
+    const r = {};
+    await page.click('#screen .daterow [data-act="dates"]'); await settle(page, 150);
+    r.pop = await popupId(page);
+    r.days = await page.$$eval('#sheet .grid .wd', (els) => els.map((e) => e.textContent.trim()).join(' '));
+    await measurePopup(page, '8 long names › P-dates (all seven weekdays)');
+    // ⓘ: P-key read over this sheet (‹ comes back)
+    await page.click('#sheet [data-act="dkey"]'); await settle(page, 120);
+    r.key = { pop: await popupId(page), items: await page.$$eval('#sheet .legend .li', (els) => els.map((e) => e.textContent.trim())) };
+    await measurePopup(page, '8 long names › P-key over P-dates');
+    for (let pg = 2; pg <= 4 && (await page.$('#sheet [data-act="kpage"][data-v="1"]:not([disabled])')); pg++) {
+      await page.click('#sheet [data-act="kpage"][data-v="1"]'); await settle(page, 80); await measurePopup(page, '8 long names › P-key over P-dates, page ' + pg);
+      r.key.items = r.key.items.concat(await page.$$eval('#sheet .legend .li', (els) => els.map((e) => e.textContent.trim())));
+    }
+    await page.click('#sheet [data-act="sh-back"]'); await settle(page, 120);
+    r.back = await popupId(page);
+    // a holiday, then Save: someone booked, so it asks first, in a word
+    await page.click('#sheet [data-act="dhol"]'); await settle(page, 80);
+    await page.click('#sheet [data-act="dsave"]'); await settle(page, 80);
+    r.armSave = await page.$eval('#sheet [data-act="dsave"]', (e) => e.textContent.replace(/\s+/g, ' ').trim());
+    await measurePopup(page, '8 long names › P-dates, Save asking (⚠ 🎫×1 Confirm)');
+    await page.click('#sheet [data-act="dlock"]'); await settle(page, 80);
+    r.armLock = await page.$eval('#sheet [data-act="dlock"]', (e) => e.textContent.replace(/\s+/g, ' ').trim());
+    await measurePopup(page, '8 long names › P-dates, 🔒 asking (⚠🎫×1 Confirm)');
+    // closed without Save: 🗑, and ↩ brings the pick back
+    await closeSheet(page); await settle(page, 100);
+    r.lost = await page.$eval('#toast', (e) => (e.hidden ? null : e.textContent.trim())).catch(() => null);
+    await measurePopup(page, '8 long names › the toast for a pick not saved', '#toast');
+    await page.click('#toast [data-act="undo"]'); await settle(page, 150);
+    r.undo = { pop: await popupId(page), save: await page.$eval('#sheet [data-act="dsave"]', (e) => e.getAttribute('data-lbl') || e.textContent.trim()).catch(() => null) };
+    // Save → its confirming tap → the write held out: ◷ Saving everywhere, focus kept; then ✓ Saved
+    let release; net.holdPost = new Promise((res) => { release = res; });
+    await page.click('#sheet [data-act="dsave"]'); await settle(page, 60);
+    const n0 = net.posts;
+    await page.click('#sheet [data-act="dsave"]'); await settle(page, 150);
+    r.busy = await page.evaluate(() => ({ save: (document.querySelector('#sheet [data-act="dsave"]') || {}).textContent, busy: (document.querySelector('#sheet [data-act="dsave"]') || { getAttribute() {} }).getAttribute('aria-busy'),
+      focus: (document.activeElement || {}).getAttribute ? document.activeElement.getAttribute('data-act') : null, native: document.querySelectorAll('#sheet button[disabled]').length,
+      saying: document.querySelectorAll('#sheet [data-lbl="Saving"]').length }));
+    await measurePopup(page, '8 long names › P-dates while Save is out (◷, Saving)');
+    net.holdPost = null; release(); await settle(page, 700);
+    r.saved = { posts: net.posts - n0, save: await page.$eval('#sheet [data-act="dsave"]', (e) => e.getAttribute('data-lbl')).catch(() => null), focus: await page.evaluate(() => (document.activeElement || {}).getAttribute ? document.activeElement.getAttribute('data-act') : null) };
+    await measurePopup(page, '8 long names › P-dates once saved (✓ Saved)');
+    const doc = JSON.parse(net.kv.map.get('idea:' + M8));
+    check(r.pop === 'P-dates' && r.days === 'Sun Mon Tue Wed Thu Fri Sat' && r.key.pop === 'P-key' && r.key.items.some((t) => /People there/.test(t)) && r.key.items.some((t) => /There/.test(t)) && r.back === 'P-dates' &&
+      /^⚠ 🎫×1 Confirm$/.test(r.armSave) && /^⚠🎫×1 Confirm$/.test(r.armLock) && r.lost === '🗑↩' && r.undo.pop === 'P-dates' && r.undo.save !== 'No change' &&
+      r.busy.save === '◷' && r.busy.busy === 'true' && r.busy.focus === 'dsave' && r.busy.native === 0 && r.busy.saying >= 10 && r.saved.posts >= 1 && r.saved.save === 'Saved' && r.saved.focus === 'dsave' &&
+      doc.responses['bartholomewmontgomeryfitzgera-dj'].available_from === '2026-12-10' && doc.responses['bartholomewmontgomeryfitzgera-dj'].booked === true,
+      'PIA-138 on the 8-member trip: all seven weekdays named; ⓘ explains the grid (P-key over P-dates, ‹ back); with a 🎫 Save and 🔒 ask in a word (⚠🎫×1 Confirm); a pick closed unsaved toasts 🗑 and ↩ restores it; while Save is out it is ◷ (focus kept, no native disabled, the rest say Saving); then ✓ Saved', r);
+    // P-dates fits short phones: 🔒 and Save are where a finger lands (nothing under Save, which never shows through)
+    for (const vp of [{ width: 360, height: 740 }, { width: 375, height: 667 }]) {
+      await closeSheet(page);
+      await page.setViewportSize(vp); await settle(page, 120);
+      await page.click('#screen .daterow [data-act="dates"]'); await settle(page, 150);
+      const o = await page.evaluate(() => {
+        const sh = document.querySelector('#sheet'), R = sh.getBoundingClientRect(), save = sh.querySelector('.btn.stick'), sv = save.getBoundingClientRect(), hd = sh.querySelector('.sh-hd').getBoundingClientRect();
+        const lock = sh.querySelector('[data-act="dlock"]'), lr = lock.getBoundingClientRect(), hit = (el) => { const r = el.getBoundingClientRect(), t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return !!t && (t === el || el.contains(t)); };
+        return { lock: hit(lock) && lr.bottom <= sv.top - 4, save: hit(save) && sv.bottom <= R.bottom + 1, opaque: getComputedStyle(save).opacity, top: hd.bottom <= lr.top };
+      });
+      await measurePopup(page, '8 long names › P-dates @' + vp.width + 'x' + vp.height);
+      check(o.lock && o.save && o.opaque === '1' && o.top, 'PIA-138 P-dates @' + vp.width + 'x' + vp.height + ' on the 8-member trip: 🔒 is in view and takes the tap (never under Save), Save takes its own, and Save is opaque', o);
+    }
     await ctx.close();
   }
 

@@ -116,7 +116,7 @@ svg { display: block; }
 .card > * { min-width: 0; }
 .card.dim { background: var(--sunk); } .card.dim .pc { opacity: .55; }
 .card.fly { animation: fly .6s cubic-bezier(.2, .9, .3, 1.2); }
-@keyframes fly { from { transform: translateY(-40px) scale(.92); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes fly { from { transform: translateY(-40px); opacity: 0; } to { transform: none; opacity: 1; } } /* PIA-138: no scale, so a card's targets (its date pill) stay ≥44px as it flies in */
 .card-a { display: flex; gap: 12px; align-items: flex-start; min-height: 60px; }
 .card-t { flex: 1; min-width: 0; margin: 0; font-size: 17px; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-top: 2px; }
 .card-open { text-align: left; font-weight: inherit; }
@@ -237,7 +237,13 @@ svg { display: block; }
 .daterow .pill .inner { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; column-gap: 6px; row-gap: 0; min-width: 0; }
 .pill .dt, .pill .inner > span { white-space: nowrap; }
 .step { width: 48px; height: 48px; border-radius: 14px; border: 1.5px solid var(--ink); font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; flex: none; display: grid; place-items: center; }
-.step:disabled { opacity: .35; cursor: not-allowed; }
+.step:disabled, .step.dis { opacity: .45; cursor: not-allowed; border-style: dashed; font-size: 14px; }
+.step.arm { border-color: var(--bad); color: var(--bad); font-size: 14px; }
+/* PIA-138: the date pill is a control (P-dates); my bar on the board too */
+button.pill { cursor: pointer; text-align: center; color: inherit; }
+.daterow button.pill { display: flex; }
+.track.mybar { height: 44px; display: block; width: 100%; border-radius: 10px; text-align: left; }
+.track.mybar .bar { top: 14px; } .track.mybar .tag { top: 11px; }
 .mine { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: -4px; }
 .mine i { display: inline-block; width: 28px; height: 3px; border-radius: 2px; background: var(--pc); }
 .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
@@ -416,8 +422,8 @@ svg { display: block; }
 .dc .plan.en { right: 1px; border-right: 2.5px solid var(--ink); border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
 .dc .plan.prop.st { border-left-style: dashed; } .dc .plan.prop.en { border-right-style: dashed; }
 .dc .plan.grey { border-color: var(--ink3); } /* the plan behind someone's own pick */
-.dc .best { position: absolute; inset: 4px 0; border-top: 2px solid var(--ink3); border-bottom: 2px solid var(--ink3); pointer-events: none; }
-.dc .best.st { left: 4px; border-left: 2px solid var(--ink3); } .dc .best.en { right: 4px; border-right: 2px solid var(--ink3); }
+.dc .best { position: absolute; z-index: 2; inset: 4px 0; border-top: 2px dashed var(--ink); border-bottom: 2px dashed var(--ink); pointer-events: none; }
+.dc .best.st { left: 4px; border-left: 2px dashed var(--ink); } .dc .best.en { right: 4px; border-right: 2px dashed var(--ink); } /* PIA-138: the best window, dashed, over a pick */
 .dc .myline { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--pc); }
 .brkx { position: absolute; top: 3px; bottom: 3px; width: 5px; border: 2px solid var(--ink2); pointer-events: none; }
 .brkx.l { left: 1px; border-right: 0; border-radius: 3px 0 0 3px; } .brkx.r { right: 1px; border-left: 0; border-radius: 0 3px 3px 0; }
@@ -454,8 +460,36 @@ svg { display: block; }
 .readout .w { color: var(--bad); }
 .tool { min-width: 48px; min-height: 48px; border-radius: 14px; border: 1.5px solid var(--line); display: inline-grid; place-items: center; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 6px; }
 .tool[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
-.tool:disabled { opacity: .35; cursor: not-allowed; }
+.tool:disabled, .tool.dis, .hchip.dis, .btn.pri.dis { opacity: .4; cursor: not-allowed; }
 .tool.arm { border-color: var(--bad); color: var(--bad); }
+/* PIA-138: P-dates and P-day */
+.dc[aria-pressed="true"] .dn { font-weight: 800; }
+.dc.ro { cursor: pointer; }
+.datehd { display: flex; align-items: center; gap: 8px; }
+.endseg button { min-width: 48px; font-size: 18px; }
+.dayn { display: inline-flex; align-items: center; gap: 2px; font-size: 18px; margin-left: 6px; font-variant-numeric: tabular-nums; }
+.dayfaces .dayf { min-height: 76px; border-radius: 14px; padding: 4px 2px; align-content: start; }
+.dayfaces .mayf .av { outline: 3px dashed var(--maybe); outline-offset: 2px; }
+.leg .tool { min-width: 44px; min-height: 44px; font-size: 15px; padding: 0 4px; border-radius: 12px; }
+.leg button.ld { border-radius: 10px; padding: 0 4px; border: 1.5px dashed var(--line); justify-content: center; }
+/* PIA-138 fix pass: P-dates fits a phone without hiding a control. The sheet may use the whole height, its rows sit closer,
+   the organizer's tools are above the grid, and Save never lets what is under it show through: a disabled (or busy) Save
+   dims its label, not the bar. */
+#sheet[data-popup="P-dates"] { gap: 10px; max-height: calc(100% - 12px); }
+#sheet[data-popup="P-dates"] .rowc { gap: 6px; }
+#sheet[data-popup="P-dates"] .hchip { padding: 0 8px; gap: 3px; font-size: 14px; }   /* the 4 holidays fit one row at 360 */
+#sheet[data-popup="P-dates"] .btn.stick { opacity: 1; }
+/* more of the picker below: the rows fade into the Save bar (a look only: it takes no taps) */
+#sheet[data-popup="P-dates"] .btn.stick::before { content: ""; position: absolute; left: -16px; right: -16px; bottom: calc(100% + 6px); height: 14px; background: linear-gradient(to bottom, transparent, var(--surface)); pointer-events: none; }
+#sheet[data-popup="P-dates"] .btn.stick.dis, #sheet[data-popup="P-dates"] .btn.stick[aria-disabled="true"] { opacity: 1; background: var(--sunk); color: var(--ink2); border-color: var(--line); }
+.ib.dis { opacity: .4; cursor: not-allowed; }
+.rdrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 28px; }
+.rdrow .readout { flex: 1 1 auto; min-width: 0; }
+.readout .fol { color: var(--ink2); font-weight: 600; }   /* an end that still follows the plan */
+.readout .w.amb { color: var(--maybe); }                   /* off the plan: allowed, so amber, not an error */
+.tool.wordy { padding: 0 10px; gap: 4px; display: inline-flex; align-items: center; font-size: 16px; }
+.cw { font-size: 15px; font-weight: 700; }
+.hchip.dis { opacity: .4; }
 .shiftrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .shiftrow .tool { width: 100%; }
 .followplan svg { width: 40px; height: 20px; }
@@ -592,6 +626,7 @@ svg { display: block; }
   .tabbar { left: 50%; right: auto; width: 430px; transform: translateX(-50%); }
   .fab, .calfab { right: calc(50% - 215px + 16px); }
   .sheet { left: 50%; right: auto; bottom: auto; top: calc(50% + 0px / 2); width: 430px; max-height: calc(100% - 0px - 32px); transform: translate(-50%, -50%); border-radius: 22px; }
+  #sheet[data-popup="P-dates"] { max-height: calc(100% - 0px - 32px); }
   .sheet.open { animation: none; }
   .sh-hd { top: -8px; }
   .ib:hover, .tool:hover, .hchip:hover { background: var(--sunk); }
@@ -1902,6 +1937,7 @@ function organizerEdit(fresh, editKey, delta, opts) {
   delta = delta || {}; opts = opts || {};
   var owed = opts.owed && opts.owed.base && opts.owed.base.idea && Array.isArray(opts.owed.codes) ? opts.owed : null;
   var ideaEdit = IDEA_DELTA_KEYS.some(function (k) { return hasOwn(delta, k); });
+  if (datesHeld(fresh, delta)) return null;   // PIA-138: locked or closed dates never move from a phone that has not seen it
   if (!ideaEdit && !delta.decision) {   // nothing to change: only what an earlier edit still owes
     if (!owed || !fresh || !fresh.id || !fresh.idea || docClosed(fresh)) return null;
     var only = owedSync(fresh, fresh.responses, fresh.decision, fresh.idea, owed);
@@ -2274,6 +2310,129 @@ function bookToggle(model, code) {
   if (!model.locked && !model.anyBooked) return null;
   return { on: x.booked, confirm: x.booked || !x.answered };
 }
+
+/* ---- dates: the one picker (PIA-138) ----
+   The plan is the organizer's; a person's own ends are theirs. Moving the plan carries every end that follows it (a
+   blank end), because every link, bar and pill is rebuilt from the record; an end someone set never moves with it. */
+var SHIFT_STEPS = [-7, -1, 1, 7];                                        // P-dates' day and week shifts
+/* a range moved by k days, keeping its length. why: '' it can go; 'past' it would start before today; 'pin' the event day
+   (📌) would fall outside it. null for no range. */
+function moveRange(s, e, k, pin, today) {
+  if (!isIso(s) || !isIso(e) || s > e || !isIso(today)) return null;
+  var a = addD(s, k), b = addD(e, k);
+  return { s: a, e: b, why: a < today ? 'past' : pin && (pin < a || pin > b) ? 'pin' : '' };
+}
+/* the organizer's one-tap shift on the trip view: the plan k days earlier or later, keeping its length and 📌. why also
+   says why the plan cannot move at all: 'org' (this phone does not organize it), 'legacy' (P-migrate first), 'closed'
+   (paid or dropped), 'locked' (🔓 first), 'none' (an undated idea has no plan to move) */
+function planShift(model, k, today) {
+  var why = !model.org ? 'org' : model.legacy ? 'legacy' : model.closed ? 'closed' : model.locked ? 'locked' : !model.plan ? 'none' : '';
+  return why ? { s: '', e: '', why: why } : moveRange(model.plan.s, model.plan.e, k, model.pin, today);
+}
+/* a phone that has not seen the 🔒 yet never moves a locked plan: a delta that changes the dates (the plan, the ⟦window⟧,
+   📌 or 🌙) of a record whose dates are 🔒 (chosen) or that is closed (paid or dropped) is held back, unless the same
+   update unlocks it (decision proposed). organizerEdit builds nothing for it, so it is checked on the fresh record every
+   write is rebuilt from, not on the screen it was tapped on. → 'locked' | 'closed' | '' (it can go) */
+function datesHeld(fresh, delta) {
+  var st = fresh && fresh.decision && fresh.decision.stage;
+  var why = st === 'booked' || st === 'dropped' ? 'closed' : st === 'chosen' && !docLegacy(fresh) ? 'locked' : '';
+  if (!why || !delta || !fresh.idea || (delta.decision && delta.decision.stage === 'proposed')) return '';
+  if (!hasOwn(delta, 'dates') && !hasOwn(delta, 'pin') && !hasOwn(delta, 'nights')) return '';
+  var a = cleanDates(fresh.idea.dates), b = cleanDates(hasOwn(delta, 'dates') ? delta.dates || {} : {}, a), N = parseNotes(fresh.idea.notes);
+  var pin = hasOwn(delta, 'pin') ? (isIso(delta.pin) ? delta.pin : '') : N.pin;
+  var nights = hasOwn(delta, 'nights') ? (delta.nights && +delta.nights > 0 ? Math.round(+delta.nights) : null) : N.nights;
+  var moved = ['departure', 'return', 'searchStart', 'searchEnd'].some(function (k) { return a[k] !== b[k]; }) || pin !== N.pin || nights !== N.nights;
+  return moved ? why : '';
+}
+/* a holiday chip: the holiday's whole long weekend (🦃 Wed–Sun; 🎗 and 🌭 Fri–Mon; 🎆 🎄 🎉 the day ±2), never before
+   today, with the holiday itself as the event day (📌) → {s, e, pin, g, k}; null for a day that is not a holiday (or is past) */
+function holidayPick(day, today) {
+  var h = isIso(day) && isIso(today) ? holidayOn(day) : null;
+  if (!h || h.d < today) return null;
+  var s = maxD(addD(h.d, h.r[0]), today);
+  return { s: s, e: maxD(addD(h.d, h.r[1]), s), pin: h.d, g: h.g, k: h.k };
+}
+/* what stops a picked plan (or ⟦window⟧ with o.window) from being saved: '' fine, 'empty' nothing picked, 'partial' only a
+   start, 'order', 'past' (it starts before today), 'pin' (the event day falls outside the plan: 📌⚠), 'nights' (a window
+   shorter than its 🌙 nights). o = {today, pin, window, nights} */
+function planCheck(s, e, o) {
+  o = o || {};
+  if (!s && !e) return 'empty';
+  if (!isIso(s) || !isIso(e)) return 'partial';
+  if (e < s) return 'order';
+  if (!isIso(o.today) || s < o.today) return 'past';
+  if (!o.window && o.pin && (o.pin < s || o.pin > e)) return 'pin';
+  if (o.window && o.nights && +o.nights > diffD(s, e)) return 'nights';
+  return '';
+}
+/* the organizer edits that change the dates (organizerEdit deltas; each touches nothing else):
+   • a plan (P-dates Save, ⬚ the best window): departure / return with 📌, and no 🌙 (a plan has its own length); the
+     ⟦window⟧ stays as it was;
+   • a ⟦window⟧ with 🌙 nights for an undated idea;
+   • 🗓⊘: the plan cleared, so the idea is undated again. It keeps a ⟦window⟧ (the flex window it had: the explicit one,
+     else the plan ± 7) and the plan's length as 🌙N, so its best window still has something to work with; 📌 stays. */
+function planDelta(s, e, pin) { return { dates: { departure: s, return: e }, pin: pin || '', nights: null }; }
+function windowDelta(s, e, nights) { return { dates: { departure: '', return: '', searchStart: s, searchEnd: e }, nights: nights || null }; }
+function clearDelta(model) {
+  var w = model.win;
+  return w ? { dates: { departure: '', return: '', searchStart: w.s, searchEnd: w.e }, nights: model.nights || null } : { dates: { departure: '', return: '' } };
+}
+/* one person's own days, set in P-dates or one leg at a time. end: null both ends (s, e); 0 the arrive end only (s); 1 the
+   leave end only (e). A blank value goes back to following the plan (s = e = '' with end null: follow the plan again). The
+   other end stays as it is (their own, or the plan's). → {patch (for respondRequest), d1, d2 (their days after it), why,
+   off} or null for someone not on the trip. why: '' fine; 'host' (a host is there all along: no days to set); 'out';
+   'answer' (no in / maybe answer yet: days are never set for someone who has not answered); 'partial' (an undated trip
+   needs both ends); 'order'; 'past' (an end set before today). off: an end set lands outside the plan (⚠, still allowed).
+   An end picked on the plan's own day for that side (the plan's first day as an arrival, its last as a departure) keeps
+   following the plan (blank), unless it is already their own: a pick that only repeats the plan never pins that end
+   against the next move (so "arrive a day later" with ↔ moves the arrival alone). same: the patch changes nothing they
+   have now (Save: No change). */
+function ownDays(model, code, s, e, end, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x) return null;
+  var plan = model.plan;
+  var pick = function (v, own, side) { v = v || ''; return v && v !== own && plan && v === side ? '' : v; };
+  var a = pick(s, x.own1, plan && plan.s), b = pick(e, x.own2, plan && plan.e);
+  var patch = end === 0 ? { available_from: a } : end === 1 ? { available_to: b } : { available_from: a, available_to: b };
+  var f = hasOwn(patch, 'available_from') ? patch.available_from : x.own1, t = hasOwn(patch, 'available_to') ? patch.available_to : x.own2;
+  var d1 = f || (plan ? plan.s : ''), d2 = t || (plan ? plan.e : '');
+  var bad = function (v) { return !!v && (!isIso(v) || v < today); };
+  var why = x.host ? 'host' : x.status === 'out' ? 'out' : !x.answered ? 'answer'
+    : (bad(patch.available_from) || bad(patch.available_to)) ? 'past' : !!d1 !== !!d2 ? 'partial' : d1 && d1 > d2 ? 'order' : '';
+  var off = !!plan && ((!!f && (f < plan.s || f > plan.e)) || (!!t && (t < plan.s || t > plan.e)));
+  return { patch: patch, d1: d1, d2: d2, why: why, off: off, same: f === x.own1 && t === x.own2 };
+}
+/* −1 / +1 on one leg (P-person's 🛬 / 🛫): that end alone moves a day and becomes the person's own (ownDays' rules) */
+function legShift(model, code, end, k, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x || !x.d1) return null;
+  var d = addD(end ? x.d2 : x.d1, k);
+  return ownDays(model, code, end ? '' : d, end ? d : '', end ? 1 : 0, today);
+}
+/* who is there on one day (P-day): in-members whose days cover it, and hosts (in, or in by default) on every day a screen
+   draws for the trip, are there: their heads are presentOn, so P-day agrees with the grid's numeral and never passes the
+   heads ring. Maybe-members whose days cover it are maybe; everyone else is away. → {day, n, there, maybe, away} (codes) */
+function dayPeople(model, day) {
+  var hd = hostDay(model, day), out = { day: day, n: presentOn(model, day), there: [], maybe: [], away: [] };
+  model.members.forEach(function (m) {
+    var cover = !!m.d1 && !m.bad && day >= m.d1 && day <= m.d2;
+    var there = m.host ? hd && (m.status === 'in' || m.status === 'host-default') : m.status === 'in' && cover;
+    var maybe = m.host ? hd && m.status === 'maybe' : m.status === 'maybe' && cover;
+    (there ? out.there : maybe ? out.maybe : out.away).push(m.code);
+  });
+  return out;
+}
+/* what the date pill (and my bar on the board) open on this phone: 'plan' the organizer's picker for the plan; 'mine' my
+   own days (I have answered in or maybe and travel); 'answer' nothing yet (I have not answered: the answer row asks
+   first, a day is never set for someone who has not answered); 'look' the plan to read (a host, someone out, a phone
+   that is nobody here, a trip that is closed or over) */
+function datesRole(model) {
+  if (model.closed || model.past) return 'look';
+  if (model.org && !model.legacy) return 'plan';
+  var me = model.me;
+  if (!me || me.host || me.status === 'out') return 'look';
+  return me.answered ? 'mine' : 'answer';
+}
 /* === pialax trip-model: end === */
 
 /* =====================================================================================================
@@ -2320,7 +2479,8 @@ var ST = {                                    // localStorage keys (the first se
   keys: 'pialax_idea_keys_v1', me: 'pialax_idea_me_v1', seen: 'pialax_idea_seen_v1', token: 'pialax_proxy_token',
   url: 'pialax_proxy_url', multi: 'pialax_multi_airport_v1', v1list: 'pialax_watchlist_v1',
   list: 'pialax_watchlist_v2', ui: 'pialax_ui_v1',
-  fares: 'pialax_fares_v2', shared: 'pialax_shared_at_v1', profile: 'pialax_me_profile_v1'   // PIA-135 (v2 only)
+  fares: 'pialax_fares_v2', shared: 'pialax_shared_at_v1', profile: 'pialax_me_profile_v1',  // PIA-135 (v2 only)
+  soon: 'pialax_soon_v2'                      // PIA-138 (v2 only): a run of ±1 taps the page was left before it settled
 };
 var NAV_KEY = 'pialax_nav_v2';                // sessionStorage {tab, seg}: a cold open always lands on Trips › Ideas
 /* the Worker origins this page may talk to: exactly the CSP's connect-src list (test-app checks the two agree).
@@ -2685,21 +2845,27 @@ function writeDone(id, w, r, fresh) {
 }
 /* a write any phone may make (an answer, a note, an airport cell, a 🎫): built against the doc on screen to draw it, then
    against a fresh read to send it. A failure carries retry: the same write again (P-error's ↻), rebuilt as it goes. */
-function freshWrite(id, build) {
+function freshWrite(id, build, o) {
+  o = o || {};
   var doc = DOCS[id], pre = doc ? build(doc) : null;
   if (!pre || !pre.length) return Promise.resolve({ ok: false, code: doc ? 'bad_body' : 'not_found' });
-  var again = function () { return freshWrite(id, build); };
+  var again = function () { return freshWrite(id, build, { guard: o.guard }); };
   return queueWrite(id, build, function (w) {
-    return api('GET', reqPath('/idea', id)).then(function (g) {
+    // PIA-138: a write still taking taps (o.gate) is drawn and holds its place in the queue, and goes once the taps stop
+    return Promise.resolve(o.gate).then(function () { return api('GET', reqPath('/idea', id)); }).then(function (g) {
       var fresh = docOf(g, id);
       if (!g.ok || !fresh) return writeDone(id, w, { ok: false, code: g.code || 'network' }, null);
       if (editKeyFor(id)) KEYBAD[id] = g.json.organizer === false;
+      // PIA-138: o.guard(fresh) holds the write back on the record it would be sent against (a booking this phone was not
+      // asked about): nothing is sent and the result says why (held: no ↻)
+      var held = typeof o.guard === 'function' ? o.guard(fresh) || '' : '';
+      if (held) { var hr = writeDone(id, w, { ok: false, code: held }, fresh); hr.held = true; return hr; }
       var reqs = build(fresh);
       if (!reqs || !reqs.length) return writeDone(id, w, { ok: false, code: docClosed(fresh) ? 'closed' : 'bad_body' }, fresh);
       takeBase(id, fresh);   // the fresh record, this write and the ones queued behind it
       return sendAll(reqs).then(function (r) { return writeDone(id, w, r, fresh); });
     });
-  }).then(function (out) { if (!out.ok) out.retry = again; return out; });
+  }).then(function (out) { if (!out.ok && !out.held) out.retry = again; return out; });
 }
 /* one answer (always complete; see respondRequest) */
 function respond(id, code, patch, opts) {
@@ -2735,14 +2901,21 @@ function organizerWrite(id, delta, opts) {
   var dl = typeof delta === 'function' ? delta : function () { return delta; };
   var opNow = function () { var o = OWED[id] || null; return Object.assign({}, opts || {}, o ? { owed: o } : {}); };
   var idea = function (d) { return !!d && IDEA_DELTA_KEYS.some(function (k) { return hasOwn(d, k); }); };
-  var op0 = opNow(), again = function () { return organizerWrite(id, delta, opts); };
+  var op0 = opNow(), again = function () { return organizerWrite(id, delta, opts); }, gate = opts && opts.gate;
   return queueWrite(id, function (doc) { return organizerEdit(doc, key, dl(doc), op0); }, function (w) {
-    var ow = OWED[id] || null, op = opNow();
-    return api('GET', reqPath('/idea', id)).then(function (g) {
+    var ow = null, op = null;
+    // PIA-138: a write still taking taps (gate: the trip view's −1 / +1) holds its place, drawn, until the taps stop
+    return Promise.resolve(gate).then(function () { ow = OWED[id] || null; op = opNow(); return api('GET', reqPath('/idea', id)); }).then(function (g) {
       var fresh = docOf(g, id);
       if (!g.ok || !fresh) return writeDone(id, w, { ok: false, code: g.code || 'network' }, null);
       if (g.json.organizer === false) { KEYBAD[id] = true; return writeDone(id, w, { ok: false, code: 'forbidden' }, fresh); }
-      var d = dl(fresh) || {}, owedOnly = !idea(d) && !d.decision, reqs = organizerEdit(fresh, key, d, op);
+      var d = dl(fresh) || {}, owedOnly = !idea(d) && !d.decision;
+      // PIA-138: dates are checked on the record they are sent against: a lock or a close another phone made meanwhile
+      // holds a move back (datesHeld), as does opts.guard (a booking this phone was not asked about); nothing is sent, the
+      // trip is drawn from that record, and the result says why (held: no ↻, it would be held again)
+      var held = datesHeld(fresh, d) || (opts && typeof opts.guard === 'function' ? opts.guard(fresh) || '' : '');
+      if (held) { var hr = writeDone(id, w, { ok: false, code: held }, fresh); hr.held = true; return hr; }
+      var reqs = organizerEdit(fresh, key, d, op);
       if (!reqs) {
         // only owed answers, and none can go (the trip closed meanwhile, or nobody owed still has an answer): settled
         if (owedOnly && ow) { if (OWED[id] === ow) delete OWED[id]; return writeDone(id, w, { ok: true, json: { doc: fresh } }, fresh); }
@@ -2759,7 +2932,7 @@ function organizerWrite(id, delta, opts) {
         out.retry = again;
         return out;
       });
-    }).then(function (out) { if (!out.ok && !out.retry) out.retry = again; return out; });
+    }).then(function (out) { if (!out.ok && !out.retry && !out.held) out.retry = again; return out; });
   });
 }
 /* POST /idea: the edit key is saved in v1's format and the trip joins the list. o.me = the index of the 🙋 member in
@@ -3083,7 +3256,14 @@ var LEGEND = {
   // PIA-137
   switch: ['⇄', 'Switch person'], whoami: ['👋 ?', 'Pick yourself'], join: ['🙋＋', 'Ask to join'], hidehere: ['🗄', 'Hide here'],
   arrive: ['🛬', 'Arrive'], leave: ['🛫', 'Leave'], drive: ['🚗', 'Drive'], today: ['▾', 'Today'],
-  fromlink: ['✉', 'From the link'], asked: ['🙋＋⏳', 'Asked to join'], nolink: ['✈⚠', 'No flight link'], ok: ['✓', 'Save']
+  fromlink: ['✉', 'From the link'], asked: ['🙋＋⏳', 'Asked to join'], nolink: ['✈⚠', 'No flight link'], ok: ['✓', 'Save'],
+  // PIA-138
+  shift: ['±1', 'Move a day'], past: ['⏳⚠', 'Before today'], pinout: ['📌⚠', 'Event day outside'], unlock: ['🔓', 'Unlock'], clear: ['🗓⊘', 'Clear dates'],
+  best: ['⬚', 'Best window'], present: ['👥', 'Who is there'], both: ['↔', 'Both ends'], follow: ['🗓', 'Follow plan'], cross: ['⚠', 'Ends cross'],
+  // PIA-138: the date grid's marks, for P-dates' ⓘ
+  dotin: ['●', 'There'], dotmaybe: ['◌', 'Maybe'], dotwait: ['○', 'Not there yet'], daycount: ['3', 'People there'], planprop: ['┅', 'Plan'], planset: ['▭', 'Plan locked'],
+  mydays: ['▁', 'My days'], outw: ['▨', 'Outside window'], offplan: ['⚠🗓', 'Outside plan'],
+  'h-ny': ['🎉', 'New Year'], 'h-mem': ['🎗', 'Memorial Day'], 'h-jul': ['🎆', 'July 4'], 'h-lab': ['🌭', 'Labor Day'], 'h-tg': ['🦃', 'Thanksgiving'], 'h-xm': ['🎄', 'Christmas']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -3254,8 +3434,22 @@ function cardPill(m) {
     }
     inner = '<span class="dt"><span data-k="dates">' + G('🗓') + '</span><span class="dr">' + md(m.plan.s) + '–' + md(m.plan.e) + u + '</span></span>' + pinTag(m);
   } else inner = datesText(m, false) + pinTag(m);
-  return '<span class="pill' + (m.locked ? ' set' : '') + '">' + inner + (warn ? ' <span class="w" data-k="warn">' + warn + '</span>' : '') +
-    (tg ? ' ' + togoTag(tg) : '') + '</span>';
+  // PIA-138: the pill is the way into P-dates (the organizer's plan, else my own days), above the card's tap overlay. Its
+  // name says what it shows (an aria-label replaces the content for a screen reader); a long press names it "Dates"
+  return '<button class="pill z' + (m.locked ? ' set' : '') + '" data-act="dates" data-id="' + m.id + '" aria-label="' + esc(datesAria(m, { warn: !!warn, tg: tg })) + '" data-lbl="Dates">' + inner + (warn ? ' <span class="w" data-k="warn">' + warn + '</span>' : '') +
+    (tg ? ' ' + togoTag(tg) : '') + '</button>';
+}
+/* PIA-138: a date pill read out: the plan (or the ⟦window⟧), its nights, 📌, 🔒, a ⚠ and the days to go, in words (an
+   aria-label is free under the word rule, and it is the button's only name) */
+function datesAria(m, o) {
+  o = o || {};
+  var t = 'Dates ' + (m.plan ? md(m.plan.s) + '–' + md(m.plan.e) + ', ' + m.nights + ' nights'
+    : m.win ? 'window ' + md(m.win.s) + '–' + md(m.win.e) + (m.nightsN ? ', ' + m.nightsN + ' nights' : '') : 'not set');
+  if (m.pin) t += ', event day ' + md(m.pin);
+  if (m.locked) t += ', locked';
+  if (o.warn) t += ', check dates';
+  if (o.tg && o.tg.days != null) t += ', ' + o.tg.days + ' days to go';
+  return t;
 }
 /* the one total, on the organizer's phone with the token only (model.prices); a guest's card has no slot at all.
    $— before any fare is cached; outlined with the faces still unpriced when part of the sum is missing (a traveler
@@ -3398,6 +3592,24 @@ function meRow(m) {
     avatar(me, 64, { marks: true }) + '</button><span class="nm"><span data-k="you">👋</span> ' + esc(me.short) + '</span><span class="sp"></span>' + note +
     '<button class="ib" data-act="face" data-id="' + m.id + '" aria-label="Switch person" data-k="switch">⇄</button></div>';
 }
+/* PIA-138: the plan pill (P-dates: the organizer's plan, else my own days; before I have answered, the answer row asks
+   first), with −1 / +1 either side for the organizer: one tap moves the whole plan a day, keeping its length and 📌, and
+   every link, bar and pill that follows the plan is drawn again at once (the write goes once the taps stop). Hidden while
+   🔒 (the pill says why); a shift that cannot go says why (⏳⚠ before today, 📌⚠ the event day would fall out). Once
+   anyone has booked, the first shift of a visit asks for a confirming tap (⚠🎫). */
+function dateRow(m) {
+  var can = m.org && !m.legacy && !!m.plan && !m.locked && !m.closed, pend = !!SOON['plan|' + m.id];
+  var step = function (k) {
+    var r = planShift(m, k, RT.today), lbl = k < 0 ? 'Earlier' : 'Later', arm = armed(armKey(m.id, String(k), 'shift'));
+    var no = r.why === 'past' ? ['⏳⚠', 'Before today', 'past'] : r.why === 'pin' ? ['📌⚠', 'Event day outside', 'pinout'] : null;
+    var a = 'data-act="shift" data-id="' + m.id + '" data-v="' + k + '"';
+    if (no) return '<button class="step dis" ' + a + ' aria-disabled="true" data-why="1" aria-label="' + lbl + ', ' + no[1] + '" data-lbl="' + no[1] + '" data-k="' + no[2] + '">' + no[0] + '</button>';
+    return '<button class="step' + (arm ? ' arm' : '') + '" ' + a + ' aria-label="' + (arm ? 'Confirm move' : lbl) + '"' + (arm ? ' data-lbl="Confirm move"' : '') + ' data-k="shift">' + (arm ? '⚠🎫' : k < 0 ? '−1' : '+1') + '</button>';
+  };
+  var pill = '<button class="pill' + (m.locked ? ' set' : '') + (pend ? ' pulse' : '') + '" data-act="dates" data-id="' + m.id + '" aria-label="' + esc(datesAria(m)) + '" data-lbl="Dates"' + (pend ? ' aria-busy="true"' : '') + '><span class="inner">' +
+    datesText(m, true) + (m.locked ? ' <span data-k="lock">🔒</span>' : '') + '</span></button>';
+  return '<div class="daterow">' + (can ? step(-1) : '') + pill + (can ? step(1) : '') + '</div>';
+}
 /* my own days under the plan, in my colour (a reversed pair is never drawn as a range: ⚠) */
 function mineLine(m) {
   var me = m.me; if (!me || !me.answered || !(me.own1 || me.own2) || !me.d1) return '';
@@ -3493,7 +3705,10 @@ function peopleBoard(m) {
     else if (tail === 'tk') { var tk = bookToggle(m, x.code); cell = tk ? tkBtn(m, x, tk) : '<span class="tkpad"></span>'; }
     h += '<div class="pb-row' + (isMe ? ' own' : '') + (x.status === 'out' ? ' dimrow' : '') + '" style="--pc:var(--p' + x.color + ')"><span class="who">' +
       '<button class="facebtn" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 44, { marks: true }) + '</button>' +
-      (isMe ? youTag() : nameTag(x.one, xi + 1)) + '</span><span class="track">' + (r ? pinX + barHTML(m, x, r) : '') + '</span>' + (cell ? '<span class="tail">' + cell + '</span>' : '') + '</div>';
+      (isMe ? youTag() : nameTag(x.one, xi + 1)) + '</span>' +
+      // PIA-138: my own bar opens P-dates for my own days (before I answer, the answer row asks first)
+      (isMe && r ? '<button class="track mybar" data-act="dates" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc('My dates' + (x.d1 && !x.bad ? ' ' + md(x.d1) + '–' + md(x.d2) : '') + (x.warn.indexOf('off') >= 0 ? ', outside plan' : '')) + '" data-lbl="My dates">' + pinX + barHTML(m, x, r) + '</button>'
+        : '<span class="track">' + (r ? pinX + barHTML(m, x, r) : '') + '</span>') + (cell ? '<span class="tail">' + cell + '</span>' : '') + '</div>';
   });
   return h + '</div>';
 }
@@ -3539,8 +3754,7 @@ function renderTrip(id) {
     (m.caption ? '<button class="nt" data-act="cap" data-id="' + m.id + '" aria-label="Note" data-k="note"><span>📝</span></button>' : '') +
     '<div class="cap"><button class="pipbtn" data-act="stage" data-id="' + m.id + '" aria-label="' + esc(stageName(m)) + '">' + pip1(m, true) + '</button></div>' +
     '<button class="ring" data-act="ring" data-id="' + m.id + '" aria-label="Heads in" data-k="heads">' + headsRing(m) + '</button></div><h2 class="ttl" data-free>' + esc(m.title) + '</h2>';
-  var dr = '<div class="daterow"><span class="pill' + (m.locked ? ' set' : '') + '"><span class="inner">' + datesText(m, true) + (m.locked ? ' <span data-k="lock">🔒</span>' : '') + '</span></span></div>';
-  var html = nav + hero + meRow(m) + dr + mineLine(m) + answerRow(m, m.me) + peopleBoard(m) + totalRow(m) + primaryHTML(m, prim);
+  var html = nav + hero + meRow(m) + dateRow(m) + mineLine(m) + answerRow(m, m.me) + peopleBoard(m) + totalRow(m) + primaryHTML(m, prim);
   return { id: m.org ? 'trip-organizer' : m.iHost ? 'trip-portal-host' : 'trip-portal', html: html };
 }
 /* Map and Calendar (PIA-143 / PIA-144) show the selected trip, the one Trips opened last */
@@ -3590,6 +3804,8 @@ function render(keep, bg) {
   } else if (S.tab === 'map') out = renderSelected('map', 'map');
   else out = renderSelected('calendar', 'cal');
   var y = window.scrollY || 0, scr = $('#screen');
+  // PIA-138: the screen control that had the focus (a −1 / +1 tapped again and again, by keyboard too) keeps it through a redraw
+  var fa = document.activeElement, fsig = fa && fa !== scr && scr.contains && scr.contains(fa) ? ctlSig(fa) : null;
   scr.innerHTML = out.html; scr.setAttribute('data-screen', out.id);
   $('#tabbar').innerHTML = renderTabbar();
   fitNames(scr, screenWords, 10);
@@ -3597,6 +3813,7 @@ function render(keep, bg) {
   if (out.id === 'trips-ideas') S.fly = null;   // the arrivals flew in once
   if (/^trip-(?:organizer|portal)/.test(out.id)) { S.facePulse = null; S.pulseAns = null; }   // PIA-137: each pulses once, as drawn
   if (keep) window.scrollTo(0, y);
+  if (fsig && !S.sheet) refocusScreen(fsig);
   centerChips();
   if (S.sheet && !(bg && typingInSheet())) renderSheet(false);
   syncURL(); navWrite();
@@ -3647,7 +3864,7 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
    back on the control that opened it. ---- */
 var SHEETS = {};
 var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
-  edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request' };   // each sheet's accessible name
+  edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
@@ -3668,9 +3885,9 @@ function shHd(left, o) {
     '<div class="ttlg">' + left + '</div><span class="sp"></span>' + (o.right || '') + '<button class="ib" data-act="sh-close" aria-label="Close" data-k="close">⌄</button></div>';
 }
 /* P-key: the glyphs on this screen, ≤18 words a page, and ⚙ at the foot on every phone */
-function keyEntries() {
+function keyEntries(roots) {
   var keys = [], seenK = {};
-  [$('#screen'), $('#tabbar')].forEach(function (r) {
+  (roots || [$('#screen'), $('#tabbar')]).forEach(function (r) {   // PIA-138: P-dates' ⓘ reads its own sheet
     if (!r) return;
     $$('[data-k]', r).forEach(function (el) { var k = el.getAttribute('data-k'); if (!seenK[k] && LEGEND[k] && !KEY_SKIP[k] && isShown(el)) { seenK[k] = 1; keys.push(k); } });
   });
@@ -3807,7 +4024,9 @@ function errInfo(code) {
     network: ['📶⚠', '', true], not_found: ['⚠', 'Trip not found', false], closed: ['🏁', 'Trip closed', false],
     forbidden: ['🔑⚠', 'Organizer link needed', false], no_token: ['🔑', 'Token needed', false], daily_cap: ['⛔', nextUtcMidnightLocal(), false],
     no_kv: ['⚠', 'Sharing unavailable', true], bad_body: ['⚠', 'Not saved', true], bad_id: ['⚠', 'Link broken', false],
-    answer_first: ['🎫⚠', 'Answer first', false], bad_decision: ['⚠', 'Not saved', false], too_large: ['⚠', 'Too long', false]
+    answer_first: ['🎫⚠', 'Answer first', false], bad_decision: ['⚠', 'Not saved', false], too_large: ['⚠', 'Too long', false],
+    // PIA-138: a date move held back on the fresh record (another phone locked the dates, or someone booked meanwhile)
+    locked: ['🔒', 'Dates locked', false], booked: ['⚠🎫', 'Someone booked', false]
   })[code] || ['⚠', 'Not saved', true];
 }
 SHEETS.error = function (sh) {
@@ -3834,14 +4053,19 @@ var FAMILY_KEYS = {}; FAMILY.forEach(function (f) { FAMILY_KEYS[f.key] = 1; });
 function guessScene(title) { var t = String(title || '').toLowerCase(); for (var i = 0; i < SCENE_WORDS.length; i++) if (SCENE_WORDS[i][1].test(t)) return SCENE_WORDS[i][0]; return SCENE_FALLBACK; }
 function shiftMonth(ymStr, k) { var y = +ymStr.slice(0, 4), mo = +ymStr.slice(5, 7) - 1 + k; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + (mo < 9 ? '0' : '') + (mo + 1); }
 /* the one date grid (P-new-when now; P-dates and Calendar build on it): ◀ month ▶, two named weekend columns */
-function monthHeader(ymStr, act, minYm) {
+function monthHeader(ymStr, act, minYm, o) {
   var prevOk = !minYm || ymStr > minYm;
-  return '<div class="monthhd"><button class="ib" data-act="' + act + '" data-v="-1" aria-label="Previous month"' + (prevOk ? '' : ' disabled') + '>◀</button><h3>' + MONTHS[+ymStr.slice(5, 7) - 1] + ' <span class="tn">' + ymStr.slice(0, 4) + '</span></h3>' +
+  // PIA-138 o.why: ◀ on the first month says why it cannot go back (a tap explains, as a long press does) instead of
+  // being a native disabled button that says nothing
+  var no = prevOk ? '' : o && o.why ? ' aria-disabled="true" data-why="1" data-lbl="' + o.why + '"' : ' disabled';
+  return '<div class="monthhd"><button class="ib' + (!prevOk && o && o.why ? ' dis' : '') + '" data-act="' + act + '" data-v="-1" aria-label="Previous month' + (!prevOk && o && o.why ? ', ' + o.why : '') + '"' + no + '>◀</button><h3>' + MONTHS[+ymStr.slice(5, 7) - 1] + ' <span class="tn">' + ymStr.slice(0, 4) + '</span></h3>' +
     '<button class="ib" data-act="' + act + '" data-v="1" aria-label="Next month">▶</button></div>';
 }
-function gridHTML(ymStr, cellFn) {
+var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/* o.days (PIA-138, P-dates): every weekday column named, so "is 11/7 a Saturday?" needs no counting */
+function gridHTML(ymStr, cellFn, o) {
   var first = ymStr + '-01', lead = dowOf(first), days = diffD(first, shiftMonth(ymStr, 1) + '-01'), h = '<div class="grid"><span class="wd we">Sun</span>', k;
-  for (k = 0; k < 5; k++) h += '<span class="wd"></span>';
+  for (k = 1; k < 6; k++) h += '<span class="wd">' + (o && o.days ? WEEKDAYS[k] : '') + '</span>';
   h += '<span class="wd we">Sat</span>';
   for (k = 0; k < lead; k++) h += '<span class="dc blank"></span>';
   for (k = 0; k < days; k++) h += cellFn(addD(first, k));
@@ -3852,6 +4076,9 @@ function dayCls(day) { var w = dowOf(day); return 'dc' + (w === 0 || w === 6 ? '
 function holMark(day) { var x = holidayOn(day); return x ? '<span class="hg" aria-hidden="true">' + x.g + '</span>' : ''; }
 /* holiday chips only for the next ~90 days (a chip seven months out is noise) */
 function soonHolidays() { return nextHolidays(RT.today, 6).filter(function (hd) { return diffD(RT.today, hd.d) <= 90; }); }
+/* PIA-138: P-dates' chips are the next 4 holidays (the spec) from the month on show, never before today: a March trip's
+   picker offers 🎗 🎆 🌭 🦃, not this Thanksgiving, and paging the month moves them along */
+function holidaysFrom(ymStr) { var from = addD(RT.today, -1), m0 = addD(ymStr + '-01', -1); return nextHolidays(m0 > from ? m0 : from, 4); }
 /* every trip this phone has seen (the list, shelf included), the one added last first */
 function seenModels() {
   var L = listRead();
@@ -4285,9 +4512,20 @@ function legRows(m, x, edit, links) {
   var h = '<div class="legs">' + (cells ? '<div class="leghd" aria-hidden="true"><span class="lh0"></span>' + hub.map(function (a) { return '<span>' + a + '</span>'; }).join('') + '</div>' : '');
   [[0, '🛬', x.d1, x.own1, x.A, 'arrive', 'Arrive'], [1, '🛫', x.d2, x.own2, x.H, 'leave', 'Leave']].forEach(function (r) {
     var one = ho && x.openJaw ? (r[0] ? ho.gfOut : ho.gfIn) : null, drive = m.alt && r[4] === m.alt ? '<span data-k="drive">🚗</span>' : '';
+    // PIA-138: the day itself opens P-dates for this one end; −1 / +1 move this end alone and make it their own (own days
+    // are underlined). A move that cannot go says why; after their 🎫 the first move asks for a confirming tap.
+    var a = 'data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + r[0] + '"';
+    var day = edit ? '<button class="ld' + (r[3] ? ' own' : '') + '" data-act="dates" ' + a + ' aria-label="' + r[6] + ' date ' + md(r[2]) + (r[3] ? ', own day' : '') + '" data-lbl="' + r[6] + ' date">' + md(r[2]) + '</button>' : '<span class="ld' + (r[3] ? ' own' : '') + '">' + md(r[2]) + '</span>';
+    var step = function (k) {
+      var s = legShift(m, x.code, r[0], k, RT.today), arm = armed(armKey(m.id, x.code, 'leg' + r[0] + k)), lbl = k < 0 ? 'Earlier' : 'Later';
+      var no = !s ? ['⚠', 'Ends cross', 'cross'] : s.why === 'past' ? ['⏳⚠', 'Before today', 'past'] : s.why ? ['⚠', 'Ends cross', 'cross'] : null;
+      var b = 'data-act="legshift" ' + a + ' data-v="' + k + '"';
+      if (no) return '<button class="tool dis" ' + b + ' aria-disabled="true" data-why="1" aria-label="' + lbl + ', ' + no[1] + '" data-lbl="' + no[1] + '" data-k="' + no[2] + '">' + no[0] + '</button>';
+      return '<button class="tool' + (arm ? ' arm' : '') + '" ' + b + ' aria-label="' + (arm ? 'Confirm move' : lbl) + '"' + (arm ? ' data-lbl="Confirm move"' : '') + ' data-k="shift">' + (arm ? '⚠🎫' : k < 0 ? '−1' : '+1') + '</button>';
+    };
     h += '<div class="leg" style="--pc:var(--p' + x.color + ')">' +
       (one ? '<a class="lg1" ' + handoffAttrs(one) + ' aria-label="' + r[6] + ' search" data-k="' + r[5] + '">' + r[1] + '↗</a>' : '<span class="lg0" data-k="' + r[5] + '">' + r[1] + '</span>') +
-      '<span class="ld' + (r[3] ? ' own' : '') + '">' + md(r[2]) + '</span>' + drive +
+      day + (edit ? step(-1) + step(1) : '') + drive +
       (cells ? '<span class="radg" role="radiogroup" aria-label="' + r[6] + '">' + hub.map(function (a) {
         return '<button class="rad" role="radio" aria-checked="' + (r[4] === a) + '" data-act="legair" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + r[0] + '" data-v="' + a + '" aria-label="' + r[6] + ' ' + a + '"><i></i></button>';
       }).join('') + '</span>' : '<b class="lc">' + esc(r[4]) + '</b>') + '</div>';
@@ -4334,7 +4572,7 @@ SHEETS.person = function (sh) {
   else if (x.traveler && m.dest) {
     // where they fly from can be set as soon as they answer, dated or not; the legs need the days
     if (edit) h += originRow(m, x, L);
-    if (x.d1 && !x.bad) h += legRows(m, x, edit, links);
+    if (x.d1 && (!x.bad || edit)) h += legRows(m, x, edit, links);   // PIA-138: reversed days (⚠) can be fixed from here
   }
   if (canAct && (!isMe || sh.p.outside)) h += answerRow(m, x, { proxy: !isMe });
   var fw = firstWords(x.noteText, 8);
@@ -4415,6 +4653,465 @@ function faceCheck() {
   S.faceAsked[id] = { pre: w.pre };
   openSheet('face', { id: id, hint: w.hint, pre: w.pre }, { focus: w.hint || w.pre || meFor(id) ? 'pf-mark' : null });
 }
+/* ---- PIA-138: dates, the one picker ----
+   P-dates is the only place dates change (with the trip view's −1 / +1, and one leg at a time in P-person). The organizer
+   moves, locks or clears the plan, pins 📌 and gives an undated idea its ⟦window⟧ and 🌙 nights; each member sets their
+   own ends (either or both) or follows the plan again, also while the plan is 🔒. What is picked lives in the sheet until
+   Save, so a refresh never resets it; every write goes through the model's builders (organizerEdit, respondRequest), and
+   since every link, bar and pill is rebuilt from the record, the people who follow the plan move with it in the same
+   render while an end someone set never does. P-day names who is there on one day (the grid's numeral, never more than
+   the heads ring). */
+var SOON_MS = 600;   // a run of quick taps (−1 / +1) is one write, sent this long after the last tap
+var SOON = {};       // key → a write still taking taps: {st, sent, parked, t, fire, p, rec, tk}
+var LIVE = {};       // token → every run of this page that has not settled yet (taking taps, or sent and not answered)
+var SOON_TK = 0;
+// the page has been left (pagehide, and not shown again since): a run that settles now (a request the browser aborted as
+// the page went) keeps its entry for the next open, which checks the record before it sends anything
+var LEFT = false, LEFT_DONE = [];
+/* the first tap queues the write (drawn at once, holding its place; refreshes wait, as for any write); each tap within
+   SOON_MS changes what it will send (update(st)) and draws it again; it goes SOON_MS after the last tap, or at once when
+   the page is hidden. start(st, gate) queues it and returns its promise (settled once the write is). rec(st) says what
+   the run is for the next open of the app (soonKeep), should the page be left before it settles. */
+function soonWrite(key, id, update, start, rec) {
+  var P = SOON[key];
+  if (P && !P.sent) { update(P.st); DOCS[id] = drawQueued(id, BASE[id] || DOCS[id]); MC = {}; clearTimeout(P.t); P.t = later(P.fire, SOON_MS); return P.p; }
+  P = SOON[key] = { st: {}, sent: false, parked: false, id: id, rec: rec || null, at: nowMs(), q: ++SOON_TK };
+  P.tk = P.at.toString(36) + '.' + P.q.toString(36);   // the page's first tap time and its run count
+  update(P.st);
+  var gate = new Promise(function (res) { P.go = res; });
+  P.fire = function () { if (P.sent) return; P.sent = true; P.parked = false; clearTimeout(P.t); if (SOON[key] === P) delete SOON[key]; P.go(); changed(); };
+  P.t = later(P.fire, SOON_MS);
+  LIVE[P.tk] = P;
+  P.p = start(P.st, gate);
+  var settle = function () { delete LIVE[P.tk]; if (LEFT) LEFT_DONE.push(P.tk); else soonDrop(P.tk); };
+  Promise.resolve(P.p).then(settle, settle);
+  return P.p;
+}
+function later(fn, ms) { var t = setTimeout(fn, ms); if (t && typeof t.unref === 'function') t.unref(); return t; }
+/* the page is being hidden or left: every run of taps that has not settled is kept on this phone first (soonKeep), so a
+   page that dies before its write is answered leaves it for the next open (soonReplay). Hidden, a run still taking taps
+   goes now, as usual (a fresh read first). Left (pagehide, which comes before a reload or a navigation hides the page),
+   nothing is sent: there is no time for that read, and a write built from what this phone read earlier (BASE) could move
+   a plan another phone has locked since, move a booked person's days with no confirm, or put back an answer someone has
+   changed since. The run waits (parked) and goes once the page is shown again (the back-forward cache: pageshow), or is
+   sent by the next open of the app. */
+function flushSoon(ev) {
+  var leaving = !!(ev && ev.type === 'pagehide');
+  if (leaving) LEFT = true;
+  soonKeep();
+  Object.keys(SOON).forEach(function (k) {
+    var P = SOON[k]; if (!P || P.sent || P.parked) return;
+    if (leaving) { P.parked = true; clearTimeout(P.t); return; }
+    P.fire();
+  });
+}
+/* the page is shown again (pageshow, or visible): what settled while it was away leaves the kept runs (this page has
+   said how it went), and a run parked when it was left goes now, the usual way */
+function soonResume() {
+  if (LEFT) { LEFT = false; LEFT_DONE.splice(0).forEach(soonDrop); }
+  Object.keys(SOON).forEach(function (k) { var P = SOON[k]; if (P && P.parked && !P.sent) P.fire(); });
+}
+/* ---- PIA-138: runs kept for the next open (pialax_soon_v2) ----
+   {token: {kind 'plan' | 'own', at (ms, the first tap), q, id, k (the last tap: −1 / +1), ack (a confirm was given),
+   bk (who had booked when it was given), 'plan': s, e (the plan it moves to), f (the plan it moved from); 'own': code,
+   by ('self' | 'proxy'), end, patch ({available_from?, available_to?}), f (their own ends before it), p (the plan then)}}.
+   Never an edit key, a token or a doc. An entry leaves once its write settles on this page, or once the next open has
+   sent (or dropped) it. */
+var SOON_KEEP_MS = 24 * 3600 * 1000;   // a run older than this is not sent by a later open
+function soonKeep() {
+  var tks = Object.keys(LIVE); if (!tks.length) return;
+  var map = writableMap(ST.soon); if (!map) return;
+  tks.forEach(function (tk) {
+    var P = LIVE[tk], r = null;
+    try { r = typeof P.rec === 'function' ? P.rec(P.st) : null; } catch (e) { r = null; }
+    if (r) map[tk] = Object.assign({ at: P.at, q: P.q }, r);
+  });
+  lsSet(ST.soon, JSON.stringify(map));
+}
+function soonDrop(tk) {
+  var map = writableMap(ST.soon); if (!map || !hasOwn(map, tk)) return;
+  delete map[tk];
+  if (Object.keys(map).length) lsSet(ST.soon, JSON.stringify(map)); else lsDel(ST.soon);
+}
+/* one kept entry, read back (anything off-shape → null) */
+function soonEntry(tk, v) {
+  var two = function (a) { return Array.isArray(a) && a.length === 2 && a.every(function (x) { return x === '' || isIso(x); }) ? a.slice() : null; };
+  if (!plainObj(v) || typeof v.at !== 'number' || !isFinite(v.at) || !IDEA_ID_RE.test(String(v.id))) return null;
+  var r = { tk: tk, at: v.at, q: +v.q || 0, id: v.id, k: v.k === -1 ? -1 : 1, ack: v.ack === true,
+    bk: Array.isArray(v.bk) ? v.bk.filter(function (c) { return MEMBER_CODE_RE.test(String(c)); }) : [] };
+  if (v.kind === 'plan') {
+    var f = two(v.f);
+    if (!isIso(v.s) || !isIso(v.e) || v.s > v.e || !f || !isIso(f[0]) || !isIso(f[1])) return null;
+    return Object.assign(r, { kind: 'plan', s: v.s, e: v.e, f: f });
+  }
+  if (v.kind !== 'own' || !MEMBER_CODE_RE.test(String(v.code)) || (v.by !== 'self' && v.by !== 'proxy') || !plainObj(v.patch)) return null;
+  var f2 = two(v.f), p = v.p === null ? null : two(v.p), patch = {}, ks = Object.keys(v.patch);
+  if (!f2 || (v.p !== null && !p) || (p && (!p[0] || !p[1])) || !ks.length) return null;
+  if (ks.some(function (k) { var x = v.patch[k]; patch[k] = x; return (k !== 'available_from' && k !== 'available_to') || (x !== '' && !isIso(x)); })) return null;
+  return Object.assign(r, { kind: 'own', code: v.code, by: v.by, end: v.end === 1 ? 1 : 0, patch: patch, f: f2, p: p });
+}
+function sameRange(p, a) { return !p && !a ? true : !!p && !!a && p.s === a[0] && p.e === a[1]; }
+function freshModel(id, f) { try { return tripModel(f, ctxFor(id)); } catch (e) { return null; } }
+function bookedCodes(m) { return m ? m.members.filter(function (x) { return x.traveler && x.booked; }).map(function (x) { return x.code; }) : []; }
+/* the next open of the app: what an earlier page kept is sent once its trip has been read, the usual way (organizerWrite /
+   freshWrite: a fresh read, datesHeld, the booked guard, the rebuild from that record), and only while that record still
+   holds what the run started from: the plan (a ±1), or that person's own days and the plan (a leg). A record changed by
+   anyone since keeps that change (nothing is sent); a record that already has it (the write landed before the page went)
+   is left alone. A booking the confirm did not cover asks again (the +1 armed on the trip view, else P-error); a lock or a
+   close since says so (P-error). A trip this open could not read keeps its entry for the next one. */
+function soonReplay() {
+  var map = writableMap(ST.soon); if (!map) return Promise.resolve([]);
+  var now = nowMs(), today = todayLocal(), go = [], drop = [];
+  Object.keys(map).forEach(function (tk) {
+    if (LIVE[tk]) return;
+    var r = soonEntry(tk, map[tk]);
+    var past = r && (r.kind === 'plan' ? r.s < today : Object.keys(r.patch).some(function (k) { return r.patch[k] && r.patch[k] < today; }));
+    if (!r || past || Math.abs(now - r.at) > SOON_KEEP_MS || listIds().indexOf(r.id) < 0 || STAT[r.id] === 'missing') { drop.push(tk); return; }
+    if (DOCS[r.id] && STAT[r.id] !== 'error') go.push(r);   // not read on this open (offline): kept for the next one
+  });
+  drop.forEach(soonDrop);
+  go.sort(function (a, b) { return a.at - b.at || a.q - b.q; });
+  return Promise.all(go.map(function (r) {
+    var fin = function (out) { soonDrop(r.tk); return soonAfter(r, out || { ok: false, code: 'bad_body' }); };
+    var p; try { p = soonSend(r); } catch (e) { p = null; }
+    return Promise.resolve(p).then(fin, function () { return fin(null); });
+  }));
+}
+var SOON_QUIET = { done: 1, moved: 1, gone: 1 };   // a kept run that has nothing left to do says nothing
+function soonSend(r) {
+  var id = r.id;
+  if (r.kind === 'plan') {
+    if (!editKeyFor(id) || KEYBAD[id]) return Promise.resolve({ ok: false, held: true, code: 'gone' });
+    var tgt = [r.s, r.e];
+    var dl = function (f) { var p = docPlan(f); return sameRange(p, r.f) && !sameRange(p, tgt) ? { dates: { departure: r.s, return: r.e } } : {}; };
+    return organizerWrite(id, dl, { guard: function (f) {
+      if (docClosed(f)) return 'closed';
+      var p = docPlan(f);
+      if (sameRange(p, tgt)) return 'done';
+      if (!sameRange(p, r.f)) return 'moved';
+      var bk = r.ack ? r.bk : [];
+      return bookedCodes(freshModel(id, f)).some(function (c) { return bk.indexOf(c) < 0; }) ? 'booked' : '';
+    } });
+  }
+  var self = r.by === 'self', x0 = memberIn(modelOf(id), r.code);
+  if (!x0 || !x0.answered || (self ? meCode(id) !== r.code : !editKeyFor(id) || KEYBAD[id])) return Promise.resolve({ ok: false, held: true, code: 'gone' });
+  var to = [hasOwn(r.patch, 'available_from') ? r.patch.available_from : r.f[0], hasOwn(r.patch, 'available_to') ? r.patch.available_to : r.f[1]];
+  return freshWrite(id, function (doc) { var q = respondRequest(doc, r.code, r.patch, { by: r.by }); return q ? [q] : null; }, { guard: function (f) {
+    if (docClosed(f)) return 'closed';
+    var fm = freshModel(id, f), x = memberIn(fm, r.code);
+    if (!x || !x.answered || x.host) return 'moved';
+    if (x.own1 === to[0] && x.own2 === to[1]) return 'done';
+    if (x.own1 !== r.f[0] || x.own2 !== r.f[1] || !sameRange(fm.plan, r.p)) return 'moved';
+    return x.booked && !(r.ack && r.bk.indexOf(r.code) >= 0) ? 'booked' : '';
+  } });
+}
+/* what a sent kept run tells this page: nothing when it went (or had nothing left to do); a booking the confirm did not
+   cover arms the control again where it is on screen; anything else is P-error, as the run would have said itself */
+function soonAfter(r, out) {
+  if (out.ok || (out.held && SOON_QUIET[out.code])) return out;
+  if (out.held && out.code === 'booked') {
+    if (r.kind === 'plan' && S.tab === 'trips' && tripShowingAt(r.id)) { arm(armKey(r.id, String(r.k), 'shift')); return out; }
+    if (r.kind === 'own' && S.sheet && S.sheet.type === 'person' && S.sheet.p.id === r.id && S.sheet.p.code === r.code) { arm(armKey(r.id, r.code, 'leg' + r.end + r.k)); return out; }
+  }
+  showError(out.code, out.retry);
+  return out;
+}
+/* a control that cannot act says why when it is tapped, as a long press would (its label: "Event day outside" …) */
+function explain(el) {
+  if (!el || typeof el.getBoundingClientRect !== 'function') return;
+  showLabel(el); clearTimeout(lp.hide); lp.hide = setTimeout(hideLabel, 1400);
+}
+/* the screen's control with the same signature takes the focus again after a redraw (keyboard users keep their place) */
+function refocusScreen(sig) { var t = sig ? findCtl($('#screen'), sig) : null; if (t) { try { t.focus({ preventScroll: true }); } catch (e) { /* not focusable */ } } }
+/* a confirming tap once anyone has booked is asked once per visit: per trip (the plan) or per person (their own days) */
+function acked(k) { return !!(S.dateAck && S.dateAck[k]); }
+function ackIt(k) { S.dateAck = S.dateAck || {}; S.dateAck[k] = true; }
+function maxYm(a, b) { return a > b ? a : b; }
+/* the picker's own state (outside the model render): the target (the trip's plan, one person's own days, or the plan to
+   read), the end being set (both, 🛬 or 🛫), the mode (dates or an undated idea's ⟦window⟧), the range being picked, 📌,
+   🌙 nights, following the plan, the month shown, a confirm waiting (armed), a write out (busy) or failed */
+function datesInit(sh, m) {
+  var L = sh.local, mine = m.me && m.me.answered && m.me.traveler ? m.me.code : '';
+  L.who = sh.p.who || (sh.p.target === 'me' ? mine : '');
+  L.target = L.who ? 'me' : sh.p.target === 'trip' && m.org && !m.legacy ? 'trip' : 'look';
+  L.end = sh.p.end === 0 || sh.p.end === 1 ? sh.p.end : null;
+  L.mode = m.undated && L.target === 'trip' ? 'window' : 'dates';
+  L.inited = true;
+  datesReset(sh, m);
+}
+function datesReset(sh, m) {
+  var L = sh.local; m = m || modelOf(sh.p.id); if (!m) return;
+  L.stage = 0; L.pinMode = false; L.lookMode = false; L.armed = null;
+  if (L.target === 'me') {
+    var x = memberIn(m, L.who) || {};
+    L.s = x.d1 || ''; L.e = x.d2 || '';   // the days they have now (their own, or the plan's)
+    L.follow = L.end === 0 ? !x.own1 : L.end === 1 ? !x.own2 : !x.own1 && !x.own2;
+    L.pin = '';
+  } else {
+    var sp = L.mode === 'window' ? (m.explicitWin ? m.win : null) : m.plan;
+    // 🌙 nights: the idea's own (🌙N), else unset (🌙?) until 🌙− / 🌙+ picks one (counting from 3): an untouched Save
+    // never writes a 🌙 nobody chose
+    L.s = sp ? sp.s : ''; L.e = sp ? sp.e : ''; L.pin = m.pin || ''; L.nights = m.nightsN || m.nights || 3; L.nightsSet = !!m.nightsN; L.follow = false;
+  }
+  var base = L.s || (m.plan && m.plan.s) || (m.win && m.win.s) || RT.today;
+  L.ym = L.target === 'look' ? ym(base) : maxYm(ym(base), ym(RT.today));
+}
+/* any new pick: a confirm waiting, a failure shown or a ✓ for the last Save no longer stand */
+function datesTouch(L) { L.armed = null; L.failed = null; L.saved = false; }
+/* everything the sheet shows and its writes need, from the picker's state and the model: what Save would send, whether it
+   changed anything, what stops it (why), and whether a confirming tap is owed first (someone booked). A person's Save
+   changes something only when its patch does (ownDays.same): an end that only repeats the plan's day keeps following. */
+function datesState(sh, m) {
+  var L = sh.local, out = { ro: L.target === 'look' || (L.target === 'trip' && (m.locked || m.closed)), dirty: false, why: '', delta: null, patch: null, ack: '' };
+  if (L.target === 'me') {
+    var x = memberIn(m, L.who);
+    if (!x) { out.ro = true; return out; }
+    var od = ownDays(m, L.who, L.follow ? '' : L.s, L.follow ? '' : L.e, L.end, RT.today) || {};
+    out.own = od; out.patch = od.patch;
+    out.dirty = !od.same;
+    out.why = L.end === null && !L.follow && L.stage === 1 ? 'partial' : od.why || '';
+    out.ack = x.booked && !acked(m.id + '|' + x.code) ? '🎫' : '';
+    out.ro = m.closed;
+    return out;
+  }
+  out.ack = m.anyBooked && !acked(m.id) ? '🎫×' + m.anyBooked : '';   // a move (or 🔓) once anyone has booked
+  if (out.ro) return out;
+  if (L.mode === 'window') {
+    var w = m.explicitWin ? m.win : null, nights = L.nightsSet ? L.nights : null;
+    out.dirty = !w ? !!(L.s || L.e) : w.s !== L.s || w.e !== L.e || nights !== (m.nightsN || null);
+    out.why = planCheck(L.s, L.e, { today: RT.today, window: true, nights: nights });
+    out.delta = windowDelta(L.s, L.e, nights);
+  } else {
+    out.dirty = !m.plan ? !!(L.s || L.e || (L.pin || '') !== (m.pin || '')) : m.plan.s !== L.s || m.plan.e !== L.e || (L.pin || '') !== (m.pin || '');
+    out.why = L.stage === 1 ? 'partial' : planCheck(L.s, L.e, { today: RT.today, pin: L.pin });
+    out.delta = planDelta(L.s, L.e, L.pin);
+  }
+  out.empty = !L.s && !L.e;   // nothing picked yet (Save: Pick dates)
+  if (out.why === 'empty' && !out.dirty) out.why = '';
+  return out;
+}
+/* why a pick cannot be saved, as a glyph (shown in the readout) and a label (the disabled control's) */
+var DATE_WHY = { partial: ['…', 'Pick an end'], order: ['⚠', 'Ends cross', 'cross'], past: ['⏳⚠', 'Before today', 'past'], pin: ['📌⚠', 'Event day outside', 'pinout'], nights: ['🌙⚠', 'Too many nights', 'nights'],
+  empty: ['', 'Pick dates'], answer: ['', 'Answer first'], host: ['🏠', 'Host'], out: ['', 'Out'] };
+function whyTag(code) { var w = DATE_WHY[code]; return w && w[0] && w[2] ? ' <span class="w" data-k="' + w[2] + '">' + w[0] + '</span>' : ''; }
+/* one day of the grid on a trip: heat and dots for who is there (a bare numeral too: never more than the heads ring), the
+   plan's outline (dashed while proposed), the best window dashed (organizer), the ⟦ ⟧ window ends, 📌 as the trip's own
+   picture, my own days underlined in my colour; and the range being picked over it */
+function tripCell(m, day, o) {
+  o = o || {};
+  var w = m.win, inWin = !!(w && day >= w.s && day <= w.e), drawn = inWin || hostDay(m, day) || !!(m.range && day >= m.range.s && day <= m.range.e), h = '';
+  var n = 0;
+  if (drawn && m.heads) {
+    n = presentOn(m, day);
+    // the dots that fit (8) are the filled ones first, then maybe, then not there yet: the filled dots always equal the
+    // numeral under them (one per head there), however many people the trip has
+    var rank = { fill: 0, maybe: 1, hollow: 2 }, dots = dotsOn(m, day).map(function (d, i) { return { d: d, i: i }; })
+      .sort(function (a, b) { return (rank[a.d.kind] - rank[b.d.kind]) || (a.i - b.i); }).slice(0, 8);
+    h += '<span class="heat" style="--h:' + (3 + 19 * n / m.heads).toFixed(0) + '%"></span><span class="dots">' + dots.map(function (o2) {
+      var d = o2.d, k = d.kind === 'fill' ? 'dotin' : d.kind === 'maybe' ? 'dotmaybe' : 'dotwait';
+      return '<i class="' + (d.kind === 'fill' ? '' : d.kind) + '" style="--pc:var(--p' + d.color + ')" data-k="' + k + '"></i>';
+    }).join('') + '</span>' + (n ? '<span class="pc-n" data-k="daycount">' + n + '</span>' : '');
+  }
+  var edge = function (r) { return (day === r.s || dowOf(day) === 0 ? ' st' : '') + (day === r.e || dowOf(day) === 6 ? ' en' : ''); };
+  if (m.plan && day >= m.plan.s && day <= m.plan.e && !o.hidePlan) h += '<span class="plan' + (m.locked ? '' : ' prop') + (o.planGrey ? ' grey' : '') + edge(m.plan) + '" data-k="' + (m.locked ? 'planset' : 'planprop') + '"></span>';
+  if (o.best && day >= o.best.s && day <= o.best.e) h += '<span class="best' + edge(o.best) + '" data-k="best"></span>';
+  if (w && day === w.s) h += '<i class="brkx l" data-k="window"></i>';
+  if (w && day === w.e) h += '<i class="brkx r" data-k="window"></i>';
+  if (o.pin === day) h += '<span class="pinday" aria-hidden="true">' + (o.pinNew ? '📌' : m.emoji) + '</span>';
+  if (o.mine && day >= o.mine.d1 && day <= o.mine.d2) h += '<i class="myline" style="--pc:var(--p' + o.mine.color + ')" data-k="mydays"></i>';
+  if (o.sel && day >= o.sel.s && day <= o.sel.e) h += '<span class="sel' + (o.who != null ? ' who' : '') + edge(o.sel) + '"' + (o.who != null ? ' style="--pc:var(--p' + o.who + ')"' : '') + '></span>';
+  return { cls: inWin || !w ? '' : ' outw', html: h, n: n };
+}
+/* a tool the picker offers: pressed / disabled with why (a tap explains) / armed (a confirm waiting) / failed (⚠ ↻) */
+function dTool(act, glyph, label, o) {
+  o = o || {};
+  var no = o.no || (o.wait && !o.busy ? 'Saving' : '');   // o.wait: another write of the sheet is out
+  var a = 'class="tool' + (no ? ' dis' : '') + (o.arm || o.failed ? ' arm' : '') + (o.arm ? ' wordy' : '') + '" data-act="' + act + '"' + (o.v != null ? ' data-v="' + o.v + '"' : '');
+  // a write out: ◷, still focusable (aria-disabled, not disabled), so a keyboard or screen-reader user keeps their place
+  if (o.busy) return '<button ' + a + ' aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷</button>';
+  if (o.failed) return '<button ' + a + ' aria-label="Retry">⚠↻</button>';
+  // the confirming tap names itself (someone booked: moving the dates moves theirs) in one word
+  if (o.arm) return '<button ' + a + ' aria-label="Confirm, someone booked" data-lbl="Confirm">⚠' + esc(o.arm) + ' <span class="cw">Confirm</span></button>';
+  if (no) return '<button ' + a + ' aria-disabled="true" data-why="1" aria-label="' + label + ', ' + no + '" data-lbl="' + no + '"' + (o.k ? ' data-k="' + o.k + '"' : '') + '>' + glyph + '</button>';
+  return '<button ' + a + (o.pressed != null ? ' aria-pressed="' + !!o.pressed + '"' : '') + ' aria-label="' + label + '"' + (o.k ? ' data-k="' + o.k + '"' : '') + '>' + glyph + '</button>';
+}
+/* PIA-138: while a write of the sheet is out, the picker's other controls say so on a tap (Saving) instead of taking a
+   pick the landing write would throw away */
+function busyAttrs(L) { return L.busy ? ' aria-disabled="true" data-why="1" data-lbl="Saving"' : ''; }
+/* P-dates, the one date picker:
+   • header: whose dates (the organizer who travels switches [trip | me]; someone else's face when the organizer sets their days)
+   • the organizer's plan: holiday chips (a long weekend and its 📌 in one tap), the best window ⬚ (one tap makes it the plan),
+     an undated idea's [🗓 | ⟦⟧], tap a start and an end, −7 −1 +1 +7 (whole ranges), 📌 then a day, 👥 then a day (P-day),
+     🔒 / 🔓, 🗓⊘ (undated again), Save (the sheet stays open)
+   • my own days: [🛬 | ↔ | 🛫] either end or both, the plan to follow again, Save (a confirming tap after my 🎫)
+   • the plan to read (locked, closed, a host, someone out, nobody here): every day opens P-day */
+SHEETS.dates = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local;
+  if (!m) return shHd('<span data-k="dates">🗓</span>') + '<div class="rowc">' + staleMark() + '</div>';
+  if (!L.inited) datesInit(sh, m);
+  var st = datesState(sh, m), trip = L.target === 'trip', me = L.target === 'me', win = trip && L.mode === 'window', x = me ? memberIn(m, L.who) : null;
+  var mine = m.me && m.me.answered && m.me.traveler ? m.me : null, fail = L.failed || {}, bz = busyAttrs(L), ro = st.ro;
+  // whose dates: the organizer who travels switches between the plan and his own days; else the trip's picture, or the face
+  var tog = m.org && !m.legacy && !m.closed && !m.past && mine && (!sh.p.who || sh.p.who === mine.code) ?
+    '<span class="tg2" role="group" aria-label="Whose dates"><button data-act="dtarget" data-v="trip" aria-pressed="' + trip + '" aria-label="Trip dates"' + bz + '>' + m.emoji + '</button>' +
+    '<button data-act="dtarget" data-v="me" aria-pressed="' + me + '" aria-label="My dates"' + bz + '>' + mine.face + '</button></span>' : '';
+  var head = tog || (x ? '<span role="img" aria-label="' + esc(faceLabel(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 40, { plain: true }) + '</span>' : '<span style="font-size:28px" aria-hidden="true">' + m.emoji + '</span>');
+  // ⓘ: what the grid's marks and this picker's glyphs mean (P-key read over this sheet; ‹ comes back)
+  var h = shHd(head, { right: '<button class="ib" data-act="dkey" aria-label="Key" data-k="key">ⓘ</button>' });
+  var best = trip && !ro && m.best ? m.best : null;
+  var bestChip = '';
+  if (best) {
+    var bArm = L.armed === 'best', bBusy = L.busy === 'best';
+    bestChip = '<button class="hchip' + (bArm ? ' arm' : '') + (L.busy ? ' dis' : '') + '" data-act="dbest" aria-label="' + (bBusy ? 'Saving' : bArm ? 'Confirm best window, someone booked' : 'Best window ' + md(best.s) + '–' + md(best.e)) + '" data-lbl="' + (L.busy ? 'Saving' : bArm ? 'Confirm' : 'Best window') + '" data-k="best"' +
+      (L.busy ? ' aria-disabled="true" data-why="1"' + (bBusy ? ' aria-busy="true"' : '') : '') + '>' +
+      (bBusy ? '◷' : fail.act === 'best' ? '⚠↻' : bArm ? '⚠' + esc(st.ack) + ' <span class="cw">Confirm</span>' : '⬚ ' + md(best.s) + '–' + md(best.e)) + '</button>';
+  }
+  // the organizer's tools sit above the grid, so 🔒 is one more tap after Save on any phone, never under the Save bar
+  var tools = '';
+  if (trip && !ro) {
+    if (!win) {
+      tools += dTool('dpin', '📌', 'Event day', { pressed: L.pinMode, k: 'pin', wait: L.busy }) + dTool('dlook', '👥', 'Who is there', { pressed: L.lookMode, k: 'present', wait: L.busy });
+      var lockNo = !m.dest ? 'No destination' : (st.dirty ? st.why ? DATE_WHY[st.why][1] : '' : !m.plan ? 'Pick dates' : '');
+      tools += dTool('dlock', '🔒', 'Lock', { k: 'lock', no: lockNo, arm: L.armed === 'lock' ? st.ack : '', busy: L.busy === 'lock', wait: L.busy, failed: fail.act === 'lock' });
+      if (m.plan) tools += dTool('dclear', '🗓⊘', 'Clear dates', { k: 'clear', arm: L.armed === 'clear' ? st.ack : '', busy: L.busy === 'clear', wait: L.busy, failed: fail.act === 'clear' });
+    } else {
+      var room = L.s && L.e ? Math.min(30, diffD(L.s, L.e)) : 30;
+      tools += dTool('dnights', '🌙−', 'Fewer nights', { v: -1, k: 'nights', no: L.nightsSet && L.nights <= 1 ? 'Fewest nights' : '', wait: L.busy }) +
+        dTool('dnights', '🌙+', 'More nights', { v: 1, k: 'nights', no: L.nights >= room ? 'Window full' : '', wait: L.busy }) +
+        dTool('dlook', '👥', 'Who is there', { pressed: L.lookMode, k: 'present', wait: L.busy });
+    }
+    var mode = m.undated ? '<span class="tg2" role="group" aria-label="Dates or window"><button data-act="dmode" data-v="dates" aria-pressed="' + !win + '" aria-label="Dates"' + bz + '>🗓</button>' +
+      '<button data-act="dmode" data-v="window" aria-pressed="' + win + '" aria-label="Flex window"' + bz + '>⟦⟧</button></span>' : '';
+    h += '<div class="rowc">' + mode + tools + (m.undated ? '' : bestChip) + '</div>';
+    if (m.undated && bestChip) h += '<div class="rowc">' + bestChip + '</div>';
+    if (!win) h += '<div class="rowc">' + holidaysFrom(L.ym).map(function (hd) {
+      var nm = hasOwn(LEGEND, hd.k) ? LEGEND[hd.k][1] : 'Holiday';
+      return '<button class="hchip' + (L.busy ? ' dis' : '') + '" data-act="dhol" data-v="' + hd.d + '" aria-label="' + nm + ' ' + md(hd.d) + '" data-lbl="' + (L.busy ? 'Saving' : nm) + '"' + (L.busy ? ' aria-disabled="true" data-why="1"' : '') + '>' + hd.g + ' ' + md(hd.d) + '</button>';
+    }).join('') + '</div>';
+  } else if (trip && ro && m.locked && !m.closed) {
+    // a locked plan: read here (every day opens P-day); 🔓 is the one tool, on the left where nothing was (a quick second tap
+    // on 🔒 never lands on it)
+    // (a 🔒 still out is drawn here at once, as the record will read: ◷ on this, the same control, so focus stays on it)
+    h += '<div class="rowc">' + dTool('dlock', '🔓', 'Unlock', { k: 'unlock', arm: L.armed === 'unlock' ? st.ack || '🎫' : '', busy: L.busy === 'unlock' || L.busy === 'lock', failed: fail.act === 'unlock' }) + '</div>';
+  }
+  // one person's ends: either end or both (only with a plan to follow for the other end), and 👥
+  if (me && !ro) h += '<div class="rowc">' + (m.plan ? '<span class="tg2 endseg" role="group" aria-label="Which end">' + [[0, '🛬', 'Arrive only', 'arrive'], [null, '↔', 'Both ends', 'both'], [1, '🛫', 'Leave only', 'leave']].map(function (b) {
+    return '<button data-act="dend" data-v="' + (b[0] === null ? 'both' : b[0]) + '" aria-pressed="' + (L.end === b[0]) + '" aria-label="' + b[2] + '" data-k="' + b[3] + '"' + bz + '>' + b[1] + '</button>';
+  }).join('') + '</span>' : '') + dTool('dlook', '👥', 'Who is there', { pressed: L.lookMode, k: 'present', wait: L.busy }) + '</div>';
+  h += monthHeader(L.ym, 'dmonth', L.target === 'look' ? null : ym(RT.today), { why: 'Past' });
+  // the range on the grid: the plan being picked replaces the plan's outline; a person's own pick is drawn in their colour
+  // over the plan (grey); my own days are underlined while the plan is being picked
+  var prev = me && st.own ? st.own : null, sel = null;
+  if (me && !L.follow) sel = L.end === null ? (L.s ? { s: L.s, e: L.e || L.s } : null) : prev && prev.d1 && prev.d2 && prev.d1 <= prev.d2 ? { s: prev.d1, e: prev.d2 } : null;
+  else if (trip && !ro && L.s) sel = { s: L.s, e: L.e || L.s };
+  var mineDays = !me && mine && (mine.own1 || mine.own2) && mine.d1 && !mine.bad ? mine : null;
+  var pinDay = trip && !win ? L.pin : m.pin;
+  h += gridHTML(L.ym, function (day) {
+    var c = tripCell(m, day, { sel: sel, who: me && x ? x.color : null, best: best, mine: mineDays, hidePlan: trip && !ro && !win && !!sel, planGrey: me, pin: pinDay, pinNew: pinDay !== m.pin });
+    var past = day < RT.today && !ro, on = !!(sel && day >= sel.s && day <= sel.e), outw = c.cls === ' outw' && !past;
+    // a day says who is there (its numeral) when it is pressed long: "11/7 · 👥3"
+    var lbl = md(day) + (c.n ? ' · 👥' + c.n : ''), aria = md(day) + (c.n ? ', ' + c.n + ' there' : '');
+    var dis = past ? ' aria-disabled="true" data-why="1" data-lbl="Past"' : L.busy ? ' aria-pressed="' + on + '"' + bz : ' aria-pressed="' + on + '" data-lbl="' + lbl + '"';
+    return '<button class="' + dayCls(day) + c.cls + (past ? ' nope' : '') + (ro ? ' ro' : '') + '" data-act="dday" data-v="' + day + '" aria-label="' + aria + '"' + dis + (outw ? ' data-k="outw"' : '') + '>' +
+      '<span class="dn">' + (+day.slice(8)) + '</span>' + (day === pinDay ? '' : holMark(day)) + c.html + '</button>';
+  }, { days: true });
+  // the readout: the range (or ⟦window⟧ 🌙), 📌, and what stops a Save; a person's end that still follows the plan is
+  // drawn dimmed, and "follow the plan" sits beside it, always in view
+  var ro2 = '', follow = '';
+  if (L.target === 'look') ro2 = datesText(m, true);
+  else if (win) ro2 = '<span data-k="window">⟦' + (L.s ? md(L.s) + '–' + (L.e ? md(L.e) : '…') : ' ') + '⟧</span> <span data-k="nights">' + G('🌙') + (L.nightsSet ? L.nights : '?') + '</span>';
+  else if (me && prev && prev.d1) {
+    var p = prev.patch || {}, f1 = (hasOwn(p, 'available_from') ? p.available_from : x.own1) === '', f2 = (hasOwn(p, 'available_to') ? p.available_to : x.own2) === '';
+    var end = function (d, fol) { return fol ? '<span class="fol" data-k="follow">' + md(d) + '</span>' : md(d); };
+    ro2 = '<span class="tn">' + end(prev.d1, f1 && !!m.plan) + '–' + (L.end === null && L.stage === 1 && !L.follow ? '…' : end(prev.d2, f2 && !!m.plan)) + '</span>' + (prev.off ? ' <span class="w amb" data-k="offplan">⚠🗓</span>' : '');
+  } else if (L.s) ro2 = '<span class="tn">' + md(L.s) + '–' + (L.e && L.stage === 0 ? md(L.e) + '</span> · <span data-k="nights">' + diffD(L.s, L.e) + G('🌙') + '</span>' : '…</span>') +
+    (L.pin && st.why !== 'pin' ? ' <span data-k="pin">' + G('📌') + md(L.pin) + '</span>' : '');
+  if (L.target !== 'look' && st.dirty) ro2 += whyTag(st.why);
+  if (L.pinMode) ro2 += ' <span class="pulse" data-k="pin">' + G('📌') + '?</span>';
+  if (L.lookMode) ro2 += ' <span class="pulse" data-k="present">👥?</span>';
+  if (me && !ro && m.plan) follow = '<button class="hchip followb" data-act="dfollow" aria-pressed="' + !!L.follow + '" aria-label="Follow plan ' + md(m.plan.s) + '–' + md(m.plan.e) + '" data-lbl="' + (L.busy ? 'Saving' : 'Follow plan') + '" data-k="follow"' + (L.busy ? ' aria-disabled="true" data-why="1"' : '') + '>' + G('🗓') + md(m.plan.s) + '–' + md(m.plan.e) + '</button>';
+  h += '<div class="rdrow"><div class="readout" aria-live="polite">' + ro2 + '</div>' + follow + '</div>';
+  if (L.target === 'look' || ro) return h;
+  // −7 −1 +1 +7: the whole range, keeping its length (never before today; the plan never drops 📌)
+  if (!win && L.end === null && L.s && L.e && L.stage === 0 && !L.follow) h += '<div class="shiftrow">' + SHIFT_STEPS.map(function (k) {
+    var r = moveRange(L.s, L.e, k, trip ? L.pin : '', RT.today), no = r && r.why ? DATE_WHY[r.why] : null, lbl = (k < 0 ? 'Earlier ' : 'Later ') + Math.abs(k);
+    return no ? '<button class="tool dis" data-act="dshift" data-v="' + k + '" aria-disabled="true" data-why="1" aria-label="' + lbl + ', ' + no[1] + '" data-lbl="' + no[1] + '" data-k="' + no[2] + '">' + no[0] + '</button>'
+      : '<button class="tool' + (L.busy ? ' dis' : '') + '" data-act="dshift" data-v="' + k + '" aria-label="' + lbl + '" data-k="shift"' + bz + '>' + (k > 0 ? '+' : '−') + Math.abs(k) + '</button>';
+  }).join('') + '</div>';
+  // Save: what was picked, written once (◷ while it is out, ⚠ ↻ after a failure, ✓ once saved); the sheet stays open.
+  // Never see-through: a disabled Save dims its label, not the whole bar, so nothing under it reads as a control
+  var saveNo = L.busy ? 'Saving' : !st.dirty ? (L.saved ? 'Saved' : trip && st.empty ? 'Pick dates' : 'No change') : st.why ? DATE_WHY[st.why][1] : '';
+  if (L.busy === 'save') h += '<button class="btn pri wide stick busy" data-act="dsave" aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷</button>';
+  else if (fail.act === 'save') h += '<button class="btn pri wide stick" data-act="dsave" aria-label="Retry">⚠ ↻</button>';
+  else if (L.armed === 'save') h += '<button class="btn pri wide stick arm" data-act="dsave" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ ' + esc(st.ack || '🎫') + ' <span class="cw">Confirm</span></button>';
+  else if (saveNo === 'Saved') h += '<button class="btn pri wide stick dis" data-act="dsave" aria-label="Saved" aria-disabled="true" data-why="1" data-lbl="Saved">✓</button>';
+  else h += '<button class="btn pri wide stick' + (saveNo ? ' dis' : '') + '" data-act="dsave"' + (saveNo ? ' aria-disabled="true" data-why="1" data-lbl="' + saveNo + '"' : '') + '>Save</button>';
+  return h;
+};
+/* P-day: who is there on one day of a trip (from P-dates: 👥 then a day, or any day of a plan to read). Faces there are
+   full, maybe dashed, away dimmed; the numeral is the grid's (presentOn), so the two never disagree, and never pass the
+   heads ring. A face opens that person's sheet (‹ comes back). */
+SHEETS.day = function (sh) {
+  var m = modelOf(sh.p.id), d = sh.p.date, hd = isIso(d) ? holidayOn(d) : null;
+  var head = '<span class="tn">' + (isIso(d) ? md(d) : '') + '</span>' + (hd ? '<span data-k="' + hd.k + '">' + hd.g + '</span>' : '');
+  if (!m || !isIso(d)) return shHd(head);
+  var p = dayPeople(m, d);
+  var h = shHd(head + '<span class="dayn" data-k="present"><span aria-hidden="true">👥</span>' + p.n + '</span>');
+  return h + '<div class="dayfaces">' + m.members.map(function (x, i) {
+    var st = p.there.indexOf(x.code) >= 0 ? 'there' : p.maybe.indexOf(x.code) >= 0 ? 'maybe' : 'away';
+    return '<button class="dayf' + (st === 'away' ? ' dimf' : st === 'maybe' ? ' mayf' : '') + '" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' +
+      esc(faceLabel(x) + ', ' + { there: 'there', maybe: 'maybe', away: 'not there' }[st]) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 48) + (x.name ? nameTag(x.one, i + 1) : '') + '</button>';
+  }).join('') + '</div>';
+};
+/* a P-dates write from the sheet: ◷ on its control while it is out, the sheet redrawn from the record once it lands
+   (it stays open), ⚠ ↻ on that control after a failure (P-error instead when the sheet has closed meanwhile). Taps on
+   the sheet's write controls do nothing while one is out, so a quick double tap is one write. */
+function datesWrite(sh, act, run, done) {
+  var L = sh.local; if (L.busy) return null;
+  L.busy = act; L.failed = null; L.armed = null; L.saved = false; if (S.sheet === sh) renderSheet(false);
+  return run().then(function (r) {
+    L.busy = false;
+    // PIA-138: held back on the fresh record. A booking this phone was not asked about: the control asks now (its pick
+    // kept); the dates locked or the trip closed on another phone meanwhile: the sheet is drawn from that record
+    var ask = !r.ok && r.held && r.code === 'booked', gone = !r.ok && r.held && !ask;
+    if (r.ok) { if (act === 'save') L.saved = true; if (done) done(r); }
+    else if (ask) L.armed = act === 'unlock' ? 'unlock' : act;
+    else if (!gone) L.failed = { act: act, code: r.code || 'network' };
+    if (S.sheet === sh) {
+      if (r.ok || gone) { MC = {}; datesReset(sh); }
+      if (gone) toast(r.code === 'closed' ? '🏁' : '🔒');
+      // a write that changes what the sheet shows (🔒, 🔓, 🗓⊘, ⬚) swallows taps for a moment, so the second tap of a
+      // quick double tap never lands on whatever now sits where its control was
+      if (r.ok && act !== 'save') holdTaps();
+      renderSheet(false);
+    }
+    else if (!r.ok) showError(r.code || 'network', r.retry);
+    return r;
+  });
+}
+/* PIA-138: the guards a date write takes to the record it is sent against (organizerWrite / freshWrite opts.guard). A move
+   asks its confirming tap once anyone has booked; a booking that landed after the tap (on another phone) holds the move
+   back, so the control can ask first ('booked'). A closed trip takes no date write from here (reopening is P-stage's).
+   ack: the key the confirm is kept under (the trip, or one person for their own days, code: whose 🎫 counts). A confirm
+   already given when the write was made counts, even if its visit ended before the write went. */
+function closedGuard(fresh) { return docClosed(fresh) ? 'closed' : ''; }
+function bookedGuard(id, ack, code) {
+  var pre = acked(ack);
+  return function (fresh) {
+    if (docClosed(fresh)) return 'closed';
+    if (pre || acked(ack)) return '';
+    var fm = null; try { fm = tripModel(fresh, ctxFor(id)); } catch (e) { fm = null; }
+    var x = fm && code ? memberIn(fm, code) : null;
+    return fm && (code ? x && x.booked : fm.anyBooked) ? 'booked' : '';
+  };
+}
+var TAP_HOLD_MS = 400, tapHeld = false, tapHoldT = null;
+function holdTaps() { tapHeld = true; clearTimeout(tapHoldT); tapHoldT = later(function () { tapHeld = false; }, TAP_HOLD_MS); }
+/* a P-dates control tapped while a write of the sheet is out says so (Saving), and takes nothing */
+function datesBusy(el) { var sh = datesSheet(); if (!sh || !sh.local.busy) return false; explain(el); return true; }
+/* the trip's P-dates sheet, if it is the one open */
+function datesSheet() { var sh = S.sheet; return sh && sh.type === 'dates' ? sh : null; }
+
 /* In: a small burst of confetti from the button (none with reduced motion) */
 function burst(el) {
   try {
@@ -4597,9 +5294,14 @@ function closeSheet(fromPop) {
   if (!S.sheet) return;
   if (!leaveNote(S.sheet, fromPop)) return;   // PIA-136: a caption saves as its sheet closes (a longer v1 text asks twice)
   var lost = null;
-  for (var s = S.sheet; s; s = s.back) { keepDraft(s); if (s.type === 'new' && draftWorth(s.local.d)) lost = s.local.d; }
+  var dated = false, picked = null;
+  for (var s = S.sheet; s; s = s.back) {
+    keepDraft(s); if (s.type === 'new' && draftWorth(s.local.d)) lost = s.local.d;
+    if (s.type === 'dates') { dated = true; if (!picked && datesUnsaved(s)) picked = s; }   // PIA-138: a pick not saved
+  }
   S.sheet = null;
   disarm();   // PIA-137: a confirming tap belongs to the sheet it was asked in
+  if (dated && !tripShowing()) S.dateAck = {};   // PIA-138: P-dates opened from a card: its confirms were for that visit
   hideSheetEls();
   if (fromPop) S.histPushed = false;
   if (S.errNext) {   // a P-error that waited for this sheet takes its place (and its history entry, if it still has one)
@@ -4612,6 +5314,13 @@ function closeSheet(fromPop) {
   render(true);
   refocus();
   if (lost) toast('🗑', function () { if (!S.sheet) openCreate({ draft: lost }); return null; });   // PIA-136: an unsent create comes back with ↩
+  // PIA-138: dates picked and not saved are not dropped without a word: 🗑 says so, and ↩ opens the picker on them again
+  else if (picked) toast('🗑', function () { if (!S.sheet && modelOf(picked.p.id)) { picked.local.armed = null; picked.local.failed = null; openSheet('dates', picked.p, { local: picked.local }); } return null; });
+}
+/* a P-dates sheet holding a pick that Save would send (nothing out, nothing saved since) */
+function datesUnsaved(sh) {
+  var m = modelOf(sh.p.id), L = sh.local; if (!m || !L.inited || L.busy) return false;
+  var st = datesState(sh, m); return !st.ro && st.dirty;
 }
 function sheetBack() {
   var b = S.sheet && S.sheet.back;
@@ -4629,7 +5338,7 @@ function showError(code, retry) {
 }
 /* a control that asks for a confirming tap (a 🎫 for someone waiting or out, taking a 🎫 away, Out on someone booked):
    the first tap arms it for a few seconds; any other tap, a sheet closing or another trip opening disarms it */
-var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1 }, armTimer = null;
+var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1, shift: 1, legshift: 1 }, armTimer = null;   // PIA-138: ±1 once anyone booked
 function armKey(id, code, what) { return id + '|' + code + '|' + what; }
 function armed(k) { return !!S.armTk && S.armTk === k && nowMs() - (S.armAt || 0) < ARM_MS; }
 function arm(k) {
@@ -4727,7 +5436,7 @@ function popTrip() {
   S.tripPushed = false; S.ignorePop++;
   try { history.back(); } catch (e) { S.ignorePop--; }
 }
-function leaveTrip() { popTrip(); disarm(); S.trip = null; S.tab = S.tripFrom || 'trips'; S.tripFrom = ''; }
+function leaveTrip() { popTrip(); disarm(); S.dateAck = {}; S.trip = null; S.tab = S.tripFrom || 'trips'; S.tripFrom = ''; }   // PIA-138: a confirm asked on this visit is asked again next visit
 
 /* ---- actions ---- */
 /* ↩ puts a dropped trip back where it stood. Dropping keeps the decision's choice and paid amount, but the Worker's
@@ -4746,7 +5455,7 @@ function openTrip(id) {
     if (S.histPushed) { S.histPushed = false; S.tripPushed = true; }
   }
   if (!tripShowing()) S.tripFrom = from === 'trips' ? '' : from;
-  if (S.trip !== id) disarm();
+  if (S.trip !== id) { disarm(); S.dateAck = {}; }
   if (S.mapFrom) { S.mapFrom = null; S.tripPushed = true; }   // the Map's own entry becomes this trip's (Back: the trip before)
   S.tab = 'trips'; S.trip = id; S.sel = id; uiSet({ sel: id });
   pushTrip();
@@ -5037,7 +5746,7 @@ var ACTS = {
   /* PIA-137: the trip view */
   person: function (el) {
     var m = modelOf(el.dataset.id); if (!m || !memberIn(m, el.dataset.code)) return;
-    openSheet('person', { id: m.id, code: el.dataset.code, outside: !tripShowing() });
+    openSheet('person', { id: m.id, code: el.dataset.code, outside: !tripShowing() }, { back: !!(S.sheet && S.sheet.type === 'day') });   // PIA-138: from P-day, ‹ goes back to it
   },
   face: function (el) {
     var id = el.dataset.id, w = whoFor(id); if (!w) return;
@@ -5174,15 +5883,215 @@ var ACTS = {
     try { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* no scrolling here */ }
     pulseEl(b, 'hl');
   },
+  /* PIA-138: dates. The pill (and my bar) open P-dates: the organizer's plan, else my own days once I have answered (before
+     that, my answer row asks first), else the plan to read. A person's day in P-person opens their own days for that end. */
+  dates: function (el) {
+    var id = el.dataset.id, m = modelOf(id); if (!m) return null;
+    var code = el.dataset.code || '', end = el.dataset.end === '0' ? 0 : el.dataset.end === '1' ? 1 : null, back = !!(S.sheet && S.sheet.type === 'person');
+    if (code) {
+      var x = memberIn(m, code); if (!x) return null;
+      var isMe = !!(m.me && m.me.code === code);
+      if (isMe && !x.answered && !x.host && !m.closed && !m.past) return pulseAnswer(id);
+      if (!x.answered || x.host || m.closed || (!isMe && !(m.org && !m.legacy))) { openSheet('dates', { id: id, target: 'look' }, { back: back }); return null; }
+      openSheet('dates', { id: id, who: code, end: end }, { back: back });
+      return null;
+    }
+    var role = datesRole(m);
+    if (role === 'answer') return pulseAnswer(id);
+    openSheet('dates', { id: id, target: role === 'plan' ? 'trip' : role === 'mine' ? 'me' : 'look' });
+    return null;
+  },
+  dtarget: function (el) {
+    var sh = datesSheet(), m = sh && modelOf(sh.p.id); if (!m || datesBusy(el)) return;
+    var L = sh.local, mine = m.me && m.me.answered && m.me.traveler ? m.me.code : '';
+    if (el.dataset.v === 'me' && mine) { L.target = 'me'; L.who = mine; } else if (el.dataset.v === 'trip' && m.org && !m.legacy) { L.target = 'trip'; L.who = ''; } else return;
+    L.end = null; L.mode = m.undated && L.target === 'trip' ? 'window' : 'dates'; datesTouch(L); datesReset(sh, m); renderSheet(false);
+  },
+  dend: function (el) { var sh = datesSheet(); if (!sh || datesBusy(el)) return; var L = sh.local, v = el.dataset.v; L.end = v === '0' ? 0 : v === '1' ? 1 : null; datesTouch(L); datesReset(sh); renderSheet(false); },
+  dmode: function (el) { var sh = datesSheet(); if (!sh || datesBusy(el)) return; var L = sh.local; L.mode = el.dataset.v === 'window' ? 'window' : 'dates'; datesTouch(L); datesReset(sh); renderSheet(false); },
+  /* ◀ ▶ only page: the range stays as it is (◀ on the first month says why it cannot go back) */
+  dmonth: function (el) { var sh = datesSheet(); if (!sh) return; var L = sh.local, nx = shiftMonth(L.ym, +el.dataset.v); if (L.target !== 'look' && nx < ym(RT.today)) { explain(el); return; } L.ym = nx; renderSheet(false); },
+  /* PIA-138 ⓘ in P-dates: P-key over this sheet (the grid's marks, the picker's glyphs); ‹ comes back */
+  dkey: function () { var sh = datesSheet(); if (!sh) return; openSheet('key', {}, { back: true, local: { keys: keyEntries([$('#sheet')]) } }); },
+  /* a day: 📌 then a day pins it; 👥 then a day (or any day of a plan to read) opens P-day; one end (🛬 / 🛫) takes the day
+     at once; else tap a start, then an end (no dragging) */
+  dday: function (el) {
+    var sh = datesSheet(), m = sh && modelOf(sh.p.id), d = el.dataset.v; if (!m || !isIso(d) || datesBusy(el)) return null;
+    var L = sh.local, st = datesState(sh, m);
+    if (st.ro || L.lookMode) { L.lookMode = false; openSheet('day', { id: m.id, date: d }, { back: true }); return null; }
+    if (d < RT.today) { explain(el); return null; }
+    datesTouch(L);
+    if (L.pinMode && L.target === 'trip' && L.mode === 'dates') { L.pin = L.pin === d ? '' : d; L.pinMode = false; renderSheet(false); return null; }
+    L.pinMode = false;
+    if (L.target === 'me') L.follow = false;
+    if (L.target === 'me' && L.end !== null) { if (L.end === 0) L.s = d; else L.e = d; renderSheet(false); return null; }
+    if (L.stage === 0 || !L.s) { L.s = d; L.e = ''; L.stage = 1; } else if (d < L.s) L.s = d; else { L.e = d; L.stage = 0; }
+    if (L.mode === 'window' && L.s && L.e) L.nights = Math.max(1, Math.min(L.nights, diffD(L.s, L.e) || 1));
+    renderSheet(false);
+    return null;
+  },
+  /* −7 −1 +1 +7: the whole range moves, keeping its length */
+  dshift: function (el) {
+    var sh = datesSheet(); if (!sh || datesBusy(el)) return null; var L = sh.local, k = +el.dataset.v;
+    var r = moveRange(L.s, L.e, k, L.target === 'trip' ? L.pin : '', RT.today);
+    if (!r || r.why) { explain(el); return null; }
+    L.s = r.s; L.e = r.e; L.ym = ym(r.s); datesTouch(L); renderSheet(false); return null;
+  },
+  /* a holiday: its whole long weekend and its 📌 in one tap */
+  dhol: function (el) {
+    var sh = datesSheet(); if (!sh || datesBusy(el)) return null; var L = sh.local, hp = holidayPick(el.dataset.v, RT.today); if (!hp) return null;
+    L.s = hp.s; L.e = hp.e; L.pin = hp.pin; L.stage = 0; L.ym = ym(hp.pin); datesTouch(L); L.pinMode = false; renderSheet(false); return null;
+  },
+  dpin: function (el) { var sh = datesSheet(); if (!sh || datesBusy(el)) return; var L = sh.local; L.pinMode = !L.pinMode; L.lookMode = false; L.armed = null; renderSheet(false); },
+  dlook: function (el) { var sh = datesSheet(); if (!sh || datesBusy(el)) return; var L = sh.local; L.lookMode = !L.lookMode; L.pinMode = false; L.armed = null; renderSheet(false); },
+  /* 🌙 − / +: from 🌙? the first tap counts from 3 */
+  dnights: function (el) {
+    var sh = datesSheet(); if (!sh || datesBusy(el)) return null; var L = sh.local, room = L.s && L.e ? Math.min(30, diffD(L.s, L.e)) : 30, n = L.nights + (+el.dataset.v);
+    if (n < 1 || n > room) { explain(el); return null; }
+    L.nights = n; L.nightsSet = true; datesTouch(L); renderSheet(false); return null;
+  },
+  /* follow the plan again (both ends, or the one end being set) */
+  dfollow: function (el) {
+    var sh = datesSheet(), m = sh && modelOf(sh.p.id), L = sh && sh.local, x = m && memberIn(m, L.who); if (!x || datesBusy(el)) return;
+    L.follow = !L.follow; L.stage = 0; if (!L.follow) { L.s = x.d1 || ''; L.e = x.d2 || ''; } datesTouch(L); renderSheet(false);
+  },
+  /* Save: one write (the plan, the ⟦window⟧, or one person's own days); once anyone has booked a move asks for a confirming
+     tap first (once a visit, and again on the record it is sent against); the sheet stays open */
+  dsave: function (el) {
+    var sh = datesSheet(), id = sh && sh.p.id, m = id && modelOf(id); if (!m || datesBusy(el)) return null;
+    var L = sh.local, st = datesState(sh, m); if (st.ro) return null;
+    if (!st.dirty || st.why) { explain(el); return null; }
+    if (st.ack && L.armed !== 'save') { L.armed = 'save'; renderSheet(false); return null; }
+    if (L.target === 'me') {
+      var who = L.who, self = !!(m.me && m.me.code === who), patch = st.patch, by = self ? 'self' : 'proxy';
+      if (st.ack) ackIt(id + '|' + who);
+      if (self) confirmHinted(id, who);
+      return datesWrite(sh, 'save', function () {
+        return freshWrite(id, function (doc) { var q = respondRequest(doc, who, patch, { by: by }); return q ? [q] : null; }, { guard: bookedGuard(id, id + '|' + who, who) });
+      }, function () { toast('🗓✓'); });
+    }
+    if (st.ack) ackIt(id);
+    var delta = st.delta;
+    return datesWrite(sh, 'save', function () { return organizerWrite(id, delta, { guard: bookedGuard(id, id) }); }, function () { toast('🗓✓'); });
+  },
+  /* 🔒 locks the plan as it stands (with the dates just picked, if any); 🔓 unlocks it (a confirming tap once anyone booked).
+     The sheet stays open either way (now the plan to read with 🔓, or the picker with 🔒) */
+  dlock: function (el) {
+    var sh = datesSheet(), id = sh && sh.p.id, m = id && modelOf(id); if (!m || !m.org || m.legacy || m.closed || datesBusy(el)) return null;
+    var L = sh.local, st = datesState(sh, m);
+    if (m.locked) {
+      if (st.ack && L.armed !== 'unlock') { L.armed = 'unlock'; renderSheet(false); return null; }
+      if (st.ack) ackIt(id);
+      return datesWrite(sh, 'unlock', function () { return organizerWrite(id, { decision: { stage: 'proposed' } }, { guard: bookedGuard(id, id) }); }, function () { toast('🔓'); });
+    }
+    if (L.target !== 'trip' || L.mode !== 'dates') return null;
+    var move = st.dirty;
+    if (!m.dest || (move ? !!st.why : !m.plan)) { explain(el); return null; }
+    if (move && st.ack && L.armed !== 'lock') { L.armed = 'lock'; renderSheet(false); return null; }
+    if (move && st.ack) ackIt(id);
+    var delta = Object.assign(move ? clone(st.delta) : {}, { decision: { stage: 'chosen' } });
+    return datesWrite(sh, 'lock', function () { return organizerWrite(id, delta, { guard: move ? bookedGuard(id, id) : closedGuard }); }, function () { toast('🔒'); });
+  },
+  /* 🗓⊘: the idea is undated again (its ⟦window⟧ and 🌙 kept); ↩ in the toast puts the plan back */
+  dclear: function (el) {
+    var sh = datesSheet(), id = sh && sh.p.id, m = id && modelOf(id); if (!m || !m.org || m.legacy || !m.plan || m.locked || m.closed || datesBusy(el)) return null;
+    var L = sh.local, st = datesState(sh, m);
+    if (st.ack && L.armed !== 'clear') { L.armed = 'clear'; renderSheet(false); return null; }
+    if (st.ack) ackIt(id);
+    var undo = datesUndo(id, m);
+    return datesWrite(sh, 'clear', function () { return organizerWrite(id, clearDelta(m), { guard: bookedGuard(id, id) }); }, function () { L.mode = 'window'; toast('🗓⊘', undo); });
+  },
+  /* ⬚ the best window (explicit windows only) becomes the plan in one tap; ↩ in the toast puts the old one back */
+  dbest: function (el) {
+    var sh = datesSheet(), id = sh && sh.p.id, m = id && modelOf(id); if (!m || !m.best || !m.org || m.legacy || m.locked || m.closed || datesBusy(el)) return null;
+    var L = sh.local, st = datesState(sh, m), b = m.best;
+    if (st.ack && L.armed !== 'best') { L.armed = 'best'; renderSheet(false); return null; }
+    if (st.ack) ackIt(id);
+    var undo = datesUndo(id, m);
+    return datesWrite(sh, 'best', function () { return organizerWrite(id, planDelta(b.s, b.e, m.pin), { guard: bookedGuard(id, id) }); }, function () { L.mode = 'dates'; toast('⬚ ' + md(b.s) + '–' + md(b.e), undo); });
+  },
+  /* the trip view's −1 / +1: the whole plan, one tap a day; a run of taps is one write (SOON_MS after the last). It is
+     checked again on the record it is sent against: locked there meanwhile, nothing is sent (🔒 Dates locked); someone
+     booked there meanwhile, this control asks for its confirming tap first. A page left in the meantime sends nothing: the
+     run is kept on this phone and the next open sends it from a fresh read (soonKeep / soonReplay). */
+  shift: function (el) {
+    var id = el.dataset.id, k = +el.dataset.v, m = modelOf(id); if (!m || !k) return null;
+    var r = planShift(m, k, RT.today), sig = ctlSig(el);
+    if (!r || r.why) { explain(el); return null; }
+    if (m.anyBooked && !acked(id)) { var ak = armKey(id, String(k), 'shift'); if (!armed(ak)) { arm(ak); refocusScreen(sig); return null; } ackIt(id); }
+    disarm();
+    var s = r.s, e = r.e, ok0 = acked(id), guard0 = bookedGuard(id, id), from = [m.plan.s, m.plan.e], bk = bookedCodes(m);
+    // a confirm given on any tap of the run holds for the whole run, even if the trip is left before it is sent
+    var guard = function (st) { return function (f) { return st.ack ? closedGuard(f) : guard0(f); }; };
+    soonWrite('plan|' + id, id, function (st) { if (!st.f) st.f = from; st.s = s; st.e = e; st.k = k; if (ok0 && !st.ack) st.bk = bk; st.ack = st.ack || ok0; }, function (st, gate) {
+      return organizerWrite(id, function () { return { dates: { departure: st.s, return: st.e } }; }, { gate: gate, guard: guard(st) }).then(function (out) {
+        if (out.ok) return out;
+        // (left the trip meanwhile: P-error says why it did not move, never a silent drop)
+        if (out.held && out.code === 'booked' && tripShowingAt(id) && S.tab === 'trips') { arm(armKey(id, String(st.k), 'shift')); refocusScreen({ act: 'shift', id: id, v: String(st.k) }); }
+        else showError(out.code, out.retry);
+        return out;
+      });
+    }, function (st) { return { kind: 'plan', id: id, s: st.s, e: st.e, k: st.k, ack: !!st.ack, bk: st.bk || [], f: st.f }; });
+    render(true); refocusScreen(sig);
+    return null;
+  },
+  /* P-person's −1 / +1 on one leg: that end alone becomes their own; a run of taps is one write */
+  legshift: function (el) {
+    var id = el.dataset.id, code = el.dataset.code, end = el.dataset.end === '1' ? 1 : 0, k = +el.dataset.v, m = modelOf(id), x = memberIn(m, code);
+    if (!x || !k || m.closed) return null;
+    var self = !!(m.me && m.me.code === code); if (!self && !(m.org && !m.legacy)) return null;
+    var r = legShift(m, code, end, k, RT.today);
+    if (!r || r.why) { explain(el); return null; }
+    if (x.booked && !acked(id + '|' + code)) { var ak = armKey(id, code, 'leg' + end + k); if (!armed(ak)) { arm(ak); return null; } ackIt(id + '|' + code); }
+    disarm();
+    if (self) confirmHinted(id, code);
+    var patch = r.patch, by = self ? 'self' : 'proxy', ak0 = id + '|' + code, ok0 = acked(ak0), guard0 = bookedGuard(id, ak0, code);
+    var from = [x.own1, x.own2], plan = m.plan ? [m.plan.s, m.plan.e] : null, bk = x.booked ? [code] : [];
+    var guard = function (st) { return function (f) { return st.ack ? closedGuard(f) : guard0(f); }; };
+    var build = function (st) { return function (doc) { var q = respondRequest(doc, code, st.patch, { by: by }); return q ? [q] : null; }; };
+    soonWrite('own|' + id + '|' + code, id, function (st) {
+      if (!st.f) { st.f = from; st.p = plan; }
+      st.patch = Object.assign(st.patch || {}, patch); st.end = end; st.k = k; if (ok0 && !st.ack) st.bk = bk; st.ack = st.ack || ok0;
+    }, function (st, gate) {
+      return freshWrite(id, build(st), { gate: gate, guard: guard(st) }).then(function (out) {
+        if (out.ok) return out;
+        if (out.held && out.code === 'booked' && S.sheet && S.sheet.type === 'person' && S.sheet.p.code === code) arm(armKey(id, code, 'leg' + st.end + st.k));
+        else showError(out.code, out.retry);
+        return out;
+      });
+    }, function (st) { return { kind: 'own', id: id, code: code, by: by, end: st.end, k: st.k, patch: clone(st.patch), ack: !!st.ack, bk: st.bk || [], f: st.f, p: st.p }; });
+    render(true);
+    return null;
+  },
   'sh-close': function () { closeSheet(); },
   'sh-back': function () { sheetBack(); }
 };
 var TABS = { trips: 1, map: 1, cal: 1 };
+/* PIA-138: before I have answered, my days wait for my answer: the trip view's answer row asks (it pulses) */
+function pulseAnswer(id) {
+  S.pulseAns = id;
+  if (S.tab === 'trips' && tripShowingAt(id)) render(true); else openTrip(id);
+  toast('👋 In / Maybe / Out');   // the pulse says it in words too: an answer comes first
+  return null;
+}
+/* ↩ for a plan just cleared or replaced: the dates, 🌙 and 📌 as they were (never over a lock or a close made meanwhile) */
+function datesUndo(id, m) {
+  var I = DOCS[id] && DOCS[id].idea, back = { dates: clone((I && I.dates) || {}), nights: m.nightsN || null, pin: m.pin || '' };
+  return function () {
+    return organizerWrite(id, back, { guard: closedGuard }).then(function (r) {
+      if (!r.ok) showError(r.code, r.retry);
+      else { var sh = datesSheet(); if (sh && sh.p.id === id) { MC = {}; var mm = modelOf(id); sh.local.mode = mm && mm.undated ? 'window' : 'dates'; datesReset(sh, mm); renderSheet(false); } }
+      return r;
+    });
+  };
+}
 
 /* ---- wiring ---- */
 function wire() {
   document.addEventListener('click', function (e) {
     if (lp.fired) { lp.fired = false; e.preventDefault(); e.stopPropagation(); return; }
+    // PIA-138: just after a P-dates write redrew the sheet (🔒, 🔓, 🗓⊘, ⬚), the second tap of a quick double tap is dropped
+    if (tapHeld && e.target && e.target.closest && e.target.closest('#sheet')) { e.preventDefault(); e.stopPropagation(); return; }
     // a control that is aria-disabled does nothing, unless it explains itself when tapped (data-why: ▶ pulses what it needs)
     var el = e.target.closest && e.target.closest('[data-act]'); if (!el || el.disabled || (el.getAttribute('aria-disabled') === 'true' && !el.hasAttribute('data-why'))) return;
     var fn = ACTS[el.dataset.act]; if (!fn) return;
@@ -5250,6 +6159,11 @@ function wire() {
   });
   window.addEventListener('focus', onFocus);
   document.addEventListener('visibilitychange', onFocus);
+  // PIA-138: a run of ±1 taps still waiting goes at once when the page is hidden; when it is left (pagehide) it is kept
+  // on this phone and sends nothing (soonKeep): the page shown again (pageshow) sends it, else the next open does
+  document.addEventListener('visibilitychange', function () { if (!pageVisible()) flushSoon(); else soonResume(); });
+  window.addEventListener('pagehide', function () { flushSoon({ type: 'pagehide' }); });
+  window.addEventListener('pageshow', function () { soonResume(); });
   window.addEventListener('resize', function () { changed(); });
   var t = setInterval(poll, POLL_MS);
   if (t && typeof t.unref === 'function') t.unref();   // (Node test runs only)
@@ -5262,7 +6176,8 @@ function boot() {
     sheet: null, linkTrip: '', linkFresh: false, errNext: '', drafts: {}, opener: null, lastCtl: null, shown: '', hint: null, toastNext: '', keyPulse: !ui.keySeen, saveNext: null, fly: null,
     histPushed: false, tripPushed: false, tripFrom: '', ignorePop: 0, booted: false,
     joinNext: null, newNext: null, errNext0: '', undo: null,   // PIA-136: a join request, a v1 ?tripIdea= link, ↩
-    faceAsked: {}, facePulse: null, pulseAns: null, armTk: null, armAt: 0, picked: {}, errRetry: null, mapFrom: null };   // PIA-137: P-face once per trip and visit, one-time pulses, a control waiting for its confirming tap, this visit's picks, P-error's ↻
+    faceAsked: {}, facePulse: null, pulseAns: null, armTk: null, armAt: 0, picked: {}, errRetry: null, mapFrom: null,
+    dateAck: {}, replay: null };   // PIA-138: the confirming taps for moving dates already given this visit (per trip, per person); this open's send of the kept runs   // PIA-137: P-face once per trip and visit, one-time pulses, a control waiting for its confirming tap, this visit's picks, P-error's ↻
   importV1Once();
   applyLink(readLink(location.search || '', location.hash || '', location.pathname || ''));
   // a reload of a trip view keeps its own history entry (the one a tap pushed); a trip view a link opened has none
@@ -5275,7 +6190,10 @@ function boot() {
   if (S.newNext && !S.sheet) { var nn = S.newNext; S.newNext = null; openCreate({ legacy: nn }); }   // v1's ?tripIdea=: a filled create sheet
   if (S.errNext0) { var e0 = S.errNext0; S.errNext0 = ''; showError(e0); }                          // …or, broken, "Link broken"
   // the link's own trip is decided by its own answer (linkAnswered), however long the other trips take
-  return refreshAll(true);
+  var first = refreshAll(true);
+  // PIA-138: a run of ±1 taps an earlier page was left before it settled goes now, from a fresh read (soonReplay)
+  S.replay = first.then(function () { try { return soonReplay(); } catch (e) { return []; } });
+  return first;
 }
 boot();
 })(); // end IIFE

@@ -1074,6 +1074,206 @@ function makeServer(worker) {
       'once paid (💵) the trip is closed: no answer is built (the Worker would refuse it, 409 closed), so the trip view shows its closed state instead of taps that fail', { raw: raw.status });
   }
 
+  // ═══ PIA-138 ════════════════════════════════════════════════════════════
+  section('PIA-138 dates, the one picker: the plan moves with everyone who follows it, own ends stay, 📌 stays inside, undated ideas collect windows');
+  {
+    // the organizer's ±1: the whole plan, keeping its length and 📌; why it cannot move otherwise
+    const org = model(DW, { me: 'ashwin-p8', hasEditKey: true });
+    const p1 = M.planShift(org, 1, TODAY), m1 = M.planShift(org, -1, TODAY), p3 = M.planShift(org, 3, TODAY), m3 = M.planShift(org, -3, TODAY);
+    check(eq(p1, { s: '2026-11-07', e: '2026-11-10', why: '' }) && eq(m1, { s: '2026-11-05', e: '2026-11-08', why: '' }) && p3.why === 'pin' && m3.why === 'pin' && M.planShift(org, 2, TODAY).why === '' && M.planShift(org, -2, TODAY).why === 'pin' && M.planShift(org, 7, TODAY).why === 'pin',
+      'PIA-138 AC1 ±1 moves the whole plan a day (11/6–11/9 → 11/7–11/10 or 11/5–11/8), keeping its 3 nights; a move that would leave 📌 11/8 outside it cannot go (📌⚠)', [p1, m1, p3]);
+    const soon = model(tweak(DW, (d) => { d.idea.dates.departure = '2026-10-18'; d.idea.dates.return = '2026-10-21'; d.idea.notes = ''; }), { hasEditKey: true });
+    const locked = tweak(DW, (d) => { d.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }; });
+    const why = (doc, o) => M.planShift(model(doc, o), 1, TODAY).why;
+    check(M.planShift(soon, -1, TODAY).why === '' && M.planShift(soon, -2, TODAY).why === 'past' && why(DW, { me: 'anjo-z5' }) === 'org' && why(locked, { hasEditKey: true }) === 'locked' &&
+      why(LEG, { hasEditKey: true }) === 'legacy' && why(CY, { hasEditKey: true }) === 'none' && why(tweak(locked, (d) => { d.decision.stage = 'dropped'; }), { hasEditKey: true }) === 'closed',
+      'it never starts before today (⏳⚠); only the organizer moves it; locked dates do not move until 🔓; a v1 doc waits for P-migrate; an undated idea has no plan to move');
+    const r7 = M.moveRange('2026-11-06', '2026-11-09', 7, '', TODAY), r7m = M.moveRange('2026-11-06', '2026-11-09', -7, '', TODAY);
+    check(eq(r7, { s: '2026-11-13', e: '2026-11-16', why: '' }) && eq(r7m, { s: '2026-10-30', e: '2026-11-02', why: '' }) && M.moveRange('2026-10-20', '2026-10-22', -7, '', TODAY).why === 'past' && M.moveRange('', '', 1, '', TODAY) === null,
+      'PIA-138 AC2 the day and week shifts move the whole range and keep its length (±7 a week), never before today', [r7, r7m]);
+    check(eq(M.SHIFT_STEPS, [-7, -1, 1, 7]), 'the picker\'s shift row is −7 −1 +1 +7');
+  }
+  {
+    // a shift through the real Worker: every end that follows the plan moves with it; an end someone set stays (⚠ once off the plan)
+    const base = tweak(DW, (d) => {
+      d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-09', { note: 'Leaving early Monday' });
+      d.responses['ashwin-p8'] = R('in', 'LAX', '', '', { booked: true });
+    });
+    const id = srv.seed(base), before = await srv.get(id, KEY), mb = model(before, { me: 'ashwin-p8', hasEditKey: true });
+    const sh = M.planShift(mb, 1, TODAY), reqs = M.organizerEdit(before, KEY, { dates: { departure: sh.s, return: sh.e } });
+    const res = await srv.send(reqs), after = await srv.get(id, KEY), ma = model(after, { me: 'ashwin-p8', hasEditKey: true });
+    const dec = (x) => { const d = M.gfDecode(x.link && x.link.href); return d ? d.legs.map((L) => L.date) : null; };
+    check(srv.allOk(res) && eq(ma.plan, { s: '2026-11-07', e: '2026-11-10' }) && ma.pin === '2026-11-08' && after.idea.notes === before.idea.notes && eq(after.idea.members, before.idea.members),
+      'PIA-138 AC1 one shift is one organizer edit: the plan moves to 11/7–11/10 and nothing else in the idea changes (📌, caption, people)', reqs.map((q) => q.path));
+    check(eq(dec(mem(ma, 'momdad-k3')), ['2026-11-07', '2026-11-10']) && eq(dec(mem(mb, 'momdad-k3')), ['2026-11-06', '2026-11-09']) && mem(ma, 'momdad-k3').d1 === '2026-11-07',
+      'Mom & Dad follow the plan: their days and their Google Flights link move with it (11/7 out, 11/10 home)', [dec(mem(mb, 'momdad-k3')), dec(mem(ma, 'momdad-k3'))]);
+    const an0 = mem(mb, 'anjo-z5'), an1 = mem(ma, 'anjo-z5');
+    check(an0.link.href === an1.link.href && an1.own1 === '2026-11-05' && an1.own2 === '2026-11-09' && an0.warn.indexOf('off') >= 0 && an1.warn.indexOf('off') >= 0 &&
+      after.responses['anjo-z5'].available_from === '2026-11-05' && M.parseRespNote(after.responses['anjo-z5'].note).text === 'Leaving early Monday',
+      'Anjo set her own 11/5–11/9: they stay put (her link is byte for byte the same) and carry ⚠ while they fall off the plan; her note is untouched', an1.warn);
+    const ash1 = mem(ma, 'ashwin-p8');
+    check(reqs.length === 2 && reqs[0].path.indexOf('/idea/respond') === 0 && ash1.booked && ash1.own1 === '2026-11-06' && ash1.own2 === '2026-11-09' && eq(dec(ash1), ['2026-11-06', '2026-11-09']) && ash1.warn.indexOf('off') >= 0,
+      'Ashwin had booked while following the plan: before the plan moves his booked days are written as his own (11/6–11/9), so a move never changes the days he booked (⚠ shows they are now off the plan)', { own: [ash1.own1, ash1.own2] });
+  }
+  {
+    // holiday chips: a whole long weekend and its event day in one tap
+    const tgk = M.holidayPick('2026-11-26', TODAY), xm = M.holidayPick('2026-12-25', TODAY), lab = M.holidayPick('2027-09-06', TODAY), mem27 = M.holidayPick('2027-05-31', TODAY);
+    check(tgk.s === '2026-11-25' && tgk.e === '2026-11-29' && tgk.pin === '2026-11-26' && tgk.g === '🦃' && M.dowOf(tgk.s) === 3 && M.dowOf(tgk.e) === 0 && xm.s === '2026-12-23' && xm.e === '2026-12-27' && xm.pin === '2026-12-25' &&
+      lab.s === '2027-09-03' && lab.e === '2027-09-06' && M.dowOf(lab.s) === 5 && mem27.s === '2027-05-28' && mem27.e === '2027-05-31',
+      'PIA-138 AC2 one holiday tap picks its whole long weekend and pins the holiday: 🦃 Wed 11/25–Sun 11/29 📌11/26, 🎄 12/23–12/27, 🌭 and 🎗 Fri–Mon', [tgk, xm, lab, mem27]);
+    check(M.holidayPick('2026-11-26', '2026-11-26').s === '2026-11-26' && M.holidayPick('2026-11-27', TODAY) === null && M.holidayPick('2026-07-04', TODAY) === null,
+      'never a day before today (on Thanksgiving itself the weekend starts that day); a day that is no holiday, or one already past, picks nothing');
+  }
+  {
+    // what stops a pick from being saved: the event day is pinned and can never fall outside the plan
+    const c = (s, e, o) => M.planCheck(s, e, Object.assign({ today: TODAY }, o));
+    check(c('', '') === 'empty' && c('2026-11-06', '') === 'partial' && c('2026-11-09', '2026-11-06') === 'order' && c('2026-10-16', '2026-10-20') === 'past' && c('2026-11-09', '2026-11-12', { pin: '2026-11-08' }) === 'pin' &&
+      c('2026-11-06', '2026-11-09', { pin: '2026-11-08' }) === '' && c('2026-12-18', '2026-12-20', { window: true, nights: 4 }) === 'nights' && c('2026-12-18', '2027-01-04', { window: true, nights: 4, pin: '2026-11-08' }) === '',
+      'PIA-138 AC2 a plan is saved only whole (a start and an end, in order, from today) and with 📌 inside it (📌⚠ otherwise); a ⟦window⟧ must hold its 🌙 nights');
+  }
+  {
+    // clearing a plan makes the idea undated again; the best window (explicit windows only) turns back into a plan in one write
+    const id = srv.seed(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-06', '2026-11-12'); d.responses['ashwin-p8'] = R('in', 'LAX', '2026-11-07', '2026-11-11'); }));
+    const f0 = await srv.get(id, KEY), m0 = model(f0, { hasEditKey: true });
+    const cd = M.clearDelta(m0), clr = await srv.send(M.organizerEdit(f0, KEY, cd)), f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    check(srv.allOk(clr) && eq(cd.dates, { departure: '', return: '', searchStart: '2026-10-30', searchEnd: '2026-11-16' }) && m1.undated && !m1.plan && eq(m1.win, { s: '2026-10-30', e: '2026-11-16' }) && m1.nightsN === 3 && m1.nights === 3 &&
+      m1.pin === '2026-11-08' && m1.caption === 'Lakshmi puja Sunday evening',
+      'PIA-138 AC5 🗓⊘ clears the plan: the idea is undated again, keeping its flex window ⟦10/30–11/16⟧ as its window, its length as 🌙3, its 📌 and caption', f1.idea);
+    check(!!m1.best && m1.best.s === '2026-11-07' && m1.best.e === '2026-11-10' && m1.best.full === 2 && mem(m1, 'anjo-z5').own1 === '2026-11-06' && f1.responses['ashwin-p8'].available_from === '2026-11-07',
+      'the undated idea suggests its best 3-night window from the two people who set their own days, keeping 📌 11/8 inside (11/7–11/10), and nobody\'s own days changed', m1.best);
+    const tk = await srv.send(M.organizerEdit(f1, KEY, M.planDelta(m1.best.s, m1.best.e, m1.pin))), f2 = await srv.get(id, KEY), m2 = model(f2, { hasEditKey: true });
+    check(srv.allOk(tk) && eq(m2.plan, { s: '2026-11-07', e: '2026-11-10' }) && !m2.nightsN && eq(m2.win, { s: '2026-10-30', e: '2026-11-16' }) && m2.best === null && f2.idea.notes === '📌2026-11-08 Lakshmi puja Sunday evening',
+      'the organizer takes it in one write: it becomes the plan (its own length, so no 🌙; 📌 and the caption kept), the ⟦window⟧ stays, and the best window no longer shows (it is the plan)', [m2.plan, f2.idea.notes]);
+  }
+  {
+    // an undated idea collects a rough window and nights; members set their own days inside it; the organizer takes the best window
+    const id = srv.seed(CY), f0 = await srv.get(id, KEY), m0 = model(f0, { hasEditKey: true });
+    const wd = await srv.send(M.organizerEdit(f0, KEY, M.windowDelta('2026-12-18', '2027-01-04', 5))), f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    check(srv.allOk(wd) && m1.undated && m1.nightsN === 5 && eq(m1.win, { s: '2026-12-18', e: '2027-01-04' }) && f1.idea.notes === '🌙5 New date TBD' && !!m1.best && m1.best.s === '2026-12-21' && m1.best.e === '2026-12-26',
+      'PIA-138 AC5 the organizer sets the rough window and 🌙 nights (⟦12/18–1/4⟧ 🌙5): the best 5-night window follows Ashwin and Anjo\'s own days (12/21–12/26)', [m1.best, f1.idea.notes]);
+    const both = M.ownDays(m1, 'anjo-c4', '2026-12-20', '2026-12-26', null, TODAY);
+    const sent = await srv.send(M.respondRequest(f1, 'anjo-c4', both.patch, { by: 'self' })), f2 = await srv.get(id, KEY), m2 = model(f2, { hasEditKey: true });
+    check(both.why === '' && srv.allOk(sent) && f2.responses['anjo-c4'].available_from === '2026-12-20' && !!m2.best && m2.best.s === '2026-12-20' && m2.best.e === '2026-12-25' && eq(M.dayPeople(m2, '2026-12-24').there.sort(), ['anjo-c4', 'ashwin-c3']),
+      'a member sets her own window (12/20–12/26) and the best window moves with it (12/20–12/25); P-day 12/24 has both of them there', m2.best);
+    const tk = await srv.send(M.organizerEdit(f2, KEY, M.planDelta(m2.best.s, m2.best.e, m2.pin))), f3 = await srv.get(id, KEY), m3 = model(f3, { hasEditKey: true });
+    check(srv.allOk(tk) && eq(m3.plan, { s: '2026-12-20', e: '2026-12-25' }) && !m3.undated && f3.idea.notes === 'New date TBD' && f3.responses['ashwin-c3'].available_from === '2026-12-19' && f3.responses['anjo-c4'].available_to === '2026-12-26',
+      'the best window becomes the plan in one write (🌙 gone: the plan has its own length); everyone\'s own days stay as they set them', f3.idea);
+  }
+  {
+    // 🔒 locks the plan as it stands (no price, the plan's own dates), 🔓 unlocks it
+    const id = srv.seed(DW), f0 = await srv.get(id, KEY);
+    const lk = M.organizerEdit(f0, KEY, Object.assign(M.planDelta('2026-11-13', '2026-11-16', ''), { decision: { stage: 'chosen' } }));
+    const r1 = await srv.send(lk), f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    check(srv.allOk(r1) && lk.length === 1 && m1.locked && m1.stage === 'set' && f1.decision.chosen.departure === '2026-11-13' && f1.decision.chosen.return === '2026-11-16' && f1.decision.chosen.totalFare === null && m1.pin === '',
+      'PIA-138 AC3 🔒 with a new plan picked is one update: the plan, then the decision chosen from that very plan (no price stored)', f1.decision.chosen);
+    check(M.planShift(m1, 1, TODAY).why === 'locked', 'locked dates cannot be moved until unlocked');
+    const r2 = await srv.send(M.organizerEdit(f1, KEY, { decision: { stage: 'proposed' } })), m2 = model(await srv.get(id, KEY), { hasEditKey: true });
+    check(srv.allOk(r2) && !m2.locked && m2.stage === 'asking' && eq(m2.plan, { s: '2026-11-13', e: '2026-11-16' }) && M.planShift(m2, 1, TODAY).why === '', '🔓 unlocks it (the plan stays), and it can move again');
+  }
+  {
+    // a phone that has not seen the 🔒 yet never moves a locked plan: every write is rebuilt from the fresh record, and on a
+    // locked (or closed) one organizerEdit builds nothing for a date move (datesHeld)
+    const id = srv.seed(DW), f0 = await srv.get(id, KEY);
+    await srv.send(M.organizerEdit(f0, KEY, { decision: { stage: 'chosen' } }));   // another organizer phone locks it
+    const f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    const move = { dates: { departure: '2026-11-07', return: '2026-11-10' } };
+    const mv = M.organizerEdit(f1, KEY, move), lkmv = M.organizerEdit(f1, KEY, Object.assign(M.planDelta('2026-11-13', '2026-11-16', '2026-11-14'), { decision: { stage: 'chosen' } }));
+    const clr = M.organizerEdit(f1, KEY, M.clearDelta(m1)), pin = M.organizerEdit(f1, KEY, { pin: '2026-11-07' }), nights = M.organizerEdit(f1, KEY, { nights: 4 });
+    const same = M.organizerEdit(f1, KEY, M.planDelta('2026-11-06', '2026-11-09', '2026-11-08')), cap = M.organizerEdit(f1, KEY, { caption: 'Puja at 6' });
+    const unmv = M.organizerEdit(f1, KEY, Object.assign({ decision: { stage: 'proposed' } }, move));
+    check(m1.locked && M.datesHeld(f1, move) === 'locked' && mv === null && lkmv === null && clr === null && pin === null && nights === null && !!same && !!cap && cap.length === 1 && !!unmv && M.datesHeld(f1, { title: 'x' }) === '',
+      'PIA-138 AC3 on a record another phone has 🔒: a move, a lock with new dates, 🗓⊘, a new 📌 or 🌙 build nothing (datesHeld: locked); the same dates, a caption, or an unlock-and-move in one update still go', { mv, lkmv: !!lkmv, clr, pin });
+    const res = await srv.send(unmv), f2 = await srv.get(id, KEY);
+    check(srv.allOk(res) && f2.decision.stage === 'proposed' && eq(M.docPlan(f2), { s: '2026-11-07', e: '2026-11-10' }) && !(f2.decision.chosen && f2.decision.chosen.departure === '2026-11-06' && f2.decision.stage === 'chosen'),
+      'through the real Worker: unlock-and-move lands as one update, so the plan never disagrees with a 🔒 snapshot', f2.decision);
+    const dropped = tweak(DW, (d) => { d.decision = { stage: 'dropped' }; }), legacyChosen = tweak(LEG, (d) => { d.decision = { stage: 'chosen' }; });
+    check(M.datesHeld(dropped, move) === 'closed' && M.organizerEdit(dropped, KEY, move) === null && M.datesHeld(DW, move) === '' && M.datesHeld(legacyChosen, move) === '' && M.datesHeld(null, move) === '',
+      'a dropped or paid trip holds a move too (closed); an open trip does not; a v1 doc is P-migrate\'s (its edits are refused there anyway)');
+  }
+  {
+    // nobody's own days are changed behind their back: a pick that only repeats the plan's day keeps that end following
+    const one = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', ''); }), m1 = model(one, { me: 'anjo-z5' });
+    const o = (s, e, end) => M.ownDays(m1, 'anjo-z5', s, e, end === undefined ? null : end, TODAY);
+    const opened = o('2026-11-05', '2026-11-09'), later = o('2026-11-07', '2026-11-09'), plan = o('2026-11-06', '2026-11-09'), leave = o('', '2026-11-09', 1), fol = o('', '');
+    check(opened.same && eq(opened.patch, { available_from: '2026-11-05', available_to: '' }) && !later.same && eq(later.patch, { available_from: '2026-11-07', available_to: '' }) &&
+      !plan.same && eq(plan.patch, { available_from: '', available_to: '' }) && leave.same && eq(leave.patch, { available_to: '' }) && !fol.same && fol.d1 === '2026-11-06',
+      'PIA-138 Anjo set her arrival (11/5) and follows the leave end: her days as they are change nothing (same: Save "No change"); "arrive a day later" (11/7 → 11/9, the plan\'s own last day) sets the arrival only; picking the plan\'s own days follows it again', [opened.patch, later.patch, plan.patch]);
+    const own = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-06', '2026-11-09'); }), mo = model(own, { me: 'anjo-z5' });
+    const keep = M.ownDays(mo, 'anjo-z5', '2026-11-06', '2026-11-09', null, TODAY), md1 = M.legShift(model(DW, { me: 'momdad-k3' }), 'momdad-k3', 0, 1, TODAY), back = M.legShift(model(tweak(DW, (d) => { d.responses['momdad-k3'].available_from = '2026-11-07'; }), { me: 'momdad-k3' }), 'momdad-k3', 0, -1, TODAY);
+    check(keep.same && eq(keep.patch, { available_from: '2026-11-06', available_to: '2026-11-09' }) && eq(md1.patch, { available_from: '2026-11-07' }) && eq(back.patch, { available_from: '' }),
+      'days someone set that equal the plan stay theirs (they pinned them); a leg shift off the plan\'s day is their own (+1: 11/7), and back onto it follows the plan again (−1: blank)', [keep.patch, md1.patch, back.patch]);
+  }
+  {
+    // members set either end or both, or follow the plan again; never someone who has not answered; ⚠ when off the plan
+    const mo = tweak(DW, (d) => { d.responses['anjo-z5'] = R('maybe', 'LGA', '', '', { note: 'PTO pending', arrive_at: '' }); });
+    const m = model(mo, { me: 'anjo-z5' }), o = (c, s, e, end, today) => M.ownDays(m, c, s, e, end, today || TODAY);
+    const both = o('anjo-z5', '2026-11-05', '2026-11-08', null), arr = o('anjo-z5', '2026-11-07', '', 0), dep = o('anjo-z5', '', '2026-11-08', 1), fol = o('anjo-z5', '', '', null);
+    check(both.why === '' && eq(both.patch, { available_from: '2026-11-05', available_to: '2026-11-08' }) && both.off && arr.why === '' && eq(arr.patch, { available_from: '2026-11-07' }) && arr.d2 === '2026-11-09' && !arr.off &&
+      eq(dep.patch, { available_to: '2026-11-08' }) && dep.d1 === '2026-11-06' && eq(fol.patch, { available_from: '', available_to: '' }) && fol.why === '' && fol.d1 === '2026-11-06',
+      'PIA-138 AC4 a member sets both ends, or the arrive end alone (the leave end still follows the plan), or the leave end alone, or follows the plan again; ⚠ when an end lands off the plan', [both, arr, dep]);
+    check(o('momdad-k3', '2026-11-05', '2026-11-08', null).why === '' && o('anjo-z5', '2026-11-10', '', 0).why === 'order' && o('anjo-z5', '', '2026-11-05', 1).why === 'order' &&
+      o('anjo-z5', '2026-10-16', '', 0).why === 'past' && M.ownDays(model(DW), 'anjo-z5', '2026-11-05', '2026-11-08', null, TODAY).why === 'answer' &&
+      M.ownDays(model(tweak(DW, (d) => { d.responses['anjo-z5'] = R('out', 'LGA'); })), 'anjo-z5', '2026-11-05', '2026-11-08', null, TODAY).why === 'out' && M.ownDays(model(tg), 'PIA', '2026-11-21', '2026-11-22', null, TODAY).why === 'host',
+      'an end that would cross the other (an arrival after the leave day) or fall before today is refused; nobody sets days for someone who has not answered (they answer first), who is out, or who hosts');
+    check(M.ownDays(model(CY), 'ashwin-c3', '2026-12-20', '', 0, TODAY).why === '' && M.ownDays(model(tweak(CY, (d) => { d.responses['ashwin-c3'].available_to = ''; d.responses['ashwin-c3'].available_from = ''; })), 'ashwin-c3', '2026-12-20', '', 0, TODAY).why === 'partial',
+      'an undated idea has no plan to follow: a member there sets both ends (one end alone, with nothing to follow, waits for the other)');
+    // through the real Worker: a one-end write keeps the other end, the note, the airports and the 🎫
+    const id = srv.seed(tweak(tg, (d) => { d.responses.LGA = R('in', 'LGA', '2026-11-24', '2026-11-29', { note: 'Arriving late', leave_from: 'ORD', booked: true }); }));
+    const f0 = await srv.get(id), mm = model(f0, { me: 'LGA' }), ls = M.legShift(mm, 'LGA', 0, -1, TODAY);
+    const r1 = await srv.send(M.respondRequest(f0, 'LGA', ls.patch, { by: 'self' })), x1 = (await srv.get(id)).responses.LGA;
+    check(ls.why === '' && eq(ls.patch, { available_from: '2026-11-23' }) && srv.allOk(r1) && x1.available_from === '2026-11-23' && x1.available_to === '2026-11-29' && x1.note === 'Arriving late' && x1.leave_from === 'ORD' && x1.booked === true,
+      'PIA-138 AC4 one leg at a time: −1 on her 🛬 makes 11/23 her own; the Worker keeps her 🛫 11/29, her note, her ORD leave and her 🎫', x1);
+    const f1 = await srv.get(id), m1 = model(f1, { me: 'LGA' }), fl = M.ownDays(m1, 'LGA', '', '', null, TODAY);
+    const r2 = await srv.send(M.respondRequest(f1, 'LGA', fl.patch, { by: 'self' })), x2 = (await srv.get(id)).responses.LGA, m2 = model(await srv.get(id), { me: 'LGA' });
+    check(srv.allOk(r2) && x2.available_from === '' && x2.available_to === '' && mem(m2, 'LGA').d1 === m2.plan.s && mem(m2, 'LGA').d2 === m2.plan.e && x2.booked === true,
+      'and back to following the plan: both ends blank, her days are the plan\'s again (her 🎫 stays)');
+    check(M.legShift(m1, 'LGA', 1, 1, TODAY).why === '' && M.legShift(m1, 'LGA', 0, 7, TODAY).why === 'order' && M.legShift(model(DW), 'zz-none', 0, 1, TODAY) === null,
+      'a leg shift that would cross the other end is refused (+7 on an arrival 6 days before the leave)');
+  }
+  {
+    // daily presence never contradicts the heads ring, and P-day names exactly the heads the grid counts
+    const docs = { tg, diwali: DW, tahoe: TH, m8: M8, undated: CY, laxLocal: LX, legacy: LEG };
+    const bad = [];
+    let days = 0;
+    Object.keys(docs).forEach((k) => {
+      const m = model(docs[k]), a = [m.span, m.range].filter(Boolean); if (!a.length) return;
+      const s0 = a.map((x) => x.s).sort()[0], e0 = a.map((x) => x.e).sort().pop();
+      eachDay(M.addD(s0, -2), M.addD(e0, 2), (day) => {
+        days++;
+        const p = M.dayPeople(m, day), heads = (cs) => cs.reduce((n, c) => n + mem(m, c).headcount, 0);
+        const fill = M.dotsOn(m, day).filter((x) => x.kind === 'fill').length;
+        if (p.n !== M.presentOn(m, day) || heads(p.there) !== p.n || p.n > m.headsIn || fill !== p.n || p.there.length + p.maybe.length + p.away.length !== m.members.length) bad.push(k + ' ' + day);
+      });
+    });
+    check(bad.length === 0 && days > 150, 'PIA-138 AC6 on every day of every fixture (' + days + ' days), P-day\'s faces there add up to the grid\'s numeral (presentOn), which equals its filled dots and never passes the heads ring', bad.slice(0, 5));
+    const tgm = model(tg), d21 = M.dayPeople(tgm, '2026-11-21');
+    check(d21.n === 3 && eq(d21.there, ['PIA', 'LAX']) && eq(d21.away, ['LGA']) && tgm.headsIn === 4, 'Thanksgiving 11/21: Mom & Dad (×2) and Ashwin are there (3, while the ring reads 4/4); Anjo, who lands 11/24, is away');
+    const m8 = model(M8), d12 = M.dayPeople(m8, '2026-12-12');
+    check(d12.maybe.indexOf('anastasiakonstantinopoulou-x1') >= 0 && d12.there.indexOf('samlee-kz') < 0 && d12.away.indexOf('samlee-kz') >= 0, 'someone who said maybe is drawn as maybe (not counted there), someone out is away');
+  }
+  {
+    // the best window reflects only people who set their own days; following the plan never counts
+    const id = srv.seed(tweak(DW, (d) => { d.idea.notes = 'Lakshmi puja Sunday evening'; })), f0 = await srv.get(id), m0 = model(f0);
+    const set = M.ownDays(model(f0, { me: 'momdad-k3' }), 'momdad-k3', '2026-11-12', '2026-11-16', null, TODAY);
+    await srv.send(M.respondRequest(f0, 'momdad-k3', set.patch, { by: 'proxy' }));
+    const f1 = await srv.get(id), m1 = model(f1);
+    const f2 = tweak(f1, (d) => { d.responses['ashwin-p8'].status = 'maybe'; }), m2 = model(f2);
+    await srv.send(M.respondRequest(f1, 'momdad-k3', M.ownDays(m1, 'momdad-k3', '', '', null, TODAY).patch, { by: 'proxy' }));
+    const m3 = model(await srv.get(id));
+    check(m0.best === null && !!m1.best && m1.best.s === '2026-11-12' && m1.best.e === '2026-11-15' && m1.best.full === 2 && eq(m2.best, m1.best) && m3.best === null && f1.responses['momdad-k3'].note === '📞',
+      'PIA-138 AC6 nobody set days: no best window; Mom & Dad (×2) set 11/12–11/16 (by the organizer, 📞): best 11/12–11/15 for their 2 heads; Ashwin, who follows the plan, changes nothing; back to following: none again', [m0.best, m1.best, m3.best]);
+  }
+  {
+    // what the date pill opens, for each role
+    const role = (doc, o) => M.datesRole(model(doc, o));
+    const inAnjo = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA'); }), outAnjo = tweak(DW, (d) => { d.responses['anjo-z5'] = R('out', 'LGA'); });
+    const past = tweak(DW, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-04'; });
+    check(role(DW, { me: 'ashwin-p8', hasEditKey: true }) === 'plan' && role(DW, { me: 'anjo-z5' }) === 'answer' && role(inAnjo, { me: 'anjo-z5' }) === 'mine' && role(outAnjo, { me: 'anjo-z5' }) === 'look' &&
+      role(tg, { me: 'PIA' }) === 'look' && role(DW, {}) === 'look' && role(past, { me: 'ashwin-p8', hasEditKey: true }) === 'look' && role(LEG, { me: 'LAX', hasEditKey: true }) === 'mine' &&
+      role(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { hasEditKey: true }) === 'look' && role(CY, { me: 'anjo-c4' }) === 'mine',
+      'PIA-138 the date pill opens the plan for the organizer, my own days once I have answered (the answer row asks first otherwise), and the plan to read for a host, someone out, nobody, or a trip that is over, dropped or a v1 doc\'s guest');
+  }
+
   // ═══ AC11 ═══════════════════════════════════════════════════════════════
   section('AC11 the inlined region is clean, the encoder port is exact, and the suite is offline and in preflight');
   const modelSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'trip-model.js'), 'utf8');

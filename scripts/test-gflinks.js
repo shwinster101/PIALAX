@@ -195,6 +195,53 @@ function main() {
   check(wrong.length === 0, 'each pinned link decodes to exactly the trip the spec describes (trip type, party, dates, airports, envelope)', wrong);
   Object.keys(OWED).forEach((k) => note('owed: open once by hand in Google Flights before ship — ' + k + ' ' + OWED[k]));
 
+  // ═══ PIA-138 ════════════════════════════════════════════════════════════
+  section('PIA-138 a shifted plan: every link that follows it is rebuilt from the record (golden strings re-checked); ends people set stay byte for byte');
+  {
+    // the organizer's edit as the model builds it (organizerEdit), applied the way the Worker stores it
+    const edited = (doc, delta) => {
+      const d = clone(doc), reqs = M.organizerEdit(d, KEY, delta) || [];
+      reqs.forEach((q) => {
+        if (q.path.indexOf('/idea/update') === 0 && q.body.idea) d.idea = clone(q.body.idea);
+        if (q.path.indexOf('/idea/respond') === 0) d.responses[q.body.member] = Object.assign({}, d.responses[q.body.member], q.body);
+      });
+      return { doc: d, reqs };
+    };
+    const shift = (doc, k) => { const r = M.planShift(model(doc, { hasEditKey: true }), k, TODAY); return r.why ? { doc: null, why: r.why } : edited(doc, { dates: { departure: r.s, return: r.e } }); };
+    const legsOf = (href) => { const d = M.gfDecode(href); return d ? [d.trip, d.adults, d.legs.map((L) => [L.date, L.from, L.to])] : null; };
+    const LA = ['LAX', 'BUR', 'LGB', 'SNA', 'ONT'], NY = ['LGA', 'JFK', 'EWR'];
+    const p1 = shift(DW, 1), m1 = model(p1.doc);
+    check(p1.reqs.length === 1 && mem(m1, 'ashwin-p8').link.href === OWED.dwAshP1,
+      'PIA-138 one +1 (the trip view\'s shift, built by the model) gives Ashwin exactly the golden "after one +1" link (11/07–11/10), from the record alone');
+    check(eq(legsOf(mem(m1, 'momdad-k3').link.href), [1, 2, [['2026-11-07', ['PIA', 'ORD'], ['RDU']], ['2026-11-10', ['RDU'], ['PIA', 'ORD']]]]) &&
+      eq(legsOf(mem(m1, 'anjo-z5').link.href), [1, 1, [['2026-11-07', NY, ['RDU']], ['2026-11-10', ['RDU'], NY]]]),
+      'Mom & Dad (2 adults, PIA+ORD) and Anjo (NY set) follow the plan: their links move to 11/07–11/10 in the same rebuild');
+    const back = shift(p1.doc, -1), mb = model(back.doc);
+    const mm1 = model(shift(DW, -1).doc);
+    check(mem(mb, 'ashwin-p8').link.href === OWED.dwAsh && mem(mb, 'momdad-k3').link.href === OWED.dwMD && mem(mb, 'anjo-z5').link.href === OWED.dwAnjo &&
+      eq(legsOf(mem(mm1, 'ashwin-p8').link.href), [1, 1, [['2026-11-05', LA, ['RDU']], ['2026-11-08', ['RDU'], LA]]]),
+      '+1 then −1 puts every link back byte for byte on the golden 11/06–11/09 strings; −1 from the start is 11/05–11/08');
+    // Anjo set her own days: the plan moves, her link does not
+    const own = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-06', '2026-11-09'); });
+    const o1 = model(shift(own, 1).doc);
+    check(mem(o1, 'anjo-z5').link.href === OWED.dwAnjo && mem(o1, 'ashwin-p8').link.href === OWED.dwAshP1 && mem(o1, 'anjo-z5').warn.indexOf('off') >= 0,
+      'Anjo\'s own 11/06–11/09 stay put through a +1: her link is still the golden one byte for byte (with ⚠: her days are off the plan now), while Ashwin\'s moves');
+    // a booked traveler who followed the plan keeps the days he booked
+    const bk = tweak(DW, (d) => { d.responses['ashwin-p8'].booked = true; });
+    const b1 = shift(bk, 1), bm = model(b1.doc);
+    check(b1.reqs.length === 2 && mem(bm, 'ashwin-p8').link.href === OWED.dwAsh && eq(bm.plan, { s: '2026-11-07', e: '2026-11-10' }),
+      'Ashwin had booked while following the plan: his booked days are written as his own first, so his link stays the golden 11/06–11/09 one');
+    // a week shift (no event day to keep), and one leg moved by itself
+    const nopin = tweak(DW, (d) => { d.idea.notes = ''; });
+    const w1 = model(shift(nopin, 7).doc);
+    check(shift(DW, 7).why === 'pin' && eq(legsOf(mem(w1, 'ashwin-p8').link.href), [1, 1, [['2026-11-13', LA, ['RDU']], ['2026-11-16', ['RDU'], LA]]]),
+      'a week shift that would drop 📌 builds nothing; without 📌, +7 moves every follower\'s link a week (11/13–11/16)');
+    const leg = M.legShift(model(DW), 'ashwin-p8', 0, -1, TODAY);
+    const lm = model(tweak(DW, (d) => { Object.assign(d.responses['ashwin-p8'], leg.patch); }));
+    check(leg.why === '' && eq(legsOf(mem(lm, 'ashwin-p8').link.href), [1, 1, [['2026-11-05', LA, ['RDU']], ['2026-11-09', ['RDU'], LA]]]) && mem(lm, 'momdad-k3').link.href === OWED.dwMD,
+      'one leg at a time: Ashwin\'s 🛬 −1 makes 11/05 his own; his round trip is 11/05–11/09 while everyone else keeps the golden plan links');
+  }
+
   // ═══ AC3 ════════════════════════════════════════════════════════════════
   section('AC3 round trip = one round-trip search; open-jaw = one multi-city link + the two priced one-ways; party = headcount; no filters');
   let produced = 0, rt = 0, oj = 0;

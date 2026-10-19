@@ -1129,7 +1129,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     d.decision = { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-12-22', return: '2026-12-27' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
     return d;
   })();
-  const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03';
+  const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
   const NOWMS = Date.parse('2026-10-17T19:00:00Z'), fares = {};
@@ -1138,8 +1138,9 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     pialax_fares_v2: JSON.stringify(fares),
     pialax_watchlist_v2: JSON.stringify(ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))),
     // PIA-136: this phone also organizes the 8-member trip (a join request on a full trip opens its people editor at ⚠ 9/8)
-    pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),
-    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8' }),
+    pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
+      [CYV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-138: also organizes the undated idea
+    pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 })
   };
   const LAYOUT = () => {
@@ -1161,6 +1162,28 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     return out;
   };
   const lum = (rgb) => { const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb || ''); return m ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 : -1; };
+  // PIA-138: P-dates' occlusion gate (run in the page)
+  const OCCLUSION = () => {
+    const sh = document.querySelector('#sheet'), R = sh.getBoundingClientRect(), save = sh.querySelector('.btn.stick'), hd = sh.querySelector('.sh-hd');
+    const sv = save ? save.getBoundingClientRect() : null, hr = hd ? hd.getBoundingClientRect() : null, out = { covered: [], seeThrough: '', lock: null };
+    if (save) {
+      const cs = getComputedStyle(save), bg = cs.backgroundColor, a = /rgba\([^)]*,\s*([\d.]+)\)/.exec(bg);
+      if (+cs.opacity < 1) out.seeThrough = 'opacity ' + cs.opacity; else if (a && +a[1] < 1) out.seeThrough = 'background ' + bg;
+    }
+    sh.querySelectorAll('button, a[href], input').forEach((el) => {
+      if (el === save) return;
+      const r = el.getBoundingClientRect(); if (!r.width || !r.height) return;
+      const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+      if (cy < R.top || cy > R.bottom || cx < R.left || cx > R.right) return;              // scrolled out of the sheet
+      if (sv && cy >= sv.top - 6 && cy <= sv.bottom + 6) return;                          // hidden under the opaque Save
+      if (hr && el.closest('.sh-hd') === null && cy <= hr.bottom) return;                  // hidden under the sticky header
+      const t = document.elementFromPoint(cx, cy);
+      if (!t || !(t === el || el.contains(t))) out.covered.push((el.getAttribute('data-act') || el.className) + '@' + Math.round(cy) + ' under ' + (t ? t.getAttribute('data-act') || t.className || t.tagName : 'nothing'));
+    });
+    const lock = sh.querySelector('[data-act="dlock"]');
+    if (lock) { const r = lock.getBoundingClientRect(), cy = r.top + r.height / 2; out.lock = cy > (hr ? hr.bottom : R.top) && cy < (sv ? sv.top - 6 : R.bottom); }
+    return out;
+  };
   for (const vp of VIEWPORTS) {
     for (const scheme of ['light', 'dark']) {
       const label = `app.html @ ${vp.name} ${scheme}`;
@@ -1171,7 +1194,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -1189,6 +1212,14 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
           if (r.unnamed.length) fails.push(s + ': controls without a name ' + r.unnamed.slice(0, 4).join(', '));
           const L = lum(r.bg);
           if (scheme === 'dark' ? !(L >= 0 && L < 0.2) : !(L > 0.8)) fails.push(s + ': body background ' + r.bg + ' is not the ' + scheme + ' token');
+          // PIA-138: in P-dates nothing a finger can see is covered: every control whose centre is in view (not under the
+          // sticky header or Save) takes a tap there (elementFromPoint), Save is opaque, and 🔒 / 🔓 are in view
+          if (await page.getAttribute('#sheet', 'data-popup').catch(() => null) === 'P-dates') {
+            const o = await page.evaluate(OCCLUSION);
+            if (o.covered.length) fails.push(s + ': P-dates controls covered ' + o.covered.slice(0, 3).join(', '));
+            if (o.seeThrough) fails.push(s + ': P-dates Save is see-through (' + o.seeThrough + ')');
+            if (o.lock === false) fails.push(s + ': P-dates 🔒/🔓 is not in view without scrolling');
+          }
         };
         await measure('empty');
         await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
@@ -1224,6 +1255,24 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await tapJs('#screen .pb [data-act="booked"][data-code="anjo-z5"]'); await measure('trip with a 🎫 waiting for its confirming tap');
         await tapJs('#screen .me [data-act="person"]'); await measure('P-person (me, PIA | ORD cells)');
         if ((await page.$$('#sheet [data-act="legair"]')).length !== 4) fails.push('my sheet on a Peoria trip should have the PIA | ORD cells for each end');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        // PIA-138: P-dates in each state (the plan, a holiday picked, a start picked, my own days on one end), P-day, the undated
+        // idea's ⟦window⟧ with ⬚ the best window, and a locked plan to read with 🔓
+        await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates (the plan)');
+        await tapJs('#sheet [data-act="dhol"]'); await measure('P-dates (a holiday picked)');
+        await tapJs('#sheet [data-act="dday"][data-v="2026-11-13"]'); await measure('P-dates (a start picked, 📌⚠)');
+        await tapJs('#sheet [data-act="dtarget"][data-v="me"]'); await measure('P-dates (my own days)');
+        await tapJs('#sheet [data-act="dend"][data-v="0"]'); await tapJs('#sheet [data-act="dday"][data-v="2026-11-05"]'); await measure('P-dates (my arrival only, ⚠ off the plan)');
+        await tapJs('#sheet [data-act="dtarget"][data-v="trip"]'); await tapJs('#sheet [data-act="dlook"]'); await tapJs('#sheet [data-act="dday"][data-v="2026-11-07"]'); await measure('P-day');
+        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-day') fails.push('👥 then a day should open P-day');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="' + CYV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates (an undated idea: ⟦window⟧, ⬚ best)');
+        if (!(await page.$('#sheet [data-act="dbest"]'))) fails.push('the undated idea should offer ⬚ its best window');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="' + LKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates (a locked plan to read, 🔓)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-trip="tgLegacyThanksgiving01"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(200); await measure('P-face (by itself, a v1 trip)');
         await tapJs('#sheet [data-act="pickface"][data-code="PIA"]'); await measure('the host\'s trip view (In unconfirmed)');
@@ -1287,6 +1336,56 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await measure('P-joinfwd');
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
+      } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
+      await ctx.close();
+    }
+  }
+  // PIA-138: P-dates on shorter phones too (360x740, 375x667), light and dark: in every picker state nothing in view is
+  // covered (elementFromPoint), Save is opaque, 🔒 / 🔓 is in view, and every target is ≥44px with no horizontal scroll
+  for (const vp of [{ name: '360x740', width: 360, height: 740 }, { name: '375x667', width: 375, height: 667 }]) {
+    for (const scheme of ['light', 'dark']) {
+      const label = `app.html P-dates @ ${vp.name} ${scheme}`;
+      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
+      await ctx.route(/^https?:\/\//, (r) => r.abort());
+      await ctx.route(W + '/**', (route) => {
+        const q = route.request(), id = new URL(q.url()).searchParams.get('id');
+        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
+        if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+        if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV) && q.headers()['x-idea-key'] === KEY }) });
+      });
+      const page = await ctx.newPage();
+      const fails = [];
+      let states = 0;
+      try {
+        await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
+        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' });
+        await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
+        await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
+        const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        const measure = async (s) => {
+          states++;
+          const r = await page.evaluate(LAYOUT), o = await page.evaluate(OCCLUSION);
+          if (r.overflow > 0 || r.sheetOverflow > 0) fails.push(s + ': horizontal scroll ' + r.overflow + '/' + r.sheetOverflow + 'px');
+          if (r.small.length) fails.push(s + ': targets under 44px ' + r.small.slice(0, 4).join(', '));
+          if (o.covered.length) fails.push(s + ': controls covered ' + o.covered.slice(0, 3).join(', '));
+          if (o.seeThrough) fails.push(s + ': Save is see-through (' + o.seeThrough + ')');
+          if (o.lock === false) fails.push(s + ': 🔒/🔓 is not in view without scrolling');
+        };
+        const open = async (id) => { await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await tapJs('#screen .daterow [data-act="dates"]'); };
+        const leave = async () => { await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]'); };
+        await open(DW); await measure('the plan');
+        await tapJs('#sheet [data-act="dhol"]'); await measure('a holiday picked');
+        await tapJs('#sheet [data-act="dday"][data-v="2026-11-13"]'); await measure('a start picked (📌⚠)');
+        await tapJs('#sheet [data-act="dtarget"][data-v="me"]'); await measure('my own days');
+        await tapJs('#sheet [data-act="dend"][data-v="0"]'); await tapJs('#sheet [data-act="dday"][data-v="2026-11-05"]'); await measure('my arrival only (⚠🗓)');
+        await tapJs('#sheet [data-act="dtarget"][data-v="trip"]'); await tapJs('#sheet [data-act="dlook"]'); await measure('👥 then a day');
+        await leave();
+        await open(M8); await measure('the 8-member plan'); await leave();
+        await open(CYV); await measure('an undated idea (⟦window⟧, ⬚)'); await leave();
+        await open(LKV); await measure('a locked plan (🔓)'); await leave();
+        if (states === 9 && fails.length === 0) ok(`${label} — nothing in view is covered, Save is opaque, 🔒/🔓 in view, targets ≥44px, no horizontal scroll, in ${states} states`);
+        else bad(`${label} — ${fails.slice(0, 4).join(' · ') || states + ' states'}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
       await ctx.close();
     }

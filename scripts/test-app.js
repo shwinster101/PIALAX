@@ -61,7 +61,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   'uiRead', 'openCreate', 'presetChips', 'keptDraft', 'requestDraft', 'whoMode', 'whoWords', 'profileLabel', 'renderTrip', 'popupName', 'openTrip', 'renderSheet', 'meFor',
   'sheetName', 'OWED',
   // PIA-137
-  'whoFor', 'meCode', 'listEntry', 'sharePulse', 'faceCheck'];
+  'whoFor', 'meCode', 'listEntry', 'sharePulse', 'faceCheck',
+  // PIA-138
+  'flushSoon', 'SOON_MS', 'soonResume', 'soonReplay', 'SOON_KEEP_MS'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -77,11 +79,15 @@ function loadApp(o) {
   const fetches = [], timers = [], frames = [];
   const fetchImpl = o.fetch || (async () => { throw new Error('no fetch in this scenario'); });
   const shim = makeShim();
-  const doc = Object.assign({}, shim.document, { visibilityState: o.hidden ? 'hidden' : 'visible' });
+  // PIA-138: o.rec = selectors whose innerHTML writes are kept (el.__rec.html), so a case can read what a render drew
+  const rec = {};
+  (o.rec || []).forEach((s) => { rec[s] = recEl(); });
+  const doc = Object.assign({}, shim.document, { visibilityState: o.hidden ? 'hidden' : 'visible' },
+    o.rec ? { querySelector: (s) => (rec[s] || shim.document.querySelector(s)) } : {});
   const ss = makeLocalStorage();
   const over = {
     localStorage: ls, sessionStorage: ss, location: loc, history: hist, Date: FixedDate, document: doc,
-    fetch: (url, opts) => { fetches.push({ url: String(url), method: (opts && opts.method) || 'GET', headers: Object.assign({}, (opts && opts.headers) || {}), body: opts && opts.body }); return fetchImpl(url, opts); },
+    fetch: (url, opts) => { fetches.push({ url: String(url), method: (opts && opts.method) || 'GET', headers: Object.assign({}, (opts && opts.headers) || {}), body: opts && opts.body, keepalive: !!(opts && opts.keepalive) }); return fetchImpl(url, opts); },
     setInterval: (fn, ms) => { timers.push({ fn, ms }); return { unref() {} }; },
     // every re-render the store asks for is queued here (and run with flush()), so a case can count them
     requestAnimationFrame: (f) => { frames.push(f); return frames.length; },
@@ -89,7 +95,27 @@ function loadApp(o) {
   };
   const { api, missing } = loadApi(APP, 'app.html', EXPECT, over);
   const flush = () => { const n = frames.length; frames.splice(0).forEach((f) => f()); return n; };
-  return { api, missing, ls, loc, hist, fetches, timers, ss, frames, flush };
+  return { api, missing, ls, loc, hist, fetches, timers, ss, frames, flush, rec };
+}
+// an element stub (as harness.js's: every property and call chains back to it) that keeps what is written to innerHTML
+function recEl() {
+  const html = [];
+  const p = new Proxy(function stub() {}, {
+    get(t, k) {
+      if (k === '__rec') return { html };
+      if (k === 'innerHTML') return html.length ? html[html.length - 1] : '';
+      if (k === Symbol.toPrimitive) return () => '';
+      if (k === Symbol.iterator) return function* () {};
+      if (k === 'then') return undefined;
+      if (k === 'nodeType') return 1;
+      if (k === 'length') return 0;
+      return p;
+    },
+    set(t, k, v) { if (k === 'innerHTML') html.push(String(v)); return true; },
+    apply() { return p; },
+    has() { return true; }
+  });
+  return p;
 }
 function seedLs(obj) { const ls = makeLocalStorage(); Object.keys(obj).forEach((k) => ls.setItem(k, typeof obj[k] === 'string' ? obj[k] : JSON.stringify(obj[k]))); return ls; }
 const listOf = (ids) => ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }));
@@ -2119,6 +2145,544 @@ function norm(doc) {
     tap(t, sheet(t), 'joinshare'); await tick();
     check(refused === 0 && warn && rs.shared.length === 1 && /add=Sam%20Rivera\.ZZQ$/.test(rs.shared[0].url),
       'PIA-137 a city cut to 3 letters (San Francisco → SAN ⚠) is refused until it is a code; an unknown code is marked 📍⚠ and still goes', rs.shared);
+  }
+
+  // ═══ PIA-138 ═══
+  section('PIA-138 dates, the one picker: ±1 on the trip view, P-dates (plan, own days, window), P-day, one leg at a time, confirms, one write per run of taps');
+  const gfIn = (h) => ((/href="(https:\/\/www\.google\.com\/travel\/flights\/search\?tfs=[^"]+)"/.exec(h || '') || [])[1] || '').replace(/&amp;/g, '&');
+  const legDates = (href) => { const d = TM.gfDecode(href); return d ? d.legs.map((L) => L.date) : null; };
+  const org138 = (id, me, extra) => lsOf([id], Object.assign({ pialax_idea_keys_v1: keyOf([id]), pialax_idea_me_v1: { [id]: me || 'ashwin-p8' } }, extra || {}));
+  const dsh = (t) => (t.api.S.sheet && t.api.S.sheet.type === 'dates' ? t.api.S.sheet.local : null);
+  const settleWrites = async (t, id) => { t.api.flushSoon(); await until(() => !(t.api.PEND[id] > 0)); await tick(); t.flush(); };
+  const anjoOwn = (d) => { d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', available_from: '2026-11-05', available_to: '2026-11-09', note: 'Leaving early Monday' }); };
+  {
+    // AC1 one tap on the trip view moves the whole plan; on this phone every plan-following link, bar, map pill and card
+    // date is drawn again in that render; ends people set stay put (⚠ off the plan); nothing is sent until the taps stop
+    const id = seedAs(DWX, anjoOwn);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    const h0 = screen(t), link0 = gfIn(h0), anjoLink0 = t.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').link.href, p0 = nPosts(t);
+    const step = (v) => ctl(screen(t), 'shift', { v: String(v) });
+    check(!!step(-1) && !!step(1) && /data-act="shift"[^>]*data-v="1" aria-label="Later" data-k="shift">\+1<\/button>/.test(h0) && eq(legDates(link0), ['2026-11-06', '2026-11-09']) &&
+      /data-act="dates" data-id="[^"]+" aria-label="Dates 11\/6–11\/9, 3 nights, event day 11\/8" data-lbl="Dates"><span class="inner">/.test(h0),
+      'PIA-138 AC1 the organizer\'s trip view has −1 and +1 either side of the plan pill (which opens P-dates, and is read out as what it shows: "Dates 11/6–11/9, 3 nights, event day 11/8"); his ✈↗ searches 11/6–11/9', legDates(link0));
+    {
+      const card = t.api.renderIdeas().html;
+      check(/<button class="pill z" data-act="dates" data-id="[^"]+" aria-label="Dates 11\/6–11\/9, 3 nights, event day 11\/8(?:, [^"]*)?" data-lbl="Dates">/.test(card),
+        'PIA-138 a11y the card\'s date pill is named by what it shows (dates, nights, event day…), and a long press still names it "Dates"', (/<button class="pill z"[^>]*>/.exec(card) || [])[0]);
+    }
+    tap(t, screen(t), 'shift', { v: '1' });
+    const h1 = screen(t), m1 = t.api.modelOf(id), card = t.api.renderIdeas().html, map = t.api.renderSelected('map', 'map').html;
+    const ashLink = gfIn(h1), md1 = m1.members.find((x) => x.code === 'momdad-k3'), an1 = m1.members.find((x) => x.code === 'anjo-z5');
+    check(nPosts(t) === p0 && eq(m1.plan, { s: '2026-11-07', e: '2026-11-10' }) && />11\/7–11\/10<\/span>/.test(h1) && eq(legDates(ashLink), ['2026-11-07', '2026-11-10']) && /11\/7–11\/10/.test(card) && /11\/7–11\/10/.test(map),
+      'PIA-138 AC1 one +1: in the same render the plan pill, my ✈↗ (11/7–11/10), the card on Trips and the Map\'s pill all show the moved plan, before anything is sent', { pill: /11\/7–11\/10/.test(h1), link: legDates(ashLink), card: /11\/7–11\/10/.test(card), map: /11\/7–11\/10/.test(map) });
+    check(md1.d1 === '2026-11-07' && md1.d2 === '2026-11-10' && eq(legDates(md1.link.href), ['2026-11-07', '2026-11-10']) && an1.link.href === anjoLink0 && an1.own1 === '2026-11-05' && an1.warn.indexOf('off') >= 0 &&
+      /data-code="anjo-z5"[\s\S]*?<i class="bar sq-l sq-r"[^>]*><\/i><i class="bar off"/.test(h1),
+      'Mom & Dad follow the plan (their bar and link move); Anjo\'s own 11/5–11/9 stay put, her link unchanged, her bar marked off the plan (⚠)', { md: [md1.d1, md1.d2], anjo: [an1.own1, an1.own2] });
+    const g = await t.api.refresh(id);
+    check(g && g.dropped && t.api.PEND[id] > 0, 'while the taps may still come, the write holds its place and a background read is ignored (it could only bring the old plan back)');
+    tap(t, screen(t), 'shift', { v: '1' }); tap(t, screen(t), 'shift', { v: '1' });
+    const blocked = { plan: t.api.modelOf(id).plan, el: ctl(screen(t), 'shift', { v: '1' }) };
+    tap(t, screen(t), 'shift', { v: '-1' });
+    const before = nPosts(t);
+    await settleWrites(t, id);
+    const ps = posts(t, 0).filter((p) => p.path === '/idea/update'), doc = srv.read(id);
+    check(eq(blocked.plan, { s: '2026-11-08', e: '2026-11-11' }) && blocked.el && blocked.el.k === 'pinout' && blocked.el.lbl === 'Event day outside' && before === p0,
+      'PIA-138 AC2 a +1 that would leave 📌 11/8 outside the plan cannot go: it is shown 📌⚠ and its long-press label says why ("Event day outside")', blocked.el);
+    check(ps.length === 1 && eq(ps[0].body.idea.dates, { departure: '2026-11-07', return: '2026-11-10', searchStart: '', searchEnd: '' }) && eq(TM.docPlan(doc), { s: '2026-11-07', e: '2026-11-10' }) &&
+      doc.responses['anjo-z5'].available_from === '2026-11-05' && doc.responses['anjo-z5'].note === 'Leaving early Monday' && doc.idea.notes === '📌2026-11-08 Lakshmi puja Sunday evening',
+      'PIA-138 AC3 four quick taps (+1 +1 +1 −1, the third refused) make ONE write once the taps stop: the plan 11/7–11/10 through the real Worker; Anjo\'s days and note and the trip\'s 📌 untouched', ps.map((p) => p.body.idea && p.body.idea.dates));
+    // other phones follow on their next refresh
+    const guest = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'momdad-k3' } }) });
+    const gm = guest.api.modelOf(id);
+    check(eq(gm.plan, { s: '2026-11-07', e: '2026-11-10' }) && eq(legDates(gm.members.find((x) => x.code === 'momdad-k3').link.href), ['2026-11-07', '2026-11-10']),
+      'PIA-138 AC1 another phone (Mom & Dad\'s) follows on its next read: the moved plan and their moved link');
+  }
+  {
+    // the write goes by itself SOON_MS after the last tap (no flush), once
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    tap(t, screen(t), 'shift', { v: '-1' });
+    const early = nPosts(t);
+    await new Promise((r) => setTimeout(r, 750)); await until(() => !(t.api.PEND[id] > 0));
+    const ps = posts(t, 0).filter((p) => p.path === '/idea/update');
+    check(early === 0 && ps.length === 1 && eq(TM.docPlan(srv.read(id)), { s: '2026-11-05', e: '2026-11-08' }), 'PIA-138 AC3 with no more taps, the one write goes by itself ' + t.api.SOON_MS + 'ms after the last tap (−1: 11/5–11/8)', ps.length);
+  }
+  // a page left (pagehide) before its run of taps settled sends nothing from what it read earlier: the run is kept on this
+  // phone (pialax_soon_v2) and the next open (the reload) sends it from a fresh read, where the lock, a booking and a
+  // newer answer all hold, and where a record someone has changed since keeps that change
+  const kept = (t) => { const raw = t.ls.getItem('pialax_soon_v2'); return raw ? JSON.parse(raw) : null; };
+  const reopen = async (t, o) => { const r = await boot136(Object.assign({ ls: t.ls }, o || {})); await r.api.S.replay; await tick(); r.flush(); return r; };
+  // the page is left: pagehide, then (as a reload or a navigation does) hidden
+  const leave = (t) => { const f0 = t.fetches.length; t.api.flushSoon({ type: 'pagehide' }); t.api.flushSoon(); return t.fetches.slice(f0); };
+  const P69 = { s: '2026-11-06', e: '2026-11-09' }, P710 = { s: '2026-11-07', e: '2026-11-10' };
+  {
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    tap(t, screen(t), 'shift', { v: '1' });
+    const sent = leave(t), raw = t.ls.getItem('pialax_soon_v2') || '', k = kept(t), e = k ? Object.values(k)[0] : {}, f1 = t.fetches.length;
+    await new Promise((r) => setTimeout(r, t.api.SOON_MS + 150));   // the run is parked: nothing goes later either
+    const late = t.fetches.length - f1;
+    check(sent.length === 0 && t.fetches.filter((f) => f.method === 'POST').length === 0 && late === 0 && k && Object.keys(k).length === 1 && e.kind === 'plan' && e.id === id && e.s === '2026-11-07' && e.e === '2026-11-10' &&
+      eq(e.f, ['2026-11-06', '2026-11-09']) && e.k === 1 && e.ack === false && !/edit_key|pialax-test-edit-key|org-token|X-Idea-Key|"doc"/.test(raw) && eq(TM.docPlan(srv.read(id)), P69),
+      'PIA-138 AC3 a +1, then the page left (pagehide, then hidden) before ' + t.api.SOON_MS + 'ms: nothing is sent, then or later (no write built from the doc read earlier); the run is kept on this phone (pialax_soon_v2: the plan it moves from and to, never a key, a token or a doc)', { sent: sent.length, e });
+    const r = await reopen(t);
+    const fs1 = r.fetches, iu = fs1.findIndex((f) => f.method === 'POST'), doc = srv.read(id), body = iu >= 0 ? JSON.parse(fs1[iu].body) : {};
+    check(fs1.filter((f) => f.method === 'POST').length === 1 && /\/idea\/update\?id=/.test(fs1[iu].url) && fs1[iu - 1].method === 'GET' && body.idea.dates.departure === '2026-11-07' &&
+      eq(TM.docPlan(doc), P710) && doc.idea.notes === '📌2026-11-08 Lakshmi puja Sunday evening' && kept(r) === null && !r.api.S.sheet && !t.fetches.concat(fs1).some((f) => f.keepalive),
+      'PIA-138 AC3 the next open (the reload) sends it the usual way: a fresh read, then ONE update, and the record moves to 11/7–11/10 (📌 kept); nothing is kept any more, no request ever went with keepalive', fs1.map((f) => f.method + ' ' + f.url.replace(W, '').split('?')[0]));
+  }
+  {
+    // two organizer phones: B locks; A has not seen it, taps +1 and is left at once (a reload, or a page closed)
+    const id = seedAs(DWX);
+    const A = await boot136({ ls: org138(id) }), B = await boot136({ ls: org138(id) });
+    act(A, 'open', { id }); act(B, 'open', { id });
+    tap(B, screen(B), 'dates'); await tap(B, sheet(B), 'dlock'); await settleWrites(B, id);
+    tap(A, screen(A), 'shift', { v: '1' });
+    const sent = leave(A);
+    const A2 = await reopen(A), doc = srv.read(id);
+    check(sent.length === 0 && nPosts(A2) === 0 && doc.decision.stage === 'chosen' && eq(TM.docPlan(doc), P69) && doc.decision.chosen.departure === '2026-11-06' &&
+      A2.api.S.sheet && A2.api.S.sheet.type === 'error' && A2.api.S.sheet.p.code === 'locked' && !A2.api.S.sheet.p.retry && kept(A2) === null,
+      'PIA-138 AC3 B locked; A\'s stale +1, left at once, sends nothing then, and its next open reads the lock and sends nothing either: the plan and the 🔒 snapshot stay 11/6, and P-error says 🔒 "Dates locked" (no ↻)', { sent: sent.length, posts: nPosts(A2), stage: doc.decision.stage, plan: TM.docPlan(doc), err: A2.api.S.sheet && A2.api.S.sheet.p.code });
+  }
+  for (const onTrip of [true, false]) {
+    // Anjo booked on her phone after the organizer's last read: his +1, left at once, never moves her booked days unasked
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    const d = srv.read(id); d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', booked: true, booked_at: '2026-10-17T10:00:00.000Z' }); srv.write(d);
+    const anjoLink = t.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').link.href;
+    tap(t, screen(t), 'shift', { v: '1' });
+    const sent = leave(t);
+    const r = await reopen(t, onTrip ? { url: BASE + '?idea=' + id } : {}), doc = srv.read(id), a = doc.responses['anjo-z5'];
+    const asked = onTrip ? r.api.S.trip === id && /class="step arm"[^>]*data-v="1" aria-label="Confirm move"[^>]*>⚠🎫<\/button>/.test(screen(r)) && !r.api.S.sheet
+      : r.api.S.sheet && r.api.S.sheet.type === 'error' && r.api.S.sheet.p.code === 'booked';
+    check(sent.length === 0 && nPosts(r) === 0 && eq(TM.docPlan(doc), P69) && a.available_from === '' && a.available_to === '' && a.booked === true &&
+      r.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').link.href === anjoLink && asked && kept(r) === null,
+      'PIA-138 AC3 a booking landed after the organizer\'s last read; his +1, left at once, moves nothing then or on the next open (her booked days and her Book link stay 11/6–11/9), which ' + (onTrip ? 'opens on the trip and arms the +1 (⚠🎫 "Confirm move")' : 'says so (P-error ⚠🎫 "Someone booked")'), { sent: sent.length, posts: nPosts(r), plan: TM.docPlan(doc), anjo: [a.available_from, a.available_to], sheet: r.api.S.sheet && r.api.S.sheet.p });
+    if (onTrip) {
+      tap(r, screen(r), 'shift', { v: '1' }); await settleWrites(r, id);
+      const d2 = srv.read(id);
+      check(eq(TM.docPlan(d2), P710) && d2.responses['anjo-z5'].available_from === '2026-11-06' && d2.responses['anjo-z5'].available_to === '2026-11-09' && d2.responses['anjo-z5'].booked === true,
+        '…and the confirming tap moves the plan, keeping her booked 11/6–11/9 as her own');
+    }
+  }
+  {
+    // Mom & Dad turned Maybe and wrote a note on their phone after the organizer's last read; he moves their 🛫 −1 in
+    // P-person and the page is left at once
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    const d = srv.read(id); Object.assign(d.responses['momdad-k3'], { status: 'maybe', note: 'Dad has a check-up 11/9', updated_at: '2026-10-17T18:00:00.000Z' }); srv.write(d);
+    act(t, 'person', { id, code: 'momdad-k3' });
+    tap(t, sheet(t), 'legshift', { end: '1', v: '-1' });
+    const drawn = t.api.modelOf(id).members.find((x) => x.code === 'momdad-k3').own2, sent = leave(t), e = Object.values(kept(t) || {})[0] || {};
+    const r = await reopen(t), rs = posts(r, 0), m = srv.read(id).responses['momdad-k3'];
+    check(drawn === '2026-11-08' && sent.length === 0 && e.kind === 'own' && e.code === 'momdad-k3' && e.by === 'proxy' && eq(e.patch, { available_to: '2026-11-08' }) && eq(e.f, ['', '']) &&
+      rs.length === 1 && rs[0].path === '/idea/respond' && m.status === 'maybe' && TM.parseRespNote(m.note).text === 'Dad has a check-up 11/9' && m.available_to === '2026-11-08' && m.available_from === '' && kept(r) === null,
+      'PIA-138 AC4 his leg −1 for Mom & Dad, left at once, sends nothing then; the next open sends ONE answer rebuilt from the fresh record: their 🛫 11/8 with their Maybe and their note kept (marked 📞 as his edit), never the older answer', { sent: sent.length, rs: rs.map((p) => p.body), m: [m.status, m.note, m.available_to] });
+  }
+  {
+    // the record changed by someone else after the run was left: their change stays
+    const id = seedAs(DWX);
+    const A = await boot136({ ls: org138(id) }), B = await boot136({ ls: org138(id) });
+    act(A, 'open', { id }); act(B, 'open', { id });
+    tap(A, screen(A), 'shift', { v: '1' });
+    const sent = leave(A);
+    tap(B, screen(B), 'shift', { v: '-1' }); await settleWrites(B, id);
+    const A2 = await reopen(A);
+    // her own days changed after a leg move was left: they stay
+    const id2 = seedAs(DWX, (dd) => { dd.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA' }); });
+    const t = await boot136({ ls: org138(id2) });
+    act(t, 'open', { id: id2 }); act(t, 'person', { id: id2, code: 'anjo-z5' });
+    tap(t, sheet(t), 'legshift', { end: '0', v: '-1' }); leave(t);
+    const d2 = srv.read(id2); d2.responses['anjo-z5'].available_from = '2026-11-07'; srv.write(d2);
+    const t2 = await reopen(t);
+    check(sent.length === 0 && nPosts(A2) === 0 && eq(TM.docPlan(srv.read(id)), { s: '2026-11-05', e: '2026-11-08' }) && !A2.api.S.sheet && kept(A2) === null &&
+      nPosts(t2) === 0 && srv.read(id2).responses['anjo-z5'].available_from === '2026-11-07' && !t2.api.S.sheet && kept(t2) === null,
+      'PIA-138 B moved the plan (−1: 11/5–11/8) after A\'s +1 was left: A\'s next open sends nothing and B\'s plan stays; Anjo set her own arrival (11/7) after the organizer\'s leg −1 for her was left: it stays too (no error to show)', { a: nPosts(A2), plan: TM.docPlan(srv.read(id)), t2: nPosts(t2) });
+  }
+  {
+    // hidden, the run is kept and goes the usual way; its update lands but the page dies before the answer
+    const id = seedAs(DWX);
+    let dead = false;
+    const dying = async (url, opts) => { if (dead) return new Promise(() => {}); const res = await srv.fetch(url, opts); if (opts && opts.method === 'POST') { dead = true; return new Promise(() => {}); } return res; };
+    const t = await boot136({ ls: org138(id), fetch: dying });
+    act(t, 'open', { id });
+    tap(t, screen(t), 'shift', { v: '1' });
+    t.api.flushSoon();
+    await until(() => dead);
+    const k = kept(t), r = await reopen(t);
+    check(k && Object.keys(k).length === 1 && eq(TM.docPlan(srv.read(id)), P710) && nPosts(r) === 0 && kept(r) === null && !r.api.S.sheet,
+      'PIA-138 AC3 hidden, a run is kept and sent as usual (a fresh read first); its update lands and the page dies before the answer: the next open finds the record already moved and sends nothing again');
+  }
+  {
+    // hidden, the run goes; its read is still out when the page is left, and the browser aborts it as the page goes: the
+    // failure that settles it then does not drop what is kept, and the next open sends it
+    const id = seedAs(DWX), hold = deferred();
+    let gateReads = false;
+    const aborting = async (url, opts) => { if (gateReads && (!opts || opts.method !== 'POST')) { await hold.p; throw new TypeError('Failed to fetch'); } return srv.fetch(url, opts); };
+    const t = await boot136({ ls: org138(id), fetch: aborting });
+    act(t, 'open', { id });
+    tap(t, screen(t), 'shift', { v: '1' });
+    const f0 = t.fetches.length;
+    gateReads = true; t.api.flushSoon();
+    await until(() => t.fetches.length > f0); await tick();
+    leave(t); hold.res(); await until(() => !(t.api.PEND[id] > 0)); await tick();
+    const k = kept(t), r = await reopen(t), ps = posts(r, 0);
+    check(posts(t, 0).length === 0 && k && Object.keys(k).length === 1 && ps.length === 1 && ps[0].path === '/idea/update' && eq(TM.docPlan(srv.read(id)), P710) && kept(r) === null,
+      'PIA-138 AC3 a run whose read the browser aborts as the page is left stays kept (its failure, settled while the page goes, drops nothing), and the next open sends it: ONE update, 11/7–11/10', { k: !!k, ps: ps.map((p) => p.path) });
+  }
+  {
+    // the back-forward cache: the page left, then shown again (pageshow): the parked run goes then, once
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    tap(t, screen(t), 'shift', { v: '1' });
+    const sent = leave(t), k = kept(t);
+    t.api.soonResume();
+    await until(() => !(t.api.PEND[id] > 0)); await tick();
+    const ps = posts(t, 0);
+    check(sent.length === 0 && k && ps.length === 1 && ps[0].path === '/idea/update' && eq(TM.docPlan(srv.read(id)), P710) && kept(t) === null,
+      'PIA-138 AC3 a page left and then shown again from the back-forward cache (pageshow): the parked run goes then, once, from a fresh read, and nothing is left kept');
+  }
+  {
+    // an open that cannot read the trip (offline) keeps the run for the next one; a run older than a day is dropped unsent
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id }); tap(t, screen(t), 'shift', { v: '1' }); leave(t);
+    const off = loadApp({ ls: t.ls, fetch: async () => { throw new TypeError('Failed to fetch'); } });
+    await off.api.S.replay; await tick();
+    const still = !!kept(t);
+    CLOCK = NOW + off.api.SOON_KEEP_MS + 60000;
+    const old = await reopen(t);
+    CLOCK = NOW;
+    check(nPosts(off) === 0 && still && nPosts(old) === 0 && kept(old) === null && eq(TM.docPlan(srv.read(id)), P69),
+      'PIA-138 an open that cannot read the trip (offline) sends nothing and keeps the run for the next open; a run older than a day is dropped unsent');
+  }
+  {
+    // two organizer phones: B locks the dates; A, not refreshed, still shows them unlocked. A's +1 (drawn at once) and A's
+    // P-dates Save of a shifted range are checked on the fresh record and held back: the plan never moves under its 🔒
+    const id = seedAs(DWX);
+    const A = await boot136({ ls: org138(id) }), B = await boot136({ ls: org138(id) });
+    act(A, 'open', { id }); act(B, 'open', { id });
+    tap(B, screen(B), 'dates'); await tap(B, sheet(B), 'dlock'); await settleWrites(B, id);
+    const locked = srv.read(id), pa = nPosts(A);
+    tap(A, screen(A), 'shift', { v: '1' });
+    const drawn = eq(A.api.modelOf(id).plan, { s: '2026-11-07', e: '2026-11-10' });
+    await settleWrites(A, id);
+    const after = srv.read(id), hA = screen(A);
+    check(locked.decision.stage === 'chosen' && drawn && nPosts(A) === pa && eq(TM.docPlan(after), { s: '2026-11-06', e: '2026-11-09' }) && after.decision.chosen.departure === '2026-11-06' &&
+      A.api.modelOf(id).locked && !/data-act="shift"/.test(hA) && /<span data-k="lock">🔒<\/span>/.test(hA) && A.api.S.sheet && A.api.S.sheet.type === 'error' && A.api.S.sheet.p.code === 'locked' && !A.api.S.sheet.p.retry,
+      'PIA-138 AC3 B locked the dates; A\'s stale +1 is held back on the fresh record: nothing is sent, plan and 🔒 snapshot still agree (11/6), A is drawn locked (no ±1) and P-error says 🔒 "Dates locked" (no ↻)', { posts: nPosts(A) - pa, plan: TM.docPlan(after), err: A.api.S.sheet && A.api.S.sheet.p.code });
+    A.api.closeSheet();
+    // B unlocks, A reads it; B locks again; A's P-dates (stale, unlocked) saves +1: held back, the sheet redraws as the lock it is
+    await tap(B, sheet(B), 'dlock'); await settleWrites(B, id);
+    await A.api.refresh(id); A.flush();
+    await tap(B, sheet(B), 'dlock'); await settleWrites(B, id);
+    tap(A, screen(A), 'dates');
+    const LA = dsh(A), stale = !!LA && !A.api.modelOf(id).locked, pb = nPosts(A);
+    tap(A, sheet(A), 'dshift', { v: '1' });
+    await tap(A, sheet(A), 'dsave'); await settleWrites(A, id);
+    const after2 = srv.read(id), sA = sheet(A);
+    check(stale && nPosts(A) === pb && eq(TM.docPlan(after2), { s: '2026-11-06', e: '2026-11-09' }) && after2.decision.stage === 'chosen' && after2.decision.chosen.departure === '2026-11-06' &&
+      A.api.S.sheet && A.api.S.sheet.type === 'dates' && /data-act="dlock"[^>]*aria-label="Unlock"/.test(sA) && !/data-act="dsave"/.test(sA) && !LA.failed,
+      'PIA-138 AC3 the same in P-dates: a stale Save of 11/7–11/10 is held back (nothing sent), and the picker redraws as the plan to read with 🔓', { posts: nPosts(A) - pb, plan: TM.docPlan(after2) });
+  }
+  {
+    // Anjo booked on her own phone after the organizer's last read: his +1, never asked about it, is held back on the fresh
+    // record, and the control asks now (⚠🎫); the confirming tap moves the plan and keeps her booked days as her own
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    const d = srv.read(id); d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', booked: true, booked_at: '2026-10-17T10:00:00.000Z' }); srv.write(d);
+    const p0 = nPosts(t);
+    tap(t, screen(t), 'shift', { v: '1' });
+    await settleWrites(t, id);
+    const held = { posts: nPosts(t) - p0, plan: TM.docPlan(srv.read(id)), armed: /class="step arm"[^>]*data-v="1" aria-label="Confirm move"[^>]*>⚠🎫<\/button>/.test(screen(t)), local: t.api.modelOf(id).plan };
+    tap(t, screen(t), 'shift', { v: '1' });
+    await settleWrites(t, id);
+    const doc = srv.read(id), ps = posts(t, 0);
+    check(held.posts === 0 && eq(held.plan, { s: '2026-11-06', e: '2026-11-09' }) && held.armed && eq(held.local, { s: '2026-11-06', e: '2026-11-09' }) &&
+      eq(TM.docPlan(doc), { s: '2026-11-07', e: '2026-11-10' }) && doc.responses['anjo-z5'].available_from === '2026-11-06' && doc.responses['anjo-z5'].booked === true && ps.length === 2,
+      'PIA-138 AC3 a booking that landed after the organizer\'s last read holds his +1 back (nothing sent, the plan drawn as it is), and the +1 asks for its confirming tap; that tap moves it, keeping Anjo\'s booked 11/6–11/9 as her own', held);
+  }
+  {
+    // once anyone has booked, the first move of a visit asks for a confirming tap; booked days never move with the plan
+    const id = seedAs(DWX, (d) => { d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', booked: true }); });
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    tap(t, screen(t), 'shift', { v: '1' });
+    const armedH = screen(t), plan0 = t.api.modelOf(id).plan;
+    check(eq(plan0, { s: '2026-11-06', e: '2026-11-09' }) && /class="step arm"[^>]*data-v="1" aria-label="Confirm move" data-lbl="Confirm move" data-k="shift">⚠🎫<\/button>/.test(armedH),
+      'PIA-138 AC3 Anjo has booked: the first +1 only arms (⚠🎫, "Confirm move"), nothing moves');
+    tap(t, screen(t), 'shift', { v: '1' });
+    const p1 = t.api.modelOf(id).plan;
+    tap(t, screen(t), 'shift', { v: '1' });
+    const p2 = t.api.modelOf(id).plan, armed2 = /class="step arm"/.test(screen(t));
+    await settleWrites(t, id);
+    const doc = srv.read(id), ps = posts(t, 0);
+    check(eq(p1, { s: '2026-11-07', e: '2026-11-10' }) && eq(p2, { s: '2026-11-08', e: '2026-11-11' }) && !armed2 && ps.length === 2 && ps[0].path === '/idea/respond' && ps[0].body.member === 'anjo-z5' &&
+      ps[0].body.available_from === '2026-11-06' && ps[0].body.available_to === '2026-11-09' && ps[1].path === '/idea/update' && doc.responses['anjo-z5'].booked === true && eq(TM.docPlan(doc), p2),
+      'the confirming tap moves it; the next tap of this visit asks nothing; the one write first keeps Anjo\'s booked days as her own (11/6–11/9), then moves the plan (11/8–11/11)', ps.map((p) => p.path));
+    act(t, 'back'); act(t, 'open', { id });
+    tap(t, screen(t), 'shift', { v: '-1' });
+    check(/class="step arm"/.test(screen(t)) && nPosts(t) === ps.length && eq(t.api.modelOf(id).plan, p2), 'leaving the trip and coming back asks again (one confirming tap per visit)');
+  }
+  {
+    // locked dates cannot move until unlocked; P-dates on a locked plan is the plan to read (days open P-day) with 🔓 only
+    const id = seedAs(DWX, (d) => { chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', booked: true }); });
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id });
+    const h = screen(t);
+    act(t, 'dates', { id });
+    const s0 = sheet(t), L = dsh(t);
+    check(!/data-act="shift"/.test(h) && /<span data-k="lock">🔒<\/span>/.test(h) && t.api.popupName(t.api.S.sheet) === 'P-dates' && L.target === 'trip' && /data-act="dlock"[^>]*aria-label="Unlock" data-k="unlock">🔓/.test(s0) &&
+      !/data-act="dsave"|data-act="dshift"|data-act="dhol"|data-act="dclear"|data-act="dpin"/.test(s0) && /class="dc[^"]* ro"/.test(s0),
+      'PIA-138 AC3 a locked plan has no −1 / +1 (its pill shows 🔒); P-dates reads it (no Save, shifts, holidays, 📌 or 🗓⊘) with 🔓 the only tool');
+    tap(t, s0, 'dday', { v: '2026-11-07' });
+    check(t.api.S.sheet.type === 'day' && t.api.popupName(t.api.S.sheet) === 'P-day' && t.api.S.sheet.back && t.api.S.sheet.back.type === 'dates', 'a day of a locked plan opens P-day (‹ goes back to P-dates)');
+    t.api.ACTS['sh-back']();
+    tap(t, sheet(t), 'dlock');
+    const armed = { sheet: sheet(t), n: nPosts(t) };
+    tap(t, sheet(t), 'dlock'); await settleWrites(t, id);
+    const doc = srv.read(id), u = posts(t, 0).filter((p) => p.path === '/idea/update');
+    check(/data-act="dlock"[^>]*aria-label="Confirm, someone booked" data-lbl="Confirm">⚠🎫×1 <span class="cw">Confirm<\/span><\/button>/.test(armed.sheet) && armed.n === 0 && u.length === 1 && eq(u[0].body.decision, { stage: 'proposed' }) && doc.decision.stage === 'proposed' &&
+      t.api.S.sheet && t.api.S.sheet.type === 'dates' && /data-act="dlock"[^>]*aria-label="Lock" data-k="lock">🔒/.test(sheet(t)) && /data-act="dsave"/.test(sheet(t)),
+      'PIA-138 AC3 🔓 after someone booked asks once (⚠🎫×1 Confirm: the confirming tap says what it is), then unlocks in one write; the sheet stays open, now with 🔒, the picker and Save', { u: u.map((p) => p.body), armed: (/data-act="dlock"[^>]*>[^<]*/.exec(armed.sheet) || [])[0], n: armed.n, stage: doc.decision.stage, sheet: t.api.S.sheet && t.api.S.sheet.type, now: (/data-act="dlock"[^>]*>[^<]*/.exec(sheet(t)) || [])[0] });
+    // their own days stay editable while the plan is locked
+    const gid = seedAs(DWX, (d) => { chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', booked: true }); });
+    const g2 = await boot136({ ls: lsOf([gid], { pialax_idea_me_v1: { [gid]: 'anjo-z5' } }) });
+    act(g2, 'open', { id: gid }); act(g2, 'dates', { id: gid });
+    const GL = dsh(g2);
+    tap(g2, sheet(g2), 'dend', { v: '0' }); tap(g2, sheet(g2), 'dday', { v: '2026-11-07' });
+    tap(g2, sheet(g2), 'dsave');
+    const arm = { h: sheet(g2), n: nPosts(g2) };
+    await tap(g2, sheet(g2), 'dsave'); await tick();
+    const r = srv.read(gid).responses['anjo-z5'];
+    check(GL && GL.target === 'me' && /data-act="dsave"[^>]*aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ 🎫 <span class="cw">Confirm<\/span><\/button>/.test(arm.h) && arm.n === 0 && r.available_from === '2026-11-07' && r.available_to === '' && r.booked === true && g2.api.S.sheet && g2.api.S.sheet.type === 'dates',
+      'PIA-138 AC4 on the locked trip Anjo still sets her own arrival (🛬 alone, 11/7): after her 🎫 the Save asks once (⚠ 🎫), then one answer keeps her leave end following and her 🎫; the sheet stays open', r);
+  }
+  {
+    // P-dates for the organizer: holiday chips, tap start / tap end, shifts, paging, 📌 pinned inside, Save stays open, one write
+    const id = seedAs(DWX);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id }); tap(t, screen(t), 'dates');
+    const L = dsh(t), s0 = sheet(t);
+    check(L.target === 'trip' && L.s === '2026-11-06' && L.e === '2026-11-09' && L.pin === '2026-11-08' && /data-act="dtarget" data-v="trip" aria-pressed="true"/.test(s0) && /data-act="dhol" data-v="2026-11-26" aria-label="Thanksgiving 11\/26" data-lbl="Thanksgiving">🦃 11\/26/.test(s0) &&
+      /class="btn pri wide stick dis" data-act="dsave" aria-disabled="true" data-why="1" data-lbl="No change">Save<\/button>/.test(s0),
+      'PIA-138 the organizer\'s pill opens P-dates on the plan ([🪔 | 🌴] to his own days), holiday chips named by their holiday; Save waits ("No change")');
+    tap(t, s0, 'dhol', { v: '2026-11-26' });
+    check(L.s === '2026-11-25' && L.e === '2026-11-29' && L.pin === '2026-11-26' && L.ym === '2026-11', 'PIA-138 AC2 🦃 in one tap: Wed 11/25–Sun 11/29 and 📌 11/26');
+    tap(t, sheet(t), 'dmonth', { v: '1' });
+    const paged = [L.ym, L.s, L.e];
+    tap(t, sheet(t), 'dmonth', { v: '-1' });
+    tap(t, sheet(t), 'dshift', { v: '7' });
+    const pinBlocked = ctl(sheet(t), 'dshift', { v: '7' });
+    check(eq(paged, ['2026-12', '2026-11-25', '2026-11-29']) && L.s === '2026-11-25' && pinBlocked && pinBlocked.lbl === 'Event day outside' && pinBlocked.k === 'pinout',
+      'PIA-138 AC2 ◀ ▶ only page (the range stays); +7 that would leave 📌 outside is refused, shown 📌⚠ with its reason');
+    tap(t, sheet(t), 'dshift', { v: '-1' });
+    check(L.s === '2026-11-24' && L.e === '2026-11-28', '−1 moves the whole range a day (11/24–11/28, still 4 nights, 📌 inside)');
+    tap(t, sheet(t), 'dday', { v: '2026-11-13' }); tap(t, sheet(t), 'dday', { v: '2026-11-16' });
+    const out = sheet(t);
+    check(L.s === '2026-11-13' && L.e === '2026-11-16' && /data-k="pinout">📌⚠<\/span>/.test(out) && /data-act="dsave" aria-disabled="true" data-why="1" data-lbl="Event day outside">Save/.test(out) && /data-act="dlock"[^>]*data-lbl="Event day outside"/.test(out),
+      'PIA-138 AC2 tap a start, tap an end (no dragging): 11/13–11/16 leaves 📌 11/26 out, so Save and 🔒 refuse with 📌⚠ ("Event day outside")');
+    await tap(t, sheet(t), 'dsave');
+    const n0 = nPosts(t);
+    tap(t, sheet(t), 'dpin'); tap(t, sheet(t), 'dday', { v: '2026-11-14' });
+    check(L.pin === '2026-11-14' && n0 === 0 && /data-act="dsave">Save<\/button>/.test(sheet(t)), '📌 then a day moves the event day inside the plan; nothing was sent while it was refused');
+    const p1 = tap(t, sheet(t), 'dsave'), busyS = sheet(t); const p2 = tap(t, sheet(t), 'dsave');
+    const k0 = [L.s, L.e, L.pin].join(); tap(t, busyS, 'dday', { v: '2026-11-20' }); tap(t, busyS, 'dhol', { v: '2026-12-25' }); tap(t, busyS, 'dshift', { v: '1' });
+    check(/data-act="dsave" aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷<\/button>/.test(busyS) && !/<button[^>]*\sdisabled[\s>]/.test(busyS) &&
+      /data-act="dlock"[^>]*aria-label="Lock, Saving" data-lbl="Saving"/.test(busyS) && /data-act="dhol"[^>]*data-lbl="Saving" aria-disabled="true" data-why="1"/.test(busyS) &&
+      /data-act="dday" data-v="2026-11-20" aria-label="11\/20[^"]*" aria-pressed="false" aria-disabled="true" data-why="1" data-lbl="Saving"/.test(busyS) && [L.s, L.e, L.pin].join() === k0,
+      'PIA-138 a11y while Save is out it is ◷, still focusable (aria-disabled + aria-busy, never disabled, so focus is not dropped); 🔒, the holidays, the days and the shifts say "Saving" and take no pick');
+    await p1; await tick(); await settleWrites(t, id);
+    const u = posts(t, 0).filter((p) => p.path === '/idea/update'), doc = srv.read(id);
+    check(u.length === 1 && eq(TM.docPlan(doc), { s: '2026-11-13', e: '2026-11-16' }) && doc.idea.notes === '📌2026-11-14 Lakshmi puja Sunday evening' && p2 === null,
+      'PIA-138 AC3 Save, tapped twice quickly, is one write: the plan 11/13–11/16 with 📌 11/14 (the caption kept)', u.length);
+    check(t.api.S.sheet && t.api.S.sheet.type === 'dates' && L.s === '2026-11-13' && /class="btn pri wide stick dis" data-act="dsave" aria-label="Saved" aria-disabled="true" data-why="1" data-lbl="Saved">✓<\/button>/.test(sheet(t)) &&
+      /data-act="dlock"[^>]*aria-label="Lock" data-k="lock">🔒/.test(sheet(t)),
+      'PIA-138 AC3 the sheet stays open after Save, read again from the record (Save shows ✓ "Saved" until the next pick), so 🔒 is the next tap');
+    const nl = t.fetches.length, l1 = tap(t, sheet(t), 'dlock'), busyH = sheet(t), l2 = tap(t, sheet(t), 'dlock');
+    check(/data-act="dlock" aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷<\/button>/.test(busyH) && !/<button[^>]*\sdisabled[\s>]/.test(busyH),
+      'PIA-138 a11y while 🔒 is out the sheet already reads as locked, and the same control (🔓) is ◷, still focusable (aria-disabled + aria-busy, never disabled: focus stays on it)');
+    await l1; await settleWrites(t, id);
+    const lk = posts(t, nl), after = sheet(t);
+    check(srv.read(id).decision.stage === 'chosen' && srv.read(id).decision.chosen.departure === '2026-11-13' && l2 === null && lk.length === 1 && lk[0].body.decision.stage === 'chosen' && eq(lk[0].body.decision.chosen, { airport: 'RDU', city: 'Raleigh', departure: '2026-11-13', return: '2026-11-16' }) &&
+      t.api.S.sheet && t.api.S.sheet.type === 'dates' && /data-act="dlock"[^>]*aria-label="Unlock" data-k="unlock">🔓/.test(after) && !/data-act="dsave"/.test(after),
+      'PIA-138 AC3 🔒, tapped twice quickly, locks once (the second tap is not an 🔓): the plan as saved, chosen from that very plan; the picker stays open, now the plan to read with 🔓', lk.map((q) => q.body.decision));
+  }
+  {
+    // members set either end or both, or follow the plan again; nobody sets days before answering (the answer row asks)
+    const id = seedAs(DWX, (d) => { d.responses['anjo-z5'] = RESP('maybe', { member: 'anjo-z5', origin: 'LGA', note: 'PTO pending', leave_from: '' }); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t, 'open', { id });
+    const h = screen(t);
+    check(!/data-act="shift"/.test(h) && /class="track mybar" data-act="dates" data-id="[^"]+" data-code="anjo-z5" aria-label="My dates 11\/6–11\/9" data-lbl="My dates"/.test(h), 'a guest has no −1 / +1; her own bar opens P-dates (read out with her days)');
+    tap(t, h, 'dates');
+    const L = dsh(t);
+    check(t.api.popupName(t.api.S.sheet) === 'P-dates' && L && L.target === 'me' && L.who === 'anjo-z5', 'her plan pill itself (the trip view\'s control, tapped) opens P-dates on her own days');
+    tap(t, sheet(t), 'dday', { v: '2026-11-05' }); tap(t, sheet(t), 'dday', { v: '2026-11-08' });
+    const s1 = sheet(t);
+    await tap(t, s1, 'dsave'); await tick();
+    const r1 = srv.read(id).responses['anjo-z5'];
+    check(L.target === 'me' && /class="w amb" data-k="offplan">⚠🗓<\/span>/.test(s1) && r1.available_from === '2026-11-05' && r1.available_to === '2026-11-08' && r1.status === 'maybe' && r1.note === 'PTO pending',
+      'PIA-138 AC4 Anjo taps 11/5 then 11/8 (⚠🗓 in amber, "Outside plan": allowed, not an error) and saves: one complete answer with both ends her own, her Maybe and note kept', r1);
+    tap(t, sheet(t), 'dend', { v: '1' }); tap(t, sheet(t), 'dday', { v: '2026-11-10' });
+    await tap(t, sheet(t), 'dsave'); await tick();
+    const r2 = srv.read(id).responses['anjo-z5'];
+    tap(t, sheet(t), 'dend', { v: '1' }); tap(t, sheet(t), 'dday', { v: '2026-11-09' });
+    const s9 = sheet(t);
+    await tap(t, s9, 'dsave'); await tick();
+    const r2b = srv.read(id).responses['anjo-z5'];
+    tap(t, sheet(t), 'dend', { v: 'both' }); tap(t, sheet(t), 'dfollow');
+    await tap(t, sheet(t), 'dsave'); await tick();
+    const r3 = srv.read(id).responses['anjo-z5'], m3 = t.api.modelOf(id).members.find((x) => x.code === 'anjo-z5');
+    check(r2.available_from === '2026-11-05' && r2.available_to === '2026-11-10' && r2b.available_from === '2026-11-05' && r2b.available_to === '' && /<span class="fol" data-k="follow">11\/9<\/span>/.test(s9) &&
+      r3.available_from === '' && r3.available_to === '' && m3.d1 === '2026-11-06' && m3.d2 === '2026-11-09' && posts(t, 0).filter((p) => p.path === '/idea/respond').length === 4,
+      'PIA-138 AC4 then the leave end alone (🛫 11/10, her arrival kept); 🛫 on the plan\'s own last day (11/9) makes that end follow the plan again (drawn dimmed), never a fixed day of her own; then both ends follow the plan: her days are the plan\'s again',
+      [r2.available_to, r2b.available_to, r3.available_from]);
+    // someone who has not answered: the pill and the bar pulse the answer row instead, and say so in words
+    const id2 = seedAs(DWX);
+    const t2 = await boot136({ ls: lsOf([id2], { pialax_idea_me_v1: { [id2]: 'anjo-z5' } }), rec: ['#screen', '#toast'] });
+    act(t2, 'open', { id: id2 });
+    const drawn = t2.rec['#screen'].__rec.html, n0 = drawn.length;
+    tap(t2, screen(t2), 'dates');
+    const pulsed = drawn.slice(n0).some((x) => /class="answers nudge"/.test(x)), told = /👋 In \/ Maybe \/ Out/.test(t2.rec['#toast'].innerHTML);
+    const nb = drawn.length; act(t2, 'dates', { id: id2, code: 'anjo-z5' });
+    const pulsed2 = drawn.slice(nb).some((x) => /class="answers nudge"/.test(x));
+    check(!t2.api.S.sheet && nPosts(t2) === 0 && t2.api.S.trip === id2 && TM.datesRole(t2.api.modelOf(id2)) === 'answer' && pulsed && told && pulsed2 && !/class="answers nudge"/.test(screen(t2)),
+      'PIA-138 AC4 before she answers, her pill (tapped) and her bar open no picker and write nothing: the render that follows pulses her answer row (once), and a toast says "👋 In / Maybe / Out"', { pulsed, told, pulsed2 });
+  }
+  {
+    // nobody's own days are changed behind their back: one end of her own, the other following; a pick on the plan's own day follows
+    const id = seedAs(DWX, (d) => { d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', available_from: '2026-11-05', available_to: '' }); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t, 'open', { id }); tap(t, screen(t), 'dates');
+    const L = dsh(t), noChange = (h) => /data-act="dsave" aria-disabled="true" data-why="1" data-lbl="No change">Save<\/button>/.test(h);
+    const open0 = sheet(t), p0 = nPosts(t);
+    await tap(t, open0, 'dsave');
+    tap(t, sheet(t), 'dfollow'); const on = sheet(t);
+    tap(t, sheet(t), 'dfollow'); const off = sheet(t);
+    check(L.s === '2026-11-05' && L.e === '2026-11-09' && noChange(open0) && nPosts(t) === p0 && !noChange(on) && noChange(off) && /<span class="fol" data-k="follow">11\/9<\/span>/.test(open0),
+      'PIA-138 Anjo set her arrival (11/5) and follows the plan\'s last day: P-dates opens on "No change" (her following end drawn dimmed), an untouched Save writes nothing, and Follow plan on then off again is still "No change"');
+    tap(t, sheet(t), 'dday', { v: '2026-11-07' }); tap(t, sheet(t), 'dday', { v: '2026-11-09' });
+    await tap(t, sheet(t), 'dsave'); await tick();
+    const r = srv.read(id).responses['anjo-z5'];
+    check(r.available_from === '2026-11-07' && r.available_to === '',
+      'PIA-138 "arrive a day later" with ↔ (11/7 then the plan\'s own 11/9) moves her arrival only: the leave end keeps following the plan, so the next move of the plan carries it', [r.available_from, r.available_to]);
+  }
+  {
+    // an undated idea with a ⟦window⟧ and no 🌙 opens unchanged: 🌙? until one is picked, and an untouched Save writes nothing
+    const CYX = fx('idea-undated.json');
+    const id = seedAs(CYX, (d) => { d.idea.notes = 'New date TBD'; });
+    const t = await boot136({ ls: org138(id, 'ashwin-c3') });
+    act(t, 'open', { id }); tap(t, screen(t), 'dates');
+    const L = dsh(t), s0 = sheet(t), p0 = nPosts(t);
+    await tap(t, s0, 'dsave'); await tick();
+    tap(t, sheet(t), 'dnights', { v: '1' }); const s1 = sheet(t);
+    check(L.mode === 'window' && /<span data-k="nights"><span class="g">🌙<\/span>\?<\/span>/.test(s0) && /data-act="dsave" aria-disabled="true" data-why="1" data-lbl="No change">Save/.test(s0) && nPosts(t) === p0 && srv.read(id).idea.notes === 'New date TBD' &&
+      L.nights === 4 && L.nightsSet && /data-act="dsave">Save<\/button>/.test(s1),
+      'PIA-138 an undated idea\'s window with no 🌙 opens as it is (🌙?, Save "No change", nothing written on an untouched Save); 🌙+ picks nights (counting from 3) and only then is there something to save', { notes: srv.read(id).idea.notes, n: L.nights });
+  }
+  {
+    // one leg at a time from P-person, by the person or the organizer for them (📞); a run of taps is one write
+    const id = seedAs(DWX, (d) => { d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', note: '' }); });
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
+    const s0 = sheet(t);
+    check(/class="ld" data-act="dates" data-id="[^"]+" data-code="anjo-z5" data-end="0" aria-label="Arrive date 11\/6" data-lbl="Arrive date">11\/6<\/button>/.test(s0) && /data-act="legshift"[^>]*data-end="1" data-v="1" aria-label="Later" data-k="shift">\+1/.test(s0),
+      'PIA-138 AC4 P-person: each leg\'s day opens P-dates for that end (read out with its day: "Arrive date 11/6"), with −1 / +1 beside it');
+    tap(t, sheet(t), 'legshift', { end: '0', v: '-1' }); tap(t, sheet(t), 'legshift', { end: '0', v: '-1' }); tap(t, sheet(t), 'legshift', { end: '1', v: '1' });
+    const mid = t.api.modelOf(id).members.find((x) => x.code === 'anjo-z5'), pre = nPosts(t);
+    await settleWrites(t, id);
+    const rs = posts(t, 0).filter((p) => p.path === '/idea/respond'), r = srv.read(id).responses['anjo-z5'];
+    check(mid.own1 === '2026-11-04' && mid.own2 === '2026-11-10' && pre === 0 && rs.length === 1 && r.available_from === '2026-11-04' && r.available_to === '2026-11-10' && r.note === '📞' && /class="ld own"/.test(sheet(t)),
+      'PIA-138 AC4 the organizer moves Anjo\'s 🛬 −1 −1 and 🛫 +1: drawn at once (her own ends, underlined), sent as ONE answer marked 📞 (11/4–11/10)', { rs: rs.length, r: [r.available_from, r.available_to, r.note] });
+    act(t, 'dates', { id, code: 'anjo-z5', end: '1' });
+    const L = dsh(t);
+    check(L.target === 'me' && L.who === 'anjo-z5' && L.end === 1 && t.api.S.sheet.back && t.api.S.sheet.back.type === 'person' && /data-act="dend" data-v="1" aria-pressed="true"/.test(sheet(t)),
+      'her 🛫 day opens P-dates on her leave end (‹ goes back to her sheet)');
+  }
+  {
+    // an undated idea: the window and nights; ⬚ the best window becomes the plan in one tap; 🗓⊘ makes it undated again
+    const CYX = fx('idea-undated.json');
+    const id = seedAs(CYX);
+    const t = await boot136({ ls: org138(id, 'ashwin-c3') });
+    act(t, 'open', { id }); tap(t, screen(t), 'dates');
+    const L = dsh(t), s0 = sheet(t);
+    check(L.mode === 'window' && L.s === '2026-12-18' && L.e === '2027-01-04' && L.nights === 4 && /data-act="dmode" data-v="window" aria-pressed="true"/.test(s0) && /data-act="dbest" aria-label="Best window 12\/21–12\/25" data-lbl="Best window" data-k="best">⬚ 12\/21–12\/25<\/button>/.test(s0) &&
+      !/data-act="dlock"/.test(s0) && !/data-act="shift"/.test(screen(t)),
+      'PIA-138 AC5 an undated idea opens on its ⟦12/18–1/4⟧ 🌙4 with ⬚ the best window from the people who set their own days (12/21–12/25); no 🔒 and no ±1 without a plan');
+    tap(t, s0, 'dnights', { v: '1' });
+    await tap(t, sheet(t), 'dsave'); await tick();
+    const w = srv.read(id);
+    check(w.idea.notes === '🌙5 New date TBD' && w.idea.dates.searchStart === '2026-12-18' && t.api.S.sheet.type === 'dates', 'the organizer sets the rough window\'s nights (🌙5): one write, the sheet stays open');
+    const b = t.api.modelOf(id).best;
+    await tap(t, sheet(t), 'dbest'); await tick();
+    const d2 = srv.read(id), u = posts(t, 0).filter((p) => p.path === '/idea/update');
+    check(b && u.length === 2 && eq(TM.docPlan(d2), { s: b.s, e: b.e }) && d2.idea.notes === 'New date TBD' && d2.idea.dates.searchStart === '2026-12-18' && L.mode === 'dates' && L.s === b.s && t.api.S.sheet.type === 'dates',
+      'PIA-138 AC5 ⬚ makes the best window the plan in ONE tap (one write; 🌙 gone, the window kept); the sheet now shows the plan', { best: b, notes: d2.idea.notes });
+    await tap(t, sheet(t), 'dclear'); await tick();
+    const d3 = srv.read(id), m3 = t.api.modelOf(id);
+    check(!TM.docPlan(d3) && m3.undated && m3.nightsN === 5 && d3.idea.dates.searchStart === '2026-12-18' && L.mode === 'window' && t.api.S.undo,
+      'PIA-138 AC5 🗓⊘ clears the plan: undated again, with its window and 🌙5 (its length), and ↩ in the toast', d3.idea);
+    await t.api.S.undo(); await tick();
+    check(eq(TM.docPlan(srv.read(id)), { s: b.s, e: b.e }), '↩ puts the plan back');
+  }
+  {
+    // daily presence: the grid's numerals and P-day agree with the model and never pass the heads ring
+    const id = seedAs(DWX, anjoOwn);
+    const t = await boot136({ ls: org138(id) });
+    act(t, 'open', { id }); tap(t, screen(t), 'dates');
+    const m = t.api.modelOf(id), s0 = sheet(t), bad = [];
+    for (let d = '2026-11-01'; d <= '2026-11-30'; d = TM.addD(d, 1)) {
+      const cell = (new RegExp('data-act="dday" data-v="' + d + '"[^>]*>([\\s\\S]*?)</button>').exec(s0) || [])[1] || '';
+      const n = +((/<span class="pc-n"[^>]*>(\d+)<\/span>/.exec(cell) || [])[1] || 0), fill = (cell.match(/<i class="" style=/g) || []).length;
+      if (n !== TM.presentOn(m, d) || n > m.headsIn || fill !== n) bad.push(d + ' ' + n + '/' + fill);
+    }
+    {
+      // the 8-member trip (9 heads): a cell has room for 8 dots, filled first, so its filled dots always equal its numeral;
+      // a day pressed long says who is there ("12/11 · 👥6")
+      const i8 = seedAs(M8X), t8 = await boot136({ ls: org138(i8, 'grandmajosephine-nf') });
+      act(t8, 'open', { id: i8 }); tap(t8, screen(t8), 'dates');
+      const L8 = dsh(t8), m8 = t8.api.modelOf(i8), bad8 = [];
+      let days8 = 0;
+      for (let k = 0; k < 2; k++) {
+        const h8 = sheet(t8), re = /<button class="dc[^"]*" data-act="dday" data-v="(\d{4}-\d\d-\d\d)"([^>]*)>([\s\S]*?)<\/button>/g;
+        let mm;
+        while ((mm = re.exec(h8))) {
+          const d = mm[1], cell = mm[3], n = +((/<span class="pc-n"[^>]*>(\d+)<\/span>/.exec(cell) || [])[1] || 0);
+          const dots = (/<span class="dots">([\s\S]*?)<\/span>/.exec(cell) || [])[1] || '', kinds = (dots.match(/<i class="(\w*)"/g) || []).map((x) => x.replace(/<i class="|"/g, '') || 'fill');
+          const fill = kinds.filter((x) => x === 'fill').length, firstOther = kinds.findIndex((x) => x !== 'fill'), lastFill = kinds.lastIndexOf('fill');
+          const lbl = (/data-lbl="([^"]*)"/.exec(mm[2]) || [])[1];
+          days8++;
+          if (n !== TM.presentOn(m8, d) || fill !== Math.min(n, 8) || kinds.length > 8 || (firstOther >= 0 && lastFill > firstOther) || (d >= '2026-10-17' && lbl !== TM.md(d) + (n ? ' · 👥' + n : ''))) bad8.push(d + ' n' + n + ' fill' + fill + ' ' + kinds.join(',') + ' ' + lbl);
+        }
+        tap(t8, sheet(t8), 'dmonth', { v: '1' });
+      }
+      check(bad8.length === 0 && days8 > 50 && L8.target === 'trip' && m8.heads > 8,
+        'PIA-138 AC6 on the 8-member trip (' + m8.heads + ' heads, ' + days8 + ' days): each cell draws at most 8 dots, the filled ones first, so its filled dots equal its numeral (presentOn); a long press on a day names it with its count ("12/11 · 👥6")', bad8.slice(0, 4));
+    }
+    tap(t, sheet(t), 'dlook'); tap(t, sheet(t), 'dday', { v: '2026-11-05' });
+    const pd = sheet(t);
+    check(bad.length === 0 && t.api.popupName(t.api.S.sheet) === 'P-day' && /<span class="dayn" data-k="present"><span aria-hidden="true">👥<\/span>1<\/span>/.test(pd) && /aria-label="Anjo, there"/.test(pd) && /aria-label="Ashwin, not there"/.test(pd) && TM.presentOn(m, '2026-11-05') === 1,
+      'PIA-138 AC6 every day\'s numeral in the grid is the people there (presentOn, never more than the ring\'s ' + m.headsIn + ', as many filled dots); 👥 then 11/5 opens P-day: 1 there (Anjo, who arrives early), Ashwin not yet', bad.slice(0, 4));
+    // the best window reflects only people who set their own days
+    const id2 = seedAs(DWX, (d) => { d.idea.notes = ''; });
+    const t2 = await boot136({ ls: org138(id2) });
+    act(t2, 'open', { id: id2 }); tap(t2, screen(t2), 'dates');
+    const noBest = !/data-act="dbest"/.test(sheet(t2));
+    t2.api.closeSheet(); act(t2, 'person', { id: id2, code: 'momdad-k3' });
+    act(t2, 'dates', { id: id2, code: 'momdad-k3' });
+    tap(t2, sheet(t2), 'dday', { v: '2026-11-12' }); tap(t2, sheet(t2), 'dday', { v: '2026-11-16' });
+    await tap(t2, sheet(t2), 'dsave'); await tick();
+    t2.api.closeSheet(); tap(t2, screen(t2), 'dates');
+    check(noBest && srv.read(id2).responses['momdad-k3'].note === '📞' && /data-act="dbest"[^>]*>⬚ 11\/12–11\/15<\/button>/.test(sheet(t2)),
+      'PIA-138 AC6 no best window while everyone follows the plan; once the organizer sets Mom & Dad\'s own 11/12–11/16 (📞), ⬚ 11/12–11/15 appears');
   }
 
   // ═══ AC12 / AC14 ═══
