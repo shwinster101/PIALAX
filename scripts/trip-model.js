@@ -1452,6 +1452,78 @@ function tripGroups(models, mine) {
   groups.forEach(function (g) { g.ids.sort(function (a, b) { return order[a] - order[b]; }); g.first = order[g.ids[0]]; });
   return groups.sort(function (a, b) { return b.ids.length - a.ids.length || a.first - b.first; });
 }
+/* PIA-142: Trips › Family, the people × trips board, read from the trips' own models (one tripModel per trip: the very
+   objects the cards and the trip views draw), so a cell can never say anything that trip's card or view does not.
+   models: the trips this phone lists that have been read, in the order the screens show them (the cards', then the
+   shelf's); o = {past: 🗄 adds the shelf's trips as columns (hosting history), name: who this phone is when no trip
+   shown says so (its profile name)}.
+   • cols: the trips off the shelf, then, with o.past, the shelf's; never a dropped trip (it never happened). They are the
+     models themselves, so a column's heads are that trip's own headsIn / heads (by headcount: Mom & Dad count 2).
+   • rows: one per person, merged across the columns by normalized name. The k-th member of a name on one trip joins the
+     k-th of that name on another, so two "Sam Lee"s on one trip stay two rows. A v1 'Me' (no name) is my row when it is
+     this phone's own face there; on any other phone it is that trip's organizer, whom v1's own family preset names by
+     airport (P-migrate's suggestion: 'Me' at LAX is Ashwin), so it joins that person's row when they are on the board by
+     name already (and not on its own trip by name); any other v1 'Me' is a row of its own, after the named rows. Me first
+     (who this phone is on a trip shown, else on any trip given, else o.name), then as they first appear. Each row: {key,
+     norm, name, short, one, face, color (of the first named appearance), headcount (the largest), me, hosted, cells},
+     with cells[i] = that trip's own member (answer, marks, own days: all the model's) or null (not on that trip).
+   • hosted: how many of the trips given (shown or not, a dropped one never) this person hosts, past and planned: a host
+     by airport who has not said Out. 🏠n on their row, the fairest next host at a glance. */
+function familyBoard(models, o) {
+  o = o || {};
+  var real = (models || []).filter(function (m) { return m && m.members && m.decision !== 'dropped'; });
+  var cols = real.filter(function (m) { return !m.shelf; }).concat(o.past ? real.filter(function (m) { return m.shelf; }) : []);
+  var keysOf = function (m) {
+    var n = {};
+    return m.members.map(function (x) {
+      if (!x.norm) return '#' + m.id + '|' + x.code;
+      n[x.norm] = (n[x.norm] || 0) + 1;
+      return n[x.norm] > 1 ? x.norm + '#' + n[x.norm] : x.norm;
+    });
+  };
+  var keys = real.map(keysOf), order = cols.concat(real), mine = '';
+  order.forEach(function (m) { if (!mine && m.me && m.me.norm) mine = keys[real.indexOf(m)][m.members.indexOf(m.me)] || ''; });
+  if (!mine && o.name) mine = normName(o.name);
+  // a v1 'Me' this phone is joins my own row (it is me, named or not); the first one is me when nothing else says who I am
+  order.forEach(function (m) {
+    var t = real.indexOf(m), i = m.me && !m.me.norm ? m.members.indexOf(m.me) : -1;
+    if (i < 0) return;
+    if (!mine) mine = keys[t][i];
+    else if (keys[t].indexOf(mine) < 0) keys[t][i] = mine;
+  });
+  // anyone else's v1 'Me': the family preset's person at its airport, when that person has a named row on the board
+  var named = {};
+  cols.forEach(function (m) { var t = real.indexOf(m); m.members.forEach(function (x, i) { if (x.norm) named[keys[t][i]] = 1; }); });
+  real.forEach(function (m, t) {
+    m.members.forEach(function (x, i) {
+      if (x.norm || keys[t][i] === mine) return;
+      var f = FAMILY_BY_AIRPORT[normIata(x.airport)], fam = f ? FAMILY.filter(function (g) { return g.key === f; })[0] : null, n = fam ? normName(fam.name) : '';
+      if (n && named[n] && keys[t].indexOf(n) < 0) keys[t][i] = n;
+    });
+  });
+  var hosted = {};
+  real.forEach(function (m, t) { m.members.forEach(function (x, i) { if (x.host && x.status !== 'out') hosted[keys[t][i]] = (hosted[keys[t][i]] || 0) + 1; }); });
+  var colKeys = cols.map(function (m) { return keys[real.indexOf(m)]; });
+  var rows = [], at = {};
+  cols.forEach(function (m, c) {
+    m.members.forEach(function (x, i) {
+      var k = colKeys[c][i], r = at[k];
+      if (!r) {
+        r = at[k] = { key: k, norm: x.norm, name: x.name, short: x.short, one: x.one, face: x.face, color: x.color, headcount: x.headcount, me: !!mine && k === mine,
+          hosted: hosted[k] || 0, cells: cols.map(function () { return null; }) };
+        rows.push(r);
+      }
+      if (!r.norm && x.norm) { r.norm = x.norm; r.name = x.name; r.short = x.short; r.one = x.one; r.face = x.face; r.color = x.color; }
+      r.headcount = Math.max(r.headcount, x.headcount);
+      r.cells[c] = x;
+    });
+  });
+  rows = rows.filter(function (r) { return r.norm || r.me; }).concat(rows.filter(function (r) { return !r.norm && !r.me; }));
+  var mi = -1;
+  rows.forEach(function (r, i) { if (mi < 0 && r.me) mi = i; });
+  if (mi > 0) rows.unshift(rows.splice(mi, 1)[0]);
+  return { cols: cols, rows: rows, mine: mine };
+}
 /* the v2 list link: <base>?l=<id>.<id>…&f=<my face>. Trip ids and one face only: never a key, a token or a price. */
 function listLink(base, ids, face) {
   var b = String(base || ''), list = uniq((ids || []).filter(function (id) { return IDEA_ID_RE.test(String(id)); })).slice(0, LIST_LINK_MAX);
@@ -2198,7 +2270,7 @@ if (typeof module !== 'undefined' && module.exports) {
     updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit,
     migrateOptions: migrateOptions, migrateRequests: migrateRequests,
     LIST_LINK_MAX: LIST_LINK_MAX, answerTimes: answerTimes, newestAnswerAt: newestAnswerAt, newAnswers: newAnswers, awaitsMe: awaitsMe, bookByCue: bookByCue, togoCue: togoCue,
-    tripGroups: tripGroups, listLink: listLink, US_MAP: US_MAP, usPoint: usPoint, mapXY: mapXY,
+    tripGroups: tripGroups, familyBoard: familyBoard, listLink: listLink, US_MAP: US_MAP, usPoint: usPoint, mapXY: mapXY,
     NAME_WORDS: NAME_WORDS, TITLE_WORDS: TITLE_WORDS, CAPTION_WORDS: CAPTION_WORDS, NAME_CHARS: NAME_CHARS, TITLE_CHARS: TITLE_CHARS,
     wordsIn: wordsIn, capTyped: capTyped, firstWords: firstWords, cleanName: cleanName, joinLink: joinLink, parseJoin: parseJoin,
     legacyDraft: legacyDraft, groupPresets: groupPresets, freeFace: freeFace, FAMILY_KEY: FAMILY_KEY,

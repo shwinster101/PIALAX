@@ -69,7 +69,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-139 fix pass
   'TIMES_PULSE_MS', 'LEAVE_MS', 'RET_KEY', 'bookResume', 'flushTimes', 'timesHold', 'timesLeft', 'typedOf', 'pickupChip', 'paidDoor', 'keyLabel', 'keyPages',
   // PIA-140
-  'runSearch', 'accountSync', 'lockNow', 'readQuota', 'spentRead', 'absorbV1Fares', 'totalRow', 'fareRows', 'spendBtn', 'cardHTML', 'peopleBoard', 'renderSheet'];
+  'runSearch', 'accountSync', 'lockNow', 'readQuota', 'spentRead', 'absorbV1Fares', 'totalRow', 'fareRows', 'spendBtn', 'cardHTML', 'peopleBoard', 'renderSheet',
+  // PIA-142
+  'renderFamily', 'famBoard', 'FAM_PER'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -3815,6 +3817,257 @@ function norm(doc) {
     }
     globalThis.fetch = offline;
     CLOCK = NOW;
+  }
+
+  // ═══ PIA-142: Trips › Family ═══
+  section('PIA-142 Trips › Family: the people × trips board, merged by name and read from the very models the cards and trip views draw; a cell opens that person with the answer row');
+  // the board's column heads (trip ids, in order) and its cells: {trip|code: {st: the shape's key, marks, own: the arrival day}}
+  const heads = (h) => (h.match(/<button class="hd[^"]*" data-act="open" data-id="[^"]+"/g) || []).map((s) => /data-id="([^"]+)"/.exec(s)[1]);
+  const cellsOf = (h) => {
+    const out = {}, re = /<button class="cell[^"]*" data-act="fcell" data-id="([^"]+)" data-code="([^"]+)"[^>]*>([\s\S]*?)<\/button>/g; let mm;
+    while ((mm = re.exec(h))) out[mm[1] + '|' + mm[2]] = { st: (/class="shape [^"]*" data-k="([a-z]+)"/.exec(mm[3]) || [])[1], marks: (mm[3].match(/<span data-k="[a-z]+">/g) || []).map((s) => s.slice(14, -2)).sort().join(), own: (/data-k="ownarr">([^<]*)</.exec(mm[3]) || [])[1] || '' };
+    return out;
+  };
+  {
+    const CYX = fx('idea-undated.json'), LXX = fx('idea-lax-local.json');
+    const RIN = (code, origin) => Object.assign(RESP('in'), { member: code, origin });
+    const DW = seedAs(DWX), TH = seedAs(THX), M8 = seedAs(M8X), CY = seedAs(CYX), LX = seedAs(LXX);
+    // the shelf: Tahoe last September, and a Done New York Anjo hosted (LGA); a dropped one is never a column
+    const PS = seedAs(THX, (d) => { d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; });
+    const NY = seedAs(DWX, (d) => { d.idea.title = '🌆 New York'; d.idea.destination = { city: 'New York', airport: 'LGA' }; d.idea.dates.departure = '2026-06-24'; d.idea.dates.return = '2026-07-04'; d.idea.notes = ''; d.responses['anjo-z5'] = RIN('anjo-z5', 'LGA'); d.decision.stage = 'booked'; });
+    const DR = seedAs(THX, (d) => { d.decision.stage = 'dropped'; }), DR2 = seedAs(LXX, (d) => { d.decision.stage = 'dropped'; });
+    const ME = { [DW]: 'ashwin-p8', [TH]: 'ashwin-l2', [CY]: 'ashwin-c3', [LX]: 'ashwin-x3', [PS]: 'ashwin-l2', [NY]: 'ashwin-p8' };
+    const fares = {};
+    TM.tripModel(srv.read(DW), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true }).travelers.forEach((x) => x.keys.forEach((k) => { fares[k.key] = { p: 200, f: NOW - 36e5 }; }));
+    const rs = recShare();
+    // the organizer's token phone reads /account when a priced person's sheet opens (PIA-140); the real Worker asks SerpAPI's
+    // account page for it, answered here offline (nothing on this board ever searches: checked below)
+    const offline142 = globalThis.fetch;
+    globalThis.fetch = async (u) => (/^https:\/\/serpapi\.com\/account\.json\?/.test(String(u)) ? new Response(JSON.stringify({ this_month_usage: 41, searches_per_month: 1000, total_searches_left: 959 }), { status: 200 }) : offline142(u));
+    const t = await boot136({ ls: lsOf([DW, TH, M8, CY, LX, PS, NY, DR], { pialax_idea_me_v1: ME, pialax_idea_keys_v1: keyOf([DW, LX]), pialax_proxy_token: TOKEN, pialax_fares_v2: fares }), navigator: rs.nav });
+    act(t, 'seg', { v: 'family' });
+    const fam = (u) => (u || t).api.renderFamily();
+    // the same person's face on that trip's own view (its people board): its answer shape and marks
+    const facesOf = (u, id) => {
+      const h = u.api.renderTrip(id).html, out = {}, re = /<button class="facebtn" data-act="person" data-id="([^"]+)" data-code="([^"]+)"[^>]*>([\s\S]*?)<\/button>/g; re.lastIndex = h.indexOf('id="board-'); let mm;
+      while ((mm = re.exec(h))) out[mm[1] + '|' + mm[2]] = { st: (/class="av s44[^"]*"[^>]*data-k="([a-z]+)"/.exec(mm[3]) || [])[1], marks: (mm[3].match(/<span data-k="[a-z]+">/g) || []).map((s) => s.slice(14, -2)).sort().join() };
+      return out;
+    };
+    const page = (u, p) => { (u || t).api.S.famPage = p; return fam(u); };
+    const all = (u) => { const pages = Math.ceil(u.api.famBoard().cols.length / u.api.FAM_PER), hs = []; for (let p = 0; p < pages; p++) hs.push(page(u, p).html); page(u, 0); return hs; };
+    // the board on the organizer's token phone, both pages
+    const f0 = fam(), H = all(t), C = Object.assign({}, ...H.map(cellsOf)), cards = (t.api.renderIdeas().html.match(/data-trip="([^"]+)"/g) || []).map((s) => s.slice(11, -1));
+    const actIds = [DW, TH, M8, CY, LX];
+    check(f0.id === 'trips-family' && eq(heads(H[0]), cards.slice(0, 4)) && eq(heads(H[1]), cards.slice(4, 5)) && eq(cards.slice(0, 5).sort(), actIds.slice().sort()) && heads(H.join('')).indexOf(PS) < 0 && heads(H.join('')).indexOf(DR) < 0,
+      'PIA-142 AC6 the board\'s columns are the cards\' trips in the cards\' order, 4 a page (5 trips: 4 + 1); the past and the dropped trips are not columns', { heads: H.map(heads), cards });
+    // cross-view consistency: every person on every trip shows the same answer shape and marks in their cell as on that trip's own view
+    const diff = [];
+    actIds.forEach((id) => {
+      const F = facesOf(t, id), m = t.api.modelOf(id);
+      m.members.forEach((x) => {
+        const k = id + '|' + x.code, c = C[k], f = F[k];
+        if (!c || !f || c.st !== f.st || c.marks !== f.marks || c.own !== (x.status !== 'out' && x.own1 ? TM.md(x.own1) : '')) diff.push({ k, c, f });
+      });
+    });
+    const foot = (h) => (h.match(/data-k="heads">(\d+\/\d+)</g) || []).map((s) => s.slice(15, -1));
+    const cardHeads = (id) => (/data-k="heads">(\d+\/\d+)</.exec(cardOf(t.api.renderIdeas().html, id)) || [])[1];
+    const ringOf = (id) => (/font-variant-numeric:tabular-nums">(\d+\/\d+)<\/text>/.exec(t.api.renderTrip(id).html) || [])[1];
+    const footer = [].concat(...H.map(foot)), order = [].concat(...H.map(heads));
+    // …and the same shapes as the faces on each trip's card (its first four)
+    const cardSt = (id) => (cardOf(t.api.renderIdeas().html, id).match(/class="av s28[^"]*"[^>]*data-k="([a-z]+)"/g) || []).map((s) => /data-k="([a-z]+)"/.exec(s)[1]);
+    actIds.forEach((id) => { const want = t.api.modelOf(id).members.slice(0, 4).map((x) => (C[id + '|' + x.code] || {}).st); if (!eq(cardSt(id), want)) diff.push({ card: id, faces: cardSt(id), cells: want }); });
+    check(diff.length === 0 && Object.keys(C).length === actIds.reduce((s, id) => s + t.api.modelOf(id).members.length, 0),
+      'PIA-142 cross-view: every one of the ' + Object.keys(C).length + ' cells (every member of every trip) shows the very answer shape and marks (⚠ 🎫 🏠 📞 📝) its face shows on that trip\'s own view, and their own arrival day; the faces on each card wear the same shapes', diff);
+    check(order.every((id, i) => footer[i] === cardHeads(id) && footer[i] === ringOf(id) && footer[i] === t.api.modelOf(id).headsIn + '/' + t.api.modelOf(id).heads) && footer[order.indexOf(DW)] === '3/4',
+      'PIA-142 AC3 each column\'s foot is that trip\'s heads by headcount, the same n/N as its card and its heads ring (Diwali 3/4: Mom & Dad count 2, Anjo not answered)', { order, footer });
+    const rowh = (h) => h.split('<div class="rowh').slice(1).map((s) => s.slice(0, s.indexOf('</div>')));
+    const r0 = rowh(H[0]), md = r0.find((s) => /🌽/.test(s));
+    check(/data-k="you"/.test(r0[0]) && /🌴/.test(r0[0]) && md && /data-k="count">×2/.test(md) && !/data-k="hosted"/.test(md) && /data-k="hosted">🏠1</.test(r0[0]) && /data-k="hosted">🏠1</.test(r0.find((s) => /🗽/.test(s))),
+      'PIA-142 AC1 / AC2 me first (👋), Mom & Dad ×2; 🏠n on a row is the trips that person hosts, past ones too (Ashwin the LA beach weekend, Anjo the New York the shelf holds), Mom & Dad none', r0.map((s) => s.slice(0, 80)));
+    check(/<span class="cell none[^"]*" role="img" aria-label="Not on [^"]*" data-lbl="Not invited" data-k="notinv"><span class="sh-none"><\/span><\/span>/.test(H[0]) && !/\$/.test(H.join('')) && /\$/.test(t.api.renderIdeas().html),
+      'PIA-142 someone not on a trip is a faint dot (Not invited); the board has no price anywhere, on the token phone whose cards show them');
+    const r1 = rowh(H[1]), pads = (H[1].match(/<span class="pad"><\/span>/g) || []).length;
+    check(r1.length === 3 && /🌴/.test(r1[0]) && /🌽/.test(r1[1]) && /🗽/.test(r1[2]) && pads === 3 * (1 + 3 + 1),
+      'PIA-142 AC6 page 2 (Cary alone) keeps the 4 columns\' width and shows me and the people on its trip only (Ashwin, Mom & Dad, Anjo), not rows of dots', { rows: r1.length, pads });
+    page(t, 0);
+    t.api.ACTS.fampage({ dataset: { v: '-1' }, getAttribute: (k) => (k === 'aria-disabled' ? 'true' : null) });
+    const p0 = t.api.S.famPage;
+    act(t, 'fampage', { v: '1' }); const p1 = t.api.S.famPage; act(t, 'fampage', { v: '1' }); fam(); const p2 = t.api.S.famPage;
+    check(/data-act="fampage" data-v="-1" aria-disabled="true" data-why="1" aria-label="Earlier trips, First page"/.test(f0.html) && /data-act="fampage" data-v="1" aria-label="Later trips"/.test(f0.html) && p0 === 0 && p1 === 1 && p2 === 1 &&
+      /aria-label="Page 1 of 2"/.test(f0.html), 'PIA-142 AC6 ◀ ▶ page the trips (◀ says "First page" on a tap, nothing moves); ▶ past the last page stays on it', { p0, p1, p2 });
+    // 🗄: the past trips as columns (hosting history); the board jumps to the first of them
+    page(t, 0);
+    act(t, 'fampast');
+    const pastOn = { ui: t.api.uiRead().famPast, pg: t.api.S.famPage, h: fam().html };
+    const nyCell = cellsOf(pastOn.h)[NY + '|anjo-z5'];
+    check(/data-act="fampast" aria-pressed="false"/.test(f0.html) && pastOn.ui === 1 && pastOn.pg === 1 && eq(heads(pastOn.h), [CY, PS, NY]) && pastOn.h.indexOf('class="hd past" data-act="open" data-id="' + PS + '"') >= 0 &&
+      nyCell && nyCell.st === 'in' && /host/.test(nyCell.marks) && /data-act="fampast" aria-pressed="true"/.test(pastOn.h),
+      'PIA-142 AC5 🗄 adds the past trips as columns (kept on this phone), and the board shows the page with the first of them: Cary, last September\'s Tahoe and New York, where Anjo\'s cell is ✓ with 🏠', { pg: pastOn.pg, heads: heads(pastOn.h) });
+    act(t, 'fampast');
+    check(t.api.uiRead().famPast === undefined && heads(page(t, 1).html).length === 1, '…and 🗄 again takes them away');
+    // a cell opens that person on that trip: the organizer's own trip, Anjo not answered: the very sheet her face opens, with his
+    // answer row (📞) and 📣
+    page(t, 0);
+    act(t, 'fcell', { id: DW, code: 'anjo-z5' });
+    const sFam = sheet(t), outside = t.api.S.sheet && t.api.S.sheet.p.outside;
+    t.api.closeSheet(); act(t, 'open', { id: DW }); act(t, 'person', { id: DW, code: 'anjo-z5' });
+    const sTrip = sheet(t); t.api.closeSheet(); act(t, 'back');
+    check(outside && sFam === sTrip && /data-act="answer" data-v="in"[^>]*data-proxy="1"/.test(sFam) && /data-act="nudge"/.test(sFam) && t.api.S.seg === 'family',
+      'PIA-142 AC4 a cell opens that person on that trip: the same sheet her face on the trip view opens, with the organizer\'s answer row (📞) and 📣 Share');
+    act(t, 'fcell', { id: DW, code: 'anjo-z5' }); tap(t, sheet(t), 'nudge'); await tick();
+    const q0 = posts(t).length;
+    await tap(t, sheet(t), 'answer', { v: 'in', proxy: '1' }); await until(() => !(t.api.PEND[DW] > 0)); await tick();
+    const sent = posts(t).slice(q0), after = cellsOf(fam().html)[DW + '|anjo-z5'], tv = facesOf(t, DW)[DW + '|anjo-z5'];
+    t.api.closeSheet();
+    check(rs.shared.length === 1 && eq(rs.shared[0], { url: W + '/i/' + DW + '#m=anjo-z5' }) && sent.length === 1 && sent[0].path === '/idea/respond' && sent[0].body.member === 'anjo-z5' && sent[0].body.status === 'in' && sent[0].body.note === '📞' &&
+      srv.read(DW).responses['anjo-z5'].note === '📞' && after.st === 'in' && after.marks === 'called' && tv.st === 'in' && tv.marks === 'called' && foot(fam().html)[0] === '4/4',
+      'PIA-142 AC4 from her cell the organizer nudges her (her own #m= link) and answers In for her: one complete answer marked 📞, and her cell and her face on the trip view both show ✓ 📞 (heads 4/4)', { shared: rs.shared, sent });
+    // my own cell: my sheet with my own answer row (outside a trip view; the trip view's own sheet has none: its answer row is the page's)
+    act(t, 'fcell', { id: TH, code: 'ashwin-l2' });
+    const mine = sheet(t), q1 = posts(t).length;
+    t.api.closeSheet(); act(t, 'open', { id: TH }); act(t, 'person', { id: TH, code: 'ashwin-l2' }); const mineTrip = sheet(t); t.api.closeSheet(); act(t, 'back');
+    act(t, 'fcell', { id: TH, code: 'ashwin-l2' });
+    await tap(t, sheet(t), 'answer', { v: 'in' }); await until(() => !(t.api.PEND[TH] > 0)); await tick(); t.api.closeSheet();
+    const mySent = posts(t).slice(q1);
+    check(/data-act="answer" data-v="maybe"[^>]*aria-pressed="true"/.test(mine) && !/data-proxy/.test(mine) && !/data-act="answer"/.test(mineTrip) && mySent.length === 1 && mySent[0].body.member === 'ashwin-l2' && mySent[0].body.status === 'in' &&
+      mySent[0].body.note === 'Depends on Thanksgiving dates' && cellsOf(fam().html)[TH + '|ashwin-l2'].st === 'in',
+      'PIA-142 AC4 my own cell opens my sheet with my answer row (my Maybe pressed); In there is my own answer (no 📞, my note kept), and my cell turns ✓', mySent.map((q) => q.body));
+    act(t, 'famrow', { v: '0' });
+    const hl = fam().html, hlKey = t.api.S.famRow; act(t, 'famrow', { v: '0' });
+    check(hlKey === 'ashwin' && /<div class="rowh hl">/.test(hl) && (hl.match(/class="cell hl"|class="cell none hl"/g) || []).length === 4 && t.api.S.famRow === '' && !/class="rowh hl"/.test(fam().html),
+      'PIA-142 a face lights its row up across the trips; a second tap puts it out');
+    const acct142 = t.fetches.filter((f) => f.url.indexOf(W + '/account') === 0).length;
+    check(t.fetches.filter((f) => f.url.indexOf(W + '/search') === 0).length === 0 && acct142 <= 1,
+      'PIA-142 nothing on the board, its pages, 🗄 or the sheets its cells open spent a search; /account was read at most once (a priced person\'s sheet, throttled) across every cell opened', { acct: acct142 });
+    globalThis.fetch = offline142;
+  }
+  {
+    // a guest (Anjo's phone, even holding the token): no price; someone else's cell is their face, days and note with 📣 for
+    // someone who has not answered (the group link, never their own), no answer row
+    const DW = seedAs(DWX), TH = seedAs(THX), CY = seedAs(fx('idea-undated.json')), rs = recShare();
+    const g = await boot136({ ls: lsOf([DW, TH, CY], { pialax_idea_me_v1: { [DW]: 'anjo-z5', [CY]: 'anjo-c4' }, pialax_proxy_token: TOKEN }), navigator: rs.nav });
+    act(g, 'seg', { v: 'family' });
+    const h = g.api.renderFamily().html;
+    act(g, 'fcell', { id: TH, code: 'leo-w6' });
+    const s = sheet(g), acts = (s.match(/data-act="[a-z-]+"/g) || []).map((x) => x.slice(10, -1));
+    tap(g, s, 'nudge'); await tick(); g.api.closeSheet();
+    act(g, 'fcell', { id: DW, code: 'momdad-k3' }); const s2 = sheet(g); g.api.closeSheet();
+    const paid = g.fetches.filter((f) => /\/(search|account)(\?|$)/.test(f.url.replace(W, '')));
+    check(!/\$/.test(h) && eq(acts, ['pjoin', 'sh-close', 'nudge']) && !/data-act="pickface"/.test(s) && rs.shared.length === 1 && eq(rs.shared[0], { url: W + '/i/' + TH }) && !/data-act="(answer|nudge|pjoin|pickface)"/.test(s2) && posts(g).length === 0 && paid.length === 0,
+      'PIA-142 AC4 on a guest\'s phone a cell of someone who has not answered offers only 📣 (the group link: a guest never hands out someone else\'s personal link), someone who answered none; no answer row, no price, and not one /search or /account call though this phone holds a token; on Tahoe, where this phone (Anjo elsewhere) is nobody and no name is hers, 🙋＋ asks to join, never 🙋 It\'s me',
+      { acts, shared: rs.shared, paid: paid.map((f) => f.url) });
+    // fix pass: 🙋＋ opens P-face with its join row open, over that sheet (‹ back to it); nothing is written
+    act(g, 'fcell', { id: TH, code: 'leo-w6' }); tap(g, sheet(g), 'pjoin');
+    const fs0 = g.api.S.sheet, fh = sheet(g);
+    check(fs0 && fs0.type === 'face' && fs0.local.join === true && fs0.back && fs0.back.type === 'person' && fs0.p.then === 'person' && /id="join-name"/.test(fh) && posts(g).length === 0,
+      'PIA-142 🙋＋ on a cell\'s sheet opens P-face with the join row open (‹ goes back to the sheet; a face picked there opens my own sheet in its place)');
+    g.api.closeSheet();
+  }
+  {
+    // fix pass: a first-run phone (a list link, no profile, no face, no token: Mom): her own cell opens her face with 🙋 It's me;
+    // one tap makes the sheet her own P-person with her answer row (the same history entry), and In there is her own answer
+    const DW = seedAs(DWX), TH = seedAs(THX), rs = recShare();
+    const u = await boot136({ ls: lsOf([DW, TH]), navigator: rs.nav });
+    act(u, 'seg', { v: 'family' });
+    act(u, 'fcell', { id: DW, code: 'momdad-k3' });
+    const s0 = sheet(u), sh0 = u.api.S.sheet, push0 = u.hist.pushes, back0 = u.hist.backs;
+    const a0 = (s0.match(/data-act="[a-z-]+"/g) || []).map((x) => x.slice(10, -1));
+    tap(u, s0, 'pickface', { code: 'momdad-k3' });
+    const sh1 = u.api.S.sheet, s1 = sheet(u);
+    const q0 = posts(u).length;
+    await tap(u, s1, 'answer', { v: 'in' }); await until(() => !(u.api.PEND[DW] > 0)); await tick();
+    const sent = posts(u).slice(q0), cell = cellsOf(u.api.renderFamily().html)[DW + '|momdad-k3'];
+    const paid = u.fetches.filter((f) => /\/(search|account)(\?|$)/.test(f.url.replace(W, '')));
+    check(sh0.type === 'person' && sh0.p.outside && eq(a0, ['pjoin', 'sh-close', 'pickface']) && /<button class="btn pri wide" data-act="pickface"[^>]*aria-label="This is me: Mom &amp; Dad"><span data-k="me">🙋<\/span> It's me<\/button>/.test(s0) && !/data-act="answer"/.test(s0) &&
+      sh1 && sh1.type === 'person' && sh1.p.code === 'momdad-k3' && sh1.p.outside && /data-act="answer"/.test(s1) && !/data-proxy/.test(s1) && !/data-act="pickface"/.test(s1) && u.api.meFor(DW) === 'momdad-k3' && u.hist.pushes === push0 && u.hist.backs === back0 &&
+      sent.length === 1 && sent[0].path === '/idea/respond' && sent[0].body.member === 'momdad-k3' && sent[0].body.status === 'in' && sent[0].body.note === '' && cell && cell.st === 'in' && cell.marks === '' && paid.length === 0 && rs.shared.length === 0,
+      'PIA-142 AC4 a first-run phone\'s own cell (no name, no face): her face with 🙋 It\'s me (and 🙋＋, no answer row); one tap makes it her own sheet with her answer row (same history entry); In is her own answer (the organizer\'s 📞 goes) and her cell turns ✓; no /search or /account',
+      { a0, sent: sent.map((q) => q.body), cell });
+    u.api.closeSheet();
+    // the same 🙋 on a trip view's face sheet: the sheet closes onto the trip, whose own answer row now pulses for me
+    const v = await boot136({ ls: lsOf([TH, DW]), rec: ['#screen'] });
+    act(v, 'open', { id: TH }); act(v, 'person', { id: TH, code: 'leo-w6' });
+    const sv = sheet(v), out0 = v.api.S.sheet && v.api.S.sheet.p.outside;
+    tap(v, sv, 'pickface', { code: 'leo-w6' });
+    const drawn = v.rec['#screen'].innerHTML;   // (the trip as the close drew it: the pulse is drawn once)
+    check(out0 === false && /data-act="pickface"/.test(sv) && !v.api.S.sheet && v.api.meFor(TH) === 'leo-w6' && v.api.S.trip === TH && /<div class="answers nudge"/.test(drawn) && posts(v).length === 0,
+      'PIA-142 🙋 It\'s me on a face\'s sheet in a trip view: the sheet closes onto the trip, this phone is Leo there now, and the trip\'s own answer row pulses for him (nothing written)');
+  }
+  {
+    // fix pass: the organizer's cell on the unmigrated v1 Thanksgiving, and on a past trip nobody closed: the answer row stays,
+    // greyed, saying why on a tap ("Update trip first", "Trip over"); nothing is sent, and a trip that is over offers no 📣
+    const TG = seedAs(TGX), DW = seedAs(DWX), PS = seedAs(THX, (d) => { d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; });
+    const t = await boot136({ ls: lsOf([DW, TG, PS], { pialax_idea_me_v1: { [DW]: 'ashwin-p8', [TG]: 'LAX', [PS]: 'ashwin-l2' }, pialax_idea_keys_v1: keyOf([DW, TG, PS]) }) });
+    act(t, 'seg', { v: 'family' });
+    act(t, 'fcell', { id: TG, code: 'LGA' });
+    const sl = sheet(t), q0 = posts(t).length, why = [];
+    const shownLbl = (h) => { const o = ctl(h, 'answer', { v: 'in' }); return o ? o.lbl : null; };
+    // the tap as the click handler makes it (the button says aria-disabled): it explains itself and returns nothing; and the same
+    // tap's action without that attribute (a script, a stale render) still sends nothing
+    const dis = (o) => ({ dataset: o, getAttribute: (k) => (k === 'aria-disabled' ? 'true' : null) });
+    why.push(t.api.ACTS.answer(dis(ctl(sl, 'answer', { v: 'in' }))));
+    why.push(await tap(t, sl, 'answer', { v: 'in', proxy: '1' })); await tick();
+    t.api.closeSheet();
+    act(t, 'fampast');
+    act(t, 'fcell', { id: PS, code: 'leo-w6' });
+    const sp = sheet(t);
+    why.push(t.api.ACTS.answer(dis(ctl(sp, 'answer', { v: 'in' }))));
+    why.push(await tap(t, sp, 'answer', { v: 'in', proxy: '1' })); await tick();
+    t.api.closeSheet();
+    act(t, 'open', { id: PS }); const tv = t.api.renderTrip(PS).html; act(t, 'back');
+    check(/data-act="answer" data-v="in"[^>]*aria-disabled="true" data-why="1" aria-label="In, Update trip first" data-lbl="Update trip first"/.test(sl) && shownLbl(sl) === 'Update trip first' &&
+      /aria-label="In, Trip over" data-lbl="Trip over"/.test(sp) && !/data-act="nudge"/.test(sp) && /class="ans in ro"/.test(sp) && /aria-label="In, Trip over"/.test(tv) && posts(t).length === q0 && why.every((r) => r === null),
+      'PIA-142 the organizer\'s cell on a v1 doc and on a past trip nobody closed: the answer row stays, greyed, and says why on a tap ("Update trip first" until PIA-146\'s update; "Trip over", the trip view\'s own row too); a trip that is over offers no 📣; nothing is sent');
+    // the board's heads name their trips on a long press: the title (free) and the days; 🏠n's key says past or planned
+    const fh = t.api.renderFamily().html;
+    check(new RegExp('class="hd past" data-act="open" data-id="' + PS + '" aria-label="Open past trip" data-lbl="9/11–9/14" data-ttl="🎿 Tahoe ski weekend"').test(fh) && t.api.LEGEND.hosted[1] === 'Hosted or hosting',
+      'PIA-142 a column head\'s long press names its trip: its title (data-ttl, free under the word rule) and its days; ⓘ reads 🏠n as "Hosted or hosting" (past and planned)');
+    act(t, 'fampast');
+  }
+  {
+    // fix pass: on Mom's board the v1 Thanksgiving's nameless "Me" is no stranger: it is Ashwin's row (the trip's organizer, by
+    // v1's own family preset, as P-migrate suggests), so no "Person" row; and names fitNames drops go last for hosts and for
+    // people who still have to answer
+    const TG = seedAs(TGX), DW = seedAs(DWX), TH = seedAs(THX);
+    const u = await boot136({ ls: lsOf([DW, TG, TH], { pialax_idea_me_v1: { [DW]: 'momdad-k3' } }) });
+    act(u, 'seg', { v: 'family' });
+    const h = u.api.renderFamily().html, B = u.api.famBoard(), ash = B.rows.find((r) => r.key === 'ashwin');
+    const rh = (h.match(/<div class="rowh[^"]*">[\s\S]*?<\/div>/g) || []).map((s) => { const n = /data-nm="(\d+)"/.exec(s); return { i: +(/data-v="(\d+)"/.exec(s) || [])[1], nm: n ? +n[1] : null }; });
+    const keep = (r) => r.hosted > 0 || r.cells.some((c) => c && c.status === 'waiting'), named = rh.filter((x) => x.nm !== null);
+    check(ash && ash.cells[1] && ash.cells[1].code === 'LAX' && B.rows.every((r) => !!r.norm) && !/aria-label="Person/.test(h) &&
+      named.every((x) => (x.nm < 100) === keep(B.rows[x.i])) && named.some((x) => x.nm < 100) && named.some((x) => x.nm >= 100),
+      'PIA-142 on another phone the v1 Thanksgiving\'s "Me" is Ashwin\'s row (no nameless "Person" row); the names of hosts and of people still to answer are dropped last',
+      rh.map((x) => [B.rows[x.i].key, x.nm]));
+  }
+  {
+    // my name's cell on a trip this phone is nobody on yet: P-face asks first (my face outlined), then my sheet with my answer row
+    // takes its place under the same history entry
+    const DW = seedAs(DWX), TH = seedAs(THX);
+    const u = await boot136({ ls: lsOf([DW, TH], { pialax_idea_me_v1: { [DW]: 'ashwin-p8' }, pialax_me_profile_v1: { label: '🌴 Ashwin' } }) });
+    act(u, 'seg', { v: 'family' });
+    const h = u.api.renderFamily().html, row0 = h.split('<div class="rowh').slice(1)[0];
+    act(u, 'fcell', { id: TH, code: 'ashwin-l2' });
+    const sh = u.api.S.sheet, face = sheet(u), push0 = u.hist.pushes, back0 = u.hist.backs;
+    tap(u, face, 'pickface', { code: 'ashwin-l2' });
+    const sh2 = u.api.S.sheet, mine = sheet(u);
+    check(/data-k="you"/.test(row0) && cellsOf(h)[TH + '|ashwin-l2'] && sh && sh.type === 'face' && sh.p.pre === 'ashwin-l2' && sh.p.then === 'person' && sh.focus === 'pf-mark' && /id="pf-mark"[^>]*data-code="ashwin-l2"/.test(face) &&
+      sh2 && sh2.type === 'person' && sh2.p.code === 'ashwin-l2' && sh2.p.outside && /data-act="answer"/.test(mine) && !/data-proxy/.test(mine) && u.api.meFor(TH) === 'ashwin-l2' && u.hist.pushes === push0 && u.hist.backs === back0 && posts(u).length === 0,
+      'PIA-142 AC4 my row\'s cell on Tahoe, where this phone is nobody yet: "Who are you?" with Ashwin outlined; one tap and my sheet with my answer row takes its place (same history entry, nothing written)', { pushes: [push0, u.hist.pushes], backs: [back0, u.hist.backs] });
+    u.api.closeSheet();
+    check(!u.api.S.sheet && u.hist.backs === back0 + 1 && u.api.modelOf(TH).me.code === 'ashwin-l2', '…and closing it leaves the board (one Back), this phone now Ashwin on Tahoe');
+  }
+  {
+    // the empty board: only past and dropped trips: the ghost row with ＋ and 🗄 (which shows the past one); only dropped ones:
+    // the ghost alone; trips not read yet: ◷
+    const PS = seedAs(THX, (d) => { d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; }), DR = seedAs(THX, (d) => { d.decision.stage = 'dropped'; }), DR2 = seedAs(DWX, (d) => { d.decision.stage = 'dropped'; });
+    const e1 = await boot136({ ls: lsOf([PS, DR], { pialax_idea_me_v1: { [PS]: 'ashwin-l2' } }) }); act(e1, 'seg', { v: 'family' });
+    const g1 = e1.api.renderFamily(); act(e1, 'fampast'); const g1b = e1.api.renderFamily();
+    const e2 = await boot136({ ls: lsOf([DR, DR2]) }); act(e2, 'seg', { v: 'family' }); const g2 = e2.api.renderFamily();
+    const e3 = loadApp({ ls: lsOf([PS, DR]) }); await tick(); e3.api.S.seg = 'family'; const g3 = e3.api.renderFamily();
+    check(g1.id === 'trips-family-empty' && /data-ghost="family"/.test(g1.html) && /<span class="gface"><\/span>/.test(g1.html) && /data-act="new" aria-label="New trip"/.test(g1.html) && /data-act="fampast"/.test(g1.html) &&
+      g1b.id === 'trips-family' && eq(heads(g1b.html), [PS]) && g2.id === 'trips-family-empty' && /data-ghost="family"/.test(g2.html) && !/data-act="fampast"/.test(g2.html) &&
+      g3.id === 'trips-family-empty' && /data-k="stale"/.test(g3.html) && !/data-ghost/.test(g3.html),
+      'PIA-142 AC6 an empty board shows its ghost row (dotted faces, ＋) and 🗄 while there are past trips to show (one tap brings them in); with only dropped trips the ghost alone; trips not read yet ◷', { g1: g1.id, g2: g2.id, g3: g3.id });
   }
 
   // ═══ AC12 / AC14 ═══

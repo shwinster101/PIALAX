@@ -1739,6 +1739,90 @@ function makeServer(worker) {
       'PIA-141 ▶⟧ widens the flex window by a week and saves it (searchStart / searchEnd through the real Worker): the plan stays, 15 weeks become 22');
   }
 
+  // ═══ PIA-142 ════════════════════════════════════════════════════════════
+  section('PIA-142 Trips › Family: people merged across trips by name, cells that are the trips\' own members, 🏠n hosted, heads by headcount, past trips as columns');
+  {
+    const PAST = tweak(TH, (d) => { d.id = 'psTahoePastSeptember01'; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; });
+    const DROP = tweak(LX, (d) => { d.id = 'drLaxDroppedTrip000d01'; d.decision.stage = 'dropped'; });
+    // NYC (LGA): Anjo hosts it; a past Done trip she hosted, Ashwin and Mom & Dad flew in
+    const NYC = tweak(DW, (d) => { d.id = 'nyNewYorkPastDone00n01'; d.idea.title = '🌆 New York'; d.idea.destination = { city: 'New York', airport: 'LGA' };
+      d.idea.dates.departure = '2026-06-24'; d.idea.dates.return = '2026-07-04'; d.responses['anjo-z5'] = R('in', 'LGA'); d.decision.stage = 'booked'; });
+    const ms = (o) => {
+      const mk = (doc, me) => model(doc, Object.assign({ me }, o || {}));
+      return [mk(DW, 'ashwin-p8'), mk(TH, 'ashwin-l2'), mk(M8), mk(CY, 'ashwin-c3'), mk(LX, 'ashwin-x3'), mk(PAST, 'ashwin-l2'), mk(NYC, 'ashwin-p8'), mk(DROP, 'ashwin-x3')];
+    };
+    const all = ms(), B = M.familyBoard(all), Bp = M.familyBoard(all, { past: true });
+    const row = (b, key) => b.rows.find((r) => r.key === key), ids = (b) => b.cols.map((m) => m.id);
+    check(eq(ids(B), [DW.id, TH.id, M8.id, CY.id, LX.id]) && eq(ids(Bp), [DW.id, TH.id, M8.id, CY.id, LX.id, PAST.id, NYC.id]) && ids(Bp).indexOf(DROP.id) < 0,
+      'PIA-142 AC5 the columns are the trips off the shelf in the order given (the cards\'); 🗄 adds the past ones after them; a dropped trip is never a column', ids(Bp));
+    const ash = row(B, 'ashwin');
+    check(B.rows[0] === ash && ash.me && B.mine === 'ashwin' && ash.cells.filter(Boolean).length === 4 && ash.cells[2] === null &&
+      [0, 1, 3, 4].every((c) => ash.cells[c] === B.cols[c].members.find((x) => x.norm === 'ashwin')),
+      'PIA-142 AC1 people are merged across trips by name: Ashwin is one row (me, first) whose cells ARE the four trips\' own member objects, none on the 8-member trip');
+    const sams = B.rows.filter((r) => r.norm === 'sam lee');
+    const twoSam = tweak(LX, (d) => { d.id = 'tsTwoSamsOtherTrip0t01'; d.idea.members.push({ code: 'samlee-q1', label: '🐳 Sam Lee', airport: 'SEA', headcount: 1 }); });
+    const S2 = M.familyBoard([model(M8), model(twoSam)]), s2 = S2.rows.filter((r) => r.norm === 'sam lee');
+    check(sams.length === 2 && sams[0].cells[2].code === 'samlee-kz' && sams[1].cells[2].code === 'samlee-sb' && sams[1].key === 'sam lee#2' &&
+      s2.length === 2 && s2[0].cells[1] && s2[0].cells[1].code === 'samlee-q1' && s2[1].cells[1] === null,
+      'PIA-142 AC1 two "Sam Lee"s on one trip stay two rows; the first Sam Lee of another trip joins the first of them (the k-th joins the k-th)');
+    const LG1 = tweak(LEG, (d) => { d.id = 'lgLegacyOneMe000000l01'; }), LG2 = tweak(LEG, (d) => { d.id = 'lgLegacyTwoMe000000l02'; });
+    const LB = M.familyBoard([model(LG1, { me: 'LAX' }), model(LG2)]), meRows = LB.rows.filter((r) => !r.norm);
+    check(meRows.length === 2 && meRows[0].key === '#' + LG1.id + '|LAX' && meRows[0].me && LB.rows[0] === meRows[0] && meRows[0].cells[1] === null && meRows[1].cells[0] === null && meRows[1].name === '' &&
+      LB.rows.filter((r) => r.norm === 'anjo').length === 1,
+      'PIA-142 a v1 "Me" (no name) is a row of its own on its trip (never merged, never a word); this phone\'s "Me" is still me, first; named people still merge');
+    const LB2 = M.familyBoard([model(DW, { me: 'ashwin-p8' }), model(LG1, { me: 'LAX' }), model(LG2)]), me2 = LB2.rows[0];
+    check(me2.key === 'ashwin' && me2.me && me2.cells[1] && me2.cells[1].code === 'LAX' && me2.cells[0].code === 'ashwin-p8' && me2.cells[2] && me2.cells[2].code === 'LAX' && me2.cells[2] === LB2.cols[2].members.find((x) => x.code === 'LAX') &&
+      LB2.rows.filter((r) => !r.norm).length === 0,
+      'PIA-142 the v1 "Me" this phone is joins my own row (Ashwin on Diwali, "Me" on the v1 Thanksgiving); so does the "Me" of a v1 trip this phone is nobody on: it is that trip\'s organizer, whom v1\'s family preset names by airport (LAX: Ashwin, P-migrate\'s own suggestion)');
+    // fix pass: on Mom's phone (nobody on the v1 doc, Mom & Dad on Diwali) the v1 "Me" at LAX is Ashwin's row, named from his Diwali
+    // face even though the v1 trip comes first; a v1 "Me" at an airport outside the preset (SEA), or whose preset name is on its own
+    // trip by name, stays a row of its own, after every named row, and is never anybody's row by guess
+    const momB = M.familyBoard([model(LG1), model(DW, { me: 'momdad-k3' })]), momAsh = momB.rows.find((r) => r.key === 'ashwin');
+    const SEA = tweak(LEG, (d) => { d.id = 'lgLegacySeaMe00000l03'; d.idea.members[1].airport = 'SEA'; });
+    const NAMED = tweak(LEG, (d) => { d.id = 'lgLegacyNamedAsh00l04'; d.idea.members.push({ code: 'ASH', label: 'Ashwin', airport: 'SFO', headcount: 1 }); });
+    const seaB = M.familyBoard([model(SEA), model(DW, { me: 'momdad-k3' })]), namedB = M.familyBoard([model(NAMED), model(DW, { me: 'momdad-k3' })]);
+    const lastNameless = (b) => { const i = b.rows.findIndex((r) => !r.norm); return i >= 0 && b.rows.slice(i).every((r) => !r.norm); };
+    check(momAsh && momAsh.name === 'Ashwin' && momAsh.face === '🌴' && momAsh.cells[0] && momAsh.cells[0].code === 'LAX' && momAsh.cells[1].code === 'ashwin-p8' && momB.rows.filter((r) => !r.norm).length === 0 && momB.rows[0].key === 'mom & dad' && momB.rows[0].me &&
+      seaB.rows.filter((r) => !r.norm).length === 1 && lastNameless(seaB) && seaB.rows.find((r) => r.key === 'ashwin').cells[0] === null &&
+      namedB.rows.filter((r) => !r.norm).length === 1 && lastNameless(namedB) && namedB.rows.find((r) => r.key === 'ashwin').cells[0].code === 'ASH',
+      'PIA-142 on another phone a v1 "Me" at a family airport joins the preset\'s person when they have a named row (named from that row, not the v1 face); one outside the preset, or whose preset name is already on its trip, stays a row of its own after the named rows',
+      { mom: momB.rows.map((r) => r.key), sea: seaB.rows.map((r) => r.key), named: namedB.rows.map((r) => r.key) });
+    const md = row(B, 'mom & dad'), dwCol = B.cols[0];
+    check(md.headcount === 2 && dwCol.headsIn === 3 && dwCol.heads === 4 && md.cells[0].headcount === 2 &&
+      B.cols.every((m) => m.heads === m.members.reduce((s, x) => s + x.headcount, 0) && m.headsIn === m.members.filter((x) => x.status === 'in' || x.status === 'host-default').reduce((s, x) => s + x.headcount, 0)),
+      'PIA-142 AC3 heads per trip by headcount: Mom & Dad ×2 on their row, Diwali 3/4 (Mom & Dad 2 + Ashwin; Anjo has not answered); every column\'s heads are its own model\'s');
+    const anjoP = row(Bp, 'anjo'), mayaP = row(Bp, 'maya'), ashP = row(Bp, 'ashwin');
+    check(anjoP.hosted === 1 && anjoP.cells[6].host && anjoP.cells[6].status === 'in' && row(B, 'anjo').hosted === 1 && mayaP.hosted === 1 && ashP.hosted === 1 && md.hosted === 0 &&
+      row(Bp, 'grandma josephine').hosted === 1 && row(Bp, 'guadalupe hernández-villanueva').hosted === 1,
+      'PIA-142 AC2 🏠n counts the trips a person hosts across the active and past trips, shown or not: Anjo hosted the past New York (🏠1 with 🗄 off too), Ashwin and Maya the LA beach weekend (SNA is in LA\'s set), Grandma and Guadalupe the Savannah trip; Mom & Dad none');
+    const dropAsh = M.familyBoard([model(DW, { me: 'ashwin-p8' }), model(tweak(LX, (d) => { d.id = 'drLaxDroppedTrip000d02'; d.decision.stage = 'dropped'; }), { me: 'ashwin-x3' })]);
+    const outHost = M.familyBoard([model(DW, { me: 'ashwin-p8' }), model(tweak(LX, (d) => { d.id = 'ohLaxHostSaidOut000o01'; d.responses['ashwin-x3'].status = 'out'; }), { me: 'ashwin-x3' })]);
+    check(row(dropAsh, 'ashwin').hosted === 0 && row(outHost, 'ashwin').hosted === 0 && row(outHost, 'ashwin').cells[1].status === 'out' && row(outHost, 'ashwin').cells[1].host,
+      'PIA-142 AC2 a dropped trip never counts as hosted (it never happened), nor one the host said Out to (their cell still shows it: ⊘ with 🏠)');
+    const shown = (b, key) => b.rows.find((r) => r.key === key).cells.filter((x) => x && x.host && x.status !== 'out').length;
+    check(Bp.rows.every((r) => r.hosted === shown(Bp, r.key)),
+      'PIA-142 AC5 with 🗄 on, every row\'s 🏠n is exactly the 🏠 cells on its row (so hosting history reads off the board)', Bp.rows.map((r) => [r.key, r.hosted, shown(Bp, r.key)]));
+    const tgB = M.familyBoard([model(tg, { me: 'LAX' }), model(DW, { me: 'ashwin-p8' })]), tgMD = tgB.rows.find((r) => r.cells[0] && r.cells[0].code === 'PIA');
+    check(tgMD && tgMD.cells[0].status === 'host-default' && tgMD.cells[0].unconfirmed && tgMD.cells[0].host && tgMD.key === 'mom & dad' && tgMD.cells[1].code === 'momdad-k3' && tgB.rows[0].cells[0].code === 'LAX' && tgB.rows[0].me,
+      'PIA-142 AC1 the migrated Thanksgiving: Mom & Dad\'s cell is their unconfirmed host default (🏠, in until they answer), merged with their Diwali cell; Ashwin (LAX) first');
+    const cyAsh = row(B, 'ashwin').cells[3], cyAnjo = row(B, 'anjo').cells[3];
+    check(cyAsh.own1 === '2026-12-19' && cyAnjo.own1 === '2026-12-21' && row(B, 'mom & dad').cells[3].own1 === '' && row(B, 'mom & dad').cells[3].status === 'waiting',
+      'PIA-142 AC1 each cell carries that person\'s own arrival day when they set one (Cary: Ashwin 12/19, Anjo 12/21; Mom & Dad waiting, none)');
+    const m8 = row(B, 'bartholomew montgomery-fitzgerald').cells[2], ol = row(B, 'oluwaseun adebayo-richardson').cells[2];
+    check(m8.warn.length && m8.noteText && ol.called && row(B, 'sam lee').cells[2].noteText === 'Work' && row(B, 'sam lee').cells[2].status === 'out',
+      'PIA-142 AC1 the marks come with the member: ⚠ and 📝 for Bartholomew, 📞 for Oluwaseun, ⊘ and 📝 for Sam Lee');
+    const anon = M.familyBoard([model(DW), model(TH)], { name: 'Ashwin' }), anon2 = M.familyBoard([model(DW), model(TH)]);
+    check(anon.rows[0].key === 'ashwin' && anon.rows[0].me && !anon2.rows.some((r) => r.me) && anon2.rows[0].key === 'mom & dad',
+      'PIA-142 with no face picked on any trip, this phone\'s profile name puts that row first as me; with neither, nobody is me and rows keep their order');
+    const clashDoc = tweak(TH, (d) => { d.id = 'clClashingTripIdea0c01'; d.idea.dates.departure = '2026-11-07'; d.idea.dates.return = '2026-11-10'; d.responses['ashwin-l2'].status = 'in'; });
+    const dwC = model(DW, { me: 'ashwin-p8', otherTrips: [clashDoc] }), clB = M.familyBoard([dwC, model(clashDoc, { me: 'ashwin-l2', otherTrips: [DW] })]);
+    check(row(clB, 'ashwin').cells[0].warn.indexOf('clash') >= 0 && row(clB, 'ashwin').cells[0] === mem(dwC, 'ashwin-p8'),
+      'PIA-142 AC1 a clash is the model\'s own mark on my cell (Diwali 11/6–11/9 against a trip 11/7–11/10 on this phone): the cell is the trip view\'s member, so the two can never differ');
+    const tok = M.familyBoard(ms({ hasEditKey: true, hasToken: true, fares: { x: { p: 1, f: NOW } } }));
+    const hasPrice = (v) => scan(v).keys.some((k) => /^(price|prices|total|sum|p|paid|fares|per|segs)$/.test(k));
+    check(tok.cols.every((m) => m.prices && m.price) && tok.rows.every((r) => !hasPrice(r)),'PIA-142 the board\'s rows carry no price on any phone (a token phone\'s models do; the board reads only their members)');
+  }
+
   // ═══ AC11 ═══════════════════════════════════════════════════════════════
   section('AC11 the inlined region is clean, the encoder port is exact, and the suite is offline and in preflight');
   const modelSrc = fs.readFileSync(path.join(ROOT, 'scripts', 'trip-model.js'), 'utf8');

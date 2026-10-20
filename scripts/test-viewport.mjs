@@ -1164,6 +1164,10 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     d.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '2026-11-05', available_to: '2026-11-10', note: '', arrive_at: '', leave_from: '', updated_at: '2026-10-12T00:00:00.000Z' };
     return d;
   })();
+  // PIA-142: a past trip (last September's Tahoe) for the Family board's 🗄 columns, and a dropped one (never a column)
+  const PSV = 'psViewportPastTahoe007', DRV = 'drViewportDroppedTr008';
+  docs[PSV] = (() => { const d = JSON.parse(JSON.stringify(docs.thTahoeSkiWeekend26b02)); d.id = PSV; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; return d; })();
+  docs[DRV] = (() => { const d = JSON.parse(JSON.stringify(docs.lxBeachWeekendLAX00d05)); d.id = DRV; d.decision.stage = 'dropped'; return d; })();
   const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
@@ -1291,6 +1295,32 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await measure('list');
         const shelf = await page.$('#screen [data-act="shelf"]'); if (shelf) { await shelf.click(); await page.waitForTimeout(100); await measure('list + shelf'); }
         await page.click('#screen [data-act="seg"][data-v="family"]'); await page.waitForTimeout(100); await measure('family');
+        // PIA-142: the board's other pages (≤4 trip columns each), 🗄 with the past trip as a column, and the sheet a cell opens
+        const tapF = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        const famCols = async (s) => { const n = await page.$$eval('#screen #fam-board .hd', (es) => es.length); if (n < 1 || n > 4) fails.push(s + ': ' + n + ' trip columns (1–4 a page)'); };
+        await famCols('family');
+        // PIA-142 fix pass: every mark chip (⚠ 🎫 🏠 📞 📝 on a cell or a face) is light with dark ink in both schemes, so a dark 📞
+        // reads on it (it was a dark chip in dark mode); and scrolled down, the column heads sit opaque right under the top row
+        const chips = await page.$$eval('#screen .cell .ov, #screen .av .bd', (es) => es.map((e) => { const cs = getComputedStyle(e); return [cs.backgroundColor, cs.color]; }));
+        if (!chips.length) fails.push('family: no mark chip drawn to check');
+        chips.forEach(([bg, fg]) => { if (!(lum(bg) > 0.6 && lum(fg) >= 0 && lum(fg) < 0.2)) fails.push('family: a mark chip ' + bg + ' with ' + fg + ' is not light with dark ink'); });
+        const stick = await page.evaluate(() => {
+          const de = document.documentElement; if (de.scrollHeight <= innerHeight + 8) return null;
+          window.scrollTo(0, de.scrollHeight);
+          const t = document.querySelector('#screen .toprow').getBoundingClientRect(), hd = document.querySelector('#fam-board .hd'), h = hd.getBoundingClientRect(), bg = getComputedStyle(hd).backgroundColor;
+          const r = { gap: Math.round(h.top - t.bottom), bg, y: window.scrollY }; window.scrollTo(0, 0); return r;
+        });
+        if (stick && (Math.abs(stick.gap) > 1 || /rgba\(.*,\s*0\)|transparent/.test(stick.bg))) fails.push('family: scrolled down, the heads are not opaque right under the top row ' + JSON.stringify(stick));
+        for (let n = 0; n < 4 && (await page.$('#screen [data-act="fampage"][data-v="1"]:not([aria-disabled="true"])')); n++) { await tapF('#screen [data-act="fampage"][data-v="1"]'); await measure('family page ' + (n + 2)); await famCols('family page ' + (n + 2)); }
+        if (await page.$('#screen [data-act="fampast"]')) {
+          await tapF('#screen [data-act="fampast"]'); await measure('family 🗄 (the past trip as a column)'); await famCols('family 🗄');
+          if (!(await page.$('#screen #fam-board .hd.past[data-id="' + PSV + '"]')) || (await page.$('#screen #fam-board .hd[data-id="' + DRV + '"]'))) fails.push('🗄 should add the past trip as a column (dimmed), never the dropped one');
+          await tapF('#screen [data-act="fampast"]');
+        } else fails.push('the Family board should offer 🗄 while there is a past trip');
+        for (let n = 0; n < 4 && (await page.$('#screen [data-act="fampage"][data-v="-1"]:not([aria-disabled="true"])')); n++) await tapF('#screen [data-act="fampage"][data-v="-1"]');
+        await tapF('#screen button.cell[data-act="fcell"]'); await measure('P-person from a Family cell');
+        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-person') fails.push('a Family cell should open P-person');
+        await tapF('#sheet [data-act="sh-close"]');
         await page.click('#screen [data-act="seg"][data-v="ideas"]'); await page.waitForTimeout(100);
         for (const id of [M8, DW]) {
           await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip ' + id);
@@ -1572,6 +1602,13 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?idea=thTahoeSkiWeekend26b02&add=' + encodeURIComponent('Bartholomew Montgomery.OAK'), { waitUntil: 'load' }); await page.waitForTimeout(300);
         if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-joinfwd') fails.push('a join request on a trip this phone does not organize should open P-joinfwd');
         await measure('P-joinfwd');
+        // PIA-142: a phone whose trips are all on the shelf (one past, one dropped): the Family board's ghost row, then 🗄
+        await page.evaluate(([a, b]) => { localStorage.setItem('pialax_watchlist_v2', JSON.stringify([a, b].map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false })))); }, [PSV, DRV]);
+        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await page.click('#screen [data-act="seg"][data-v="family"]'); await page.waitForTimeout(120); await measure('family ghost row (every trip on the shelf)');
+        if (!(await page.$('#screen [data-ghost="family"] .gface')) || !(await page.$('#screen [data-ghost="family"] [data-act="fampast"]'))) fails.push('an empty board should show its ghost row with ＋ and 🗄');
+        await page.$eval('#screen [data-act="fampast"]', (e) => e.click()); await page.waitForTimeout(120); await measure('family 🗄 (only the past trip)');
+        if (!(await page.$('#screen #fam-board .hd.past'))) fails.push('🗄 on the empty board should bring the past trip in');
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }

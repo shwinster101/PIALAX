@@ -217,6 +217,15 @@ KEYS[PW] = KEY; KEYS[PC] = KEY;   // PIA-141: + the P-cheapest worst case on the
 PHONES.prices = { ls: { pialax_watchlist_v2: listRec([PW, PC]), pialax_idea_keys_v1: keyRec([PW, PC]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [PW]: 'ashwin-w8', [PC]: 'ashwin-w8' }, pialax_ui_v1: { v1read: 1 },
   pialax_fares_v2: FARES, pialax_multi_airport_v1: '1' } };
 PHONES.booked = { ls: { pialax_watchlist_v2: listRec([BK, LK]), pialax_idea_me_v1: { [BK]: 'bartholomewmontgomeryfitzgera-dj', [LK]: 'leo-k3' }, pialax_ui_v1: { v1read: 1 } } };
+// PIA-142: the Family board's worst case for names: the 8 long names (two Sam Lees), the unknown-airports trip and the long-title
+// trip, 13 people (Ashwin is me on two of them); this phone organizes the 8-member trip without being on it. And a phone that is
+// Ashwin on Diwali and nobody on Tahoe yet (its profile says Ashwin): his Tahoe cell asks who he is first
+PHONES.fam8 = { ls: { pialax_watchlist_v2: listRec([M8, UK, LT]), pialax_idea_keys_v1: keyRec([M8]), pialax_idea_me_v1: { [UK]: 'ashwin-u3', [LT]: 'ashwin-t1' }, pialax_ui_v1: { v1read: 1 } } };
+PHONES.famface = { ls: { pialax_watchlist_v2: listRec([A, B]), pialax_idea_me_v1: { [A]: 'ashwin-p8' }, pialax_me_profile_v1: { label: '🌴 Ashwin' }, pialax_ui_v1: { v1read: 1 } } };
+// PIA-142 fix pass: a first-run phone (Mom: three trips by a list link, no name, no face, no token), and the organizer of the v1
+// Thanksgiving (its key; this phone is its "Me")
+PHONES.fammom = { ls: { pialax_watchlist_v2: listRec([A, B, M8]), pialax_ui_v1: { v1read: 1 } } };
+PHONES.famv1 = { ls: { pialax_watchlist_v2: listRec([TG, A]), pialax_idea_keys_v1: keyRec([TG]), pialax_idea_me_v1: { [TG]: 'LAX', [A]: 'ashwin-p8' }, pialax_ui_v1: { v1read: 1 } } };
 
 // PIA-136: the real worker.js /idea handlers, in-process, for the phones that write (create, edit, join): each such phone gets its
 // own in-memory KV seeded with the fixture docs (the organizer's key hashed in), so a Create, an update or an answer really happens
@@ -468,7 +477,8 @@ async function main() {
         const txt = (el.innerText || '').trim(), lbl = el.getAttribute('data-lbl') || el.getAttribute('aria-label') || '';
         const iconOnly = !/\p{L}/u.test(txt) && !el.closest('[data-free]');
         el.setAttribute('data-tw', String(i));
-        out.push({ i, tag: el.tagName, txt, lbl, iconOnly, face: !!el.querySelector('.av'), pe: getComputedStyle(el).pointerEvents });
+        // (PIA-142: a Family column's head says its trip's title too, free under the word rule, before its own label)
+        out.push({ i, tag: el.tagName, txt, lbl, ttl: el.getAttribute('data-ttl') || '', iconOnly, face: !!el.querySelector('.av'), pe: getComputedStyle(el).pointerEvents });
       });
       return out;
     }, inSheet);
@@ -498,14 +508,15 @@ async function main() {
     };
     // 1. every labelled control (each label once per phone; three faces at most): its own label, never a press
     for (const e of els) {
-      if (!e.lbl || seen.labels.has(e.lbl) || e.pe === 'none' || (e.face && seen.faces >= 3)) continue;
+      const lk = e.ttl ? '#titled' : e.lbl;   // (one titled head a phone: each names its own trip the same way)
+      if (!e.lbl || seen.labels.has(lk) || e.pe === 'none' || (e.face && seen.faces >= 3)) continue;
       const c = await centre('[data-tw="' + e.i + '"]'); if (!c) continue;
       // the finger is on this control itself, not on a part of it that names itself (a fare's age ring inside its leg)
       const hit = await page.evaluate(([x, y, i, ctl]) => { const t = document.elementFromPoint(x, y), n = t && t.closest(ctl); return !!(t && t.closest('[data-tw="' + i + '"]') && n && n.getAttribute('data-tw') === String(i)); }, [c.x, c.y, e.i, CTL]);
       if (!hit) continue;
-      seen.labels.add(e.lbl); if (e.face) seen.faces++;
+      seen.labels.add(lk); if (e.face) seen.faces++;
       const r = await press(c.x, c.y);
-      if (r.shown !== e.lbl) bad('long-press on "' + e.lbl + '" (' + label + ') showed ' + JSON.stringify(r.shown));
+      if (r.shown !== (e.ttl ? e.ttl + ' ' : '') + e.lbl) bad('long-press on "' + e.lbl + '" (' + label + ') showed ' + JSON.stringify(r.shown));
       if (r.moved) bad('long-press on "' + e.lbl + '" triggered the control', { before: r.before, after: r.after });
     }
     // 2. every glyph that is not a control (a card's faces, heads, pill, locator, stage disc, ⭐; 🗓, 🌙, 👋 in a trip
@@ -812,6 +823,38 @@ async function main() {
       }
     }
   }
+  // PIA-142: the Family board, page by page, then with 🗄 (the past trips as columns) page by page; at 360 the sheet the first cell
+  // of each page opens, and ⓘ / long-press once with 🗄 on. famLog keeps each page's layout (columns, targets, overflow)
+  const famLog = [];
+  const FAMCHK = () => {
+    const b = document.querySelector('#fam-board');
+    if (!b) return { board: false, ghost: !!document.querySelector('#screen [data-ghost="family"]'), over: document.documentElement.scrollWidth - innerWidth };
+    const small = [...b.querySelectorAll('.hd, button.cell, .rowh .facebtn, .corner .ib')].filter((e) => { const r = e.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5; }).map((e) => e.className);
+    const br = b.getBoundingClientRect(), rows = b.querySelectorAll('.rowh').length, names = b.querySelectorAll('.rowh .fn[data-nm]').length;
+    return { board: true, cols: b.querySelectorAll('.hd').length, small, rows, names, over: document.documentElement.scrollWidth - innerWidth, inside: br.left >= -0.5 && br.right <= innerWidth + 0.5 };
+  };
+  async function famWalk(page, tag, who, deep) {
+    for (const past of [false, true]) {
+      if (past) { if (!(await page.$('#screen [data-act="fampast"]'))) break; await jsClick(page, '#screen [data-act="fampast"]'); await settle(page, 100); }
+      for (let n = 0; n < 6 && (await page.$('#screen [data-act="fampage"][data-v="-1"]:not([aria-disabled="true"])')); n++) { await jsClick(page, '#screen [data-act="fampage"][data-v="-1"]'); await settle(page, 60); }
+      for (let i = 0; i < 6; i++) {
+        const s = 'Family' + (past ? ' 🗄' : '') + ' page ' + (i + 1);
+        if (i || past) await measureScreen(page, tag(s));
+        famLog.push(Object.assign({ who: tag(s) }, await page.evaluate(FAMCHK)));
+        if (deep && past && !i) { await keyCheck(page, tag(s)); await labelCheck(page, tag(s), who); }
+        if (deep && (await page.$('#screen button.cell[data-act="fcell"]'))) {
+          await jsClick(page, '#screen button.cell[data-act="fcell"]'); await settle(page, 80);
+          const pid = await popupId(page);
+          if (pid) await measurePopup(page, tag(s + ' › ' + pid + ' (the first cell)'));
+          famLog.push({ who: tag(s + ' cell'), sheet: pid });
+          await closeSheet(page);
+        }
+        const nx = await page.$('#screen [data-act="fampage"][data-v="1"]:not([aria-disabled="true"])'); if (!nx) break;
+        await jsClick(page, '#screen [data-act="fampage"][data-v="1"]'); await settle(page, 60);
+      }
+    }
+    if (await page.$('#screen [data-act="fampast"][aria-pressed="true"]')) { await jsClick(page, '#screen [data-act="fampast"]'); await settle(page, 80); }
+  }
   // every screen of one phone: list (shelf open and shut), Family, each trip view, Map and Calendar per chip
   async function walk(name, o) {
     o = o || {};
@@ -834,7 +877,11 @@ async function main() {
       await measurePopup(page, tag('Trips › P-total (from a card)')); await closeSheet(page);
     }
     if (await page.$('#screen [data-act="shelf"]')) { await page.click('#screen [data-act="shelf"]'); await settle(page, 120); await visit('Trips shelf open'); await page.click('#screen [data-act="shelf"]'); await settle(page, 120); }
-    if (await page.$('#screen [data-act="seg"][data-v="family"]')) { await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 120); await visit('Family'); await page.click('#screen [data-act="seg"][data-v="ideas"]'); await settle(page, 120); }
+    if (await page.$('#screen [data-act="seg"][data-v="family"]')) {
+      await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 120); await visit('Family');
+      await famWalk(page, tag, name + '@' + W0, deep);   // PIA-142: every page, 🗄, a cell's sheet
+      await page.click('#screen [data-act="seg"][data-v="ideas"]'); await settle(page, 120);
+    }
     if (await page.$('#screen [data-act="shelf"][aria-expanded="false"]')) { await page.click('#screen [data-act="shelf"]'); await settle(page, 100); }
     const trips = await page.evaluate(() => [...document.querySelectorAll('#screen [data-trip]')].map((e) => e.getAttribute('data-trip')));
     let edited = false;
@@ -2448,6 +2495,230 @@ async function main() {
       ['Dates locked', 'Nobody follows plan'].every((w) => greyed.some((x) => x.why === w)) && greyed.every((x) => x.pid === 'P-dates'),
       'PIA-141 AC5 / AC6 on every organizer token phone and width, 📉 opens P-cheapest (≤7 bars a page, each ≥44px, the pager on its own row, no sideways scroll, ‹ back to P-dates; the worst case, 8 long names and four faces left out of every week, within 20 words, its hollow week 🔍4/n: the caps cut it short and say so), or, greyed, names why in a counted label ("Dates locked", "Nobody follows plan")',
       { opened: opened.map((x) => x.who + ' ' + x.l0.bars.length + (x.cost ? ' ' + x.cost : '')), greyed: greyed.map((x) => x.who + ' ' + x.why), badLay: badLay.map((x) => x.who) });
+  }
+
+  section('PIA-142 Trips › Family with real clicks: ≤4 trip columns a page at every width, ◀ ▶, 🗄 for the past trips, a cell opens that person with the answer row, the ghost row, ≤10 words in every state');
+  {
+    // the walk above: every page of every phone's board, at every width, 🗄 off and on
+    const pages = famLog.filter((x) => x.board === true), ghosts = famLog.filter((x) => x.board === false), cells = famLog.filter((x) => 'sheet' in x);
+    const badL = pages.filter((x) => x.cols > 4 || x.cols < 1 || x.small.length || x.over > 0 || !x.inside);
+    check(pages.length >= 20 && badL.length === 0 && pages.some((x) => x.cols === 4) && pages.some((x) => /🗄/.test(x.who)),
+      'PIA-142 AC6 every page of every board the walk drew (' + pages.length + ' pages on every phone with two trips, at 360/390/430, 🗄 off and on) has 1–4 trip columns, every column head, cell and face ≥44px, nothing past the screen', badL.slice(0, 4));
+    check(ghosts.some((x) => x.ghost && x.over <= 0) && cells.length >= 5 && cells.every((x) => x.sheet === 'P-person' || x.sheet === 'P-face'),
+      'PIA-142 the shelf-only phone\'s board is its ghost row; every first cell the walk tapped opened that person on that trip (P-person, or who-are-you first)', { ghosts: ghosts.length, cells: [...new Set(cells.map((x) => x.sheet))] });
+  }
+  const famHeads = (page) => page.$$eval('#screen #fam-board .hd', (es) => es.map((e) => e.getAttribute('data-id')));
+  const cellOf = (page, id, code) => page.$eval('#screen button.cell[data-id="' + id + '"][data-code="' + code + '"]', (e) => ({ st: e.querySelector('.shape').getAttribute('data-k'), marks: [...e.querySelectorAll('.ov [data-k]')].map((x) => x.getAttribute('data-k')).sort().join() })).catch(() => null);
+  // PIA-142 fix pass: what a write did is read once it is there, never after a fixed sleep. The respond path is a fresh GET and a
+  // POST into the in-process Worker (which hashes the edit key with WebCrypto on Node's thread pool, late under load), so each of
+  // these polls the outcome itself; the real-time ceiling only bounds how long a wait may take, it never decides a check
+  const recOf = (net, id, code) => { const v = net.kv.map.get('idea:' + id); return v ? (JSON.parse(v).responses || {})[code] : undefined; };
+  const untilRec = async (net, id, code, f) => {
+    for (const end = performance.now() + 30000; performance.now() < end;) { const x = recOf(net, id, code); if (x && f(x)) return x; await new Promise((res) => setTimeout(res, 25)); }
+    return recOf(net, id, code);
+  };
+  const untilQuiet = (page) => page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout: 30000 }).catch(() => {});
+  const untilCell = (page, id, code, st) => page.waitForFunction(([id, code, st]) => { const e = document.querySelector('#screen button.cell[data-id="' + id + '"][data-code="' + code + '"] .shape'); return !!e && e.getAttribute('data-k') === st; },
+    [id, code, st], { timeout: 30000 }).catch(() => {});
+  const untilShared = (page, n) => page.waitForFunction((n) => (window.__shared || []).length >= n, n, { timeout: 30000 }).catch(() => {});
+  const untilLabelGone = (page) => page.waitForFunction(() => { const b = document.querySelector('#lbl'); return !b || b.hidden; }, null, { timeout: 30000 }).catch(() => {});
+  const lblNow = (page) => page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
+  // a tap where the finger lands (an aria-disabled control too: Playwright's click waits for "enabled")
+  const fingerTap = async (page, sel) => { const h = await page.$(sel); if (!h) return false; await h.scrollIntoViewIfNeeded().catch(() => {}); const b = await h.boundingBox(); if (!b) return false; await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); return true; };
+  for (const width of WIDTHS) {
+    // the worst case for names: 13 people (8 long names, two Sam Lees, unknown airports); fitNames keeps the screen at 10 words exactly
+    const { ctx, page, net } = await phone('fam8', { width, worker: true });
+    await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 150);
+    const w = await measureScreen(page, 'fam8 @' + width + ' Family (13 people, long names, unknown airports)');
+    const L = await page.evaluate(FAMCHK);
+    const r = { words: w.length, rows: L.rows, names: L.names, cols: L.cols, small: L.small, over: L.over };
+    if (width === 360) { await keyCheck(page, 'fam8 @360 Family'); await labelCheck(page, 'fam8 @360 Family', 'fam8@360'); }   // every mark, ×2, 🏠n, Not invited, own days
+    await page.click('#screen button.cell[data-id="' + M8 + '"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await settle(page, 150);
+    r.sheet = await popupId(page); await measurePopup(page, 'fam8 @' + width + ' › P-person (Bartholomew, from his cell)');
+    r.proxy = !!(await page.$('#sheet [data-act="answer"][data-v="out"][data-proxy="1"]'));
+    if (width === 360) {
+      await page.click('#sheet [data-act="answer"][data-v="out"][data-proxy="1"]');
+      r.rec = await untilRec(net, M8, 'bartholomewmontgomeryfitzgera-dj', (x) => x.status === 'out'); await untilQuiet(page);
+      await closeSheet(page);
+      await untilCell(page, M8, 'bartholomewmontgomeryfitzgera-dj', 'out');
+      r.cell = await cellOf(page, M8, 'bartholomewmontgomeryfitzgera-dj');
+      await measureScreen(page, 'fam8 @360 Family after answering Out for Bartholomew');
+      // a face whose name fitNames dropped still says it on a long press (and nothing happens)
+      const lastFace = await page.$$('#screen .rowh .facebtn'), fb = lastFace[lastFace.length - 1];
+      await fb.scrollIntoViewIfNeeded(); const box = await fb.boundingBox();
+      const lbl = await fb.getAttribute('data-lbl'), sid = await screenId(page);
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2); await page.mouse.down(); await page.waitForTimeout(650);
+      r.press = await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
+      if (r.press) await measurePopup(page, 'fam8 @360 › long press on a face with no name beside it', '#lbl');
+      await page.mouse.up(); await settle(page, 120);
+      r.pressOk = r.press === lbl && (await screenId(page)) === sid && !(await popupId(page)) && !(await page.$('#screen .rowh.hl'));
+    } else await closeSheet(page);
+    check(r.words === 10 && r.rows === 13 && r.names === 5 && r.cols === 3 && !r.small.length && r.over <= 0 && r.sheet === 'P-person' && r.proxy &&
+      (width !== 360 || (r.rec.status === 'out' && /^📞 /.test(r.rec.note) && r.cell.st === 'out' && /called/.test(r.cell.marks) && r.pressOk)),
+      'PIA-142 AC6 @' + width + ' 13 people on 3 trips: 10 words exactly (fitNames keeps 5 names, every face stays), every target ≥44px, no sideways scroll; Bartholomew\'s cell opens his sheet with the organizer\'s answer row' +
+      (width === 360 ? '; Out there is saved as 📞 through the real Worker and his cell turns ⊘ 📞; a face whose name was dropped names itself on a long press' : ''), r);
+    await ctx.close();
+  }
+  {
+    // the organizer: 8 trips on 2 pages, real clicks on ◀ ▶ and 🗄, a cell (his answer row, 📣), my own cell, a column head
+    const { ctx, page, net } = await phone('organizer', { worker: true, share: true });
+    await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 150);
+    const r = {};
+    r.p1 = await famHeads(page);
+    {   // (aria-disabled: Playwright's click waits for "enabled", so the finger goes down on its centre itself)
+      const bx = await (await page.$('#screen [data-act="fampage"][data-v="-1"]')).boundingBox();
+      await page.mouse.click(bx.x + bx.width / 2, bx.y + bx.height / 2);
+    }
+    r.why = await lblNow(page);   // (read at once: the label is drawn by the tap itself and goes on its own a moment later)
+    if (r.why) await measurePopup(page, 'organizer Family › ◀ on the first page says why', '#lbl');
+    r.still = await famHeads(page);
+    await untilLabelGone(page);
+    await page.click('#screen [data-act="fampage"][data-v="1"]'); await settle(page, 150);
+    r.p2 = await famHeads(page); await measureScreen(page, 'organizer Family page 2 (a real click on ▶)');
+    await page.click('#screen [data-act="fampast"]'); await settle(page, 150);
+    r.past = await famHeads(page); r.pastCls = await page.$eval('#screen .hd[data-id="' + PAST + '"]', (e) => e.classList.contains('past')).catch(() => false);
+    r.pressed = await page.$eval('#screen [data-act="fampast"]', (e) => e.getAttribute('aria-pressed'));
+    await measureScreen(page, 'organizer Family 🗄 (the past trip\'s column, a real click)');
+    {   // fix pass: a past trip nobody closed (Chicago, 9/11–9/14): my own cell is my sheet with my answer row greyed ("Trip over" on
+        // a tap, nothing sent) and no 📣; and the past column's head names the trip on a long press (its title free, then its days)
+      const p0 = net.posts;
+      await page.click('#screen button.cell[data-id="' + PAST + '"][data-code="ashwin-p1"]'); await settle(page, 150);
+      r.pastSheet = await popupId(page); await measurePopup(page, 'organizer Family 🗄 › my P-person on the past Chicago (Trip over)');
+      r.pastNudge = !!(await page.$('#sheet [data-act="nudge"]'));
+      r.pastRo = await page.$$eval('#sheet .answers [data-act="answer"]', (es) => es.map((e) => e.getAttribute('aria-disabled') + '|' + e.getAttribute('data-lbl')));
+      await fingerTap(page, '#sheet [data-act="answer"][data-v="in"]'); r.pastWhy = await lblNow(page);
+      if (r.pastWhy) await measurePopup(page, 'organizer Family 🗄 › In on a trip that is over says why', '#lbl');
+      await untilLabelGone(page); await closeSheet(page);
+      r.pastPosts = net.posts - p0;
+      const hd = await page.$('#screen #fam-board .hd[data-id="' + PAST + '"]'), hb = await hd.boundingBox();
+      await page.mouse.move(hb.x + hb.width / 2, hb.y + hb.height / 2); await page.mouse.down(); await page.waitForTimeout(650);
+      r.headLbl = await lblNow(page); if (r.headLbl) r.headWords = (await measurePopup(page, 'organizer Family 🗄 › long press on the past trip\'s head', '#lbl')).length;
+      await page.mouse.up(); await untilLabelGone(page);
+      r.headOk = r.headLbl === '🌆 Chicago weekend 9/11–9/14' && r.headWords === 0 && (await screenId(page)) === 'trips-family';
+    }
+    await page.click('#screen [data-act="fampast"]'); await settle(page, 150);
+    for (let n = 0; n < 3 && (await page.$('#screen [data-act="fampage"][data-v="-1"]:not([aria-disabled="true"])')); n++) { await page.click('#screen [data-act="fampage"][data-v="-1"]'); await settle(page, 120); }
+    r.home = await famHeads(page);
+    await page.click('#screen button.cell[data-id="' + A + '"][data-code="anjo-z5"]'); await settle(page, 150);
+    r.sheet = await popupId(page); await measurePopup(page, 'organizer Family › P-person Anjo on Diwali (from her cell)');
+    r.proxy = !!(await page.$('#sheet [data-act="answer"][data-v="in"][data-proxy="1"]'));
+    await page.click('#sheet [data-act="nudge"]'); await untilShared(page, 1);
+    r.shared = await page.evaluate(() => window.__shared || []);
+    await page.click('#sheet [data-act="answer"][data-v="in"][data-proxy="1"]');
+    r.rec = await untilRec(net, A, 'anjo-z5', (x) => x.status === 'in'); await untilQuiet(page);
+    await closeSheet(page);
+    await untilCell(page, A, 'anjo-z5', 'in');
+    r.focus = await page.evaluate(() => { const a = document.activeElement; return a ? a.getAttribute('data-act') + '|' + a.getAttribute('data-code') : ''; });
+    r.cell = await cellOf(page, A, 'anjo-z5');
+    r.foot = await page.$eval('#screen #fam-board .ft', (e) => e.textContent).catch(() => '');
+    await measureScreen(page, 'organizer Family after answering In for Anjo');
+    await page.click('#screen button.cell[data-id="' + B + '"][data-code="ashwin-l2"]'); await settle(page, 150);
+    r.mine = await popupId(page); r.mineAns = !!(await page.$('#sheet [data-act="answer"][data-v="in"]:not([data-proxy])'));
+    await measurePopup(page, 'organizer Family › my own P-person on Tahoe (my answer row)'); await closeSheet(page);
+    await page.click('#screen #fam-board .hd[data-id="' + B + '"]'); await settle(page, 150);
+    r.trip = await screenId(page);
+    await page.click('#screen [data-act="back"]'); await settle(page, 150);
+    r.backTo = await screenId(page);
+    const okShare = r.shared.length === 1 && eq(Object.keys(r.shared[0]), ['url']) && r.shared[0].url === W + '/i/' + A + '#m=anjo-z5';
+    check(r.p1.length === 4 && r.why === 'First page' && eq(r.still, r.p1) && r.p2.length === 4 && r.p2.every((id) => r.p1.indexOf(id) < 0) && eq(r.past, [PAST]) && r.pastCls && r.pressed === 'true' && eq(r.home, r.p1) &&
+      r.sheet === 'P-person' && r.proxy && okShare && r.rec.status === 'in' && r.rec.note === '📞' && r.cell && r.cell.st === 'in' && r.cell.marks === 'called' && r.focus === 'fcell|anjo-z5' &&
+      r.mine === 'P-person' && r.mineAns && r.trip === 'trip-portal' && r.backTo === 'trips-family' &&
+      r.pastSheet === 'P-person' && !r.pastNudge && eq(r.pastRo, ['true|Trip over', 'true|Trip over', 'true|Trip over']) && r.pastWhy === 'Trip over' && r.pastPosts === 0 && r.headOk,
+      'PIA-142 real clicks: ◀ on page 1 says "First page" and stays, ▶ shows the other 4 trips, 🗄 the past trip\'s column (pressed, dimmed head); Anjo\'s cell opens her sheet with the organizer\'s answer row: 📣 hands over her own link only, In saves 📞 through the real Worker and her cell turns ✓ 📞 (⌄ gives focus back to the cell); my own cell opens my sheet with my answer row; a column head opens that trip, ‹ comes back to the board; on the past trip nobody closed my answer row is greyed and says "Trip over" on a tap (nothing sent, no 📣), and its head\'s long press names it (title free, then its days)', r);
+    await ctx.close();
+  }
+  {
+    // the empty board (every trip on the shelf): the ghost row with ＋ and 🗄; 🗄 brings the past trip in; ＋ starts a trip
+    const { ctx, page } = await phone('shelf');
+    await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 150);
+    const r = { id: await screenId(page), ghost: !!(await page.$('#screen [data-ghost="family"] .gface')) };
+    await measureScreen(page, 'shelf phone › Family ghost row');
+    await page.click('#screen [data-ghost="family"] [data-act="fampast"]'); await settle(page, 150);
+    r.id2 = await screenId(page); r.heads = await famHeads(page); await measureScreen(page, 'shelf phone › Family 🗄 (the past trip)');
+    await page.click('#screen [data-act="fampast"]'); await settle(page, 150);
+    await page.click('#screen [data-ghost="family"] [data-act="new"]'); await settle(page, 150);
+    r.new = await popupId(page); await measurePopup(page, 'shelf phone › ＋ from the ghost row'); await closeSheet(page);
+    check(r.id === 'trips-family-empty' && r.ghost && r.id2 === 'trips-family' && eq(r.heads, [PAST]) && r.new === 'P-new-what',
+      'PIA-142 AC6 an empty board (only a past and a dropped trip) shows its ghost row of dotted faces with ＋ (one tap: P-new-what) and 🗄, which brings the past trip in as a column (the dropped one never)', r);
+    await ctx.close();
+  }
+  {
+    // my name's cell on a trip this phone is nobody on yet: who-are-you first (my face outlined and focused), then my sheet
+    const { ctx, page, net } = await phone('famface', { worker: true });
+    await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 150);
+    await page.click('#screen button.cell[data-id="' + B + '"][data-code="ashwin-l2"]'); await settle(page, 150);
+    const r = { face: await popupId(page), mark: await page.evaluate(() => { const a = document.activeElement; return a && a.id === 'pf-mark' ? a.getAttribute('data-code') : null; }) };
+    await measurePopup(page, 'famface › P-face from my Tahoe cell');
+    await page.click('#sheet #pf-mark'); await settle(page, 150);
+    r.next = await popupId(page); r.ans = !!(await page.$('#sheet [data-act="answer"][data-v="in"]:not([data-proxy])'));
+    await measurePopup(page, 'famface › my P-person after picking myself');
+    await page.click('#sheet [data-act="answer"][data-v="in"]');
+    r.rec = await untilRec(net, B, 'ashwin-l2', (x) => x.status === 'in'); await untilQuiet(page);
+    await closeSheet(page);
+    await untilCell(page, B, 'ashwin-l2', 'in');
+    r.me = await page.evaluate((id) => JSON.parse(localStorage.getItem('pialax_idea_me_v1') || '{}')[id], B);
+    r.cell = await cellOf(page, B, 'ashwin-l2');
+    check(r.face === 'P-face' && r.mark === 'ashwin-l2' && r.next === 'P-person' && r.ans && r.rec.status === 'in' && r.rec.note === 'Depends on Thanksgiving dates' && r.me === 'ashwin-l2' && r.cell && r.cell.st === 'in',
+      'PIA-142 AC4 my row\'s cell on a trip this phone is nobody on yet asks who I am first (Ashwin outlined and focused); one tap and my sheet with my answer row is there: In is my own answer (my note kept), this phone is Ashwin there now, and the cell turns ✓', r);
+    await ctx.close();
+  }
+  {
+    // fix pass: a first-run phone (Mom: a list link, no profile, no face, no token). Any cell's sheet carries 🙋 It's me and 🙋＋
+    // (Bartholomew's, with the 8 long names, counted first); her own cell, one tap on 🙋 It's me, is her own sheet with her answer
+    // row and In is her own answer. Once she is someone, a trip with nobody of her name offers 🙋＋ only, which opens P-face with
+    // the join row open (‹ back to the sheet)
+    const { ctx, page, net } = await phone('fammom', { worker: true });
+    await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 150);
+    await measureScreen(page, 'fammom › Family (this phone is nobody on any trip yet)');
+    const bart = '#screen button.cell[data-id="' + M8 + '"][data-code="bartholomewmontgomeryfitzgera-dj"]';
+    await page.click(bart); await settle(page, 150);
+    const r = { b0: await popupId(page), bIam: !!(await page.$('#sheet [data-act="pickface"]')), bJoin: !!(await page.$('#sheet [data-act="pjoin"]')) };
+    await measurePopup(page, 'fammom › P-person Bartholomew (8 long names) with 🙋 It\'s me and 🙋＋');
+    await closeSheet(page);
+    await page.click('#screen button.cell[data-id="' + A + '"][data-code="momdad-k3"]'); await settle(page, 150);
+    Object.assign(r, { s0: await popupId(page), iam: !!(await page.$('#sheet [data-act="pickface"][data-code="momdad-k3"]')), ans0: !!(await page.$('#sheet [data-act="answer"]')) });
+    await measurePopup(page, 'fammom › P-person Mom & Dad on Diwali (her own cell: 🙋 It\'s me)');
+    await labelCheck(page, 'fammom › her own cell\'s sheet', 'fammom@360', 'sheet');
+    await page.click('#sheet [data-act="pickface"]'); await settle(page, 150);
+    r.s1 = await popupId(page); r.ans = !!(await page.$('#sheet [data-act="answer"][data-v="in"]:not([data-proxy])')); r.iam1 = !!(await page.$('#sheet [data-act="pickface"]'));
+    await measurePopup(page, 'fammom › her own P-person after 🙋 It\'s me');
+    await page.click('#sheet [data-act="answer"][data-v="in"]');
+    r.rec = await untilRec(net, A, 'momdad-k3', (x) => x.status === 'in' && !/📞/.test(x.note || '')); await untilQuiet(page);
+    await closeSheet(page);
+    await untilCell(page, A, 'momdad-k3', 'in');
+    r.cell = await cellOf(page, A, 'momdad-k3');
+    r.me = await page.evaluate((id) => JSON.parse(localStorage.getItem('pialax_idea_me_v1') || '{}')[id], A);
+    await page.click(bart); await settle(page, 150);
+    r.b1Iam = !!(await page.$('#sheet [data-act="pickface"]')); r.b1Join = !!(await page.$('#sheet [data-act="pjoin"]'));
+    await page.click('#sheet [data-act="pjoin"]'); await settle(page, 150);
+    r.join = await popupId(page); r.joinFocus = await page.evaluate(() => (document.activeElement && document.activeElement.id) || '');
+    await measurePopup(page, 'fammom › 🙋＋ from Bartholomew\'s sheet: P-face, the join row open');
+    await page.click('#sheet [data-act="sh-back"]'); await settle(page, 150);
+    r.back = await popupId(page);
+    await closeSheet(page);
+    r.paid = net.paid.length;
+    check(r.b0 === 'P-person' && r.bIam && r.bJoin && r.s0 === 'P-person' && r.iam && !r.ans0 && r.s1 === 'P-person' && r.ans && !r.iam1 &&
+      r.rec.status === 'in' && r.me === 'momdad-k3' && r.cell && r.cell.st === 'in' && r.cell.marks === '' && !r.b1Iam && r.b1Join && r.join === 'P-face' && r.joinFocus === 'join-name' && r.back === 'P-person' && r.paid === 0,
+      'PIA-142 AC4 a first-run phone (no name, no face, no token): her own cell\'s sheet offers 🙋 It\'s me (no answer row); one tap and her own sheet with her answer row is there, In is her own answer (the organizer\'s 📞 goes) and her cell turns ✓; then, being Mom & Dad, a trip with nobody of her name offers 🙋＋ only: P-face with the join row open, ‹ back; no /search or /account', r);
+    await ctx.close();
+  }
+  {
+    // fix pass: the organizer's cell for Anjo on the unmigrated v1 Thanksgiving: his answer row is there, greyed; a tap says
+    // "Update trip first" (PIA-146 brings that update) and sends nothing
+    const { ctx, page, net } = await phone('famv1', { worker: true });
+    await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 150);
+    await measureScreen(page, 'famv1 › Family (the organizer of the v1 Thanksgiving)');
+    const p0 = net.posts;
+    await page.click('#screen button.cell[data-id="' + TG + '"][data-code="LGA"]'); await settle(page, 150);
+    const r = { s: await popupId(page), ro: await page.$$eval('#sheet .answers [data-act="answer"]', (es) => es.map((e) => e.getAttribute('aria-disabled') + '|' + e.getAttribute('data-lbl'))) };
+    await measurePopup(page, 'famv1 › P-person Anjo on the v1 Thanksgiving (Update trip first)');
+    await fingerTap(page, '#sheet [data-act="answer"][data-v="in"]'); r.why = await lblNow(page);
+    if (r.why) await measurePopup(page, 'famv1 › In on a v1 doc says why', '#lbl');
+    await untilLabelGone(page); await closeSheet(page);
+    r.posts = net.posts - p0;
+    check(r.s === 'P-person' && eq(r.ro, ['true|Update trip first', 'true|Update trip first', 'true|Update trip first']) && r.why === 'Update trip first' && r.posts === 0,
+      'PIA-142 the organizer\'s cell on an unmigrated v1 doc: his answer row for them is there, greyed, and says "Update trip first" on a tap; nothing is sent', r);
+    await ctx.close();
   }
 
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');

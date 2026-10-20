@@ -26,6 +26,7 @@
   --frame: #D8DDE5; --cloud: #FFFFFF; --wire: #3A3A3A; --b1: #F5C344; --b2: #E2574C; --b3: #4CB7A5; --b4: #8F7CEC; --table: #C98B5B;
   --shade: rgba(16, 20, 28, .18); --land: #E6E9EE; --border-land: #C8CED8;
   --chip: transparent; --tkdim: .45;
+  --markbg: #FFFFFF; --markink: #15181D;   /* PIA-142: a face's or a cell's mark chip (⚠ 🎫 🏠 📞 📝): light in both schemes, so a dark 📞 reads */
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -38,6 +39,7 @@
     --frame: #3A414F; --cloud: #C7D0DC; --wire: #C8C8C8; --b1: #E7C36A; --b2: #E06A60; --b3: #4FB3A3; --b4: #9D8CEB; --table: #8E6343;
     --shade: rgba(0, 0, 0, .55); --land: #1C2028; --border-land: #343A45;
     --chip: #3A414D; --tkdim: .8;
+    --markbg: #D9DEE7; --markink: #15181D;
     color-scheme: dark;
   }
 }
@@ -51,6 +53,7 @@
   --frame: #3A414F; --cloud: #C7D0DC; --wire: #C8C8C8; --b1: #E7C36A; --b2: #E06A60; --b3: #4FB3A3; --b4: #9D8CEB; --table: #8E6343;
   --shade: rgba(0, 0, 0, .55); --land: #1C2028; --border-land: #343A45;
   --chip: #3A414D; --tkdim: .8;
+  --markbg: #D9DEE7; --markink: #15181D;
   color-scheme: dark;
 }
 
@@ -103,7 +106,7 @@ svg { display: block; }
 .av .mk svg { width: 12px; height: 12px; }
 .mk.k-in { background: var(--in); } .mk.k-maybe { background: var(--maybe); } .mk.k-out { background: var(--mute); }
 .mk.k-hostdef { background: var(--surface); color: var(--in); box-shadow: 0 0 0 2px var(--in); }
-.av .bd { position: absolute; top: -6px; right: -7px; font-size: 13px; line-height: 1; background: var(--surface); border-radius: 9px; padding: 2px; box-shadow: 0 0 0 1px var(--line); }
+.av .bd { position: absolute; top: -6px; right: -7px; font-size: 13px; line-height: 1; background: var(--markbg); color: var(--markink); border-radius: 9px; padding: 2px; box-shadow: 0 0 0 1px var(--line); }
 .av .bd2 { top: auto; right: auto; bottom: -6px; left: -7px; }
 .av .cnt { position: absolute; top: -6px; left: -8px; font-size: 12px; font-weight: 700; background: var(--surface); color: var(--ink); border-radius: 8px; padding: 0 4px; box-shadow: 0 0 0 1px var(--line); font-variant-numeric: tabular-nums; }
 .av .new { position: absolute; bottom: -2px; left: -2px; width: 10px; height: 10px; border-radius: 50%; background: var(--ink); box-shadow: 0 0 0 2px var(--surface); animation: pulse 1.6s 3; }
@@ -200,7 +203,7 @@ svg { display: block; }
 .board .rowh.focus .av { box-shadow: 0 0 0 3px var(--ink); }
 .cell { min-height: 64px; display: grid; justify-items: center; align-content: center; gap: 4px; position: relative; border-radius: 10px; }
 .cell .own { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); line-height: 1; }
-.cell .cw { position: relative; display: grid; place-items: center; }
+.cell .cwrap { position: relative; display: grid; place-items: center; }
 .cell .ov { position: absolute; top: -8px; right: -10px; font-size: 13px; line-height: 1; }
 .shape { width: 30px; height: 30px; display: grid; place-items: center; }
 .shape svg { width: 18px; height: 18px; }
@@ -255,6 +258,7 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .ans.out[aria-pressed="true"] { background: var(--mute); border-color: var(--mute); color: var(--on-status); }
 .ans.def { animation: pulse 1.6s ease-in-out 1; } /* the host's default In looks unselected (it is not an answer yet), with one pulse */
 .ans:disabled { opacity: .4; cursor: not-allowed; }
+.ans.ro { opacity: .5; cursor: default; animation: none; } /* PIA-142: a trip that is over, or a v1 doc not updated yet: a tap says why */
 .answers.nudge { animation: nudge .5s 2; }
 @keyframes nudge { 0%, 100% { transform: none; } 30% { transform: translateX(-6px); } 70% { transform: translateX(6px); } }
 .closed { text-align: center; font-size: 22px; }
@@ -669,6 +673,7 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .lbl-bubble { position: fixed; z-index: 90; background: var(--ink); color: var(--on-ink); font-size: 15px; font-weight: 700; padding: 8px 12px; border-radius: 12px; pointer-events: none; white-space: nowrap; }
 .lbl-bubble::before { content: ""; position: absolute; left: calc(var(--ax, 50%) - 5px); width: 10px; height: 10px; background: var(--ink); transform: rotate(45deg); }
 .lbl-bubble.side-t::before { bottom: -4px; } .lbl-bubble.side-b::before { top: -4px; }
+.lbl-bubble.ttl { white-space: normal; max-width: min(320px, calc(100vw - 16px)); } /* PIA-142: a trip's title wraps inside the screen */
 .toast { pointer-events: none; position: fixed; z-index: 95; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--on-ink); font-size: 16px; font-weight: 700; padding: 10px 16px; border-radius: 14px; max-width: calc(100% - 32px); display: grid; gap: 8px; }
 .toast.top { bottom: auto; top: calc(0px + 12px); }
 .toast .tt { display: flex; align-items: center; gap: 10px; }
@@ -708,8 +713,29 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .errline .eg { font-size: 34px; line-height: 1; }
 textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .apill .fn { font-size: 14px; max-width: none; overflow: visible; }
-.people .facebtn.cpp { width: auto; min-width: 52px; height: auto; min-height: 48px; border-radius: 14px; display: grid; justify-items: center; align-content: start; gap: 3px; padding: 2px; }
-.people .facebtn.cpp .fn { font-size: 13px; }
+/* PIA-142: the Family board (people × trips): 76px row heads beside ≤4 trip columns of ≥63px at 360px */
+.board .corner { display: grid; place-items: center; min-height: 64px; }
+.board .hd { width: 100%; min-width: 0; }
+/* the column heads (and the corner) stay in view under the top row while a long board scrolls, so every cell keeps its trip */
+.board .hd, .board .corner { position: sticky; top: calc(env(safe-area-inset-top, 0px) + var(--famtop, 56px)); z-index: 6; background: var(--bg); }
+.board .hd.past { color: var(--ink2); }
+.board .hd.past .sc { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
+.board .rowh { min-width: 0; padding: 2px 0; border-radius: 12px 0 0 12px; }
+.board .rowh .fn { max-width: 72px; margin-top: 2px; }
+.board .rowh .facebtn[aria-pressed="true"] .av { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--ink); }
+.board .hl { background: var(--sunk); }
+.cell { width: 100%; min-width: 0; }
+.cell.none { cursor: default; }
+.cell .ov { display: inline-flex; background: var(--markbg); color: var(--markink); border-radius: 8px; padding: 1px; box-shadow: 0 0 0 1px var(--line); }
+.cell .ov2 { right: auto; left: -12px; } /* 📞 📝 in the top-left corner: the day they arrive keeps the space under the shape */
+.ib.fampast[aria-pressed="true"] { background: var(--sunk); box-shadow: inset 0 0 0 2px var(--ink); }
+.ib.pjoin { font-size: 18px; padding: 0 4px; }
+.pager { align-items: center; }
+.pgdots { display: inline-flex; gap: 6px; padding: 8px; } .pgdots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .pgdots i.on { background: var(--ink); }
+.ib.pg[aria-disabled="true"] { opacity: .4; }
+.famghost { border: 2px dashed var(--line); border-radius: 18px; padding: 14px; display: flex; align-items: center; gap: 10px; }
+.famghost .gfaces { display: flex; gap: 8px; flex: 1; min-width: 0; }
+.famghost .gface { width: 44px; height: 44px; border-radius: 50%; border: 2.5px dotted var(--mute); flex: none; }
 .ib.newb { background: var(--ink); color: var(--on-ink); font-size: 26px; border-radius: 14px; }
 .ib.newb:hover { background: var(--ink); }
 .ib.joinb { border: 1.5px solid var(--ink); padding: 0 8px; gap: 2px; display: inline-flex; align-items: center; }
@@ -2298,6 +2324,78 @@ function tripGroups(models, mine) {
   groups.forEach(function (g) { g.ids.sort(function (a, b) { return order[a] - order[b]; }); g.first = order[g.ids[0]]; });
   return groups.sort(function (a, b) { return b.ids.length - a.ids.length || a.first - b.first; });
 }
+/* PIA-142: Trips › Family, the people × trips board, read from the trips' own models (one tripModel per trip: the very
+   objects the cards and the trip views draw), so a cell can never say anything that trip's card or view does not.
+   models: the trips this phone lists that have been read, in the order the screens show them (the cards', then the
+   shelf's); o = {past: 🗄 adds the shelf's trips as columns (hosting history), name: who this phone is when no trip
+   shown says so (its profile name)}.
+   • cols: the trips off the shelf, then, with o.past, the shelf's; never a dropped trip (it never happened). They are the
+     models themselves, so a column's heads are that trip's own headsIn / heads (by headcount: Mom & Dad count 2).
+   • rows: one per person, merged across the columns by normalized name. The k-th member of a name on one trip joins the
+     k-th of that name on another, so two "Sam Lee"s on one trip stay two rows. A v1 'Me' (no name) is my row when it is
+     this phone's own face there; on any other phone it is that trip's organizer, whom v1's own family preset names by
+     airport (P-migrate's suggestion: 'Me' at LAX is Ashwin), so it joins that person's row when they are on the board by
+     name already (and not on its own trip by name); any other v1 'Me' is a row of its own, after the named rows. Me first
+     (who this phone is on a trip shown, else on any trip given, else o.name), then as they first appear. Each row: {key,
+     norm, name, short, one, face, color (of the first named appearance), headcount (the largest), me, hosted, cells},
+     with cells[i] = that trip's own member (answer, marks, own days: all the model's) or null (not on that trip).
+   • hosted: how many of the trips given (shown or not, a dropped one never) this person hosts, past and planned: a host
+     by airport who has not said Out. 🏠n on their row, the fairest next host at a glance. */
+function familyBoard(models, o) {
+  o = o || {};
+  var real = (models || []).filter(function (m) { return m && m.members && m.decision !== 'dropped'; });
+  var cols = real.filter(function (m) { return !m.shelf; }).concat(o.past ? real.filter(function (m) { return m.shelf; }) : []);
+  var keysOf = function (m) {
+    var n = {};
+    return m.members.map(function (x) {
+      if (!x.norm) return '#' + m.id + '|' + x.code;
+      n[x.norm] = (n[x.norm] || 0) + 1;
+      return n[x.norm] > 1 ? x.norm + '#' + n[x.norm] : x.norm;
+    });
+  };
+  var keys = real.map(keysOf), order = cols.concat(real), mine = '';
+  order.forEach(function (m) { if (!mine && m.me && m.me.norm) mine = keys[real.indexOf(m)][m.members.indexOf(m.me)] || ''; });
+  if (!mine && o.name) mine = normName(o.name);
+  // a v1 'Me' this phone is joins my own row (it is me, named or not); the first one is me when nothing else says who I am
+  order.forEach(function (m) {
+    var t = real.indexOf(m), i = m.me && !m.me.norm ? m.members.indexOf(m.me) : -1;
+    if (i < 0) return;
+    if (!mine) mine = keys[t][i];
+    else if (keys[t].indexOf(mine) < 0) keys[t][i] = mine;
+  });
+  // anyone else's v1 'Me': the family preset's person at its airport, when that person has a named row on the board
+  var named = {};
+  cols.forEach(function (m) { var t = real.indexOf(m); m.members.forEach(function (x, i) { if (x.norm) named[keys[t][i]] = 1; }); });
+  real.forEach(function (m, t) {
+    m.members.forEach(function (x, i) {
+      if (x.norm || keys[t][i] === mine) return;
+      var f = FAMILY_BY_AIRPORT[normIata(x.airport)], fam = f ? FAMILY.filter(function (g) { return g.key === f; })[0] : null, n = fam ? normName(fam.name) : '';
+      if (n && named[n] && keys[t].indexOf(n) < 0) keys[t][i] = n;
+    });
+  });
+  var hosted = {};
+  real.forEach(function (m, t) { m.members.forEach(function (x, i) { if (x.host && x.status !== 'out') hosted[keys[t][i]] = (hosted[keys[t][i]] || 0) + 1; }); });
+  var colKeys = cols.map(function (m) { return keys[real.indexOf(m)]; });
+  var rows = [], at = {};
+  cols.forEach(function (m, c) {
+    m.members.forEach(function (x, i) {
+      var k = colKeys[c][i], r = at[k];
+      if (!r) {
+        r = at[k] = { key: k, norm: x.norm, name: x.name, short: x.short, one: x.one, face: x.face, color: x.color, headcount: x.headcount, me: !!mine && k === mine,
+          hosted: hosted[k] || 0, cells: cols.map(function () { return null; }) };
+        rows.push(r);
+      }
+      if (!r.norm && x.norm) { r.norm = x.norm; r.name = x.name; r.short = x.short; r.one = x.one; r.face = x.face; r.color = x.color; }
+      r.headcount = Math.max(r.headcount, x.headcount);
+      r.cells[c] = x;
+    });
+  });
+  rows = rows.filter(function (r) { return r.norm || r.me; }).concat(rows.filter(function (r) { return !r.norm && !r.me; }));
+  var mi = -1;
+  rows.forEach(function (r, i) { if (mi < 0 && r.me) mi = i; });
+  if (mi > 0) rows.unshift(rows.splice(mi, 1)[0]);
+  return { cols: cols, rows: rows, mine: mine };
+}
 /* the v2 list link: <base>?l=<id>.<id>…&f=<my face>. Trip ids and one face only: never a key, a token or a price. */
 function listLink(base, ids, face) {
   var b = String(base || ''), list = uniq((ids || []).filter(function (id) { return IDEA_ID_RE.test(String(id)); })).slice(0, LIST_LINK_MAX);
@@ -3196,7 +3294,7 @@ function listSnap(id, doc) {
   if (x.t === t && x.e === e) return;
   x.t = t; x.e = e; listWrite(L);
 }
-/* pialax_ui_v1 {sel, keySeen, v1read, shelfOpen}: per-phone conveniences */
+/* pialax_ui_v1 {sel, keySeen, v1read, shelfOpen, joins, draft, famPast}: per-phone conveniences (v2 only: v1 never reads it) */
 function uiRead() { return readMap(ST.ui); }
 function uiSet(patch) { var u = uiRead(); Object.keys(patch).forEach(function (k) { if (patch[k] === undefined) delete u[k]; else u[k] = patch[k]; }); lsSet(ST.ui, JSON.stringify(u)); }
 function navRead() { try { var v = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null'); return plainObj(v) ? v : {}; } catch (e) { return {}; } }
@@ -4059,7 +4157,9 @@ var LEGEND = {
   // PIA-141: the cheapest week on demand (P-dates' 📉, P-cheapest's bars, paging and wider window)
   cheapweek: ['📉', 'Cheaper week'], weekfull: ['<span class="kbar"></span>', 'Priced week'], weekold: ['<span class="kbar stale"></span>', 'Old fares'], weekhollow: ['<span class="kbar hollow"></span>', 'Not searched'],
   weekcur: ['<span class="kbar cur"></span>', 'Current dates'], wcost: ['🔍≤2', 'Searches needed'], leaves: ['⚠', 'Leaves days out'], page: ['◀ ▶', 'Page'],
-  widen: ['⟦◀ ▶⟧', 'Widen window'], owndays: ['<span class="kown">🙂</span>', 'Own days']
+  widen: ['⟦◀ ▶⟧', 'Widen window'], owndays: ['<span class="kown">🙂</span>', 'Own days'],
+  // PIA-142: the Family board (a cell's own arrival day, someone not on a trip, the trips hosted, 🗄 the past trips as columns)
+  ownarr: ['<span class="tn">11/24</span>', 'Own arrival'], notinv: ['<span class="sh-none"></span>', 'Not invited'], hosted: ['🏠2', 'Hosted or hosting'], pastcols: ['🗄', 'Past trips']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -4095,14 +4195,19 @@ function avatar(m, size, o) {
 }
 /* PIA-137: every mark one person carries on a trip, visible to everyone: ⚠ a problem with their days, 🎫 booked (or 🏠 a
    host) in the top corner; 📞 the organizer answered for them (a v1 proxy note too) and 📝 a note, in the bottom one */
-function marksHTML(x) {
+/* PIA-142: the marks themselves, [glyph, key] top and bottom: the trip view's faces and the Family board's cells draw the same */
+function markSets(x) {
   var a = [], b = [];
   if (x.warn && x.warn.length) a.push(['⚠', 'warn']);
   if (x.booked) a.push(['🎫', 'booked']); else if (x.host) a.push(['🏠', 'host']);
   if (x.called) b.push(['📞', 'called']);
   if (x.noteText) b.push(['📝', 'note']);
+  return { a: a, b: b };
+}
+function marksHTML(x) {
+  var ms = markSets(x);
   var s = function (arr, cls) { return arr.length ? '<span class="bd' + cls + '">' + arr.map(function (g) { return '<span data-k="' + g[1] + '">' + g[0] + '</span>'; }).join('') + '</span>' : ''; };
-  return s(a, '') + s(b, ' bd2');
+  return s(ms.a, '') + s(ms.b, ' bd2');
 }
 function polar(cx, cy, r, a) { var t = (a - 90) * Math.PI / 180; return (cx + r * Math.cos(t)).toFixed(2) + ' ' + (cy + r * Math.sin(t)).toFixed(2); }
 function arcD(cx, cy, r, a0, a1) { return 'M' + polar(cx, cy, r, a0) + ' A' + r + ' ' + r + ' 0 ' + (a1 - a0 > 180 ? 1 : 0) + ' 1 ' + polar(cx, cy, r, a1); }
@@ -4435,28 +4540,86 @@ function renderIdeas() {
   }
   return { id: 'trips-ideas', html: h };
 }
-/* Trips › Family: everyone across the active trips (the people × trips board is PIA-142's) */
+/* who this phone is on the trips it lists (P-sharelist's groups leave me out) */
 function myNorm(models) { var n = null; models.forEach(function (m) { if (!n && m.me && m.me.norm) n = m.me.norm; }); return n; }
-function peopleAcross(models) {
-  var order = [], map = {}, mine = myNorm(models);
-  models.forEach(function (m) {
-    m.members.forEach(function (x) {
-      var k = x.norm || '#' + x.code;
-      if (!map[k]) { map[k] = { norm: k, short: x.short, one: x.one, face: x.face, color: x.color, headcount: x.headcount }; order.push(k); }
-      map[k].headcount = Math.max(map[k].headcount, x.headcount);
-    });
-  });
-  if (mine && map[mine]) { order.splice(order.indexOf(mine), 1); order.unshift(mine); }
-  return order.map(function (k) { return map[k]; });
+/* ---- PIA-142: Trips › Family, the people × trips board ----
+   The model's familyBoard over the very models the cards and trip views draw (the cards' order, then the shelf's), so a cell
+   says what that trip's own face says: the answer's shape (a host's unconfirmed default too), ⚠ 🎫 🏠 in one top corner and
+   📞 📝 in the other (the trip view's marks, by the same rule), and the day they set to arrive under it. A row is one person
+   merged across the trips by name (me first, 👋), with 🏠n: the trips they host; a page shows me and the people on its trips.
+   A column's foot is that trip's heads by headcount (Mom & Dad count 2). 4 trips a page with ◀ ▶; 🗄 adds the past trips as
+   columns (their hosting history). A cell opens that person on that trip (P-person with the answer row: mine outside a trip
+   view, the organizer's for anyone, 📞), where anyone can nudge someone who has not answered; a column's head opens the
+   trip. No prices here, on any phone. */
+var FAM_PER = 4;   // trip columns a page: 4 × ≥63px beside the 76px row heads fit a 360px phone
+function famModels() { return activeModels().concat(shelfItems().filter(function (it) { return !!it.m; }).map(function (it) { return it.m; })); }
+function profileName() { var l = readMap(ST.profile).label; return typeof l === 'string' ? keepName(splitLabel(l).name) : ''; }
+function famBoard() { return familyBoard(famModels(), { past: !!uiRead().famPast, name: profileName() }); }
+function famPast() { return shelfItems().some(function (it) { return it.m && it.m.decision !== 'dropped'; }); }
+/* one cell: that person's answer on that trip, as the trip's own face shows it (statusKey, markSets), with their own arrival day */
+var CELL_SHAPE = { in: ['sh-in', MK.in], 'host-default': ['sh-hostdef', MK.in], maybe: ['sh-maybe', MK.maybe], out: ['sh-out', MK.out], waiting: ['sh-wait', ''] };
+function famCell(m, x, hl) {
+  if (!x) return '<span class="cell none' + (hl ? ' hl' : '') + '" role="img" aria-label="' + esc('Not on ' + m.title) + '" data-lbl="Not invited" data-k="notinv"><span class="sh-none"></span></span>';
+  var sh = CELL_SHAPE[x.status] || CELL_SHAPE.waiting, ms = markSets(x), own = x.status !== 'out' && x.own1 ? x.own1 : '';
+  var ov = function (arr, cls) { return arr.length ? '<span class="ov' + cls + '">' + arr.map(function (g) { return '<span data-k="' + g[1] + '">' + g[0] + '</span>'; }).join('') + '</span>' : ''; };
+  return '<button class="cell' + (hl ? ' hl' : '') + '" data-act="fcell" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(m.title + ': ' + personAria(x) + (own ? ', arrives ' + md(own) : '')) + '" data-lbl="' + esc(faceLabel(x)) + '">' +
+    '<span class="cwrap"><span class="shape ' + sh[0] + '" data-k="' + statusKey(x.status) + '">' + sh[1] + '</span>' + ov(ms.a, '') + ov(ms.b, ' ov2') + '</span>' +
+    (own ? '<span class="own tn" data-k="ownarr">' + md(own) + '</span>' : '') + '</button>';
 }
+/* a column's head: the trip's own picture and its first day (🌙 nights for an undated idea); one tap opens the trip. A long
+   press names it: the trip's title (free under the word rule, data-ttl) and its days, so two trips with one picture differ */
+function famHead(m) {
+  var when = m.plan ? md(m.plan.s) + '–' + md(m.plan.e) : '🌙' + (m.nightsN || '?');
+  return '<button class="hd' + (m.shelf ? ' past' : '') + '" data-act="open" data-id="' + m.id + '" aria-label="' + (m.shelf ? 'Open past trip' : 'Open trip') + '" data-lbl="' + esc(when) + '" data-ttl="' + esc(m.title) + '" aria-describedby="fh-' + m.id + '">' +
+    '<span class="sc" data-pic>' + m.emoji + '</span>' + (m.plan ? '<span class="tn">' + md(m.plan.s) + '</span>' : '<span data-k="nights">🌙' + (m.nightsN || '?') + '</span>') + '</button>';
+}
+/* a row's head: their face (×N), 🏠n trips hosted (past and planned), and their first name (👋 for me), a name fitNames may
+   drop (prio: the larger goes first) */
+function famRowHead(p, i, on, prio) {
+  var lbl = faceLabel(p) + (p.headcount > 1 ? ', ' + p.headcount + ' people' : '') + (p.hosted ? ', host on ' + p.hosted + (p.hosted === 1 ? ' trip' : ' trips') + ', past or planned' : '');
+  return '<div class="rowh' + (on ? ' hl' : '') + '"><button class="facebtn" data-act="famrow" data-v="' + i + '" aria-pressed="' + !!on + '" aria-label="' + esc(lbl) + '" data-lbl="' + esc(faceLabel(p)) + '">' +
+    avatar({ face: p.face, color: p.color, status: '', headcount: p.headcount }, 44) + (p.hosted ? '<span class="hn" data-k="hosted">🏠' + p.hosted + '</span>' : '') + '</button>' +
+    (p.me ? youTag() : p.one ? nameTag(p.one, prio) : '') + '</div>';
+}
+/* the empty board: a ghost row of dotted faces and ＋ (and 🗄, when there are past trips to show) */
+function famGhost(past) {
+  var faces = '<span class="gface"></span><span class="gface"></span><span class="gface"></span>';
+  return '<div class="famghost" data-ghost="family">' + (past ? famPastBtn() : '') + '<span class="gfaces" aria-hidden="true">' + faces + '</span>' +
+    '<button class="bigplus" data-act="new" aria-label="New trip" data-k="newtrip">＋</button></div>';
+}
+function famPastBtn() { var on = !!uiRead().famPast; return '<button class="ib fampast" data-act="fampast" aria-pressed="' + on + '" aria-label="' + (on ? 'Hide past trips' : 'Show past trips') + '" data-lbl="Past trips" data-k="pastcols">🗄</button>'; }
 function renderFamily() {
   var act = activeItems(), sh = shelfItems();
   if (act.length + sh.length < 2) { S.seg = 'ideas'; return renderIdeas(); }
-  var models = activeModels(), mine = myNorm(models), people = peopleAcross(models);
-  var h = topRow() + segRow('family') + '<div class="people">' + people.map(function (p, i) {
-    return '<span class="facebtn cpp" role="img" aria-label="' + esc(faceLabel(p)) + '" data-lbl="' + esc(faceLabel(p)) + '">' + avatar({ face: p.face, color: p.color, status: '', headcount: 1 }, 40, { plain: true }) +
-      (p.norm === mine ? youTag() : nameTag(p.one || '', i)) + '</span>';
-  }).join('') + '</div>';
+  var B = famBoard(), past = famPast(), h = topRow(false, true) + segRow('family');
+  if (!B.cols.length) {
+    // trips still being read (or a read that failed) show ◷; with nothing upcoming, the ghost row (and 🗄 for the past)
+    var loading = act.some(function (it) { return !it.m; }) || (!act.length && anyFailed());
+    return { id: 'trips-family-empty', html: h + (loading ? '<div class="rowc">' + staleMark() + '</div>' : famGhost(past)) };
+  }
+  var pages = Math.max(1, Math.ceil(B.cols.length / FAM_PER)), pg = Math.max(0, Math.min(pages - 1, S.famPage || 0)); S.famPage = pg;
+  var c0 = pg * FAM_PER, cols = B.cols.slice(c0, c0 + FAM_PER), n = Math.min(FAM_PER, B.cols.length), pad = '';
+  for (var k = cols.length; k < n; k++) pad += '<span class="pad"></span>';
+  if (pages > 1) {
+    var pb = function (v, g, lbl, no) {
+      return '<button class="ib pg" data-act="fampage" data-v="' + v + '"' + (no ? ' aria-disabled="true" data-why="1" aria-label="' + lbl + ', ' + no + '" data-lbl="' + no + '"' : ' aria-label="' + lbl + '"') + ' data-k="page">' + g + '</button>';
+    };
+    var dots = ''; for (var d = 0; d < pages; d++) dots += '<i class="' + (d === pg ? 'on' : '') + '"></i>';
+    h += '<div class="pager">' + pb(-1, '◀', 'Earlier trips', pg ? '' : 'First page') + '<span class="pgdots" role="img" aria-label="Page ' + (pg + 1) + ' of ' + pages + '" data-lbl="Page ' + (pg + 1) + ' of ' + pages + '">' + dots + '</span>' +
+      pb(1, '▶', 'Later trips', pg < pages - 1 ? '' : 'Last page') + '</div>';
+  }
+  var hlKey = S.famRow || '', shown = 0;
+  h += '<div class="board" id="fam-board" style="grid-template-columns:76px repeat(' + n + ',minmax(0,1fr))">' + '<span class="corner">' + (past ? famPastBtn() : '') + '</span>' + cols.map(famHead).join('') + pad;
+  // a page's rows: me, and everyone on at least one of its trips (a row of nothing but faint dots says nothing). Names go from
+  // the bottom up to keep 10 words, the names of people who host (🏠n) or still have to answer here (◌) last
+  B.rows.forEach(function (p, i) {
+    if (!p.me && !cols.some(function (m, j) { return !!p.cells[c0 + j]; })) return;
+    var on = !!hlKey && p.key === hlKey, keep = p.hosted > 0 || cols.some(function (m, j) { var x = p.cells[c0 + j]; return !!x && x.status === 'waiting'; });
+    h += famRowHead(p, i, on, (keep ? 0 : 100) + (++shown)) + cols.map(function (m, j) { return famCell(m, p.cells[c0 + j], on); }).join('') + pad;
+  });
+  h += '<span></span>' + cols.map(function (m) { return '<span class="ft" role="img" aria-label="' + esc(m.headsIn + ' of ' + m.heads + ' in') + '" data-lbl="Heads in" data-k="heads">' + m.headsIn + '/' + m.heads + '</span>'; }).join('') + pad + '</div>';
+  // the trips' titles, for a screen reader (free of the word budget, never seen)
+  h += '<div class="vh" data-free>' + cols.map(function (m) { return '<span id="fh-' + m.id + '">' + esc(m.title) + '</span>'; }).join('') + '</div>';
   return { id: 'trips-family', html: h };
 }
 /* ---- PIA-137: the trip view, the organizer page and the open portal ----
@@ -4512,19 +4675,22 @@ function mineLine(m) {
 /* In / Maybe / Out, labelled and equal: the answer there is filled, the others outlined. A host's In is drawn outlined
    with a dotted ring until they tap it (counted, not confirmed). Nothing is pre-pressed for anyone. A closed trip (paid
    or dropped) shows 🏁 or 🗑 instead of taps that would fail; a trip that is merely Done still takes answers.
-   o.proxy: the organizer answering for someone else (P-person), marked 📞. */
+   o.proxy: the organizer answering for someone else (P-person), marked 📞.
+   PIA-142: a trip that is over (its last day before today, not closed) takes no answers: the row stays, greyed, and a tap
+   says "Trip over"; o.why 'legacy': the organizer's row for someone on a v1 doc he has not updated yet ("Update trip first"). */
+var ANS_WHY = { past: 'Trip over', legacy: 'Update trip first' };
 function answerRow(m, x, o) {
   o = o || {};
   if (m.closed) {
     var dr = m.decision === 'dropped';
     return '<div class="closed" role="img" aria-label="' + (dr ? 'Dropped' : 'Trip closed') + '" data-k="' + (dr ? 'dropped' : 'st-done') + '">' + (dr ? '🗑' : '🏁') + '</div>';
   }
-  var st = x ? x.status : '', code = x ? x.code : '', busy = !!(PEND[m.id] && x && x.resp);
+  var st = x ? x.status : '', code = x ? x.code : '', busy = !!(PEND[m.id] && x && x.resp), why = ANS_WHY[m.past ? 'past' : o.why] || '';
   var b = function (v, word) {
-    var def = v === 'in' && st === 'host-default', arm = v === 'out' && !!x && armed(armKey(m.id, code, 'out'));
+    var def = v === 'in' && st === 'host-default', arm = !why && v === 'out' && !!x && armed(armKey(m.id, code, 'out'));
     // Out on someone booked waits for its confirming tap (it takes the 🎫 away): it pulses with 🎫↩
-    return '<button class="ans ' + v + (def ? ' def' : '') + (arm ? ' arm' : '') + '" data-act="answer" data-v="' + v + '" data-id="' + m.id + '" data-code="' + esc(code) + '"' + (o.proxy ? ' data-proxy="1"' : '') +
-      ' aria-pressed="' + (st === v) + '"' + (arm ? ' aria-label="Confirm Out"' : '') + ' data-k="' + (def ? 'hostdef' : v) + '">' + MK[v] + word + (arm ? '<span class="cfm" aria-hidden="true">🎫↩</span>' : '') + '</button>';
+    return '<button class="ans ' + v + (def ? ' def' : '') + (arm ? ' arm' : '') + (why ? ' ro' : '') + '" data-act="answer" data-v="' + v + '" data-id="' + m.id + '" data-code="' + esc(code) + '"' + (o.proxy ? ' data-proxy="1"' : '') +
+      ' aria-pressed="' + (st === v) + '"' + (why ? ' aria-disabled="true" data-why="1" aria-label="' + word + ', ' + why + '" data-lbl="' + why + '"' : arm ? ' aria-label="Confirm Out"' : '') + ' data-k="' + (def ? 'hostdef' : v) + '">' + MK[v] + word + (arm ? '<span class="cfm" aria-hidden="true">🎫↩</span>' : '') + '</button>';
   };
   // while the answer is on its way the pressed one breathes (aria-busy); a failed one goes back and P-error says so
   return '<div class="answers' + (!o.proxy && S.pulseAns === m.id ? ' nudge' : '') + '" role="group" aria-label="Answer"' + (busy ? ' aria-busy="true"' : '') + '>' + b('in', 'In') + b('maybe', 'Maybe') + b('out', 'Out') + '</div>';
@@ -4787,11 +4953,17 @@ function render(keep, bg) {
   if (keep) window.scrollTo(0, y);
   if (fsig && !S.sheet) refocusScreen(fsig);
   centerChips();
+  famTop(scr);
   if (S.sheet && !(bg && typingInSheet())) renderSheet(false);
   syncURL(); navWrite();
   faceCheck();   // PIA-137: P-face, when this phone is nobody on the trip it shows (or a hint asks)
 }
 function typingInSheet() { var a = document.activeElement, el = $('#sheet'); return !!(a && el && el.contains(a) && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA')); }
+/* PIA-142: the Family board's sticky column heads sit right under the top row, however tall it is drawn */
+function famTop(scr) {
+  var b = scr && scr.querySelector ? scr.querySelector('#fam-board') : null, t = b && scr.querySelector('.toprow');
+  if (b && t) b.style.setProperty('--famtop', Math.round(t.getBoundingClientRect().height) + 'px');
+}
 function centerChips() {
   $$('#screen .hscroll').forEach(function (el) {
     var p = el.querySelector('[aria-pressed="true"]'); if (!p) return;
@@ -5718,7 +5890,14 @@ function personAria(x) {
 SHEETS.person = function (sh) {
   var m = modelOf(sh.p.id), L = sh.local, x = memberIn(m, sh.p.code);
   if (!m || !x) return shHd('') + (m ? '' : '<div class="rowc">' + staleMark() + '</div>');
-  var isMe = !!(m.me && m.me.code === x.code), canAct = !m.closed && (isMe || (m.org && !m.legacy)), links = isMe || m.org, edit = canAct && x.answered;
+  // PIA-142: a trip that is over (its last day before today) takes answers and nudges no more, like a closed one
+  var isMe = !!(m.me && m.me.code === x.code), open = !m.closed && !m.past, canAct = open && (isMe || (m.org && !m.legacy)), links = isMe || m.org, edit = canAct && x.answered;
+  // …and the answer row that would be here stays, greyed, saying why on a tap: "Trip over", or for the organizer on a v1 doc
+  // he has not updated yet, "Update trip first" (his answers for them come with that update, PIA-146)
+  var why = m.closed ? '' : m.past && (isMe || m.org) ? 'past' : !isMe && m.org && m.legacy ? 'legacy' : '';
+  // PIA-142: on a phone that is nobody on this trip (and does not organize it), "🙋 It's me" makes this face mine in one tap
+  // (when this phone has no name yet, or its names pick this face) and 🙋＋ asks to join (when its names pick nobody here)
+  var w = !m.me && !m.org && open ? whoFor(m.id) : null, iam = !!w && (!myNames().length || w.pre === x.code), joinQ = !!w && !w.pre;
   var ho = handoffs(m, x.code, RT.hctx);
   // the 72px face is named by the person (long-press, a screen reader), its marks each by their own key
   var h = '<div class="sh-hd pers' + (sh.back ? ' bk' : '') + '">' + (sh.back ? '<button class="ib" data-act="sh-back" aria-label="Back" data-k="back">‹</button>' : '') +
@@ -5726,6 +5905,7 @@ SHEETS.person = function (sh) {
     '<span class="pnm">' + nameWords(x.short) + '</span><span class="sp"></span>' + (isMe ? '<button class="ib" data-act="face" data-id="' + m.id + '" aria-label="Switch person" data-k="switch">⇄</button>' : '') +
     // PIA-140: with their fares shown, ⓘ reads this sheet's glyphs (a fare's age, level and stops, ★, $—, ⛔)
     (m.prices && x.traveler && m.dest && x.keys.length && !m.closed ? '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' : '') +
+    (joinQ ? '<button class="ib pjoin" data-act="pjoin" data-id="' + m.id + '" aria-label="Ask to join" data-k="join">🙋＋</button>' : '') +
     '<button class="ib" data-act="sh-close" aria-label="Close" data-k="close">⌄</button></div>';
   if (m.range && x.status !== 'out') h += '<div class="pb-row solo" style="--pc:var(--p' + x.color + ')"><span class="track">' + barHTML(m, x, m.range) + '</span></div>';
   if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b></div>';
@@ -5736,12 +5916,13 @@ SHEETS.person = function (sh) {
     if (timesBy(m, x.code)) h += timesRow(m, x, L);   // PIA-139: once booked, the times they land and leave (saved as the sheet closes)
     if (m.prices && x.keys.length && !m.closed) h += fareRows(m, x, edit);   // PIA-140: their fares, and each end ±1 day (the organizer's token phone)
   }
-  if (canAct && (!isMe || sh.p.outside)) h += answerRow(m, x, { proxy: !isMe });
+  if ((canAct || why) && (!isMe || sh.p.outside)) h += answerRow(m, x, { proxy: !isMe, why: why });
+  if (iam) h += '<button class="btn pri wide" data-act="pickface" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc('This is me: ' + faceLabel(x)) + '"><span data-k="me">🙋</span> It\'s me</button>';
   var fw = firstWords(x.noteText, 8);
   if (x.noteText) h += '<button class="notep" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Note"><span data-k="note">📝</span><span>' + esc(fw.text) + (fw.more ? '…' : '') + '</span></button>';
   else if (canAct && x.resp) h += '<button class="notep" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Add note"><span data-k="note">📝</span><span aria-hidden="true">＋</span></button>';
   if (links && x.traveler) h += bookRow(m, x, ho);
-  if (ho.nudge && !m.closed) h += '<button class="btn wide" data-act="nudge" data-id="' + m.id + '" data-code="' + esc(x.code) + '"><span data-k="share">📣</span> Share</button>';
+  if (ho.nudge && open) h += '<button class="btn wide" data-act="nudge" data-id="' + m.id + '" data-code="' + esc(x.code) + '"><span data-k="share">📣</span> Share</button>';
   return h;
 };
 /* PIA-140: on the organizer's token phone, a traveler's fares under their legs (the same legs P-total and the total price): each
@@ -6856,7 +7037,7 @@ var CTL_SEL = 'button[aria-label],a[aria-label],[role="img"][aria-label],[data-l
 function labelOf(el) { var k = el.getAttribute('data-k'); return el.getAttribute('data-lbl') || el.getAttribute('aria-label') || (k && hasOwn(LEGEND, k) ? LEGEND[k][1] : ''); }
 /* PIA-137: a glyph is found by position, but only in the layer the finger is on: the sticky primary bar, the nav or a top
    row cover the board scrolling under them, so a press there never names a glyph underneath */
-function layerOf(el) { return el && el.closest ? el.closest('.split.prim, .nav, .toprow') : null; }
+function layerOf(el) { return el && el.closest ? el.closest('.split.prim, .nav, .toprow, #fam-board .hd, #fam-board .corner') : null; }   // PIA-142: + the board's sticky heads
 function glyphAt(scope, x, y) {
   var best = null, area = Infinity, hit = null;
   try { hit = document.elementFromPoint(x, y); } catch (e) { hit = null; }
@@ -6872,7 +7053,7 @@ function pressTarget(t, x, y) {
   if (!t || !t.closest || t.closest('input,textarea')) return null;
   var ctl = t.closest(CTL_SEL);
   // PIA-137: a mark on a face (⚠ 🎫 🏠 📞 📝, ×N) is named in place when the finger is on it; the face (its name) otherwise
-  var mk = t.closest('.av .bd [data-k], .av .bd[data-k], .av .cnt[data-k]');
+  var mk = t.closest('.av .bd [data-k], .av .bd[data-k], .av .cnt[data-k], .cell .ov [data-k], .cell .own[data-k], .rowh .hn[data-k]');   // PIA-142: a Family cell's marks, own day and 🏠n too
   if (mk && ctl && ctl.contains(mk) && hasOwn(LEGEND, mk.getAttribute('data-k'))) return mk;
   if (ctl && !ctl.classList.contains('card-open')) return ctl;
   var scope = t.closest('#screen') || t.closest('#sheet');   // a sheet's glyphs (◷, ⟦ ⟧, a stage disc, a locator) are named too
@@ -6880,7 +7061,12 @@ function pressTarget(t, x, y) {
 }
 function showLabel(el) {
   var b = $('#lbl'), r = el.getBoundingClientRect(), txt = labelOf(el); if (!txt) return;
-  b.textContent = txt; b.hidden = false; b.className = 'lbl-bubble';
+  // PIA-142: a Family column's head names its trip by its title (free under the word rule: data-free), then its days
+  var ttl = el.getAttribute && el.getAttribute('data-ttl');
+  b.className = 'lbl-bubble' + (ttl ? ' ttl' : '');
+  if (ttl) { b.textContent = ''; var f = document.createElement('span'); f.setAttribute('data-free', ''); f.textContent = ttl; b.appendChild(f); b.appendChild(document.createTextNode(' ' + txt)); }
+  else b.textContent = txt;
+  b.style.left = '0px'; b.hidden = false;   // (measured at the left edge, so a title wraps to the bubble's own width)
   var bw = b.offsetWidth, bh = b.offsetHeight, W = window.innerWidth, above = r.top - 10 - bh >= 8;
   var left = Math.max(8, Math.min(W - 8 - bw, r.left + r.width / 2 - bw / 2));
   b.classList.add(above ? 'side-t' : 'side-b');
@@ -6977,6 +7163,28 @@ var ACTS = {
     S.sel = el.dataset.id; uiSet({ sel: S.sel }); S.tab = 'map'; render(); window.scrollTo(0, 0);
   },
   shelf: function () { uiSet({ shelfOpen: !uiRead().shelfOpen }); render(true); },
+  /* PIA-142: the Family board. A cell opens that person on that trip (P-person, outside a trip view: my own answer row is
+     there too). On a trip this phone is nobody on yet, my own name's cell asks who I am first (P-face, that face outlined),
+     then opens my sheet, so the cell I tapped is the one I answer */
+  fcell: function (el) {
+    var id = el.dataset.id, code = el.dataset.code, m = modelOf(id); if (!m || !memberIn(m, code)) return;
+    var w = !m.me && !m.closed && !m.past ? whoFor(id) : null;
+    if (w && !w.me && w.pre === code) { openSheet('face', { id: id, hint: '', pre: code, then: 'person' }, { focus: 'pf-mark' }); return; }
+    ACTS.person(el);
+  },
+  /* a face: its row lights up across the trips (again: off) */
+  famrow: function (el) { var r = famBoard().rows[+el.dataset.v]; if (!r) return; S.famRow = S.famRow === r.key ? '' : r.key; render(true); },
+  fampage: function (el) {
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return; }
+    S.famPage = Math.max(0, (S.famPage || 0) + (+el.dataset.v || 0)); render(true);
+  },
+  /* 🗄: the past trips as columns (their hosting history) or not; switched on, the board shows the page with the first of them */
+  fampast: function () {
+    var on = !uiRead().famPast;
+    uiSet({ famPast: on ? 1 : undefined });
+    if (on) S.famPage = Math.floor(familyBoard(famModels(), { past: false }).cols.length / FAM_PER);
+    render(true);
+  },
   new: function (el) { openCreate({ start: el.dataset.date || '' }); },
   /* PIA-136: P-new-what → P-new-who → P-new-when */
   nscene: function (el) { var D = S.sheet.local.d, e = SCENES[+el.dataset.v]; if (!e) return; D.scene = e; D.scenePicked = true; renderSheet(false); },
@@ -7374,13 +7582,34 @@ var ACTS = {
   /* one tap on a face: this phone is that person on this trip (and my profile); an answer still waiting pulses */
   pickface: function (el) {
     var id = el.dataset.id, code = el.dataset.code, m = modelOf(id); if (!memberIn(m, code)) return;
+    // PIA-142: picked from P-face (asked from a board cell), or "🙋 It's me" on someone's sheet opened from the board: my own
+    // sheet takes its place; from a trip view's sheet, the sheet closes and the trip's answer row pulses for me
+    var sh0 = S.sheet && S.sheet.p && S.sheet.p.id === id ? S.sheet : null;
+    var then = !sh0 ? '' : sh0.type === 'face' ? sh0.p.then : sh0.type === 'person' && sh0.p.outside ? 'person' : '';
     confirmMe(id, code); MC = {};
     var now = modelOf(id), me = now && now.me;
     S.pulseAns = me && !now.closed && (me.status === 'waiting' || me.status === 'host-default') ? id : null;
     S.facePulse = id;
+    // PIA-142: asked from a Family board cell: the face just picked opens as my sheet in its place (the same history entry),
+    // with my answer row there (its In / Maybe / Out pulsing while it waits for me), and the board behind it shows me
+    if (then === 'person' && me) {
+      disarm();
+      S.sheet = { type: 'person', p: { id: id, code: me.code, outside: true }, local: {}, back: null, focus: null };
+      render(true); renderSheet(true);
+      S.pulseAns = null; S.facePulse = null;
+      return;
+    }
     closeSheet();
   },
   joinopen: function () { var L = S.sheet.local; L.join = !L.join; if (L.join) joinPrefill(S.sheet); renderSheet(false); if (L.join) focusId('join-name'); },
+  /* PIA-142: 🙋＋ on someone's sheet, on a phone that is nobody on the trip: P-face with its join row open (‹ back to the sheet);
+     a face picked there instead opens my own sheet in its place, as from a board cell */
+  pjoin: function (el) {
+    var id = el.dataset.id, m = modelOf(id); if (!m || m.closed || m.past) return;
+    var from = S.sheet && S.sheet.type === 'person' ? S.sheet : null;
+    openSheet('face', { id: id, hint: '', pre: '', then: from && from.p.outside ? 'person' : '' }, { back: !!from, local: { join: true } });
+    joinPrefill(S.sheet); renderSheet(false); focusId('join-name');
+  },
   /* 🙋＋ 📣: the join request (<app>?idea=<id>&add=<name>.<IATA>) to the share sheet; nothing is written to the trip. A
      code cut from a longer word (a city typed in the 3-letter field) is refused until it is a code; an unknown one goes. */
   joinshare: function (el) {
@@ -7402,7 +7631,8 @@ var ACTS = {
      nothing, unless it is mine and the organizer entered it: my own tap takes it over (📞 goes). Out on someone booked
      takes their 🎫 away (the Worker drops it), so it asks for a confirming tap. */
   answer: function (el) {
-    var id = el.dataset.id, v = el.dataset.v, m = modelOf(id); if (!m || m.closed || !hasOwn(IDEA_STATUSES, v)) return null;
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return null; }   // PIA-142: "Trip over", "Update trip first"
+    var id = el.dataset.id, v = el.dataset.v, m = modelOf(id); if (!m || m.closed || m.past || !hasOwn(IDEA_STATUSES, v)) return null;
     var code = el.dataset.code;
     if (!code) { ACTS.face({ dataset: { id: id } }); return null; }
     var x = memberIn(m, code), self = !!(m.me && m.me.code === code); if (!x) return null;
@@ -7500,7 +7730,7 @@ var ACTS = {
   /* 📣 one person: on the organizer's phone their own link (the guest link with #m=<code>); on anyone else's the group
      link, so a guest never hands out someone else's personal link */
   nudge: function (el) {
-    var m = modelOf(el.dataset.id); if (!m || m.closed) return;
+    var m = modelOf(el.dataset.id); if (!m || m.closed || m.past) return;
     var ho = handoffs(m, el.dataset.code, RT.hctx); if (!ho || !ho.nudge) return;
     var url = m.org ? ho.nudge : ho.share; if (!url) return;
     shareLink(url, function (how) { if (how !== 'link') toast('📣'); });
@@ -7778,7 +8008,8 @@ function pulseAnswer(id) {
 /* PIA-141: in P-cheapest nothing looks like a control that does nothing: a short tap on a labelled picture (a face chip, its ⚠, the
    week's readout, 🔍 26/30, the visit's dots) names it, as a long press does (explain: the same label, gone in a moment) */
 function picTap(t) {
-  var p = t && t.closest ? t.closest('#sheet[data-popup="P-cheapest"] [data-lbl], #sheet[data-popup="P-cheapest"] [data-k]') : null;
+  // PIA-142: on the Family board too: a column's n/N heads, a faint "Not invited" dot and the pager's dots
+  var p = t && t.closest ? t.closest('#sheet[data-popup="P-cheapest"] [data-lbl], #sheet[data-popup="P-cheapest"] [data-k], #fam-board .ft[data-lbl], #fam-board .cell.none[data-lbl], #screen .pager .pgdots[data-lbl]') : null;
   if (p) explain(p);
 }
 /* ↩ for a plan just cleared or replaced: the dates, 🌙 and 📌 as they were (never over a lock or a close made meanwhile) */
