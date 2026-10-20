@@ -367,7 +367,10 @@ function legPlan(O, A, H, d1, d2, n) {
   if (A === H) return { trip: 1, adults: n, legs: [{ date: d1, from: O, to: [A] }, { date: d2, from: [A], to: O }] };
   return { trip: 3, adults: n, legs: [{ date: d1, from: O, to: [A] }, { date: d2, from: [H], to: O }] };
 }
-function fareKey(type, from, to, d, r, n) { return [type, from.join(','), to.join(','), d, r || '', n].join('|'); }
+/* PIA-140: a fare key names one search: its airports are a set, sorted and de-duplicated (the Worker's cache order), so the
+   key v1 caches a search under and the key this model prices it by are the same search */
+function codeSet(a) { return uniq([].concat(a || [])).sort().join(','); }
+function fareKey(type, from, to, d, r, n) { return [type, codeSet(from), codeSet(to), d, r || '', n].join('|'); }
 function legKeys(S, A, H, d1, d2, n) {
   if (A === H) return [{ kind: 'rt', key: fareKey(1, S, [A], d1, d2, n) }];
   return [{ kind: 'in', key: fareKey(2, S, [A], d1, '', n) }, { kind: 'out', key: fareKey(2, [H], S, d2, '', n) }];
@@ -1840,6 +1843,272 @@ function typedPaid(s) {
   var v = Math.round(+t);
   return v >= 1 && v < 1e6 ? v : null;
 }
+
+/* ---- PIA-140: prices. One honest total from real fares, never spent without a tap ----
+   Pure rules; the app makes the calls (GET /search and /account on the Worker, with the organizer token) and keeps the
+   counters. These decide what a tap may search, what it costs, what is locked, and what a reply means.
+   • searchQuery: a fare key is exactly one Worker search, in v1's parameters (engine, airports, dates, type, USD, en): the
+     airports of a nearby search comma-joined and sorted (≤5, the Worker's own order), adults only above 1 (SerpAPI's default
+     is 1). So a one-adult search is byte for byte v1's, and both apps hit one Worker cache entry for it.
+   • fareFromSerp keeps what was paid for (pialax_fares_v2): the cheapest price that search found (p), when SerpAPI was
+     called (f: the Worker's X-Fetched-At, which a cache HIT keeps), Google's price level and typical range, the ≤3 cheapest
+     offers (airports, times, stops), and, for ▼ / ▲, the price an earlier fetch of the identical search found (prev, pf). A
+     search with no fares is none (not offered again within 24h).
+   • spendKeys / spendCount: what one tap may search (missing legs first, then stale ones, never a past day): ≤4 a tap, ≤8 a
+     session. tapKeys / spendable: the legs of one trip a tap may search at all (never a booked traveler's).
+   • spendLock: 'month' (an upstream 429 or a plan with nothing left: exceeded; the organizer's month cap; 990 used; the plan's
+     last 10 searches), 'day' (the Worker's per-day cap, until the next UTC day), 'session' (8 spent); monthWhy says which.
+   • v1's own stores, in v1's formats, so both apps on one phone agree: pialax_serpapi_quota {period, used, budget, exceeded}
+     (quotaRead, quotaBump, quotaExceeded, quotaFromAccount) and the one-adult fares v1 keeps in pialax_prices_v1 (v1FareKey,
+     fareFromV1 to read them, v1Fare to write one as v1's own fetch would). */
+var SPEND_PER_TAP = 4;           // = v1 TRIP_LEG_CALLS_PER_PRESS
+var SPEND_PER_SESSION = 8;       // = v1 MAX_CALLS_PER_SESSION (v1's MAX_CALLS_PER_REFRESH is retired: a tap is the refresh)
+var QUOTA_LOCK_AT = 990;         // = v1 QUOTA_LOCK_AT, the month's safety cutoff
+var QUOTA_BUDGET = 1000;         // = v1's month budget when none is stored
+var PLAN_LEFT_MIN = 10;          // the plan's searches left at or under this lock the month
+var FARE_OFFERS = 3;             // the cheapest offers a fare keeps
+var FARES_KEEP = 400;            // fares this phone keeps (the newest; none for a day already past)
+var FARE_LEVELS = { low: 1, typical: 2, high: 3 };
+var SERP_TIME_RE = /^(\d{4}-\d{2}-\d{2}) (\d{1,2}):(\d{2})$/;
+/* a fare key → {type, from, to, d, r, n}, or null when it is not a search the Worker takes */
+function parseFareKey(key) {
+  var p = typeof key === 'string' ? key.split('|') : [];
+  if (p.length !== 6) return null;
+  var type = +p[0], from = p[1].split(','), to = p[2].split(','), n = +p[5];
+  var codes = function (a) { return a.length >= 1 && a.length <= 5 && a.every(isIata); };
+  if ((type !== 1 && type !== 2) || !codes(from) || !codes(to) || !isIso(p[3]) || !(n >= 1 && n <= 9 && n === Math.round(n))) return null;
+  if (type === 1 ? !(isIso(p[4]) && p[4] >= p[3]) : p[4] !== '') return null;
+  return { type: type, from: from, to: to, d: p[3], r: p[4], n: n };
+}
+/* the Worker /search query for one fare key ('' for none): v1's parameters, the strict allowlist's shapes */
+function searchQuery(key) {
+  var k = parseFareKey(key); if (!k) return '';
+  return 'engine=google_flights&departure_id=' + codeSet(k.from) + '&arrival_id=' + codeSet(k.to) + '&outbound_date=' + k.d + (k.type === 1 ? '&return_date=' + k.r : '') +
+    '&type=' + k.type + '&currency=USD&hl=en' + (k.n > 1 ? '&adults=' + k.n : '');
+}
+function serpTime(v) { var m = typeof v === 'string' ? SERP_TIME_RE.exec(v.trim()) : null; return m && +m[2] < 24 ? m[1] + ' ' + ('0' + m[2]).slice(-2) + ':' + m[3] : ''; }
+function serpList(v) { return Array.isArray(v) ? v : []; }
+/* one SerpAPI offer as a fare keeps it: price, first departure and last arrival airport and time, stops */
+function serpOffer(o) {
+  var segs = serpList(o.flights), a = segs[0] || {}, z = segs[segs.length - 1] || {}, da = a.departure_airport || {}, za = z.arrival_airport || {};
+  return { p: Math.round(o.price), d: normIata(da.id), a: normIata(za.id), dt: serpTime(da.time), ar: serpTime(za.time), s: segs.length ? segs.length - 1 : null };
+}
+function typRange(t) { var r = Array.isArray(t) ? t.map(Number) : []; return r.length === 2 && r[0] > 0 && r[1] >= r[0] ? [Math.round(r[0]), Math.round(r[1])] : null; }
+/* ▼ / ▲ compare two real fetches of the identical search: a fetch newer than the one kept takes the kept price as prev; a
+   cache HIT of the very fetch already kept keeps the prev it had */
+function withPrev(e, old) {
+  var at = old ? fareAt(old) : NaN;
+  if (old && typeof old.p === 'number' && !old.none && at < e.f) { e.prev = old.p; e.pf = at; }
+  else if (old && at === e.f && typeof old.prev === 'number') { e.prev = old.prev; e.pf = old.pf; }
+  return e;
+}
+/* a SerpAPI google_flights reply → the pialax_fares_v2 entry (at = when SerpAPI was called, ms; old = the entry kept) */
+function fareFromSerp(json, at, old) {
+  var j = json && typeof json === 'object' ? json : {};
+  var all = serpList(j.best_flights).concat(serpList(j.other_flights)).filter(function (o) { return o && typeof o.price === 'number' && isFinite(o.price) && o.price > 0; }).map(serpOffer);
+  all.sort(function (x, y) { return x.p - y.p; });
+  var off = all.slice(0, FARE_OFFERS), pi = j.price_insights && typeof j.price_insights === 'object' ? j.price_insights : {};
+  return withPrev({ p: off.length ? off[0].p : null, f: at, none: !off.length, lvl: hasOwn(FARE_LEVELS, pi.price_level) ? pi.price_level : '', typ: typRange(pi.typical_price_range), off: off }, old);
+}
+/* what a priced leg can say from data already paid for: its age, Google's level (1–3), stops, the airport that won when it is
+   not their own (an inbound or round trip: where the cheapest offer leaves from; the way home: where it lands), only ever one of
+   the airports that leg searched (set: their origin set), and the change */
+function fareFacts(f, kind, origin, now, set) {
+  var p = legTotal(f);   // the one rule that turns a cached fare into a price (priceRows'), so a leg shows what the total adds
+  if (p == null) return null;
+  var o = Array.isArray(f.off) && f.off[0] ? f.off[0] : null, at = fareAt(f), win = o ? (kind === 'out' ? o.a : o.d) : '';
+  var ok = isIata(win) && win !== origin && (!set || set.indexOf(win) >= 0);
+  return { p: p, age: isFinite(at) ? Math.max(0, now - at) : null, lvl: hasOwn(FARE_LEVELS, f.lvl) ? FARE_LEVELS[f.lvl] : 0, typ: f.typ || null,
+    stops: o && typeof o.s === 'number' ? o.s : null, win: ok ? win : '', delta: prevDelta(f) };
+}
+/* ▼ / ▲ of one fare: its price against the price an earlier real fetch of the identical search found, by the same rule (legTotal) */
+function prevDelta(f) { var p = legTotal(f); return p != null && typeof f.prev === 'number' ? p - legTotal({ p: f.prev }) : null; }
+/* the total's ▼ / ▲: only when every priced leg in it has an earlier real price for its identical search */
+function priceDelta(pr) {
+  if (!pr || !pr.per) return null;
+  var d = 0, n = 0, ok = true;
+  Object.keys(pr.per).forEach(function (c) { pr.per[c].legs.forEach(function (l) { if (l.p == null) return; n++; var x = l.f ? prevDelta(l.f) : null; if (x != null) d += x; else ok = false; }); });
+  return ok && n ? d : null;
+}
+/* the legs one tap may search: missing or stale (a no-fares answer younger than 24h is not offered again), each once, never
+   one for a day already past, never one the Worker would refuse; the never-searched first, then the day-old (in the order
+   given), so a tap the caps cut short prices a $— leg before it refreshes a grey one */
+function spendKeys(keys, fares, now, today) {
+  var miss = [], old = [];
+  (keys || []).forEach(function (k) {
+    var key = typeof k === 'string' ? k : (k && k.key), q = parseFareKey(key), f = q && fares && hasOwn(fares, key) ? fares[key] : null, st = fareState(f, now);
+    if (!q || q.d < today || miss.indexOf(key) >= 0 || old.indexOf(key) >= 0 || (st !== 'missing' && st !== 'stale')) return;
+    (st === 'missing' ? miss : old).push(key);
+  });
+  return miss.concat(old);
+}
+/* the legs P-total's one tap prices: every traveler's missing or day-old legs on the trip's current dates (priceTrip's), but
+   never a booked traveler's (their flight is bought: v1's Get Live Fares skips them too), each once */
+function tapKeys(model) {
+  var p = model && model.price, out = [];
+  if (!p) return out;
+  model.travelers.forEach(function (x) {
+    if (x.booked || !p.per[x.code]) return;
+    p.per[x.code].legs.forEach(function (l) { if ((l.st === 'missing' || l.st === 'stale') && out.indexOf(l.key) < 0) out.push(l.key); });
+  });
+  return out;
+}
+/* every search a tap on this trip may make (the app's spend path searches nothing else): P-total's legs (tapKeys) and each
+   unbooked traveler's ends ±1 day (endPrices' need) */
+function spendable(model, fares, now, today) {
+  var out = tapKeys(model);
+  if (!model || !model.price) return out;
+  model.travelers.forEach(function (x) {
+    [0, 1].forEach(function (end) { var ep = endPrices(model, x.code, end, fares, now, today); (ep ? ep.need : []).forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); }); });
+  });
+  return out;
+}
+/* how many searches one tap makes (its cost, shown before it is tapped): ≤4, and never past the session's 8 */
+function spendCount(n, spent) { return Math.max(0, Math.min(n || 0, SPEND_PER_TAP, SPEND_PER_SESSION - (spent || 0))); }
+/* why the month is locked, for its label ('' when it is not): 'refused' (SerpAPI refused a search, or /account says the plan
+   has nothing left: exceeded), 'plan' (the plan's last 10), 'cap' (the organizer's own month cap: raising it lifts it),
+   'safety' (990, v1's cutoff). o as spendLock's. */
+function monthWhy(o) {
+  o = o || {};
+  var q = o.quota || {}, a = o.acct && typeof o.acct === 'object' ? o.acct : null, used = +q.used || 0, budget = +q.budget > 0 ? +q.budget : QUOTA_BUDGET;
+  var num = function (k) { return a && typeof a[k] === 'number' ? a[k] : null; }, pl = num('plan_searches_left'), tl = num('total_searches_left');
+  if (q.exceeded) return 'refused';
+  if ((pl !== null && pl <= PLAN_LEFT_MIN) || (tl !== null && tl <= 0)) return 'plan';
+  if (used >= budget) return 'cap';
+  if (used >= QUOTA_LOCK_AT) return 'safety';
+  return '';
+}
+/* what stops every spend: o = {quota, dayCap (pialax_daily_cap_v1), utcDay, acct (the last /account), acctDay, spent} */
+function spendLock(o) {
+  o = o || {};
+  var q = o.quota || {}, a = o.acct && typeof o.acct === 'object' ? o.acct : null, used = +q.used || 0, budget = +q.budget > 0 ? +q.budget : QUOTA_BUDGET;
+  var num = function (k) { return a && typeof a[k] === 'number' ? a[k] : null; }, pl = num('plan_searches_left'), tl = num('total_searches_left');
+  if (q.exceeded || used >= budget || used >= QUOTA_LOCK_AT || (pl !== null && pl <= PLAN_LEFT_MIN) || (tl !== null && tl <= 0)) return 'month';
+  var sp = a && a.spend && a.spend.serp;
+  if ((o.dayCap && o.dayCap === o.utcDay) || (sp && o.acctDay === o.utcDay && typeof sp.used === 'number' && typeof sp.cap === 'number' && sp.used >= sp.cap)) return 'day';
+  if ((o.spent || 0) >= SPEND_PER_SESSION) return 'session';
+  return '';
+}
+/* pialax_serpapi_quota as v1's readQuota reads it (raw: the parsed value, period: this local 'YYYY-MM'): nothing stored is a
+   fresh month (not written); v1's chained budget migration (100 → 250 → 1000) and a new month are written back */
+function quotaRead(raw, period) {
+  var fresh = function (b) { return { period: period, used: 0, budget: b, exceeded: false }; };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { q: fresh(QUOTA_BUDGET), write: false };
+  var q = { period: raw.period, used: +raw.used >= 0 ? +raw.used : 0, budget: +raw.budget > 0 ? +raw.budget : QUOTA_BUDGET, exceeded: !!raw.exceeded }, write = false;
+  if (q.budget === 100) { q.budget = 250; write = true; }
+  if (q.budget === 250) { q.budget = 1000; write = true; }
+  if (write && q.used < q.budget) q.exceeded = false;
+  if (q.period !== period) { q = fresh(q.budget); write = true; }
+  return { q: q, write: write };
+}
+function quotaBump(q, n) { return { period: q.period, used: (+q.used || 0) + (n || 0), budget: q.budget, exceeded: !!q.exceeded }; }   // = v1 bumpQuota
+function quotaExceeded(q) { return { period: q.period, used: Math.max(+q.used || 0, +q.budget || 0), budget: q.budget, exceeded: true }; }   // = v1 markQuotaExceeded
+/* /account → the quota, as v1's syncSerpApiAccount reads it: SerpAPI's own count of this month (or the plan less what is left),
+   and exceeded from whether the plan has any search left, so a plan with nothing left locks the month and one with searches
+   left again lifts the lock a refusal set (a SerpAPI 429 can be a passing hourly limit). hold: a refusal just now (the app
+   holds it ACCT_MS) is not lifted yet. The organizer's month cap (budget) is never overwritten (unlike v1's sync). */
+function quotaFromAccount(q, a, hold) {
+  var out = { period: q.period, used: q.used, budget: q.budget, exceeded: !!q.exceeded };
+  if (!a || typeof a !== 'object') return out;
+  var left = typeof a.total_searches_left === 'number' ? a.total_searches_left : null, per = typeof a.searches_per_month === 'number' ? a.searches_per_month : null;
+  if (typeof a.this_month_usage === 'number' && a.this_month_usage >= 0) out.used = a.this_month_usage;
+  else if (left !== null && per !== null && per >= left) out.used = per - left;
+  if (left !== null && left <= 0) out.exceeded = true;
+  else if (left !== null && !hold) out.exceeded = false;
+  return out;
+}
+/* the key v1 caches this search under ('from|to|dep|ret', v1 _cacheKey), or '' (v1 never searches for more than one adult) */
+function v1FareKey(key) { var k = parseFareKey(key); return k && k.n === 1 ? [codeSet(k.from), codeSet(k.to), k.d, k.type === 1 ? k.r : ''].join('|') : ''; }
+/* a v1 key → the fare key of the same one-adult search, or '' */
+function fareKeyOfV1(k1) {
+  var p = typeof k1 === 'string' ? k1.split('|') : [];
+  if (p.length !== 4) return '';
+  var key = fareKey(p[3] ? 1 : 2, p[0].split(','), p[1].split(','), p[2], p[3], 1);
+  return parseFareKey(key) ? key : '';
+}
+/* a fare v1 fetched (pialax_prices_v1 {data, ts}) → the same fare as v2 keeps it (its cheapest offer; ts = when SerpAPI was
+   called), or null: a sample, a booked stand-in or anything v1 did not fetch live is never a price */
+function fareFromV1(e, old) {
+  var d = e && e.data;
+  if (!d || typeof d !== 'object' || d.live !== true || d.locked || typeof e.ts !== 'number' || !isFinite(e.ts)) return null;
+  var off = serpList(d.offers).filter(function (o) { return o && typeof o.price === 'number' && isFinite(o.price) && o.price > 0; }).map(function (o) {
+    return { p: Math.round(o.price), d: normIata(o.depAirport), a: normIata(o.arrAirport), dt: serpTime(o.depTime), ar: serpTime(o.arrTime), s: typeof o.stops === 'number' ? o.stops : null };
+  });
+  off.sort(function (x, y) { return x.p - y.p; });
+  var head = typeof d.rt === 'number' && d.rt > 0 ? d.rt : typeof d.ow === 'number' && d.ow > 0 ? d.ow : null;
+  if (!off.length && head === null) return null;
+  var ins = d.insights && typeof d.insights === 'object' ? d.insights : {};
+  return withPrev({ p: off.length ? off[0].p : Math.round(head), f: e.ts, none: false, lvl: hasOwn(FARE_LEVELS, ins.level) ? ins.level : '', typ: typRange(ins.typical), off: off.slice(0, FARE_OFFERS) }, old);
+}
+/* a SerpAPI reply as v1's own fetchFlights would cache it ({data, ts}: v1's tripFareParse, verbatim in what it keeps), so v1
+   on this phone reads the fare this app paid for; null when the search found no fares (v1 caches nothing then) */
+function v1Fare(json, at, hit, rt) {
+  var j = json && typeof json === 'object' ? json : {};
+  var top = serpList(j.best_flights), more = serpList(j.other_flights), best = top[0] || more[0] || null;
+  if (!best || typeof best.price !== 'number') return null;
+  var offer = function (o) {
+    var segs = serpList(o.flights), a = segs[0] || {}, z = segs[segs.length - 1] || {}, da = a.departure_airport || {}, za = z.arrival_airport || {};
+    return { price: o.price, airline: a.airline || null, flightNos: segs.map(function (s) { return s && s.flight_number; }).filter(Boolean).slice(0, 4),
+      depAirport: da.id || '', arrAirport: za.id || '', depTime: da.time || '', arrTime: za.time || '', stops: segs.length > 1 ? segs.length - 1 : 0, durMin: Number(o.total_duration) || null };
+  };
+  var all = top.concat(more).filter(function (o) { return o && typeof o.price === 'number' && o.price > 0; }).map(offer);
+  var offers = all.slice(0, 1).concat(all.slice(1).sort(function (x, y) { return x.price - y.price; })).slice(0, 6);
+  var byDep = {}, byArr = {};
+  all.forEach(function (o) {
+    if (o.depAirport && !(byDep[o.depAirport] <= o.price)) byDep[o.depAirport] = o.price;
+    if (o.arrAirport && !(byArr[o.arrAirport] <= o.price)) byArr[o.arrAirport] = o.price;
+  });
+  var segs = serpList(best.flights), first = segs[0] || {}, back = serpList(best.return_flights), bf = back[0] || {};
+  var pi = j.price_insights && typeof j.price_insights === 'object' ? j.price_insights : null, insights = null;
+  if (pi) {
+    var tr = Array.isArray(pi.typical_price_range) ? pi.typical_price_range.map(Number) : [];
+    var hist = serpList(pi.price_history).filter(function (p) { return Array.isArray(p) && Number(p[0]) > 0 && Number(p[1]) > 0; })
+      .map(function (p) { var t = Number(p[0]); return [t < 1e12 ? t * 1000 : t, Number(p[1])]; }).slice(-30);
+    insights = { level: typeof pi.price_level === 'string' ? pi.price_level : '', low: Number(pi.lowest_price) || null, typical: tr.length === 2 && tr[0] > 0 && tr[1] >= tr[0] ? tr : null, hist: hist };
+  }
+  // Google's own results link, as v1 checks it (it becomes an href there): https://www.google.com/travel/flights?… only
+  var gf = j.search_metadata && typeof j.search_metadata.google_flights_url === 'string' ? j.search_metadata.google_flights_url : '';
+  try { var gu = typeof URL === 'function' && gf ? new URL(gf) : null; gf = gu && gu.protocol === 'https:' && gu.hostname === 'www.google.com' && gu.pathname === '/travel/flights' ? gu.href : ''; } catch (e) { gf = ''; }
+  if (gf.indexOf('https://www.google.com/travel/flights?') !== 0 || /[\s<>\x22\x27\x60\x5c]/.test(gf)) gf = '';
+  var data = { ow: rt ? null : best.price, rt: rt ? best.price : null, live: true, airline: first.airline || null, flightNo: first.flight_number || null,
+    airlineLogo: first.airline_logo || best.airline_logo || null, stops: segs.length > 1 ? segs.length - 1 : 0, returnAirline: bf.airline || null,
+    returnFlightNo: bf.flight_number || null, returnAirlineLogo: bf.airline_logo || null, returnStops: back.length > 1 ? back.length - 1 : 0,
+    offers: offers, insights: insights, gfUrl: gf, byDep: byDep, byArr: byArr, lastVerified: new Date(at).toISOString() };
+  if (hit) { data.cached = true; data.edgeHit = true; }
+  return { data: data, ts: at };
+}
+/* the fare cache with one entry put in (never an older fetch over a newer one), fares for days already past dropped, and the
+   newest FARES_KEEP kept */
+function faresPut(fares, key, e, today) {
+  var out = {};
+  Object.keys(fares || {}).forEach(function (k) { var q = parseFareKey(k), f = fares[k]; if (q && q.d >= today && f && typeof f === 'object') out[k] = f; });
+  var old = hasOwn(out, key) ? out[key] : null;
+  if (parseFareKey(key) && e && !(old && fareAt(old) > e.f)) out[key] = e;
+  var ks = Object.keys(out);
+  if (ks.length > FARES_KEEP) { ks.sort(function (a, b) { return fareAt(out[b]) - fareAt(out[a]); }); ks.slice(FARES_KEEP).forEach(function (k) { delete out[k]; }); }
+  return out;
+}
+/* one traveler's end (0 the day they land, 1 the day they leave) priced ±1 day, by the one pricing rule (priceRows): the day
+   before, their day and the day after, each the leg that end changes (a round trip is one search; open-jaw, that end's one-way),
+   ★ on the cheapest once two are priced; need = the ±1 legs still to search (its 🔍 cost; none for a booked traveler). null
+   when that end cannot move. */
+function endPrices(model, code, end, fares, now, today) {
+  var x = model && model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x || !x.traveler || x.why || !x.keys.length || !x.d1 || x.bad) return null;
+  var rows = [], need = [];
+  [-1, 0, 1].forEach(function (k) {
+    var d1 = end ? x.d1 : addD(x.d1, k), d2 = end ? addD(x.d2, k) : x.d2;
+    if (k && legWhy(model.dest, x.O, d1, d2, today, x.origin)) return;
+    var ks = legKeys(x.from, x.A, x.H, d1, d2, x.headcount), lk = ks.length === 1 ? ks[0] : ks[end ? 1 : 0];
+    var l = priceRows([{ code: x.code, color: x.color, keys: [lk], why: '' }], fares, now).per[x.code].legs[0];
+    rows.push({ k: k, day: end ? d2 : d1, key: lk.key, kind: lk.kind, st: l.st, p: l.p, f: l.f });
+    if (k && !x.booked && (l.st === 'missing' || l.st === 'stale')) need.push(lk.key);   // a booked traveler's days are shown, never searched
+  });
+  // ★ the cheapest, once two days are priced and one is cheaper than another (equal prices have no cheapest)
+  var priced = rows.filter(function (r) { return r.p != null; }), ps = priced.map(function (r) { return r.p; });
+  if (priced.length >= 2 && Math.min.apply(null, ps) < Math.max.apply(null, ps)) { var min = Math.min.apply(null, ps); priced.forEach(function (r) { if (r.p === min) r.star = true; }); }
+  return rows.length > 1 ? { end: end, rows: rows, need: need } : null;
+}
 /* === pialax trip-model: end === */
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -1874,6 +2143,12 @@ if (typeof module !== 'undefined' && module.exports) {
     SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
     windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, datesRole: datesRole, datesHeld: datesHeld,
     bookSlot: bookSlot, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
-    timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime
+    timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime,
+    SPEND_PER_TAP: SPEND_PER_TAP, SPEND_PER_SESSION: SPEND_PER_SESSION, QUOTA_LOCK_AT: QUOTA_LOCK_AT, QUOTA_BUDGET: QUOTA_BUDGET, PLAN_LEFT_MIN: PLAN_LEFT_MIN,
+    FARE_OFFERS: FARE_OFFERS, FARES_KEEP: FARES_KEEP, codeSet: codeSet, parseFareKey: parseFareKey, searchQuery: searchQuery, serpTime: serpTime,
+    fareFromSerp: fareFromSerp, fareFacts: fareFacts, prevDelta: prevDelta, priceDelta: priceDelta, spendKeys: spendKeys, spendCount: spendCount, spendLock: spendLock,
+    tapKeys: tapKeys, spendable: spendable, monthWhy: monthWhy,
+    quotaRead: quotaRead, quotaBump: quotaBump, quotaExceeded: quotaExceeded, quotaFromAccount: quotaFromAccount,
+    v1FareKey: v1FareKey, fareKeyOfV1: fareKeyOfV1, fareFromV1: fareFromV1, v1Fare: v1Fare, faresPut: faresPut, endPrices: endPrices
   };
 }

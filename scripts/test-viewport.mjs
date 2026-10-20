@@ -1145,21 +1145,51 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
   const BKM = 'bkViewportBookedMine02', BKP = 'bkViewportBookedPaid03';
   docs[BKM] = Object.assign(JSON.parse(JSON.stringify(docs[BKV])), { id: BKM });
   docs[BKP] = (() => { const d = JSON.parse(JSON.stringify(docs[BKV])); d.id = BKP; d.decision.stage = 'booked'; d.decision.actual_total = 1490; d.decision.booked_at = '2026-10-17T00:00:00.000Z'; return d; })();
+  // PIA-140 fix pass: the Diwali family a week later in Peoria, Mom & Dad flying in from SEA, Ashwin and Anjo open-jaw (into PIA, home
+  // from ORD), so the board's price column holds a 5-digit sum ($10,987), a 5-digit partial one ($10,987+) and a 4-digit one ($1,387+)
+  const DWJ = 'dwViewportOpenJawSum05';
+  docs[DWJ] = (() => {
+    const d = JSON.parse(JSON.stringify(docs.dwDiwaliRaleigh2026a01)); d.id = DWJ; d.idea.dates.departure = '2026-11-13'; d.idea.dates.return = '2026-11-16';
+    d.idea.destination = { city: 'Peoria', airport: 'PIA' };
+    d.idea.members.find((x) => x.code === 'momdad-k3').airport = 'SEA';
+    d.responses['momdad-k3'] = Object.assign({}, d.responses['momdad-k3'], { origin: 'SEA' });
+    d.responses['ashwin-p8'] = Object.assign({}, d.responses['ashwin-p8'], { arrive_at: 'PIA', leave_from: 'ORD' });
+    d.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '', available_to: '', note: '', arrive_at: 'PIA', leave_from: 'ORD', updated_at: '2026-10-12T00:00:00.000Z' };
+    return d;
+  })();
   const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
+  // PIA-140: the phone has v1's multi-airport flag (the Worker's /account says features.multi_airport), so the keys are the nearby sets
   const NOWMS = Date.parse('2026-10-17T19:00:00Z'), fares = {};
-  TM.tripModel(docs[DW], { today: '2026-10-17', now: NOWMS, me: 'ashwin-p8', hasEditKey: true, hasToken: true }).travelers.forEach((x, i) => x.keys.forEach((k) => { fares[k.key] = { p: 1234 + 1000 * i, f: NOWMS - 36e5 }; }));
+  TM.tripModel(docs[DW], { today: '2026-10-17', now: NOWMS, me: 'ashwin-p8', hasEditKey: true, hasToken: true, multiAirport: true }).travelers.forEach((x, i) => x.keys.forEach((k) => { fares[k.key] = { p: 1234 + 1000 * i, f: NOWMS - 36e5 }; }));
+  {
+    const mj = TM.tripModel(docs[DWJ], { today: '2026-10-17', now: NOWMS, me: 'ashwin-p8', hasEditKey: true, hasToken: true, multiAirport: true }), tj = (c) => mj.travelers.find((x) => x.code === c);
+    fares[tj('momdad-k3').keys[0].key] = { p: 10987, f: NOWMS - 36e5 };   // a round trip: $10,987
+    fares[tj('anjo-z5').keys[0].key] = { p: 10987, f: NOWMS - 36e5 };     // her way in only: $10,987+
+    fares[tj('ashwin-p8').keys[0].key] = { p: 1387, f: NOWMS - 36e5 };    // his way in only: $1,387+
+  }
+  // PIA-140: the Worker's /search and /account, stubbed over the repo's SerpAPI fixture: the cheapest offer departs from the last
+  // code of the searched set (so a nearby airport can win); nothing leaves the machine
+  const SERP = fx('serp-flights.json');
+  const serpFor = (u) => {
+    const j = JSON.parse(JSON.stringify(SERP)), dep = String(u.searchParams.get('departure_id') || 'LAX').split(','), arr = String(u.searchParams.get('arrival_id') || 'PIA').split(',');
+    const all = j.best_flights.concat(j.other_flights), seed = (u.searchParams.get('outbound_date') || '').split('-').reduce((a, b) => a + +b, 0) % 40;
+    all.forEach((o, i) => { o.flights[0].departure_airport.id = i === 1 ? dep[dep.length - 1] : dep[0]; o.flights[o.flights.length - 1].arrival_airport.id = arr[0]; o.price += seed; });
+    j.price_insights.lowest_price += seed;
+    return j;
+  };
+  const ACCT = { this_month_usage: 41, searches_per_month: 1000, total_searches_left: 959, spend: { serp: { used: 4, cap: 30 }, exact: true }, features: { multi_airport: true } };
   const seed = {
     pialax_fares_v2: JSON.stringify(fares),
     pialax_watchlist_v2: JSON.stringify(ids.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))),
     // PIA-136: this phone also organizes the 8-member trip (a join request on a full trip opens its people editor at ⚠ 9/8)
     pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [CYV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [BKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
-      [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy)
+      [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
-      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf' }),
-    pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 })
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8' }),
+    pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 }), pialax_multi_airport_v1: '1'
   };
   const LAYOUT = () => {
     const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !el.closest('[hidden]') && getComputedStyle(el).visibility !== 'hidden'; };
@@ -1207,12 +1237,20 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
       const label = `app.html @ ${vp.name} ${scheme}`;
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
       await ctx.route(/^https?:\/\//, (r) => r.abort());
+      const net = { search: 0, account: 0 };
       await ctx.route(W + '/**', (route) => {
-        const q = route.request(), id = new URL(q.url()).searchParams.get('id');
-        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
+        const q = route.request(), u = new URL(q.url()), id = u.searchParams.get('id');
+        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key, X-Pialax-Token', 'access-control-expose-headers': 'X-Proxy-Cache, X-Fetched-At', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+        // PIA-140: the paid routes answer only the organizer token
+        if (u.pathname === '/search' || u.pathname === '/account') {
+          if (q.headers()['x-pialax-token'] !== seed.pialax_proxy_token) return route.fulfill({ status: 401, headers: cors, body: '{"code":"no_token"}' });
+          if (u.pathname === '/account') { net.account++; return route.fulfill({ status: 200, headers: cors, body: JSON.stringify(ACCT) }); }
+          net.search++;
+          return route.fulfill({ status: 200, headers: Object.assign({ 'x-proxy-cache': 'MISS', 'x-fetched-at': '2026-10-17T19:00:00.000Z' }, cors), body: JSON.stringify(serpFor(u)) });
+        }
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -1383,9 +1421,87 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await page.click('#sheet [data-act="edrop"]'); await page.waitForTimeout(100); await measure('P-drop');
         await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
         await page.click('#screen [data-act="back"]'); await page.waitForTimeout(100);
-        await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(100); await measure('⚙');
+        // PIA-140: prices. P-total from a card's total (cached fares, nothing to search); the 8-member trip's total block and its
+        // P-total with every leg $— and 🔍4; one tap searches (4, through the stub) and every leg carries its facts (age ◷, level,
+        // stops, the nearby airport that won); a traveler's sheet with its fare row and ±1 day chips (🔍 for the days next to it);
+        // then the Worker's day cap: ⛔ with the local time it lifts, in P-total, P-person and ⚙
+        const settle = async (n) => { for (let i = 0; i < 60 && (net.search < n || await page.$('#sheet [data-act="search"].busy')); i++) await page.waitForTimeout(50); await page.waitForTimeout(120); };
+        await tapJs('#screen .card [data-act="total"][data-id="' + DW + '"]'); await measure('P-total (cached fares, from a card)');
+        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-total') fails.push('a card\'s total should open P-total');
+        if (net.search) fails.push('opening P-total searched ' + net.search + ' times; nothing searches until 🔍 is tapped');
+        await tapJs('#sheet [data-act="sh-close"]');
+        await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the 8-member trip with its total block ($—)');
+        await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (8 long names, all $—, 🔍4)');
+        const s4 = await page.$eval('#sheet [data-act="search"][data-v="total"]', (e) => e.textContent.replace(/\s+/g, '')).catch(() => null);
+        if (s4 !== '🔍4/5' || net.search) fails.push('P-total on the 8-member trip should offer 🔍4/5 before any search, got ' + JSON.stringify(s4) + ' after ' + net.search);
+        // PIA-140 fix pass: P-total draws a leg as P-person does: a never-searched $— is dashed (the sheet's own rules, not a row's)
+        const hollowCss = await page.$eval('#sheet .trows .lgp.hollow', (e) => getComputedStyle(e).borderTopStyle).catch(() => null);
+        if (hollowCss !== 'dashed') fails.push('P-total\'s $— should be dashed (as in P-person), got ' + JSON.stringify(hollowCss));
+        await tapJs('#sheet [data-act="skey"]'); await measure('P-total › its ⓘ (all $—)');
+        await tapJs('#sheet [data-act="sh-back"]');
+        await tapJs('#sheet [data-act="search"][data-v="total"]'); await settle(4);
+        await measure('P-total (4 searched: ◷ ages, levels, stops; 🔍1 left)');
+        if (net.search !== 4) fails.push('one 🔍4 tap should make 4 searches, made ' + net.search);
+        // the fifth leg (Oluwaseun's NY set, the one nearby search on this trip) is the next tap: its winner is another NY airport
+        const s1 = await page.$eval('#sheet [data-act="search"][data-v="total"]', (e) => e.textContent.replace(/\s+/g, '')).catch(() => null);
+        if (s1 !== '🔍1') fails.push('after 4 of 5 legs P-total should offer 🔍1, got ' + JSON.stringify(s1));
+        await tapJs('#sheet [data-act="search"][data-v="total"]'); await settle(5);
+        await measure('P-total (all searched: ◷ ages, levels, stops, a nearby winner)');
+        if (net.search !== 5) fails.push('the 🔍1 tap should make 1 search, 5 in all, made ' + net.search);
+        if (!(await page.$('#sheet .trows .lgp .lc')) || !(await page.$('#sheet .trows .lgp .lvl')) || !(await page.$('#sheet .trows .lgp .stopl'))) fails.push('searched legs should carry the winning airport, the price level and the stops');
+        // the level gauge sits on its baseline with 1px between bars in P-total too (the row's own span rules never reach a leg's parts)
+        const gauge = await page.$eval('#sheet .trows .lgp .lvl', (e) => { const cs = getComputedStyle(e); return cs.alignItems + ' ' + cs.columnGap; }).catch(() => null);
+        if (gauge !== 'flex-end 1px') fails.push('P-total\'s level gauge should be bottom-aligned with 1px gaps (as in P-person), got ' + JSON.stringify(gauge));
+        await tapJs('#sheet [data-act="skey"]'); await measure('P-total › its ⓘ (ages, levels, stops)');
+        await tapJs('#sheet [data-act="sh-back"]');
+        await tapJs('#sheet .trow [data-act="person"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await measure('P-person (fare row, ±1 day chips, 🔍)');
+        if ((await page.$$('#sheet .dayp .dch')).length < 3 || !(await page.$('#sheet .frow .lgp'))) fails.push('a priced traveler\'s sheet should have the fare row and a row of day chips per end');
+        const sq = await page.$('#sheet .dayp [data-act="search"]:not([aria-disabled])');
+        if (sq) { const n0 = net.search; await sq.click(); await settle(n0 + 1); await measure('P-person (the days next to it searched, ★)'); }
+        if (await page.$('#sheet [data-act="skey"]')) { await tapJs('#sheet [data-act="skey"]'); await measure('P-person › its ⓘ (a fare\'s parts, ★)'); await tapJs('#sheet [data-act="sh-back"]'); }
+        else fails.push('a priced traveler\'s sheet should carry ⓘ');
+        // the day cap, with one leg forgotten on this phone so P-total has a spend control to lock
+        await page.evaluate((k) => { localStorage.setItem('pialax_daily_cap_v1', '2026-10-17'); const f = JSON.parse(localStorage.getItem('pialax_fares_v2') || '{}'); delete f[k]; localStorage.setItem('pialax_fares_v2', JSON.stringify(f)); },
+          TM.tripModel(docs[M8], { today: '2026-10-17', now: NOWMS, me: 'grandmajosephine-nf', hasEditKey: true, hasToken: true, multiAirport: true }).travelers.find((x) => x.code === 'samlee-sb').keys[0].key);
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (⛔ the Worker\'s day cap)');
+        const lockTxt = await page.$eval('#sheet [data-act="search"][data-k="cap"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => null);
+        if (lockTxt !== '⛔ 17:00') fails.push('the day cap should show ⛔ with the local reset time (17:00 in Los Angeles), got ' + JSON.stringify(lockTxt));
+        await tapJs('#sheet .trow [data-act="person"][data-code="anastasiakonstantinopoulou-x1"]'); await measure('P-person (⛔ beside the day chips)');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(100); await measure('⚙ (🔍 today, this visit, the month cap, ⛔)');
+        if (!(await page.$('#sheet #org-cap')) || !(await page.$('#sheet .budget .bud')) || !(await page.$('#sheet .capt'))) fails.push('⚙ on the organizer\'s phone should show the searches left today, the month cap and ⛔');
         await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); });
         await page.click('#sheet [data-act="devlink"]'); await page.waitForTimeout(150); await measure('P-link');
+        // PIA-140 fix pass: the visit's 8 spent (⛔ ↻ in P-total and in a person's square, then ↻8? asked), the month locked by SerpAPI
+        // (⛔ 11/1, ⛔ alone in a square, the trip page's block too), and ⚙ with every lock in its own row
+        await tapJs('#sheet [data-act="sh-close"]');
+        await page.evaluate(() => { localStorage.removeItem('pialax_daily_cap_v1'); sessionStorage.setItem('pialax_spent_v2', '8'); });
+        await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the 8-member trip, the visit\'s 8 spent (⛔ on its total block)');
+        await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (⛔ ↻, the visit\'s 8 spent)');
+        if (!(await page.$('#sheet [data-act="newvisit"]'))) fails.push('P-total with the visit\'s 8 spent should offer ⛔ ↻');
+        else { await tapJs('#sheet [data-act="newvisit"]'); await measure('P-total (↻8? a new visit asked)'); }
+        await tapJs('#sheet .trow [data-act="person"][data-code="anastasiakonstantinopoulou-x1"]'); await measure('P-person (⛔ ↻ in the square)');
+        await tapJs('#sheet [data-act="sh-close"]');
+        await page.evaluate(() => { sessionStorage.setItem('pialax_spent_v2', '0'); const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota') || '{}'); q.exceeded = true; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await tapJs('#screen [data-act="back"]'); await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await measure('the 8-member trip, the month locked (⛔ 11/1 on its total block)');
+        await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (⛔ 11/1, SerpAPI refused)');
+        await tapJs('#sheet .trow [data-act="person"][data-code="anastasiakonstantinopoulou-x1"]'); await measure('P-person (⛔ alone in the square)');
+        const sqLk = await page.$eval('#sheet .dayp [data-act="search"][data-k="cap"]', (e) => e.textContent.trim()).catch(() => null);
+        if (sqLk !== null && sqLk !== '⛔') fails.push('a locked square ±1 button should show ⛔ alone (its time in its label), got ' + JSON.stringify(sqLk));
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.evaluate(() => { sessionStorage.setItem('pialax_spent_v2', '8'); localStorage.setItem('pialax_daily_cap_v1', '2026-10-17'); });
+        await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(120); await measure('⚙ (the day, visit and month locks, each in its row)');
+        await tapJs('#sheet [data-act="sh-close"]');
+        await page.evaluate(() => { localStorage.removeItem('pialax_daily_cap_v1'); sessionStorage.setItem('pialax_spent_v2', '0'); const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota') || '{}'); q.exceeded = false; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
+        // the board's price column holds $10,987, $10,987+ and $1,387+ without pushing the page sideways or clipping a digit
+        await page.click('#screen [data-trip="' + DWJ + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the board with $10,987, $10,987+ and $1,387+');
+        const cells = await page.$$eval('#screen .pb .pb-row .pr', (els) => els.map((e) => [e.textContent, e.scrollWidth - e.clientWidth]));
+        const want = ['$10,987', '$10,987+', '$1,387+'];
+        if (!want.every((w) => cells.some((c) => c[0] === w))) fails.push('the board should show ' + want.join(', ') + ', got ' + JSON.stringify(cells.map((c) => c[0])));
+        if (cells.some((c) => c[1] > 0)) fails.push('a price cell is clipped: ' + JSON.stringify(cells.filter((c) => c[1] > 0)));
+        await tapJs('#screen [data-act="back"]');
         // PIA-136: a join request on the full 8-member trip (the joiner open, ⚠ 9/8), and a v1 idea link with a long note (📝⚠, then its P-note)
         await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?idea=' + M8 + '&add=' + encodeURIComponent('Nina Okafor.BOS'), { waitUntil: 'load' }); await page.waitForTimeout(300);
         if (!(await page.$('#who-cap'))) fails.push('a join request on the full trip should open P-edit-who with ⚠ 9/8');
@@ -1418,7 +1534,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -1452,6 +1568,97 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await open(LKV); await measure('a locked plan (🔓)'); await leave();
         if (states === 9 && fails.length === 0) ok(`${label} — nothing in view is covered, Save is opaque, 🔒/🔓 in view, targets ≥44px, no horizontal scroll, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ') || states + ' states'}`);
+      } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
+      await ctx.close();
+    }
+  }
+  // PIA-140 fix pass 2: P-person's name breaks only at its spaces, never inside a word (not at a hyphen either), however crowded its
+  // header: opened from P-total (‹) on the organizer's token phone (ⓘ), as the traveler this phone is (⇄) and as everyone else, on
+  // the Diwali trip (Ashwin, Mom & Dad, Anjo) and the 8-member long-name trip (this phone is Bartholomew Montgomery-Fitzgerald on it),
+  // and from the board (no ‹), at 360/390/430, light and dark. Each name's rendered lines (Range.getClientRects) are no more than its
+  // words, each word sits on one line, the name overflows nothing and covers no button, and the buttons stay on the face's row.
+  const NAMECHK = () => {
+    const hd = document.querySelector('#sheet .sh-hd.pers'), nm = hd && hd.querySelector('.pnm');
+    if (!nm) return null;
+    const linesOf = (rs) => { const tops = []; [...rs].forEach((x) => { if (x.width > 0 && !tops.some((t) => Math.abs(t - x.top) < x.height / 2)) tops.push(x.top); }); return tops.length; };
+    const text = nm.textContent.replace(/\s+/g, ' ').trim(), words = text.split(' ').filter(Boolean).length;
+    const all = document.createRange(); all.selectNodeContents(nm);
+    const broken = [], tw = document.createTreeWalker(nm, NodeFilter.SHOW_TEXT);
+    for (let t = tw.nextNode(); t; t = tw.nextNode()) {
+      const re = /\S+/g;
+      for (let m = re.exec(t.nodeValue); m; m = re.exec(t.nodeValue)) { const r = document.createRange(); r.setStart(t, m.index); r.setEnd(t, m.index + m[0].length); if (linesOf(r.getClientRects()) > 1) broken.push(m[0]); }
+    }
+    const nr = nm.getBoundingClientRect(), pav = hd.querySelector('.pav').getBoundingClientRect(), mid = (b) => (b.top + b.bottom) / 2;
+    const btns = [...hd.querySelectorAll('button')].map((b) => b.getBoundingClientRect());
+    return {
+      text, words, lines: linesOf(all.getClientRects()), broken, over: nm.scrollWidth - nm.clientWidth,
+      covers: btns.some((b) => nr.left < b.right - 0.5 && nr.right > b.left + 0.5 && nr.top < b.bottom - 0.5 && nr.bottom > b.top + 0.5),
+      oneRow: btns.every((b) => Math.abs(mid(b) - mid(pav)) < 2),
+      back: !!hd.querySelector('[data-act="sh-back"]'), key: !!hd.querySelector('[data-act="skey"]'), sw: !!hd.querySelector('[data-act="face"]'),
+      stk: hd.classList.contains('stk'), fs: getComputedStyle(nm).fontSize
+    };
+  };
+  const NAMES_ME = JSON.stringify(Object.assign(JSON.parse(seed.pialax_idea_me_v1), { [M8]: 'bartholomewmontgomeryfitzgera-dj' }));
+  for (const vp of VIEWPORTS) {
+    for (const scheme of ['light', 'dark']) {
+      const label = `app.html P-person names @ ${vp.name} ${scheme}`;
+      const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
+      await ctx.route(/^https?:\/\//, (r) => r.abort());
+      const net = { search: 0 };
+      await ctx.route(W + '/**', (route) => {
+        const q = route.request(), u = new URL(q.url()), id = u.searchParams.get('id');
+        const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key, X-Pialax-Token', 'access-control-expose-headers': 'X-Proxy-Cache, X-Fetched-At', 'content-type': 'application/json' };
+        if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+        if (u.pathname === '/search' || u.pathname === '/account') {
+          if (q.headers()['x-pialax-token'] !== seed.pialax_proxy_token) return route.fulfill({ status: 401, headers: cors, body: '{"code":"no_token"}' });
+          if (u.pathname === '/account') return route.fulfill({ status: 200, headers: cors, body: JSON.stringify(ACCT) });
+          net.search++; return route.fulfill({ status: 500, headers: cors, body: '{"code":"not_in_this_test"}' });
+        }
+        if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8) && q.headers()['x-idea-key'] === KEY }) });
+      });
+      const page = await ctx.newPage();
+      const fails = [], seen = { n: 0, crowded: 0, all3: 0, stk: 0, bare: 0 };
+      try {
+        await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
+        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' });
+        await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, Object.assign({}, seed, { pialax_idea_me_v1: NAMES_ME }));
+        await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
+        const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        const check = async (s) => {
+          const r = await page.evaluate(NAMECHK), L = await page.evaluate(LAYOUT);
+          if (!r) { fails.push(s + ': P-person did not open'); return; }
+          seen.n++; if (r.back && r.key) seen.crowded++; if (r.back && r.key && r.sw) seen.all3++; if (r.stk) seen.stk++; if (!r.back) seen.bare++;
+          const at = s + ' "' + r.text + '"' + (r.stk ? ' (under the face, ' + r.fs + ')' : '');
+          if (r.lines > r.words) fails.push(at + ': ' + r.lines + ' lines for ' + r.words + ' words');
+          if (r.broken.length) fails.push(at + ': broken inside ' + r.broken.join(', '));
+          if (r.over > 1) fails.push(at + ': overflows its box by ' + r.over + 'px');
+          if (r.covers) fails.push(at + ': drawn over a header button');
+          if (!r.oneRow) fails.push(at + ': the header buttons left the face\'s row');
+          if (L.overflow > 0 || L.sheetOverflow > 0) fails.push(at + ': horizontal scroll ' + L.overflow + '/' + L.sheetOverflow + 'px');
+          if (L.small.length) fails.push(at + ': targets under 44px ' + L.small.slice(0, 3).join(', '));
+        };
+        for (const [id, opener] of [[DW, '#screen .card [data-act="total"][data-id="' + DW + '"]'], [M8, null]]) {
+          if (opener) await tapJs(opener);
+          else { await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await tapJs('#screen .totalblk[data-act="total"]'); }
+          if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-total') { fails.push(id + ': P-total did not open'); continue; }
+          const codes = await page.$$eval('#sheet .trow [data-act="person"]', (els) => els.map((e) => e.getAttribute('data-code')));
+          for (const c of codes) {
+            await tapJs('#sheet .trow [data-act="person"][data-code="' + c + '"]'); await check(id + ' P-total › ' + c);
+            await tapJs('#sheet [data-act="sh-back"]');
+            if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-total') { fails.push(id + ' ' + c + ': ‹ should come back to P-total'); break; }
+          }
+          await tapJs('#sheet [data-act="sh-close"]');
+          if (opener) { await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); }
+          for (const c of await page.$$eval('#screen .pb [data-act="person"]', (els) => els.map((e) => e.getAttribute('data-code')))) {
+            await tapJs('#screen .pb [data-act="person"][data-code="' + c + '"]'); await check(id + ' board › ' + c); await tapJs('#sheet [data-act="sh-close"]');
+          }
+          await page.evaluate(() => window.scrollTo(0, 0)); await tapJs('#screen [data-act="back"]');
+        }
+        if (seen.crowded < 6 || seen.all3 < 2 || seen.stk < 1 || seen.bare < 6) fails.push('coverage: ' + JSON.stringify(seen) + ' (want ≥6 with ‹ and ⓘ, ≥2 with ‹ ⇄ ⓘ, ≥1 under the face, ≥6 from the board)');
+        if (net.search) fails.push('opening sheets searched ' + net.search + ' times');
+        if (fails.length === 0) ok(`${label} — every name breaks only at its spaces, overflows nothing and leaves the buttons on the face's row (${seen.n} sheets, ${seen.all3} with ‹ ⇄ ⓘ, ${seen.stk} under the face)`);
+        else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
       await ctx.close();
     }

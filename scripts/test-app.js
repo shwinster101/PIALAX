@@ -67,7 +67,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-139
   'bookOut', 'bookAway', 'bookBack', 'invited', 'INVITE_MS', 'onTyped', 'saveTimes', 'lanesHTML', 'paidRow',
   // PIA-139 fix pass
-  'TIMES_PULSE_MS', 'LEAVE_MS', 'RET_KEY', 'bookResume', 'flushTimes', 'timesHold', 'timesLeft', 'typedOf', 'pickupChip', 'paidDoor', 'keyLabel', 'keyPages'];
+  'TIMES_PULSE_MS', 'LEAVE_MS', 'RET_KEY', 'bookResume', 'flushTimes', 'timesHold', 'timesLeft', 'typedOf', 'pickupChip', 'paidDoor', 'keyLabel', 'keyPages',
+  // PIA-140
+  'runSearch', 'accountSync', 'lockNow', 'readQuota', 'spentRead', 'absorbV1Fares', 'totalRow', 'fareRows', 'spendBtn', 'cardHTML', 'peopleBoard', 'renderSheet'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -86,8 +88,9 @@ function loadApp(o) {
   // PIA-138: o.rec = selectors whose innerHTML writes are kept (el.__rec.html), so a case can read what a render drew
   const rec = {};
   (o.rec || []).forEach((s) => { rec[s] = recEl(); });
+  // PIA-140 o.qs(selector): an element of the case's own for that selector (null: the usual one), e.g. a #screen that throws
   const doc = Object.assign({}, shim.document, { visibilityState: o.hidden ? 'hidden' : 'visible' },
-    o.rec ? { querySelector: (s) => (rec[s] || shim.document.querySelector(s)) } : {});
+    o.rec || o.qs ? { querySelector: (s) => ((o.qs && o.qs(s)) || rec[s] || shim.document.querySelector(s)) } : {});
   const ss = o.ss || makeLocalStorage();   // PIA-139: a tab's sessionStorage can outlive its page (a page the phone discarded)
   const over = {
     localStorage: ls, sessionStorage: ss, location: loc, history: hist, Date: FixedDate, document: doc,
@@ -118,6 +121,15 @@ function recEl() {
     set(t, k, v) { if (k === 'innerHTML') html.push(String(v)); return true; },
     apply() { return p; },
     has() { return true; }
+  });
+  return p;
+}
+// PIA-140: an element stub whose innerHTML cannot be written (a redraw that throws)
+function throwEl() {
+  const p = new Proxy(function stub() {}, {
+    get(t, k) { if (k === Symbol.toPrimitive) return () => ''; if (k === Symbol.iterator) return function* () {}; if (k === 'then') return undefined; if (k === 'nodeType') return 1; if (k === 'length') return 0; return p; },
+    set(t, k) { if (k === 'innerHTML') throw new Error('redraw failed'); return true; },
+    apply() { return p; }, has() { return true; }
   });
   return p;
 }
@@ -227,15 +239,23 @@ function norm(doc) {
   check(!/console\.log/.test(html) && (html.match(/<script[ >]/g) || []).length === 1 && (html.match(/<\/script>/g) || []).length === 1, 'no console.log, one balanced <script> block');
 
   // ═══ AC10 (static) ═══
-  section('AC10 no mock fares, estimators or seeded trips, and no fare search');
+  section('AC10 no mock fares, estimators or seeded trips; PIA-140: the fare search lives in one gated place (paid)');
   const mockIds = ['getMock', 'SAMPLE_FARES', 'sampleFare', 'makeDocs', 'makePhones', 'makeFares', 'data-proto', 'WKLY_FACTORS', 'estimateMeetupTotalFor', 'computeRanking',
     'computeBestMeetupWeekends', 'dayPrice', 'WATCHLIST_SEED', 'illustrative', 'Math.random', 'pr-count', 'bootProto'];
   const hits = mockIds.filter((s) => html.indexOf(s) >= 0);
   check(hits.length === 0, 'none of the prototype or v1 mock / sample / estimator identifiers are in app.html', hits);
   const seeded = (appPart.match(/['"][A-Za-z0-9_-]{22}['"]/g) || []);
   check(seeded.length === 0 && !/Thanksgiving at home|Diwali|Tahoe|Grandma/.test(html), 'no seeded trip: no trip id literal and no sample trip title in the app', seeded);
-  check(!/['"`]\/(search|account|extract|alert)/.test(html) && !/x-pialax-token/i.test(html) && (appPart.match(/\bfetch\(/g) || []).length === 1,
-    'no /search, /account, /extract or /alert route and no token header; fetch is called in one place (api)');
+  {
+    // PIA-140: fetch is called in exactly two places: api (the free /idea routes, never the token) and paid (GET /search and
+    // /account only, the token in the X-Pialax-Token header only); no /extract or /alert route at all
+    const fnBody = (name) => { const i = appPart.indexOf('function ' + name + '('), j = appPart.indexOf('\nfunction ', i + 10); return i >= 0 ? appPart.slice(i, j) : ''; };
+    const apiB = fnBody('api'), paidB = fnBody('paid'), rest = appPart.replace(apiB, '').replace(paidB, '');
+    check((appPart.match(/\bfetch\(/g) || []).length === 2 && /\bfetch\(/.test(apiB) && /\bfetch\(/.test(paidB) && !/['"`]\/(extract|alert)/.test(html) &&
+      /path !== '\/search' && path !== '\/account'/.test(paidB) && (appPart.match(/X-Pialax-Token/g) || []).length === 1 && /X-Pialax-Token/.test(paidB) && !/X-Pialax-Token|pialax-token/i.test(apiB) &&
+      !/['"`]\/search['"`]/.test(rest.replace(/paid\('\/search'/g, '')) && (rest.match(/paid\('\/(search|account)'/g) || []).length === 2,
+      'PIA-140 fetch is called in two places: api (the free /idea routes, no token) and paid (only GET /search and /account, the token in its header only); no /extract or /alert route; paid is called from the one search run and the /account sync only');
+  }
 
   // ═══ AC7 router (pure) ═══
   section('AC7 the router: what a link asks for (pure readLink)');
@@ -943,8 +963,16 @@ function norm(doc) {
   const act = (t, name, ds) => t.api.ACTS[name]({ dataset: ds || {} });   // a tap on a control (what the click handler calls)
   const D = (t) => (t.api.S.sheet && t.api.S.sheet.local.d) || null;
   const posts = (t, from) => t.fetches.slice(from || 0).filter((f) => f.method === 'POST').map((f) => ({ path: f.url.replace(W, '').split('?')[0], body: JSON.parse(f.body) }));
-  // wait for a write the app started on its own (a caption saves as its sheet closes): no fixed number of turns
-  const until = async (f, n) => { for (let i = 0; i < (n || 2000) && !f(); i++) await tick(2); return f(); };
+  // wait for a write the app started on its own (a caption saves as its sheet closes): no fixed number of turns. PIA-140 fix pass
+  // 2: past its budget of event-loop turns it keeps polling every 5ms for up to 20s more: the in-process Worker hashes the edit
+  // key with WebCrypto on Node's thread pool, which a loaded machine can hold up for longer than any number of turns (1 run in
+  // 25 read PIA-138's four quick taps' record before their one write had landed). performance.now only bounds how long a wait
+  // may take (the test swaps Date); what the app decides still comes from its own clock (CLOCK)
+  const until = async (f, n) => {
+    for (let i = 0; i < (n || 2000) && !f(); i++) await tick(2);
+    for (const end = performance.now() + 20000; !f() && performance.now() < end;) await new Promise((r) => setTimeout(r, 5));
+    return f();
+  };
   const boot136 = async (o) => { const t = loadApp(Object.assign({ fetch: srv.fetch }, o)); await t.api.refreshAll(true); await tick(); t.api.render(); return t; };
   const lsOf = (ids, extra) => seedLs(Object.assign({ pialax_watchlist_v2: ids.map((id, i) => ({ id, t: '', e: '', at: i + 1, pin: false, arch: false })), pialax_ui_v1: { v1read: 1 } }, extra || {}));
   const DW1 = seedAs(fx('idea-diwali.json')), TH1 = seedAs(fx('idea-tahoe.json'));
@@ -1671,13 +1699,15 @@ function norm(doc) {
     check(rows.length === 8 && rows.filter((r) => /^[^"]*dimrow/.test(r)).length === 1 && /dimrow" style/.test(gh.slice(gh.indexOf('data-code="samlee-kz"') - 400, gh.indexOf('data-code="samlee-kz"'))) &&
       (gh.match(/<i class="bar[^"]*"/g) || []).length >= 6, 'the board shows all 8 rows with their bars; the one person who is out is dimmed (still there)');
     const gfs = (gh.match(/href="https:\/\/www\.google\.com\/travel[^"]*"/g) || []), mineGf = TM.handoffs(guest.api.modelOf(id), '', { today: '2026-10-17', now: NOW }).gf.href;
-    // the organizer's token phone: with nothing priced yet no $— column and no empty total; one cached fare brings both
+    // the organizer's token phone: with nothing priced yet no $— column; the total block (PIA-140) is $— with its 🔍N, the way
+    // into P-total, and no price; one cached fare brings the column and the total
     const omod = org.api.modelOf(id), fares = {}; omod.travelers[0].keys.forEach((k) => { fares[k.key] = { p: 240, f: NOW - 36e5 }; });
     const priced = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'grandmajosephine-nf' }, pialax_idea_keys_v1: keyOf([id]), pialax_proxy_token: TOKEN, pialax_fares_v2: fares }) });
     act(priced, 'open', { id }); const ph = screen(priced);
     check(gh.indexOf('$') < 0 && !/class="pr|class="tot|totalblk/.test(gh) && gfs.length === 1 && gfs[0] === 'href="' + mineGf.replace(/&/g, '&amp;') + '"' &&
-      !/totalblk|class="pr/.test(oh) && oh.indexOf('$—') < 0 && /class="tot/.test(ph) && /class="pr[^"]*">\$/.test(ph),
-      'PIA-137 AC4 a guest (even one holding the token) sees no price anywhere, and exactly one flight link: their own; the organizer\'s token phone shows no $— column or empty total until a leg has a cached fare, then its total', { gfs: gfs.length });
+      !/class="pr/.test(oh) && /<button class="totalblk" data-act="total"[^>]*aria-label="Group total, not searched, \d+ to search"/.test(oh) && /<span class="tot stale" data-k="total">\$—<\/span><span class="chipq" data-k="search"><span aria-hidden="true">🔍<\/span><span class="tn">4\/5<\/span>/.test(oh) &&
+      !/\$\d/.test(oh) && /class="tot/.test(ph) && /class="pr[^"]*">\$/.test(ph),
+      'PIA-137 AC4 a guest (even one holding the token) sees no price anywhere, and exactly one flight link: their own; the organizer\'s token phone shows no $— column until a leg has a cached fare (then its total and column), and before that the total block is $— 🔍4/5 (PIA-140: the way into P-total; 4 a tap, of the 5 legs to search), no price', { gfs: gfs.length, blk: (/<button class="totalblk[\s\S]*?<\/button>/.exec(oh) || [])[0] });
     act(guest, 'person', { id, code: 'bartholomewmontgomeryfitzgera-dj' });
     const s1 = sheet(guest), acts1 = (s1.match(/data-act="[a-z-]+"/g) || []).map((x) => x.slice(10, -1));
     guest.api.closeSheet(); act(guest, 'person', { id, code: 'anastasiakonstantinopoulou-x1' });
@@ -2076,7 +2106,7 @@ function norm(doc) {
     const afterSheet = t.api.S.armTk;
     tap(t, screen(t), 'answer', { v: 'out' });
     const one = nPosts(t) - p0;
-    await tap(t, screen(t), 'answer', { v: 'out' }); await tick();
+    await tap(t, screen(t), 'answer', { v: 'out' }); await until(() => !(t.api.PEND[id] > 0)); await tick();   // (the write landed, however slow its hash)
     const r = srv.read(id).responses['anjo-z5'];
     check(first === null && /class="ans out arm"[^>]*aria-label="Confirm Out"[^>]*>[\s\S]*?<span class="cfm" aria-hidden="true">🎫↩<\/span><\/button>/.test(armedH) && afterLeave === null && lapsed && afterSheet === null && one === 0 && r.status === 'out' && !r.booked && nPosts(t) - p0 === 1,
       'PIA-137 Out for someone booked: the first tap sends nothing and pulses Out with 🎫↩; leaving the trip, a sheet closing or 6s put it back; the confirming tap sends Out (the 🎫 goes)', { afterLeave, lapsed, afterSheet, one });
@@ -3042,16 +3072,29 @@ function norm(doc) {
     const mh = host.api.renderSelected('map', 'map').html;
     check(flushed && nPosts(t) - p1 === 2 && stillArmed && eq(up.map((q) => q.path), ['/idea/respond', '/idea/booked']) && r.note === 'Back Sunday' && r.booked === false && r.status === 'in' && !/11:05|19:30/.test(mh) && /aria-label="Lands PIA 11\/6[^"]*Anjo"/.test(mh),
       'PIA-139 her 🛫 19:30 typed with the sheet open goes when the page is hidden; her 🎫 taken back waits for its second tap past 6s (sticky), then one answer clears 🛬 / 🛫 (her note kept) before the 🎫 goes; the host\'s Map shows no time for her', { flushed, stillArmed, n: nPosts(t) - p1, up: up.map((q) => q.path), note: r.note, mh: mh.slice(mh.indexOf('lanes'), mh.indexOf('lanes') + 500) });
-    // the organizer types a time for her while another phone takes her 🎫 back: nothing is sent
-    const id2 = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn({ booked: true, booked_at: '2026-10-16T00:00:00.000Z' })(d); });
-    const o = await boot136({ ls: lsOf([id2], { pialax_idea_me_v1: { [id2]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([id2]) }) });
-    act(o, 'open', { id: id2 }); act(o, 'person', { id: id2, code: 'anjo-z5' });
-    typed(o, 'tm-arr', '1510', 'anjo-z5');
-    const d2 = srv.read(id2); d2.responses['anjo-z5'].booked = false; srv.write(d2);
-    await o.api.refresh(id2); await tick();
-    const q0 = nPosts(o); o.api.closeSheet(); await tick();
-    check(nPosts(o) === q0 && !o.api.S.sheet && !/🛬/.test(srv.read(id2).responses['anjo-z5'].note || ''),
-      'PIA-139 a time typed for someone whose 🎫 was taken back on another phone meanwhile is not sent (🎫⚠ says so)');
+    // the organizer types a time for her while another phone takes her 🎫 back: nothing is sent and 🎫⚠ says why, whether this phone
+    // has read the change by then (its own check) or not yet (the fresh read before the write holds it back, never a P-error).
+    // PIA-140 fix pass 2: each case is set up and waited for by what the app does, never by how fast a read comes back (the test
+    // used to refresh once, which joined the read the trip's open had sent before the change, and then raced that phone's fresh
+    // read against a fixed number of ticks: 1 run in 30 saw the P-error the stale path then opened)
+    const unbookedMeanwhile = async (knows) => {
+      const idx = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn({ booked: true, booked_at: '2026-10-16T00:00:00.000Z' })(d); });
+      const o = await boot136({ ls: lsOf([idx], { pialax_idea_me_v1: { [idx]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([idx]) }), rec: ['#toast'] });
+      act(o, 'open', { id: idx }); act(o, 'person', { id: idx, code: 'anjo-z5' });
+      typed(o, 'tm-arr', '1510', 'anjo-z5');
+      const dx = srv.read(idx); dx.responses['anjo-z5'].booked = false; srv.write(dx);
+      // the first refresh joins the read the open sent before the change (awaited, it is done); the second reads the record as it is
+      if (knows) { await o.api.refresh(idx); await o.api.refresh(idx); }
+      const an = o.api.modelOf(idx).members.find((x) => x.code === 'anjo-z5'), sawBooked = !!an && !!an.booked;
+      const q0 = nPosts(o), g0 = o.fetches.length; o.api.closeSheet();
+      await until(() => /🎫⚠/.test(o.rec['#toast'].innerHTML) && !(o.api.PEND[idx] > 0)); await tick();
+      return { sawBooked, toast: /🎫⚠/.test(o.rec['#toast'].innerHTML), posts: posts(o).slice(q0).map((q) => q.path), reads: o.fetches.slice(g0).filter((f) => f.method === 'GET').length,
+        sheet: o.api.S.sheet ? o.api.S.sheet.type : null, note: srv.read(idx).responses['anjo-z5'].note || '' };
+    };
+    const kn = await unbookedMeanwhile(true), st = await unbookedMeanwhile(false);
+    check(!kn.sawBooked && st.sawBooked && st.reads >= 1 && [kn, st].every((r) => r.toast && !r.posts.length && r.sheet === null && !/🛬/.test(r.note)),
+      'PIA-139 a time typed for someone whose 🎫 was taken back on another phone meanwhile is not sent and 🎫⚠ says so: when this phone has read the change, and when it has not yet (the fresh read holds the write back; no P-error)',
+      { kn, st });
   }
   {
     // PIA-139 fix pass: the doors and labels — 💵 from the trip view at 🏁, the no-link reason in a person's slot, the key
@@ -3070,6 +3113,424 @@ function norm(doc) {
     check(door && opened && !/paidopen/.test(screen(g)) && /<span class="btn pri dis" role="img" aria-label="No home airport" data-lbl="No home airport" data-k="noairport">📍\?<\/span><button class="btn sq tkoff" data-act="booked"/.test(ns) &&
       kl === 'Booking · I booked · Booked' && o.api.keyPages([{ k: 'st-booking', keys: ['st-booking', 'mybook'] }]).length === 1,
       'PIA-139 at 🏁 the organizer\'s trip view has 💵 ＋ opening P-stage at the 💵 field (not on a guest\'s); a person\'s [Book | 🎫] without a link says why (📍? No home airport), as the trip view does; the key reads a two-meaning 🎫 as "Booking · I booked"', { kl });
+  }
+
+  // ═══ PIA-140: prices ═══
+  section('PIA-140 prices: one honest total from real fares (P-total, the trip view, the card, the board, P-person agree), never spent without a tap; caps, locks, HITs; v1\'s counters and fares');
+  {
+    const SERP = fx('serp-flights.json');
+    // the in-process Worker's paid routes: its token, its SerpAPI key, and SerpAPI itself stubbed (prices by route, from the fixture)
+    srv.env.PROXY_TOKEN = TOKEN; srv.env.SERPAPI_KEY = 'serp-key';
+    const serpLog = [], SM = { mode: 'ok', bias: 0, acct: { plan_searches_left: 900, total_searches_left: 900, this_month_usage: 41, searches_per_month: 1000 } };
+    const serpFor = (u) => {
+      const q = new URL(u).searchParams, dep = q.get('departure_id').split(','), arr = q.get('arrival_id').split(',');
+      const base = 150 + crypto.createHash('md5').update([dep, arr, q.get('outbound_date'), q.get('return_date') || '', q.get('adults') || ''].join('|')).digest()[0] + SM.bias;
+      const j = clone(SERP);
+      // the cheapest offer leaves from the set's first airport (sorted) and lands at the arrival set's first: a nearby search can win elsewhere
+      j.best_flights[0].price = base + 13; j.best_flights[0].flights[0].departure_airport.id = dep[dep.length - 1]; j.best_flights[0].flights[1].arrival_airport.id = arr[0];
+      j.other_flights.forEach((o, i) => { o.price = base + [0, 36, 59][i]; o.flights[0].departure_airport.id = dep[0]; o.flights[o.flights.length - 1].arrival_airport.id = arr[0]; });
+      return j;
+    };
+    const offline = globalThis.fetch;
+    globalThis.fetch = async (u) => {
+      const s = String(u);
+      if (/^https:\/\/serpapi\.com\/account\.json\?/.test(s)) return new Response(JSON.stringify(SM.acct), { status: 200 });
+      if (/^https:\/\/serpapi\.com\/search\.json\?/.test(s)) {
+        serpLog.push(s);
+        if (SM.mode === '429') return new Response('{"error":"Your account has run out of searches."}', { status: 429 });
+        if (SM.mode === '401') return new Response('{"error":"Invalid API key. Your API key should be here: https://serpapi.com/manage-api-key"}', { status: 401 });
+        if (SM.mode === 'none') return new Response(JSON.stringify({ search_metadata: { status: 'Success' }, error: 'Google Flights hasn\'t returned any results for this query.' }), { status: 200 });
+        return new Response(JSON.stringify(serpFor(s)), { status: 200 });
+      }
+      return offline(u);
+    };
+    // the app's requests: /search and /account run on the test clock (the Worker stamps X-Fetched-At and its UTC day from it)
+    const RealDate = Date;
+    const pfetch = async (url, opts) => {
+      const pth = new URL(String(url)).pathname;
+      if (pth !== '/search' && pth !== '/account') return srv.fetch(url, opts);
+      globalThis.Date = FixedDate;
+      try { return await srv.fetch(url, opts); } finally { globalThis.Date = RealDate; }
+    };
+    const paidOf = (t, from) => t.fetches.slice(from || 0).filter((f) => /\/(search|account)(\?|$)/.test(f.url.replace(W, '')));
+    const searches = (t, from) => paidOf(t, from).filter((f) => f.url.indexOf(W + '/search?') === 0);
+    const quotaOf = (t) => JSON.parse(t.ls.getItem('pialax_serpapi_quota') || 'null');
+    const ptotal = (t, id) => { t.api.render(true); return t.api.SHEETS.total({ type: 'total', p: { id }, local: {} }); };   // drawn as a render would (its clock)
+    const wipeWorkerFares = () => { [...srv.map.keys()].filter((k) => /^fare:|^quota:/.test(k)).forEach((k) => srv.map.delete(k)); };
+    const boot140 = async (ls) => { const t = loadApp({ fetch: pfetch, ls }); await t.api.refreshAll(true); await tick(); t.api.render(); return t; };
+    // the organizer's phone as v1 left it: the token, the trip's key, and pialax_multi_airport_v1 (v1 read it from /account)
+    const orgLs = (id, extra) => lsOf([id], Object.assign({ pialax_idea_keys_v1: keyOf([id]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [id]: 'ashwin-p8' }, pialax_multi_airport_v1: '1' }, extra || {}));
+    CLOCK = NOW;
+
+    // AC4 nothing is fetched by itself: open, render, poll, focus, P-person, even with day-old fares → zero /search
+    const DQ = seedAs(DWX);
+    const stale = {}; TM.tripModel(srv.read(DQ), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true, multiAirport: true }).travelers.forEach((x) => x.keys.forEach((k) => { stale[k.key] = { p: 300, f: NOW - 30 * 36e5 }; }));
+    const q0 = await boot140(orgLs(DQ, { pialax_fares_v2: stale }));
+    act(q0, 'open', { id: DQ }); await q0.api.poll(); CLOCK += 6000; await q0.api.onFocus(); CLOCK = NOW; q0.api.render();
+    act(q0, 'person', { id: DQ, code: 'ashwin-p8' }); await tick(); const pq = sheet(q0); q0.api.closeSheet();
+    q0.api.render(true); const tq = screen(q0), cq = q0.api.cardHTML({ id: DQ, x: q0.api.listEntry(DQ), m: q0.api.modelOf(DQ) });
+    check(searches(q0).length === 0 && /<span class="tot stale" data-k="total">\$900 <span data-k="search">🔍<\/span><\/span>/.test(cq) && /<span class="chipq" data-k="search"><span aria-hidden="true">🔍<\/span><span class="tn">3<\/span><\/span>/.test(tq) &&
+      /class="lgp stale"[^>]*data-lbl="Old fare"/.test(pq) && /data-act="search"[^>]*data-code="ashwin-p8" data-end="0"/.test(pq),
+      'PIA-140 AC4 nothing is fetched by itself: opening, a redraw, the 60s poll and a focus with three day-old fares make 0 /search; the fares turn grey with 🔍 (the card), the trip\'s total offers 🔍3, a person\'s legs read "Old fare" and offer 🔍 for their ±1 days', { searches: searches(q0).length, cq: (/<span class="tot[\s\S]*?<\/button>/.exec(cq) || [])[0], tq: (/<button class="totalblk[\s\S]*?<\/button>/.exec(tq) || [])[0], pq: (/<div class="fares">[\s\S]*?<\/div><\/div>/.exec(pq) || [])[0] });
+
+    // AC1 / AC3 the organizer's P-total: every leg $— until searched; the cost on 🔍 before it is tapped; one tap prices them all
+    const DA = seedAs(DWX);
+    const a = await boot140(orgLs(DA, { pialax_multi_airport_v1: '' }));
+    act(a, 'open', { id: DA });
+    const blk0 = (/<button class="totalblk[\s\S]*?<\/button>/.exec(screen(a)) || [])[0] || '';
+    const pre = searches(a).length;
+    // a tap on 🔍 as P-total draws it, before /account ever ran (so before it said nearby airports are taken): single airports
+    const want1 = a.api.modelOf(DA).travelers.map((x) => x.keys[0].key);
+    await tap(a, ptotal(a, DA), 'search');
+    const q1 = quotaOf(a), m1 = a.api.modelOf(DA);   // before the /account sync that follows the run (SerpAPI's own count then replaces it)
+    await tick(20);
+    const s1 = searches(a, 0).slice(pre);
+    check(/aria-label="Group total, not searched, 3 to search"/.test(blk0) && s1.length === 3 && s1.every((f, i) => f.headers['X-Pialax-Token'] === TOKEN && f.url === W + '/search?' + TM.searchQuery(want1[i]) && f.url.indexOf(',') < 0 && f.url.indexOf(TOKEN) < 0) &&
+      q1 && q1.used === 3 && a.api.spentRead() === 3 && m1.price.complete && serpLog.length === 3,
+      'PIA-140 AC3 one tap on 🔍3: three GET /search (one per round trip, the model\'s own queries; one airport each until /account says nearby airports are taken), the token in its header only; v1\'s month counter and this session\'s count move by 3', { urls: s1.map((f) => f.url), q1 });
+    await until(() => !!a.api.S.acct); await tick();
+    const multi = a.ls.getItem('pialax_multi_airport_v1') === '1', m2 = a.api.modelOf(DA);
+    check(multi && paidOf(a).filter((f) => /\/account$/.test(f.url)).length === 1 && quotaOf(a).used === 41 && m2.travelers.every((x) => x.keys[0].key.indexOf(',') > 0) && m2.price.total === null,
+      'PIA-140 AC3 /account after the run: v1\'s pialax_multi_airport_v1 = "1" (the Worker takes nearby airports), the month\'s usage from SerpAPI\'s own count (41); from now on each leg is the nearby search, sorted (BUR,LAX,LGB,ONT,SNA), and the single-airport fares no longer price it');
+    act(a, 'total', { id: DA });
+    const pt0 = ptotal(a, DA);
+    await tap(a, pt0, 'search'); await tick(20);
+    const m3 = a.api.modelOf(DA), pt1 = ptotal(a, DA), s2 = searches(a).slice(-3);
+    const legPrices = (h) => [...h.matchAll(/<span class="lgp[^"]*" role="img" aria-label="([^"]*)"/g)].map((x) => x[1]);
+    check(/<button class="btn pri wide" data-act="search" data-id="[^"]+" data-v="total" data-n="3" aria-label="Search 3 fares, 3 searches" data-lbl="Search fares"><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">3<\/span><\/button>/.test(pt0) &&
+      legPrices(pt0).every((x) => /not searched$/.test(x)) && legPrices(pt0).length === 3 && s2.every((f) => /departure_id=[A-Z,]*,[A-Z]/.test(f.url)) && m3.price.complete && !/data-act="search"/.test(pt1),
+      'PIA-140 AC3 P-total shows the cost before spending (🔍3, "Search 3 fares, 3 searches"), every leg $— until then; its tap searches the nearby sets, and then nothing is left to search (no 🔍)', { pt0: legPrices(pt0) });
+    // AC1 one pricing function: P-total's rows and sum, the trip's block, the card, the board and P-person's legs agree
+    const p3 = m3.price, per = (c) => p3.per[c].sum, money = (n) => '$' + n.toLocaleString('en-US');
+    const card3 = a.api.cardHTML({ id: DA, x: a.api.listEntry(DA), m: m3 }), view3 = screen(a);
+    act(a, 'person', { id: DA, code: 'momdad-k3' }); const pm = sheet(a); a.api.closeSheet();
+    const rowsSum = legPrices(pt1).map((x) => +/\$([\d,]+)/.exec(x)[1].replace(/,/g, '')).reduce((x, y) => x + y, 0);
+    check(p3.total === per('momdad-k3') + per('ashwin-p8') + per('anjo-z5') && rowsSum === p3.total && new RegExp('<span class="tot" data-k="total">' + money(p3.total).replace('$', '\\$') + '</span>').test(pt1) &&
+      card3.indexOf('data-k="total">' + money(p3.total) + '</span>') > 0 && view3.indexOf('data-k="total">' + money(p3.total) + '</span>') > 0 &&
+      ['momdad-k3', 'ashwin-p8', 'anjo-z5'].every((c) => view3.indexOf('<span class="pr">' + money(per(c)) + '</span>') > 0) && pm.indexOf('<span class="tn">' + money(per('momdad-k3')) + '</span>') > 0,
+      'PIA-140 AC1 one number everywhere: P-total\'s legs add up to its sum, which is the trip view\'s total, the card\'s and the board\'s per-person amounts (and Mom & Dad\'s leg in their sheet) — all the model\'s priceTrip', { total: p3.total, rowsSum });
+    // AC2 each priced leg: its age, Google's level, its stops, the airport that won when it is not their own
+    const ash = legPrices(pt1).find((x) => /from BUR/.test(x)) || '', any = legPrices(pt1);
+    check(any.length === 3 && any.every((x) => /fetched just now, price low, 1 stop$/.test(x)) && /Round trip, \$[\d,]+ from BUR, fetched just now/.test(ash) && /<b class="lc" data-k="won" data-lbl="From BUR">BUR→<\/b>/.test(pt1) && /<b class="lc" data-k="won" data-lbl="From ORD">ORD→<\/b>/.test(pt1) && /<b class="lc" data-k="won" data-lbl="From EWR">EWR→<\/b>/.test(pt1) &&
+      (pt1.match(/class="agering"[^>]*data-k="age" data-lbl="Fetched just now"/g) || []).length === 3 && (pt1.match(/class="lvl l1"[^>]*data-k="level" data-lbl="Price low"><i class="on"><\/i><i class=""><\/i><i class=""><\/i>/g) || []).length === 3 &&
+      (pt1.match(/class="stopl"[^>]*data-k="stops" data-lbl="1 stop"/g) || []).length === 3,
+      'PIA-140 AC2 each priced leg shows its fare age ◷, Google\'s price level (a low-to-high gauge with its own bar filled, not a signal meter) and its stops, each naming itself on a long press ("Fetched just now", "Price low", "1 stop"), and the airport that won when it is not their home, on the side it is on (BUR→ for Ashwin, ORD→ for Mom & Dad, EWR→ for Anjo), from the search already paid for', any);
+    // the same legs in Mom & Dad's own sheet name the airport that won too (P-total and P-person agree), with ⓘ for the glyphs
+    act(a, 'person', { id: DA, code: 'momdad-k3' }); const pmc = sheet(a); a.api.closeSheet();
+    check(/<b class="lc" data-k="won" data-lbl="From ORD">ORD→<\/b>/.test(pmc) && /data-act="skey" aria-label="Key" data-k="key">ⓘ</.test(pmc) && /data-act="skey" aria-label="Key" data-k="key">ⓘ</.test(pt1) && /<span class="temo" aria-hidden="true" data-pic>🪔<\/span>/.test(pt1),
+      'PIA-140 P-person names the airport that won (ORD→ for Mom & Dad), as P-total does; both sheets carry ⓘ for their glyphs, and P-total\'s header shows the trip\'s own picture');
+    // AC5 ▼ / ▲ only between two real fetches of identical searches; a day later they are grey and offer the refresh (on the same
+    // phone in a new session: this one has spent 6 of its 8)
+    const a8 = a.api.spentRead();
+    CLOCK = NOW + 25 * 36e5;
+    const capped = ptotal(a, DA);
+    const aa = await boot140(orgLs(DA, { pialax_fares_v2: JSON.parse(a.ls.getItem('pialax_fares_v2')) }));
+    const day = ptotal(aa, DA), card4 = aa.api.cardHTML({ id: DA, x: aa.api.listEntry(DA), m: aa.api.modelOf(DA) }), dayLegs = legPrices(day);
+    check(a8 === 6 && /data-n="2" aria-label="Search 2 of 3 fares, 2 searches"[^>]*><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">2\/3<\/span>/.test(capped) && dayLegs.length === 3 && dayLegs.every((x) => /fetched 25 hours ago, a day old/.test(x)) && (day.match(/class="lgp stale"/g) || []).length === 3 &&
+      /aria-label="Search 3 fares, 3 searches"/.test(day) && /data-k="total">\$[\d,]+ <span data-k="search">🔍<\/span><\/span>/.test(card4) && !/data-k="down"|data-k="up"/.test(day),
+      'PIA-140 AC4 a day later every fare is grey ("a day old") and P-total offers the one-tap refresh (🔍3; on the phone that spent 6 this session, 🔍2/3: the visit\'s 8 cut it short, and it says so); no ▼ / ▲ yet (one fetch each)', { a8 });
+    wipeWorkerFares(); SM.bias = -20;
+    const sa = searches(aa).length;
+    await tap(aa, day, 'search'); await tick(20);
+    const pt5 = ptotal(aa, DA), m5 = aa.api.modelOf(DA);
+    check(searches(aa).length === sa + 3 && /<span class="dl dn" data-k="down">▼\$60<\/span>/.test(pt5) && (pt5.match(/class="tn dl dn">▼\$20</g) || []).length === 3 && m5.price.complete &&
+      /<span class="dl dn" data-k="down">▼\$60<\/span>/.test(aa.api.totalRow(m5)),
+      'PIA-140 AC5 the refresh (3 real searches) finds each fare $20 lower: each leg reads ▼$20 and the total ▼$60, on P-total and on the trip view');
+    // A3 a HIT on another phone keeps the first fetch's time, moves no counter, and (the same fetch) keeps its ▼
+    const b = await boot140(orgLs(DA, { pialax_fares_v2: JSON.parse(aa.ls.getItem('pialax_fares_v2')) }));
+    CLOCK = NOW + 27 * 36e5;
+    const fb0 = JSON.parse(b.ls.getItem('pialax_fares_v2')), bk = b.api.modelOf(DA).travelers.map((x) => x.keys[0].key);
+    const fb0m = Object.assign({}, fb0); delete fb0m[bk[0]];
+    b.ls.setItem('pialax_fares_v2', JSON.stringify(fb0m));   // this phone never had that fare
+    b.api.render(true);
+    const sb = searches(b).length, nSerp = serpLog.length;
+    await tap(b, ptotal(b, DA), 'search');
+    const fb1 = JSON.parse(b.ls.getItem('pialax_fares_v2'))[bk[0]], qb = quotaOf(b);
+    await tick(20);
+    check(searches(b).length === sb + 1 && serpLog.length === nSerp && fb1.f === fb0[bk[0]].f && fb1.p === fb0[bk[0]].p && (!qb || qb.used === 0) && b.api.spentRead() === 0 &&
+      /fetched 2 hours ago/.test(ptotal(b, DA)),
+      'PIA-140 A3 a Worker cache HIT (another phone, 2h later): one /search, no SerpAPI call, the fare keeps its first fetch time ("fetched 2 hours ago", not just now), and neither v1\'s month counter nor the session moves', { fb1, qb });
+    CLOCK = NOW;
+
+    // AC3 a tap while P-total's /account read is still out waits for it (◷): its searches are then the nearby ones the Worker
+    // takes, never single-airport searches the next render would drop (the same 3 legs, 3 searches)
+    {
+      const DR = seedAs(DWX);
+      wipeWorkerFares();   // (the Worker's cache holds these searches from above: they would be HITs, which spend nothing)
+      const r = await boot140(orgLs(DR, { pialax_multi_airport_v1: '' }));
+      act(r, 'open', { id: DR }); act(r, 'total', { id: DR });
+      const out = !!r.api.S.acctBusy, s0 = searches(r).length;
+      const run = tap(r, ptotal(r, DR), 'search');
+      const waiting = !!(r.api.S.spendBusy && r.api.S.spendBusy.wait) && /data-act="search"[^>]*aria-busy="true"[^>]*>◷</.test(ptotal(r, DR)) && searches(r).length === s0;
+      await run; await tick(20);
+      const sr = searches(r).slice(s0), mr = r.api.modelOf(DR);
+      check(out && waiting && sr.length === 3 && sr.every((f) => /departure_id=[A-Z]{3},[A-Z,]+&/.test(f.url)) && mr.price.complete && r.api.spentRead() === 3 && !r.api.S.spendBusy,
+        'PIA-140 AC3 a 🔍 tap while P-total\'s /account read is out waits for it (◷, nothing sent yet), then searches the nearby sets the Worker says it takes: 3 searches, the total complete', { out, waiting, urls: sr.map((f) => f.url) });
+    }
+
+    // AC6 one end ±1 day from the person's sheet, the same caps: 🔍2 → the day before and after; ★ on the cheapest; a tap moves it
+    const DP = seedAs(DWX);
+    const c = await boot140(orgLs(DP, { pialax_multi_airport_v1: '1' }));
+    act(c, 'open', { id: DP }); act(c, 'person', { id: DP, code: 'ashwin-p8' });
+    const ps0 = sheet(c), cs0 = searches(c).length;
+    await tap(c, ps0, 'search', { end: '0' }); await tick(20);
+    const ps1 = sheet(c), s3 = searches(c).slice(cs0), mc = c.api.modelOf(DP), x0 = mc.travelers.find((x) => x.code === 'ashwin-p8');
+    const ep = TM.endPrices(mc, 'ashwin-p8', 0, c.api.readFares(), CLOCK, '2026-10-17');
+    const chips = [...ps1.matchAll(/<(?:button|span) class="dch([^"]*)"[^>]*aria-label="([^"]*)"/g)].map((x) => x[2]).slice(0, 3);
+    check(/<button class="btn sq" data-act="search" data-id="[^"]+" data-code="ashwin-p8" data-end="0" data-n="2" aria-label="Search 2 fares, 2 searches"/.test(ps0) && s3.length === 2 &&
+      s3.map((f) => f.url).join() === ep.rows.filter((r) => r.k).map((r) => W + '/search?' + TM.searchQuery(r.key)).join() && ep.rows.filter((r) => r.k).every((r) => r.p != null) && ep.need.length === 0 &&
+      chips.length === 3 && /^Arrive 11\/5, \$[\d,]+ round trip/.test(chips[0]) && /^Arrive 11\/6, not searched, their day$/.test(chips[1]) && /^Arrive 11\/7, \$/.test(chips[2]) && ep.rows.filter((r) => r.star).length === 1 && (ps1.match(/data-k="cheapest">★</g) || []).length === 1 &&
+      !/data-code="ashwin-p8" data-end="0" data-n="\d" aria-label="Search/.test(ps1) &&
+      /<button class="dch[^"]* tap" data-act="legshift" data-id="[^"]+" data-code="ashwin-p8" data-end="0" data-day="2026-11-05"/.test(ps1) && x0.keys[0].key === ep.rows[1].key,
+      'PIA-140 AC6 in Ashwin\'s sheet 🔍2 prices his arrival ±1 day (2 searches, the round trip with that day moved); the three days then read their $ with ★ on the cheapest, and the day before or after is a tap from being his (−1 / +1)', { chips, urls: s3.map((f) => f.url) });
+
+    // AC3 the locks, as every spend control shows them: the Worker's day cap (⛔ 17:00 local, until 00:00 UTC), the month (⛔ 11/1)
+    const DL = seedAs(DWX);
+    const d = await boot140(orgLs(DL, { pialax_daily_cap_v1: '2026-10-17' }));
+    act(d, 'open', { id: DL });
+    const lk1 = ptotal(d, DL), dsz = searches(d).length;
+    await act(d, 'search', { id: DL, v: 'total' }); act(d, 'person', { id: DL, code: 'anjo-z5' }); const lkp = sheet(d); d.api.closeSheet();
+    CLOCK = Date.UTC(2026, 9, 18, 0, 1, 0); const dayOver = d.api.lockNow(); CLOCK = NOW;
+    d.ls.removeItem('pialax_daily_cap_v1'); d.ls.setItem('pialax_serpapi_quota', JSON.stringify({ period: '2026-10', used: 12, budget: 1000, exceeded: true }));
+    const lk2 = ptotal(d, DL);
+    d.ls.setItem('pialax_serpapi_quota', JSON.stringify({ period: '2026-10', used: 50, budget: 50, exceeded: false })); const lk3 = d.api.lockNow();
+    d.ls.setItem('pialax_serpapi_quota', JSON.stringify({ period: '2026-10', used: 12, budget: 1000, exceeded: false })); d.api.S.acct = { plan_searches_left: 10 }; const lk4 = d.api.lockNow(); d.api.S.acct = null;
+    d.ls.setItem('pialax_serpapi_quota', JSON.stringify({ period: '2026-09', used: 990, budget: 1000, exceeded: true })); const lk5 = d.api.lockNow();
+    check(/<button class="btn pri wide dis" data-act="search"[^>]*aria-disabled="true" data-why="1" aria-label="Searches resume at 17:00" data-lbl="Daily limit" data-k="cap">⛔ 17:00<\/button>/.test(lk1) &&
+      /<button class="btn sq dis" data-act="search"[^>]*aria-label="Searches resume at 17:00" data-lbl="Daily limit 17:00" data-k="cap">⛔<\/button>/.test(lkp) && searches(d).length === dsz && dayOver === '' &&
+      /aria-label="SerpAPI refused the last search; checked again in a few minutes, at the latest searches resume on 11\/1" data-lbl="SerpAPI refused" data-k="cap">⛔ 11\/1<\/button>/.test(lk2) && lk3 === 'month' && lk4 === 'month' && lk5 === '' && d.api.readQuota().used === 0,
+      'PIA-140 AC3 the Worker\'s day cap reads ⛔ 17:00 on P-total (local time of 00:00 UTC), ⛔ in a person\'s square ±1 button with the time in its label, and spends nothing; it lifts at 00:00 UTC; the month lock (upstream 429, the organizer\'s month cap, the plan\'s last 10) reads ⛔ 11/1 and says why (SerpAPI refused); a new month starts at 0, unlocked (v1\'s rule)');
+
+    // AC4 a search that found no fares: $∅, not offered again within 24h, offered a day later
+    const DN = seedAs(DWX, (dd) => { dd.idea.members = dd.idea.members.filter((x) => x.code === 'ashwin-p8'); dd.responses = { 'ashwin-p8': dd.responses['ashwin-p8'] }; });
+    const e = await boot140(orgLs(DN));
+    wipeWorkerFares(); SM.mode = 'none'; await tap(e, ptotal(e, DN), 'search'); await tick(20); SM.mode = 'ok';
+    const ne = ptotal(e, DN); CLOCK = NOW + 25 * 36e5; const ne2 = ptotal(e, DN); CLOCK = NOW;
+    check(/<span class="lgp none" role="img" aria-label="Round trip, no fares found" data-lbl="No fares" data-k="nofare">[\s\S]*?\$∅<\/span>/.test(ne) && !/data-act="search"/.test(ne) && /aria-label="Search 1 fare, 1 search"/.test(ne2) &&
+      /<span class="lgp none stale" role="img" aria-label="Round trip, no fares found, a day old" data-lbl="No fares" data-k="nofare">[\s\S]*?\$∅<\/span>/.test(ne2) && !/\$—/.test(ne2.replace(/<span class="tot[^>]*>\$—/, '')),
+      'PIA-140 AC4 a search that found no fares reads $∅ and is not offered again within 24h; a day later it is (🔍1), still $∅ (it was searched), grey', { ne, ne2 });
+
+    // v1's fare cache: a live one-adult fare v1 fetched counts here (its own fetch time); one searched here is written there as v1's
+    // own fetch would; a 2-adult search never is (v1 searches one adult)
+    const DV = seedAs(DWX);
+    const ashKey = '1|LAX|RDU|2026-11-06|2026-11-09|1';
+    const v1e = TM.v1Fare(serpFor('https://serpapi.com/search.json?departure_id=LAX&arrival_id=RDU&outbound_date=2026-11-06&return_date=2026-11-09'), NOW - 2 * 36e5, false, true);
+    wipeWorkerFares();
+    const f = await boot140(orgLs(DV, { pialax_multi_airport_v1: '', pialax_prices_v1: { 'LAX|RDU|2026-11-06|2026-11-09': v1e, 'LAX|RDU|2026-11-07|2026-11-09': { data: { ow: 99, live: false }, ts: NOW } } }));
+    const absorbed = JSON.parse(f.ls.getItem('pialax_fares_v2') || '{}')[ashKey], mf = f.api.modelOf(DV);
+    await tap(f, ptotal(f, DV), 'search'); await tick(20);
+    const v1after = JSON.parse(f.ls.getItem('pialax_prices_v1') || '{}');
+    check(absorbed && absorbed.f === NOW - 2 * 36e5 && absorbed.p === Math.min(...v1e.data.offers.map((o) => o.price)) && mf.price.per['ashwin-p8'].complete && mf.price.need === 2 &&
+      v1after['LGA|RDU|2026-11-06|2026-11-09'] && v1after['LGA|RDU|2026-11-06|2026-11-09'].data.live === true && v1after['LGA|RDU|2026-11-06|2026-11-09'].ts === NOW && !Object.keys(v1after).some((k) => /^PIA/.test(k)) &&
+      v1after['LAX|RDU|2026-11-06|2026-11-09'].ts === NOW - 2 * 36e5 && !!v1after['LAX|RDU|2026-11-07|2026-11-09'] && !f.api.readFares()['1|LAX|RDU|2026-11-07|2026-11-09|1'],
+      'PIA-140 v1\'s live fare for Ashwin\'s search counts here as fetched 2h ago (never a sample); the two left are searched (🔍2), Anjo\'s one-adult fare written into v1\'s cache as v1 would keep it, Mom & Dad\'s 2-adult fare never', Object.keys(v1after));
+
+    // AC7 no price leaves this phone: answers, edits and shares after the fares are cached carry none of them
+    const sharedUrls = [], tsh = loadApp({ fetch: pfetch, ls: orgLs(DA, { pialax_fares_v2: JSON.parse(a.ls.getItem('pialax_fares_v2')), pialax_multi_airport_v1: '1' }), navigator: { userAgent: 'x', share: (o) => { sharedUrls.push(o.url); return Promise.resolve(); }, clipboard: { writeText: (u) => { sharedUrls.push(u); return Promise.resolve(); } } } });
+    await tsh.api.refreshAll(true); await tick(); act(tsh, 'open', { id: DA });
+    const nums = Object.values(JSON.parse(tsh.ls.getItem('pialax_fares_v2'))).map((x) => String(x.p));
+    const from = tsh.fetches.length;
+    await act(tsh, 'answer', { id: DA, v: 'maybe', code: 'ashwin-p8' }); await tsh.api.organizerWrite(DA, { caption: 'Puja Sunday' }); act(tsh, 'tshare', { id: DA }); await tick(10);
+    const out = tsh.fetches.slice(from).map((x) => (x.body || '') + x.url).join(' ') + sharedUrls.join(' ');
+    check(nums.length >= 3 && nums.every((n) => out.indexOf(n) < 0) && sharedUrls.length >= 1 && !/\$/.test(out),
+      'PIA-140 AC7 no price leaves this phone: an answer, an organizer edit and the trip\'s 📣 after three fares were cached carry none of them (no $, none of the amounts)', { nums, out: out.slice(0, 300) });
+
+    // AC7 guests and phones without the token: no $ at all, no /search or /account, whatever is tapped
+    const g = await boot140(lsOf([DA], { pialax_idea_me_v1: { [DA]: 'anjo-z5' }, pialax_proxy_token: TOKEN, pialax_fares_v2: JSON.parse(a.ls.getItem('pialax_fares_v2')) }));
+    // (the taps are forged with a cost, data-n 4, as if a 🔍 had been drawn: the gate is the model's prices, not the button)
+    act(g, 'open', { id: DA }); act(g, 'total', { id: DA }); await act(g, 'search', { id: DA, v: 'total', n: '4' }); act(g, 'person', { id: DA, code: 'ashwin-p8' }); const gs = sheet(g); g.api.closeSheet(); await tick(5);
+    const nt = await boot140(lsOf([DA], { pialax_idea_keys_v1: keyOf([DA]), pialax_idea_me_v1: { [DA]: 'ashwin-p8' }, pialax_fares_v2: JSON.parse(a.ls.getItem('pialax_fares_v2')) }));
+    act(nt, 'open', { id: DA }); act(nt, 'total', { id: DA }); await act(nt, 'search', { id: DA, v: 'total', n: '4' }); act(nt, 'settings'); await tick(5);
+    const ntv = screen(nt), door = ctl(ntv, 'tokdoor');
+    nt.api.closeSheet(); act(nt, 'tokdoor'); const ntSh = nt.api.S.sheet;
+    check(paidOf(g).length === 0 && paidOf(nt).length === 0 && !g.api.S.sheet && !/\$/.test(screen(g) + gs) && !/\$/.test(ntv) && !/data-act="total"/.test(screen(g) + ntv) &&
+      !!door && /data-lbl="Add token" data-k="tokdoor">🔑🔍<\/button>/.test(ntv) && !/tokdoor/.test(screen(g)) && ntSh && ntSh.type === 'organizer' && ntSh.focus === 'org-token' && paidOf(nt).length === 0,
+      'PIA-140 AC7 a guest (holding the token) and the organizer\'s phone without the token show no $ at all and make no /search or /account call, whatever is tapped; the organizer\'s phone without it shows one muted 🔑🔍 ("Add token") that opens ⚙ at the token field (a guest sees none)');
+
+    // ⚙ the organizer's month cap (v1's budget) and today's Worker searches
+    const h = await boot140(orgLs(DA));
+    act(h, 'settings'); await until(() => !!h.api.S.acct); await tick();
+    const st0 = sheet(h);
+    h.api.onTyped({ id: 'org-cap', value: '4x0', dataset: {}, closest: () => null }); act(h, 'orgsave');
+    const qh = quotaOf(h);
+    check(/<span class="tn bud" role="img" aria-label="\d+ of 30 searches left today" data-lbl="Searches today" data-k="sday">/.test(st0) && /<input id="org-cap" inputmode="numeric"[^>]*value="1000">/.test(st0) && /<span class="tn mu" aria-hidden="true">41\/<\/span>/.test(st0) &&
+      qh && qh.budget === 40 && qh.used === 41 && h.api.lockNow() === 'month' && /⛔ 11\/1/.test(sheet(h)),
+      'PIA-140 ⚙ on the organizer\'s phone: today\'s Worker searches left (from /account), this visit\'s 8, the month\'s 41 used against a month cap the organizer sets (digits only: "4x0" → 40, v1\'s budget), and a cap under what is used locks the month (⛔ 11/1)', qh);
+    check(/data-lbl="Month cap" data-k="cap">⛔ 11\/1<\/span>/.test(sheet(h)) && !/data-lbl="Daily limit"/.test(sheet(h)),
+      'PIA-140 ⚙ says why the month is locked where the month is counted ("Month cap": raising it lifts it), and no day lock is drawn beside it');
+
+    // ═══ PIA-140 fix pass ═══
+    const boot140o = async (o) => { const t = loadApp(Object.assign({ fetch: pfetch }, o)); await t.api.refreshAll(true); await tick(); t.api.render(); return t; };
+    const toastOf = (t) => (t.rec['#toast'] ? t.rec['#toast'].innerHTML : '');
+    const acctN = (t) => paidOf(t).filter((f) => /\/account$/.test(f.url)).length;
+    const opened = async (t, id) => { act(t, 'open', { id }); act(t, 'total', { id }); await until(() => !t.api.S.acctBusy); await tick(); };
+
+    // a tap never spends more than its control showed: an /account read still out when it lands can switch nearby airports on
+    {
+      const DB = seedAs(DWX);
+      wipeWorkerFares();
+      const single = TM.tripModel(srv.read(DB), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true, multiAirport: false });
+      const fr = {}; single.travelers.filter((x) => x.code !== 'momdad-k3').forEach((x) => x.keys.forEach((k) => { fr[k.key] = { p: 300, f: NOW - 36e5, off: [] }; }));
+      const t = await boot140o({ ls: orgLs(DB, { pialax_multi_airport_v1: '', pialax_fares_v2: fr }), rec: ['#toast'] });
+      act(t, 'open', { id: DB }); act(t, 'total', { id: DB });   // P-total opens: its /account read goes out
+      const busy = !!t.api.S.acctBusy, pt = ptotal(t, DB), s0 = searches(t).length, shown = (ctl(pt, 'search') || {}).n;
+      await tap(t, pt, 'search'); await tick(20);
+      const after = ptotal(t, DB), sNone = searches(t).length - s0, said = toastOf(t);
+      await tap(t, after, 'search'); await tick(20);
+      const sNext = searches(t).length - s0;
+      check(busy && shown === '1' && sNone === 0 && /data-n="3" aria-label="Search 3 fares, 3 searches"/.test(after) && /🔍3\?/.test(said) && sNext === 3 && t.api.spentRead() === 3,
+        'PIA-140 a tap never spends more than its control showed: P-total drew 🔍1 (two single-airport fares fresh), and the /account read still out when it was tapped switched nearby airports on (3 legs to search): that tap spent nothing, P-total is drawn again with 🔍3 ("🔍3?"), and only the next tap spends the 3', { shown, sNone, sNext, said });
+    }
+
+    // a booked traveler's flight is bought: never offered for spending
+    {
+      const DK = seedAs(DWX, (dd) => { dd.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '', available_to: '', note: '', arrive_at: '', leave_from: '', booked: true, updated_at: '2026-10-12T00:00:00.000Z' }; });
+      wipeWorkerFares();
+      const t = await boot140o({ ls: orgLs(DK) });
+      act(t, 'open', { id: DK });
+      const m = t.api.modelOf(DK), anjo = m.travelers.find((x) => x.code === 'anjo-z5'), anjoKey = anjo.keys[0].key;
+      const pt = ptotal(t, DK);
+      act(t, 'person', { id: DK, code: 'anjo-z5' }); const as = sheet(t); t.api.closeSheet();
+      const s0 = searches(t).length;
+      const forged = await t.api.runSearch([anjoKey], { id: DK, n: 4 });
+      await tap(t, pt, 'search'); await tick(20);
+      const sent = searches(t).slice(s0);
+      check(anjo.booked && /data-n="2" aria-label="Search 2 fares, 2 searches"/.test(pt) && /class="lgp hollow"[^>]*data-k="unsearched"/.test(pt) && !/data-act="search"/.test(as) && forged.asked === 0 &&
+        sent.length === 2 && sent.every((f) => f.url !== W + '/search?' + TM.searchQuery(anjoKey)),
+        'PIA-140 a booked traveler\'s legs are never offered for spending (v1\'s Get Live Fares skips them too): her leg is shown ($—), P-total\'s 🔍2 prices the two still to book, her sheet has no ±1 🔍, and a search run handed her leg anyway sends nothing', { sent: sent.map((f) => f.url) });
+    }
+
+    // the trip page's total block never advertises a cost no tap will spend
+    {
+      const DC = seedAs(DWX);
+      const t = await boot140o({ ls: orgLs(DC, { pialax_daily_cap_v1: '2026-10-17' }) });
+      act(t, 'open', { id: DC }); const v1 = screen(t);
+      t.ls.removeItem('pialax_daily_cap_v1'); t.ss.setItem('pialax_spent_v2', '8'); t.api.render(true); const v2 = screen(t);
+      check(/<span class="chipq lk" data-k="cap">⛔ 17:00<\/span>/.test(v1) && /<span class="chipq lk" data-k="cap">⛔<\/span>/.test(v2) && !/🔍<\/span><span class="tn">0/.test(v1 + v2),
+        'PIA-140 the trip page\'s total block shows the lock instead of a cost no tap will spend: ⛔ 17:00 under the Worker\'s day cap, ⛔ once the visit\'s 8 are spent; never a 🔍0');
+    }
+
+    // the visit's 8: ⛔ ↻ says how it lifts, and a confirming tap starts a new visit (it spends nothing itself)
+    {
+      const DV2 = seedAs(DWX); wipeWorkerFares();
+      const ss = makeLocalStorage(); ss.setItem('pialax_spent_v2', '8');
+      const t = await boot140o({ ls: orgLs(DV2), ss, rec: ['#toast'] });
+      await opened(t, DV2);
+      const p0 = ptotal(t, DV2), s0 = searches(t).length;
+      act(t, 'settings'); const st0 = sheet(t); t.api.closeSheet(); act(t, 'total', { id: DV2 });
+      await tap(t, p0, 'newvisit'); const p1 = ptotal(t, DV2);
+      await tap(t, p1, 'newvisit'); const p2 = ptotal(t, DV2), said = toastOf(t);
+      const sMid = searches(t).length - s0;
+      await tap(t, p2, 'search'); await tick(20);
+      check(/<button class="btn pri wide" data-act="newvisit" aria-label="Visit limit: 8 searches used\. Tap twice to start a new visit of 8" data-lbl="New visit" data-k="newvisit">⛔ ↻<\/button>/.test(p0) && !/data-act="search"/.test(p0) &&
+        /<button class="tool wordy" data-act="newvisit"/.test(st0) && !/data-k="month"[\s\S]*⛔/.test(st0) &&
+        /class="btn pri wide arm" data-act="newvisit"[^>]*>↻<span class="tn">8<\/span>\?<\/button>/.test(p1) && /data-n="3" aria-label="Search 3 fares, 3 searches"/.test(p2) && /↻ 8/.test(said) && sMid === 0 &&
+        searches(t).length - s0 === 3 && t.api.spentRead() === 3,
+        'PIA-140 the visit\'s 8 spent: P-total shows ⛔ ↻ ("New visit", read out as how it lifts) and ⚙ draws the same ↻ beside the visit\'s dots, not in the month\'s row; the first tap asks (↻8?), the second starts a new visit of 8 and spends nothing itself; the 🔍3 that follows is its own tap');
+    }
+
+    // SerpAPI's own 429: held a few minutes, then lifted by an /account read that shows the plan has searches left
+    {
+      const DM = seedAs(DWX); wipeWorkerFares();
+      const t = await boot140o({ ls: orgLs(DM), rec: ['#toast'] });
+      await opened(t, DM);
+      SM.mode = '429'; await tap(t, ptotal(t, DM), 'search'); await tick(20); SM.mode = 'ok';
+      await until(() => !t.api.S.acctBusy); await tick();
+      const q1 = quotaOf(t), lk1 = t.api.lockNow(), p1 = ptotal(t, DM), told = toastOf(t), sent1 = searches(t).length;
+      CLOCK = NOW + 2 * 60000; const a0 = acctN(t);
+      await tap(t, p1, 'search'); await tick(10);
+      const a1 = acctN(t), lk2 = t.api.lockNow();
+      CLOCK = NOW + 6 * 60000;
+      await tap(t, ptotal(t, DM), 'search'); await until(() => !t.api.S.acctBusy); await tick();
+      const a2 = acctN(t), lk3 = t.api.lockNow(), p3 = ptotal(t, DM), q3 = quotaOf(t);
+      const keep = SM.acct; SM.acct = Object.assign({}, keep, { total_searches_left: 0, plan_searches_left: 0 });
+      CLOCK = NOW + 12 * 60000; await t.api.accountSync(true); const lk4 = t.api.lockNow(), q4 = quotaOf(t); SM.acct = keep;
+      CLOCK = NOW;
+      check(q1.exceeded && lk1 === 'month' && /data-lbl="SerpAPI refused" data-k="cap">⛔ 11\/1</.test(p1) && /⛔ 11\/1/.test(told) && a1 === a0 && lk2 === 'month' &&
+        a2 === a1 + 1 && lk3 === '' && !q3.exceeded && q3.used === 41 && /data-act="search"[^>]*data-n="3"/.test(p3) && q4.exceeded && lk4 === 'month' && searches(t).length === sent1,
+        'PIA-140 SerpAPI\'s own 429 locks the month (⛔ 11/1, "SerpAPI refused"); the /account read right after it, and a tap on ⛔ within 5 minutes, lift nothing; 6 minutes on, the tap reads /account (free, no search) and a plan with searches left lifts it (v1\'s sync does the same: 🔍3 again, the month\'s 41 from SerpAPI); a plan with nothing left keeps it', { a0, a1, a2, lk1, lk2, lk3, lk4 });
+    }
+
+    // a token the Worker refuses: 🔑⚠ in ⚙ and P-total, /account not read again within 5 minutes, and at once after a token save
+    {
+      const DT = seedAs(DWX);
+      const t = await boot140o({ ls: orgLs(DT, { pialax_proxy_token: 'org-token-WRONG-0123456789' }) });
+      act(t, 'open', { id: DT }); act(t, 'settings'); await until(() => !t.api.S.acctBusy); await tick();
+      const st1 = sheet(t), n1 = acctN(t), bad1 = t.api.S.acctBad;
+      t.api.closeSheet(); act(t, 'total', { id: DT }); await tick(5); const pt1 = ptotal(t, DT); t.api.closeSheet(); act(t, 'settings'); await tick(5);
+      const n2 = acctN(t);
+      t.api.onTyped({ id: 'org-token', value: TOKEN, dataset: {}, closest: () => null }); act(t, 'orgsave'); await until(() => !t.api.S.acctBusy); await tick();
+      const n3 = acctN(t), st3 = sheet(t);
+      check(bad1 === true && n1 === 1 && /class="fld bad"><label for="org-token"[^>]*>🔑<\/label><input id="org-token"[^>]*aria-label="Token, refused by the Worker"/.test(st1) && /data-lbl="Token refused" data-k="tokbad">🔑⚠</.test(st1) &&
+        /data-k="tokbad">🔑⚠</.test(pt1) && n2 === n1 && n3 === n2 + 1 && t.api.S.acctBad === false && !/tokbad/.test(st3),
+        'PIA-140 a token the Worker refuses on /account: 🔑⚠ in ⚙ (the token field marked) and in P-total; opening P-total and ⚙ again within 5 minutes reads /account no more; saving a token reads it at once, and the mark goes', { n1, n2, n3 });
+    }
+
+    // what stopped a run is read from the Worker's own code: SerpAPI's 401 passed through is not "your token"; no answer is 📶⚠
+    {
+      const DS = seedAs(DWX); wipeWorkerFares();
+      const t = await boot140o({ ls: orgLs(DS), rec: ['#toast'] });
+      await opened(t, DS);
+      SM.mode = '401'; await tap(t, ptotal(t, DS), 'search'); await tick(20); SM.mode = 'ok';
+      const t401 = toastOf(t), sp1 = t.api.spentRead(), bad1 = t.api.S.acctBad;
+      await until(() => !t.api.S.acctBusy); await tick();
+      srv.failNext = 'network'; await tap(t, ptotal(t, DS), 'search'); await tick(20);
+      const tNet = toastOf(t), sp2 = t.api.spentRead();
+      check(/<span class="tt">⚠<\/span>/.test(t401) && !/🔑/.test(t401) && bad1 === false && sp1 === 1 && /<span class="tt">📶⚠<\/span>/.test(tNet) && sp2 === sp1,
+        'PIA-140 a run\'s stop is read from the Worker\'s own code: SerpAPI\'s 401 passed through on a MISS toasts ⚠ (not 🔑⚠: the organizer\'s token is fine) and counts against the visit (the Worker spent it); no answer at all toasts 📶⚠ and counts nothing', { t401, tNet, sp1, sp2 });
+    }
+
+    // a step that throws ends the run like any stop: ◷ never stays on the 🔍
+    {
+      const DX = seedAs(DWX); wipeWorkerFares();
+      const boom = { on: false }, bad = throwEl();
+      const bfetch = async (u, o) => { const r = await pfetch(u, o); if (/\/search\?/.test(String(u))) boom.on = true; return r; };
+      const t = loadApp({ fetch: bfetch, ls: orgLs(DX), qs: (s) => (s === '#screen' && boom.on ? bad : null) });
+      await t.api.refreshAll(true); await tick(); t.api.render();
+      await opened(t, DX);
+      const out = await tap(t, ptotal(t, DX), 'search'); boom.on = false; await tick(20);
+      const pt = ptotal(t, DX);
+      check(out && out.asked === 1 && out.stop === 'upstream' && !t.api.S.spendBusy && /data-act="search"[^>]*data-n="2"/.test(pt) && !/aria-busy="true"/.test(pt),
+        'PIA-140 a step of a search run that throws (the redraw after its first fare) ends the run like any stop: ◷ never stays on the phone\'s 🔍, and the next 🔍 shows what is left (🔍2)', out);
+    }
+
+    // a ±1 day chip names its day: a quick double tap moves one day; the organizer's move of someone else's day has ↩
+    {
+      const DD = seedAs(DWX); wipeWorkerFares();
+      const t = await boot140o({ ls: orgLs(DD), rec: ['#toast'] });
+      act(t, 'open', { id: DD }); act(t, 'person', { id: DD, code: 'ashwin-p8' }); await until(() => !t.api.S.acctBusy); await tick();
+      await tap(t, sheet(t), 'search', { end: '0' }); await tick(20);
+      const before = ctl(sheet(t), 'legshift', { day: '2026-11-05' });
+      t.api.ACTS.legshift({ dataset: before }); t.api.ACTS.legshift({ dataset: before });   // two taps on "11/5 $…" before a redraw
+      await settleWrites(t, DD);
+      const ashD1 = t.api.modelOf(DD).travelers.find((x) => x.code === 'ashwin-p8').d1, ashRec = srv.read(DD).responses['ashwin-p8'].available_from;
+      t.api.closeSheet(); act(t, 'person', { id: DD, code: 'momdad-k3' });
+      await tap(t, sheet(t), 'search', { end: '0' }); await tick(20);
+      const md0 = sheet(t), after = ctl(md0, 'legshift', { day: '2026-11-07' });
+      t.api.ACTS.legshift({ dataset: after }); const said = toastOf(t), movedTo = t.api.modelOf(DD).travelers.find((x) => x.code === 'momdad-k3').d1;
+      act(t, 'undo'); await settleWrites(t, DD);
+      const backTo = t.api.modelOf(DD).travelers.find((x) => x.code === 'momdad-k3').d1, mdRec = srv.read(DD).responses['momdad-k3'];
+      t.api.closeSheet(); act(t, 'person', { id: DD, code: 'anjo-z5' }); const an = sheet(t); t.api.closeSheet();
+      check(ashD1 === '2026-11-05' && ashRec === '2026-11-05' && /<button class="dch[^"]* tap" data-act="legshift"/.test(md0) && movedTo === '2026-11-07' && /📞 11\/7/.test(said) && /data-act="undo"/.test(said) &&
+        backTo === '2026-11-06' && (mdRec.available_from || '') === '' && /<button class="dch[^"]* ro" data-act="legshift" aria-disabled="true" data-why="1"[^>]*data-lbl="Not answered yet"/.test(an) && !/class="dch[^"]* tap"/.test(an),
+        'PIA-140 a ±1 day chip moves to the day it names: a quick double tap on "11/5" moves Ashwin one day (11/5, not 11/4); the organizer moving Mom & Dad\'s day from a chip says 📞 11/7 with ↩, and ↩ puts it back (they follow the plan again); a chip that can\'t move someone (Anjo has not answered) sits flat and says why on a tap', { ashD1, ashRec, movedTo, backTo, mdRec: mdRec.available_from });
+    }
+
+    // a closed trip's card offers no refresh; the board's price column holds a 4- and 5-digit "+" sum
+    {
+      const DZ = seedAs(DWX, (dd) => { dd.decision = Object.assign({}, dd.decision, { stage: 'dropped' }); });
+      const fz = {}; TM.tripModel(srv.read(DZ), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true, multiAirport: true }).travelers.forEach((x) => x.keys.forEach((k) => { fz[k.key] = { p: 250, f: NOW - 30 * 36e5 }; }));
+      const t = await boot140o({ ls: orgLs(DZ, { pialax_fares_v2: fz }) });
+      const card = t.api.cardHTML({ id: DZ, x: t.api.listEntry(DZ), m: t.api.modelOf(DZ) });
+      const DW = seedAs(DWX); const big = {}; const mw = TM.tripModel(srv.read(DW), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true, multiAirport: true });
+      big[mw.travelers.find((x) => x.code === 'ashwin-p8').keys[0].key] = { p: 1387, f: NOW - 36e5 }; big[mw.travelers.find((x) => x.code === 'momdad-k3').keys[0].key] = { p: 10987, f: NOW - 36e5 };
+      const u = await boot140o({ ls: orgLs(DW, { pialax_fares_v2: big }) });
+      act(u, 'open', { id: DW }); const bv = screen(u);
+      check(/data-k="total">\$750<\/span>/.test(card) && !/data-k="search"/.test(card) && /<span class="pr l7">\$10,987<\/span>/.test(bv) && /<span class="pr">\$1,387<\/span>/.test(bv),
+        'PIA-140 a dropped trip\'s card keeps its last total but offers no 🔍 (P-total offers no spend there); the board\'s price column sizes a long amount down ($1,387 / $10,987) to stay in its column', { card: (/<span class="tot[\s\S]*?<\/span><\/span>|<span class="tot[^>]*>[^<]*<\/span>/.exec(card) || [])[0] });
+    }
+    globalThis.fetch = offline;
+    CLOCK = NOW;
   }
 
   // ═══ AC12 / AC14 ═══

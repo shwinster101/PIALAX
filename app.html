@@ -288,7 +288,8 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .pb-head .nums span.we { background: var(--weekend); border-radius: 4px 4px 0 0; }
 .pb-head .nums span .hg { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 13px; }
 .pb-head .tail, .pb-row .tail { flex: none; display: flex; gap: 6px; align-items: center; }
-.pr { width: 54px; text-align: right; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pr { width: 64px; text-align: right; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.pr.l7 { font-size: 13px; } .pr.l8 { font-size: 12px; letter-spacing: -.02em; }   /* $1,387+ and $10,987+ fit the column */
 .pr.hollow { color: var(--ink3); } .pr.stale { color: var(--mute); }
 .tk { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; font-size: 19px; border: 1.5px solid var(--line); }
 .tk .tkg { filter: grayscale(1); opacity: .45; }
@@ -547,18 +548,64 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .leg .lp.hollow { color: var(--ink3); } .leg .lp.stale { color: var(--mute); }
 .leghd { display: flex; justify-content: flex-end; gap: 0; font-size: 13px; font-weight: 800; letter-spacing: .02em; padding-right: 0; }
 .leghd span { width: 44px; text-align: center; }
-.lvl { display: inline-flex; gap: 1px; align-items: flex-end; height: 14px; }
-.lvl i { width: 4px; background: var(--line); border-radius: 1px; } .lvl i.on { background: var(--ink2); }
+/* Google's price level as a gauge: three bars low → high, outlined; the level's own bar filled (low green, typical ink, high red) */
+.lvl { display: inline-flex; gap: 1px; align-items: flex-end; height: 14px; flex: none; }
+.lvl i { width: 5px; box-sizing: border-box; background: transparent; border: 1.25px solid var(--ink3); border-radius: 1px; }
+.lvl i.on { border-color: transparent; background: var(--ink2); } .lvl.l1 i.on { background: var(--in); } .lvl.l3 i.on { background: var(--bad); }
+.lgp.stale .lvl i.on { background: var(--mute); }
 .lvl i:nth-child(1) { height: 5px; } .lvl i:nth-child(2) { height: 9px; } .lvl i:nth-child(3) { height: 13px; }
 .notep { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 16px; text-align: left; border-radius: 12px; padding: 0 8px; border: 1.5px solid var(--line); width: 100%; }
 .trow { display: flex; align-items: center; gap: 8px; min-height: 52px; border-bottom: 1px solid var(--line); }
 .trow:last-child { border-bottom: 0; }
 .trow .legsx { display: flex; flex-wrap: wrap; gap: 4px 12px; flex: 1; justify-content: flex-end; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.trow .legsx span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.trow .legsx .hollow { color: var(--ink3); border: 1.5px solid var(--ink3); border-radius: 8px; padding: 0 6px; }
-.trow .legsx .stale { color: var(--mute); }
+/* only a leg (a direct child) is laid out here: its own parts (the level gauge, the stops line) keep their .lgp / .lvl rules,
+   so P-total draws a leg exactly as P-person does ($— dashed, the gauge bottom-aligned) */
+.trow .legsx > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .sum { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 8px; }
 .sdots { display: inline-flex; gap: 3px; } .sdots i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink2); } .sdots i.on { background: var(--ink2); }
+/* PIA-140: prices */
+.totb { margin-left: auto; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; border-radius: 12px; }
+.totb .tot { margin-left: 0; }
+button.totalblk { cursor: pointer; color: inherit; }
+.totalblk .big { flex-wrap: wrap; }
+.dl { font-size: 15px; font-weight: 700; color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sum .dl { font-size: 16px; } .totalblk .big .dl { font-size: 16px; }
+.sum.stale .tot { color: var(--mute); }
+.trows { display: grid; margin: 4px 0 8px; }
+.trow .facebtn { position: relative; flex: none; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+.trow .facebtn .cnt { position: absolute; right: -2px; bottom: 0; font-size: 11px; font-weight: 800; background: var(--surface); border-radius: 6px; padding: 0 2px; }
+.lgp { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; min-height: 32px; }
+.lgp .lgk { font-size: 15px; }
+.lgp .lc { font-size: 13px; font-weight: 800; letter-spacing: .02em; color: var(--ink2); }
+.lgp.stale { color: var(--mute); } .lgp.stale .agering { opacity: .7; }
+.lgp.hollow { color: var(--ink3); border: 1.5px dashed var(--ink3); border-radius: 8px; padding: 0 6px; }
+.lgp.none { color: var(--ink2); }
+.stopl { width: 28px; height: 10px; flex: none; }
+.fares { display: grid; gap: 6px; margin: 2px 0 6px; }
+.frow { gap: 6px 14px; }
+.dayp { gap: 6px; }
+.dayp .lgk { min-width: 28px; font-size: 18px; text-align: center; }
+.dch { flex: 1 1 0; min-width: 0; min-height: 48px; display: grid; place-items: center; align-content: center; gap: 0; border-radius: 12px; border: 1.5px solid var(--line); padding: 2px 4px; position: relative; font-size: 14px; line-height: 1.15; }
+.dch .dd { font-size: 12px; color: var(--ink2); font-weight: 600; }
+.dch b { font-size: 15px; }
+.dch.cur { border-color: var(--ink); }
+/* a day that one tap makes theirs looks like a button (raised); one that can't move them sits flat and says why on a tap */
+button.dch.tap { border-color: var(--ink2); background: var(--surface); box-shadow: 0 2px 0 var(--line); cursor: pointer; }
+button.dch.ro { background: var(--sunk); border-color: transparent; cursor: default; }
+.dch.hollow { border-style: dashed; color: var(--ink3); }
+.dch.stale { color: var(--mute); }
+.dch .st { position: absolute; top: -7px; right: -4px; font-size: 13px; background: var(--surface); border-radius: 50%; padding: 0 1px; }
+.dayp .btn.sq { min-height: 48px; width: 56px; font-size: 16px; gap: 2px; }
+.budget { justify-content: space-between; min-height: 32px; margin: 4px 0; }
+.budget .bl { gap: 8px; }
+.temo { font-size: 26px; line-height: 1; margin-right: 2px; flex: none; }
+.chipq.lk { color: var(--bad); border-color: var(--bad); }
+.tool.tokdoor { opacity: .55; border-style: dashed; }
+.frow .sdots { margin-left: auto; }
+.budget .bud { font-size: 15px; font-weight: 700; }
+.mu { font-size: 15px; font-weight: 700; color: var(--ink2); padding-left: 2px; }
+.fld.capf { flex: none; width: 184px; } .fld.capf input { font-weight: 700; font-variant-numeric: tabular-nums; }
+.capt { font-size: 15px; font-weight: 700; color: var(--bad); white-space: nowrap; }
 .strip { display: grid; grid-template-columns: repeat(7, 44px); gap: 2px; justify-content: center; align-items: end; }
 .cbar { height: 150px; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 2px; border-radius: 10px; padding: 2px 0; }
 .cbar .v { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; min-height: 16px; }
@@ -702,6 +749,14 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .pb-row .av .bd2 { bottom: -3px; left: -10px; }   /* clear of the name under the face */
 .pb-row.solo { height: 36px; }
 .pnm { font-size: 20px; font-weight: 700; margin-left: 8px; min-width: 0; overflow-wrap: anywhere; }
+/* PIA-140 fix pass 2: a person's name breaks only at its spaces (each word a nowrap span). Beside the face it has the room ‹, ⇄, ⓘ
+   and ⌄ leave it; when a word does not fit there (fitHead measures), the name takes its own line under the face, the buttons
+   staying on the first */
+.pnm .w { white-space: nowrap; }
+.pnm.brk .w { white-space: normal; }   /* the last resort: a word wider than the sheet even at 14px */
+.sh-hd.pers.stk { flex-wrap: wrap; row-gap: 2px; }
+.sh-hd.pers.stk .pnm { order: 9; flex: 1 0 100%; margin-left: 0; padding-left: 4px; }
+.sh-hd.pers.stk.bk .pnm { padding-left: 52px; }   /* under the face, past ‹ */
 .leg .lc { font-size: 15px; font-weight: 800; letter-spacing: .02em; margin-left: auto; }
 .leg .radg { display: inline-flex; margin-left: auto; }
 .leghd .lh0 { flex: 1; }
@@ -1135,7 +1190,10 @@ function legPlan(O, A, H, d1, d2, n) {
   if (A === H) return { trip: 1, adults: n, legs: [{ date: d1, from: O, to: [A] }, { date: d2, from: [A], to: O }] };
   return { trip: 3, adults: n, legs: [{ date: d1, from: O, to: [A] }, { date: d2, from: [H], to: O }] };
 }
-function fareKey(type, from, to, d, r, n) { return [type, from.join(','), to.join(','), d, r || '', n].join('|'); }
+/* PIA-140: a fare key names one search: its airports are a set, sorted and de-duplicated (the Worker's cache order), so the
+   key v1 caches a search under and the key this model prices it by are the same search */
+function codeSet(a) { return uniq([].concat(a || [])).sort().join(','); }
+function fareKey(type, from, to, d, r, n) { return [type, codeSet(from), codeSet(to), d, r || '', n].join('|'); }
 function legKeys(S, A, H, d1, d2, n) {
   if (A === H) return [{ kind: 'rt', key: fareKey(1, S, [A], d1, d2, n) }];
   return [{ kind: 'in', key: fareKey(2, S, [A], d1, '', n) }, { kind: 'out', key: fareKey(2, [H], S, d2, '', n) }];
@@ -2608,6 +2666,272 @@ function typedPaid(s) {
   var v = Math.round(+t);
   return v >= 1 && v < 1e6 ? v : null;
 }
+
+/* ---- PIA-140: prices. One honest total from real fares, never spent without a tap ----
+   Pure rules; the app makes the calls (GET /search and /account on the Worker, with the organizer token) and keeps the
+   counters. These decide what a tap may search, what it costs, what is locked, and what a reply means.
+   • searchQuery: a fare key is exactly one Worker search, in v1's parameters (engine, airports, dates, type, USD, en): the
+     airports of a nearby search comma-joined and sorted (≤5, the Worker's own order), adults only above 1 (SerpAPI's default
+     is 1). So a one-adult search is byte for byte v1's, and both apps hit one Worker cache entry for it.
+   • fareFromSerp keeps what was paid for (pialax_fares_v2): the cheapest price that search found (p), when SerpAPI was
+     called (f: the Worker's X-Fetched-At, which a cache HIT keeps), Google's price level and typical range, the ≤3 cheapest
+     offers (airports, times, stops), and, for ▼ / ▲, the price an earlier fetch of the identical search found (prev, pf). A
+     search with no fares is none (not offered again within 24h).
+   • spendKeys / spendCount: what one tap may search (missing legs first, then stale ones, never a past day): ≤4 a tap, ≤8 a
+     session. tapKeys / spendable: the legs of one trip a tap may search at all (never a booked traveler's).
+   • spendLock: 'month' (an upstream 429 or a plan with nothing left: exceeded; the organizer's month cap; 990 used; the plan's
+     last 10 searches), 'day' (the Worker's per-day cap, until the next UTC day), 'session' (8 spent); monthWhy says which.
+   • v1's own stores, in v1's formats, so both apps on one phone agree: pialax_serpapi_quota {period, used, budget, exceeded}
+     (quotaRead, quotaBump, quotaExceeded, quotaFromAccount) and the one-adult fares v1 keeps in pialax_prices_v1 (v1FareKey,
+     fareFromV1 to read them, v1Fare to write one as v1's own fetch would). */
+var SPEND_PER_TAP = 4;           // = v1 TRIP_LEG_CALLS_PER_PRESS
+var SPEND_PER_SESSION = 8;       // = v1 MAX_CALLS_PER_SESSION (v1's MAX_CALLS_PER_REFRESH is retired: a tap is the refresh)
+var QUOTA_LOCK_AT = 990;         // = v1 QUOTA_LOCK_AT, the month's safety cutoff
+var QUOTA_BUDGET = 1000;         // = v1's month budget when none is stored
+var PLAN_LEFT_MIN = 10;          // the plan's searches left at or under this lock the month
+var FARE_OFFERS = 3;             // the cheapest offers a fare keeps
+var FARES_KEEP = 400;            // fares this phone keeps (the newest; none for a day already past)
+var FARE_LEVELS = { low: 1, typical: 2, high: 3 };
+var SERP_TIME_RE = /^(\d{4}-\d{2}-\d{2}) (\d{1,2}):(\d{2})$/;
+/* a fare key → {type, from, to, d, r, n}, or null when it is not a search the Worker takes */
+function parseFareKey(key) {
+  var p = typeof key === 'string' ? key.split('|') : [];
+  if (p.length !== 6) return null;
+  var type = +p[0], from = p[1].split(','), to = p[2].split(','), n = +p[5];
+  var codes = function (a) { return a.length >= 1 && a.length <= 5 && a.every(isIata); };
+  if ((type !== 1 && type !== 2) || !codes(from) || !codes(to) || !isIso(p[3]) || !(n >= 1 && n <= 9 && n === Math.round(n))) return null;
+  if (type === 1 ? !(isIso(p[4]) && p[4] >= p[3]) : p[4] !== '') return null;
+  return { type: type, from: from, to: to, d: p[3], r: p[4], n: n };
+}
+/* the Worker /search query for one fare key ('' for none): v1's parameters, the strict allowlist's shapes */
+function searchQuery(key) {
+  var k = parseFareKey(key); if (!k) return '';
+  return 'engine=google_flights&departure_id=' + codeSet(k.from) + '&arrival_id=' + codeSet(k.to) + '&outbound_date=' + k.d + (k.type === 1 ? '&return_date=' + k.r : '') +
+    '&type=' + k.type + '&currency=USD&hl=en' + (k.n > 1 ? '&adults=' + k.n : '');
+}
+function serpTime(v) { var m = typeof v === 'string' ? SERP_TIME_RE.exec(v.trim()) : null; return m && +m[2] < 24 ? m[1] + ' ' + ('0' + m[2]).slice(-2) + ':' + m[3] : ''; }
+function serpList(v) { return Array.isArray(v) ? v : []; }
+/* one SerpAPI offer as a fare keeps it: price, first departure and last arrival airport and time, stops */
+function serpOffer(o) {
+  var segs = serpList(o.flights), a = segs[0] || {}, z = segs[segs.length - 1] || {}, da = a.departure_airport || {}, za = z.arrival_airport || {};
+  return { p: Math.round(o.price), d: normIata(da.id), a: normIata(za.id), dt: serpTime(da.time), ar: serpTime(za.time), s: segs.length ? segs.length - 1 : null };
+}
+function typRange(t) { var r = Array.isArray(t) ? t.map(Number) : []; return r.length === 2 && r[0] > 0 && r[1] >= r[0] ? [Math.round(r[0]), Math.round(r[1])] : null; }
+/* ▼ / ▲ compare two real fetches of the identical search: a fetch newer than the one kept takes the kept price as prev; a
+   cache HIT of the very fetch already kept keeps the prev it had */
+function withPrev(e, old) {
+  var at = old ? fareAt(old) : NaN;
+  if (old && typeof old.p === 'number' && !old.none && at < e.f) { e.prev = old.p; e.pf = at; }
+  else if (old && at === e.f && typeof old.prev === 'number') { e.prev = old.prev; e.pf = old.pf; }
+  return e;
+}
+/* a SerpAPI google_flights reply → the pialax_fares_v2 entry (at = when SerpAPI was called, ms; old = the entry kept) */
+function fareFromSerp(json, at, old) {
+  var j = json && typeof json === 'object' ? json : {};
+  var all = serpList(j.best_flights).concat(serpList(j.other_flights)).filter(function (o) { return o && typeof o.price === 'number' && isFinite(o.price) && o.price > 0; }).map(serpOffer);
+  all.sort(function (x, y) { return x.p - y.p; });
+  var off = all.slice(0, FARE_OFFERS), pi = j.price_insights && typeof j.price_insights === 'object' ? j.price_insights : {};
+  return withPrev({ p: off.length ? off[0].p : null, f: at, none: !off.length, lvl: hasOwn(FARE_LEVELS, pi.price_level) ? pi.price_level : '', typ: typRange(pi.typical_price_range), off: off }, old);
+}
+/* what a priced leg can say from data already paid for: its age, Google's level (1–3), stops, the airport that won when it is
+   not their own (an inbound or round trip: where the cheapest offer leaves from; the way home: where it lands), only ever one of
+   the airports that leg searched (set: their origin set), and the change */
+function fareFacts(f, kind, origin, now, set) {
+  var p = legTotal(f);   // the one rule that turns a cached fare into a price (priceRows'), so a leg shows what the total adds
+  if (p == null) return null;
+  var o = Array.isArray(f.off) && f.off[0] ? f.off[0] : null, at = fareAt(f), win = o ? (kind === 'out' ? o.a : o.d) : '';
+  var ok = isIata(win) && win !== origin && (!set || set.indexOf(win) >= 0);
+  return { p: p, age: isFinite(at) ? Math.max(0, now - at) : null, lvl: hasOwn(FARE_LEVELS, f.lvl) ? FARE_LEVELS[f.lvl] : 0, typ: f.typ || null,
+    stops: o && typeof o.s === 'number' ? o.s : null, win: ok ? win : '', delta: prevDelta(f) };
+}
+/* ▼ / ▲ of one fare: its price against the price an earlier real fetch of the identical search found, by the same rule (legTotal) */
+function prevDelta(f) { var p = legTotal(f); return p != null && typeof f.prev === 'number' ? p - legTotal({ p: f.prev }) : null; }
+/* the total's ▼ / ▲: only when every priced leg in it has an earlier real price for its identical search */
+function priceDelta(pr) {
+  if (!pr || !pr.per) return null;
+  var d = 0, n = 0, ok = true;
+  Object.keys(pr.per).forEach(function (c) { pr.per[c].legs.forEach(function (l) { if (l.p == null) return; n++; var x = l.f ? prevDelta(l.f) : null; if (x != null) d += x; else ok = false; }); });
+  return ok && n ? d : null;
+}
+/* the legs one tap may search: missing or stale (a no-fares answer younger than 24h is not offered again), each once, never
+   one for a day already past, never one the Worker would refuse; the never-searched first, then the day-old (in the order
+   given), so a tap the caps cut short prices a $— leg before it refreshes a grey one */
+function spendKeys(keys, fares, now, today) {
+  var miss = [], old = [];
+  (keys || []).forEach(function (k) {
+    var key = typeof k === 'string' ? k : (k && k.key), q = parseFareKey(key), f = q && fares && hasOwn(fares, key) ? fares[key] : null, st = fareState(f, now);
+    if (!q || q.d < today || miss.indexOf(key) >= 0 || old.indexOf(key) >= 0 || (st !== 'missing' && st !== 'stale')) return;
+    (st === 'missing' ? miss : old).push(key);
+  });
+  return miss.concat(old);
+}
+/* the legs P-total's one tap prices: every traveler's missing or day-old legs on the trip's current dates (priceTrip's), but
+   never a booked traveler's (their flight is bought: v1's Get Live Fares skips them too), each once */
+function tapKeys(model) {
+  var p = model && model.price, out = [];
+  if (!p) return out;
+  model.travelers.forEach(function (x) {
+    if (x.booked || !p.per[x.code]) return;
+    p.per[x.code].legs.forEach(function (l) { if ((l.st === 'missing' || l.st === 'stale') && out.indexOf(l.key) < 0) out.push(l.key); });
+  });
+  return out;
+}
+/* every search a tap on this trip may make (the app's spend path searches nothing else): P-total's legs (tapKeys) and each
+   unbooked traveler's ends ±1 day (endPrices' need) */
+function spendable(model, fares, now, today) {
+  var out = tapKeys(model);
+  if (!model || !model.price) return out;
+  model.travelers.forEach(function (x) {
+    [0, 1].forEach(function (end) { var ep = endPrices(model, x.code, end, fares, now, today); (ep ? ep.need : []).forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); }); });
+  });
+  return out;
+}
+/* how many searches one tap makes (its cost, shown before it is tapped): ≤4, and never past the session's 8 */
+function spendCount(n, spent) { return Math.max(0, Math.min(n || 0, SPEND_PER_TAP, SPEND_PER_SESSION - (spent || 0))); }
+/* why the month is locked, for its label ('' when it is not): 'refused' (SerpAPI refused a search, or /account says the plan
+   has nothing left: exceeded), 'plan' (the plan's last 10), 'cap' (the organizer's own month cap: raising it lifts it),
+   'safety' (990, v1's cutoff). o as spendLock's. */
+function monthWhy(o) {
+  o = o || {};
+  var q = o.quota || {}, a = o.acct && typeof o.acct === 'object' ? o.acct : null, used = +q.used || 0, budget = +q.budget > 0 ? +q.budget : QUOTA_BUDGET;
+  var num = function (k) { return a && typeof a[k] === 'number' ? a[k] : null; }, pl = num('plan_searches_left'), tl = num('total_searches_left');
+  if (q.exceeded) return 'refused';
+  if ((pl !== null && pl <= PLAN_LEFT_MIN) || (tl !== null && tl <= 0)) return 'plan';
+  if (used >= budget) return 'cap';
+  if (used >= QUOTA_LOCK_AT) return 'safety';
+  return '';
+}
+/* what stops every spend: o = {quota, dayCap (pialax_daily_cap_v1), utcDay, acct (the last /account), acctDay, spent} */
+function spendLock(o) {
+  o = o || {};
+  var q = o.quota || {}, a = o.acct && typeof o.acct === 'object' ? o.acct : null, used = +q.used || 0, budget = +q.budget > 0 ? +q.budget : QUOTA_BUDGET;
+  var num = function (k) { return a && typeof a[k] === 'number' ? a[k] : null; }, pl = num('plan_searches_left'), tl = num('total_searches_left');
+  if (q.exceeded || used >= budget || used >= QUOTA_LOCK_AT || (pl !== null && pl <= PLAN_LEFT_MIN) || (tl !== null && tl <= 0)) return 'month';
+  var sp = a && a.spend && a.spend.serp;
+  if ((o.dayCap && o.dayCap === o.utcDay) || (sp && o.acctDay === o.utcDay && typeof sp.used === 'number' && typeof sp.cap === 'number' && sp.used >= sp.cap)) return 'day';
+  if ((o.spent || 0) >= SPEND_PER_SESSION) return 'session';
+  return '';
+}
+/* pialax_serpapi_quota as v1's readQuota reads it (raw: the parsed value, period: this local 'YYYY-MM'): nothing stored is a
+   fresh month (not written); v1's chained budget migration (100 → 250 → 1000) and a new month are written back */
+function quotaRead(raw, period) {
+  var fresh = function (b) { return { period: period, used: 0, budget: b, exceeded: false }; };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { q: fresh(QUOTA_BUDGET), write: false };
+  var q = { period: raw.period, used: +raw.used >= 0 ? +raw.used : 0, budget: +raw.budget > 0 ? +raw.budget : QUOTA_BUDGET, exceeded: !!raw.exceeded }, write = false;
+  if (q.budget === 100) { q.budget = 250; write = true; }
+  if (q.budget === 250) { q.budget = 1000; write = true; }
+  if (write && q.used < q.budget) q.exceeded = false;
+  if (q.period !== period) { q = fresh(q.budget); write = true; }
+  return { q: q, write: write };
+}
+function quotaBump(q, n) { return { period: q.period, used: (+q.used || 0) + (n || 0), budget: q.budget, exceeded: !!q.exceeded }; }   // = v1 bumpQuota
+function quotaExceeded(q) { return { period: q.period, used: Math.max(+q.used || 0, +q.budget || 0), budget: q.budget, exceeded: true }; }   // = v1 markQuotaExceeded
+/* /account → the quota, as v1's syncSerpApiAccount reads it: SerpAPI's own count of this month (or the plan less what is left),
+   and exceeded from whether the plan has any search left, so a plan with nothing left locks the month and one with searches
+   left again lifts the lock a refusal set (a SerpAPI 429 can be a passing hourly limit). hold: a refusal just now (the app
+   holds it ACCT_MS) is not lifted yet. The organizer's month cap (budget) is never overwritten (unlike v1's sync). */
+function quotaFromAccount(q, a, hold) {
+  var out = { period: q.period, used: q.used, budget: q.budget, exceeded: !!q.exceeded };
+  if (!a || typeof a !== 'object') return out;
+  var left = typeof a.total_searches_left === 'number' ? a.total_searches_left : null, per = typeof a.searches_per_month === 'number' ? a.searches_per_month : null;
+  if (typeof a.this_month_usage === 'number' && a.this_month_usage >= 0) out.used = a.this_month_usage;
+  else if (left !== null && per !== null && per >= left) out.used = per - left;
+  if (left !== null && left <= 0) out.exceeded = true;
+  else if (left !== null && !hold) out.exceeded = false;
+  return out;
+}
+/* the key v1 caches this search under ('from|to|dep|ret', v1 _cacheKey), or '' (v1 never searches for more than one adult) */
+function v1FareKey(key) { var k = parseFareKey(key); return k && k.n === 1 ? [codeSet(k.from), codeSet(k.to), k.d, k.type === 1 ? k.r : ''].join('|') : ''; }
+/* a v1 key → the fare key of the same one-adult search, or '' */
+function fareKeyOfV1(k1) {
+  var p = typeof k1 === 'string' ? k1.split('|') : [];
+  if (p.length !== 4) return '';
+  var key = fareKey(p[3] ? 1 : 2, p[0].split(','), p[1].split(','), p[2], p[3], 1);
+  return parseFareKey(key) ? key : '';
+}
+/* a fare v1 fetched (pialax_prices_v1 {data, ts}) → the same fare as v2 keeps it (its cheapest offer; ts = when SerpAPI was
+   called), or null: a sample, a booked stand-in or anything v1 did not fetch live is never a price */
+function fareFromV1(e, old) {
+  var d = e && e.data;
+  if (!d || typeof d !== 'object' || d.live !== true || d.locked || typeof e.ts !== 'number' || !isFinite(e.ts)) return null;
+  var off = serpList(d.offers).filter(function (o) { return o && typeof o.price === 'number' && isFinite(o.price) && o.price > 0; }).map(function (o) {
+    return { p: Math.round(o.price), d: normIata(o.depAirport), a: normIata(o.arrAirport), dt: serpTime(o.depTime), ar: serpTime(o.arrTime), s: typeof o.stops === 'number' ? o.stops : null };
+  });
+  off.sort(function (x, y) { return x.p - y.p; });
+  var head = typeof d.rt === 'number' && d.rt > 0 ? d.rt : typeof d.ow === 'number' && d.ow > 0 ? d.ow : null;
+  if (!off.length && head === null) return null;
+  var ins = d.insights && typeof d.insights === 'object' ? d.insights : {};
+  return withPrev({ p: off.length ? off[0].p : Math.round(head), f: e.ts, none: false, lvl: hasOwn(FARE_LEVELS, ins.level) ? ins.level : '', typ: typRange(ins.typical), off: off.slice(0, FARE_OFFERS) }, old);
+}
+/* a SerpAPI reply as v1's own fetchFlights would cache it ({data, ts}: v1's tripFareParse, verbatim in what it keeps), so v1
+   on this phone reads the fare this app paid for; null when the search found no fares (v1 caches nothing then) */
+function v1Fare(json, at, hit, rt) {
+  var j = json && typeof json === 'object' ? json : {};
+  var top = serpList(j.best_flights), more = serpList(j.other_flights), best = top[0] || more[0] || null;
+  if (!best || typeof best.price !== 'number') return null;
+  var offer = function (o) {
+    var segs = serpList(o.flights), a = segs[0] || {}, z = segs[segs.length - 1] || {}, da = a.departure_airport || {}, za = z.arrival_airport || {};
+    return { price: o.price, airline: a.airline || null, flightNos: segs.map(function (s) { return s && s.flight_number; }).filter(Boolean).slice(0, 4),
+      depAirport: da.id || '', arrAirport: za.id || '', depTime: da.time || '', arrTime: za.time || '', stops: segs.length > 1 ? segs.length - 1 : 0, durMin: Number(o.total_duration) || null };
+  };
+  var all = top.concat(more).filter(function (o) { return o && typeof o.price === 'number' && o.price > 0; }).map(offer);
+  var offers = all.slice(0, 1).concat(all.slice(1).sort(function (x, y) { return x.price - y.price; })).slice(0, 6);
+  var byDep = {}, byArr = {};
+  all.forEach(function (o) {
+    if (o.depAirport && !(byDep[o.depAirport] <= o.price)) byDep[o.depAirport] = o.price;
+    if (o.arrAirport && !(byArr[o.arrAirport] <= o.price)) byArr[o.arrAirport] = o.price;
+  });
+  var segs = serpList(best.flights), first = segs[0] || {}, back = serpList(best.return_flights), bf = back[0] || {};
+  var pi = j.price_insights && typeof j.price_insights === 'object' ? j.price_insights : null, insights = null;
+  if (pi) {
+    var tr = Array.isArray(pi.typical_price_range) ? pi.typical_price_range.map(Number) : [];
+    var hist = serpList(pi.price_history).filter(function (p) { return Array.isArray(p) && Number(p[0]) > 0 && Number(p[1]) > 0; })
+      .map(function (p) { var t = Number(p[0]); return [t < 1e12 ? t * 1000 : t, Number(p[1])]; }).slice(-30);
+    insights = { level: typeof pi.price_level === 'string' ? pi.price_level : '', low: Number(pi.lowest_price) || null, typical: tr.length === 2 && tr[0] > 0 && tr[1] >= tr[0] ? tr : null, hist: hist };
+  }
+  // Google's own results link, as v1 checks it (it becomes an href there): https://www.google.com/travel/flights?… only
+  var gf = j.search_metadata && typeof j.search_metadata.google_flights_url === 'string' ? j.search_metadata.google_flights_url : '';
+  try { var gu = typeof URL === 'function' && gf ? new URL(gf) : null; gf = gu && gu.protocol === 'https:' && gu.hostname === 'www.google.com' && gu.pathname === '/travel/flights' ? gu.href : ''; } catch (e) { gf = ''; }
+  if (gf.indexOf('https://www.google.com/travel/flights?') !== 0 || /[\s<>\x22\x27\x60\x5c]/.test(gf)) gf = '';
+  var data = { ow: rt ? null : best.price, rt: rt ? best.price : null, live: true, airline: first.airline || null, flightNo: first.flight_number || null,
+    airlineLogo: first.airline_logo || best.airline_logo || null, stops: segs.length > 1 ? segs.length - 1 : 0, returnAirline: bf.airline || null,
+    returnFlightNo: bf.flight_number || null, returnAirlineLogo: bf.airline_logo || null, returnStops: back.length > 1 ? back.length - 1 : 0,
+    offers: offers, insights: insights, gfUrl: gf, byDep: byDep, byArr: byArr, lastVerified: new Date(at).toISOString() };
+  if (hit) { data.cached = true; data.edgeHit = true; }
+  return { data: data, ts: at };
+}
+/* the fare cache with one entry put in (never an older fetch over a newer one), fares for days already past dropped, and the
+   newest FARES_KEEP kept */
+function faresPut(fares, key, e, today) {
+  var out = {};
+  Object.keys(fares || {}).forEach(function (k) { var q = parseFareKey(k), f = fares[k]; if (q && q.d >= today && f && typeof f === 'object') out[k] = f; });
+  var old = hasOwn(out, key) ? out[key] : null;
+  if (parseFareKey(key) && e && !(old && fareAt(old) > e.f)) out[key] = e;
+  var ks = Object.keys(out);
+  if (ks.length > FARES_KEEP) { ks.sort(function (a, b) { return fareAt(out[b]) - fareAt(out[a]); }); ks.slice(FARES_KEEP).forEach(function (k) { delete out[k]; }); }
+  return out;
+}
+/* one traveler's end (0 the day they land, 1 the day they leave) priced ±1 day, by the one pricing rule (priceRows): the day
+   before, their day and the day after, each the leg that end changes (a round trip is one search; open-jaw, that end's one-way),
+   ★ on the cheapest once two are priced; need = the ±1 legs still to search (its 🔍 cost; none for a booked traveler). null
+   when that end cannot move. */
+function endPrices(model, code, end, fares, now, today) {
+  var x = model && model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x || !x.traveler || x.why || !x.keys.length || !x.d1 || x.bad) return null;
+  var rows = [], need = [];
+  [-1, 0, 1].forEach(function (k) {
+    var d1 = end ? x.d1 : addD(x.d1, k), d2 = end ? addD(x.d2, k) : x.d2;
+    if (k && legWhy(model.dest, x.O, d1, d2, today, x.origin)) return;
+    var ks = legKeys(x.from, x.A, x.H, d1, d2, x.headcount), lk = ks.length === 1 ? ks[0] : ks[end ? 1 : 0];
+    var l = priceRows([{ code: x.code, color: x.color, keys: [lk], why: '' }], fares, now).per[x.code].legs[0];
+    rows.push({ k: k, day: end ? d2 : d1, key: lk.key, kind: lk.kind, st: l.st, p: l.p, f: l.f });
+    if (k && !x.booked && (l.st === 'missing' || l.st === 'stale')) need.push(lk.key);   // a booked traveler's days are shown, never searched
+  });
+  // ★ the cheapest, once two days are priced and one is cheaper than another (equal prices have no cheapest)
+  var priced = rows.filter(function (r) { return r.p != null; }), ps = priced.map(function (r) { return r.p; });
+  if (priced.length >= 2 && Math.min.apply(null, ps) < Math.max.apply(null, ps)) { var min = Math.min.apply(null, ps); priced.forEach(function (r) { if (r.p === min) r.star = true; }); }
+  return rows.length > 1 ? { end: end, rows: rows, need: need } : null;
+}
 /* === pialax trip-model: end === */
 
 /* =====================================================================================================
@@ -2655,7 +2979,9 @@ var ST = {                                    // localStorage keys (the first se
   url: 'pialax_proxy_url', multi: 'pialax_multi_airport_v1', v1list: 'pialax_watchlist_v1',
   list: 'pialax_watchlist_v2', ui: 'pialax_ui_v1',
   fares: 'pialax_fares_v2', shared: 'pialax_shared_at_v1', profile: 'pialax_me_profile_v1',  // PIA-135 (v2 only)
-  soon: 'pialax_soon_v2'                      // PIA-138 (v2 only): a run of ±1 taps the page was left before it settled
+  soon: 'pialax_soon_v2',                     // PIA-138 (v2 only): a run of ±1 taps the page was left before it settled
+  // PIA-140, shared with v1 in v1's exact formats: the month's SerpAPI counter, the Worker's day cap, v1's one-adult fares
+  quota: 'pialax_serpapi_quota', dayCap: 'pialax_daily_cap_v1', v1fares: 'pialax_prices_v1'
 };
 var NAV_KEY = 'pialax_nav_v2';                // sessionStorage {tab, seg}: a cold open always lands on Trips › Ideas
 /* the Worker origins this page may talk to: exactly the CSP's connect-src list (test-app checks the two agree).
@@ -2795,6 +3121,62 @@ function readFares() {
   Object.keys(v).forEach(function (k) { if (!BAD_KEY_RE.test(k) && plainObj(v[k])) out[k] = v[k]; });
   return out;
 }
+/* ---- PIA-140: the fares this phone paid for, and the counters shared with v1 ----
+   pialax_fares_v2 holds every fare a search brought back (the model's fareFromSerp), stale ones too (grey, with 🔍). The fare
+   v1 caches for a one-adult search (pialax_prices_v1) is read in as a real fare (fareFromV1, its own fetch time kept), and a
+   one-adult fare searched here is written there as v1's own fetch would write it (v1Fare), so neither app pays twice. The
+   month's counter (pialax_serpapi_quota) and the Worker's day cap (pialax_daily_cap_v1) are v1's keys in v1's formats. */
+function saveFare(key, e) {
+  var cur = writableMap(ST.fares); if (!cur || !parseFareKey(key) || BAD_KEY_RE.test(key)) return false;
+  return lsSet(ST.fares, JSON.stringify(faresPut(cur, key, e, todayLocal())));
+}
+/* v1's live fares for the same one-adult searches come in (on open and on focus): a newer v1 fetch replaces an older one here */
+function absorbV1Fares() {
+  var v1 = jparse(lsGet(ST.v1fares)), cur = writableMap(ST.fares); if (!plainObj(v1) || !cur) return 0;
+  var n = 0, out = cur;
+  Object.keys(v1).forEach(function (k1) {
+    var key = BAD_KEY_RE.test(k1) ? '' : fareKeyOfV1(k1), old = key && hasOwn(out, key) && plainObj(out[key]) ? out[key] : null;
+    var e = key ? fareFromV1(v1[k1], old) : null;
+    if (!e || (old && !(fareAt(old) < e.f))) return;
+    out = faresPut(out, key, e, todayLocal()); n++;
+  });
+  if (n) lsSet(ST.fares, JSON.stringify(out));
+  return n;
+}
+/* a one-adult fare searched here, into v1's cache as v1's persistFlightCache keeps it (its entries under 24h old only) */
+function mirrorV1(key, json, at, hit) {
+  var k1 = v1FareKey(key), q = parseFareKey(key); if (!k1 || !q) return false;
+  var e = v1Fare(json, at, hit, q.type === 1); if (!e) return false;
+  var raw = lsGet(ST.v1fares), cur = jparse(raw); if (raw && !plainObj(cur)) return false;   // a store v1 wrote that this page cannot read is left alone
+  var out = {}, now = nowMs();
+  Object.keys(cur || {}).forEach(function (k) { var x = cur[k]; if (!BAD_KEY_RE.test(k) && plainObj(x) && typeof x.ts === 'number' && now - x.ts < FARE_STALE_MS) out[k] = x; });
+  if (out[k1] && out[k1].ts > at) return false;
+  out[k1] = e;
+  return lsSet(ST.v1fares, JSON.stringify(out));
+}
+function quotaPeriod() { var d = new Date(nowMs()); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2); }   // = v1 _quotaPeriodKey (local month)
+function utcDay() { return new Date(nowMs()).toISOString().slice(0, 10); }                                                  // = v1 _tripUtcDay
+function readQuota() { var r = quotaRead(jparse(lsGet(ST.quota)) || null, quotaPeriod()); if (r.write) lsSet(ST.quota, JSON.stringify(r.q)); return r.q; }
+function writeQuota(q) { return lsSet(ST.quota, JSON.stringify(q)); }
+/* the searches this visit (this tab) has spent: kept in sessionStorage, so a reload or a page the phone threw away does not
+   reset the visit's 8. A visit ends when the organizer says so: at 8, ⛔ ↻ (a confirming second tap) starts a new one, which
+   spends nothing by itself (the next 🔍N is still its own tap); the Worker's 30 a day and the month lock still hold. */
+var SPENT_KEY = 'pialax_spent_v2', SPENT_MEM = 0, SPENT_RESET = false;
+function spentRead() {
+  var n = SPENT_MEM;
+  if (!SPENT_RESET) { try { n = Math.max(n, +(sessionStorage.getItem(SPENT_KEY) || 0) || 0); } catch (e) { /* session storage is optional */ } }
+  return n;
+}
+function spentAdd(k) { SPENT_MEM = spentRead() + k; SPENT_RESET = false; try { sessionStorage.setItem(SPENT_KEY, String(SPENT_MEM)); } catch (e) { /* kept in memory */ } }
+function newVisit() {
+  SPENT_MEM = 0; SPENT_RESET = false;
+  try { sessionStorage.setItem(SPENT_KEY, '0'); } catch (e) { SPENT_RESET = true; }   // (a store that cannot be written: memory decides)
+}
+function lockIn() { return { quota: readQuota(), dayCap: lsGet(ST.dayCap) || '', utcDay: utcDay(), acct: S && S.acct, acctDay: S && S.acctDay, spent: spentRead() }; }
+/* what stops a spend right now ('', 'month', 'day', 'session'), from v1's counters and the last /account */
+function lockNow() { return spendLock(lockIn()); }
+/* the first day of next month (the month lock's reset, as v1 counts months: local) and the next 00:00 UTC in local time */
+function nextMonthMd() { var d = new Date(nowMs()); return (d.getMonth() === 11 ? 1 : d.getMonth() + 2) + '/1'; }
 /* pialax_shared_at_v1 {id: plan hash at my last 📣, wl: [ids in my list shares]}: what the list-share control counts */
 var SHARED_MAX = 200;
 function sharedWl() { var w = readMap(ST.shared).wl; return Array.isArray(w) ? w.filter(function (id) { return IDEA_ID_RE.test(String(id)); }) : []; }
@@ -2883,6 +3265,134 @@ function api(method, path, body) {
   }).catch(fail);
 }
 
+/* ---- PIA-140: the one spend path. The only requests that carry the organizer token: GET /search and GET /account on the
+   Worker, from the organizer's phone (his edit key and the token), and only on a tap of a control that showed its cost.
+   Nothing here runs by itself: no boot, poll, focus or render ever searches. ---- */
+var SEARCH_TIMEOUT_MS = 15000, ACCT_MS = 5 * 60000;
+function paid(path, query) {
+  var tok = tokenStr();
+  if ((path !== '/search' && path !== '/account') || !TOKEN_RE.test(tok)) return Promise.resolve({ ok: false, status: 0, json: null, hit: false, miss: false, at: '' });
+  var ctrl = null, timer = null;
+  try { ctrl = typeof AbortController === 'function' ? new AbortController() : null; } catch (e) { ctrl = null; }
+  var opts = { method: 'GET', headers: { 'X-Pialax-Token': tok }, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer' };
+  if (ctrl) { opts.signal = ctrl.signal; timer = later(function () { try { ctrl.abort(); } catch (e) { /* gone */ } }, SEARCH_TIMEOUT_MS); }
+  var done = function (r) { clearTimeout(timer); return r; };
+  var p;
+  try { p = fetch(workerBase() + path + (query ? '?' + query : ''), opts); } catch (e) { return Promise.resolve(done({ ok: false, status: 0, json: null, hit: false, miss: false, at: '' })); }
+  return Promise.resolve(p).then(function (res) {
+    var h = res && res.headers && typeof res.headers.get === 'function' ? res.headers : null, cache = h ? h.get('X-Proxy-Cache') || '' : '';
+    return res.text().then(function (t) {
+      var j = null; try { j = JSON.parse(t); } catch (e) { j = null; }
+      return done({ ok: res.status === 200 && plainObj(j), status: res.status, json: j, hit: cache === 'HIT', miss: cache === 'MISS', at: h ? h.get('X-Fetched-At') || '' : '' });
+    });
+  }).catch(function () { return done({ ok: false, status: 0, json: null, hit: false, miss: false, at: '' }); });
+}
+/* when SerpAPI was really called: the Worker's X-Fetched-At (a cache HIT keeps the original), never in the future (v1 fareStamp) */
+function fetchedAt(at) { var t = Date.parse(at || ''), now = nowMs(); return isFinite(t) && t <= now ? t : now; }
+/* GET /account: today's Worker searches (🔍 26/30), the plan's month, and whether /search takes nearby airports. The organizer's
+   phone only (the token and an edit key), when P-total or ⚙ opens or a search run ends, at most every ACCT_MS unless forced */
+function accountSync(force) {
+  if (!hasToken() || !keyIds().length) return Promise.resolve(null);
+  // at most every ACCT_MS, a failed read too (S.acctTry), unless forced (a search run's end, a token saved)
+  var last = Math.max(S.acctAt || 0, S.acctTry || 0);
+  if (!force && last && nowMs() - last < ACCT_MS) return Promise.resolve(S.acct);
+  if (S.acctBusy) return S.acctBusy;
+  S.acctTry = nowMs();
+  var p = S.acctBusy = paid('/account').then(function (r) {
+    S.acctBusy = null;
+    // the Worker refused the token (its own 401): 🔑⚠ in ⚙ and P-total until a read goes through
+    if (r.status === 401 && r.json && r.json.code === 'no_token') { S.acctBad = true; changed(); return null; }
+    if (!r.ok) { changed(); return null; }
+    S.acct = r.json; S.acctAt = nowMs(); S.acctDay = utcDay(); S.acctBad = false;
+    // v1's tripNoteWorkerFeatures: nearby airports are searched only while the Worker says /search takes them
+    if (r.json.features && r.json.features.multi_airport) lsSet(ST.multi, '1'); else lsDel(ST.multi);
+    // a refusal (SerpAPI's 429) is held ACCT_MS before an /account that shows searches left may lift it
+    writeQuota(quotaFromAccount(readQuota(), r.json, !!(S.refusedAt && nowMs() - S.refusedAt < ACCT_MS)));
+    MC = {}; changed();
+    return r.json;
+  }, function () { S.acctBusy = null; return null; });
+  return p;
+}
+/* the stop a /search reply means, from the Worker's own machine code (never its text or the bare status): '' (a fare came
+   back), 'day' (its 429 daily_cap), 'month' (SerpAPI's own 429), 'no_token' (its own 401: the token), 'network' (no answer),
+   'upstream' (anything else: SerpAPI's status passed through on a MISS, a 5xx, the strict allowlist's 400) */
+function searchStop(r) {
+  var c = r.json && typeof r.json.code === 'string' ? r.json.code : '';
+  if (r.status === 200 && plainObj(r.json)) return '';
+  if (!r.status) return 'network';
+  if (r.status === 429) return c === 'daily_cap' ? 'day' : 'month';
+  if (r.status === 401 && c === 'no_token') return 'no_token';
+  return 'upstream';
+}
+/* one tap's searches, one at a time. keys = what the control counted, re-checked now: only this trip's own legs (spendable:
+   P-total's, a traveler's ±1 days, never a booked traveler's), missing before stale, ≤4, the visit's 8, every lock, and never
+   more than o.n, the cost the control showed. This visit's count fails closed: every reply the Worker may have spent on (all but
+   a readable HIT, its own 401 / 400 / daily cap, or no answer) counts; v1's month counter moves on a 200 that is not a HIT. A
+   day cap (429 daily_cap) locks today only; any other 429 is SerpAPI's and locks the month; nothing is ever retried by itself. */
+function runSearch(keys, o) {
+  o = o || {};
+  var out = { asked: 0, got: 0, spent: 0, hits: 0, stop: '' };
+  // only for a trip whose prices this phone shows (its edit key and the token: model.prices), never for a guest's
+  var tm = o.id ? modelOf(o.id) : null, shown = o.n > 0 ? Math.floor(o.n) : 0;
+  if (!S || S.spendBusy || !hasToken() || !tm || !tm.prices || tm.closed) { if (S && S.spendBusy) toast('◷'); return Promise.resolve(out); }
+  var lk = lockNow(); if (lk) { out.stop = lk; return Promise.resolve(out); }
+  var fares = readFares(), now = nowMs(), today = todayLocal(), mine = spendable(tm, fares, now, today);
+  var todo = spendKeys((keys || []).filter(function (k) { return mine.indexOf(typeof k === 'string' ? k : (k && k.key)) >= 0; }), fares, now, today);
+  todo = todo.slice(0, Math.min(spendCount(todo.length, spentRead()), shown));
+  if (!todo.length) return Promise.resolve(out);
+  S.spendBusy = { id: o.id || '', tag: o.tag || '' };
+  try { render(true); } catch (e) { S.spendBusy = null; return Promise.resolve(out); }   // (a page that cannot draw spends nothing)
+  var i = 0;
+  function next() {
+    if (i >= todo.length || out.stop) return Promise.resolve();
+    var l2 = lockNow(); if (l2) { out.stop = l2; return Promise.resolve(); }
+    var key = todo[i++], q = searchQuery(key);
+    out.asked++;
+    return paid('/search', q).then(function (r) {
+      var stop = searchStop(r), own = stop === 'network' || stop === 'day' || stop === 'no_token' || (r.status === 400 && r.json && r.json.code === 'bad_params');
+      if (!r.hit && !own) spentAdd(1);   // the Worker's meter may have moved: it counts against this visit whatever came back
+      if (!stop) {
+        var at = fetchedAt(r.at), old = readFares()[key] || null;
+        saveFare(key, fareFromSerp(r.json, at, old));
+        mirrorV1(key, r.json, at, r.hit);
+        if (r.hit) out.hits++; else { writeQuota(quotaBump(readQuota(), 1)); out.spent++; }
+        out.got++; MC = {}; render(true, true);
+        return next();
+      }
+      if (stop === 'day') lsSet(ST.dayCap, utcDay());                                                       // = v1 tripDailyCapMark
+      else if (stop === 'month') { writeQuota(quotaExceeded(readQuota())); S.refusedAt = nowMs(); }        // = v1 markQuotaExceeded
+      else if (stop === 'no_token') S.acctBad = true;
+      out.stop = stop;
+      return null;
+    });
+  }
+  var done = function () {
+    S.spendBusy = null; MC = {};
+    try { render(true); } catch (e) { /* the toast and the /account read still follow */ }
+    // what stopped it, as glyphs (P-error's: ⛔ and when it lifts, 🔑⚠ the token, 📶⚠ the connection, ⚠ the Worker or SerpAPI);
+    // else how many came back
+    if (out.stop === 'day' || out.stop === 'month' || out.stop === 'session') toast(lockText(out.stop));
+    else if (out.stop) toast(out.stop === 'no_token' ? '🔑⚠' : out.stop === 'network' ? '📶⚠' : '⚠');
+    else toast('🔍✓ ' + out.got);
+    accountSync(true);
+    return out;
+  };
+  // a step that throws (a store, a redraw) ends the run like any stop: ◷ never stays on the phone's 🔍
+  return next().then(done, function () { out.stop = out.stop || 'upstream'; return done(); });
+}
+/* ⛔ and when it lifts: the next 00:00 UTC in local time for the day cap, the 1st of next month for the month lock */
+function lockText(why) { return why === 'day' ? '⛔ ' + nextUtcMidnightLocal() : why === 'month' ? '⛔ ' + nextMonthMd() : '⛔'; }
+/* a lock's long-press label and spoken name: when (or how) it lifts */
+function lockLabel(why) {
+  if (why === 'day') return ['Daily limit', 'Searches resume at ' + nextUtcMidnightLocal()];
+  if (why === 'session') return ['New visit', 'Visit limit: 8 searches used. Tap twice to start a new visit of 8'];
+  var mw = monthWhy(lockIn()), on = 'searches resume on ' + nextMonthMd();
+  if (mw === 'refused') return ['SerpAPI refused', 'SerpAPI refused the last search; checked again in a few minutes, at the latest ' + on];
+  if (mw === 'cap') return ['Month cap', 'Month cap reached; raise it in Settings, or ' + on];
+  if (mw === 'plan') return ['Plan used up', 'The plan has almost no searches left; ' + on];
+  return ['Month limit', 'Month limit reached; ' + on];
+}
+
 /* ---- the trip store ---- */
 var DOCS = {};      // id → the last /idea doc (or the optimistic one while a write is in flight)
 var STAT = {};      // id → '' never loaded · 'ok' · 'stale' (last refresh failed, older doc kept) · 'error' (failed, no doc) · 'missing' (the Worker has none)
@@ -2959,7 +3469,11 @@ function poll() {
   if (RT && RT.today !== todayLocal()) changed();   // past midnight: what is past or upcoming moves on
   return refreshAll();
 }
-function onFocus() { if (pageVisible() && nowMs() - LAST_ALL >= FOCUS_GAP_MS) return refreshAll(); return null; }
+function onFocus() {
+  if (!pageVisible() || nowMs() - LAST_ALL < FOCUS_GAP_MS) return null;
+  if (hasToken() && absorbV1Fares()) { MC = {}; changed(); }   // PIA-140: fares v1 fetched meanwhile (another tab); nothing is searched
+  return refreshAll();
+}
 
 /* writes: optimistic, one per control, through the model's request builders */
 function beginWrite(id) { PEND[id] = (PEND[id] || 0) + 1; WSEQ[id] = (WSEQ[id] || 0) + 1; }
@@ -3447,7 +3961,14 @@ var LEGEND = {
   pickup: ['⏱', 'Pickup run'], altpin: [ALTPIN, 'Other airport'],
   // PIA-139 fix pass: the 🎫 I tap, a time's half of the day, how long a pickup run waits, what 💵 closes, a time 💵 froze
   mybook: ['🎫', 'I booked'], tday: ['☀', 'Daytime'], tnight: ['🌃', 'Night'], runwait: ['0:35', 'Pickup wait'],
-  closes: ['⚠🔒', 'Closes answers'], timelock: ['🔒', 'Times locked']
+  closes: ['⚠🔒', 'Closes answers'], timelock: ['🔒', 'Times locked'],
+  // PIA-140: prices
+  down: ['▼', 'Cheaper'], up: ['▲', 'Pricier'], cap: ['⛔', 'Limit reached'], month: ['📆', 'This month'], cheapest: ['★', 'Cheapest'],
+  // PIA-140 fix pass: every part of a fare explained (P-total's and P-person's ⓘ), the visit, the token
+  age: [ageRing(6 * 36e5, true), 'Fare age'], level: [lvlBars(1, true), 'Price level'], stops: [stopsLine(1, true), 'Stops'],
+  unsearched: ['$—', 'Not searched'], nofare: ['$∅', 'No fares'], rt: ['✈', 'Round trip fare'],
+  sday: ['🔍 26/30', 'Searches today'], visit: ['<span class="sdots"><i class="on"></i><i></i></span>', 'This visit'], newvisit: ['↻', 'New visit'],
+  tokbad: ['🔑⚠', 'Token refused'], tokdoor: ['🔑🔍', 'Add token'], won: ['→', 'Cheapest airport'], busy: ['◷', 'Searching'], home: ['🛫', 'Flies from']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -3641,6 +4162,97 @@ function datesAria(m, o) {
    shown as final); grey with 🔍 when a fare is stale; 💵 once paid. Tapping it opens P-total (PIA-140); until then
    a tap there opens the trip like the rest of the card. */
 function money(n) { return '$' + Math.round(n).toLocaleString('en-US'); }
+/* PIA-140: the card's total is the way into P-total (above the card's tap overlay); a screen reader hears what it shows */
+function totalAria(m) {
+  if (m.paid != null) return 'Paid ' + money(m.paid);
+  var p = m.price; if (!p || p.total == null) return 'Group total, not searched' + (p && p.need ? ', ' + p.need + ' to search' : '');
+  var d = priceDelta(p);
+  return 'Group total ' + money(p.total) + (p.complete ? '' : ', not complete') + (p.stale ? ', some fares a day old' : '') + (d ? (d < 0 ? ', down ' : ', up ') + money(Math.abs(d)) : '');
+}
+function totalBtn(m) { return m.prices ? '<button class="totb z" data-act="total" data-id="' + m.id + '" aria-label="' + esc(totalAria(m)) + '" data-lbl="Group total">' + totalHTML(m) + '</button>' : ''; }
+/* ▼$40 / ▲$40: only between two real fetches of the identical searches (priceDelta, fareFacts) */
+function deltaTag(d) { return d ? '<span class="dl ' + (d < 0 ? 'dn' : 'up') + '" data-k="' + (d < 0 ? 'down' : 'up') + '">' + (d < 0 ? '▼' : '▲') + money(Math.abs(d)) + '</span>' : ''; }
+/* a fare's age as a clock face (the wedge: the hours of its 24), Google's price level as 1–3 bars, its stops as rings on a line */
+/* each part of a leg's price names itself on a long press (Fetched 25h ago, Price high, 1 stop) and in the sheet's ⓘ (data-k) */
+function ageRing(ms, key) {
+  var f = Math.max(0, Math.min(1, (ms || 0) / FARE_STALE_MS)), a1 = Math.max(8, f * 360);
+  var wedge = f >= 0.999 ? '<circle cx="10" cy="10" r="6.5" style="fill:var(--ink3)"/>' : '<path d="M10 10 L' + polar(10, 10, 6.5, 0) + ' A6.5 6.5 0 ' + (a1 > 180 ? 1 : 0) + ' 1 ' + polar(10, 10, 6.5, a1) + ' Z" style="fill:var(--ink3)"/>';
+  return '<svg class="agering" viewBox="0 0 20 20" aria-hidden="true"' + (key ? '' : ' data-k="age" data-lbl="' + ageShort(ms) + '"') + '><circle cx="10" cy="10" r="8.2" style="fill:var(--surface);stroke:var(--ink2);stroke-width:1.6"/>' + wedge +
+    '<path d="M10 3v2.2M17 10h-2.2M10 17v-2.2M3 10h2.2" style="stroke:var(--ink2);stroke-width:1.4;stroke-linecap:round"/></svg>';
+}
+/* Google's price level as a gauge, not a signal meter: three bars low → high, the level's own bar filled (low green, high red) */
+function lvlBars(l, key) {
+  return '<span class="lvl l' + l + '" aria-hidden="true"' + (key ? '' : ' data-k="level" data-lbl="Price ' + LVL_WORD[l] + '"') + '><i class="' + (l === 1 ? 'on' : '') + '"></i><i class="' + (l === 2 ? 'on' : '') + '"></i><i class="' + (l === 3 ? 'on' : '') + '"></i></span>';
+}
+function stopsLine(n, key) {
+  var dots = '', d = Math.min(n, 3); for (var i = 1; i <= d; i++) dots += '<circle cx="' + (2 + 24 * i / (d + 1)).toFixed(1) + '" cy="5" r="2.6" style="fill:var(--surface);stroke:var(--ink2);stroke-width:1.5"/>';
+  return '<svg class="stopl" viewBox="0 0 28 10" aria-hidden="true"' + (key ? '' : ' data-k="stops" data-lbl="' + (n ? n + (n === 1 ? ' stop' : ' stops') : 'Nonstop') + '"') + '><path d="M2 5h24" style="stroke:var(--ink2);stroke-width:1.6;stroke-linecap:round"/>' + dots + '</svg>';
+}
+var LVL_WORD = ['', 'low', 'typical', 'high'];
+function ageWords(ms) { var h = Math.round((ms || 0) / 36e5); return h < 1 ? 'just now' : h < 48 ? h + (h === 1 ? ' hour' : ' hours') + ' ago' : Math.round(h / 24) + ' days ago'; }
+function ageShort(ms) { var h = Math.round((ms || 0) / 36e5); return 'Fetched ' + (h < 1 ? 'just now' : h < 48 ? h + 'h ago' : Math.round(h / 24) + 'd ago'); }
+/* one leg's price (P-total, P-person): $ with its age ◷, Google's level ▂▄▆ and its stops, the airport that won when it is not
+   their own, ▼ / ▲; grey once a day old; $— hollow when never searched; $∅ when the search found no fares. Its spoken name says it
+   all (free under the word rule); a long press names it in two words. o.code: show the winning airport (P-total) */
+var LEG_GLYPH = { rt: ['✈', 'Round trip', 'rt'], in: ['🛬', 'Arrive', 'arrive'], out: ['🛫', 'Leave', 'leave'] };
+function legPrice(l, x, o) {
+  o = o || {};
+  var g = LEG_GLYPH[l.kind] || LEG_GLYPH.rt, head = o.glyph === false ? '' : '<span class="lgk" aria-hidden="true" data-k="' + g[2] + '">' + g[0] + '</span>';
+  if (l.st === 'missing') return '<span class="lgp hollow" role="img" aria-label="' + g[1] + ', not searched" data-lbl="Not searched" data-k="unsearched">' + head + '$—</span>';
+  if (l.st === 'none') return '<span class="lgp none" role="img" aria-label="' + g[1] + ', no fares found" data-lbl="No fares" data-k="nofare">' + head + '$∅</span>';
+  var ff = fareFacts(l.f, l.kind, x.origin, RT.now, x.O);
+  // a search that found no fares a day ago: still $∅ (it was searched), grey, and offered again
+  if (!ff && l.f && l.f.none) return '<span class="lgp none stale" role="img" aria-label="' + g[1] + ', no fares found, a day old" data-lbl="No fares" data-k="nofare">' + head + '$∅</span>';
+  if (!ff) return '<span class="lgp hollow" role="img" aria-label="' + g[1] + ', not searched" data-lbl="Not searched" data-k="unsearched">' + head + '$—</span>';
+  var stale = l.st === 'stale', win = o.code && ff.win ? ff.win : '';
+  var said = g[1] + ', ' + money(ff.p) + (ff.win ? ' from ' + ff.win : '') + ', fetched ' + ageWords(ff.age) + (stale ? ', a day old' : '') + (ff.lvl ? ', price ' + LVL_WORD[ff.lvl] : '') +
+    (ff.stops != null ? ', ' + (ff.stops ? ff.stops + (ff.stops === 1 ? ' stop' : ' stops') : 'nonstop') : '') + (ff.delta ? (ff.delta < 0 ? ', down ' : ', up ') + money(Math.abs(ff.delta)) : '');
+  // the winning airport says which side it is on: JFK→ (where an inbound or round trip leaves), →JFK (where the way home lands)
+  return '<span class="lgp' + (stale ? ' stale' : '') + '" role="img" aria-label="' + esc(said) + '" data-lbl="' + (stale ? 'Old fare' : g[1] + ' fare') + '">' + head +
+    (win ? '<b class="lc" data-k="won" data-lbl="' + (l.kind === 'out' ? 'Into ' : 'From ') + esc(win) + '">' + (l.kind === 'out' ? '→' + esc(win) : esc(win) + '→') + '</b>' : '') + '<span class="tn">' + money(ff.p) + '</span>' + ageRing(ff.age) + (ff.lvl ? lvlBars(ff.lvl) : '') + (ff.stops != null ? stopsLine(ff.stops) : '') +
+    (ff.delta ? '<span class="tn dl ' + (ff.delta < 0 ? 'dn' : 'up') + '">' + (ff.delta < 0 ? '▼' : '▲') + money(Math.abs(ff.delta)) + '</span>' : '') + '</span>';
+}
+/* the one spend control: 🔍N (N = the searches this tap makes, ≤4, never past the session's 8) on the organizer's token phone;
+   ⛔ with when it lifts once a lock is on (a tap says why); ◷ while a run is out. Nothing searches until it is tapped. */
+function spendBtn(m, keys, o) {
+  o = o || {};
+  if (!m.prices || m.closed) return '';
+  var todo = spendKeys(keys, readFares(), RT.now, RT.today), n = spendCount(todo.length, spentRead()), lk = lockNow(), sq = /\bsq\b/.test(o.cls || '');
+  if (!todo.length) return '';
+  // data-n: the cost drawn on it; the tap never spends more (a count that grew meanwhile is drawn again first)
+  var a = 'data-act="search" data-id="' + m.id + '"' + (o.code ? ' data-code="' + esc(o.code) + '" data-end="' + o.end + '"' : ' data-v="total"') + ' data-n="' + n + '"', cls = 'btn ' + (o.cls || 'pri wide');
+  if (S.spendBusy) return '<button class="' + cls + ' busy" ' + a + ' aria-disabled="true" aria-busy="true" data-why="1" aria-label="Searching" data-lbl="Searching" data-k="busy">◷</button>';
+  if (lk === 'session') return visitBtn(cls);
+  if (lk) {
+    var ll = lockLabel(lk);
+    // a square ±1 button shows ⛔ alone (its time is in its label); P-total's wide one shows when it lifts
+    return '<button class="' + cls + ' dis" ' + a + ' aria-disabled="true" data-why="1" aria-label="' + esc(ll[1]) + '" data-lbl="' + esc(lk === 'day' && sq ? ll[0] + ' ' + nextUtcMidnightLocal() : lk === 'month' && sq ? ll[0] + ' ' + nextMonthMd() : ll[0]) + '" data-k="cap">' + esc(sq ? '⛔' : lockText(lk)) + '</button>';
+  }
+  // a tap the caps cut short says so: 🔍1/3 (1 search now, of the 3 legs that need one)
+  var part = n < todo.length;
+  return '<button class="' + cls + '" ' + a + ' aria-label="Search ' + n + (part ? ' of ' + todo.length : '') + (n === 1 && !part ? ' fare' : ' fares') + ', ' + n + (n === 1 ? ' search' : ' searches') + '" data-lbl="Search fares"><span aria-hidden="true" data-k="search">🔍</span><span class="tn">' + n + (part ? '/' + todo.length : '') + '</span></button>';
+}
+/* the visit's 8 are spent: ⛔ ↻ starts a new visit on a second tap (it spends nothing; the next 🔍N is its own tap) */
+function visitBtn(cls) {
+  var ak = armed(armKey('visit', '', 'new'));
+  return '<button class="' + cls + (ak ? ' arm' : '') + '" data-act="newvisit" aria-label="' + (ak ? 'Tap again to start a new visit of 8 searches' : esc(lockLabel('session')[1])) + '" data-lbl="' + (ak ? 'Tap again' : 'New visit') + '" data-k="newvisit">' +
+    (ak ? '↻<span class="tn">8</span>?' : '⛔ ↻') + '</button>';
+}
+/* 🔍 26/30: the Worker's searches left today (from /account), and this visit's 8 as dots; 🔑⚠ while the Worker refuses the token.
+   o.locks (⚙): the day lock beside today's count and the visit's ↻ beside the dots (the month's ⛔ sits with the month's row) */
+function budgetHTML(o) {
+  o = o || {};
+  var sp = S.acct && S.acct.spend && S.acct.spend.serp, lk = '';
+  if (o.locks) {   // ⚙ shows each lock that is on (a month lock does not hide the day's or the visit's): the model's rule, one lock at a time
+    var li = lockIn(), dayOn = spendLock({ dayCap: li.dayCap, utcDay: li.utcDay, acct: S.acct && S.acct.spend ? { spend: S.acct.spend } : null, acctDay: li.acctDay }) === 'day';
+    lk = (dayOn ? 'day ' : '') + (li.spent >= SPEND_PER_SESSION ? 'session' : '');
+  }
+  var left = sp && typeof sp.cap === 'number' && typeof sp.used === 'number' && S.acctDay === utcDay() ? Math.max(0, sp.cap - sp.used) : null;
+  var bad = S.acctBad ? '<span class="tn capt" role="img" aria-label="The Worker refused the token" data-lbl="Token refused" data-k="tokbad">🔑⚠</span>' : '';
+  var day = /\bday\b/.test(lk) ? '<span class="tn capt" role="img" aria-label="' + esc(lockLabel('day')[1]) + '" data-lbl="Daily limit" data-k="cap">' + esc(lockText('day')) + '</span>' : '';
+  return '<div class="rowc budget"><span class="rowc nw bl">' + bad + (left != null ? '<span class="tn bud" role="img" aria-label="' + left + ' of ' + sp.cap + ' searches left today" data-lbl="Searches today" data-k="sday"><span aria-hidden="true">🔍</span> ' + left + '/' + sp.cap + '</span>' : '') + day + '</span>' +
+    '<span class="rowc nw bl">' + visitDots() + (/\bsession\b/.test(lk) ? visitBtn('tool wordy') : '') + '</span></div>';
+}
 function totalHTML(m) {
   if (!m.prices) return '';
   if (m.paid != null) return '<span class="tot" data-k="paid">' + G('💵') + money(m.paid) + '</span>';
@@ -3651,7 +4263,13 @@ function totalHTML(m) {
   var part = un.length > 0 || (!p.complete && !p.stale);
   return '<span class="tot' + (part ? ' part' : '') + (p.stale ? ' stale' : '') + '" data-k="total">' + money(p.total) +
     (un.length ? ' <span class="uf" data-k="unpriced">+' + un.slice(0, 3).join('') + (un.length > 3 ? '+' + (un.length - 3) : '') + '</span>' : '') +
-    (p.stale ? ' <span data-k="search">🔍</span>' : '') + '</span>';
+    (p.stale && !m.closed ? ' <span data-k="search">🔍</span>' : '') + '</span>';   // a closed trip offers no refresh
+}
+/* PIA-140: the organizer's own phone without the token (his edit key, no token) shows no $ anywhere; one muted 🔑🔍 opens ⚙ at
+   the token field (fares are searched, and kept, on the phone that holds it) */
+function tokenDoor(m) {
+  if (!m.org || m.legacy || m.closed || hasToken()) return '';
+  return '<div class="rowc"><button class="tool tokdoor" data-act="tokdoor" aria-label="Prices: add the organizer token on this phone" data-lbl="Add token" data-k="tokdoor">🔑🔍</button></div>';
 }
 /* my own one-tap hand-off for this trip, from the model's link builder. Nothing is gated behind answering: an
    unanswered traveler's search is built from their home airport and the plan, like everyone's. */
@@ -3684,7 +4302,7 @@ function cardHTML(it, o) {
   return '<article class="card' + (o.dim || stale ? ' dim' : '') + fly + '" data-trip="' + m.id + '">' +
     '<div class="card-a">' + postcard(m, '', { loc: true }) + '<h3 class="card-t" data-free><button class="card-open" data-act="open" data-id="' + m.id + '"' + (m.title ? '' : ' aria-label="Trip"') + '>' + (esc(m.title) || '…') + '</button></h3>' +
     (stale ? staleMark() : slotHTML(m)) + restore + '</div>' +
-    '<div class="card-b">' + cardPill(m) + totalHTML(m) + '</div>' +
+    '<div class="card-b">' + cardPill(m) + totalBtn(m) + '</div>' +   // PIA-140: the total opens P-total
     '<div class="card-c">' + faceStack(m, 4, freshCodes(m)) + '<span class="heads" data-k="heads">' + m.headsIn + '/' + m.heads + '</span>' +
     pip1(m) +   // the stage reads the same on every phone (🗑 once dropped); only ↩ is the organizer's
     (x.pin ? '<span data-k="star" aria-hidden="true">⭐</span>' : '') + '</div></article>';
@@ -3866,12 +4484,14 @@ function priceCell(m, x) {
   if (!x.traveler) return '<span class="pr"></span>';
   var pp = m.price && m.price.per[x.code];
   if (!pp || pp.sum == null) return '<span class="pr hollow">$—</span>';
-  return '<span class="pr' + (pp.stale ? ' stale' : pp.hollow ? ' hollow' : '') + '">' + money(pp.sum) + (pp.hollow ? '+' : '') + '</span>';
+  // a longer amount ($1,387+, $10,987+) takes a smaller size, so the column never pushes the board past the screen
+  var s = money(pp.sum) + (pp.hollow ? '+' : ''), sz = s.length >= 8 ? ' l8' : s.length >= 7 ? ' l7' : '';
+  return '<span class="pr' + (pp.stale ? ' stale' : pp.hollow ? ' hollow' : '') + sz + '">' + s + '</span>';
 }
 /* the people board: day numerals over the plan and everyone's own days (every day while a day is ≥18px wide), weekends
    tinted, the event day under the trip's own picture, today ▾; then one row per person, the same on every phone */
 function peopleBoard(m) {
-  var r = m.range, tail = boardTail(m), tailW = tail === 'tk' ? 44 : tail === 'price' ? 54 : 0;
+  var r = m.range, tail = boardTail(m), tailW = tail === 'tk' ? 44 : tail === 'price' ? 64 : 0;
   var cw = +(document.documentElement && document.documentElement.clientWidth), W0 = Math.min(cw > 0 ? cw : 360, 430);
   var h = '<div class="pb" id="board-' + m.id + '">';
   if (r) {
@@ -3898,17 +4518,26 @@ function peopleBoard(m) {
   return h + '</div>';
 }
 /* the one total on the organizer's token phone (the card's rule: real cached fares only), with each traveler's share */
+/* PIA-140: the block is the way into P-total: shown once a fare is cached, a leg waits to be searched (its 🔍N says how many the
+   next tap there makes; this block itself spends nothing), or 💵 is paid. ▼ / ▲ only between two real fetches of the same searches. */
 function totalRow(m) {
-  if (!m.prices || (m.paid == null && !anyPriced(m))) return '';
-  var p = m.price, segs = '';
+  var p = m.price, need = p && !m.closed ? spendKeys(tapKeys(m), readFares(), RT.now, RT.today).length : 0;
+  if (!m.prices) return tokenDoor(m);
+  if (m.paid == null && !anyPriced(m) && !need) return '';
+  var segs = '', chip = '';
   if (m.paid == null && p) {
     var tot = 0; p.segs.forEach(function (s) { tot += s.p || 0; });
     segs = '<span class="stack" aria-hidden="true">' + p.segs.map(function (s) {
       var empty = s.hollow && !s.p;
       return '<i class="' + (s.hollow ? 'hollow' : s.stale ? 'stale' : '') + '" style="--pc:var(--p' + s.color + ');flex:' + (empty ? '0 0 24px' : '1 1 ' + (tot ? s.p / tot * 100 : 0).toFixed(1) + '%') + '"></i>';
     }).join('') + '</span>';
+    // the cost P-total's tap would show, or the lock that stops it (⛔ 17:00 / ⛔ 11/1 / ⛔); never a 🔍0
+    var lk = need ? lockNow() : '', nn = need ? spendCount(need, spentRead()) : 0;
+    if (lk) chip = '<span class="chipq lk" data-k="cap">' + esc(lockText(lk)) + '</span>';
+    else if (nn) chip = '<span class="chipq" data-k="search"><span aria-hidden="true">🔍</span><span class="tn">' + nn + (nn < need ? '/' + need : '') + '</span></span>';
   }
-  return '<div class="totalblk"><span class="big">' + totalHTML(m) + '</span>' + segs + '</div>';
+  return '<button class="totalblk" data-act="total" data-id="' + m.id + '" aria-label="' + esc(totalAria(m) + (need && p.total != null ? ', ' + need + ' to search' : '')) + '" data-lbl="Group total"><span class="big">' + totalHTML(m) +
+    (m.paid == null && p ? deltaTag(priceDelta(p)) : '') + chip + '</span>' + segs + '</button>';
 }
 /* why a traveler has no Google Flights link (handoffs.why), as [glyph, label, key]: the trip view's primary and a person's
    [Book | 🎫] slot say the same thing */
@@ -4085,6 +4714,21 @@ function fitNames(root, count, max) {
   tags.sort(function (a, b) { return (+b.getAttribute('data-nm')) - (+a.getAttribute('data-nm')); });
   for (var i = 0; i < tags.length && count() > max; i++) tags[i].remove();
 }
+/* PIA-140 fix pass 2: P-person's name (≤2 words) breaks only at its spaces: each word is one unbreakable span (nameWords), not even
+   split at a hyphen. Beside the face it gets what ‹, ⇄, ⓘ and ⌄ leave; a word wider than that moves the name onto its own line
+   under the face (.stk), the buttons staying where they are. Only a word wider than the whole sheet is then drawn smaller (down to
+   14px) and, past that, broken (.brk), never a sideways scroll. */
+function nameWords(s) { return String(s || '').split(/\s+/).filter(Boolean).map(function (w) { return '<span class="w">' + esc(w) + '</span>'; }).join(' '); }
+function fitHead(root) {
+  var hd = root && root.querySelector('.sh-hd.pers'), nm = hd && hd.querySelector('.pnm');
+  if (!nm || !isShown(nm)) return;   // (a hidden sheet has nothing to measure)
+  var over = function () { return nm.scrollWidth - nm.clientWidth > 1; };
+  hd.classList.remove('stk'); nm.classList.remove('brk'); nm.style.fontSize = '';
+  if (!over()) return;
+  hd.classList.add('stk');
+  for (var fs = 19; fs >= 14 && over(); fs--) nm.style.fontSize = fs + 'px';
+  if (over()) nm.classList.add('brk');
+}
 /* the strict word rule: a word is a visible whitespace token holding a Unicode letter. Trip names ([data-free]),
    numerals, emoji and glyphs are free; typed values count; a password field shows no words */
 function isShown(el) {
@@ -4116,7 +4760,7 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
 var SHEETS = {};
 var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
   edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
-  caladd: 'Add to calendar' };   // each sheet's accessible name
+  caladd: 'Add to calendar', total: 'Group total' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
@@ -4175,14 +4819,23 @@ SHEETS.key = function (sh) {
 SHEETS.organizer = function (sh) {
   var L = sh.local, d = S.drafts.organizer;
   // what was typed and not saved comes back (a tap on the scrim or ⌄ throws nothing away); kept in memory only
-  if (L.tok == null && d) { L.tok = d.tok; L.url = d.url; L.tokEdited = d.tokEdited; L.urlEdited = d.urlEdited; }
+  if (L.tok == null && d) { L.tok = d.tok; L.url = d.url; L.tokEdited = d.tokEdited; L.urlEdited = d.urlEdited; if (d.capEdited) { L.cap = d.cap; L.capEdited = true; } }
   if (L.tok == null) L.tok = tokenStr();
   if (L.url == null) L.url = workerBase();
   var h = shHd('⚙');
-  h += '<div class="rowc nw"><span class="fld' + (L.badTok ? ' bad' : '') + '"><label for="org-token" aria-hidden="true">🔑</label><input id="org-token" type="' + (L.show ? 'text' : 'password') +
-    '" aria-label="Token" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + esc(L.tok) + '"></span>' +
+  h += '<div class="rowc nw"><span class="fld' + (L.badTok || (S.acctBad && !L.tokEdited) ? ' bad' : '') + '"><label for="org-token" aria-hidden="true">🔑</label><input id="org-token" type="' + (L.show ? 'text' : 'password') +
+    '" aria-label="' + (S.acctBad && !L.tokEdited ? 'Token, refused by the Worker' : 'Token') + '" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + esc(L.tok) + '"></span>' +
     '<button class="ib tool" data-act="tokshow" aria-pressed="' + !!L.show + '" aria-label="Show token">👁</button></div>';
   h += '<div class="rowc nw"><span class="fld' + (L.badUrl ? ' bad' : '') + '"><label for="org-url" aria-hidden="true">🌐</label><input id="org-url" type="url" inputmode="url" aria-label="Worker" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + esc(L.url) + '"></span></div>';
+  // PIA-140: on the organizer's phone (the token and an edit key): today's Worker searches and this visit's 8, the month's searches
+  // against the organizer's own month cap (numerals only), and ⛔ with when it lifts while a lock is on
+  // each lock sits with what it counts: the day's ⛔ beside 🔍 n/30, the visit's ↻ beside its dots, the month's ⛔ (and why) here
+  if (hasToken() && keyIds().length) {
+    var q = readQuota(), mw = monthWhy(lockIn()), cap = L.cap != null ? L.cap : String(q.budget), ml = mw ? lockLabel('month') : null;
+    h += budgetHTML({ locks: true }) + '<div class="rowc nw"><span class="fld capf' + (L.badCap ? ' bad' : '') + '"><label for="org-cap" data-k="month" aria-hidden="true">📆</label><span class="tn mu" aria-hidden="true">' + Math.round(q.used) + '/</span>' +
+      '<input id="org-cap" inputmode="numeric" maxlength="6" aria-label="Searches this month, ' + Math.round(q.used) + ' used; month cap" autocomplete="off" spellcheck="false" value="' + esc(cap) + '"></span>' +
+      (ml ? '<span class="tn capt" role="img" aria-label="' + esc(ml[1]) + '" data-lbl="' + esc(ml[0]) + '" data-k="cap">' + esc(lockText('month')) + '</span>' : '') + '</div>';
+  }
   h += '<button class="btn pri wide" data-act="orgsave">Save</button>';
   var tools = '';
   if (devicesLink()) tools += '<button class="tool" data-act="devlink" aria-label="Devices link">🔑📱</button>';
@@ -4286,6 +4939,31 @@ function errInfo(code) {
     unbooked: ['🎫⚠', 'Not everyone booked', false]
   })[code] || ['⚠', 'Not saved', true];
 }
+/* ---- PIA-140: P-total, trust the one number ----
+   One row per traveler (their face opens their sheet): a round trip is ✈ one fare; open-jaw is 🛬 and 🛫, the two one-ways the
+   total adds up (the multi-city page may show another fare). Each priced leg: the airport that won when it is not their own,
+   $, its age ◷, Google's level ▂▄▆, its stops; grey once a day old; $— never searched; $∅ searched, no fares; ✈⚠ (or why) for
+   someone with nothing to search. Hosts have no row. The sum on top with ▼ / ▲ (two real fetches of the same searches only),
+   then 🔍 26/30 and this visit's 8, and the one spend: 🔍N (≤4 a tap), ⛔ with when it lifts. All from the model's priceTrip. */
+SHEETS.total = function (sh) {
+  var m = modelOf(sh.p.id);
+  if (!m || !m.prices) return shHd('');
+  var p = m.price, d = m.paid == null ? priceDelta(p) : null;
+  // the trip's own picture names it (free); ⓘ reads this sheet's glyphs (the fare's age, level and stops, $—, $∅, ★, ⛔, the dots)
+  var h = shHd('<span class="temo" aria-hidden="true" data-pic>' + m.emoji + '</span>' + (m.paid != null ? '<span class="sum" role="img" aria-label="' + esc('Paid ' + money(m.paid)) + '" data-lbl="Paid"><span aria-hidden="true">💵</span>' + money(m.paid) + '</span>'
+    : '<span class="sum' + (p.stale ? ' stale' : '') + '" role="img" aria-label="' + esc(totalAria(m)) + '" data-lbl="Group total">' + totalHTML(m) + deltaTag(d) + '</span>'),
+    { right: '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' });
+  h += '<div class="trows">' + m.travelers.map(function (x) {
+    var pp = p.per[x.code], legs;
+    if (!pp || !pp.legs.length) { var w = noFlight(x.why); legs = '<span class="lgp hollow" role="img" aria-label="' + w[1] + '" data-lbl="' + w[1] + '">' + w[0] + '</span>'; }
+    else legs = pp.legs.map(function (l) { return legPrice(l, x, { code: true }); }).join('');
+    return '<div class="trow" style="--pc:var(--p' + x.color + ')"><button class="facebtn" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' +
+      avatar(x, 40, { plain: true }) + (x.headcount > 1 ? '<span class="cnt" data-k="count">×' + x.headcount + '</span>' : '') + '</button><span class="legsx">' + legs + '</span></div>';
+  }).join('') + '</div>';
+  if (m.closed) return h;
+  // the one spend: every unbooked traveler's missing or day-old legs (a booked traveler's flight is bought: shown, never searched)
+  return h + budgetHTML() + spendBtn(m, tapKeys(m));
+};
 SHEETS.error = function (sh) {
   var e = errInfo(sh.p.code), words = e[1] || (sh.p.retry ? 'Not saved' : '');   // PIA-137: a write that failed says so, even offline
   return shHd('') + '<div class="errline"><span class="eg" aria-hidden="true">' + e[0] + '</span>' + (words ? '<span class="tn">' + esc(words) + '</span>' : '') + '</div>' +
@@ -4803,7 +5481,7 @@ function originRow(m, x, L) {
       esc(v) + '"></span>' + apWarn(L, 'orig-code', v) + '<button class="tool" data-act="origsave" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Save airport">↵</button></div>';
   }
   var alts = Math.max(0, x.O.length - 1);
-  return '<div class="rowc"><button class="hchip" data-act="origedit" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Home airport ' + esc(x.origin || '') + ', edit"><span aria-hidden="true">🛫</span><span class="tn">' + esc(x.origin || '?') + (alts ? ' +' + alts : '') + '</span><span aria-hidden="true">✎</span></button></div>';
+  return '<div class="rowc"><button class="hchip" data-act="origedit" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Home airport ' + esc(x.origin || '') + ', edit"><span aria-hidden="true" data-k="home">🛫</span><span class="tn">' + esc(x.origin || '?') + (alts ? ' +' + alts : '') + '</span><span aria-hidden="true" data-k="edit">✎</span></button></div>';
 }
 /* what a screen reader hears for a face: the name, the answer and every mark (labels are free under the word rule) */
 function personAria(x) {
@@ -4825,9 +5503,11 @@ SHEETS.person = function (sh) {
   var isMe = !!(m.me && m.me.code === x.code), canAct = !m.closed && (isMe || (m.org && !m.legacy)), links = isMe || m.org, edit = canAct && x.answered;
   var ho = handoffs(m, x.code, RT.hctx);
   // the 72px face is named by the person (long-press, a screen reader), its marks each by their own key
-  var h = '<div class="sh-hd pers">' + (sh.back ? '<button class="ib" data-act="sh-back" aria-label="Back" data-k="back">‹</button>' : '') +
+  var h = '<div class="sh-hd pers' + (sh.back ? ' bk' : '') + '">' + (sh.back ? '<button class="ib" data-act="sh-back" aria-label="Back" data-k="back">‹</button>' : '') +
     '<span class="pav" role="img" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 72, { marks: true }) + '</span>' +
-    '<span class="pnm">' + esc(x.short) + '</span><span class="sp"></span>' + (isMe ? '<button class="ib" data-act="face" data-id="' + m.id + '" aria-label="Switch person" data-k="switch">⇄</button>' : '') +
+    '<span class="pnm">' + nameWords(x.short) + '</span><span class="sp"></span>' + (isMe ? '<button class="ib" data-act="face" data-id="' + m.id + '" aria-label="Switch person" data-k="switch">⇄</button>' : '') +
+    // PIA-140: with their fares shown, ⓘ reads this sheet's glyphs (a fare's age, level and stops, ★, $—, ⛔)
+    (m.prices && x.traveler && m.dest && x.keys.length && !m.closed ? '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' : '') +
     '<button class="ib" data-act="sh-close" aria-label="Close" data-k="close">⌄</button></div>';
   if (m.range && x.status !== 'out') h += '<div class="pb-row solo" style="--pc:var(--p' + x.color + ')"><span class="track">' + barHTML(m, x, m.range) + '</span></div>';
   if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b></div>';
@@ -4836,6 +5516,7 @@ SHEETS.person = function (sh) {
     if (edit) h += originRow(m, x, L);
     if (x.d1 && (!x.bad || edit)) h += legRows(m, x, edit, links);   // PIA-138: reversed days (⚠) can be fixed from here
     if (timesBy(m, x.code)) h += timesRow(m, x, L);   // PIA-139: once booked, the times they land and leave (saved as the sheet closes)
+    if (m.prices && x.keys.length && !m.closed) h += fareRows(m, x, edit);   // PIA-140: their fares, and each end ±1 day (the organizer's token phone)
   }
   if (canAct && (!isMe || sh.p.outside)) h += answerRow(m, x, { proxy: !isMe });
   var fw = firstWords(x.noteText, 8);
@@ -4845,6 +5526,45 @@ SHEETS.person = function (sh) {
   if (ho.nudge && !m.closed) h += '<button class="btn wide" data-act="nudge" data-id="' + m.id + '" data-code="' + esc(x.code) + '"><span data-k="share">📣</span> Share</button>';
   return h;
 };
+/* PIA-140: on the organizer's token phone, a traveler's fares under their legs (the same legs P-total and the total price): each
+   leg's $ with its age, Google's level and its stops, and each end priced ±1 day: 🔍N searches the day before and the day after
+   (the same caps as every spend), then the three days with their $ and ★ on the cheapest; the day before or after is one tap from
+   becoming their day (as −1 / +1 on the leg: their own end from then on) */
+function fareRows(m, x, edit) {
+  var pp = m.price && m.price.per[x.code]; if (!pp || !pp.legs.length) return '';
+  var fares = readFares(), eps = [0, 1].map(function (end) { return endPrices(m, x.code, end, fares, RT.now, RT.today); });
+  var spends = eps.some(function (ep) { return ep && ep.need.length; });
+  // their legs with the airport that won (the same as P-total: JFK→ where an inbound or round trip leaves, →JFK where the way home
+  // lands); while a ±1 day can be searched, this visit's 8 dots sit beside them (the 🔍 below draws from the same 8)
+  var h = '<div class="fares"><div class="rowc frow">' + pp.legs.map(function (l) { return legPrice(l, x, { code: true }); }).join('') + (spends ? visitDots() : '') + '</div>';
+  eps.forEach(function (ep, end) {
+    if (!ep) return;
+    var word = end ? 'Leave' : 'Arrive';
+    h += '<div class="rowc nw dayp"><span class="lgk" data-k="' + (end ? 'leave' : 'arrive') + '">' + (end ? '🛫' : '🛬') + '</span>' + ep.rows.map(function (r) {
+      var nf = r.p == null && !!(r.f && r.f.none);   // searched, no fares (a day ago too: then grey, and offered again)
+      // a round trip's own day is the ✈ fare above (one fare for both ends): ✈ there, not its $ a second and third time
+      var same = r.kind === 'rt' && !r.k && r.p != null;
+      var cost = same ? '✈' : r.p != null ? money(r.p) : nf ? '$∅' : '$—', star = r.star ? '<span class="st" data-k="cheapest">★</span>' : '';
+      var said = word + ' ' + md(r.day) + ', ' + (r.p != null ? money(r.p) + (r.kind === 'rt' ? ' round trip' : '') : nf ? 'no fares found' : 'not searched') + (r.st === 'stale' && (r.p != null || nf) ? ', a day old' : '') +
+        (r.star ? ', cheapest' : '') + (r.k ? '' : ', their day');
+      var inner = '<span class="tn dd">' + md(r.day) + '</span><b class="tn"' + (same ? ' data-k="rt"' : '') + '>' + cost + '</b>' + star;
+      var cls = 'dch' + (r.k ? '' : ' cur') + (r.p == null && !nf ? ' hollow' : '') + (r.st === 'stale' && (r.p != null || nf) ? ' stale' : '');
+      var lbl = r.k < 0 ? 'Day before' : 'Day after';
+      // the day before or after: one tap makes it that end's day (data-day: that day itself, so a quick second tap is not a second day)
+      if (r.k && edit) return '<button class="' + cls + ' tap" data-act="legshift" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + end + '" data-day="' + r.day + '" aria-label="' + esc(said + ', move') + '" data-lbl="' + lbl + '">' + inner + '</button>';
+      // one that can't move them says why on a tap (they have not answered yet), as a long press does
+      if (r.k) return '<button class="' + cls + ' ro" data-act="legshift" aria-disabled="true" data-why="1" aria-label="' + esc(said + (x.answered ? '' : ', not answered yet')) + '" data-lbl="' + (x.answered ? lbl : 'Not answered yet') + '">' + inner + '</button>';
+      return '<span class="' + cls + '" role="img" aria-label="' + esc(said) + '" data-lbl="Their day">' + inner + '</span>';
+    }).join('') + (ep.need.length ? spendBtn(m, ep.need, { code: x.code, end: end, cls: 'sq' }) : '') + '</div>';
+  });
+  return h + '</div>';
+}
+/* this visit's 8 as dots (P-total's budget row, ⚙, and P-person while a ±1 day can be searched) */
+function visitDots() {
+  var used = spentRead(), dots = '';
+  for (var i = 0; i < SPEND_PER_SESSION; i++) dots += '<i class="' + (i < used ? 'on' : '') + '"></i>';
+  return '<span class="sdots" role="img" aria-label="' + Math.min(used, SPEND_PER_SESSION) + ' of ' + SPEND_PER_SESSION + ' searches used this visit" data-lbl="This visit" data-k="visit">' + dots + '</span>';
+}
 /* PIA-139: one traveler's hand-off slot (bookSlot): their ✈↗ before the dates are set; [✈ Book ↗ | 🎫] once they are; after
    their 🎫, [✈⏱↗ Flighty | 🎫]. My own 🎫 marks me in one tap and takes it back with a second; the organizer's for someone
    else is bookToggle's (a confirming tap for someone waiting or out, and for taking it away) */
@@ -4963,8 +5683,14 @@ function saveTimes(sh, o) {
   if ((arr === undefined || arr === cur.arr) && (dep === undefined || dep === cur.dep)) return null;
   if (!timesRequest(DOCS[id], code, arr, dep, by)) { if (!bad && !o.flush) showError('too_large'); return null; }
   if (by === 'self') confirmHinted(id, code);
-  return freshWrite(id, function (doc) { var q = timesRequest(doc, code, arr, dep, by); return q ? [q] : null; }).then(function (r) {
-    if (!r.ok) showError(r.code, r.retry); else if (!bad && !o.flush) toast((arr ? '🛬' : '') + (dep ? '🛫' : '') + '✓');
+  // PIA-140 fix pass 2: this phone may not have read yet that their 🎫 was taken back on another phone: the fresh record holds the
+  // write back, nothing is sent and 🎫⚠ says why, as it does when this phone already knows (never a P-error; a trip closed
+  // meanwhile still says so in P-error, as before)
+  return freshWrite(id, function (doc) { var q = timesRequest(doc, code, arr, dep, by); return q ? [q] : null; }, { guard: function (f) {
+    var fm = freshModel(id, f); return fm && !docClosed(f) && !timesBy(fm, code) ? 'unbooked' : '';
+  } }).then(function (r) {
+    if (r.held && r.code === 'unbooked') { if (!o.flush) toast('🎫⚠'); }
+    else if (!r.ok) showError(r.code, r.retry); else if (!bad && !o.flush) toast((arr ? '🛬' : '') + (dep ? '🛫' : '') + '✓');
     return r;
   });
 }
@@ -5002,7 +5728,16 @@ function bookBack() {
 function inviteFor(id, code) {
   S.invite = { id: id, code: code, at: nowMs() };
   clearTimeout(inviteTimer);
-  inviteTimer = setTimeout(function () { if (S.invite && S.invite.id === id) { S.invite = null; render(true, true); } }, INVITE_MS);
+  inviteFade(S.invite, INVITE_MS);
+}
+/* the glow fades by the app's clock (nowMs), as invited() reads it: a timer that fires early by it waits out the rest (PIA-140) */
+function inviteFade(inv, ms) {
+  inviteTimer = setTimeout(function () {
+    if (!S.invite || S.invite !== inv) return;
+    var left = INVITE_MS - (nowMs() - inv.at);
+    if (left > 0) { inviteFade(inv, left); return; }
+    S.invite = null; render(true, true);
+  }, ms);
   if (inviteTimer && typeof inviteTimer.unref === 'function') inviteTimer.unref();   // (Node test runs only)
 }
 /* boot: this tab's page was reloaded (discarded by the phone) while a Book tap was away: the return happens now, once */
@@ -5684,6 +6419,9 @@ function onTyped(t) {
   if (t.id === 'org-token' || t.id === 'org-url') {   // a token or a URL has no spaces, so a typed value is one word at most
     var v = t.value.replace(/\s+/g, ''); if (v !== t.value) t.value = v;
     if (t.id === 'org-token') { L.tok = v; L.badTok = false; L.tokEdited = true; } else { L.url = v; L.badUrl = false; L.urlEdited = true; }
+  } else if (t.id === 'org-cap') {   // PIA-140: the month cap: digits only (a typed value is never a word)
+    var cd = t.value.replace(/[^0-9]/g, '').slice(0, 6); if (cd !== t.value) t.value = cd;
+    L.cap = cd; L.capEdited = true; L.badCap = false;
   } else if (t.id === 'new-title' && L.d) {   // PIA-136: never past 12 words (an existing longer name: never longer)
     var D = L.d, nv = takeTyped(t, D.name, TITLE_WORDS, D, function () { pulseFld('new-title'); });
     D.name = nv;
@@ -5751,6 +6489,7 @@ function renderSheet(first) {
   // shown before names are fitted: a hidden sheet counts no words, so nothing would ever be dropped on a first open
   el.hidden = false; $('#scrim').hidden = false; setInert(true);
   fitNames(el, function () { return countWords(el); }, 20);
+  fitHead(el);
   if (first) { el.classList.remove('open'); void el.offsetWidth; el.classList.add('open'); el.scrollTop = 0; }
   var f = fid ? document.getElementById(fid) : findCtl(el, sig);
   if (f) { S.refocusing = true; try { f.focus({ preventScroll: true }); } finally { S.refocusing = false; } if (sel && f.setSelectionRange) { try { f.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } } }
@@ -5776,8 +6515,8 @@ function refocus() {
 }
 /* what was typed into ⚙ and not saved is kept (in memory, never stored) for the next open */
 function keepDraft(sh) {
-  if (!sh || sh.type !== 'organizer' || !(sh.local.tokEdited || sh.local.urlEdited)) return;
-  S.drafts.organizer = { tok: sh.local.tok, url: sh.local.url, tokEdited: !!sh.local.tokEdited, urlEdited: !!sh.local.urlEdited };
+  if (!sh || sh.type !== 'organizer' || !(sh.local.tokEdited || sh.local.urlEdited || sh.local.capEdited)) return;
+  S.drafts.organizer = { tok: sh.local.tok, url: sh.local.url, tokEdited: !!sh.local.tokEdited, urlEdited: !!sh.local.urlEdited, cap: sh.local.cap, capEdited: !!sh.local.capEdited };
 }
 function openSheet(type, p, o) {
   o = o || {};
@@ -5838,7 +6577,7 @@ function showError(code, retry) {
 }
 /* a control that asks for a confirming tap (a 🎫 for someone waiting or out, taking a 🎫 away, Out on someone booked):
    the first tap arms it for a few seconds; any other tap, a sheet closing or another trip opening disarms it */
-var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1, shift: 1, legshift: 1, paidsave: 1 }, armTimer = null;   // PIA-138: ±1 once anyone booked; PIA-139: 💵
+var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1, shift: 1, legshift: 1, paidsave: 1, newvisit: 1 }, armTimer = null;   // PIA-138: ±1 once anyone booked; PIA-139: 💵; PIA-140: a new visit
 function armKey(id, code, what) { return id + '|' + code + '|' + what; }
 function armed(k) { return !!S.armTk && S.armTk === k && (S.armSticky || nowMs() - (S.armAt || 0) < ARM_MS); }
 /* o.sticky (PIA-139: taking my own 🎫 back): no time limit; it waits for its second tap until another control is tapped or
@@ -5847,7 +6586,17 @@ function arm(k, o) {
   S.armTk = k; S.armAt = nowMs(); S.armSticky = !!(o && o.sticky); render(true);
   clearTimeout(armTimer);
   if (S.armSticky) return;
-  armTimer = setTimeout(function () { if (S.armTk === k) { S.armTk = null; render(true); } }, ARM_MS);
+  armLapse(k, ARM_MS);
+}
+/* PIA-140: the lapse is decided by the app's clock (nowMs), never by when a timer happens to fire: a timer that fires early by
+   that clock (a slow page, a test's own clock) waits out the rest */
+function armLapse(k, ms) {
+  armTimer = setTimeout(function () {
+    if (S.armTk !== k || S.armSticky) return;
+    var left = ARM_MS - (nowMs() - (S.armAt || 0));
+    if (left > 0) { armLapse(k, left); return; }
+    S.armTk = null; render(true);
+  }, ms);
   if (armTimer && typeof armTimer.unref === 'function') armTimer.unref();   // (Node test runs only)
 }
 function disarm() { if (!S.armTk) return false; S.armTk = null; S.armSticky = false; clearTimeout(armTimer); return true; }
@@ -6182,7 +6931,54 @@ var ACTS = {
     shareLink(url, function (how) { if (how === 'link') return; shared(); toast('📣'); }, shared);
   },
   key: function () { S.keyPulse = false; uiSet({ keySeen: true }); openSheet('key', {}); },
-  settings: function () { openSheet('organizer', {}, { back: !!(S.sheet && S.sheet.type === 'key') }); },
+  settings: function () { openSheet('organizer', {}, { back: !!(S.sheet && S.sheet.type === 'key') }); accountSync(); },
+  /* PIA-140: 🔑🔍 on the organizer's phone without the token: ⚙ with the token field ready */
+  tokdoor: function () { openSheet('organizer', {}, { focus: 'org-token' }); },
+  /* PIA-140: P-total (the organizer's token phone): who costs what, how fresh, which airport won, and the one spend */
+  total: function (el) { var m = modelOf(el.dataset.id); if (!m || !m.prices) return null; openSheet('total', { id: m.id }); accountSync(); return null; },
+  /* 🔍N: the searches that control showed, now (P-total: every leg missing or a day old; P-person: one end ±1 day). Locked or
+     already searching, a tap says why and spends nothing */
+  search: function (el) {
+    var id = el.dataset.id, v = el.dataset.v, code = el.dataset.code, end = el.dataset.end === '1' ? 1 : 0, tag = v || (code + '|' + el.dataset.end);
+    var shown = +el.dataset.n || 0;   // the cost the control showed: the tap never spends more
+    var m = modelOf(id); if (!m || !m.prices || m.closed) return null;
+    if (S.spendBusy || lockNow() || !shown) {
+      explain(el);
+      // a refusal by SerpAPI is checked again (a free /account read, at most every ACCT_MS): one with searches left lifts it
+      if (!S.spendBusy && lockNow() === 'month') accountSync();
+      return null;
+    }
+    // the searches are read from the model as it stands when they go: the same legs the control counted (one search a leg)
+    var keysNow = function () {
+      var mm = modelOf(id); if (!mm || !mm.prices || mm.closed) return [];
+      return v === 'total' ? tapKeys(mm) : ((endPrices(mm, code, end, readFares(), nowMs(), todayLocal()) || {}).need || []);
+    };
+    // the cost now, by the same rule the control used; a cost that grew since it was drawn (nearby airports switched on, a fare
+    // gone) is drawn again first and nothing is spent: the next tap sees its real cost
+    var go = function () {
+      var now = spendCount(spendKeys(keysNow(), readFares(), nowMs(), todayLocal()).length, spentRead());
+      if (now > shown) { render(true); toast('🔍' + now + '?'); return null; }
+      return runSearch(keysNow(), { id: id, tag: tag, n: shown });
+    };
+    // an /account read still out (P-total or a sheet just opened it) decides whether a leg is the nearby search: the tap waits
+    // for it (◷), so it never pays for single-airport searches the next render would drop
+    if (S.acctBusy) {
+      S.spendBusy = { id: id, tag: tag, wait: true }; render(true);
+      var after = function () { S.spendBusy = null; MC = {}; render(true); return go(); };
+      return S.acctBusy.then(after, after);
+    }
+    return go();
+  },
+  /* ⛔ ↻ (the visit's 8 spent): the first tap asks, the second starts a new visit of 8. It spends nothing itself */
+  newvisit: function () {
+    if (lockNow() !== 'session') { render(true); return null; }
+    var ak = armKey('visit', '', 'new');
+    if (!armed(ak)) { arm(ak); return null; }
+    disarm(); newVisit(); render(true); toast('↻ 8');
+    return null;
+  },
+  /* ⓘ in a sheet (P-total, P-person): the key of the glyphs in that sheet; ‹ comes back to it */
+  skey: function () { if (!S.sheet) return; openSheet('key', {}, { back: true, local: { keys: keyEntries([$('#sheet')]) } }); },
   offline: function () { openSheet('error', { code: 'network' }); },
   /* ↻: the write that failed goes again (rebuilt from a fresh read); without one, every trip is read again */
   eretry: function () {
@@ -6197,12 +6993,18 @@ var ACTS = {
   orgsave: function () {
     var L = S.sheet.local, tok = String(L.tok || '').replace(/\s+/g, ''), url = String(L.url || '').replace(/\s+/g, '').replace(/\/+$/, '');
     L.badTok = !!L.tokEdited && !!tok && !TOKEN_RE.test(tok); L.badUrl = !!L.urlEdited && !!url && !workerOk(url);
-    if (L.badTok || L.badUrl) { renderSheet(false); pulseFld(L.badTok ? 'org-token' : 'org-url'); return; }
+    var capV = L.capEdited ? +String(L.cap || '') : null;   // PIA-140: the month cap, whole searches (v1's pialax_serpapi_quota.budget)
+    L.badCap = !!L.capEdited && !(capV >= 1 && capV <= 100000 && capV === Math.round(capV));
+    if (L.badTok || L.badUrl || L.badCap) { renderSheet(false); pulseFld(L.badTok ? 'org-token' : L.badUrl ? 'org-url' : 'org-cap'); return; }
     if (L.tokEdited) setToken(tok);
     if (L.urlEdited) setWorker(url);
-    L.tok = tokenStr(); L.url = workerBase(); L.tokEdited = L.urlEdited = false; delete S.drafts.organizer;
+    if (L.capEdited) { var q0 = readQuota(); writeQuota({ period: q0.period, used: q0.used, budget: capV, exceeded: q0.exceeded }); }
+    var reread = L.tokEdited || L.urlEdited;
+    L.tok = tokenStr(); L.url = workerBase(); L.tokEdited = L.urlEdited = false; L.cap = null; L.capEdited = false; delete S.drafts.organizer;
+    if (reread) { S.acctBad = false; S.acct = null; S.acctAt = 0; S.acctTry = 0; }   // a new token or Worker: /account is read again at once
     render(true); renderSheet(false); toast('Saved');
     refreshAll();
+    if (reread) accountSync(true);
   },
   devlink: function () { var u = devicesLink(); if (!u) return; S.sheet.local.copied = true; renderSheet(false); copyLink(u, '🔑 ⧉'); },
   orglink: function (el) { var u = organizerLink(el.dataset.id); if (!u) return; S.sheet.local.copied = true; renderSheet(false); copyLink(u, '🔑 ⧉'); },
@@ -6249,7 +7051,8 @@ var ACTS = {
   /* PIA-137: the trip view */
   person: function (el) {
     var m = modelOf(el.dataset.id); if (!m || !memberIn(m, el.dataset.code)) return;
-    openSheet('person', { id: m.id, code: el.dataset.code, outside: !tripShowing() }, { back: !!(S.sheet && S.sheet.type === 'day') });   // PIA-138: from P-day, ‹ goes back to it
+    openSheet('person', { id: m.id, code: el.dataset.code, outside: !tripShowing() }, { back: !!(S.sheet && (S.sheet.type === 'day' || S.sheet.type === 'total')) });   // PIA-138: from P-day, ‹ goes back to it (PIA-140: from P-total too)
+    if (m.prices) accountSync();
   },
   face: function (el) {
     var id = el.dataset.id, w = whoFor(id); if (!w) return;
@@ -6613,13 +7416,19 @@ var ACTS = {
   },
   /* P-person's −1 / +1 on one leg: that end alone becomes their own; a run of taps is one write */
   legshift: function (el) {
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return null; }   // PIA-140: a ±1 day chip that can't move them
     var id = el.dataset.id, code = el.dataset.code, end = el.dataset.end === '1' ? 1 : 0, k = +el.dataset.v, m = modelOf(id), x = memberIn(m, code);
+    // PIA-140: a ±1 day chip names its day (data-day): the move is to that day from the record as it stands, so a quick second
+    // tap on it (its end is already that day) moves nothing, never a day further no one priced
+    if (x && el.dataset.day) { k = isIso(el.dataset.day) && x.d1 ? diffD(end ? x.d2 : x.d1, el.dataset.day) : 0; if (!k) return null; }
     if (!x || !k || m.closed) return null;
     var self = !!(m.me && m.me.code === code); if (!self && !(m.org && !m.legacy)) return null;
     var r = legShift(m, code, end, k, RT.today);
     if (!r || r.why) { explain(el); return null; }
     if (x.booked && !acked(id + '|' + code)) { var ak = armKey(id, code, 'leg' + end + k); if (!armed(ak)) { arm(ak); return null; } ackIt(id + '|' + code); }
     disarm();
+    // PIA-140: the organizer moving someone else's day from a price chip: 📞 and the new day, with ↩ for 5s (back to the day it was)
+    var back = !self && el.dataset.day ? (end ? x.d2 : x.d1) : '';
     if (self) confirmHinted(id, code);
     var patch = r.patch, by = self ? 'self' : 'proxy', ak0 = id + '|' + code, ok0 = acked(ak0), guard0 = bookedGuard(id, ak0, code);
     var from = [x.own1, x.own2], plan = m.plan ? [m.plan.s, m.plan.e] : null, bk = x.booked ? [code] : [];
@@ -6637,6 +7446,10 @@ var ACTS = {
       });
     }, function (st) { return { kind: 'own', id: id, code: code, by: by, end: st.end, k: st.k, patch: clone(st.patch), ack: !!st.ack, bk: st.bk || [], f: st.f, p: st.p }; });
     render(true);
+    if (back) toast('📞 ' + md(el.dataset.day), function () {
+      var xm = memberIn(modelOf(id), code), kk = xm && xm.d1 ? diffD(end ? xm.d2 : xm.d1, back) : 0;
+      if (kk) ACTS.legshift({ dataset: { id: id, code: code, end: String(end), v: String(kk) } });
+    });
     return null;
   },
   'sh-close': function () { closeSheet(); },
@@ -6774,7 +7587,8 @@ function wire() {
   document.addEventListener('visibilitychange', function () { if (!pageVisible()) flushSoon(); else soonResume(); });
   window.addEventListener('pagehide', function () { flushSoon({ type: 'pagehide' }); });
   window.addEventListener('pageshow', function () { soonResume(); });
-  window.addEventListener('resize', function () { changed(); });
+  // (a sheet someone is typing in is not redrawn: its name is fitted again to the new width all the same)
+  window.addEventListener('resize', function () { changed(); if (S && S.sheet) fitHead($('#sheet')); });
   var t = setInterval(poll, POLL_MS);
   if (t && typeof t.unref === 'function') t.unref();   // (Node test runs only)
 }
@@ -6788,8 +7602,10 @@ function boot() {
     joinNext: null, newNext: null, errNext0: '', undo: null,   // PIA-136: a join request, a v1 ?tripIdea= link, ↩
     faceAsked: {}, facePulse: null, pulseAns: null, armTk: null, armAt: 0, picked: {}, errRetry: null, mapFrom: null,
     dateAck: {}, replay: null,
-    ret: null, invite: null, timesPulse: null, armSticky: false };   // PIA-139: a Book tap waiting for the way back from Google Flights; the 🎫 that invites its tap; the time entry pulsing after a 🎫; a confirm with no time limit   // PIA-138: the confirming taps for moving dates already given this visit (per trip, per person); this open's send of the kept runs   // PIA-137: P-face once per trip and visit, one-time pulses, a control waiting for its confirming tap, this visit's picks, P-error's ↻
+    ret: null, invite: null, timesPulse: null, armSticky: false,
+    acct: null, acctAt: 0, acctDay: '', acctBusy: null, acctBad: false, spendBusy: null };   // PIA-140: the last /account (today's Worker searches, the plan), a search run out   // PIA-139: a Book tap waiting for the way back from Google Flights; the 🎫 that invites its tap; the time entry pulsing after a 🎫; a confirm with no time limit   // PIA-138: the confirming taps for moving dates already given this visit (per trip, per person); this open's send of the kept runs   // PIA-137: P-face once per trip and visit, one-time pulses, a control waiting for its confirming tap, this visit's picks, P-error's ↻
   importV1Once();
+  if (hasToken()) absorbV1Fares();   // PIA-140: the fares v1 fetched on this phone count here too (no network)
   bookResume();   // PIA-139: a page reloaded while a Book tap was away in Google Flights: the 🎫 invites its tap once
   applyLink(readLink(location.search || '', location.hash || '', location.pathname || ''));
   // a reload of a trip view keeps its own history entry (the one a tap pushed); a trip view a link opened has none

@@ -282,8 +282,10 @@ function main() {
   check(bad.length === 0 && produced >= 45 && rt >= 30 && oj >= 6,
     'every link the fixtures produce (' + produced + ' URLs: ' + rt + ' round trips, ' + oj + ' open-jaws) decodes to the traveler’s own legs, dates and trip type, adults = headcount, economy, no airline or nonstop filter', bad.slice(0, 5));
   const tgm = model(TG, { me: 'LGA', multiAirport: true, hasEditKey: true, hasToken: true }), anjo = mem(tgm, 'LGA');
-  check(anjo.keys[0].key === '2|LGA,JFK,EWR|PIA|2026-11-24||1' && M.gfDecode(anjo.link.inHref).legs[0].from.join() === 'LGA,JFK,EWR' && anjo.keys[1].key === '2|ORD|LGA,JFK,EWR|2026-11-29||1',
-    'with the Worker’s multi-airport search, Anjo’s 🛬 and 🛫 links are exactly her two priced one-way searches');
+  // PIA-140: a fare key names its airports as a set, sorted (the Worker's cache order); the link keeps her home code first
+  check(anjo.keys[0].key === '2|EWR,JFK,LGA|PIA|2026-11-24||1' && M.gfDecode(anjo.link.inHref).legs[0].from.join() === 'LGA,JFK,EWR' && anjo.keys[1].key === '2|ORD|EWR,JFK,LGA|2026-11-29||1' &&
+    M.searchQuery(anjo.keys[0].key).indexOf('departure_id=EWR,JFK,LGA&arrival_id=PIA&') > 0,
+    'with the Worker’s multi-airport search, Anjo’s 🛬 and 🛫 links are exactly her two priced one-way searches (the key and the /search query name the set sorted)');
   const p3 = model(scenarios.party3[0]);
   check(M.gfDecode(mem(p3, 'momdad-k3').link.href).adults === 3 && M.gfDecode(mem(model(M8), 'anastasiakonstantinopoulou-x1').link.href).adults === 2,
     'party size follows headcount: Mom & Dad at headcount 3 → 3 adults; Anastasia (×2) on the 90th → 2 adults');

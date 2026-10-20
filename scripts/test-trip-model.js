@@ -554,7 +554,7 @@ function makeServer(worker) {
   const keysOf = mem(tgOrg({}), 'LAX').keys;
   check(keysOf.length === 2 && keysOf[0].kind === 'in' && keysOf[1].kind === 'out' && keysOf[0].key === '2|LAX|PIA|2026-11-20||1' && keysOf[1].key === '2|ORD|LAX|2026-11-29||1',
     'open-jaw is priced as two one-ways: LAX→PIA 11/20 and ORD→LAX 11/29');
-  check(mem(tgOrg({}, { multiAirport: true }), 'LAX').keys[0].key === '2|LAX,BUR,LGB,SNA,ONT|PIA|2026-11-20||1', 'with the Worker’s multi-airport search the leg is priced from the whole LA set');
+  check(mem(tgOrg({}, { multiAirport: true }), 'LAX').keys[0].key === '2|BUR,LAX,LGB,ONT,SNA|PIA|2026-11-20||1', 'with the Worker’s multi-airport search the leg is priced from the whole LA set (PIA-140: the key names the set sorted, the Worker\'s cache order)');
   const dwP = model(DW, { hasEditKey: true, hasToken: true });
   const mdLink = M.gfDecode(mem(dwP, 'momdad-k3').link.href);
   check(mem(dwP, 'momdad-k3').keys[0].key === '1|PIA|RDU|2026-11-06|2026-11-09|2' && mdLink.adults === 2 && mem(dwP, 'momdad-k3').link.href === G.dwMD && mem(dwP, 'ashwin-p8').keys[0].kind === 'rt',
@@ -1445,6 +1445,171 @@ function makeServer(worker) {
       M.handoffs(model(tweak(CY, (d) => { d.responses['ashwin-c3'] = R('in', 'LAX', '2026-12-19', '2026-12-26'); }), { me: 'ashwin-c3' }), '', ctx()).calendar === null &&
       M.calendarAdd(model(tweak(CY, (d) => { d.responses['ashwin-c3'] = R('in', 'LAX', '2026-12-19', '2026-12-26'); }), { me: 'ashwin-c3' }), ctx()) === null,
       'PIA-139 AC6 calendar-plus at every dated stage (💡 🗳 🔒 🎫 🏁): tentative ("? ", STATUS:TENTATIVE) until 🔒, set from then on; the event carries only the guest link; none for an undated idea (even for someone with their own 12/19–12/26 window) or a dropped trip', calRows);
+  }
+
+  // ═══ PIA-140 ════════════════════════════════════════════════════════════
+  section('PIA-140 prices: one honest total from real fares; each search exactly the Worker\'s; caps, locks and v1\'s stores in v1\'s formats');
+  {
+    const SERP = fx('serp-flights.json');
+    const H1 = 36e5;
+    // AC1 the one pricing function: the trip's legs, a traveler's ±1 days and the cheapest-week bars price the same keys the same way
+    const tgP = (fares, over) => model(tg, Object.assign({ me: 'LAX', hasEditKey: true, hasToken: true, fares: fares || {} }, over || {}));
+    const ash = mem(tgP(), 'LAX'), anjo = mem(tgP(), 'LGA');
+    const f0 = {}; f0[ash.keys[0].key] = { p: 305, f: NOW - 3 * H1 }; f0[ash.keys[1].key] = { p: 200, f: NOW - 3 * H1 };
+    const ep = M.endPrices(tgP(f0), 'LAX', 0, f0, NOW, TODAY);
+    check(!!ep && eq(ep.rows.map((r) => [r.k, r.day, r.kind]), [[-1, '2026-11-19', 'in'], [0, '2026-11-20', 'in'], [1, '2026-11-21', 'in']]) && ep.rows[1].key === ash.keys[0].key && ep.rows[1].p === 305 &&
+      ep.rows[1].p === tgP(f0).price.per.LAX.legs[0].p && eq(ep.need, ['2|LAX|PIA|2026-11-19||1', '2|LAX|PIA|2026-11-21||1']),
+      'PIA-140 AC6 one end ±1 day: the day before, their day and the day after (open-jaw: that end\'s one-way only); their day is the very leg the total prices, the ±1 legs are what 🔍2 searches', ep);
+    const f1 = Object.assign({}, f0, { '2|LAX|PIA|2026-11-19||1': { p: 280, f: NOW - H1 }, '2|LAX|PIA|2026-11-21||1': { p: 330, f: NOW - H1 } });
+    const ep1 = M.endPrices(tgP(f1), 'LAX', 0, f1, NOW, TODAY), ep2 = M.endPrices(tgP(f1), 'LAX', 1, f1, NOW, TODAY);
+    check(ep1.need.length === 0 && eq(ep1.rows.map((r) => !!r.star), [true, false, false]) && ep2.rows.every((r) => r.kind === 'out') && ep2.rows[1].p === 200 && ep2.need.length === 2,
+      'PIA-140 AC6 once priced, ★ marks the cheapest day (11/19 $280); the leave end prices the way home (ORD→LAX) ±1');
+    const dwm = model(DW, { me: 'ashwin-p8', hasEditKey: true, hasToken: true }), dwRt = M.endPrices(dwm, 'ashwin-p8', 1, {}, NOW, TODAY);
+    check(dwRt && dwRt.rows.every((r) => r.kind === 'rt') && dwRt.rows[0].key === '1|LAX|RDU|2026-11-06|2026-11-08|1' && dwRt.rows[2].key === '1|LAX|RDU|2026-11-06|2026-11-10|1' &&
+      M.endPrices(model(DW, { me: 'anjo-z5', hasEditKey: true, hasToken: true }), 'momdad-k3', 0, {}, NOW, TODAY).rows[0].key === '1|PIA|RDU|2026-11-05|2026-11-09|2',
+      'PIA-140 AC6 a round trip\'s end ±1 is the round trip with that day moved (Mom & Dad: still 2 adults)');
+    const pastEnd = tweak(DW, (d) => { d.idea.dates.departure = '2026-10-18'; d.idea.dates.return = '2026-10-20'; });
+    const pe = M.endPrices(model(pastEnd, { hasEditKey: true, hasToken: true }), 'ashwin-p8', 0, {}, NOW, '2026-10-18');
+    check(pe && eq(pe.rows.map((r) => r.k), [0, 1]) && M.endPrices(model(DW, ORG), 'momdad-k3', 0, {}, NOW, TODAY) && M.endPrices(model(tg, ORG), 'PIA', 0, {}, NOW, TODAY) === null,
+      'PIA-140 AC6 a day before today is never offered (or searched); a host has no end to price');
+    // AC2 what a priced leg says, from data already paid for
+    const e = M.fareFromSerp(SERP, NOW - 2 * H1, null);
+    check(e.p === 305 && e.f === NOW - 2 * H1 && !e.none && e.lvl === 'low' && eq(e.typ, [330, 470]) && e.off.length === 3 && eq(e.off.map((o) => o.p), [305, 318, 341]) &&
+      e.off[0].d === 'BUR' && e.off[0].a === 'PIA' && e.off[0].dt === '2026-11-20 07:15' && e.off[0].ar === '2026-11-20 15:35' && e.off[0].s === 1 && e.prev === undefined,
+      'PIA-140 AC2 a SerpAPI reply keeps the cheapest real fare ($305), when SerpAPI was called, Google\'s level and typical range, and the 3 cheapest offers (airports, times as HH:MM, stops)', e);
+    const facts = M.fareFacts(e, 'in', 'LAX', NOW);
+    check(facts.age === 2 * H1 && facts.lvl === 1 && facts.stops === 1 && facts.win === 'BUR' && facts.delta === null && M.fareFacts(e, 'in', 'BUR', NOW).win === '' &&
+      M.fareFacts(Object.assign({}, e, { off: [{ p: 200, d: 'ORD', a: 'BUR', s: 0 }] }), 'out', 'LAX', NOW).win === 'BUR' && M.fareFacts({ p: null, none: true, f: NOW }, 'in', 'LAX', NOW) === null,
+      'PIA-140 AC2 a leg\'s facts: its age, Google\'s level (low = 1 of 3), its stops, and the airport that won when it is not their own (in: where it leaves; home: where it lands)');
+    // AC1 a leg shows the price the total adds: fareFacts and ▼ / ▲ read a cached fare through the same rule as priceRows (legTotal)
+    const fx2 = {}; fx2[ash.keys[0].key] = M.fareFromSerp(SERP, NOW - H1, { p: 340, f: NOW - 30 * H1 }); fx2[ash.keys[1].key] = { p: 200, f: NOW - H1, prev: 210, pf: NOW - 40 * H1 };
+    const pr2 = tgP(fx2).price.per.LAX.legs;
+    check(pr2.every((l) => M.fareFacts(l.f, l.kind, 'LAX', NOW).p === l.p) && M.prevDelta(fx2[ash.keys[0].key]) === -35 && M.prevDelta(fx2[ash.keys[1].key]) === -10 &&
+      M.priceDelta(tgP(fx2).price) === -45 && M.priceDelta(tgP(Object.assign({ [anjo.keys[0].key]: { p: 150, f: NOW - H1 } }, fx2)).price) === null && M.prevDelta({ p: null, none: true, prev: 300 }) === null,
+      'PIA-140 AC1 a leg shows exactly the price the total adds for it (fareFacts and ▼ / ▲ go through priceRows\' own rule): ▼$35 and ▼$10, the total ▼$45; once Anjo\'s leg is priced with no earlier price for it, the total shows no change');
+    const hostile = M.fareFromSerp({ best_flights: [{ price: 99.6, flights: [{ departure_airport: { id: '<b>x</b>', time: '"><img src=x>' }, arrival_airport: { id: 'pia', time: '2026-11-20 25:00' } }] }], price_insights: { price_level: '<script>', typical_price_range: ['a', 3] } }, NOW, null);
+    check(hostile.p === 100 && hostile.off[0].d === '' && hostile.off[0].a === 'PIA' && hostile.off[0].dt === '' && hostile.off[0].ar === '' && hostile.lvl === '' && hostile.typ === null,
+      'PIA-140 AC2 nothing from a reply reaches the cache unchecked: airports are codes or nothing, times are times or nothing, the level is low / typical / high or nothing', hostile);
+    const nf = M.fareFromSerp({ error: 'Google Flights hasn\'t returned any results for this query.' }, NOW, null);
+    check(nf.none === true && nf.p === null && M.fareState(nf, NOW) === 'none' && M.fareState(nf, NOW + 25 * H1) === 'stale',
+      'PIA-140 AC4 a search that found no fares is kept as none ($∅): not offered again within 24h, offered once it is a day old');
+    // AC5 ▼ / ▲ only between two real fetches of the identical search
+    const later = M.fareFromSerp(tweak(SERP, (j) => { j.other_flights[0].price = 285; }), NOW, e), hitAgain = M.fareFromSerp(SERP, NOW, later);
+    check(later.prev === 305 && later.pf === NOW - 2 * H1 && M.fareFacts(later, 'in', 'LAX', NOW).delta === -20 && hitAgain.prev === 305 &&
+      M.fareFromSerp(SERP, NOW, { p: null, none: true, f: NOW - H1 }).prev === undefined && M.fareFromSerp(SERP, NOW - 3 * H1, later).prev === undefined,
+      'PIA-140 AC5 ▼$20: a newer fetch of the same search remembers the price before it; a cache HIT of that same fetch keeps it; no-fares or an older fetch is never a "before"');
+    const two = {}; two[ash.keys[0].key] = later; two[ash.keys[1].key] = { p: 200, f: NOW - H1 };
+    const twoBoth = Object.assign({}, two); twoBoth[ash.keys[1].key] = { p: 200, f: NOW - H1, prev: 180, pf: NOW - 30 * H1 };
+    check(M.priceDelta(tgP(two).price) === null && M.priceDelta(tgP(twoBoth).price) === 0 && M.priceDelta(tgP(Object.assign({}, twoBoth, { [ash.keys[1].key]: { p: 150, f: NOW - H1, prev: 180, pf: NOW - 30 * H1 } })).price) === -50,
+      'PIA-140 AC5 the total\'s change only when every priced leg has an earlier price for its identical search (one leg new: no change shown)');
+    // AC3 every search is the Worker's, in v1's own parameters; nearby airports sorted, ≤5; adults only above 1
+    const tgMulti = model(tg, { me: 'LAX', hasEditKey: true, hasToken: true, multiAirport: true }), mdDw = mem(model(DW, Object.assign({ multiAirport: true }, ORG)), 'momdad-k3');
+    const v1q = new URLSearchParams({ engine: 'google_flights', departure_id: 'LAX', arrival_id: 'PIA', outbound_date: '2026-11-20', type: 2, currency: 'USD', hl: 'en' });
+    const q1 = new URLSearchParams(M.searchQuery(ash.keys[0].key));
+    check(eq([...q1.entries()].sort(), [...v1q.entries()].sort()) && M.searchQuery(mem(tgMulti, 'LAX').keys[0].key).indexOf('departure_id=BUR,LAX,LGB,ONT,SNA&arrival_id=PIA') > 0 &&
+      M.searchQuery(mdDw.keys[0].key) === 'engine=google_flights&departure_id=ORD,PIA&arrival_id=RDU&outbound_date=2026-11-06&return_date=2026-11-09&type=1&currency=USD&hl=en&adults=2' &&
+      ['', 'x', '3|LAX|PIA|2026-11-20||1', '2|LAX,BUR,LGB,SNA,ONT,SAN|PIA|2026-11-20||1', '2|lax|PIA|2026-11-20||1', '1|LAX|PIA|2026-11-20||1', '2|LAX|PIA|2026-11-20|2026-11-22|1', '2|LAX|PIA|2026-11-20||0'].every((k) => M.searchQuery(k) === ''),
+      'PIA-140 AC3 a one-adult search is v1\'s exact parameter set (one Worker cache entry for both apps); a nearby search names its ≤5 airports sorted; Mom & Dad add adults=2; anything the Worker would refuse builds nothing');
+    // the REAL worker.js accepts every search the model builds, for every fixture traveler, with and without nearby airports
+    const serpSeen = [], realFetch = globalThis.fetch;
+    globalThis.fetch = async (u) => { if (/^https:\/\/serpapi\.com\/search\.json\?/.test(String(u))) { serpSeen.push(String(u)); return new Response(JSON.stringify(SERP), { status: 200 }); } return realFetch(u); };
+    const wenv = { PROXY_TOKEN: 'trip-model-token-0123456789', SERPAPI_KEY: 'k', IDEAS: { m: new Map(), async get(k) { return this.m.has(k) ? this.m.get(k) : null; }, async put(k, v) { this.m.set(k, String(v)); } } };
+    const allKeys = [];
+    [tg, DW, TH, M8, LX].forEach((d) => [false, true].forEach((ma) => model(d, Object.assign({ multiAirport: ma }, ORG)).travelers.forEach((t) => t.keys.forEach((k) => { if (allKeys.indexOf(k.key) < 0) allKeys.push(k.key); }))));
+    const statuses = [];
+    for (const k of allKeys) {
+      const res = await worker.fetch(new Request('https://w.dev/search?' + M.searchQuery(k), { headers: { Origin: ORIGIN, 'X-Pialax-Token': wenv.PROXY_TOKEN } }), wenv);
+      statuses.push(res.status + ' ' + res.headers.get('X-Proxy-Cache'));
+    }
+    globalThis.fetch = realFetch;
+    check(allKeys.length >= 20 && statuses.every((s) => s === '200 MISS') && serpSeen.length === allKeys.length && serpSeen.every((u) => !/token|no_cache/.test(u)),
+      'PIA-140 AC3 the real Worker takes every search the model builds (' + allKeys.length + ' keys over 5 trips, nearby airports on and off): 200, one SerpAPI call each, nothing the strict allowlist refuses', statuses.filter((s) => s !== '200 MISS').slice(0, 4));
+    // AC3 / AC4 what one tap may search, and what it costs
+    const fz = {}; fz['2|LAX|PIA|2026-11-20||1'] = { p: 305, f: NOW - H1 }; fz['2|ORD|LAX|2026-11-29||1'] = { p: 200, f: NOW - 30 * H1 }; fz['2|LGA|PIA|2026-11-24||1'] = { p: null, none: true, f: NOW - H1 };
+    const want = ['2|LAX|PIA|2026-11-20||1', '2|ORD|LAX|2026-11-29||1', '2|LGA|PIA|2026-11-24||1', '2|ORD|LGA|2026-11-29||1', '2|ORD|LGA|2026-11-29||1', '2|LAX|PIA|2026-10-10||1', 'junk'];
+    check(eq(M.spendKeys(want, fz, NOW, TODAY), ['2|ORD|LGA|2026-11-29||1', '2|ORD|LAX|2026-11-29||1']) && M.spendKeys(want, fz, NOW + 25 * H1, TODAY).indexOf('2|LGA|PIA|2026-11-24||1') >= 0,
+      'PIA-140 AC4 a tap searches only what is missing or a day old, each once, the never-searched first (a tap the caps cut short prices a $— leg before it refreshes a grey one): never a fresh fare, never a no-fares answer within 24h, never a day already past, never a key the Worker refuses');
+    // a booked traveler's flight is bought: P-total's tap (tapKeys) and every ±1 day leave them out; spendable is all one trip may search
+    {
+      const bk = clone(DW); bk.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '', available_to: '', note: '', arrive_at: '', leave_from: '', booked: true };
+      const bm = model(bk, { me: 'ashwin-p8', hasEditKey: true, hasToken: true }), anjo = mem(bm, 'anjo-z5'), dm = model(DW, { me: 'ashwin-p8', hasEditKey: true, hasToken: true });
+      const all = M.spendable(dm, {}, NOW, TODAY), allB = M.spendable(bm, {}, NOW, TODAY), epB = M.endPrices(bm, 'anjo-z5', 0, {}, NOW, TODAY);
+      check(anjo.booked && eq(M.tapKeys(dm), dm.price.search) && M.tapKeys(bm).length === 2 && M.tapKeys(bm).indexOf(anjo.keys[0].key) < 0 && bm.price.search.indexOf(anjo.keys[0].key) >= 0 &&
+        all.length === 15 && all.every((k) => !!M.parseFareKey(k)) && allB.length === 10 && allB.indexOf(anjo.keys[0].key) < 0 && epB && epB.rows.length === 3 && epB.need.length === 0 && eq(M.tapKeys(null), []),
+        'PIA-140 a booked traveler\'s legs are shown but never offered to a tap: P-total\'s tap (tapKeys) leaves Anjo\'s out (2 of the 3), her ±1 days are drawn with nothing to search, and all one trip may search (spendable: 15 legs, P-total\'s and every end ±1) drops her 5', { all: all.length, allB: allB.length });
+    }
+    check(M.spendCount(9, 0) === 4 && M.spendCount(9, 6) === 2 && M.spendCount(3, 0) === 3 && M.spendCount(9, 8) === 0 && M.spendCount(0, 0) === 0 && M.SPEND_PER_TAP === 4 && M.SPEND_PER_SESSION === 8,
+      'PIA-140 AC3 a tap costs at most 4 searches, and never more than the session has left of its 8');
+    // AC3 the locks
+    const Q = (o) => Object.assign({ period: '2026-10', used: 12, budget: 1000, exceeded: false }, o || {});
+    const L = (o) => M.spendLock(Object.assign({ quota: Q(), utcDay: '2026-10-17', spent: 0 }, o));
+    check(L({}) === '' && L({ quota: Q({ exceeded: true }) }) === 'month' && L({ quota: Q({ used: 300, budget: 300 }) }) === 'month' && L({ quota: Q({ used: 990, budget: 5000 }) }) === 'month' &&
+      L({ acct: { plan_searches_left: 10 } }) === 'month' && L({ acct: { plan_searches_left: 11 } }) === '' && L({ acct: { total_searches_left: 0 } }) === 'month',
+      'PIA-140 AC3 the month lock: an upstream 429 (exceeded), the organizer\'s month cap, 990 used, or the plan\'s last 10 searches (or none left at all)');
+    check(L({ dayCap: '2026-10-17' }) === 'day' && L({ dayCap: '2026-10-16' }) === '' && L({ dayCap: '2026-10-17', utcDay: '2026-10-18' }) === '' &&
+      L({ acct: { spend: { serp: { used: 30, cap: 30 } } }, acctDay: '2026-10-17' }) === 'day' && L({ acct: { spend: { serp: { used: 30, cap: 30 } } }, acctDay: '2026-10-16' }) === '' &&
+      L({ spent: 8 }) === 'session' && L({ spent: 7 }) === '' && L({ dayCap: '2026-10-17', quota: Q({ exceeded: true }) }) === 'month',
+      'PIA-140 AC3 the Worker\'s day cap locks only until the next UTC day (pialax_daily_cap_v1, or today\'s /account at its cap); 8 spent locks the session; the month lock wins');
+    // v1's own stores in v1's formats: the quota counter, and v1's one-adult fare cache read and written as v1 would
+    const { loadApi: la } = require(path.join(ROOT, 'scripts', 'harness.js'));
+    const v1Quota = (raw) => {
+      const ls = require(path.join(ROOT, 'scripts', 'harness.js')).makeLocalStorage(); if (raw !== undefined) ls.setItem('pialax_serpapi_quota', JSON.stringify(raw));
+      class D extends Date { constructor(...a) { if (a.length) super(...a); else super(NOW); } static now() { return NOW; } }
+      const v = la(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['readQuota', 'bumpQuota', 'markQuotaExceeded'], Object.assign({ localStorage: ls, Date: D }, QUIET));
+      return { api: v.api, missing: v.missing, ls };
+    };
+    const raws = [undefined, Q(), Q({ period: '2026-09', used: 500, exceeded: true }), Q({ used: 40, budget: 100, exceeded: true }), Q({ used: 300, budget: 250, exceeded: true }), Q({ used: 7, budget: 2000 })];
+    const qrows = raws.map((raw) => {
+      const v = v1Quota(raw), got = v.api.readQuota(), stored = v.ls.getItem('pialax_serpapi_quota'), mine = M.quotaRead(raw === undefined ? null : raw, '2026-10');
+      v.api.bumpQuota(1); const b1 = JSON.parse(v.ls.getItem('pialax_serpapi_quota'));
+      v.api.markQuotaExceeded(); const x1 = JSON.parse(v.ls.getItem('pialax_serpapi_quota'));
+      return { ok: !v.missing.length && eq(got, mine.q) && (raw === undefined ? stored !== null : stored !== JSON.stringify(raw)) === mine.write && eq(b1, M.quotaBump(mine.q, 1)) && eq(x1, M.quotaExceeded(M.quotaBump(mine.q, 1))), raw, got, mine };
+    });
+    check(qrows.every((r) => r.ok), 'PIA-140 pialax_serpapi_quota is read, migrated (100 → 250 → 1000), reset for a new month, bumped and locked exactly as v1\'s own readQuota / bumpQuota / markQuotaExceeded do (v1 run in-process)', qrows.filter((r) => !r.ok).slice(0, 2));
+    const qa = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41, total_searches_left: 959, spend: {} });
+    const qh = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41, total_searches_left: 959 }, true);
+    const qn = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41 }), qp = M.quotaFromAccount(Q({ used: 3 }), { searches_per_month: 5000, total_searches_left: 4900 });
+    check(qa.used === 41 && qa.exceeded === false && qa.budget === 1000 && qh.exceeded === true && qh.used === 41 && qn.exceeded === true && qp.used === 100 && qp.budget === 1000 &&
+      M.quotaFromAccount(Q(), { total_searches_left: 0 }).exceeded === true && M.quotaFromAccount(Q(), { total_searches_left: 0 }, true).exceeded === true && eq(M.quotaFromAccount(Q(), null), Q()),
+      'PIA-140 /account, as v1\'s sync reads it: the month\'s usage from SerpAPI\'s own count (or the plan less what is left), a plan with nothing left locks the month and one with searches left lifts a refusal\'s lock (v1 does the same) unless the app still holds it (a refusal just now); an /account that says nothing of what is left lifts nothing; the organizer\'s month cap is never touched');
+    check(M.monthWhy({ quota: Q({ exceeded: true }) }) === 'refused' && M.monthWhy({ quota: Q(), acct: { plan_searches_left: 4 } }) === 'plan' && M.monthWhy({ quota: Q(), acct: { total_searches_left: 0 } }) === 'plan' &&
+      M.monthWhy({ quota: Q({ used: 300, budget: 300 }) }) === 'cap' && M.monthWhy({ quota: Q({ used: 990, budget: 5000 }) }) === 'safety' && M.monthWhy({ quota: Q() }) === '' && M.monthWhy({}) === '' &&
+      ['refused', 'plan', 'cap', 'safety'].every((w) => L(w === 'refused' ? { quota: Q({ exceeded: true }) } : w === 'plan' ? { acct: { plan_searches_left: 4 } } : w === 'cap' ? { quota: Q({ used: 300, budget: 300 }) } : { quota: Q({ used: 990, budget: 5000 }) }) === 'month'),
+      'PIA-140 monthWhy names every month lock for its label: refused (SerpAPI\'s 429, or the plan empty on /account), the plan\'s last 10, the organizer\'s own cap (raising it lifts it), 990 (v1\'s cutoff); each is a month lock');
+    const v1k = M.v1FareKey(mem(tgMulti, 'LAX').keys[0].key);
+    check(M.v1FareKey(ash.keys[0].key) === 'LAX|PIA|2026-11-20|' && v1k === 'BUR,LAX,LGB,ONT,SNA|PIA|2026-11-20|' && M.v1FareKey(mdDw.keys[0].key) === '' &&
+      M.fareKeyOfV1('LAX|PIA|2026-11-20|') === ash.keys[0].key && M.fareKeyOfV1('LAX|RDU|2026-11-06|2026-11-09') === '1|LAX|RDU|2026-11-06|2026-11-09|1' && M.fareKeyOfV1(v1k) === mem(tgMulti, 'LAX').keys[0].key && M.fareKeyOfV1('junk') === '',
+      'PIA-140 a one-adult fare key is v1\'s cache key (from|to|dep|ret, nearby airports sorted as v1 sorts them) and back; a 2-adult search is never v1\'s (v1 searches one adult)');
+    const v1e = M.v1Fare(SERP, NOW - H1, true, false);
+    const back = M.fareFromV1(v1e, null);
+    check(v1e.ts === NOW - H1 && v1e.data.live === true && v1e.data.ow === 318 && v1e.data.rt === null && v1e.data.cached === true && v1e.data.offers.length === 4 && v1e.data.byDep.BUR === 305 &&
+      v1e.data.lastVerified === new Date(NOW - H1).toISOString() && back.p === 305 && back.f === NOW - H1 && eq(back.off.map((o) => o.p), [305, 318, 341]) && back.lvl === 'low' &&
+      M.v1Fare({ error: 'none' }, NOW, false, false) === null && M.fareFromV1({ data: { ow: 99 }, ts: NOW }) === null && M.fareFromV1({ data: { live: true, ow: 99, locked: true }, ts: NOW }) === null && M.fareFromV1({ data: { live: true, ow: 99 } }) === null,
+      'PIA-140 a fare is written to v1\'s cache as v1\'s own fetch would (headline best_flights[0] $318, offers, byDep, original fetch time, HIT marked) and v1\'s live fares read back by v2\'s rule (the cheapest, $305); a sample, a booked stand-in or no fetch time is never a price');
+    // the cache keeps itself: never an older fetch over a newer, no fares for days already past, the newest 400
+    const big = {}; for (let i = 0; i < 420; i++) big['2|LAX|PIA|2026-12-' + String(1 + (i % 28)).padStart(2, '0') + '||' + (1 + Math.floor(i / 28) % 9)] = { p: i + 1, f: NOW - i * 1000 };
+    big['2|LAX|PIA|2026-10-01||1'] = { p: 1, f: NOW };
+    const put = M.faresPut(fz, '2|LAX|PIA|2026-11-20||1', { p: 999, f: NOW - 5 * H1 }, TODAY), put2 = M.faresPut(fz, '2|LAX|PIA|2026-11-20||1', { p: 299, f: NOW }, TODAY);
+    const kept = M.faresPut(big, '2|SEA|PIA|2026-12-01||1', { p: 5, f: NOW }, TODAY);
+    check(put['2|LAX|PIA|2026-11-20||1'].p === 305 && put2['2|LAX|PIA|2026-11-20||1'].p === 299 && Object.keys(kept).length <= M.FARES_KEEP && !kept['2|LAX|PIA|2026-10-01||1'] && kept['2|SEA|PIA|2026-12-01||1'].p === 5 &&
+      Object.keys(M.faresPut({ junk: { p: 1, f: NOW } }, 'nope', { p: 1, f: NOW }, TODAY)).length === 0,
+      'PIA-140 the fare cache: an older fetch never replaces a newer one; fares for a day already past go; at most the newest ' + M.FARES_KEEP + ' are kept');
+    // AC7 no price is ever written to the record: no write builder can reach a fare. Each builder (and what it calls in the region)
+    // is read as source: none takes or reads the fare cache, a leg's price or the pricing rule (the app's own write-and-share
+    // check in test-app covers what the app hands them)
+    {
+      const src = fs.readFileSync(path.join(ROOT, 'scripts', 'trip-model.js'), 'utf8');
+      const fnSrc = (name) => {
+        const m0 = new RegExp('\\bfunction\\s+' + name + '\\s*\\(').exec(src); if (!m0) return null;
+        let i = src.indexOf('{', m0.index), depth = 0;
+        for (; i < src.length; i++) { const c = src[i]; if (c === '{') depth++; else if (c === '}' && --depth === 0) return src.slice(m0.index, i + 1); }
+        return null;
+      };
+      const builders = ['createRequest', 'respondRequest', 'bookedRequests', 'updateRequest', 'airportSyncRequests', 'organizerEdit', 'timesRequest', 'migrateRequests', 'decisionBody'];
+      const PRICE_RE = /\bfares?\b|legTotal|priceRows|priceTrip|fareFacts|fareState|fareAt|\.price\b|pialax_fares/;
+      const rows = builders.map((n) => { const s = fnSrc(n); return { n, found: !!s, hit: s ? (s.match(PRICE_RE) || [])[0] || '' : '' }; });
+      check(rows.every((r) => r.found && !r.hit), 'PIA-140 AC7 no write builder can carry a fetched price: ' + builders.join(', ') + ' never take or read a fare, a leg\'s price or the pricing rule', rows.filter((r) => !r.found || r.hit));
+    }
   }
 
   // ═══ AC11 ═══════════════════════════════════════════════════════════════

@@ -133,6 +133,16 @@ DOC[BK] = (() => {
   d.responses['oluwaseunadebayorichardson-ew'].note = '📞 🛬15:05 🛫20:00';
   return d;
 })();
+// PIA-140: the worst case for P-total's words: 8 travelers with long names, each open-jaw (into PIA, home from ORD) from a nearby set,
+// and each leg won by another airport of their set (16 codes on screen)
+const PW = 'pwWorstCasePrices00p01';
+DOC[PW] = mkDoc(PW, '🦃 Every airport wins somewhere', 'PIA', { departure: '2026-11-20', return: '2026-11-29' }, '',
+  [['bartholomew-w1', '🦊 Bartholomew Montgomery-Fitzgerald', 'LAX'], ['anastasia-w2', '🐻 Anastasia Konstantinopoulou', 'LGA', 2], ['maximilian-w3', '🐼 Maximilian Oyelaran-Whitfield', 'BUR'],
+    ['guadalupe-w4', '🦉 Guadalupe Hernández-Villanueva', 'JFK'], ['oluwaseun-w5', '🐙 Oluwaseun Adebayo-Richardson', 'SNA'], ['priya-w6', '🐯 Priya Raghunathan-Venkataraman', 'EWR'],
+    ['leonardo-w7', '🐸 Leonardo Bartholomew', 'ONT'], ['ashwin-w8', '🌴 Ashwin', 'LGB']],
+  // each with their own days, so no two travelers share a search (one search per set and day would give them one winner)
+  ['bartholomew-w1', 'anastasia-w2', 'maximilian-w3', 'guadalupe-w4', 'oluwaseun-w5', 'priya-w6', 'leonardo-w7', 'ashwin-w8'].reduce((o, c, i) => {
+    o[c] = { origin: ['LAX', 'LGA', 'BUR', 'JFK', 'SNA', 'EWR', 'ONT', 'LGB'][i], leave_from: 'ORD', available_from: MODEL.addD('2026-11-20', -i), available_to: MODEL.addD('2026-11-29', i) }; return o; }, {}));
 const idOk = Object.keys(DOC).every((id) => /^[A-Za-z0-9_-]{22}$/.test(id) && DOC[id].id === id);
 // PIA-135: cached real fares on the organizer's token phone (keys from the model itself): Diwali complete and fresh,
 // the long-title trip partly priced, the unknown-airports trip priced from a stale search
@@ -144,6 +154,22 @@ const FARES = (() => {
   keysOf(UK, 'ashwin-u3').forEach((x) => x.keys.forEach((k) => { out[k.key] = { p: 402, f: NOW_MS - 30 * 36e5 }; }));
   keysOf(WC1, 'ashwin-w1').slice(0, 1).forEach((x) => x.keys.forEach((k) => { out[k.key] = { p: 123456, f: NOW_MS - 30 * 36e5 }; }));
   keysOf(OJ, 'ashwin-o1').forEach((x) => { (x.code === 'momdad-o2' ? x.keys.slice(0, 1) : x.keys).forEach((k) => { out[k.key] = { p: x.code === 'momdad-o2' ? 260 : 199, f: NOW_MS - 36e5 }; }); });
+  // PIA-140: the Done 8-member trip's five travelers in every state a leg can be in: fresh (with Google's level, stops, a ▼), a day
+  // old, searched with no fares, and never searched; Anastasia's ±1 days priced too
+  const SERP = fx('serp-flights.json');
+  keysOf(BK, 'grandmajosephine-nf').forEach((x, i) => x.keys.forEach((k) => {
+    const e = MODEL.fareFromSerp(SERP, NOW_MS - (i === 1 ? 30 : 2) * 36e5, i === 0 ? { p: 1450, f: NOW_MS - 50 * 36e5 } : null);
+    if (i === 2) out[k.key] = { p: null, none: true, f: NOW_MS - 36e5 };
+    else if (i !== 3) { e.p += 1000 * i; e.off[0].p = e.p; out[k.key] = e; }
+  }));
+  const bkm = MODEL.tripModel(DOC[BK], { today: '2026-10-17', now: NOW_MS, me: 'grandmajosephine-nf', hasEditKey: true, hasToken: true });
+  MODEL.endPrices(bkm, 'anastasiakonstantinopoulou-x1', 0, out, NOW_MS, '2026-10-17').rows.forEach((r, j) => { if (r.k) out[r.key] = { p: 980 + 70 * j, f: NOW_MS - 36e5 }; });
+  // the worst case: every leg of every traveler won by another airport of their set, both ways (multi-airport keys)
+  MODEL.tripModel(DOC[PW], { today: '2026-10-17', now: NOW_MS, me: 'ashwin-w8', hasEditKey: true, hasToken: true, multiAirport: true }).travelers.forEach((x, i) => x.keys.forEach((k) => {
+    const other = x.O.filter((c) => c !== x.origin)[i % (x.O.length - 1)];
+    out[k.key] = { p: 4321 + 1111 * i, f: NOW_MS - (i % 3) * 13 * 36e5, lvl: ['low', 'typical', 'high'][i % 3], typ: [300, 500], prev: 4400 + 1111 * i, pf: NOW_MS - 60 * 36e5,
+      off: [{ p: 4321 + 1111 * i, d: k.kind === 'in' ? other : 'ORD', a: k.kind === 'in' ? 'PIA' : other, dt: '2026-11-20 07:15', ar: '2026-11-20 15:35', s: i % 3 }] };
+  }));
   return out;
 })();
 
@@ -173,7 +199,12 @@ PHONES.caption = { ls: { pialax_watchlist_v2: listRec([LC]), pialax_idea_keys_v1
 // PIA-139 phones: the organizer of the Done 8-member trip, on his token phone (💵 in P-stage, everyone's times), and a booked
 // traveler on it (Bartholomew: Flighty, his own time fields) who is also Leo on the set Christmas trip (not booked: Book | 🎫)
 KEYS[BK] = KEY;
-PHONES.bookorg = { ls: { pialax_watchlist_v2: listRec([BK]), pialax_idea_keys_v1: keyRec([BK]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [BK]: 'grandmajosephine-nf' }, pialax_ui_v1: { v1read: 1 } } };
+PHONES.bookorg = { ls: { pialax_watchlist_v2: listRec([BK]), pialax_idea_keys_v1: keyRec([BK]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [BK]: 'grandmajosephine-nf' }, pialax_ui_v1: { v1read: 1 },
+  pialax_fares_v2: FARES, pialax_serpapi_quota: { period: '2026-10', used: 41, budget: 1000, exceeded: false } } };   // PIA-140: its travelers' fares in every state
+// PIA-140: the organizer of the worst-case prices trip (16 winning airports), nearby airports on (pialax_multi_airport_v1, as v1 leaves it)
+KEYS[PW] = KEY;
+PHONES.prices = { ls: { pialax_watchlist_v2: listRec([PW]), pialax_idea_keys_v1: keyRec([PW]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [PW]: 'ashwin-w8' }, pialax_ui_v1: { v1read: 1 },
+  pialax_fares_v2: FARES, pialax_multi_airport_v1: '1' } };
 PHONES.booked = { ls: { pialax_watchlist_v2: listRec([BK, LK]), pialax_idea_me_v1: { [BK]: 'bartholomewmontgomeryfitzgera-dj', [LK]: 'leo-k3' }, pialax_ui_v1: { v1read: 1 } } };
 
 // PIA-136: the real worker.js /idea handlers, in-process, for the phones that write (create, edit, join): each such phone gets its
@@ -242,19 +273,23 @@ async function main() {
   async function phone(name, o) {
     o = o || {};
     const ctx = await browser.newContext({ viewport: { width: o.width || 360, height: 800 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, timezoneId: 'America/Los_Angeles', colorScheme: o.dark ? 'dark' : 'light' });
-    const net = { mode: o.mode || 'ok', gets: 0, posts: 0, delay: o.delay || {}, kv: o.worker ? workerKV() : null };   // delay: {id: ms} holds that trip's answers
+    const net = { mode: o.mode || 'ok', gets: 0, posts: 0, delay: o.delay || {}, kv: o.worker ? workerKV() : null, paid: [] };   // delay: {id: ms} holds that trip's answers
+    if (net.kv && o.paid) Object.assign(net.kv.env, { PROXY_TOKEN: TOKEN, SERPAPI_KEY: 'serp-key' });   // PIA-140: the Worker's paid routes, for real
     await ctx.route(/^https?:\/\//, (r) => { stray.push(r.request().url()); return r.abort(); });
     await ctx.route(W + '/**', async (route) => {
       const q = route.request(), u = new URL(q.url()), id = u.searchParams.get('id');
-      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key, X-Pialax-Token', 'access-control-expose-headers': 'X-Proxy-Cache, X-Fetched-At, X-SerpAPI-Status', 'content-type': 'application/json' };
       if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+      if (u.pathname === '/search' || u.pathname === '/account') net.paid.push({ path: u.pathname, url: q.url(), token: q.headers()['x-pialax-token'] || '' });   // PIA-140
+      if (u.pathname === '/account' && net.holdAcct) await net.holdAcct;   // PIA-140: an /account read held out (a 🔍 tap waits for it: ◷)
       if (net.kv) {   // PIA-136: the real Worker answers (a POST that net.failPost names fails once, as a dropped connection)
         if (q.method() === 'GET') net.gets++; else net.posts++;
         if (q.method() !== 'GET' && net.failPost) { net.failPost = false; return route.abort('internetdisconnected'); }
         if (q.method() !== 'GET' && net.holdPost) await net.holdPost;   // PIA-138: a write held out (its control's ◷ state)
         const h = Object.assign({}, q.headers(), { origin: 'https://shwinster101.github.io' });
         const res = await WORKER.fetch(new Request(q.url(), { method: q.method(), headers: h, body: q.method() === 'GET' ? undefined : q.postData() }), net.kv.env);
-        return route.fulfill({ status: res.status, headers: cors, body: await res.text() });
+        const fh = {}; ['x-proxy-cache', 'x-fetched-at'].forEach((k) => { const v = res.headers.get(k); if (v) fh[k] = v; });
+        return route.fulfill({ status: res.status, headers: Object.assign(fh, cors), body: await res.text() });
       }
       if (q.method() !== 'GET') { net.posts++; return route.fulfill({ status: 400, headers: cors, body: '{"error":"no writes in test-words","code":"bad_body"}' }); }
       net.gets++;
@@ -349,13 +384,50 @@ async function main() {
     await closeSheet(page);
     return { onScreen, missing };
   }
+  // PIA-140: ⓘ in a sheet (P-total, P-person): every page counted, every glyph drawn in the sheet sits inside a [data-k] its ⓘ
+  // lists, and ‹ comes back to the sheet. Returns the keys it explained.
+  async function sheetKey(page, label) {
+    const from = await popupId(page);
+    const scan = await page.evaluate(([skip, glyphSrc]) => {
+      const GLYPH = new RegExp(glyphSrc, 'u');
+      const vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !el.closest('[hidden]'); };
+      const keys = [...new Set([...document.querySelectorAll('#sheet [data-k]')].filter(vis).map((e) => e.getAttribute('data-k')))].filter((k) => skip.indexOf(k) < 0);
+      const untagged = [], w = document.createTreeWalker(document.querySelector('#sheet'), NodeFilter.SHOW_TEXT);
+      let n;
+      while ((n = w.nextNode())) {
+        const p = n.parentElement; if (!p || !vis(p) || p.closest('[data-free], .pc, .av, svg, [data-pic], input')) continue;
+        const g = [...n.nodeValue].filter((c) => GLYPH.test(c)).join('');
+        if (g && !p.closest('[data-k]')) untagged.push(g + ' in <' + p.tagName.toLowerCase() + ' class="' + p.className + '">');
+      }
+      return { keys, untagged };
+    }, [SKIP_KEY, GLYPH_SRC]);
+    if (scan.untagged.length) bad('glyphs in ' + label + ' that its ⓘ cannot explain (no key)', scan.untagged);
+    const btn = await page.$('#sheet [data-act="skey"]');
+    if (!btn) { bad('no ⓘ in ' + label); return new Set(); }
+    await btn.click(); await settle(page, 120);
+    const explained = new Set();
+    for (let i = 0; i < 12; i++) {
+      await measurePopup(page, label + ' › its ⓘ page ' + (i + 1));
+      (await page.evaluate(() => [...document.querySelectorAll('#sheet .li')].map((x) => x.getAttribute('data-keys') || ''))).join(' ').split(' ').filter(Boolean).forEach((k) => explained.add(k));
+      const next = await page.$('#sheet [data-act="kpage"][data-v="1"]:not([disabled])');
+      if (!next) break;
+      await next.click(); await settle(page, 80);
+    }
+    const missing = scan.keys.filter((k) => !explained.has(k));
+    if (missing.length) bad('the ⓘ of ' + label + ' leaves glyphs unexplained', missing);
+    await page.click('#sheet [data-act="sh-back"]'); await settle(page, 120);
+    const back = await popupId(page);
+    if (back !== from) bad('‹ from the ⓘ of ' + label + ' went to ' + back + ', not ' + from);
+    return explained;
+  }
   // every icon-only control has a 1–3 word label; a long-press shows it (≤20 words) and never triggers the control.
   // where = 'screen' (the screen and tab bar) or 'sheet' (the open sheet: its glyphs are named too, PIA-135)
   async function labelCheck(page, label, who, where) {
     const inSheet = where === 'sheet';
     const els = await page.evaluate((sh) => {
       const out = [], vis = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && !el.closest('[hidden]'); };
-      [...document.querySelectorAll(sh ? '#sheet button, #sheet a, #sheet [role="img"]' : '#screen button, #screen a, #screen [role="img"], #tabbar button')].filter(vis).forEach((el, i) => {
+      // (PIA-140: in a sheet, a fare's own parts too: its age ring, level gauge, stops line and winning airport each name themselves)
+      [...document.querySelectorAll(sh ? '#sheet button, #sheet a, #sheet [role="img"], #sheet svg[data-lbl], #sheet .lvl[data-lbl], #sheet .lc[data-lbl]' : '#screen button, #screen a, #screen [role="img"], #tabbar button')].filter(vis).forEach((el, i) => {
         const txt = (el.innerText || '').trim(), lbl = el.getAttribute('data-lbl') || el.getAttribute('aria-label') || '';
         const iconOnly = !/\p{L}/u.test(txt) && !el.closest('[data-free]');
         el.setAttribute('data-tw', String(i));
@@ -391,7 +463,8 @@ async function main() {
     for (const e of els) {
       if (!e.lbl || seen.labels.has(e.lbl) || e.pe === 'none' || (e.face && seen.faces >= 3)) continue;
       const c = await centre('[data-tw="' + e.i + '"]'); if (!c) continue;
-      const hit = await page.evaluate(([x, y, i]) => { const t = document.elementFromPoint(x, y); return !!(t && t.closest('[data-tw="' + i + '"]')); }, [c.x, c.y, e.i]);
+      // the finger is on this control itself, not on a part of it that names itself (a fare's age ring inside its leg)
+      const hit = await page.evaluate(([x, y, i, ctl]) => { const t = document.elementFromPoint(x, y), n = t && t.closest(ctl); return !!(t && t.closest('[data-tw="' + i + '"]') && n && n.getAttribute('data-tw') === String(i)); }, [c.x, c.y, e.i, CTL]);
       if (!hit) continue;
       seen.labels.add(e.lbl); if (e.face) seen.faces++;
       const r = await press(c.x, c.y);
@@ -521,6 +594,7 @@ async function main() {
   // sit over a row of the board).
   const faceLog = [], sheetLog = [];
   const timesLog = [], paidLog = [], calLog = [];   // PIA-139
+  const totalLog = [];   // PIA-140
   const jsClick = (page, sel) => page.$eval(sel, (e) => e.click());
   async function tripWalk(page, tag, who, deep) {
     const codes = await page.evaluate(() => [...document.querySelectorAll('#screen .pb [data-act="person"]')].map((e) => e.getAttribute('data-code')));
@@ -569,6 +643,16 @@ async function main() {
         paidLog.push({ who: tag(''), why: await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : ''; }) });
         await measurePopup(page, tag('P-stage (💵 greyed, why)'), '#lbl');
       }
+      await closeSheet(page);
+    }
+    // PIA-140: P-total from the trip's total block: every traveler's legs, the budget, the one spend control (never tapped here)
+    if (await page.$('#screen [data-act="total"]')) {
+      await jsClick(page, '#screen .totalblk[data-act="total"]'); await settle(page, 80);
+      totalLog.push({ who: tag(''), pid: await popupId(page), codes: await page.$$eval('#sheet .lgp .lc', (els) => els.length) });
+      await measurePopup(page, tag('P-total'));
+      if (deep && !seenOn(who + ' total').done) { seenOn(who + ' total').done = true; await labelCheck(page, tag('P-total'), who + '-total', 'sheet'); }
+      const face = await page.$('#sheet .trow [data-act="person"]');
+      if (face) { await jsClick(page, '#sheet .trow [data-act="person"]'); await settle(page, 80); await measurePopup(page, tag('P-total › P-person')); await jsClick(page, '#sheet [data-act="sh-back"]'); await settle(page, 60); }
       await closeSheet(page);
     }
     // PIA-139: calendar-plus in the nav at any dated stage: P-calendar-add (my days, else the plan; tentative until set)
@@ -676,6 +760,11 @@ async function main() {
       }
     };
     await visit('Trips');
+    if (deep && (await page.$('#screen .card [data-act="total"]'))) {   // PIA-140: a card's total opens P-total
+      await jsClick(page, '#screen .card [data-act="total"]'); await settle(page, 80);
+      totalLog.push({ who: tag('card'), pid: await popupId(page) });
+      await measurePopup(page, tag('Trips › P-total (from a card)')); await closeSheet(page);
+    }
     if (await page.$('#screen [data-act="shelf"]')) { await page.click('#screen [data-act="shelf"]'); await settle(page, 120); await visit('Trips shelf open'); await page.click('#screen [data-act="shelf"]'); await settle(page, 120); }
     if (await page.$('#screen [data-act="seg"][data-v="family"]')) { await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 120); await visit('Family'); await page.click('#screen [data-act="seg"][data-v="ideas"]'); await settle(page, 120); }
     if (await page.$('#screen [data-act="shelf"][aria-expanded="false"]')) { await page.click('#screen [data-act="shelf"]'); await settle(page, 100); }
@@ -767,7 +856,7 @@ async function main() {
 
   // ═══ AC3: every screen and popup within budget, at three widths, on every phone ═══
   section('AC3 the strict word gate: every screen ≤10 words and every popup ≤20, rendered, on every phone');
-  const NAMES = ['organizer', 'guest', 'host', 'eight', 'shelf', 'fresh', 'lockorg', 'portal', 'bookorg', 'booked'];   // PIA-139: + the Done 8-member trip's organizer and a booked traveler
+  const NAMES = ['organizer', 'guest', 'host', 'eight', 'shelf', 'fresh', 'lockorg', 'portal', 'bookorg', 'booked', 'prices'];   // PIA-139: + the Done 8-member trip's organizer and a booked traveler; PIA-140: + the worst-case prices
   for (const width of WIDTHS) await Promise.all(NAMES.map((name) => walk(name, { width })));   // phones in parallel, one width at a time
   ok('walked every screen of the ' + NAMES.join(', ') + ' phones at ' + WIDTHS.join(', ') + 'px');
   {
@@ -1906,6 +1995,203 @@ async function main() {
     await ctx.close();
   }
 
+  // ═══ PIA-140: prices with real clicks, through the real Worker (its token gate, fare cache and caps), SerpAPI stubbed ═══
+  section('PIA-140 prices with real clicks through the real Worker: P-total, 🔍 (its cost first), a person\'s ±1 days, the locks, ⚙\'s budget');
+  {
+    const SERP = fx('serp-flights.json');
+    const serp = [];
+    const offline = globalThis.fetch;
+    globalThis.fetch = async (u) => {
+      const sU = String(u);
+      if (/^https:\/\/serpapi\.com\/account\.json\?/.test(sU)) return new Response(JSON.stringify({ plan_searches_left: 900, total_searches_left: 900, this_month_usage: 41, searches_per_month: 1000 }), { status: 200 });
+      if (/^https:\/\/serpapi\.com\/search\.json\?/.test(sU)) {
+        serp.push(sU);
+        const q = new URL(sU).searchParams, j = JSON.parse(JSON.stringify(SERP)), base = 180 + serp.length * 17;
+        j.best_flights[0].price = base + 13; j.other_flights.forEach((o, i) => { o.price = base + [0, 36, 59][i]; o.flights[0].departure_airport.id = q.get('departure_id').split(',')[0]; o.flights[o.flights.length - 1].arrival_airport.id = q.get('arrival_id').split(',')[0]; });
+        return new Response(JSON.stringify(j), { status: 200 });
+      }
+      throw new Error('test-words: no network for ' + sU);
+    };
+    const ls = Object.assign({}, PHONES.eight.ls, { pialax_proxy_token: TOKEN, pialax_multi_airport_v1: '1' });
+    const { ctx, page, net } = await phone('eight', { worker: true, paid: true, ls, url: '?idea=' + M8 });
+    const blk = await page.$eval('#screen .totalblk', (e) => e.getAttribute('aria-label')).catch(() => '');
+    await measureScreen(page, 'prices › the 8-member trip, nothing searched yet');
+    await page.click('#screen .totalblk'); await settle(page, 200);
+    const pt0 = await page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('aria-label')]).catch(() => null);
+    await measurePopup(page, 'prices › P-total (all $—, 🔍4)');
+    await labelCheck(page, 'prices › P-total (all $—)', 'prices-real', 'sheet');
+    await page.click('#sheet [data-act="search"]'); await settle(page, 600);
+    const after1 = await page.evaluate(() => ({ legs: [...document.querySelectorAll('#sheet .lgp')].map((e) => e.getAttribute('aria-label')), btn: (document.querySelector('#sheet [data-act="search"]') || {}).textContent || '',
+      q: JSON.parse(localStorage.getItem('pialax_serpapi_quota') || 'null'), fares: Object.keys(JSON.parse(localStorage.getItem('pialax_fares_v2') || '{}')).length }));
+    await measurePopup(page, 'prices › P-total after one 🔍 (4 priced, 1 left)');
+    const s1 = net.paid.filter((x) => x.path === '/search');
+    // its ⓘ explains every glyph in it now: each priced leg's age ring, level gauge and stops line, the airport that won, the $— left,
+    // this visit's dots, today's searches, the 🔍 (and its own parts name themselves on a long press)
+    const k1 = await sheetKey(page, 'prices › P-total (4 priced, 1 left)');
+    await labelCheck(page, 'prices › P-total (4 priced)', 'prices-real-priced', 'sheet');
+    const subLbl = await page.evaluate(() => [...document.querySelectorAll('#sheet .agering[data-lbl], #sheet .lvl[data-lbl], #sheet .stopl[data-lbl]')].map((e) => e.getAttribute('data-lbl')));
+    await page.click('#sheet [data-act="search"]'); await settle(page, 500);
+    const after2 = await page.evaluate(() => ({ btn: !!document.querySelector('#sheet [data-act="search"]'), sum: (document.querySelector('#sheet .sum') || {}).textContent || '' }));
+    await measurePopup(page, 'prices › P-total, all priced');
+    check(/^Group total, not searched, 5 to search$/.test(blk) && pt0 && pt0[0] === '🔍4/5' && pt0[1] === 'Search 4 of 5 fares, 4 searches' && s1.length === 4 && s1.every((x) => x.token === TOKEN && x.url.indexOf(TOKEN) < 0) &&
+      after1.legs.filter((x) => /fetched/.test(x)).length === 4 && after1.btn.trim() === '🔍1' && after1.q && after1.q.used >= 4 && after1.fares === 4 && serp.length === 5 && !after2.btn && /^\$[\d,]+$/.test(after2.sum.trim()),
+      'PIA-140 with real clicks: the trip\'s total block opens P-total (5 legs $—, 🔍4/5: its cost, and that the caps cut it short); the tap prices 4 through the real Worker (the token in its header only), 🔍1 then the last one; the sum then stands alone', { blk, pt0, after1, after2, serp: serp.length });
+    check(['age', 'level', 'stops', 'unsearched', 'visit', 'search'].every((k) => k1.has(k)) && subLbl.length >= 12 && subLbl.some((l) => l === 'Fetched just now') && subLbl.some((l) => /^Price (low|typical|high)$/.test(l)) && subLbl.some((l) => /^(Nonstop|\d stops?)$/.test(l)),
+      'PIA-140 the organizer can tell each fare\'s age, price level and stops from P-total: its ⓘ explains the age ring, the level gauge, the stops line, $—, the visit\'s dots and 🔍 (every glyph in the sheet is keyed), and each part names itself on a long press ("Fetched just now", "Price low", "1 stop")', { keys: [...k1], subLbl: subLbl.slice(0, 6) });
+    // a person's ±1 days from P-total's face (‹ back to P-total): 🔍2, then three days with ★
+    await page.click('#sheet .trow [data-act="person"]'); await settle(page, 150);
+    await measurePopup(page, 'prices › P-person from P-total (fares, 🔍2 each end)');
+    const pp0 = await page.$$eval('#sheet .dayp [data-act="search"]', (els) => els.map((e) => e.textContent.trim()));
+    await page.click('#sheet .dayp [data-act="search"]'); await settle(page, 500);
+    const pp1 = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#sheet .dayp')][0].querySelectorAll('.dch').length, star: document.querySelectorAll('#sheet [data-k="cheapest"]').length, priced: [...document.querySelectorAll('#sheet .dayp')][0].querySelectorAll('.dch.hollow').length }));
+    await measurePopup(page, 'prices › P-person after 🔍2 (★ the cheapest day)');
+    await labelCheck(page, 'prices › P-person fares', 'prices-real-person', 'sheet');
+    const kp = await sheetKey(page, 'prices › P-person fares');
+    await page.click('#sheet [data-act="sh-back"]'); await settle(page, 100);
+    const back = await popupId(page);
+    check(pp0.length >= 1 && pp0.every((t) => t === '🔍2') && pp1.chips === 3 && pp1.priced === 0 && pp1.star === 1 && back === 'P-total' && net.paid.filter((x) => x.path === '/search').length === 7 &&
+      ['age', 'cheapest', 'visit'].every((k) => kp.has(k)),
+      'PIA-140 AC6 with real clicks: a traveler\'s sheet from P-total offers 🔍2 per end; one tap prices that end ±1 day (2 searches), the three days read their $ with one ★ (its ⓘ explains the fare\'s parts, ★ and the visit\'s dots); ‹ goes back to P-total', { pp0, pp1, back, kp: [...kp] });
+    // the visit's 8 spent: ⛔ ↻ says how it lifts; its first tap asks (↻8?), the second starts a new visit and spends nothing
+    await closeSheet(page);
+    await page.evaluate(() => { sessionStorage.setItem('pialax_spent_v2', '8'); const f = JSON.parse(localStorage.getItem('pialax_fares_v2')); delete f[Object.keys(f)[0]]; localStorage.setItem('pialax_fares_v2', JSON.stringify(f)); });
+    await page.click('#screen .totalblk'); await settle(page, 200);
+    const v0 = await page.$eval('#sheet [data-act="newvisit"]', (e) => [e.textContent.trim(), e.getAttribute('data-lbl')]).catch(() => null);
+    await measurePopup(page, 'prices › P-total, the visit\'s 8 spent (⛔ ↻)');
+    await labelCheck(page, 'prices › P-total, the visit\'s 8 spent', 'prices-real-visit', 'sheet');
+    const nv0 = net.paid.filter((x) => x.path === '/search').length;
+    await page.click('#sheet [data-act="newvisit"]'); await settle(page, 150);
+    const v1 = await page.$eval('#sheet [data-act="newvisit"]', (e) => [e.textContent.trim(), e.getAttribute('data-lbl')]).catch(() => null);
+    await measurePopup(page, 'prices › P-total, a new visit asked (↻8?)');
+    await page.click('#sheet [data-act="newvisit"]'); await settle(page, 150);
+    const v2 = await page.$eval('#sheet [data-act="search"]', (e) => e.textContent.trim()).catch(() => null);
+    const toastV = await page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent : ''; });
+    if (toastV) await measurePopup(page, 'prices › the new visit\'s toast', '#toast');
+    await measurePopup(page, 'prices › P-total, a new visit (🔍1)');
+    const spentV = await page.evaluate(() => sessionStorage.getItem('pialax_spent_v2'));
+    check(v0 && v0[0] === '⛔ ↻' && v0[1] === 'New visit' && v1 && v1[0] === '↻8?' && v1[1] === 'Tap again' && v2 === '🔍1' && /↻ 8/.test(toastV) && spentV === '0' && net.paid.filter((x) => x.path === '/search').length === nv0,
+      'PIA-140 with real clicks: the visit\'s 8 spent, P-total shows ⛔ ↻ ("New visit"); the first tap asks (↻8?, "Tap again"), the second starts a new visit (its 8 dots empty, ↻ 8) and spends nothing; 🔍1 is the next tap\'s cost', { v0, v1, v2, toastV, spentV });
+    // the month locked by SerpAPI's refusal: ⛔ 11/1 everywhere, and a tap says why ("SerpAPI refused"); the trip page's block says ⛔ 11/1 too
+    await closeSheet(page);
+    await page.evaluate(() => { const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota')); q.exceeded = true; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
+    await page.click('#screen .totalblk'); await settle(page, 200);
+    const mo = await page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('data-lbl')]).catch(() => null);
+    await measurePopup(page, 'prices › P-total, the month locked (⛔ 11/1)');
+    await page.click('#sheet [data-act="search"]', { force: true }); await settle(page, 200);
+    const moWhy = await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : ''; });
+    await measurePopup(page, 'prices › ⛔ 11/1 explained', '#lbl');
+    await closeSheet(page);
+    const chipM = await page.$eval('#screen .totalblk .chipq', (e) => e.textContent.trim()).catch(() => '');
+    await measureScreen(page, 'prices › the trip page, the month locked');
+    await page.evaluate(() => { const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota')); q.exceeded = false; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
+    check(mo && mo[0] === '⛔ 11/1' && mo[1] === 'SerpAPI refused' && moWhy === 'SerpAPI refused' && chipM === '⛔ 11/1' && net.paid.filter((x) => x.path === '/search').length === nv0,
+      'PIA-140 with real clicks: SerpAPI\'s refusal locks the month: P-total reads ⛔ 11/1, a tap says why ("SerpAPI refused") and sends nothing, and the trip page\'s total block shows ⛔ 11/1 instead of a cost', { mo, moWhy, chipM });
+    // the Worker's day cap: every spend control reads ⛔ 17:00 (00:00 UTC, local), a tap explains and sends nothing
+    await closeSheet(page);
+    // (one fare forgotten on this phone, so there is a leg to search again)
+    await page.evaluate(() => { localStorage.setItem('pialax_daily_cap_v1', '2026-10-17'); const f = JSON.parse(localStorage.getItem('pialax_fares_v2')); delete f[Object.keys(f)[0]]; localStorage.setItem('pialax_fares_v2', JSON.stringify(f)); });
+    await page.click('#screen .totalblk'); await settle(page, 200);
+    const lk = await page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('aria-label'), e.getAttribute('aria-disabled')]).catch(() => null);
+    await measurePopup(page, 'prices › P-total locked (⛔ 17:00)');
+    const n0 = net.paid.filter((x) => x.path === '/search').length;
+    await page.click('#sheet [data-act="search"]', { force: true }); await settle(page, 200);   // aria-disabled (it explains itself): a tap as a finger makes it
+    const why = await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : ''; });
+    await measurePopup(page, 'prices › ⛔ explained', '#lbl');
+    check(lk && lk[0] === '⛔ 17:00' && lk[1] === 'Searches resume at 17:00' && lk[2] === 'true' && why === 'Daily limit' && net.paid.filter((x) => x.path === '/search').length === n0,
+      'PIA-140 AC3 with real clicks: past the Worker\'s day cap P-total\'s 🔍 reads ⛔ 17:00 (00:00 UTC in Los Angeles), a tap says "Daily limit" and sends nothing', { lk, why });
+    await closeSheet(page);
+    // ⚙ on the organizer's phone: today's Worker searches (from /account), this visit's dots, the month against its cap, ⛔ while locked
+    await page.click('#screen [data-act="settings"]'); await settle(page, 400);
+    const gear = await page.evaluate(() => ({ bud: (document.querySelector('#sheet .bud') || {}).textContent || '', cap: (document.querySelector('#org-cap') || {}).value || '', lock: (document.querySelector('#sheet .capt') || {}).textContent || '' }));
+    await measurePopup(page, 'prices › ⚙ with the budget');
+    await labelCheck(page, 'prices › ⚙ budget', 'prices-real-gear', 'sheet');
+    check(/🔍 \d+\/30/.test(gear.bud) && gear.cap === '1000' && gear.lock === '⛔ 17:00' && net.paid.some((x) => x.path === '/account' && x.token === TOKEN),
+      'PIA-140 ⚙ on the organizer\'s phone: today\'s Worker searches left (/account, the token in its header), the month cap (1000), and ⛔ 17:00 while the day cap holds', gear);
+    // ⚙ with every lock on at once: each sits with what it counts (the day's ⛔ by 🔍 n/30, the visit's ↻ by its dots, the month's
+    // ⛔ and why in the month's row)
+    await closeSheet(page);
+    await page.evaluate(() => { sessionStorage.setItem('pialax_spent_v2', '8'); const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota')); q.exceeded = true; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
+    await page.click('#screen [data-act="settings"]'); await settle(page, 300);
+    const all3 = await page.evaluate(() => ({ budget: (document.querySelector('#sheet .budget') || {}).textContent || '', visit: !!document.querySelector('#sheet .budget [data-act="newvisit"]'),
+      month: [...document.querySelectorAll('#sheet .capf ~ .capt')].map((e) => [e.textContent, e.getAttribute('data-lbl')]) }));
+    await measurePopup(page, 'prices › ⚙ with the day, visit and month locks');
+    await labelCheck(page, 'prices › ⚙ every lock', 'prices-real-gear-locks', 'sheet');
+    check(/⛔ 17:00/.test(all3.budget) && all3.visit && all3.month.length === 1 && all3.month[0][0] === '⛔ 11/1' && all3.month[0][1] === 'SerpAPI refused',
+      'PIA-140 ⚙ with every lock on: the day\'s ⛔ 17:00 beside today\'s searches, the visit\'s ↻ beside its dots, and the month\'s ⛔ 11/1 in the month\'s row with why ("SerpAPI refused")', all3);
+    await ctx.close();
+    // a 🔍 tapped while P-total's /account read is out waits for it: ◷ ("Searching"), nothing sent until it is in
+    {
+      const w = await phone('eight', { worker: true, paid: true, ls, url: '?idea=' + M8 });
+      let release = null; w.net.holdAcct = new Promise((r) => { release = r; });
+      await w.page.click('#screen .totalblk'); await settle(w.page, 150);
+      await w.page.click('#sheet [data-act="search"]'); await settle(w.page, 150);
+      const busy = await w.page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('aria-busy'), e.getAttribute('data-lbl')]).catch(() => null);
+      await measurePopup(w.page, 'prices › P-total, a 🔍 waiting for /account (◷)');
+      await labelCheck(w.page, 'prices › P-total ◷', 'prices-real-wait', 'sheet');
+      const sent = w.net.paid.filter((x) => x.path === '/search').length;
+      w.net.holdAcct = null; release(); await settle(w.page, 700);
+      const sentAfter = w.net.paid.filter((x) => x.path === '/search').length;
+      await w.ctx.close();
+      check(busy && busy[0] === '◷' && busy[1] === 'true' && busy[2] === 'Searching' && sent === 0 && sentAfter === 4,
+        'PIA-140 with real clicks: a 🔍 tapped while P-total\'s /account read is out shows ◷ ("Searching") and sends nothing; once /account is in, the 4 it showed go', { busy, sent, sentAfter });
+    }
+    // a token the Worker refuses: 🔑⚠ in ⚙ (the field marked) and in P-total
+    {
+      const w = await phone('eight', { worker: true, paid: true, ls: Object.assign({}, ls, { pialax_proxy_token: 'wrong-token-0123456789abcdef' }), url: '?idea=' + M8 });
+      await w.page.click('#screen [data-act="settings"]'); await settle(w.page, 400);
+      const g = await w.page.evaluate(() => ({ bad: !!document.querySelector('#sheet .fld.bad #org-token'), mark: (document.querySelector('#sheet [data-k="tokbad"]') || {}).textContent || '' }));
+      await measurePopup(w.page, 'prices › ⚙ with a token the Worker refuses (🔑⚠)');
+      await labelCheck(w.page, 'prices › ⚙ token refused', 'prices-real-tokbad', 'sheet');
+      await closeSheet(w.page);
+      await w.page.click('#screen .totalblk'); await settle(w.page, 200);
+      const pm = await w.page.$eval('#sheet [data-k="tokbad"]', (e) => e.textContent).catch(() => '');
+      await measurePopup(w.page, 'prices › P-total with a token the Worker refuses (🔑⚠)');
+      await w.ctx.close();
+      check(g.bad && g.mark === '🔑⚠' && pm === '🔑⚠', 'PIA-140 with real clicks: a token the Worker refuses on /account marks ⚙\'s token field and shows 🔑⚠ ("Token refused") in ⚙ and P-total', { g, pm });
+    }
+    // the wait and the locks at every width, counted with their long-press labels: ◷ while /account is out, ⛔ ↻ and ↻8? at the
+    // visit's 8 (P-total and a person's square), ⛔ 11/1 when SerpAPI refused (and its "SerpAPI refused"), ⛔ alone in a square
+    const lockLog = [];
+    for (const width of WIDTHS) {
+      const w = await phone('eight', { width, worker: true, paid: true, ls, url: '?idea=' + M8 }), tag = (s) => 'prices @' + width + ' › ' + s;
+      let release = null; w.net.holdAcct = new Promise((r) => { release = r; });
+      await w.page.click('#screen .totalblk'); await settle(w.page, 150);
+      await w.page.click('#sheet [data-act="search"]'); await settle(w.page, 150);
+      const wait = await w.page.$('#sheet [data-act="search"][aria-busy="true"]');
+      await measurePopup(w.page, tag('P-total ◷ (a 🔍 waiting for /account)'));
+      w.net.holdAcct = null; release(); await settle(w.page, 700);
+      await closeSheet(w.page);
+      await w.page.evaluate(() => sessionStorage.setItem('pialax_spent_v2', '8'));
+      await w.page.click('#screen .totalblk'); await settle(w.page, 150);
+      const visit = await w.page.$('#sheet [data-act="newvisit"]');
+      await measurePopup(w.page, tag('P-total ⛔ ↻ (the visit\'s 8 spent)'));
+      await labelCheck(w.page, tag('P-total ⛔ ↻'), 'prices-visit@' + width, 'sheet');
+      if (visit) { await w.page.click('#sheet [data-act="newvisit"]'); await settle(w.page, 120); await measurePopup(w.page, tag('P-total ↻8? (a new visit asked)')); }
+      await w.page.click('#sheet .trow [data-act="person"]'); await settle(w.page, 150);
+      await measurePopup(w.page, tag('P-person (⛔ ↻ in a square)'));
+      await closeSheet(w.page);
+      await w.page.evaluate(() => { sessionStorage.setItem('pialax_spent_v2', '0'); const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota') || 'null') || { period: '2026-10', used: 41, budget: 1000 }; q.exceeded = true; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
+      await w.page.click('#screen .totalblk'); await settle(w.page, 150);
+      const month = await w.page.$eval('#sheet [data-act="search"][data-k="cap"]', (e) => e.textContent.trim()).catch(() => '');
+      await measurePopup(w.page, tag('P-total ⛔ 11/1 (SerpAPI refused)'));
+      await w.page.click('#sheet [data-act="search"]', { force: true }); await settle(w.page, 150);
+      const why = await w.page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : ''; });
+      if (why) await measurePopup(w.page, tag('⛔ 11/1 explained'), '#lbl');
+      await w.page.click('#sheet .trow [data-act="person"]'); await settle(w.page, 150);
+      await measurePopup(w.page, tag('P-person (⛔ in a square)'));
+      await labelCheck(w.page, tag('P-person ⛔'), 'prices-month@' + width, 'sheet');
+      await w.ctx.close();
+      lockLog.push({ width, wait: !!wait, visit: !!visit, month, why });
+    }
+    check(lockLog.length === WIDTHS.length && lockLog.every((x) => x.wait && x.visit && x.month === '⛔ 11/1' && x.why === 'SerpAPI refused'),
+      'PIA-140 the wait and the locks at every width, counted with their labels: ◷ while /account is out, ⛔ ↻ and ↻8? once the visit\'s 8 are spent (P-total and a person\'s square), ⛔ 11/1 with "SerpAPI refused", ⛔ alone in a square', lockLog);
+    globalThis.fetch = offline;
+    // every walked phone: P-total from its cards and trip views, counted (the worst case: 16 winning airports, within 20 words)
+    const worstT = totalLog.filter((x) => x.codes === 16), cards = totalLog.filter((x) => / card$/.test(x.who));
+    check(totalLog.length >= 6 && totalLog.every((x) => x.pid === 'P-total') && worstT.length === WIDTHS.length && cards.length >= 2,
+      'PIA-140 P-total opens from a card\'s total and the trip\'s total block on every organizer token phone, at every width, counted (the worst case, 8 open-jaw travelers each won by another airport both ways, draws all 16 codes within the popup budget)', totalLog.map((x) => x.who + ' ' + x.codes));
+  }
+
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');
   {
     const org = seenOn('organizer@360'), deep = NAMES.map((n) => n + '@360').filter((w) => pressLog[w]);
@@ -1920,7 +2206,7 @@ async function main() {
     const sheetG = Object.keys(pressLog).filter((w) => / sheet$/.test(w)).reduce((s, w) => s + pressLog[w].glyphs.size + pressLog[w].labels.size, 0);
     check(sheetG > 0 && pressLog['organizer@360 sheet'] && pressLog['organizer@360 sheet'].glyphs.size >= 3, 'PIA-135 long-press names the glyphs and controls in P-sharelist and P-savelist too (' + sheetG + ' named; organizer P-sharelist: ' + [...((pressLog['organizer@360 sheet'] || {}).glyphs || [])].join(', ') + ')');
   }
-  check(stray.length === 0, 'no request left for anything but the Worker\'s /idea routes', [...new Set(stray)].slice(0, 5));
+  check(stray.length === 0, 'no request left for anything but the Worker (its /idea routes, and on the organizer\'s phone /search and /account)', [...new Set(stray)].slice(0, 5));
   check(consoleErrs.length === 0, 'no console error or page error on any phone', consoleErrs.slice(0, 5));
   ok('counted ' + screensCounted + ' screens and ' + popupsCounted + ' popups');
   check(worst.screen.n <= SCREEN_MAX, 'busiest screen: ' + worst.screen.n + ' words (' + worst.screen.label + ': ' + worst.screen.words + ')');
