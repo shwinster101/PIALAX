@@ -1157,6 +1157,13 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     d.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '', available_to: '', note: '', arrive_at: 'PIA', leave_from: 'ORD', updated_at: '2026-10-12T00:00:00.000Z' };
     return d;
   })();
+  // PIA-141: Diwali with no 📌 and Anjo's own 11/05–11/10 (longer than the stay): 15 candidate weeks on 3 pages, each ⚠🗽, ⟦◀ ▶⟧
+  const CHV = 'chViewportCheapWeek006';
+  docs[CHV] = (() => {
+    const d = JSON.parse(JSON.stringify(docs.dwDiwaliRaleigh2026a01)); d.id = CHV; d.idea.title = '📉 Diwali, any week'; d.idea.notes = '';
+    d.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '2026-11-05', available_to: '2026-11-10', note: '', arrive_at: '', leave_from: '', updated_at: '2026-10-12T00:00:00.000Z' };
+    return d;
+  })();
   const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
@@ -1186,9 +1193,10 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     // PIA-136: this phone also organizes the 8-member trip (a join request on a full trip opens its people editor at ⚠ 9/8)
     pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [CYV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [BKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
-      [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
+      [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
+      [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-141: the cheapest-week trip   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
-      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8' }),
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 }), pialax_multi_airport_v1: '1'
   };
   const LAYOUT = () => {
@@ -1250,7 +1258,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
           return route.fulfill({ status: 200, headers: Object.assign({ 'x-proxy-cache': 'MISS', 'x-fetched-at': '2026-10-17T19:00:00.000Z' }, cors), body: JSON.stringify(serpFor(u)) });
         }
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ || id === CHV) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -1495,6 +1503,54 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(120); await measure('⚙ (the day, visit and month locks, each in its row)');
         await tapJs('#sheet [data-act="sh-close"]');
         await page.evaluate(() => { localStorage.removeItem('pialax_daily_cap_v1'); sessionStorage.setItem('pialax_spent_v2', '0'); const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota') || '{}'); q.exceeded = false; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
+        // PIA-141: the cheapest week. P-dates' 📉 → P-cheapest: 15 weeks on 3 pages (each ⚠🗽: Anjo's own days are longer than the stay),
+        // ◀ ▶ and ⟦◀ ▶⟧ on their own row; a hollow week's 🔍3, searched through the stub, then Move asking first (⚠🗽 Confirm); the next
+        // page; its ⓘ; and the 8-member trip's weeks with five long-named chips. Nothing is moved (this Worker stub takes no writes)
+        // (a fresh page: the app keeps this visit's searches in memory too, and the PIA-140 states above spent 7 of its 8)
+        await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
+        await page.click('#screen [data-trip="' + CHV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates with 📉');
+        if (!(await page.$('#sheet [data-act="dcheap"]:not([aria-disabled])'))) fails.push('P-dates on the organizer\'s token phone should offer 📉');
+        await tapJs('#sheet [data-act="dcheap"]'); await page.waitForTimeout(150); await measure('P-cheapest (15 weeks, 3 pages, ⟦◀ ▶⟧)');
+        const cbs = await page.$$eval('#sheet .cbar', (els) => els.map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width), Math.round(r.height)]; }));
+        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-cheapest' || cbs.length !== 7 || cbs.some((b) => b[0] < 44 || b[1] < 44)) fails.push('P-cheapest should show 7 bars of ≥44px, got ' + JSON.stringify(cbs));
+        const ownRow = await page.evaluate(() => { const sb = document.querySelector('#sheet .cstrip').getBoundingClientRect().bottom, c = [...document.querySelectorAll('#sheet [data-act="cpage"], #sheet [data-act="cwiden"]')]; return c.length === 4 && c.every((e) => e.getBoundingClientRect().top >= sb); });
+        if (!ownRow) fails.push('P-cheapest\'s ◀ ▶ and ⟦◀ ▶⟧ should sit on their own row below the bars');
+        const cs0 = net.search;
+        await tapJs('#sheet .cbar[data-v="2026-11-08"]'); await measure('P-cheapest (a hollow week, 🔍3)');
+        const c3 = await page.$eval('#sheet [data-act="search"][data-v="week"]', (e) => e.textContent.replace(/\s+/g, '')).catch(() => null);
+        if (c3 !== '🔍3') fails.push('a hollow week of the cheapest-week trip should cost 🔍3 first, got ' + JSON.stringify(c3));
+        await tapJs('#sheet [data-act="search"][data-v="week"]'); await settle(cs0 + 3);
+        await measure('P-cheapest (a week searched: Move)');
+        if (net.search !== cs0 + 3 || !(await page.$('#sheet [data-act="cmove"]'))) fails.push('one 🔍3 tap should make 3 searches and offer Move, made ' + (net.search - cs0));
+        await tapJs('#sheet [data-act="cmove"]'); await page.waitForTimeout(500); await measure('P-cheapest (Move asks: ⚠🗽 Confirm)');
+        if (!(await page.$('#sheet .btn.arm[data-act="cmove"]'))) fails.push('Move on a week that leaves Anjo\'s days out should ask first');
+        await tapJs('#sheet [data-act="cpage"][data-v="1"]'); await measure('P-cheapest (page 2)');
+        await tapJs('#sheet [data-act="skey"]'); await measure('P-cheapest › its ⓘ'); await tapJs('#sheet [data-act="sh-back"]');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        await tapJs('#screen .daterow [data-act="dates"]'); await tapJs('#sheet [data-act="dcheap"]'); await page.waitForTimeout(120);
+        await measure('P-cheapest (8 long names)');
+        if (await page.$('#sheet .cbar:not(.cur)')) { await tapJs('#sheet .cbar:not(.cur)'); await measure('P-cheapest (8 long names, a week selected: 5 chips)'); }
+        if ((await page.$$('#sheet .cchip')).length !== 5) fails.push('the 8-member trip\'s P-cheapest should show its 5 travelers\' chips');
+        // fix pass: on a short phone (640px high) the one button stays in view, whole and tappable, over the chips (it sticks to the
+        // sheet's bottom); and below the 360 gate (320px) a page holds 6 bars of ≥44px with no sideways scroll
+        await page.setViewportSize({ width: vp.width, height: 640 }); await page.waitForTimeout(150);
+        await measure('P-cheapest (8 long names, a 640px-high phone)');
+        const stuck = await page.evaluate(() => {
+          const b = document.querySelector('#sheet .btn.pri.wide'), sh = document.querySelector('#sheet'); if (!b) return 'no button';
+          const r = b.getBoundingClientRect(), s = sh.getBoundingClientRect(), t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          return r.top >= s.top && r.bottom <= Math.min(innerHeight, s.bottom) + 0.5 && t && (t === b || b.contains(t)) ? '' : 'button at ' + Math.round(r.top) + '–' + Math.round(r.bottom) + ' of ' + innerHeight + (t && !(t === b || b.contains(t)) ? ', covered' : '');
+        });
+        if (stuck) fails.push('P-cheapest\'s button on a 640px-high phone should be whole and in view: ' + stuck);
+        if (vp.width === 360) {
+          await page.setViewportSize({ width: 320, height: 640 }); await page.waitForTimeout(150);
+          await tapJs('#sheet .cbar[aria-pressed="true"]');   // (drawn again at this width)
+          const n320 = await page.evaluate(() => { const s = document.querySelector('#sheet'), st = document.querySelector('#sheet .cstrip'); return { bars: [...document.querySelectorAll('#sheet .cbar')].map((e) => Math.round(e.getBoundingClientRect().width)), over: s.scrollWidth - s.clientWidth, strip: st ? st.scrollWidth - st.clientWidth : 0, page: document.documentElement.scrollWidth - innerWidth }; });
+          if (n320.bars.length > 6 || n320.bars.some((w) => w < 44) || n320.over > 0 || n320.strip > 0 || n320.page > 0) fails.push('P-cheapest at 320px should page 6 bars of ≥44px with no sideways scroll, got ' + JSON.stringify(n320));
+        }
+        await page.setViewportSize({ width: vp.width, height: vp.height }); await page.waitForTimeout(100);
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         // the board's price column holds $10,987, $10,987+ and $1,387+ without pushing the page sideways or clipping a digit
         await page.click('#screen [data-trip="' + DWJ + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the board with $10,987, $10,987+ and $1,387+');
         const cells = await page.$$eval('#screen .pb .pb-row .pr', (els) => els.map((e) => [e.textContent, e.scrollWidth - e.clientWidth]));
@@ -1534,7 +1590,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
         if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ || id === CHV) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];

@@ -737,28 +737,89 @@ function windowRow(model, m, s, e, today) {
   var d1 = m.own1 || s, d2 = m.own2 || e, why = legWhy(model.dest, m.O, d1, d2, today, m.origin);
   return { code: m.code, color: m.color, why: why, keys: why ? [] : legKeys(m.from, m.A, m.H, d1, d2, m.headcount) };
 }
-/* cheapest-week candidates: each window is priced by priceRows, the same rule as priceTrip, from real cached fares
-   only. A bar is filled only when that total is complete; `missing` lists the legs still to search (missing or
-   stale), and `none` marks a window where a search found no fares. */
+/* ---- PIA-141: cheapest week on demand (D4) ----
+   The organizer asks for it (P-dates 📉 → P-cheapest), sees what pricing each week would cost, spends real searches through
+   the one spend path (spendable takes each week's legs) and moves the trip there in one tap. Every week is priced by
+   priceRows, the one rule priceTrip uses, from real cached fares only: a week nobody searched stays hollow, nothing is ever
+   estimated. Candidates keep the trip's length (the plan's nights, or 🌙N for an undated idea) and its 📌 day, fit the flex
+   window and start tomorrow at the earliest. Only plan-followers move with a week: an end someone set stays where it is (and
+   is priced as it is), and a booked traveler keeps the days they booked (organizerEdit writes their blank ends as their own
+   before the plan moves), so a booked flight is never searched here (it is bought: its cached price is the same in every week). */
+var WIDEN_DAYS = 7;   // ⟦◀ ▶⟧: the flex window grows a week a tap
+/* a traveler who moves with the plan: they travel, have not booked, and left at least one end blank */
+function followsPlan(m) { return !!m && m.traveler && !m.booked && (!m.own1 || !m.own2); }
+/* every candidate week: {s, e, current, missing (priceRows' legs not fresh: missing or a day old), need (what one 🔍 on this week
+   searches: those legs, never-searched first, none for a week that cannot be filled: a search found no fares, or someone cannot
+   be priced on it), filled (every leg fresh: total), priced (every leg has a real price, some maybe a day old: sum, grey), none,
+   blocked, per (each traveler's part: own days, booked, their sum), warn / warnCodes (the faces whose own days, or booked days,
+   that week would leave outside the plan: Move asks first), star (★ the cheapest filled week, once two are filled and one is
+   cheaper), bought (what the booked flights add to every week alike)} */
 function cheapCandidates(model, fares, now, today) {
-  var out = [];
-  candStarts(model.nights, model.win, model.pin, today).forEach(function (s) {
-    var e = addD(s, model.nights), warnFaces = [];
+  var out = [], L = model.nights, rows0 = model.travelers.filter(function (m) { return !m.booked; });
+  // a booked traveler's flight is bought and stays on their days whatever the week (organizerEdit pins them before a Move): its
+  // cached price, as P-total reads it, is the same in every week (never searched here, never what fills or greys a week). Every
+  // priced week adds it alike, so a week's total is the trip's whole cost (the plan's own week reads P-total's total) and the
+  // weeks, their bars and ★ still compare only what a Move changes
+  var bk = priceRows(model.travelers.filter(function (m) { return m.booked; }).map(priceRow), fares, now), bought = bk.total || 0;
+  candStarts(L, model.win, model.pin, today).forEach(function (s) {
+    var e = addD(s, L), warn = [], codes = [];
     model.members.forEach(function (m) {
-      if (m.answered && ((m.own1 && (m.own1 < s || m.own1 > e)) || (m.own2 && (m.own2 < s || m.own2 > e)))) warnFaces.push(m.face);
+      if (m.host || !m.answered) return;
+      var held = m.booked && !!m.d1 && !m.bad, a = held ? m.d1 : m.own1, b = held ? m.d2 : m.own2;
+      if ((a && (a < s || a > e)) || (b && (b < s || b > e))) { warn.push(m.face); codes.push(m.code); }
     });
-    var pr = priceRows(model.travelers.map(function (m) { return windowRow(model, m, s, e, today); }), fares, now);
+    var pr = priceRows(rows0.map(function (m) { return windowRow(model, m, s, e, today); }), fares, now);
+    var priced = rows0.length > 0 && !pr.blocked.length && Object.keys(pr.per).every(function (c) { return pr.per[c].legs.every(function (l) { return l.p != null; }); });
     var per = model.travelers.map(function (m) {
-      var p = pr.per[m.code];
-      return { code: m.code, face: m.face, color: m.color, sum: p.sum, complete: p.complete, stale: p.stale, own: !!(m.own1 || m.own2) };
+      var p = pr.per[m.code], q = p || bk.per[m.code];   // (q: a booked traveler's part, from their own cached legs)
+      return { code: m.code, face: m.face, color: m.color, own: !!(m.own1 || m.own2), booked: !p,
+        sum: q ? q.sum : null, hollow: q ? q.hollow : false, stale: q ? q.stale : false, complete: q ? q.complete : false,
+        none: !!q && q.legs.some(function (l) { return l.st === 'none'; }) };
     });
-    out.push({ s: s, e: e, missing: pr.search, filled: pr.complete, none: pr.none, total: pr.complete ? pr.total : null, price: pr,
-      per: per, warn: warnFaces, current: !!(model.plan && model.plan.s === s && model.plan.e === e) });
+    out.push({ s: s, e: e, missing: pr.search, need: pr.none || pr.blocked.length ? [] : spendKeys(pr.search, fares, now, today),
+      filled: pr.complete, priced: priced, stale: priced && !pr.complete, none: pr.none, blocked: pr.blocked,
+      total: pr.complete ? pr.total + bought : null, sum: priced ? pr.total + bought : null, bought: bought, price: pr,
+      per: per, warn: warn, warnCodes: codes, current: !!(model.plan && model.plan.s === s && model.plan.e === e) });
   });
-  var filledBars = out.filter(function (c) { return c.filled; });
-  if (filledBars.length >= 2) { var min = Math.min.apply(null, filledBars.map(function (c) { return c.total; })); filledBars.forEach(function (c) { if (c.total === min) c.star = true; }); }
+  // ★ the cheapest, once two weeks are filled and one is cheaper than another (equal totals have no cheapest), as endPrices
+  var filledBars = out.filter(function (c) { return c.filled; }), ts = filledBars.map(function (c) { return c.total; });
+  if (filledBars.length >= 2 && Math.min.apply(null, ts) < Math.max.apply(null, ts)) {
+    var min = Math.min.apply(null, ts); filledBars.forEach(function (c) { if (c.total === min) c.star = true; });
+  }
   return out;
 }
+/* why P-dates' 📉 cannot open P-cheapest ('' it can): 'org' (not the organizer's phone), 'token' (no token here: no $ at all),
+   'legacy' (P-migrate first), 'closed' (paid or dropped), 'past' (the trip is over), 'locked' (🔓 first: Move is never offered
+   while the dates are 🔒), 'nodest' (no place to price), 'nights' (no length: an undated idea with no 🌙), 'window' (an undated
+   idea with no ⟦window⟧), 'nobody' (nobody follows the plan: everyone set both ends, or booked), 'unpriced' (someone still to
+   book has no airport to fly from, so no week could ever be complete), 'noweek' (no week fits, even a week wider either side) */
+function cheapWhy(model, today) {
+  if (!model || !model.org) return 'org';
+  if (!model.prices) return 'token';
+  if (model.legacy) return 'legacy';
+  if (model.closed) return 'closed';
+  if (model.past) return 'past';
+  if (model.locked) return 'locked';
+  if (!model.dest) return 'nodest';
+  if (!model.nights) return 'nights';
+  if (!model.win) return 'window';
+  if (!model.travelers.some(followsPlan)) return 'nobody';
+  if (model.travelers.some(function (m) { return !m.booked && (m.why === 'noairport' || m.why === 'local'); })) return 'unpriced';
+  var w = model.win, wide = { s: addD(w.s, -WIDEN_DAYS), e: addD(w.e, WIDEN_DAYS) };
+  if (!candStarts(model.nights, w, model.pin, today).length && !candStarts(model.nights, wide, model.pin, today).length) return 'noweek';
+  return '';
+}
+/* ⟦◀ (k < 0) or ▶⟧ (k > 0): the flex window a week wider on that side, or null when that adds no candidate week (the 📌 day or
+   tomorrow already bounds it) */
+function widenWin(model, k, today) {
+  var w = model && model.win; if (!w || !k || !model.nights) return null;
+  var nw = { s: k < 0 ? addD(w.s, -WIDEN_DAYS) : w.s, e: k > 0 ? addD(w.e, WIDEN_DAYS) : w.e };
+  return candStarts(model.nights, nw, model.pin, today).join() !== candStarts(model.nights, w, model.pin, today).join() ? nw : null;
+}
+/* the organizer edits P-cheapest makes (organizerEdit deltas): the wider window saved as the trip's ⟦window⟧ (its plan, 📌 and 🌙
+   untouched), and Move: the week as the plan, its 📌 kept (planDelta, the same write as P-dates' Save) */
+function widenDelta(w) { return { dates: { searchStart: w.s, searchEnd: w.e } }; }
+function moveDelta(model, c) { return planDelta(c.s, c.e, model.pin); }
 /* PIA-139: a cached offer's landing time as 'HH:MM', from 'HH:MM' or a 'YYYY-MM-DD HH:MM' stamp; anything else (a
    malformed or hostile value in the fare cache) is no time at all, so it can never reach a chip, its markup or a ⏱ run */
 function cachedTime(v) {
@@ -1953,14 +2014,17 @@ function tapKeys(model) {
   });
   return out;
 }
-/* every search a tap on this trip may make (the app's spend path searches nothing else): P-total's legs (tapKeys) and each
-   unbooked traveler's ends ±1 day (endPrices' need) */
+/* every search a tap on this trip may make (the app's spend path searches nothing else): P-total's legs (tapKeys), each
+   unbooked traveler's ends ±1 day (endPrices' need) and, PIA-141, while the cheapest week can be asked for (cheapWhy), each
+   candidate week's legs (cheapCandidates' need: never a booked traveler's) */
 function spendable(model, fares, now, today) {
   var out = tapKeys(model);
   if (!model || !model.price) return out;
+  var add = function (k) { if (out.indexOf(k) < 0) out.push(k); };
   model.travelers.forEach(function (x) {
-    [0, 1].forEach(function (end) { var ep = endPrices(model, x.code, end, fares, now, today); (ep ? ep.need : []).forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); }); });
+    [0, 1].forEach(function (end) { var ep = endPrices(model, x.code, end, fares, now, today); (ep ? ep.need : []).forEach(add); });
   });
+  if (!cheapWhy(model, today)) cheapCandidates(model, fares, now, today).forEach(function (c) { c.need.forEach(add); });
   return out;
 }
 /* how many searches one tap makes (its cost, shown before it is tapped): ≤4, and never past the session's 8 */
@@ -2149,6 +2213,7 @@ if (typeof module !== 'undefined' && module.exports) {
     fareFromSerp: fareFromSerp, fareFacts: fareFacts, prevDelta: prevDelta, priceDelta: priceDelta, spendKeys: spendKeys, spendCount: spendCount, spendLock: spendLock,
     tapKeys: tapKeys, spendable: spendable, monthWhy: monthWhy,
     quotaRead: quotaRead, quotaBump: quotaBump, quotaExceeded: quotaExceeded, quotaFromAccount: quotaFromAccount,
-    v1FareKey: v1FareKey, fareKeyOfV1: fareKeyOfV1, fareFromV1: fareFromV1, v1Fare: v1Fare, faresPut: faresPut, endPrices: endPrices
+    v1FareKey: v1FareKey, fareKeyOfV1: fareKeyOfV1, fareFromV1: fareFromV1, v1Fare: v1Fare, faresPut: faresPut, endPrices: endPrices,
+    WIDEN_DAYS: WIDEN_DAYS, followsPlan: followsPlan, cheapWhy: cheapWhy, widenWin: widenWin, widenDelta: widenDelta, moveDelta: moveDelta
   };
 }

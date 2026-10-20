@@ -479,10 +479,12 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 #sheet[data-popup="P-dates"] { gap: 10px; max-height: calc(100% - 12px); }
 #sheet[data-popup="P-dates"] .rowc { gap: 6px; }
 #sheet[data-popup="P-dates"] .hchip { padding: 0 8px; gap: 3px; font-size: 14px; }   /* the 4 holidays fit one row at 360 */
-#sheet[data-popup="P-dates"] .btn.stick { opacity: 1; }
-/* more of the picker below: the rows fade into the Save bar (a look only: it takes no taps) */
-#sheet[data-popup="P-dates"] .btn.stick::before { content: ""; position: absolute; left: -16px; right: -16px; bottom: calc(100% + 6px); height: 14px; background: linear-gradient(to bottom, transparent, var(--surface)); pointer-events: none; }
-#sheet[data-popup="P-dates"] .btn.stick.dis, #sheet[data-popup="P-dates"] .btn.stick[aria-disabled="true"] { opacity: 1; background: var(--sunk); color: var(--ink2); border-color: var(--line); }
+#sheet[data-popup="P-dates"] .btn.stick, #sheet[data-popup="P-cheapest"] .btn.stick { opacity: 1; }
+/* more of the picker below: the rows fade into the Save bar (a look only: it takes no taps). PIA-141: P-cheapest's one button
+   (🔍N, Move) stays in view the same way on a short phone with a long party */
+#sheet[data-popup="P-dates"] .btn.stick::before, #sheet[data-popup="P-cheapest"] .btn.stick::before { content: ""; position: absolute; left: -16px; right: -16px; bottom: calc(100% + 6px); height: 14px; background: linear-gradient(to bottom, transparent, var(--surface)); pointer-events: none; }
+#sheet[data-popup="P-dates"] .btn.stick.dis, #sheet[data-popup="P-dates"] .btn.stick[aria-disabled="true"],
+#sheet[data-popup="P-cheapest"] .btn.stick.dis, #sheet[data-popup="P-cheapest"] .btn.stick[aria-disabled="true"] { opacity: 1; background: var(--sunk); color: var(--ink2); border-color: var(--line); }
 .ib.dis { opacity: .4; cursor: not-allowed; }
 .rdrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 28px; }
 .rdrow .readout { flex: 1 1 auto; min-width: 0; }
@@ -606,20 +608,41 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .mu { font-size: 15px; font-weight: 700; color: var(--ink2); padding-left: 2px; }
 .fld.capf { flex: none; width: 184px; } .fld.capf input { font-weight: 700; font-variant-numeric: tabular-nums; }
 .capt { font-size: 15px; font-weight: 700; color: var(--bad); white-space: nowrap; }
-.strip { display: grid; grid-template-columns: repeat(7, 44px); gap: 2px; justify-content: center; align-items: end; }
-.cbar { height: 150px; display: grid; grid-template-rows: auto 1fr auto; justify-items: center; gap: 2px; border-radius: 10px; padding: 2px 0; }
-.cbar .v { font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; min-height: 16px; }
-.cbar .col { width: 34px; align-self: end; border-radius: 6px 6px 3px 3px; background: var(--ink2); position: relative; }
-.cbar .col.hollow { background: transparent; border: 2px solid var(--ink3); height: 54px; }
-.cbar .col.none { background: transparent; border: 2px solid var(--ink3); height: 20px; }
-.cbar .d { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); }
+/* PIA-141: P-cheapest, the cheapest week on demand: ≤7 bars a page (7 × 44px + 6 × 2px = 320px fits 360), paging on its own row */
+.cstrip { display: grid; grid-template-columns: repeat(7, minmax(44px, 1fr)); gap: 2px; align-items: end; }
+.cbar { min-width: 44px; height: 156px; display: grid; grid-template-rows: 18px minmax(0, 1fr) 16px 16px; justify-items: center; align-items: end; gap: 2px; border-radius: 10px; padding: 3px 0 4px; position: relative; }
+.cbar .v { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 18px; letter-spacing: -.02em; }
+.cbar .v.sm { font-size: 9.5px; letter-spacing: -.04em; }
+.cbar .cw2 { width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
+.cbar .col { width: 30px; border-radius: 6px 6px 3px 3px; background: var(--ink2); position: relative; box-sizing: border-box; }
+.cbar .col.stale { background: var(--mute); opacity: .6; }
+.cbar .col.hollow { background: transparent; border: 2px dashed var(--ink3); height: 28px; }
+.cbar .col.none { background: transparent; border: 2px solid var(--ink3); height: 10px; }
+.cbar .col .st { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: 13px; line-height: 1; color: var(--on-ink); }
+.cbar .d { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); line-height: 16px; }
+.cbar .wf { font-size: 11px; line-height: 16px; height: 16px; color: var(--bad); white-space: nowrap; }
 .cbar[aria-pressed="true"] { background: var(--sunk); }
-.cbar.cur .col { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
-.cbar .star { position: absolute; top: -18px; left: 50%; transform: translateX(-50%); font-size: 14px; color: var(--ink); }
-.cbar .wf { font-size: 11px; line-height: 1; color: var(--bad); white-space: nowrap; }
-.fchips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.fchips span { padding: 4px 8px; border-radius: 12px; background: var(--sunk); }
-.fchips span.own { text-decoration: underline 2px var(--ink); text-underline-offset: 3px; }
+.cbar.cur { box-shadow: inset 0 0 0 2px var(--ink); }
+/* ◀ ▶ (paging, a view) and ⟦◀ ▶⟧ (widening, a saved edit) sit apart, the widen pair dashed like the ⟦window⟧ it changes */
+.crow { justify-content: center; gap: 22px; }
+.cgrp { display: inline-flex; gap: 6px; }
+.cgrp.wd .tool { border-style: dashed; }
+/* below the 360 gate (a 320px phone): 6 bars a page, each still ≥44px */
+@media (max-width: 339px) { .cstrip { grid-template-columns: repeat(6, minmax(44px, 1fr)); } }
+.csel { justify-content: center; gap: 10px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; min-height: 28px; }
+.csel .stl { color: var(--mute); }
+.cchips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+.cchip { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 2px 9px 2px 3px; border-radius: 18px; background: var(--sunk); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cchip.own .av::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: -4px; height: 2.5px; border-radius: 2px; background: var(--ink); }
+.cchip.off { box-shadow: inset 0 0 0 1.5px var(--bad); }
+.cchip .hv { color: var(--ink3); border: 1.5px dashed var(--ink3); border-radius: 8px; padding: 0 4px; }
+.cchip .stl { color: var(--mute); }
+.cchip .cbk { color: var(--ink2); font-weight: 600; }   /* a booked flight's price: the same in every week */
+.cnone { justify-content: center; min-height: 48px; font-size: 22px; }
+.kbar { display: inline-block; width: 14px; height: 18px; border-radius: 3px 3px 2px 2px; background: var(--ink2); vertical-align: middle; box-sizing: border-box; }
+.kbar.hollow { background: transparent; border: 2px dashed var(--ink3); } .kbar.cur { background: transparent; box-shadow: inset 0 0 0 2px var(--ink); }
+.kbar.stale { background: var(--mute); opacity: .6; }
+.kown { position: relative; display: inline-block; } .kown::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 2.5px; border-radius: 2px; background: var(--ink); }
 .cards-mini { display: grid; gap: 8px; }
 .mini { display: flex; gap: 10px; align-items: center; min-height: 64px; padding: 6px 8px; border-radius: 14px; border: 1.5px solid var(--line); text-align: left; width: 100%; }
 .mini .mt { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; } /* the whole title, like every other card */
@@ -1560,28 +1583,89 @@ function windowRow(model, m, s, e, today) {
   var d1 = m.own1 || s, d2 = m.own2 || e, why = legWhy(model.dest, m.O, d1, d2, today, m.origin);
   return { code: m.code, color: m.color, why: why, keys: why ? [] : legKeys(m.from, m.A, m.H, d1, d2, m.headcount) };
 }
-/* cheapest-week candidates: each window is priced by priceRows, the same rule as priceTrip, from real cached fares
-   only. A bar is filled only when that total is complete; `missing` lists the legs still to search (missing or
-   stale), and `none` marks a window where a search found no fares. */
+/* ---- PIA-141: cheapest week on demand (D4) ----
+   The organizer asks for it (P-dates 📉 → P-cheapest), sees what pricing each week would cost, spends real searches through
+   the one spend path (spendable takes each week's legs) and moves the trip there in one tap. Every week is priced by
+   priceRows, the one rule priceTrip uses, from real cached fares only: a week nobody searched stays hollow, nothing is ever
+   estimated. Candidates keep the trip's length (the plan's nights, or 🌙N for an undated idea) and its 📌 day, fit the flex
+   window and start tomorrow at the earliest. Only plan-followers move with a week: an end someone set stays where it is (and
+   is priced as it is), and a booked traveler keeps the days they booked (organizerEdit writes their blank ends as their own
+   before the plan moves), so a booked flight is never searched here (it is bought: its cached price is the same in every week). */
+var WIDEN_DAYS = 7;   // ⟦◀ ▶⟧: the flex window grows a week a tap
+/* a traveler who moves with the plan: they travel, have not booked, and left at least one end blank */
+function followsPlan(m) { return !!m && m.traveler && !m.booked && (!m.own1 || !m.own2); }
+/* every candidate week: {s, e, current, missing (priceRows' legs not fresh: missing or a day old), need (what one 🔍 on this week
+   searches: those legs, never-searched first, none for a week that cannot be filled: a search found no fares, or someone cannot
+   be priced on it), filled (every leg fresh: total), priced (every leg has a real price, some maybe a day old: sum, grey), none,
+   blocked, per (each traveler's part: own days, booked, their sum), warn / warnCodes (the faces whose own days, or booked days,
+   that week would leave outside the plan: Move asks first), star (★ the cheapest filled week, once two are filled and one is
+   cheaper), bought (what the booked flights add to every week alike)} */
 function cheapCandidates(model, fares, now, today) {
-  var out = [];
-  candStarts(model.nights, model.win, model.pin, today).forEach(function (s) {
-    var e = addD(s, model.nights), warnFaces = [];
+  var out = [], L = model.nights, rows0 = model.travelers.filter(function (m) { return !m.booked; });
+  // a booked traveler's flight is bought and stays on their days whatever the week (organizerEdit pins them before a Move): its
+  // cached price, as P-total reads it, is the same in every week (never searched here, never what fills or greys a week). Every
+  // priced week adds it alike, so a week's total is the trip's whole cost (the plan's own week reads P-total's total) and the
+  // weeks, their bars and ★ still compare only what a Move changes
+  var bk = priceRows(model.travelers.filter(function (m) { return m.booked; }).map(priceRow), fares, now), bought = bk.total || 0;
+  candStarts(L, model.win, model.pin, today).forEach(function (s) {
+    var e = addD(s, L), warn = [], codes = [];
     model.members.forEach(function (m) {
-      if (m.answered && ((m.own1 && (m.own1 < s || m.own1 > e)) || (m.own2 && (m.own2 < s || m.own2 > e)))) warnFaces.push(m.face);
+      if (m.host || !m.answered) return;
+      var held = m.booked && !!m.d1 && !m.bad, a = held ? m.d1 : m.own1, b = held ? m.d2 : m.own2;
+      if ((a && (a < s || a > e)) || (b && (b < s || b > e))) { warn.push(m.face); codes.push(m.code); }
     });
-    var pr = priceRows(model.travelers.map(function (m) { return windowRow(model, m, s, e, today); }), fares, now);
+    var pr = priceRows(rows0.map(function (m) { return windowRow(model, m, s, e, today); }), fares, now);
+    var priced = rows0.length > 0 && !pr.blocked.length && Object.keys(pr.per).every(function (c) { return pr.per[c].legs.every(function (l) { return l.p != null; }); });
     var per = model.travelers.map(function (m) {
-      var p = pr.per[m.code];
-      return { code: m.code, face: m.face, color: m.color, sum: p.sum, complete: p.complete, stale: p.stale, own: !!(m.own1 || m.own2) };
+      var p = pr.per[m.code], q = p || bk.per[m.code];   // (q: a booked traveler's part, from their own cached legs)
+      return { code: m.code, face: m.face, color: m.color, own: !!(m.own1 || m.own2), booked: !p,
+        sum: q ? q.sum : null, hollow: q ? q.hollow : false, stale: q ? q.stale : false, complete: q ? q.complete : false,
+        none: !!q && q.legs.some(function (l) { return l.st === 'none'; }) };
     });
-    out.push({ s: s, e: e, missing: pr.search, filled: pr.complete, none: pr.none, total: pr.complete ? pr.total : null, price: pr,
-      per: per, warn: warnFaces, current: !!(model.plan && model.plan.s === s && model.plan.e === e) });
+    out.push({ s: s, e: e, missing: pr.search, need: pr.none || pr.blocked.length ? [] : spendKeys(pr.search, fares, now, today),
+      filled: pr.complete, priced: priced, stale: priced && !pr.complete, none: pr.none, blocked: pr.blocked,
+      total: pr.complete ? pr.total + bought : null, sum: priced ? pr.total + bought : null, bought: bought, price: pr,
+      per: per, warn: warn, warnCodes: codes, current: !!(model.plan && model.plan.s === s && model.plan.e === e) });
   });
-  var filledBars = out.filter(function (c) { return c.filled; });
-  if (filledBars.length >= 2) { var min = Math.min.apply(null, filledBars.map(function (c) { return c.total; })); filledBars.forEach(function (c) { if (c.total === min) c.star = true; }); }
+  // ★ the cheapest, once two weeks are filled and one is cheaper than another (equal totals have no cheapest), as endPrices
+  var filledBars = out.filter(function (c) { return c.filled; }), ts = filledBars.map(function (c) { return c.total; });
+  if (filledBars.length >= 2 && Math.min.apply(null, ts) < Math.max.apply(null, ts)) {
+    var min = Math.min.apply(null, ts); filledBars.forEach(function (c) { if (c.total === min) c.star = true; });
+  }
   return out;
 }
+/* why P-dates' 📉 cannot open P-cheapest ('' it can): 'org' (not the organizer's phone), 'token' (no token here: no $ at all),
+   'legacy' (P-migrate first), 'closed' (paid or dropped), 'past' (the trip is over), 'locked' (🔓 first: Move is never offered
+   while the dates are 🔒), 'nodest' (no place to price), 'nights' (no length: an undated idea with no 🌙), 'window' (an undated
+   idea with no ⟦window⟧), 'nobody' (nobody follows the plan: everyone set both ends, or booked), 'unpriced' (someone still to
+   book has no airport to fly from, so no week could ever be complete), 'noweek' (no week fits, even a week wider either side) */
+function cheapWhy(model, today) {
+  if (!model || !model.org) return 'org';
+  if (!model.prices) return 'token';
+  if (model.legacy) return 'legacy';
+  if (model.closed) return 'closed';
+  if (model.past) return 'past';
+  if (model.locked) return 'locked';
+  if (!model.dest) return 'nodest';
+  if (!model.nights) return 'nights';
+  if (!model.win) return 'window';
+  if (!model.travelers.some(followsPlan)) return 'nobody';
+  if (model.travelers.some(function (m) { return !m.booked && (m.why === 'noairport' || m.why === 'local'); })) return 'unpriced';
+  var w = model.win, wide = { s: addD(w.s, -WIDEN_DAYS), e: addD(w.e, WIDEN_DAYS) };
+  if (!candStarts(model.nights, w, model.pin, today).length && !candStarts(model.nights, wide, model.pin, today).length) return 'noweek';
+  return '';
+}
+/* ⟦◀ (k < 0) or ▶⟧ (k > 0): the flex window a week wider on that side, or null when that adds no candidate week (the 📌 day or
+   tomorrow already bounds it) */
+function widenWin(model, k, today) {
+  var w = model && model.win; if (!w || !k || !model.nights) return null;
+  var nw = { s: k < 0 ? addD(w.s, -WIDEN_DAYS) : w.s, e: k > 0 ? addD(w.e, WIDEN_DAYS) : w.e };
+  return candStarts(model.nights, nw, model.pin, today).join() !== candStarts(model.nights, w, model.pin, today).join() ? nw : null;
+}
+/* the organizer edits P-cheapest makes (organizerEdit deltas): the wider window saved as the trip's ⟦window⟧ (its plan, 📌 and 🌙
+   untouched), and Move: the week as the plan, its 📌 kept (planDelta, the same write as P-dates' Save) */
+function widenDelta(w) { return { dates: { searchStart: w.s, searchEnd: w.e } }; }
+function moveDelta(model, c) { return planDelta(c.s, c.e, model.pin); }
 /* PIA-139: a cached offer's landing time as 'HH:MM', from 'HH:MM' or a 'YYYY-MM-DD HH:MM' stamp; anything else (a
    malformed or hostile value in the fare cache) is no time at all, so it can never reach a chip, its markup or a ⏱ run */
 function cachedTime(v) {
@@ -2776,14 +2860,17 @@ function tapKeys(model) {
   });
   return out;
 }
-/* every search a tap on this trip may make (the app's spend path searches nothing else): P-total's legs (tapKeys) and each
-   unbooked traveler's ends ±1 day (endPrices' need) */
+/* every search a tap on this trip may make (the app's spend path searches nothing else): P-total's legs (tapKeys), each
+   unbooked traveler's ends ±1 day (endPrices' need) and, PIA-141, while the cheapest week can be asked for (cheapWhy), each
+   candidate week's legs (cheapCandidates' need: never a booked traveler's) */
 function spendable(model, fares, now, today) {
   var out = tapKeys(model);
   if (!model || !model.price) return out;
+  var add = function (k) { if (out.indexOf(k) < 0) out.push(k); };
   model.travelers.forEach(function (x) {
-    [0, 1].forEach(function (end) { var ep = endPrices(model, x.code, end, fares, now, today); (ep ? ep.need : []).forEach(function (k) { if (out.indexOf(k) < 0) out.push(k); }); });
+    [0, 1].forEach(function (end) { var ep = endPrices(model, x.code, end, fares, now, today); (ep ? ep.need : []).forEach(add); });
   });
+  if (!cheapWhy(model, today)) cheapCandidates(model, fares, now, today).forEach(function (c) { c.need.forEach(add); });
   return out;
 }
 /* how many searches one tap makes (its cost, shown before it is tapped): ≤4, and never past the session's 8 */
@@ -3967,8 +4054,12 @@ var LEGEND = {
   // PIA-140 fix pass: every part of a fare explained (P-total's and P-person's ⓘ), the visit, the token
   age: [ageRing(6 * 36e5, true), 'Fare age'], level: [lvlBars(1, true), 'Price level'], stops: [stopsLine(1, true), 'Stops'],
   unsearched: ['$—', 'Not searched'], nofare: ['$∅', 'No fares'], rt: ['✈', 'Round trip fare'],
-  sday: ['🔍 26/30', 'Searches today'], visit: ['<span class="sdots"><i class="on"></i><i></i></span>', 'This visit'], newvisit: ['↻', 'New visit'],
-  tokbad: ['🔑⚠', 'Token refused'], tokdoor: ['🔑🔍', 'Add token'], won: ['→', 'Cheapest airport'], busy: ['◷', 'Searching'], home: ['🛫', 'Flies from']
+  sday: ['🔍 26/30', 'Searches left'], visit: ['<span class="sdots"><i class="on"></i><i></i></span>', 'This visit'], newvisit: ['↻', 'New visit'],
+  tokbad: ['🔑⚠', 'Token refused'], tokdoor: ['🔑🔍', 'Add token'], won: ['→', 'Cheapest airport'], busy: ['◷', 'Searching'], home: ['🛫', 'Flies from'],
+  // PIA-141: the cheapest week on demand (P-dates' 📉, P-cheapest's bars, paging and wider window)
+  cheapweek: ['📉', 'Cheaper week'], weekfull: ['<span class="kbar"></span>', 'Priced week'], weekold: ['<span class="kbar stale"></span>', 'Old fares'], weekhollow: ['<span class="kbar hollow"></span>', 'Not searched'],
+  weekcur: ['<span class="kbar cur"></span>', 'Current dates'], wcost: ['🔍≤2', 'Searches needed'], leaves: ['⚠', 'Leaves days out'], page: ['◀ ▶', 'Page'],
+  widen: ['⟦◀ ▶⟧', 'Widen window'], owndays: ['<span class="kown">🙂</span>', 'Own days']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -4220,7 +4311,8 @@ function spendBtn(m, keys, o) {
   var todo = spendKeys(keys, readFares(), RT.now, RT.today), n = spendCount(todo.length, spentRead()), lk = lockNow(), sq = /\bsq\b/.test(o.cls || '');
   if (!todo.length) return '';
   // data-n: the cost drawn on it; the tap never spends more (a count that grew meanwhile is drawn again first)
-  var a = 'data-act="search" data-id="' + m.id + '"' + (o.code ? ' data-code="' + esc(o.code) + '" data-end="' + o.end + '"' : ' data-v="total"') + ' data-n="' + n + '"', cls = 'btn ' + (o.cls || 'pri wide');
+  // (PIA-141: o.week, one candidate week of P-cheapest: data-v="week" with its first day)
+  var a = 'data-act="search" data-id="' + m.id + '"' + (o.code ? ' data-code="' + esc(o.code) + '" data-end="' + o.end + '"' : o.week ? ' data-v="week" data-day="' + esc(o.week) + '"' : ' data-v="total"') + ' data-n="' + n + '"', cls = 'btn ' + (o.cls || 'pri wide');
   if (S.spendBusy) return '<button class="' + cls + ' busy" ' + a + ' aria-disabled="true" aria-busy="true" data-why="1" aria-label="Searching" data-lbl="Searching" data-k="busy">◷</button>';
   if (lk === 'session') return visitBtn(cls);
   if (lk) {
@@ -4250,7 +4342,7 @@ function budgetHTML(o) {
   var left = sp && typeof sp.cap === 'number' && typeof sp.used === 'number' && S.acctDay === utcDay() ? Math.max(0, sp.cap - sp.used) : null;
   var bad = S.acctBad ? '<span class="tn capt" role="img" aria-label="The Worker refused the token" data-lbl="Token refused" data-k="tokbad">🔑⚠</span>' : '';
   var day = /\bday\b/.test(lk) ? '<span class="tn capt" role="img" aria-label="' + esc(lockLabel('day')[1]) + '" data-lbl="Daily limit" data-k="cap">' + esc(lockText('day')) + '</span>' : '';
-  return '<div class="rowc budget"><span class="rowc nw bl">' + bad + (left != null ? '<span class="tn bud" role="img" aria-label="' + left + ' of ' + sp.cap + ' searches left today" data-lbl="Searches today" data-k="sday"><span aria-hidden="true">🔍</span> ' + left + '/' + sp.cap + '</span>' : '') + day + '</span>' +
+  return '<div class="rowc budget"><span class="rowc nw bl">' + bad + (left != null ? '<span class="tn bud" role="img" aria-label="' + left + ' of ' + sp.cap + ' searches left today" data-lbl="Searches left" data-k="sday"><span aria-hidden="true">🔍</span> ' + left + '/' + sp.cap + '</span>' : '') + day + '</span>' +
     '<span class="rowc nw bl">' + visitDots() + (/\bsession\b/.test(lk) ? visitBtn('tool wordy') : '') + '</span></div>';
 }
 function totalHTML(m) {
@@ -4760,11 +4852,12 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
 var SHEETS = {};
 var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
   edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
-  caladd: 'Add to calendar', total: 'Group total' };   // each sheet's accessible name
+  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
   if (sh.type === 'caladd') return 'P-calendar-add';   // PIA-139: the spec's name
+  if (sh.type === 'cheap') return 'P-cheapest';        // PIA-141
   return 'P-' + sh.type;
 }
 /* a screen reader hears which step of the create sheet it is on (its step dots are pictures only) */
@@ -4964,6 +5057,131 @@ SHEETS.total = function (sh) {
   // the one spend: every unbooked traveler's missing or day-old legs (a booked traveler's flight is bought: shown, never searched)
   return h + budgetHTML() + spendBtn(m, tapKeys(m));
 };
+/* ---- PIA-141: P-cheapest, the cheapest week on demand (D4) ----
+   Opened from P-dates' 📉 on the organizer's token phone (‹ goes back to it). Each bar is one candidate week from the model's
+   cheapCandidates: the trip's length (or 🌙N) with its 📌 inside, in the flex window, from tomorrow; priced by priceRows from real
+   cached fares only. A week nobody searched is a dashed hollow bar with its cost (🔍≤2) on top; a priced one is filled to its
+   total ($890), grey while a fare is a day old; $∅ a search found no fares; ★ the cheapest once two weeks are filled; the plan's
+   week outlined; ⚠ and a face where the week would leave someone's own days outside the plan. ≤7 bars a page, ◀ ▶ and ⟦◀ ▶⟧ on
+   their own row below. The selected week's parts sit under it (each face with their $; own days underlined; 🎫 bought), then the
+   one 56px button: 🔍N (spendBtn: the PIA-140 path, its caps, cache and locks) or Move (one plan write, a confirming tap when the
+   week leaves someone's days out or anyone has booked). No price leaves this phone. */
+var CHEAP_PAGE = 7;
+var CHEAP_WHY = { org: 'Organizer only', token: 'Add token', legacy: 'Update trip first', closed: 'Trip closed', past: 'Trip over', locked: 'Dates locked',
+  nodest: 'No destination', nights: 'Pick nights', window: 'Pick window', nobody: 'Nobody follows plan', unpriced: 'No home airport', noweek: 'No week fits' };
+function cheapLabel(why) { return CHEAP_WHY[why] || 'Unavailable'; }
+/* P-dates' 📉: only on the organizer's token phone, for a trip it can still re-date; greyed with why when it cannot open */
+function cheapTool(m, L) {
+  if (!m.prices || !m.org || m.legacy || m.closed || m.past) return '';
+  var why = cheapWhy(m, RT.today);
+  return dTool('dcheap', '📉', 'Cheaper week', { k: 'cheapweek', no: why ? cheapLabel(why) : '', wait: L && L.busy });
+}
+function weekRange(c) { return md(c.s) + '–' + md(c.e); }
+/* what a bar says, spoken (free under the word rule) and in two words on a long press */
+function weekSaid(m, c) {
+  var who = c.warnCodes.map(function (code) { var x = memberIn(m, code); return x ? faceLabel(x) : ''; }).filter(Boolean);
+  return weekRange(c) + ', ' + (c.priced ? money(c.sum) + (c.stale ? ', some fares a day old' : '') + (c.star ? ', cheapest' : '') : c.none ? 'no fares found' : c.blocked.length ? 'cannot be priced' :
+    'not searched' + (c.need.length ? ', ' + c.need.length + (c.need.length === 1 ? ' search' : ' searches') : '')) + (c.current ? ', current dates' : '') + (who.length ? ', leaves ' + who.join(', ') + ' days out' : '');
+}
+function weekLbl(c) { return c.current ? 'Current dates' : c.star ? 'Cheapest week' : c.priced ? (c.stale ? 'Old fares' : 'Priced week') : c.none ? 'No fares' : c.blocked.length ? 'Fix dates' : 'Not searched'; }
+function cheapBar(m, c, mx, sel) {
+  var v, col;
+  if (c.priced) {
+    var amt = money(c.sum);
+    v = '<span class="tn v' + (amt.length >= 7 ? ' sm' : '') + '">' + amt + '</span>';
+    col = '<span class="col' + (c.stale ? ' stale' : '') + '" data-k="' + (c.current ? 'weekcur' : c.stale ? 'weekold' : 'weekfull') + '" style="height:' + Math.max(20, Math.round(96 * c.sum / mx)) + 'px">' + (c.star ? '<span class="st" data-k="cheapest">★</span>' : '') + '</span>';
+  } else if (c.none) { v = '<span class="tn v" data-k="nofare">$∅</span>'; col = '<span class="col none"' + (c.current ? ' data-k="weekcur"' : '') + '></span>'; }
+  else if (c.blocked.length) { v = '<span class="v" data-k="fixdates">✈⚠</span>'; col = '<span class="col none"' + (c.current ? ' data-k="weekcur"' : '') + '></span>'; }
+  else { v = c.need.length ? '<span class="tn v" data-k="wcost">🔍≤' + c.need.length + '</span>' : '<span class="v"></span>'; col = '<span class="col hollow" data-k="' + (c.current ? 'weekcur' : 'weekhollow') + '"></span>'; }
+  var wf = c.warn.length ? '<span class="wf" data-k="leaves">⚠' + (c.warn.length <= 2 ? c.warn.join('') : c.warn[0] + '+' + (c.warn.length - 1)) + '</span>' : '<span class="wf"></span>';
+  return '<button class="cbar' + (c.current ? ' cur' : '') + '" data-act="cbar" data-id="' + m.id + '" data-v="' + c.s + '" aria-pressed="' + (sel === c.s) + '" aria-label="' + esc(weekSaid(m, c)) + '" data-lbl="' + weekLbl(c) + '">' +
+    v + '<span class="cw2">' + col + '</span><span class="d">' + md(c.s) + '</span>' + wf + '</button>';
+}
+/* the selected week's parts: each traveler's face with their $ for it (own days underlined, ⚠ when it leaves them out, 🎫 a flight
+   already bought: its cached price, muted, the same in every week's total; never searched) */
+function cheapChips(m, c) {
+  return '<div class="cchips">' + c.per.map(function (p) {
+    var x = memberIn(m, p.code); if (!x) return '';
+    var off = c.warnCodes.indexOf(p.code) >= 0, val, said;
+    if (p.booked) {
+      var bp = p.sum != null ? money(p.sum) : '';
+      val = '<span data-k="booked">🎫</span>' + (bp ? '<span class="cbk">' + bp + '</span>' : ''); said = 'booked' + (bp ? ', ' + bp : '') + ', stays on their days';
+    }
+    else if (p.sum != null && !p.hollow) { val = '<span class="' + (p.stale ? 'stl' : '') + '">' + money(p.sum) + '</span>'; said = money(p.sum) + (p.stale ? ', a day old' : ''); }
+    else if (p.none) { val = '<span data-k="nofare">$∅</span>'; said = 'no fares found'; }
+    else { val = '<span class="hv" data-k="unsearched">$—</span>'; said = 'not searched'; }
+    return '<span class="cchip' + (p.own ? ' own' : '') + (off ? ' off' : '') + '" role="img" aria-label="' + esc(faceLabel(x) + ', ' + said + (p.own ? ', own days' : '') + (off ? ', left out' : '')) + '" data-lbl="' + esc(faceLabel(x)) + '"' +
+      (p.own ? ' data-k="owndays"' : '') + '>' + avatar(x, 28, { plain: true }) + val + (off ? '<span data-k="leaves">⚠</span>' : '') + '</span>';
+  }).join('') + '</div>';
+}
+/* the one button under the selected week: 🔍N to price it (the cost shown first), Move once it is filled (a confirming tap when it
+   leaves someone's days out or anyone has booked), ◷ while Move is out, ⚠ ↻ after it failed; nothing on the plan's own week */
+/* (the button sticks to the sheet's bottom, so a long party on a short phone never pushes it out of view) */
+function cheapAct(m, c, L) {
+  var a = 'data-act="cmove" data-id="' + m.id + '" data-v="' + c.s + '"';
+  if (L.busy === c.s) return '<button class="btn pri wide stick busy" ' + a + ' aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷</button>';
+  if (c.need.length) return spendBtn(m, c.need, { week: c.s, cls: 'pri wide stick' });
+  if (!c.filled || c.current) return '';
+  // a confirm asked for is drawn first (a retry that has to ask again asks here, at once)
+  var bk = m.anyBooked && !acked(m.id), ak = armed(armKey(m.id, c.s, 'cmove')), ask = c.warn.join('') + (bk ? '🎫×' + m.anyBooked : '');
+  if (ak) return '<button class="btn pri wide stick arm" ' + a + ' aria-label="' + esc('Confirm, move to ' + weekRange(c) + (c.warn.length ? ', it leaves someone\'s days out' : '') + (bk ? ', someone booked' : '')) + '" data-lbl="Confirm">⚠' + esc(ask) + ' <span class="cw">Confirm</span></button>';
+  if (L.failed === c.s) return '<button class="btn pri wide stick" ' + a + ' aria-label="Retry">⚠ ↻</button>';
+  return '<button class="btn pri wide stick" ' + a + ' aria-label="' + esc('Move to ' + weekRange(c)) + '">Move</button>';
+}
+SHEETS.cheap = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local;
+  var head = '<span data-k="cheapweek">📉</span>' + (m ? '<span class="temo" aria-hidden="true" data-pic>' + m.emoji + '</span>' : '');
+  var h = shHd(head, { right: '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' });
+  if (!m) return h + '<div class="rowc">' + staleMark() + '</div>';
+  var why = cheapWhy(m, RT.today);
+  // (it opened, then the trip was 🔒 or closed meanwhile, here or on another phone): why, as P-dates' greyed 📉 says it
+  if (why) return h + '<div class="rowc cnone"><span role="img" aria-label="' + esc(cheapLabel(why)) + '" data-lbl="' + esc(cheapLabel(why)) + '" data-k="' + (why === 'locked' ? 'lock' : 'cheapweek') + '">' + (why === 'locked' ? '🔒' : '📉⚠') + '</span></div>';
+  var cands = cheapCandidates(m, readFares(), RT.now, RT.today), n = cands.length, P = cheapPage();
+  h += budgetHTML();
+  var pages = Math.max(1, Math.ceil(n / P));
+  if (n && (!L.sel || !cands.some(function (c) { return c.s === L.sel; }))) {
+    var pick = cands.filter(function (c) { return c.current; })[0] || cands.filter(function (c) { return c.star; })[0] || cands[0];
+    L.sel = pick.s; L.page = null;
+  }
+  var si = -1; cands.forEach(function (c, i) { if (c.s === L.sel) si = i; });
+  if (L.page == null) L.page = si >= 0 ? Math.floor(si / P) : 0;
+  L.page = Math.max(0, Math.min(pages - 1, L.page));
+  var shown = cands.slice(L.page * P, L.page * P + P);
+  // bar heights start at zero (a 7% saving looks like 7%), on one scale across every page
+  var mx = Math.max.apply(null, cands.filter(function (c) { return c.priced; }).map(function (c) { return c.sum; }).concat([1]));
+  if (n) h += '<div class="cstrip" role="group" aria-label="Weeks">' + shown.map(function (c) { return cheapBar(m, c, mx, L.sel); }).join('') + '</div>';
+  // ◀ ▶ page (only with a second page); ⟦◀ ▶⟧ widen the window a week (only where that adds a week: the 📌 day often bounds it)
+  var wl = widenWin(m, -1, RT.today), wr = widenWin(m, 1, RT.today), busyW = /^widen/.test(L.busy || ''), fw = L.failed || '';
+  // (two groups apart: paging is a view, widening a saved edit, dashed like the window it changes)
+  var pg = '', wd = '';
+  if (pages > 1) pg = dTool('cpage', '◀', 'Earlier weeks', { v: -1, k: 'page', no: L.page ? '' : 'First page' }) + dTool('cpage', '▶', 'Later weeks', { v: 1, k: 'page', no: L.page < pages - 1 ? '' : 'Last page' });
+  if (wl || busyW && L.busy === 'widen-1') wd += dTool('cwiden', '⟦◀', 'Widen window earlier', { v: -1, k: 'widen', busy: L.busy === 'widen-1', wait: L.busy, failed: fw === 'widen-1' });
+  if (wr || busyW && L.busy === 'widen1') wd += dTool('cwiden', '▶⟧', 'Widen window later', { v: 1, k: 'widen', busy: L.busy === 'widen1', wait: L.busy, failed: fw === 'widen1' });
+  if (pg || wd) h += '<div class="rowc crow">' + (pg ? '<span class="cgrp" role="group" aria-label="Pages">' + pg + '</span>' : '') + (wd ? '<span class="cgrp wd" role="group" aria-label="Widen window">' + wd + '</span>' : '') + '</div>';
+  var c = si >= 0 ? cands[si] : null;
+  if (!c) return h;
+  // the selected week: its days, its total (★), its parts, then the one button (a tap on the readout names the week, as its bar does)
+  h += '<div class="rowc csel" data-lbl="' + weekLbl(c) + '"><span class="tn">' + weekRange(c) + '</span>' + (c.priced ? '<span class="' + (c.stale ? 'stl' : '') + '"' + (c.stale ? ' data-k="weekold"' : '') + '>' + money(c.sum) + '</span>' + (c.star ? '<span data-k="cheapest">★</span>' : '') : '') + '</div>';
+  return h + cheapChips(m, c) + cheapAct(m, c, L);
+};
+/* a page of weeks: 7 bars (7 × 44px + 6 × 2px fits 360); 6 below the 360 gate, so a 320px phone never scrolls sideways */
+function cheapPage() { var w = (typeof window !== 'undefined' && window.innerWidth) || 0; return w && w < 340 ? 6 : CHEAP_PAGE; }
+/* PIA-141: P-dates under P-cheapest (‹ goes back to it) follows each write P-cheapest makes (Move, ⟦◀ ▶⟧): when the write is
+   drawn and again when it lands, its picker is read again from the record as it now stands, as datesUndo does, so ‹ shows the
+   trip's dates (an undated idea a Move dated is in dates mode: 🔒 is one tap away), its Save never sends the old ones back and
+   closing it never says 🗑 for a pick nobody made. A pick made there meanwhile (‹ while the write was out) is the organizer's own
+   and is kept. snap: what the picker held (cheapSnap); mode0: its mode before the write (should a Move fail, an undated idea's
+   ⟦window⟧ mode comes back with it) */
+function datesPick(L) { return [L.target, L.mode, L.end, L.s, L.e, L.pin, L.nights, L.nightsSet, L.stage].join('|'); }
+function cheapSnap(sh, id) { var b = sh && sh.back; return b && b.type === 'dates' && b.p.id === id && b.local.inited && b.local.target === 'trip' ? datesPick(b.local) : ''; }
+function cheapResync(sh, id, snap, mode0) {
+  var b = sh && sh.back; if (!snap || cheapSnap(sh, id) !== snap) return '';
+  MC = {}; var mm = modelOf(id); if (!mm) return '';
+  var L = b.local; L.mode = mm.undated ? mode0 || L.mode : 'dates';
+  datesReset(b, mm); L.failed = null; L.saved = false;
+  if (S.sheet === b) renderSheet(false);
+  return datesPick(L);
+}
 SHEETS.error = function (sh) {
   var e = errInfo(sh.p.code), words = e[1] || (sh.p.retry ? 'Not saved' : '');   // PIA-137: a write that failed says so, even offline
   return shHd('') + '<div class="errline"><span class="eg" aria-hidden="true">' + e[0] + '</span>' + (words ? '<span class="tn">' + esc(words) + '</span>' : '') + '</div>' +
@@ -6196,6 +6414,7 @@ SHEETS.dates = function (sh) {
         dTool('dnights', '🌙+', 'More nights', { v: 1, k: 'nights', no: L.nights >= room ? 'Window full' : '', wait: L.busy }) +
         dTool('dlook', '👥', 'Who is there', { pressed: L.lookMode, k: 'present', wait: L.busy });
     }
+    tools += cheapTool(m, L);   // PIA-141: 📉 the cheapest week on demand (the organizer's token phone), greyed with why
     var mode = m.undated ? '<span class="tg2" role="group" aria-label="Dates or window"><button data-act="dmode" data-v="dates" aria-pressed="' + !win + '" aria-label="Dates"' + bz + '>🗓</button>' +
       '<button data-act="dmode" data-v="window" aria-pressed="' + win + '" aria-label="Flex window"' + bz + '>⟦⟧</button></span>' : '';
     h += '<div class="rowc">' + mode + tools + (m.undated ? '' : bestChip) + '</div>';
@@ -6208,7 +6427,8 @@ SHEETS.dates = function (sh) {
     // a locked plan: read here (every day opens P-day); 🔓 is the one tool, on the left where nothing was (a quick second tap
     // on 🔒 never lands on it)
     // (a 🔒 still out is drawn here at once, as the record will read: ◷ on this, the same control, so focus stays on it)
-    h += '<div class="rowc">' + dTool('dlock', '🔓', 'Unlock', { k: 'unlock', arm: L.armed === 'unlock' ? st.ack || '🎫' : '', busy: L.busy === 'unlock' || L.busy === 'lock', failed: fail.act === 'unlock' }) + '</div>';
+    h += '<div class="rowc">' + dTool('dlock', '🔓', 'Unlock', { k: 'unlock', arm: L.armed === 'unlock' ? st.ack || '🎫' : '', busy: L.busy === 'unlock' || L.busy === 'lock', failed: fail.act === 'unlock' }) +
+      cheapTool(m, L) + '</div>';   // PIA-141: 📉 greyed while 🔒 (Dates locked): a week is never moved to while the dates are locked
   }
   // one person's ends: either end or both (only with a plan to follow for the other end), and 👥
   if (me && !ro) h += '<div class="rowc">' + (m.plan ? '<span class="tg2 endseg" role="group" aria-label="Which end">' + [[0, '🛬', 'Arrive only', 'arrive'], [null, '↔', 'Both ends', 'both'], [1, '🛫', 'Leave only', 'leave']].map(function (b) {
@@ -6494,6 +6714,12 @@ function renderSheet(first) {
   var f = fid ? document.getElementById(fid) : findCtl(el, sig);
   if (f) { S.refocusing = true; try { f.focus({ preventScroll: true }); } finally { S.refocusing = false; } if (sel && f.setSelectionRange) { try { f.setSelectionRange(sel[0], sel[1]); } catch (e) { /* not a text field */ } } }
   else if (first) { var fe = sh.focus ? document.getElementById(sh.focus) : null; (fe || el).focus({ preventScroll: true }); }
+  // PIA-141: in P-cheapest the one button changes what it is (🔍N → Move once a week is priced, Move → 🔒 when held): the focus
+  // that was on it lands on what is there now (the button, else the selected week's bar, else the sheet), never on <body>
+  else if (inside && sh.type === 'cheap') {
+    var cf = el.querySelector('.btn.pri.wide') || el.querySelector('.cbar[aria-pressed="true"]') || el;
+    S.refocusing = true; try { cf.focus({ preventScroll: true }); } catch (e) { /* not focusable */ } finally { S.refocusing = false; }
+  }
 }
 /* the screen and tab bar behind an open sheet take no focus, taps or screen-reader reading (aria-modal plus inert) */
 function setInert(on) { ['#app', '#tabbar'].forEach(function (q) { var e = $(q); if (e) { e.inert = !!on; if (on) e.setAttribute('aria-hidden', 'true'); else e.removeAttribute('aria-hidden'); } }); }
@@ -6577,7 +6803,7 @@ function showError(code, retry) {
 }
 /* a control that asks for a confirming tap (a 🎫 for someone waiting or out, taking a 🎫 away, Out on someone booked):
    the first tap arms it for a few seconds; any other tap, a sheet closing or another trip opening disarms it */
-var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1, shift: 1, legshift: 1, paidsave: 1, newvisit: 1 }, armTimer = null;   // PIA-138: ±1 once anyone booked; PIA-139: 💵; PIA-140: a new visit
+var ARM_MS = 6000, ARM_ACTS = { booked: 1, unbook: 1, answer: 1, shift: 1, legshift: 1, paidsave: 1, newvisit: 1, cmove: 1 }, armTimer = null;   // PIA-138: ±1 once anyone booked; PIA-139: 💵; PIA-140: a new visit; PIA-141: Move
 function armKey(id, code, what) { return id + '|' + code + '|' + what; }
 function armed(k) { return !!S.armTk && S.armTk === k && (S.armSticky || nowMs() - (S.armAt || 0) < ARM_MS); }
 /* o.sticky (PIA-139: taking my own 🎫 back): no time limit; it waits for its second tap until another control is tapped or
@@ -6939,7 +7165,7 @@ var ACTS = {
   /* 🔍N: the searches that control showed, now (P-total: every leg missing or a day old; P-person: one end ±1 day). Locked or
      already searching, a tap says why and spends nothing */
   search: function (el) {
-    var id = el.dataset.id, v = el.dataset.v, code = el.dataset.code, end = el.dataset.end === '1' ? 1 : 0, tag = v || (code + '|' + el.dataset.end);
+    var id = el.dataset.id, v = el.dataset.v, code = el.dataset.code, end = el.dataset.end === '1' ? 1 : 0, tag = v === 'week' ? 'week|' + el.dataset.day : v || (code + '|' + el.dataset.end);
     var shown = +el.dataset.n || 0;   // the cost the control showed: the tap never spends more
     var m = modelOf(id); if (!m || !m.prices || m.closed) return null;
     if (S.spendBusy || lockNow() || !shown) {
@@ -6951,6 +7177,10 @@ var ACTS = {
     // the searches are read from the model as it stands when they go: the same legs the control counted (one search a leg)
     var keysNow = function () {
       var mm = modelOf(id); if (!mm || !mm.prices || mm.closed) return [];
+      if (v === 'week') {   // PIA-141: one candidate week of P-cheapest (its legs not fresh here), while the cheapest week can be asked for
+        var today = todayLocal(), wk = cheapWhy(mm, today) ? null : cheapCandidates(mm, readFares(), nowMs(), today).filter(function (x) { return x.s === el.dataset.day; })[0];
+        return wk ? wk.need : [];
+      }
       return v === 'total' ? tapKeys(mm) : ((endPrices(mm, code, end, readFares(), nowMs(), todayLocal()) || {}).need || []);
     };
     // the cost now, by the same rule the control used; a cost that grew since it was drawn (nearby airports switched on, a fare
@@ -6968,6 +7198,88 @@ var ACTS = {
       return S.acctBusy.then(after, after);
     }
     return go();
+  },
+  /* PIA-141: P-dates' 📉 → P-cheapest (‹ back to P-dates); greyed, a tap says why it cannot open (🔒, nobody follows the plan…) */
+  dcheap: function (el) {
+    var sh = datesSheet(), m = sh && modelOf(sh.p.id); if (!m || datesBusy(el)) return null;
+    if (cheapWhy(m, RT.today)) { explain(el); return null; }
+    openSheet('cheap', { id: m.id }, { back: true }); accountSync(); return null;
+  },
+  /* a bar: that week is the one the chips and the button are about */
+  cbar: function (el) { var sh = S.sheet; if (!sh || sh.type !== 'cheap') return null; sh.local.sel = el.dataset.v; renderSheet(false); return null; },
+  /* ◀ ▶ page the weeks (7 a page); the selection follows the page (its first filled week, else its first) */
+  cpage: function (el) {
+    var sh = S.sheet, m = sh && sh.type === 'cheap' ? modelOf(sh.p.id) : null; if (!m) return null;
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return null; }
+    var L = sh.local, cands = cheapCandidates(m, readFares(), RT.now, RT.today), P = cheapPage(), pages = Math.max(1, Math.ceil(cands.length / P));
+    var p = Math.max(0, Math.min(pages - 1, (L.page || 0) + (+el.dataset.v)));
+    if (p === L.page) { explain(el); return null; }
+    var pg = cands.slice(p * P, p * P + P), f0 = pg.filter(function (c) { return c.filled; })[0] || pg[0];
+    L.page = p; if (f0) L.sel = f0.s;
+    renderSheet(false); return null;
+  },
+  /* ⟦◀ ▶⟧: the flex window a week wider on that side, saved as the trip's ⟦window⟧ (one free organizer edit: the plan, 📌 and 🌙
+     stay); drawn at once, the new weeks on the page that shows them; the toast shows the window saved. P-dates under it follows
+     (cheapResync), so its Save never puts the old window back */
+  cwiden: function (el) {
+    var sh = S.sheet, id = sh && sh.type === 'cheap' ? sh.p.id : '', m = id && modelOf(id), k = +el.dataset.v; if (!m || !k) return null;
+    var L = sh.local; if (L.busy) { explain(el); return null; }
+    var w = cheapWhy(m, RT.today) ? null : widenWin(m, k, RT.today);
+    if (!w) { explain(el); return null; }
+    var had = cheapCandidates(m, readFares(), RT.now, RT.today).map(function (c) { return c.s; });
+    var snap = cheapSnap(sh, id), mode0 = sh.back && sh.back.local.mode;
+    L.busy = 'widen' + k; L.failed = null;
+    var p = organizerWrite(id, widenDelta(w), { guard: closedGuard });
+    // (the wider window is drawn at once: the new week nearest the old ones is selected, on its page)
+    MC = {}; var mw = modelOf(id), fresh = mw ? cheapCandidates(mw, readFares(), RT.now, RT.today).filter(function (c) { return had.indexOf(c.s) < 0; }) : [];
+    if (fresh.length) { L.sel = (k > 0 ? fresh[0] : fresh[fresh.length - 1]).s; L.page = null; }
+    snap = cheapResync(sh, id, snap, mode0);
+    renderSheet(false);
+    return p.then(function (r) {
+      L.busy = null;
+      cheapResync(sh, id, snap, mode0);   // (the record as it landed, or as it stands after a refusal)
+      if (r.ok) toast('⟦' + md(w.s) + '–' + md(w.e) + '⟧');
+      else if (r.held) toast(r.code === 'closed' ? '🏁' : '🔒');
+      else L.failed = 'widen' + k;
+      if (S.sheet === sh) renderSheet(false); else if (!r.ok && !r.held) showError(r.code || 'network', r.retry);
+      return r;
+    });
+  },
+  /* Move: the week becomes the plan in one write (planDelta, its 📌 kept: P-dates' own Save), every plan-follower's link, bar, pill
+     and card follow at once. The first tap asks when the week leaves someone's own days out (⚠ and their face) or anyone has booked
+     (⚠ 🎫×n); a booking another phone made meanwhile holds it back and asks here. Then ‹ to P-dates on the new plan (🔒 one tap
+     away), with ↩ in the toast. P-dates under it follows the move from the moment it is drawn (cheapResync): ‹ while it is out
+     shows the new plan, and its Save never puts the old one back */
+  cmove: function (el) {
+    var sh = S.sheet, id = sh && sh.type === 'cheap' ? sh.p.id : '', m = id && modelOf(id); if (!m) return null;
+    var L = sh.local; if (L.busy) { explain(el); return null; }
+    if (cheapWhy(m, RT.today)) { renderSheet(false); return null; }
+    var c = cheapCandidates(m, readFares(), RT.now, RT.today).filter(function (x) { return x.s === el.dataset.v; })[0];
+    if (!c || !c.filled || c.current) { renderSheet(false); return null; }
+    var k = armKey(id, c.s, 'cmove');
+    // (the 🎫 confirm is asked once a visit, as P-dates' own moves are: PIA-138's acked; a week's ⚠ every time, a retry too: the
+    // failure it showed gives way to the confirm at once)
+    if ((c.warn.length || (m.anyBooked && !acked(id))) && !armed(k)) { L.failed = null; arm(k); holdTaps(); return null; }
+    disarm();
+    if (m.anyBooked) ackIt(id);
+    var undo = datesUndo(id, m), snap = cheapSnap(sh, id), mode0 = sh.back && sh.back.local.mode;
+    L.busy = c.s; L.failed = null;
+    var p = organizerWrite(id, moveDelta(m, c), { guard: bookedGuard(id, id) });
+    snap = cheapResync(sh, id, snap, mode0);
+    renderSheet(false);
+    return p.then(function (r) {
+      L.busy = null;
+      var here = S.sheet === sh, b = sh.back;
+      cheapResync(sh, id, snap, mode0);   // (the record as it landed, or as it stands after a refusal)
+      if (r.ok) {
+        if (here && b && b.type === 'dates') sheetBack();
+        else if (here) renderSheet(false);
+        toast('📉 ' + weekRange(c), undo);
+      } else if (r.held && r.code === 'booked') { if (here) arm(k); else showError(r.code, r.retry); }
+      else if (r.held) { toast(r.code === 'closed' ? '🏁' : '🔒'); if (here) renderSheet(false); }
+      else { L.failed = c.s; if (here) renderSheet(false); else showError(r.code || 'network', r.retry); }
+      return r;
+    });
   },
   /* ⛔ ↻ (the visit's 8 spent): the first tap asks, the second starts a new visit of 8. It spends nothing itself */
   newvisit: function () {
@@ -7463,6 +7775,12 @@ function pulseAnswer(id) {
   toast('👋 In / Maybe / Out');   // the pulse says it in words too: an answer comes first
   return null;
 }
+/* PIA-141: in P-cheapest nothing looks like a control that does nothing: a short tap on a labelled picture (a face chip, its ⚠, the
+   week's readout, 🔍 26/30, the visit's dots) names it, as a long press does (explain: the same label, gone in a moment) */
+function picTap(t) {
+  var p = t && t.closest ? t.closest('#sheet[data-popup="P-cheapest"] [data-lbl], #sheet[data-popup="P-cheapest"] [data-k]') : null;
+  if (p) explain(p);
+}
 /* ↩ for a plan just cleared or replaced: the dates, 🌙 and 📌 as they were (never over a lock or a close made meanwhile) */
 function datesUndo(id, m) {
   var I = DOCS[id] && DOCS[id].idea, back = { dates: clone((I && I.dates) || {}), nights: m.nightsN || null, pin: m.pin || '' };
@@ -7490,7 +7808,9 @@ function wire() {
     // P-calendar-add's two links do their own thing (a download, a new tab); the sheet says it happened
     var cal = e.target && e.target.closest && e.target.closest('#sheet a[data-cal]'); if (cal) toast(cal.getAttribute('data-cal') === 'ics' ? '📅✓' : '↗✓');
     // a control that is aria-disabled does nothing, unless it explains itself when tapped (data-why: ▶ pulses what it needs)
-    var el = e.target.closest && e.target.closest('[data-act]'); if (!el || el.disabled || (el.getAttribute('aria-disabled') === 'true' && !el.hasAttribute('data-why'))) return;
+    var el = e.target.closest && e.target.closest('[data-act]');
+    if (!el) { picTap(e.target); return; }   // PIA-141: a labelled picture in P-cheapest names itself on a tap
+    if (el.disabled || (el.getAttribute('aria-disabled') === 'true' && !el.hasAttribute('data-why'))) return;
     var fn = ACTS[el.dataset.act]; if (!fn) return;
     S.lastCtl = el.closest('#sheet') ? null : el;   // a sheet this opens gives focus back to it on close
     var dis = !ARM_ACTS[el.dataset.act] && disarm();   // PIA-137: any other tap puts an armed confirm back

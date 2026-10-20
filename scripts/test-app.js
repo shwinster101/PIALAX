@@ -3353,7 +3353,7 @@ function norm(doc) {
     const st0 = sheet(h);
     h.api.onTyped({ id: 'org-cap', value: '4x0', dataset: {}, closest: () => null }); act(h, 'orgsave');
     const qh = quotaOf(h);
-    check(/<span class="tn bud" role="img" aria-label="\d+ of 30 searches left today" data-lbl="Searches today" data-k="sday">/.test(st0) && /<input id="org-cap" inputmode="numeric"[^>]*value="1000">/.test(st0) && /<span class="tn mu" aria-hidden="true">41\/<\/span>/.test(st0) &&
+    check(/<span class="tn bud" role="img" aria-label="\d+ of 30 searches left today" data-lbl="Searches left" data-k="sday">/.test(st0) && /<input id="org-cap" inputmode="numeric"[^>]*value="1000">/.test(st0) && /<span class="tn mu" aria-hidden="true">41\/<\/span>/.test(st0) &&
       qh && qh.budget === 40 && qh.used === 41 && h.api.lockNow() === 'month' && /⛔ 11\/1/.test(sheet(h)),
       'PIA-140 ⚙ on the organizer\'s phone: today\'s Worker searches left (from /account), this visit\'s 8, the month\'s 41 used against a month cap the organizer sets (digits only: "4x0" → 40, v1\'s budget), and a cap under what is used locks the month (⛔ 11/1)', qh);
     check(/data-lbl="Month cap" data-k="cap">⛔ 11\/1<\/span>/.test(sheet(h)) && !/data-lbl="Daily limit"/.test(sheet(h)),
@@ -3528,6 +3528,290 @@ function norm(doc) {
       act(u, 'open', { id: DW }); const bv = screen(u);
       check(/data-k="total">\$750<\/span>/.test(card) && !/data-k="search"/.test(card) && /<span class="pr l7">\$10,987<\/span>/.test(bv) && /<span class="pr">\$1,387<\/span>/.test(bv),
         'PIA-140 a dropped trip\'s card keeps its last total but offers no 🔍 (P-total offers no spend there); the board\'s price column sizes a long amount down ($1,387 / $10,987) to stay in its column', { card: (/<span class="tot[\s\S]*?<\/span><\/span>|<span class="tot[^>]*>[^<]*<\/span>/.exec(card) || [])[0] });
+    }
+
+    // ═══ PIA-141: the cheapest week on demand, against the real Worker (its token gate, fare cache, SpendMeter), SerpAPI stubbed ═══
+    section('PIA-141 cheapest week on demand: P-dates 📉 → P-cheapest; Thanksgiving S1 pinned; the cost first, the PIA-140 spend path; Move in one write; ⚠ and 🎫 confirm; 🔒 and nobody-follows say why');
+    {
+      const V1S = fx('v1-watchlist-storage.json'), H = 36e5;
+      const wsend = async (reqs) => { const st = []; for (const q of reqs || []) { const r = await srv.fetch(W + q.path, { method: q.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q.body) }); st.push(r.status); } return st; };
+      // the legacy Thanksgiving doc, migrated through the real Worker (P-migrate: 📌 11/26 from v1's card, the plan 11/20–11/29, faces),
+      // then 🔓 (P-migrate keeps its 🔒): the spec's S1 "before locking". f tweaks the legacy doc first
+      const s1Doc = async (f, after) => {
+        const id = seedAs(TGX, f), v1 = clone(V1S); v1.overrides.thanksgiving.sharedIdeaId = id;
+        const d0 = srv.read(id), mo = TM.migrateOptions(d0, v1);
+        const st = (await wsend(TM.migrateRequests(d0, KEY, { plan: mo.span, pin: mo.pin, labels: mo.labels }))).concat(await wsend(TM.organizerEdit(srv.read(id), KEY, { decision: { stage: 'proposed' } })));
+        if (after) { const d = srv.read(id); after(d); srv.write(d); }
+        return { id, ok: st.every((s) => s === 200) };
+      };
+      const mOf = (id) => TM.tripModel(srv.read(id), { today: '2026-10-17', now: NOW, me: 'LAX', hasEditKey: true, hasToken: true, multiAirport: true });
+      // S1's fares, 3h old (the spec): Ashwin 🛬 $305 + 🛫 $200, Anjo $290 + $160 (the nearby sets: v1's flag is on, as /account says)
+      const s1Fares = (id) => { const m = mOf(id), a = m.travelers.find((x) => x.code === 'LAX').keys, j = m.travelers.find((x) => x.code === 'LGA').keys, o = {};
+        [[a[0], 305], [a[1], 200], [j[0], 290], [j[1], 160]].forEach(([k, p]) => { o[k.key] = { p, f: NOW - 3 * H }; }); return o; };
+      // SerpAPI, stubbed by search: 11/22's legs cost $280 (into PIA) and $160 (home 12/01); any other week's legs $350 / $250
+      const S1P = {}, s1Serp = [];
+      const priceOf = (q) => S1P[q.get('departure_id') + '>' + q.get('arrival_id') + '@' + q.get('outbound_date')] || (q.get('arrival_id') === 'PIA' ? 350 : 250);
+      const prevFetch = globalThis.fetch;
+      globalThis.fetch = async (u) => {
+        const s = String(u);
+        if (/^https:\/\/serpapi\.com\/search\.json\?/.test(s)) {
+          s1Serp.push(s);
+          const q = new URL(s).searchParams, p = priceOf(q), j = clone(SERP);
+          j.best_flights[0].price = p; j.other_flights.forEach((o, i) => { o.price = p + 20 * (i + 1); });
+          return new Response(JSON.stringify(j), { status: 200 });
+        }
+        return prevFetch(u);
+      };
+      const s1Ls = (id, extra) => orgLs(id, Object.assign({ pialax_idea_me_v1: { [id]: 'LAX' }, pialax_fares_v2: s1Fares(id) }, extra || {}));
+      const bars = (h) => [...String(h).matchAll(/<button class="cbar[^"]*"[^>]*data-v="([^"]+)"[^>]*>/g)].map((x) => x[1]);
+      const barOf = (h, s) => (new RegExp('<button class="cbar[^"]*"[^>]*data-v="' + s + '"[\\s\\S]*?</button>').exec(h) || [''])[0];
+      const openCheap = async (t, id) => { act(t, 'open', { id }); act(t, 'dates', { id }); const pd = sheet(t); await tap(t, pd, 'dcheap'); await until(() => !t.api.S.acctBusy); await tick(); return pd; };
+      wipeWorkerFares();
+
+      // AC1 / AC2 / AC3 / AC4 / AC5 the pinned Thanksgiving S1 sample, with real clicks' data through the real Worker
+      const S = await s1Doc(); const TS = S.id;
+      const m0 = mOf(TS), w22 = TM.cheapCandidates(m0, s1Fares(TS), NOW, '2026-10-17').find((c) => c.s === '2026-11-22');
+      [[w22.need[0], 280], [w22.need[1], 160]].forEach(([k, p]) => { const q = new URLSearchParams(TM.searchQuery(k)); S1P[q.get('departure_id') + '>' + q.get('arrival_id') + '@' + q.get('outbound_date')] = p; });
+      const t = await boot140o({ ls: s1Ls(TS), rec: ['#toast'] });
+      const pd = await openCheap(t, TS), c1 = sheet(t), L1 = t.api.S.sheet.local, sp0 = searches(t).length;
+      const all1 = TM.cheapCandidates(t.api.modelOf(TS), t.api.readFares(), NOW, '2026-10-17');
+      check(S.ok && /<button class="tool" data-act="dcheap" aria-label="Cheaper week" data-k="cheapweek">📉<\/button>/.test(pd) && t.api.S.sheet.type === 'cheap' && t.api.S.sheet.back && t.api.S.sheet.back.type === 'dates' &&
+        t.api.popupName(t.api.S.sheet) === 'P-cheapest' && t.api.sheetName(t.api.S.sheet) === 'Cheaper week' && paidOf(t).filter((f) => /\/account$/.test(f.url)).length === 1 && sp0 === 0,
+        'PIA-141 P-dates on the organizer\'s token phone offers 📉 (Cheaper week); a tap opens P-cheapest over it (‹ back to P-dates), reads /account (🔍 26/30) and searches nothing');
+      check(all1.length === 10 && L1.page === 0 && eq(bars(c1), ['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-20', '2026-11-21', '2026-11-22', '2026-11-23']) && L1.sel === '2026-11-20' &&
+        /data-act="cpage" data-v="1" aria-label="Later weeks" data-k="page">▶/.test(c1) && /data-act="cpage" data-v="-1" aria-disabled="true" data-why="1"/.test(c1) && !/data-act="cwiden"/.test(c1),
+        'PIA-141 AC5 Thanksgiving S1: 10 weeks on 2 pages (7 bars, then 3), paging on its own row (◀ ▶), no ⟦◀ ▶⟧ (the 📌 already bounds the weeks); the plan\'s 11/20 week is selected', bars(c1));
+      const marked = all1.filter((c) => c.warn.length).map((c) => c.s), hollow = all1.filter((c) => !c.current);
+      check(eq(marked, ['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-25', '2026-11-26']) && ['2026-11-17', '2026-11-18', '2026-11-19'].every((s) => /<span class="wf" data-k="leaves">⚠🗽<\/span>/.test(barOf(c1, s))) &&
+        hollow.every((c) => c.need.length === 2) && ['2026-11-17', '2026-11-21', '2026-11-23'].every((s) => /<span class="tn v" data-k="wcost">🔍≤2<\/span><span class="cw2"><span class="col hollow" data-k="weekhollow"><\/span>/.test(barOf(c1, s))) &&
+        /class="cbar cur"[^>]*aria-pressed="true" aria-label="11\/20–11\/29, \$955, current dates" data-lbl="Current dates"><span class="tn v">\$955<\/span>/.test(c1) && !/data-k="cheapest"/.test(c1) &&
+        /<span class="cchip own"[^>]*aria-label="Anjo, \$450, own days"[^>]*data-k="owndays">/.test(c1) && /aria-label="Ashwin, \$505"/.test(c1) && !/data-act="cmove"|data-act="search"/.test(c1),
+        'PIA-141 AC2 / AC3 / AC4 5 weeks carry ⚠🗽 (Anjo\'s own 11/24–11/29 would fall outside), every other week is hollow with its cost on top (🔍≤2: Ashwin\'s two one-ways; Anjo\'s legs stay hers, cached), the current week is outlined and filled ($955: Ashwin $505, Anjo $450 underlined as her own days), no ★ with one week priced, and no button on the plan\'s own week');
+      act(t, 'cbar', { v: '2026-11-22' });
+      const c2 = sheet(t), btn = ctl(c2, 'search', { v: 'week' });
+      check(btn && btn.day === '2026-11-22' && btn.n === '2' && /aria-label="Search 2 fares, 2 searches" data-lbl="Search fares"><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">2<\/span><\/button>/.test(c2) && searches(t).length === sp0,
+        'PIA-141 AC4 the cost is shown before the spend: selecting 11/22 draws its one 56px button 🔍2 ("Search 2 fares, 2 searches"), and nothing has gone yet', btn);
+      await tap(t, c2, 'search', { v: 'week' }); await until(() => !t.api.S.spendBusy); await tick(20);
+      const s2 = searches(t).slice(sp0), c3 = sheet(t), q3 = quotaOf(t);
+      check(s2.length === 2 && eq(s2.map((f) => f.url), w22.need.map((k) => W + '/search?' + TM.searchQuery(k))) && s2.every((f) => f.headers['X-Pialax-Token'] === TOKEN && f.url.indexOf(TOKEN) < 0) &&
+        s1Serp.length === 2 && t.api.spentRead() === 2 && q3 && q3.used >= 2,
+        'PIA-141 AC4 one tap on 🔍2 sends exactly those 2 GET /search (the model\'s own queries for Ashwin\'s 11/22 and 12/01 one-ways, the token in its header only) through the PIA-140 spend path: 2 SerpAPI calls, the visit and v1\'s month counter move by 2', s2.map((f) => f.url));
+      check(/aria-label="11\/22–12\/1, \$890, cheapest" data-lbl="Cheapest week"><span class="tn v">\$890<\/span><span class="cw2"><span class="col" data-k="weekfull"[^>]*><span class="st" data-k="cheapest">★<\/span>/.test(c3) &&
+        /aria-label="11\/20–11\/29, \$955, current dates"/.test(c3) && (c3.match(/data-k="cheapest">★/g) || []).length === 2 && /<span class="cchip"[^>]*aria-label="Ashwin, \$440"/.test(c3) && /aria-label="Anjo, \$450, own days"/.test(c3) &&
+        /<button class="btn pri wide stick" data-act="cmove" data-id="[^"]+" data-v="2026-11-22" aria-label="Move to 11\/22–12\/1">Move<\/button>/.test(c3),
+        'PIA-141 AC3 / AC4 the pinned S1 result: 11/22 reads $890 ★ (Ashwin $440 + Anjo $450, fixed and cached), the 11/20 plan $955 without ★ (★ only once two weeks are priced); its button is now Move');
+      // Move: drawn at once (every plan-follower's link follows in the same render), then ONE /idea/update; ‹ to P-dates on the new plan
+      const p0 = posts(t).length, ashBefore = t.api.modelOf(TS).travelers.find((x) => x.code === 'LAX').link.href, anjoBefore = t.api.modelOf(TS).travelers.find((x) => x.code === 'LGA').link.href;
+      const hold = deferred(); srv.hold = hold.p;
+      const mv = tap(t, sheet(t), 'cmove', { v: '2026-11-22' });
+      const drawn = t.api.modelOf(TS), ashNow = drawn.travelers.find((x) => x.code === 'LAX'), dec = TM.gfDecode(ashNow.link.href), busyBtn = sheet(t);
+      srv.hold = null; hold.res(); await mv; await until(() => !(t.api.PEND[TS] > 0)); await tick();
+      const ps = posts(t, 0).slice(p0), rec = srv.read(TS), after = t.api.modelOf(TS);
+      check(eq(drawn.plan, { s: '2026-11-22', e: '2026-12-01' }) && dec.legs[0].date === '2026-11-22' && dec.legs[1].date === '2026-12-01' && ashNow.link.href !== ashBefore && drawn.travelers.find((x) => x.code === 'LGA').link.href === anjoBefore &&
+        /data-act="cmove"[^>]*aria-busy="true"[^>]*>◷</.test(busyBtn) && ps.length === 1 && ps[0].path === '/idea/update' && rec.idea.dates.departure === '2026-11-22' && rec.idea.dates.return === '2026-12-01' && TM.parseNotes(rec.idea.notes).pin === '2026-11-26' &&
+        t.api.S.sheet && t.api.S.sheet.type === 'dates' && t.api.S.sheet.local.s === '2026-11-22' && t.api.S.sheet.local.e === '2026-12-01' && /📉 11\/22–12\/1/.test(toastOf(t)) && /data-act="undo"/.test(toastOf(t)) && after.price.total === 890 && after.price.complete,
+        'PIA-141 AC6 Move: the new plan is drawn at once (Ashwin\'s Google Flights link reads 11/22 → 12/01 in the same render; Anjo\'s, her own days, unchanged; Move ◷ while it is out), then written ONCE (one /idea/update, 📌 11/26 kept); ‹ back to P-dates on the new plan, a toast with ↩; the trip\'s total is the bar\'s $890', ps.map((x) => x.path));
+      const priceNums = [890, 955, 440, 450, 280, 160, 305, 290, 200];
+      const leak = posts(t, 0).filter((x) => { const s = JSON.stringify(x.body); return priceNums.some((n) => new RegExp('[^0-9]' + n + '[^0-9]').test(s)) || /fare|price|total/i.test(s.replace(/"notes":"[^"]*"/, '')); });
+      check(leak.length === 0, 'PIA-141 no price leaves the phone: the Move (and the 🔓 before it) carry no fare, total or price field and none of the week\'s amounts', leak.map((x) => x.path));
+      // ↩ puts the plan back as it was (one more organizer edit)
+      const p1 = posts(t).length, undoFn = t.api.S.undo; if (typeof undoFn === 'function') await undoFn(); await until(() => !(t.api.PEND[TS] > 0)); await tick();
+      check(typeof undoFn === 'function' && posts(t).slice(p1).length === 1 && srv.read(TS).idea.dates.departure === '2026-11-20' && srv.read(TS).idea.dates.return === '2026-11-29', 'PIA-141 ↩ in Move\'s toast puts the 11/20–11/29 plan back (one edit)');
+
+      // AC2 a week that leaves someone's own days out needs a confirming tap; so does any Move once someone has booked
+      {
+        const S2 = await s1Doc(); wipeWorkerFares();
+        const u = await boot140o({ ls: s1Ls(S2.id) });
+        await openCheap(u, S2.id); act(u, 'cbar', { v: '2026-11-19' });
+        await tap(u, sheet(u), 'search', { v: 'week' }); await until(() => !u.api.S.spendBusy); await tick(20);
+        const pp = posts(u).length, before = sheet(u);
+        await tap(u, before, 'cmove', { v: '2026-11-19' });
+        const armedH = sheet(u), sent1 = posts(u).length - pp;
+        await tap(u, armedH, 'cmove', { v: '2026-11-19' }); await until(() => !(u.api.PEND[S2.id] > 0)); await tick();
+        const sent2 = posts(u).slice(pp), r2 = srv.read(S2.id);
+        check(/aria-label="11\/19–11\/28, \$1,050, leaves Anjo days out"/.test(before) && /data-v="2026-11-19" aria-label="Move to 11\/19–11\/28">Move</.test(before) && sent1 === 0 &&
+          /class="btn pri wide stick arm" data-act="cmove"[^>]*data-lbl="Confirm">⚠🗽 <span class="cw">Confirm<\/span>/.test(armedH) && sent2.length === 1 && r2.idea.dates.departure === '2026-11-19' && r2.responses.LGA.available_from === '2026-11-24',
+          'PIA-141 AC2 a week that would leave Anjo\'s own days outside the plan (11/19–11/28, ⚠🗽) asks first: Move\'s first tap only arms "⚠🗽 Confirm" (nothing sent), the second moves the plan (one update); her own days stay hers');
+        const S3 = await s1Doc(null, (d) => { d.responses.LGA.booked = true; d.responses.LGA.booked_at = '2026-10-16T00:00:00.000Z'; }); wipeWorkerFares();
+        const b = await boot140o({ ls: s1Ls(S3.id) });
+        await openCheap(b, S3.id); act(b, 'cbar', { v: '2026-11-22' });
+        const bh = sheet(b);
+        await tap(b, bh, 'search', { v: 'week' }); await until(() => !b.api.S.spendBusy); await tick(20);
+        const bp = posts(b).length; await tap(b, sheet(b), 'cmove', { v: '2026-11-22' }); const ba = sheet(b), bs1 = posts(b).length - bp;
+        await tap(b, ba, 'cmove', { v: '2026-11-22' }); await until(() => !(b.api.PEND[S3.id] > 0)); await tick();
+        const bs2 = posts(b).slice(bp);
+        check(/aria-label="Anjo, booked, \$450, stays on their days, own days"/.test(bh) && /<span data-k="booked">🎫<\/span><span class="cbk">\$450<\/span>/.test(bh) && /aria-label="Search 2 fares, 2 searches"/.test(bh) && bs1 === 0 && /⚠🎫×1 <span class="cw">Confirm<\/span>/.test(ba) && bs2.length === 1 && srv.read(S3.id).idea.dates.departure === '2026-11-22' &&
+          !searches(b).some((f) => /LGA/.test(f.url)),
+          'PIA-141 AC6 once anyone has booked, Move asks for one confirming tap (⚠🎫×1 Confirm), then writes once; Anjo\'s booked flight is shown (🎫) but never searched');
+      }
+      // AC6 the entry: greyed with why while 🔒 or when nobody follows the plan; a lock made on another phone meanwhile holds Move back
+      {
+        const SL = await s1Doc(null, (d) => { d.decision = Object.assign({}, d.decision, { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-11-20', return: '2026-11-29' } }); });
+        const u = await boot140o({ ls: s1Ls(SL.id) });
+        act(u, 'open', { id: SL.id }); act(u, 'dates', { id: SL.id });
+        const lk = sheet(u); await tap(u, lk, 'dcheap');
+        const SN = await s1Doc(null, (d) => { d.responses.LAX.available_from = '2026-11-20'; d.responses.LAX.available_to = '2026-11-29'; });
+        const v = await boot140o({ ls: s1Ls(SN.id) });
+        act(v, 'open', { id: SN.id }); act(v, 'dates', { id: SN.id }); const nb = sheet(v); await tap(v, nb, 'dcheap');
+        check(/data-act="dlock"[^>]*>🔓<\/button><button class="tool dis" data-act="dcheap" aria-disabled="true" data-why="1" aria-label="Cheaper week, Dates locked" data-lbl="Dates locked" data-k="cheapweek">📉<\/button>/.test(lk) && u.api.S.sheet.type === 'dates' &&
+          /aria-label="Cheaper week, Nobody follows plan" data-lbl="Nobody follows plan"/.test(nb) && v.api.S.sheet.type === 'dates' && searches(u).length === 0 && searches(v).length === 0,
+          'PIA-141 AC6 📉 is greyed with why and opens nothing while the dates are 🔒 ("Dates locked", beside 🔓) or when nobody follows the plan ("Nobody follows plan": Ashwin set both ends)');
+        const SH = await s1Doc(); wipeWorkerFares();
+        const w = await boot140o({ ls: s1Ls(SH.id) });
+        await openCheap(w, SH.id); act(w, 'cbar', { v: '2026-11-22' });
+        await tap(w, sheet(w), 'search', { v: 'week' }); await until(() => !w.api.S.spendBusy); await tick(20);
+        const dl = srv.read(SH.id); dl.decision = Object.assign({}, dl.decision, { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-11-20', return: '2026-11-29' } }); srv.write(dl);   // 🔒 on another phone
+        const wp = posts(w).length; await tap(w, sheet(w), 'cmove', { v: '2026-11-22' }); await until(() => !(w.api.PEND[SH.id] > 0)); await tick();
+        const after2 = sheet(w);
+        check(posts(w).length === wp && srv.read(SH.id).idea.dates.departure === '2026-11-20' && /data-k="lock">🔒<\/span>/.test(after2) && !/data-act="cmove"/.test(after2) && w.api.modelOf(SH.id).locked,
+          'PIA-141 AC6 a 🔒 another phone made meanwhile holds Move back on the fresh record (nothing sent, the plan stays 11/20–11/29), and P-cheapest then says the dates are locked (🔒, no Move)');
+        // no token, or a guest: no 📉 at all
+        const g = await boot140o({ ls: orgLs(SH.id, { pialax_idea_me_v1: { [SH.id]: 'LAX' }, pialax_proxy_token: '' }) });
+        act(g, 'open', { id: SH.id }); act(g, 'dates', { id: SH.id });
+        check(!/data-act="dcheap"/.test(sheet(g)) && paidOf(g).length === 0, 'PIA-141 the organizer\'s phone without the token shows no 📉 (no $ anywhere) and makes no paid call');
+      }
+      // AC4 the PIA-140 caps and locks, unchanged: the visit's 8, the Worker's day cap; a tap then spends nothing
+      {
+        const SC = await s1Doc(); wipeWorkerFares();
+        const u = await boot140o({ ls: s1Ls(SC.id, { pialax_daily_cap_v1: '2026-10-17' }) });
+        await openCheap(u, SC.id); act(u, 'cbar', { v: '2026-11-22' });
+        const dc = sheet(u); await tap(u, dc, 'search', { v: 'week' }); await tick(10);
+        u.ls.removeItem('pialax_daily_cap_v1'); u.ss.setItem('pialax_spent_v2', '8'); u.api.render(true);
+        const vc = sheet(u); await tap(u, vc, 'search', { v: 'week' }); await tick(10);
+        u.ss.setItem('pialax_spent_v2', '7'); u.api.render(true); const one = sheet(u);
+        check(/data-act="search"[^>]*data-v="week"[^>]*aria-label="Searches resume at 17:00" data-lbl="Daily limit" data-k="cap">⛔ 17:00<\/button>/.test(dc) && /data-act="newvisit"[^>]*>⛔ ↻<\/button>/.test(vc) &&
+          /data-v="week" data-day="2026-11-22" data-n="1" aria-label="Search 1 of 2 fares, 1 search"/.test(one) && searches(u).length === 0,
+          'PIA-141 AC4 the PIA-140 caps apply unchanged: past the Worker\'s day cap the week\'s button reads ⛔ 17:00, at the visit\'s 8 ⛔ ↻, with 1 left 🔍1/2; a tap on a lock sends nothing');
+      }
+      // ⟦◀ ▶⟧ on a trip with no 📌: ▶⟧ saves a window a week wider (one edit), the new weeks drawn at once with the first one selected
+      {
+        const SW = await s1Doc(null, (d) => { d.idea.notes = TM.buildNotes('', null, TM.parseNotes(d.idea.notes).caption); });   // (after P-migrate: its 📌 came from v1's card)
+        const u = await boot140o({ ls: s1Ls(SW.id) });
+        await openCheap(u, SW.id);
+        const w0 = sheet(u), n0 = TM.cheapCandidates(u.api.modelOf(SW.id), u.api.readFares(), NOW, '2026-10-17').length, pw = posts(u).length;
+        await tap(u, w0, 'cwiden', { v: '1' }); await until(() => !(u.api.PEND[SW.id] > 0)); await tick();
+        const w1 = sheet(u), n1 = TM.cheapCandidates(u.api.modelOf(SW.id), u.api.readFares(), NOW, '2026-10-17').length, rw = srv.read(SW.id), Lw = u.api.S.sheet.local;
+        check(/<span class="cgrp" role="group" aria-label="Pages">[\s\S]*?<\/span><span class="cgrp wd" role="group" aria-label="Widen window"><button class="tool" data-act="cwiden" data-v="-1"/.test(w0) &&
+          /data-act="cwiden" data-v="1" aria-label="Widen window later" data-k="widen">▶⟧/.test(w0) && /data-act="cwiden" data-v="-1"/.test(w0) && n0 === 15 && n1 === 22 && posts(u).slice(pw).length === 1 &&
+          rw.idea.dates.searchStart === '2026-11-13' && rw.idea.dates.searchEnd === '2026-12-13' && rw.idea.dates.departure === '2026-11-20' && Lw.sel === '2026-11-28' && Lw.page === 2 && bars(w1).length === 7 && bars(w1)[1] === '2026-11-28',
+          'PIA-141 without a 📌 the plan ±7 holds 15 weeks and ⟦◀ ▶⟧ show; ▶⟧ saves the window a week later (one edit: ⟦11/13–12/13⟧, the plan untouched), 22 weeks, the first new one (11/28) selected on its page', { n0, n1, sel: Lw.sel, page: Lw.page, bars: bars(w1) });
+        // paging: every page ≤7 bars; ▶ moves the selection with the page
+        const L = u.api.S.sheet.local; L.page = 0; L.sel = '2026-11-13'; u.api.renderSheet(false);
+        const pages = []; let guard = 0;
+        do { pages.push(bars(sheet(u)).length); const nx = ctl(sheet(u), 'cpage', { v: '1' }); if (!nx || nx.why) break; act(u, 'cpage', nx); } while (++guard < 6);
+        check(eq(pages, [7, 7, 7, 1]) && u.api.S.sheet.local.page === 3, 'PIA-141 AC5 22 weeks page 7, 7, 7, 1: no page ever holds more than 7 bars, and ▶ walks them', pages);
+      }
+      // an undated idea: Move turns it into dates (its 🌙 goes, its window stays)
+      {
+        const SU = seedAs(fx('idea-undated.json')); wipeWorkerFares();
+        const u = await boot140o({ ls: orgLs(SU, { pialax_idea_me_v1: { [SU]: 'ashwin-c3' } }) });
+        await openCheap(u, SU);
+        const uc = sheet(u), first = bars(uc)[0];
+        await tap(u, uc, 'search', { v: 'week' }); await until(() => !u.api.S.spendBusy); await tick(20);
+        await tap(u, sheet(u), 'cmove', { v: first }); await tap(u, sheet(u), 'cmove', { v: first }); await until(() => !(u.api.PEND[SU] > 0)); await tick();
+        const ru = srv.read(SU), mu = u.api.modelOf(SU);
+        check(first === '2026-12-18' && /data-k="leaves">⚠🌴🗽<\/span>/.test(uc) && /data-n="3"/.test(uc) && ru.idea.dates.departure === '2026-12-18' && ru.idea.dates.return === '2026-12-22' && ru.idea.dates.searchStart === '2026-12-18' &&
+          TM.parseNotes(ru.idea.notes).nights === null && !mu.undated && mu.nights === 4,
+          'PIA-141 AC1 an undated idea offers its 🌙4 weeks inside its ⟦window⟧ (each ⚠🌴🗽: Ashwin\'s and Anjo\'s windows are longer than the stay; 🔍3 the first time: Mom & Dad\'s round trip plus the two fixed ones); Move (asked twice) makes 12/18–12/22 the plan, the 🌙 gone and the window kept');
+        // fix pass: ‹ P-dates after that Move is on the trip's new dates in dates mode (🔒 one tap away), not the old ⟦window⟧ picker
+        const ud = sheet(u), Lu = u.api.S.sheet && u.api.S.sheet.local, pu = posts(u).length;
+        await tap(u, ud, 'dsave');
+        check(u.api.S.sheet && u.api.S.sheet.type === 'dates' && Lu.mode === 'dates' && Lu.s === '2026-12-18' && Lu.e === '2026-12-22' && /data-act="dlock"/.test(ud) && !/data-act="dmode"/.test(ud) &&
+          /data-act="dsave" aria-disabled="true" data-why="1" data-lbl="No change"/.test(ud) && posts(u).length === pu,
+          'PIA-141 after Move dates an undated idea, ‹ P-dates reads its new 12/18–12/22 in dates mode (🔒 there, no ⟦window⟧ picker left behind) and its Save has no change to send', { mode: Lu && Lu.mode, s: Lu && Lu.s, e: Lu && Lu.e });
+      }
+      // fix pass: P-dates under P-cheapest follows its writes. ▶⟧ on an undated idea (a quick second tap sends nothing more), then ‹:
+      // the picker holds the saved ⟦12/18–1/11⟧, so its Save sends nothing and closing it says no 🗑
+      {
+        const SV = seedAs(fx('idea-undated.json')); wipeWorkerFares();
+        const u = await boot140o({ ls: orgLs(SV, { pialax_idea_me_v1: { [SV]: 'ashwin-c3' } }), rec: ['#toast'] });
+        await openCheap(u, SV);
+        const pv = posts(u).length, hold = deferred(); srv.hold = hold.p;
+        const wv = tap(u, sheet(u), 'cwiden', { v: '1' }); await tap(u, sheet(u), 'cwiden', { v: '1' });
+        srv.hold = null; hold.res(); await wv; await until(() => !(u.api.PEND[SV] > 0)); await tick();
+        const sentW = posts(u).slice(pv), rv = srv.read(SV), wToast = toastOf(u);
+        u.api.ACTS['sh-back']();
+        const pdv = sheet(u), Lv = u.api.S.sheet.local, pv2 = posts(u).length;
+        await tap(u, pdv, 'dsave'); const savedV = posts(u).length - pv2;
+        u.api.ACTS['sh-close']();
+        check(sentW.length === 1 && rv.idea.dates.searchStart === '2026-12-18' && rv.idea.dates.searchEnd === '2027-01-11' && /⟦12\/18–1\/11⟧/.test(wToast) &&
+          u.api.S.sheet === null && Lv.mode === 'window' && Lv.s === '2026-12-18' && Lv.e === '2027-01-11' && /data-act="dsave" aria-disabled="true" data-why="1" data-lbl="No change"/.test(pdv) && savedV === 0 && !/🗑/.test(toastOf(u)),
+          'PIA-141 ▶⟧ on an undated idea saves ⟦12/18–1/11⟧ once (a second tap while it is out sends nothing; the toast shows the window), and ‹ P-dates holds that window: its Save has no change to send, closing it says no 🗑', { sent: sentW.length, mode: Lv.mode, s: Lv.s, e: Lv.e });
+      }
+      // ‹ while Move is out (and a 60s poll meanwhile): P-dates shows the new plan at once and still does once it lands; one write,
+      // a double tap sends nothing more, the poll's older read never undoes it, Save has nothing to send, closing it says no 🗑
+      {
+        const SB = await s1Doc(); wipeWorkerFares();
+        const u = await boot140o({ ls: s1Ls(SB.id), rec: ['#toast'] });
+        await openCheap(u, SB.id); act(u, 'cbar', { v: '2026-11-22' });
+        await tap(u, sheet(u), 'search', { v: 'week' }); await until(() => !u.api.S.spendBusy); await tick(20);
+        const pb = posts(u).length, hold = deferred(); srv.hold = hold.p;
+        const mv = tap(u, sheet(u), 'cmove', { v: '2026-11-22' }); await tap(u, sheet(u), 'cmove', { v: '2026-11-22' });
+        u.api.ACTS['sh-back']();
+        const during = sheet(u), Ld = u.api.S.sheet.local, dS = Ld.s, dE = Ld.e, onDates = u.api.S.sheet.type === 'dates';
+        const pollP = u.api.poll(); const drawn = u.api.modelOf(SB.id).plan;
+        srv.hold = null; hold.res(); await mv; await pollP; await until(() => !(u.api.PEND[SB.id] > 0)); await tick();
+        const after = sheet(u), La = u.api.S.sheet.local, ps = posts(u).slice(pb), rec = srv.read(SB.id), mvToast = toastOf(u), planNow = u.api.modelOf(SB.id).plan;
+        const p2 = posts(u).length; await tap(u, after, 'dsave'); const saveSent = posts(u).length - p2;
+        u.api.ACTS['sh-close']();
+        check(onDates && dS === '2026-11-22' && dE === '2026-12-01' && /data-act="dsave" aria-disabled="true" data-why="1" data-lbl="No change"/.test(during) && eq(drawn, { s: '2026-11-22', e: '2026-12-01' }) &&
+          u.api.S.sheet === null && La.s === '2026-11-22' && La.e === '2026-12-01' && ps.length === 1 && ps[0].path === '/idea/update' && rec.idea.dates.departure === '2026-11-22' && rec.idea.dates.return === '2026-12-01' &&
+          eq(planNow, { s: '2026-11-22', e: '2026-12-01' }) && /📉 11\/22–12\/1/.test(mvToast) && /data-act="dsave" aria-disabled="true" data-why="1" data-lbl="No change"/.test(after) && saveSent === 0 && !/🗑/.test(toastOf(u)),
+          'PIA-141 ‹ while Move is out: P-dates shows 11/22–12/1 at once and still does once it lands (one /idea/update: a double tap and a 60s poll meanwhile change nothing), its Save has no change to send, and closing it says no 🗑', { dS, dE, La: [La.s, La.e], posts: ps.map((x) => x.path), planNow });
+      }
+      // a Move that failed (the network) on a ⚠ week: ⚠ ↻, P-dates under it back on the plan; ↻ asks again at once (⚠🗽 Confirm,
+      // nothing sent), and its confirm sends exactly one update
+      {
+        const SF = await s1Doc(); wipeWorkerFares();
+        const u = await boot140o({ ls: s1Ls(SF.id) });
+        await openCheap(u, SF.id); act(u, 'cbar', { v: '2026-11-19' });
+        await tap(u, sheet(u), 'search', { v: 'week' }); await until(() => !u.api.S.spendBusy); await tick(20);
+        const pf = posts(u).length;
+        await tap(u, sheet(u), 'cmove', { v: '2026-11-19' });
+        srv.failNext = 'network'; await tap(u, sheet(u), 'cmove', { v: '2026-11-19' }); await until(() => !(u.api.PEND[SF.id] > 0)); await tick();
+        const failedH = sheet(u), backL = u.api.S.sheet.back.local, bS = backL.s, bE = backL.e;
+        await tap(u, failedH, 'cmove', { v: '2026-11-19' });
+        const reask = sheet(u), sent0 = posts(u).length - pf;
+        await tap(u, reask, 'cmove', { v: '2026-11-19' }); await until(() => !(u.api.PEND[SF.id] > 0)); await tick();
+        const sentF = posts(u).slice(pf), rf = srv.read(SF.id);
+        check(/data-act="cmove"[^>]*aria-label="Retry">⚠ ↻<\/button>/.test(failedH) && bS === '2026-11-20' && bE === '2026-11-29' &&
+          /class="btn pri wide stick arm" data-act="cmove"[^>]*data-lbl="Confirm">⚠🗽 <span class="cw">Confirm<\/span>/.test(reask) && !/⚠ ↻/.test(reask) && sent0 === 0 &&
+          sentF.length === 1 && sentF[0].path === '/idea/update' && rf.idea.dates.departure === '2026-11-19' && rf.idea.dates.return === '2026-11-28',
+          'PIA-141 a Move that failed shows ⚠ ↻ (P-dates under it back on 11/20–11/29); a tap on ↻ asks again at once (⚠🗽 Confirm, nothing sent), and its confirm sends exactly one update', { bS, bE, sent0, sent: sentF.length });
+      }
+      // ▶⟧ that failed (the network): ⚠↻ on it, the record untouched and the weeks as they were; ↻ saves it once
+      {
+        const SG = await s1Doc(null, (d) => { d.idea.notes = TM.buildNotes('', null, TM.parseNotes(d.idea.notes).caption); });
+        const u = await boot140o({ ls: s1Ls(SG.id) });
+        await openCheap(u, SG.id);
+        const pg = posts(u).length, before = srv.read(SG.id).idea.dates;
+        srv.failNext = 'network'; await tap(u, sheet(u), 'cwiden', { v: '1' }); await until(() => !(u.api.PEND[SG.id] > 0)); await tick();
+        const fw = sheet(u), nF = TM.cheapCandidates(u.api.modelOf(SG.id), u.api.readFares(), NOW, '2026-10-17').length, sentG0 = posts(u).length - pg, endF = srv.read(SG.id).idea.dates.searchEnd;
+        await tap(u, fw, 'cwiden', { v: '1' }); await until(() => !(u.api.PEND[SG.id] > 0)); await tick();
+        const sentG = posts(u).slice(pg), rg = srv.read(SG.id);
+        check(/data-act="cwiden" data-v="1" aria-label="Retry">⚠↻<\/button>/.test(fw) && sentG0 === 0 && nF === 15 && endF === before.searchEnd &&
+          before.searchEnd !== '2026-12-13' && sentG.length === 1 && rg.idea.dates.searchEnd === '2026-12-13',
+          'PIA-141 ▶⟧ that failed shows ⚠↻ on it (nothing saved, the 15 weeks as they were); its ↻ saves ⟦…–12/13⟧ with exactly one update', { nF, sent: sentG.length });
+      }
+      // a booking another phone made between the tap and the write holds Move back on the fresh record and asks here (⚠🎫×1 Confirm);
+      // its confirm moves the plan once, Anjo keeping the days she booked
+      {
+        const SK = await s1Doc(); wipeWorkerFares();
+        const u = await boot140o({ ls: s1Ls(SK.id) });
+        await openCheap(u, SK.id); act(u, 'cbar', { v: '2026-11-22' });
+        await tap(u, sheet(u), 'search', { v: 'week' }); await until(() => !u.api.S.spendBusy); await tick(20);
+        const bd = srv.read(SK.id); bd.responses.LGA.booked = true; bd.responses.LGA.booked_at = '2026-10-17T10:00:00.000Z'; srv.write(bd);   // Anjo books on her phone
+        const pk = posts(u).length, bookedHere = u.api.modelOf(SK.id).anyBooked;
+        await tap(u, sheet(u), 'cmove', { v: '2026-11-22' }); await until(() => !(u.api.PEND[SK.id] > 0)); await tick();
+        const askH = sheet(u), sentA = posts(u).length - pk, recA = srv.read(SK.id);
+        await tap(u, askH, 'cmove', { v: '2026-11-22' }); await until(() => !(u.api.PEND[SK.id] > 0)); await tick();
+        const sentB = posts(u).slice(pk), recB = srv.read(SK.id);
+        check(bookedHere === 0 && sentA === 0 && recA.idea.dates.departure === '2026-11-20' && /⚠🎫×1 <span class="cw">Confirm<\/span>/.test(askH) && /aria-label="Anjo, booked, \$450, stays on their days, own days"/.test(askH) &&
+          /aria-label="11\/22–12\/1, \$890, cheapest"/.test(askH) && sentB.length === 1 && sentB[0].path === '/idea/update' && recB.idea.dates.departure === '2026-11-22' && recB.idea.dates.return === '2026-12-01' &&
+          recB.responses.LGA.booked === true && recB.responses.LGA.available_from === '2026-11-24' && recB.responses.LGA.available_to === '2026-11-29',
+          'PIA-141 a booking made on another phone after the tap holds Move back on the fresh record (nothing sent) and asks here (⚠🎫×1 Confirm; her $450 now in every week, 11/22 still $890 ★); its confirm moves the plan in one update, Anjo keeping her booked days', { sentA, sent: sentB.length });
+      }
+      globalThis.fetch = prevFetch;
     }
     globalThis.fetch = offline;
     CLOCK = NOW;

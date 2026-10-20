@@ -1535,8 +1535,9 @@ function makeServer(worker) {
       const bm = model(bk, { me: 'ashwin-p8', hasEditKey: true, hasToken: true }), anjo = mem(bm, 'anjo-z5'), dm = model(DW, { me: 'ashwin-p8', hasEditKey: true, hasToken: true });
       const all = M.spendable(dm, {}, NOW, TODAY), allB = M.spendable(bm, {}, NOW, TODAY), epB = M.endPrices(bm, 'anjo-z5', 0, {}, NOW, TODAY);
       check(anjo.booked && eq(M.tapKeys(dm), dm.price.search) && M.tapKeys(bm).length === 2 && M.tapKeys(bm).indexOf(anjo.keys[0].key) < 0 && bm.price.search.indexOf(anjo.keys[0].key) >= 0 &&
-        all.length === 15 && all.every((k) => !!M.parseFareKey(k)) && allB.length === 10 && allB.indexOf(anjo.keys[0].key) < 0 && epB && epB.rows.length === 3 && epB.need.length === 0 && eq(M.tapKeys(null), []),
-        'PIA-140 a booked traveler\'s legs are shown but never offered to a tap: P-total\'s tap (tapKeys) leaves Anjo\'s out (2 of the 3), her ±1 days are drawn with nothing to search, and all one trip may search (spendable: 15 legs, P-total\'s and every end ±1) drops her 5', { all: all.length, allB: allB.length });
+        all.length === 24 && all.every((k) => !!M.parseFareKey(k)) && allB.length === 16 && allB.indexOf(anjo.keys[0].key) < 0 && epB && epB.rows.length === 3 && epB.need.length === 0 && eq(M.tapKeys(null), []) &&
+        M.cheapCandidates(bm, {}, NOW, TODAY).every((c) => c.need.every((k) => allB.indexOf(k) >= 0) && c.need.indexOf(anjo.keys[0].key) < 0),
+        'PIA-140 a booked traveler\'s legs are shown but never offered to a tap: P-total\'s tap (tapKeys) leaves Anjo\'s out (2 of the 3), her ±1 days are drawn with nothing to search, and all one trip may search (spendable: 24 legs, P-total\'s, every end ±1 and, PIA-141, the 3 other candidate weeks\' 9) drops her 8 (her 5, and her 3 candidate weeks)', { all: all.length, allB: allB.length });
     }
     check(M.spendCount(9, 0) === 4 && M.spendCount(9, 6) === 2 && M.spendCount(3, 0) === 3 && M.spendCount(9, 8) === 0 && M.spendCount(0, 0) === 0 && M.SPEND_PER_TAP === 4 && M.SPEND_PER_SESSION === 8,
       'PIA-140 AC3 a tap costs at most 4 searches, and never more than the session has left of its 8');
@@ -1610,6 +1611,132 @@ function makeServer(worker) {
       const rows = builders.map((n) => { const s = fnSrc(n); return { n, found: !!s, hit: s ? (s.match(PRICE_RE) || [])[0] || '' : '' }; });
       check(rows.every((r) => r.found && !r.hit), 'PIA-140 AC7 no write builder can carry a fetched price: ' + builders.join(', ') + ' never take or read a fare, a leg\'s price or the pricing rule', rows.filter((r) => !r.found || r.hit));
     }
+  }
+
+  // ═══ PIA-141 ════════════════════════════════════════════════════════════
+  section('PIA-141 cheapest week on demand: weeks that keep the length, 📌 and window; only followers move; real fares only; ★; Move through the plan write');
+  {
+    const H1 = 36e5, ORGP = { me: 'LAX', hasEditKey: true, hasToken: true };
+    // the spec's Thanksgiving S1 (the migrated legacy doc): Ashwin follows the 11/20–11/29 plan (into PIA, home from ORD: two
+    // one-ways), Anjo's own 11/24–11/29 (home from ORD) is fixed and cached, Mom & Dad host. Fares 3h old: Ashwin 🛬 $305 + 🛫 $200,
+    // Anjo $290 + $160 = $955
+    const S1 = { '2|LAX|PIA|2026-11-20||1': { p: 305, f: NOW - 3 * H1 }, '2|ORD|LAX|2026-11-29||1': { p: 200, f: NOW - 3 * H1 },
+      '2|LGA|PIA|2026-11-24||1': { p: 290, f: NOW - 3 * H1 }, '2|ORD|LGA|2026-11-29||1': { p: 160, f: NOW - 3 * H1 } };
+    // P-migrate re-chose the legacy doc (🔒): the cheapest week waits for 🔓, which S1 is ("before locking"), through the real Worker
+    const s1Id = srv.seed(tg), s1Un = await srv.send(M.organizerEdit(await srv.get(s1Id, KEY), KEY, { decision: { stage: 'proposed' } })), TS1 = await srv.get(s1Id, KEY);
+    check(M.cheapWhy(model(tg, Object.assign({ fares: S1 }, ORGP)), TODAY) === 'locked' && srv.allOk(s1Un) && !model(TS1, ORGP).locked && eq(model(TS1, ORGP).plan, { s: '2026-11-20', e: '2026-11-29' }),
+      'PIA-141 AC6 the migrated Thanksgiving is 🔒 (P-migrate kept its chosen): no cheapest week until 🔓, which gives S1 (the same plan, unlocked)');
+    const s1m = (fares, doc) => model(doc || TS1, Object.assign({ fares }, ORGP));
+    const c0 = M.cheapCandidates(s1m(S1), S1, NOW, TODAY), anjoKeys = mem(s1m(S1), 'LGA').keys.map((k) => k.key);
+    const starts = c0.map((c) => c.s), marked = c0.filter((c) => c.warn.length);
+    check(M.cheapWhy(s1m(S1), TODAY) === '' && c0.length === 10 && starts[0] === '2026-11-17' && starts[9] === '2026-11-26' && starts.every((s, i) => i === 0 || M.diffD(starts[i - 1], s) === 1) &&
+      c0.every((c) => M.diffD(c.s, c.e) === 9 && c.s <= '2026-11-26' && c.e >= '2026-11-26' && c.s > TODAY),
+      'PIA-141 AC1 Thanksgiving S1 (the migrated legacy doc, 📌 11/26): 10 candidate weeks, 11/17–11/26, each 9 nights (the plan\'s length) with the dinner inside, all in the future', starts);
+    check(marked.length === 5 && eq(marked.map((c) => c.s), ['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-25', '2026-11-26']) && marked.every((c) => eq(c.warn, ['🗽']) && eq(c.warnCodes, ['LGA'])),
+      'PIA-141 AC2 5 weeks carry Anjo\'s 🗽: they would leave her own 11/24–11/29 outside the plan (11/17–11/19 end too soon, 11/25–11/26 start too late)', marked.map((c) => c.s));
+    const cur = c0.find((c) => c.current), others = c0.filter((c) => !c.current);
+    check(cur && cur.s === '2026-11-20' && cur.filled && cur.total === 955 && cur.need.length === 0 && others.every((c) => c.need.length === 2 && !c.filled && c.total === null && c.sum === null && !c.star) &&
+      c0.every((c) => c.need.length <= 2 && c.need.every((k) => anjoKeys.indexOf(k) < 0) && c.price.per.LGA.legs.map((l) => l.key).join() === anjoKeys.join() && c.price.per.LGA.sum === 450) &&
+      others.every((c) => eq(c.need, ['2|LAX|PIA|' + c.s + '||1', '2|ORD|LAX|' + c.e + '||1'])),
+      'PIA-141 AC2 / AC4 only Ashwin moves with a week: each other week costs ≤2 searches (his two one-ways for it), Anjo\'s legs stay hers (the same keys, $450 from the cache, never searched again); the current 11/20 week is already filled ($955); unsearched weeks stay hollow (no total), nothing estimated');
+    check(!c0.some((c) => c.star), 'PIA-141 AC3 ★ only once two weeks are priced: with one filled week there is no cheapest');
+    const S1b = Object.assign({}, S1, { '2|LAX|PIA|2026-11-22||1': { p: 280, f: NOW - H1 }, '2|ORD|LAX|2026-12-01||1': { p: 160, f: NOW - H1 } });
+    const c1 = M.cheapCandidates(s1m(S1b), S1b, NOW, TODAY), w22 = c1.find((c) => c.s === '2026-11-22');
+    check(w22 && w22.filled && w22.total === 890 && w22.star && c1.filter((c) => c.star).length === 1 && !c1.find((c) => c.current).star && c1.find((c) => c.current).total === 955 &&
+      eq(w22.per.map((p) => [p.code, p.sum, p.own]), [['LAX', 440, false], ['LGA', 450, true]]) && w22.e === '2026-12-01' && !w22.warn.length,
+      'PIA-141 AC4 the pinned S1 sample: once 11/22\'s two legs are searched it reads $890 (Ashwin 🛬 11/22 $280 + 🛫 12/01 $160 + Anjo $450, fixed and cached) with ★, the 11/20 plan $955 without; the chips name each part, Anjo\'s own days marked', w22 && w22.per);
+    // never a week after the dinner: whatever the window, the 📌 day is inside every week; widening adds nothing then
+    const wide = tweak(TS1, (d) => { d.idea.dates.searchStart = '2026-11-01'; d.idea.dates.searchEnd = '2026-12-31'; });
+    const cw = M.cheapCandidates(s1m(S1, wide), S1, NOW, TODAY), nopin = tweak(TS1, (d) => { d.idea.notes = M.buildNotes('', null, M.parseNotes(d.idea.notes).caption); });
+    const nw = M.widenWin(s1m(S1, nopin), 1, TODAY), np = s1m(S1, nopin);
+    check(cw.length === 10 && cw.every((c) => c.s >= '2026-11-17' && c.s <= '2026-11-26') && !cw.some((c) => c.s === '2026-12-03') && M.widenWin(s1m(S1), 1, TODAY) === null && M.widenWin(s1m(S1), -1, TODAY) === null &&
+      M.parseNotes(TS1.idea.notes).pin === '2026-11-26' && !!nw && nw.e === '2026-12-13' && nw.s === np.win.s && M.cheapCandidates(np, S1, NOW, TODAY).length === 15 &&
+      M.cheapCandidates(model(tweak(nopin, (d) => { d.idea.dates.searchStart = np.win.s; d.idea.dates.searchEnd = nw.e; }), Object.assign({ fares: S1 }, ORGP)), S1, NOW, TODAY).length === 22,
+      'PIA-141 AC1 Thanksgiving is never offered a week after the dinner (the migrated 📌 11/26 is there): even in a 11/1–12/31 window every week holds 11/26 (no 12/3 week), and ⟦◀ ▶⟧ add nothing; without the 📌 the plan ±7 holds 15 weeks and ▶⟧ widens to 12/13 (22)');
+    check(M.cheapWhy(model(lgOrg, Object.assign({ fares: S1 }, ORGP)), TODAY) === 'legacy', 'PIA-141 the unmigrated v1 doc offers no cheapest week (P-migrate first: its 📌 lives in v1 storage until then)');
+    // an undated idea: its stated 🌙4 inside its ⟦window⟧, tomorrow at the earliest
+    const cyM = model(CY, { me: 'ashwin-c3', hasEditKey: true, hasToken: true }), cyC = M.cheapCandidates(cyM, {}, NOW, TODAY);
+    const mdK = (c) => c.price.per['momdad-c1'].legs.map((l) => l.key).join();
+    const fixedK = (c) => ['ashwin-c3', 'anjo-c4'].map((x) => c.price.per[x].legs.map((l) => l.key).join()).join();
+    check(M.cheapWhy(cyM, TODAY) === '' && cyC.length === 14 && cyC[0].s === '2026-12-18' && cyC[13].s === '2026-12-31' && cyC.every((c) => M.diffD(c.s, c.e) === 4 && c.e <= '2027-01-04') &&
+      cyC.every((c) => mdK(c) === '1|PIA|RDU|' + c.s + '|' + c.e + '|2' && c.need.length === 3 && c.need[0] === mdK(c) && fixedK(c) === fixedK(cyC[0]) && eq(c.warnCodes, ['ashwin-c3', 'anjo-c4'])),
+      'PIA-141 AC1 an undated idea keeps its stated 🌙4 inside its ⟦12/18–1/04⟧ window (14 weeks): Mom & Dad (waiting) move with each (one round trip for 2), Ashwin\'s and Anjo\'s own windows stay (the same two searches in every week, still uncached: ≤3) and mark every week');
+    const soon = tweak(DW, (d) => { d.idea.dates.departure = '2026-10-19'; d.idea.dates.return = '2026-10-22'; d.idea.notes = ''; });
+    const sc = M.cheapCandidates(model(soon, ORGP), {}, NOW, TODAY);
+    check(sc.length > 0 && sc[0].s === '2026-10-18' && sc.every((c) => c.s > TODAY && c.e <= '2026-10-29'), 'PIA-141 AC1 weeks start tomorrow at the earliest, never inside the past part of the window (10/12–10/29)', sc.map((c) => c.s));
+    // a booked traveler keeps the days they booked: never priced or searched here, their face marks every week that would leave them out
+    const bk = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const bkm = model(bk, ORGP), bkc = M.cheapCandidates(bkm, {}, NOW, TODAY), aK = mem(model(DW, ORGP), 'anjo-z5').keys[0].key;
+    check(bkc.length === 4 && bkc.every((c) => c.price.per['anjo-z5'] === undefined && c.per.find((p) => p.code === 'anjo-z5').booked && c.need.indexOf(aK) < 0 && !c.need.some((k) => /\|LGA\|/.test(k))) &&
+      eq(bkc.filter((c) => c.warn.length).map((c) => c.s), ['2026-11-05', '2026-11-07', '2026-11-08']) && bkc.filter((c) => c.warn.length).every((c) => eq(c.warnCodes, ['anjo-z5'])) && M.cheapWhy(bkm, TODAY) === '',
+      'PIA-141 AC2 a booked follower (Anjo 🎫) stays on the days she booked: her flight is bought, so no week prices or searches it, and every week but the plan carries her 🗽 (it would leave her days out)');
+    // fix pass: a booked flight's cached price is the same in every week, so every week's total is the trip's whole cost and the
+    // plan's own bar reads P-total's total (D2: no two screens disagree), booked or not; it is never searched, and a day-old fare of
+    // hers (never refreshed: it is bought) neither greys a week nor holds Move back
+    const S1k = tweak(TS1, (d) => { d.responses.LGA.booked = true; d.responses.LGA.booked_at = '2026-10-16T00:00:00.000Z'; });
+    const kFares = Object.assign({}, S1b, { '2|LGA|PIA|2026-11-24||1': { p: 290, f: NOW - 30 * H1 } });
+    const km = s1m(kFares, S1k), kc = M.cheapCandidates(km, kFares, NOW, TODAY), kcur = kc.find((c) => c.current), k22 = kc.find((c) => c.s === '2026-11-22');
+    const kAnjo = (c) => c.per.find((p) => p.code === 'LGA');
+    check(km.anyBooked === 1 && kc.length === 10 && kc.every((c) => c.bought === 450 && c.price.per.LGA === undefined && kAnjo(c).booked && kAnjo(c).sum === 450 && c.need.every((k) => anjoKeys.indexOf(k) < 0)) &&
+      kcur.filled && kcur.total === 955 && km.price.total === 955 && !km.price.complete && k22.filled && k22.total === 890 && k22.star && kc.filter((c) => c.star).length === 1 &&
+      kc.filter((c) => !c.current && c.s !== '2026-11-22').every((c) => c.total === null && c.sum === null),
+      'PIA-141 a booked traveler\'s cached price ($450, one fare a day old) is in every week alike: the plan\'s bar reads $955, P-total\'s total; 11/22 still $890 ★ (only Ashwin\'s part moves); never searched, never what greys a week', { cur: kcur && kcur.total, w22: k22 && k22.total, pt: km.price.total });
+    check(M.cheapWhy(model(tweak(DW, (d) => { ['momdad-k3', 'ashwin-p8'].forEach((c) => { d.responses[c].available_from = '2026-11-06'; d.responses[c].available_to = '2026-11-09'; }); d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-09'); }), ORGP), TODAY) === 'nobody' &&
+      M.cheapWhy(model(tweak(DW, (d) => { ['momdad-k3', 'ashwin-p8', 'anjo-z5'].forEach((c) => { d.responses[c] = R('in', '', '', '', { booked: true }); }); }), ORGP), TODAY) === 'nobody',
+      'PIA-141 AC6 the entry is unavailable when nobody follows the plan: everyone set both ends, or everyone has booked');
+    const whys = {
+      org: model(DW, { me: 'ashwin-p8', hasToken: true }), token: model(DW, { me: 'ashwin-p8', hasEditKey: true }),
+      closed: model(tweak(DW, (d) => { d.decision = { stage: 'dropped' }; }), ORGP), past: model(tweak(DW, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-04'; d.idea.notes = ''; }), ORGP),
+      locked: model(tweak(DW, (d) => { d.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }; }), ORGP),
+      nodest: model(tweak(DW, (d) => { d.idea.destination = { city: '', airport: '' }; }), ORGP),
+      nights: model(tweak(CY, (d) => { d.idea.notes = 'New date TBD'; }), ORGP), window: model(tweak(CY, (d) => { d.idea.dates.searchStart = ''; d.idea.dates.searchEnd = ''; }), ORGP),
+      unpriced: model(tweak(DW, (d) => { d.idea.members[0].airport = ''; d.responses['momdad-k3'].origin = ''; }), ORGP),
+      noweek: model(tweak(DW, (d) => { d.idea.dates.departure = '2026-10-17'; d.idea.dates.return = '2026-10-20'; d.idea.notes = '📌2026-10-17'; }), ORGP)
+    };
+    const gotW = Object.keys(whys).map((k) => [k, M.cheapWhy(whys[k], TODAY)]);
+    check(gotW.every(([k, w]) => k === w) && M.cheapCandidates(whys.noweek, {}, NOW, TODAY).length === 0 && M.cheapWhy(null, TODAY) === 'org',
+      'PIA-141 AC6 P-dates\' 📉 says why it cannot open: not the organizer\'s phone, no token, dropped, over, 🔒 (Move is never offered while the dates are locked), no place, no nights, no window, someone with no airport, no week that fits', gotW);
+    // ★ needs a cheaper week (equal totals have no cheapest); a week whose search found no fares, or where someone cannot be priced,
+    // offers nothing to spend; a day-old week is priced (grey), not filled, and offers its refresh
+    const fillDW = (doc, f) => { const fr = {}; M.cheapCandidates(model(doc, ORGP), {}, NOW, TODAY).forEach((c) => c.need.forEach((k) => { fr[k] = f(k); })); return fr; };
+    const eqF = fillDW(DW, () => ({ p: 100, f: NOW - H1 })), eqC = M.cheapCandidates(model(DW, Object.assign({ fares: eqF }, ORGP)), eqF, NOW, TODAY);
+    const noneF = Object.assign({}, eqF), w5 = eqC.find((c) => c.s === '2026-11-05'); noneF[w5.missing.length ? w5.missing[0] : w5.price.per['ashwin-p8'].legs[0].key] = { p: null, none: true, f: NOW - H1 };
+    const noneC = M.cheapCandidates(model(DW, Object.assign({ fares: noneF }, ORGP)), noneF, NOW, TODAY).find((c) => c.s === '2026-11-05');
+    const staleF = Object.assign({}, eqF), w7k = eqC.find((c) => c.s === '2026-11-07').price.per['ashwin-p8'].legs[0].key; staleF[w7k] = { p: 120, f: NOW - 30 * H1 };
+    const staleC = M.cheapCandidates(model(DW, Object.assign({ fares: staleF }, ORGP)), staleF, NOW, TODAY).find((c) => c.s === '2026-11-07');
+    const cross = tweak(DW, (d) => { d.responses['ashwin-p8'].available_from = '2026-11-09'; });
+    const crossC = M.cheapCandidates(model(cross, Object.assign({ fares: fillDW(cross, () => ({ p: 90, f: NOW - H1 })) }, ORGP)), fillDW(cross, () => ({ p: 90, f: NOW - H1 })), NOW, TODAY).find((c) => c.s === '2026-11-05');
+    check(eqC.every((c) => c.filled && c.total === 300) && !eqC.some((c) => c.star) && noneC.none && !noneC.filled && noneC.need.length === 0 &&
+      staleC.priced && staleC.stale && !staleC.filled && staleC.total === null && staleC.sum === 320 && eq(staleC.need, [w7k]) &&
+      crossC.blocked.length === 1 && crossC.blocked[0].why === 'order' && !crossC.filled && crossC.need.length === 0,
+      'PIA-141 AC3 four weeks priced alike ($300 each) have no ★; a week where a search found no fares is $∅ and offers nothing to spend; a day-old week shows its real $320 grey and offers only its refresh; a week where someone\'s own arrival would come after the week ends offers nothing');
+    // spendable takes each week's legs while the cheapest week can be asked for, and never while the dates are locked
+    const dwm0 = model(DW, ORGP), allW = M.cheapCandidates(dwm0, {}, NOW, TODAY).reduce((a, c) => a.concat(c.need), []);
+    check(allW.length === 12 && allW.every((k) => M.spendable(dwm0, {}, NOW, TODAY).indexOf(k) >= 0) && M.spendable(whys.locked, {}, NOW, TODAY).length === 15,
+      'PIA-141 AC4 one spend path: every candidate week\'s legs are among what a tap on this trip may search (spendable, the PIA-140 path, its caps and locks), and none of them once the dates are 🔒');
+    // Move: the week becomes the plan in ONE /idea/update (planDelta, 📌 kept), through the real Worker; every follower's link follows,
+    // own days stay; a booked follower's days are written as hers first (PIA-138's rule); a 🔒 meanwhile holds it back
+    const mvId = srv.seed(TS1), mvFresh = await srv.get(mvId, KEY), mvM = model(mvFresh, Object.assign({ fares: S1b }, ORGP));
+    const target = M.cheapCandidates(mvM, S1b, NOW, TODAY).find((c) => c.s === '2026-11-22');
+    const mvReqs = M.organizerEdit(mvFresh, KEY, M.moveDelta(mvM, target)), anjoBefore = mem(mvM, 'LGA').link.href;
+    const mvRes = await srv.send(mvReqs), mvDoc = await srv.get(mvId, KEY), after = model(mvDoc, Object.assign({ fares: S1b }, ORGP));
+    const ashDec = M.gfDecode(mem(after, 'LAX').link.href);
+    check(mvReqs.length === 1 && mvReqs[0].path.indexOf('/idea/update') === 0 && srv.allOk(mvRes) && eq(after.plan, { s: '2026-11-22', e: '2026-12-01' }) && after.pin === '2026-11-26' &&
+      ashDec.legs[0].date === '2026-11-22' && ashDec.legs[1].date === '2026-12-01' && mem(after, 'LGA').link.href === anjoBefore && after.price.complete && after.price.total === 890 &&
+      M.cheapCandidates(after, S1b, NOW, TODAY).find((c) => c.current).s === '2026-11-22',
+      'PIA-141 AC6 Move writes the new plan once (one /idea/update through the real Worker, 📌 11/26 kept): Ashwin\'s link now reads 11/22 → 12/01, Anjo\'s is unchanged, and the trip\'s total is the bar\'s $890');
+    const bkId = srv.seed(bk), bkFresh = await srv.get(bkId, KEY), bkReqs = M.organizerEdit(bkFresh, KEY, M.moveDelta(model(bkFresh, ORGP), { s: '2026-11-07', e: '2026-11-10' }));
+    const bkRes = await srv.send(bkReqs), bkAfter = model(await srv.get(bkId, KEY), ORGP);
+    check(bkReqs.map((q) => q.path.split('?')[0]).join() === '/idea/respond,/idea/update' && srv.allOk(bkRes) && mem(bkAfter, 'anjo-z5').d1 === '2026-11-06' && mem(bkAfter, 'anjo-z5').d2 === '2026-11-09' &&
+      mem(bkAfter, 'ashwin-p8').d1 === '2026-11-07' && mem(bkAfter, 'momdad-k3').d2 === '2026-11-10',
+      'PIA-141 AC6 with a booked follower the plan is still written once: her booked days are made her own first (PIA-138\'s rule), then the one update moves everyone else');
+    check(M.organizerEdit(tweak(mvFresh, (d) => { d.decision = { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-11-20', return: '2026-11-29' } }; }), KEY, M.moveDelta(mvM, target)) === null,
+      'PIA-141 AC6 a Move on a record locked meanwhile builds nothing (datesHeld: 🔒 first)');
+    // ⟦◀ ▶⟧ saves the wider window as the trip's ⟦⟧ (plan, 📌 and 🌙 untouched)
+    const wdId = srv.seed(nopin), wdFresh = await srv.get(wdId, KEY), wdM = model(wdFresh, ORGP), wNew = M.widenWin(wdM, 1, TODAY);
+    const wdRes = await srv.send(M.organizerEdit(wdFresh, KEY, M.widenDelta(wNew))), wdAfter = model(await srv.get(wdId, KEY), ORGP);
+    check(srv.allOk(wdRes) && eq(wdAfter.plan, wdM.plan) && wdAfter.explicitWin && eq(wdAfter.win, wNew) && wdAfter.pin === '' && M.cheapCandidates(wdAfter, {}, NOW, TODAY).length === 22 && M.widenWin(wdM, -1, TODAY) !== null,
+      'PIA-141 ▶⟧ widens the flex window by a week and saves it (searchStart / searchEnd through the real Worker): the plan stays, 15 weeks become 22');
   }
 
   // ═══ AC11 ═══════════════════════════════════════════════════════════════

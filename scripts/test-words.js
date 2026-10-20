@@ -143,6 +143,17 @@ DOC[PW] = mkDoc(PW, '🦃 Every airport wins somewhere', 'PIA', { departure: '20
   // each with their own days, so no two travelers share a search (one search per set and day would give them one winner)
   ['bartholomew-w1', 'anastasia-w2', 'maximilian-w3', 'guadalupe-w4', 'oluwaseun-w5', 'priya-w6', 'leonardo-w7', 'ashwin-w8'].reduce((o, c, i) => {
     o[c] = { origin: ['LAX', 'LGA', 'BUR', 'JFK', 'SNA', 'EWR', 'ONT', 'LGB'][i], leave_from: 'ORD', available_from: MODEL.addD('2026-11-20', -i), available_to: MODEL.addD('2026-11-29', i) }; return o; }, {}));
+// PIA-141: the worst case for P-cheapest's words: the same 8 long names, the first four following the plan, the last four with own
+// days longer than the trip (so every week carries ⚠ and four faces, and 8 chips under the selected week), no 📌 (15 weeks, 3 pages)
+const PC = 'pcCheapWeekWorstCase01';
+DOC[PC] = (() => {
+  const d = JSON.parse(JSON.stringify(DOC[PW])); d.id = PC; d.idea.title = '📉 Every week leaves someone out';
+  ['bartholomew-w1', 'anastasia-w2', 'maximilian-w3', 'guadalupe-w4'].forEach((c) => { d.responses[c].available_from = ''; d.responses[c].available_to = ''; });
+  return d;
+})();
+// PIA-141: the spec's Thanksgiving S1 (the legacy doc migrated through the real Worker, then 🔓) and the same without its 📌 are built
+// in main() once worker.js is loaded (buildS1)
+const S1 = 'tgS1ThanksgivingS10001', S1N = 'tnS1NoPinThanksgiv0001';
 const idOk = Object.keys(DOC).every((id) => /^[A-Za-z0-9_-]{22}$/.test(id) && DOC[id].id === id);
 // PIA-135: cached real fares on the organizer's token phone (keys from the model itself): Diwali complete and fresh,
 // the long-title trip partly priced, the unknown-airports trip priced from a stale search
@@ -202,8 +213,8 @@ KEYS[BK] = KEY;
 PHONES.bookorg = { ls: { pialax_watchlist_v2: listRec([BK]), pialax_idea_keys_v1: keyRec([BK]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [BK]: 'grandmajosephine-nf' }, pialax_ui_v1: { v1read: 1 },
   pialax_fares_v2: FARES, pialax_serpapi_quota: { period: '2026-10', used: 41, budget: 1000, exceeded: false } } };   // PIA-140: its travelers' fares in every state
 // PIA-140: the organizer of the worst-case prices trip (16 winning airports), nearby airports on (pialax_multi_airport_v1, as v1 leaves it)
-KEYS[PW] = KEY;
-PHONES.prices = { ls: { pialax_watchlist_v2: listRec([PW]), pialax_idea_keys_v1: keyRec([PW]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [PW]: 'ashwin-w8' }, pialax_ui_v1: { v1read: 1 },
+KEYS[PW] = KEY; KEYS[PC] = KEY;   // PIA-141: + the P-cheapest worst case on the same phone
+PHONES.prices = { ls: { pialax_watchlist_v2: listRec([PW, PC]), pialax_idea_keys_v1: keyRec([PW, PC]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [PW]: 'ashwin-w8', [PC]: 'ashwin-w8' }, pialax_ui_v1: { v1read: 1 },
   pialax_fares_v2: FARES, pialax_multi_airport_v1: '1' } };
 PHONES.booked = { ls: { pialax_watchlist_v2: listRec([BK, LK]), pialax_idea_me_v1: { [BK]: 'bartholomewmontgomeryfitzgera-dj', [LK]: 'leo-k3' }, pialax_ui_v1: { v1read: 1 } } };
 
@@ -215,6 +226,31 @@ async function loadWorker() {
   const os = require('os'), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-test-words-')), file = path.join(dir, 'worker.mjs');
   fs.writeFileSync(file, fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8'));
   try { return (await import('file://' + file)).default; } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+// PIA-141: Thanksgiving S1 as the app meets it: the legacy fixture migrated by the model's own P-migrate requests through the real
+// Worker (📌 11/26 from v1's card, plan 11/20–11/29, faces), then 🔓 (P-migrate keeps the 🔒); S1N the same with its 📌 cleared.
+// The 's1' phone is the organizer's token phone on them (S1's fares 3h old, as the spec has them) and on the undated idea
+async function buildS1() {
+  const hash = crypto.createHash('sha256').update(KEY).digest('hex'), V1 = fx('v1-watchlist-storage.json');
+  for (const [id, nopin] of [[S1, false], [S1N, true]]) {
+    const map = new Map(), env = { IDEAS: { async get(k) { return map.has(k) ? map.get(k) : null; }, async put(k, v) { map.set(k, String(v)); }, async delete(k) { map.delete(k); } } };
+    const d0 = JSON.parse(JSON.stringify(DOC[TG])); d0.id = id; d0.edit_hash = hash; map.set('idea:' + id, JSON.stringify(d0));
+    const v1 = JSON.parse(JSON.stringify(V1)); v1.overrides.thanksgiving.sharedIdeaId = id;
+    const send = async (reqs) => { for (const q of reqs || []) await WORKER.fetch(new Request('https://w.dev' + q.path, { method: q.method, headers: { 'Content-Type': 'application/json', Origin: 'https://shwinster101.github.io' }, body: JSON.stringify(q.body) }), env); };
+    const read = () => JSON.parse(map.get('idea:' + id));
+    const mo = MODEL.migrateOptions(read(), v1);
+    await send(MODEL.migrateRequests(read(), KEY, { plan: mo.span, pin: mo.pin, labels: mo.labels }));
+    await send(MODEL.organizerEdit(read(), KEY, { decision: { stage: 'proposed' } }));
+    if (nopin) await send(MODEL.organizerEdit(read(), KEY, { pin: '' }));
+    const d = read(); delete d.edit_hash; DOC[id] = d; KEYS[id] = KEY;
+  }
+  const m = MODEL.tripModel(DOC[S1], { today: '2026-10-17', now: NOW_MS, me: 'LAX', hasEditKey: true, hasToken: true, multiAirport: true }), f = {};
+  const a = m.travelers.find((x) => x.code === 'LAX').keys, j = m.travelers.find((x) => x.code === 'LGA').keys;
+  [[a[0], 305], [a[1], 200], [j[0], 290], [j[1], 160]].forEach(([k, p]) => { f[k.key] = { p, f: NOW_MS - 3 * 36e5 }; });
+  KEYS[C] = KEY;
+  PHONES.s1 = { ls: { pialax_watchlist_v2: listRec([S1, S1N, C]), pialax_idea_keys_v1: keyRec([S1, S1N, C]), pialax_proxy_token: TOKEN, pialax_multi_airport_v1: '1',
+    pialax_idea_me_v1: { [S1]: 'LAX', [S1N]: 'LAX', [C]: 'ashwin-c3' }, pialax_fares_v2: f, pialax_ui_v1: { v1read: 1 } } };
+  return DOC[S1] && DOC[S1N] && MODEL.parseNotes(DOC[S1].idea.notes).pin === '2026-11-26' && !MODEL.parseNotes(DOC[S1N].idea.notes).pin && DOC[S1].decision.stage === 'proposed';
 }
 function workerKV() {
   const map = new Map(), hash = crypto.createHash('sha256').update(KEY).digest('hex');
@@ -261,6 +297,7 @@ async function main() {
   check(idOk, 'fixtures: every trip id is a valid 22-character /idea id');
   WORKER = await loadWorker();
   check(!!(WORKER && typeof WORKER.fetch === 'function'), 'PIA-136 worker.js loads in-process (the phones that create and edit write to the real /idea handlers)');
+  check(await buildS1(), 'PIA-141 Thanksgiving S1 built as the app meets it: the legacy doc migrated through the real Worker (📌 11/26 from v1\'s card), then 🔓; and the same with no 📌');
 
   const worst = { screen: { n: -1 }, popup: { n: -1 } };
   const stray = [], consoleErrs = [];
@@ -678,6 +715,36 @@ async function main() {
     }
     await datesWalk(page, tag, who, deep);
   }
+  // PIA-141: P-dates' 📉 on every organizer token phone: greyed, its tap names why (Dates locked, Nobody follows plan) in a counted
+  // label; else P-cheapest, counted as it opens, with a hollow week selected (its 🔍 cost) and on its next page; at 360 its long
+  // presses and its ⓘ (every glyph keyed). Bars measured: ≤7 a page, each ≥44px, no sideways scroll; ‹ back to P-dates
+  const cheapLog = [];
+  async function cheapWalk(page, tag, who, deep) {
+    const b = await page.$('#sheet [data-act="dcheap"]'); if (!b) return;
+    if ((await b.getAttribute('aria-disabled')) === 'true') {
+      await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 60);
+      const why = await page.evaluate(() => { const l = document.querySelector('#lbl'); return l && !l.hidden ? l.textContent : ''; });
+      if (why) await measurePopup(page, tag('P-dates 📉 greyed: ' + why), '#lbl');
+      cheapLog.push({ who: tag(''), why, pid: await popupId(page) });
+      return;
+    }
+    await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 150);
+    const lay = () => page.evaluate(() => {
+      const sh = document.querySelector('#sheet'), strip = sh.querySelector('.cstrip'), sb = strip ? strip.getBoundingClientRect().bottom : 0;
+      return { bars: [...sh.querySelectorAll('.cbar')].map((e) => { const r = e.getBoundingClientRect(); return [Math.round(r.width * 10) / 10, Math.round(r.height)]; }), over: sh.scrollWidth - sh.clientWidth, pageOver: document.documentElement.scrollWidth - innerWidth,
+        pagerBelow: [...sh.querySelectorAll('[data-act="cpage"], [data-act="cwiden"]')].every((e) => e.getBoundingClientRect().top >= sb) };
+    });
+    const pid = await popupId(page), l0 = await lay();
+    await measurePopup(page, tag('P-cheapest'));
+    const rec = { who: tag(''), pid, l0 };
+    if (deep && !seenOn(who + ' cheap').done) { seenOn(who + ' cheap').done = true; await labelCheck(page, tag('P-cheapest'), who + '-cheap', 'sheet'); rec.keys = [...await sheetKey(page, tag('P-cheapest'))]; }
+    const hol = await page.$eval('#sheet .cbar:not(.cur) .col.hollow', (e) => e.closest('.cbar').getAttribute('data-v')).catch(() => null);
+    if (hol) { await jsClick(page, '#sheet .cbar[data-v="' + hol + '"]'); await settle(page, 60); rec.cost = await page.$eval('#sheet [data-act="search"]', (e) => e.textContent.trim()).catch(() => ''); await measurePopup(page, tag('P-cheapest (a hollow week selected)')); }
+    if (await page.$('#sheet [data-act="cpage"][data-v="1"]:not([aria-disabled])')) { await jsClick(page, '#sheet [data-act="cpage"][data-v="1"]'); await settle(page, 60); rec.l1 = await lay(); await measurePopup(page, tag('P-cheapest (next page)')); }
+    await jsClick(page, '#sheet [data-act="sh-back"]'); await settle(page, 80);
+    rec.back = await popupId(page);
+    cheapLog.push(rec);
+  }
   // PIA-138: P-dates from the plan pill on every trip view (the plan, my own days, or the plan to read), and P-day from 👥 then a
   // day (or any day of a plan to read), the busiest day first; deep: the picker's other states (a holiday, a start picked, my
   // own days on one end, following the plan, an undated idea's window) and one person's leg from P-person, with long-press once
@@ -690,6 +757,7 @@ async function main() {
     dateLog.push({ who: tag(''), pid });
     await measurePopup(page, tag('P-dates'));
     if (deep && !seenOn(who + ' dates').done) { seenOn(who + ' dates').done = true; await labelCheck(page, tag('P-dates'), who + '-dates', 'sheet'); }
+    await cheapWalk(page, tag, who, deep);   // PIA-141: 📉 → P-cheapest (or, greyed, why)
     // PIA-138 fix pass: ⓘ in P-dates reads the key over this sheet (its grid's marks), ‹ back
     if (deep && (await page.$('#sheet [data-act="dkey"]'))) {
       await jsClick(page, '#sheet [data-act="dkey"]'); await settle(page, 60);
@@ -2190,6 +2258,196 @@ async function main() {
     const worstT = totalLog.filter((x) => x.codes === 16), cards = totalLog.filter((x) => / card$/.test(x.who));
     check(totalLog.length >= 6 && totalLog.every((x) => x.pid === 'P-total') && worstT.length === WIDTHS.length && cards.length >= 2,
       'PIA-140 P-total opens from a card\'s total and the trip\'s total block on every organizer token phone, at every width, counted (the worst case, 8 open-jaw travelers each won by another airport both ways, draws all 16 codes within the popup budget)', totalLog.map((x) => x.who + ' ' + x.codes));
+  }
+
+  // ═══ PIA-141: the cheapest week with real clicks, through the real Worker (its token gate, fare cache and caps), SerpAPI stubbed ═══
+  section('PIA-141 the cheapest week with real clicks through the real Worker: P-dates 📉 → P-cheapest (Thanksgiving S1), 🔍2 → $890 ★, Move, ⚠ Confirm, the locks, ⟦◀ ▶⟧, an undated idea; every state counted at 360, 390 and 430');
+  {
+    const SERP = fx('serp-flights.json'), serp = [], offline = globalThis.fetch;
+    // SerpAPI by search: 11/22's legs $280 (into PIA) and $160 (home 12/01), any other leg $350 into PIA and $250 otherwise
+    globalThis.fetch = async (u) => {
+      const sU = String(u);
+      if (/^https:\/\/serpapi\.com\/account\.json\?/.test(sU)) return new Response(JSON.stringify({ plan_searches_left: 900, total_searches_left: 900, this_month_usage: 41, searches_per_month: 1000 }), { status: 200 });
+      if (/^https:\/\/serpapi\.com\/search\.json\?/.test(sU)) {
+        serp.push(sU);
+        const q = new URL(sU).searchParams, d = q.get('outbound_date'), p = d === '2026-11-22' ? 280 : d === '2026-12-01' ? 160 : q.get('arrival_id') === 'PIA' ? 350 : 250;
+        const j = JSON.parse(JSON.stringify(SERP)); j.best_flights[0].price = p; j.other_flights.forEach((o, i) => { o.price = p + 20 * (i + 1); });
+        return new Response(JSON.stringify(j), { status: 200 });
+      }
+      throw new Error('test-words: no network for ' + sU);
+    };
+    const nS = (net) => net.paid.filter((x) => x.path === '/search').length;
+    const until = async (page, f, ms) => { for (let i = 0; i < (ms || 4000) / 50; i++) { if (await f()) return true; await page.waitForTimeout(50); } return !!(await f()); };
+    const idle = (page) => page.evaluate(() => !document.querySelector('#sheet [aria-busy="true"]'));
+    const lbl = (page) => page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : ''; });
+    const barsNow = (page) => page.evaluate(() => [...document.querySelectorAll('#sheet .cbar')].map((e) => { const r = e.getBoundingClientRect(); return { v: e.getAttribute('data-v'), w: r.width, h: r.height, top: ((e.querySelector('.v') || {}).textContent || '').trim(), wf: ((e.querySelector('.wf') || {}).textContent || '').trim(), cur: e.classList.contains('cur'), star: !!e.querySelector('[data-k="cheapest"]') }; }));
+    const overflow = (page) => page.evaluate(() => { const s = document.querySelector('#sheet'); return [document.documentElement.scrollWidth - innerWidth, s.scrollWidth - s.clientWidth]; });
+    const real = [];
+    for (const width of WIDTHS) {
+      const T = (s) => 's1 @' + width + ' › ' + s, deepW = width === 360, R = { width };
+      const { ctx, page, net } = await phone('s1', { width, worker: true, paid: true, url: '?idea=' + S1 });
+      try {
+        await jsClick(page, '#screen .daterow [data-act="dates"]'); await settle(page, 150);
+        R.tool = await page.$eval('#sheet [data-act="dcheap"]', (e) => [e.textContent, e.getAttribute('aria-label'), e.getAttribute('aria-disabled')]).catch(() => null);
+        await measurePopup(page, T('P-dates with 📉'));
+        await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 300);
+        R.pid = await popupId(page); R.b0 = await barsNow(page); R.o0 = await overflow(page);
+        R.pager = await page.evaluate(() => { const sb = document.querySelector('#sheet .cstrip').getBoundingClientRect().bottom; return [...document.querySelectorAll('#sheet [data-act="cpage"]')].map((e) => e.getBoundingClientRect().top >= sb); });
+        await measurePopup(page, T('P-cheapest (S1 opened: the plan\'s week)'));
+        if (deepW) { await labelCheck(page, T('P-cheapest (S1)'), 's1-cheap', 'sheet'); R.keys = [...await sheetKey(page, T('P-cheapest (S1)'))]; }
+        await jsClick(page, '#sheet [data-act="cpage"][data-v="1"]'); await settle(page, 80);
+        R.b1 = await barsNow(page); await measurePopup(page, T('P-cheapest page 2'));
+        await jsClick(page, '#sheet [data-act="cpage"][data-v="-1"]'); await settle(page, 80);
+        // 11/22: the cost first (🔍2), one tap → 2 searches → $890 ★ and Move
+        await jsClick(page, '#sheet .cbar[data-v="2026-11-22"]'); await settle(page, 80);
+        R.cost = await page.$eval('#sheet [data-act="search"][data-v="week"]', (e) => [e.textContent.trim(), e.getAttribute('aria-label')]).catch(() => null);
+        await measurePopup(page, T('P-cheapest 11/22 selected (🔍2)'));
+        const n0 = nS(net);
+        // (by keyboard: the focus that was on 🔍2 lands on Move once the week is priced, never on <body>)
+        await page.focus('#sheet [data-act="search"][data-v="week"]'); await page.keyboard.press('Enter');
+        await until(page, async () => nS(net) >= n0 + 2 && (await idle(page))); await settle(page, 150);
+        R.sent = nS(net) - n0; R.b2 = await barsNow(page);
+        R.focus = await page.evaluate(() => { const a = document.activeElement; return a && a.getAttribute ? [a.getAttribute('data-act'), !!a.closest('#sheet')] : null; });
+        R.btn = await page.$eval('#sheet [data-act="cmove"]', (e) => e.textContent.trim()).catch(() => '');
+        R.chips = await page.$$eval('#sheet .cchip', (els) => els.map((e) => e.getAttribute('aria-label')));
+        await measurePopup(page, T('P-cheapest 11/22 priced ($890 ★, Move)'));
+        if (deepW) { await labelCheck(page, T('P-cheapest priced'), 's1-cheap-priced', 'sheet'); R.keys2 = [...await sheetKey(page, T('P-cheapest priced'))]; }
+        // fix pass: a short tap on a face chip, or on 🔍 26/30, names it (nothing in P-cheapest looks like a control that does nothing)
+        if (deepW) {
+          R.taps = [];
+          for (const sel of ['#sheet .cchip', '#sheet .bud']) {
+            await until(page, async () => !(await lbl(page)), 3000);
+            await page.click(sel); await settle(page, 80);
+            const said = await lbl(page); R.taps.push(said);
+            if (said) await measurePopup(page, T('P-cheapest ' + sel.slice(8) + ' tapped (P-label "' + said + '")'), '#lbl');
+          }
+          R.tapPop = await popupId(page);
+          await until(page, async () => !(await lbl(page)), 3000);
+        }
+        // Move: ◷ while its write is out, then ‹ P-dates on the new plan and its toast (↩)
+        let release; net.holdPost = new Promise((r) => { release = r; });
+        await jsClick(page, '#sheet [data-act="cmove"]'); await settle(page, 150);
+        R.busy = await page.$eval('#sheet [data-act="cmove"]', (e) => [e.textContent.trim(), e.getAttribute('aria-busy'), e.getAttribute('data-lbl')]).catch(() => null);
+        await measurePopup(page, T('P-cheapest Move ◷'));
+        net.holdPost = null; release();
+        await until(page, async () => (await popupId(page)) === 'P-dates'); await settle(page, 150);
+        R.back = await popupId(page);
+        R.readout = await page.$eval('#sheet .readout', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '');
+        R.toast = await page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent : ''; });
+        if (R.toast) await measurePopup(page, T('Move\'s toast (↩)'), '#toast');
+        await measurePopup(page, T('P-dates after Move'));
+        R.rec = JSON.parse(net.kv.map.get('idea:' + S1)).idea.dates;
+        // a week that leaves Anjo's own days out: its search, then Move asks first (⚠🗽 Confirm); ⌄ leaves it unsent
+        await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 250);
+        await jsClick(page, '#sheet .cbar[data-v="2026-11-19"]'); await settle(page, 80);
+        const n1 = nS(net);
+        await jsClick(page, '#sheet [data-act="search"][data-v="week"]');
+        await until(page, async () => nS(net) >= n1 + 2 && (await idle(page))); await settle(page, 150);
+        const p0 = net.posts;
+        await jsClick(page, '#sheet [data-act="cmove"]'); await settle(page, 600);
+        R.ask = await page.$eval('#sheet [data-act="cmove"]', (e) => [e.textContent.replace(/\s+/g, ' ').trim(), e.getAttribute('data-lbl')]).catch(() => null);
+        await measurePopup(page, T('P-cheapest Move asks (⚠🗽 Confirm)'));
+        if (deepW) await labelCheck(page, T('P-cheapest Move asks'), 's1-cheap-ask', 'sheet');
+        // fix pass: a tap on the ⚠ of the face it leaves out says why (and the confirm stays asked)
+        if (deepW) {
+          await until(page, async () => !(await lbl(page)), 3000);
+          await page.click('#sheet .cchip.off [data-k="leaves"]'); await settle(page, 80);
+          R.warnTap = await lbl(page); if (R.warnTap) await measurePopup(page, T('P-cheapest ⚠ tapped (P-label "' + R.warnTap + '")'), '#lbl');
+          R.stillAsks = !!(await page.$('#sheet .btn.arm[data-act="cmove"]'));
+        }
+        R.askPosts = net.posts - p0;
+        await closeSheet(page);
+        // the PIA-140 locks on a week's button: the Worker's day cap (⛔ 17:00, its tap says why), the visit's 8 (⛔ ↻)
+        await page.evaluate(() => localStorage.setItem('pialax_daily_cap_v1', '2026-10-17'));
+        await jsClick(page, '#screen .daterow [data-act="dates"]'); await settle(page, 120);
+        await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 250);
+        await jsClick(page, '#sheet .cbar[data-v="2026-11-21"]'); await settle(page, 80);
+        R.day = await page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('data-lbl')]).catch(() => null);
+        await measurePopup(page, T('P-cheapest ⛔ 17:00'));
+        await page.click('#sheet [data-act="search"]', { force: true }); await settle(page, 150);
+        R.dayWhy = await lbl(page); if (R.dayWhy) await measurePopup(page, T('⛔ 17:00 explained'), '#lbl');
+        await page.evaluate(() => { localStorage.removeItem('pialax_daily_cap_v1'); sessionStorage.setItem('pialax_spent_v2', '8'); });
+        await jsClick(page, '#sheet .cbar[data-v="2026-11-23"]'); await settle(page, 80);
+        R.visit = await page.$eval('#sheet [data-act="newvisit"]', (e) => [e.textContent.trim(), e.getAttribute('data-lbl')]).catch(() => null);
+        await measurePopup(page, T('P-cheapest ⛔ ↻ (the visit\'s 8 spent)'));
+        if (deepW) await labelCheck(page, T('P-cheapest ⛔ ↻'), 's1-cheap-visit', 'sheet');
+        await page.evaluate(() => sessionStorage.setItem('pialax_spent_v2', '4'));
+        await closeSheet(page);
+        // no 📌 (S1N): ⟦◀ ▶⟧ show; ▶⟧ saves the window a week later through the real Worker, the new weeks drawn at once
+        await page.goto(APP_URL + '?idea=' + S1N, { waitUntil: 'load' }); await settle(page, 300);
+        await jsClick(page, '#screen .daterow [data-act="dates"]'); await settle(page, 120);
+        await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 250);
+        R.widen = await page.$$eval('#sheet [data-act="cwiden"]', (els) => els.map((e) => e.textContent.trim()));
+        await measurePopup(page, T('P-cheapest with ⟦◀ ▶⟧ (no 📌)'));
+        if (deepW) R.keys3 = [...await sheetKey(page, T('P-cheapest with ⟦◀ ▶⟧'))];
+        await jsClick(page, '#sheet [data-act="cwiden"][data-v="1"]'); await until(page, () => idle(page)); await settle(page, 300);
+        R.widened = Object.assign({ bars: (await barsNow(page)).map((b) => b.v) }, JSON.parse(net.kv.map.get('idea:' + S1N)).idea.dates);
+        R.o2 = await overflow(page);
+        await measurePopup(page, T('P-cheapest after ▶⟧'));
+        await closeSheet(page);
+        // an undated idea: its 🌙4 weeks inside its ⟦window⟧, each ⚠🌴🗽 (Ashwin's and Anjo's windows are longer than the stay)
+        await page.goto(APP_URL + '?idea=' + C, { waitUntil: 'load' }); await settle(page, 300);
+        await jsClick(page, '#screen .daterow [data-act="dates"]'); await settle(page, 120);
+        await measurePopup(page, T('P-dates ⟦window⟧ with 📉'));
+        await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 250);
+        R.undated = await barsNow(page); R.o3 = await overflow(page);
+        await measurePopup(page, T('P-cheapest (an undated idea)'));
+        // fix pass: Move on the undated idea (its first week's 🔍, then ⚠🌴🗽 Confirm), then ‹ P-dates on its new dates in dates mode
+        // (🔒 there, no ⟦window⟧ picker left behind) with nothing for Save to send; closing it says no 🗑
+        const nU = nS(net), needU = await page.$eval('#sheet [data-act="search"][data-v="week"]', (e) => +e.getAttribute('data-n')).catch(() => 0);
+        await jsClick(page, '#sheet [data-act="search"][data-v="week"]');
+        await until(page, async () => nS(net) >= nU + needU && (await idle(page))); await settle(page, 150);
+        await jsClick(page, '#sheet [data-act="cmove"]'); await settle(page, 600);
+        await measurePopup(page, T('P-cheapest (the undated idea: Move asks, ⚠🌴🗽 Confirm)'));
+        await jsClick(page, '#sheet [data-act="cmove"]');
+        await until(page, async () => (await popupId(page)) === 'P-dates'); await settle(page, 200);
+        R.uPop = await popupId(page);
+        R.uMoved = await page.evaluate(() => { const s = document.querySelector('#sheet [data-act="dsave"]'); return { lock: !!document.querySelector('#sheet [data-act="dlock"]'), mode: !!document.querySelector('#sheet [data-act="dmode"]'), save: s ? s.getAttribute('data-lbl') : null, readout: ((document.querySelector('#sheet .readout') || {}).textContent || '').replace(/\s+/g, ' ').trim() }; });
+        await measurePopup(page, T('P-dates after Move (the undated idea, now dated)'));
+        const pU = net.posts; await jsClick(page, '#sheet [data-act="dsave"]'); await settle(page, 150); R.uSave = net.posts - pU;
+        await closeSheet(page);
+        R.uToast = await page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent : ''; });
+        R.uRec = JSON.parse(net.kv.map.get('idea:' + C)).idea.dates;
+      } finally { await ctx.close(); }
+      real.push(R);
+    }
+    globalThis.fetch = offline;
+    const r360 = real[0] || {};
+    check(real.length === WIDTHS.length && real.every((R) => R.tool && R.tool[0] === '📉' && R.tool[1] === 'Cheaper week' && R.tool[2] === null && R.pid === 'P-cheapest'),
+      'PIA-141 with real clicks: P-dates on the organizer\'s token phone offers 📉 (Cheaper week) and opens P-cheapest, at every width', real.map((R) => [R.width, R.tool, R.pid]));
+    check(real.every((R) => R.b0.length === 7 && R.b0.every((b) => b.w >= 44 && b.h >= 44) && R.b1.length === 3 && R.b1.map((b) => b.v).join() === '2026-11-24,2026-11-25,2026-11-26' && R.pager.length === 2 && R.pager.every(Boolean) && R.o0.every((x) => x <= 0) &&
+      R.b0.filter((b) => b.wf === '⚠🗽').map((b) => b.v).join() === '2026-11-17,2026-11-18,2026-11-19' && R.b1.filter((b) => b.wf === '⚠🗽').length === 2 && R.b0.filter((b) => !b.cur).every((b) => b.top === '🔍≤2') && R.b0.find((b) => b.cur).top === '$955' && !R.b0.some((b) => b.star)),
+      'PIA-141 AC5 / AC2 / AC3 S1 with real clicks, at every width: 10 weeks on 2 pages (7 then 3), every bar ≥44px, ◀ ▶ on their own row below, no sideways scroll; 5 weeks carry ⚠🗽, every other hollow week costs 🔍≤2, the plan\'s week is outlined at $955 and nothing has ★', real.map((R) => ({ w: R.width, bars: R.b0.map((b) => Math.round(b.w) + 'x' + Math.round(b.h)), o: R.o0 })));
+    check(real.every((R) => R.cost && R.cost[0] === '🔍2' && R.cost[1] === 'Search 2 fares, 2 searches' && R.sent === 2 && R.b2.find((b) => b.v === '2026-11-22').top === '$890' && R.b2.find((b) => b.v === '2026-11-22').star && !R.b2.find((b) => b.cur).star && R.btn === 'Move' &&
+      R.chips.indexOf('Ashwin, $440') >= 0 && R.chips.indexOf('Anjo, $450, own days') >= 0),
+      'PIA-141 AC4 the pinned S1 sample with real clicks, at every width: 11/22 shows its cost first (🔍2), one tap sends 2 searches through the real Worker, and it reads $890 ★ (Ashwin $440, Anjo $450 her own days), the plan\'s $955 without; Move', real.map((R) => [R.width, R.cost, R.sent, R.btn]));
+    check(real.every((R) => R.busy && R.busy[0] === '◷' && R.busy[1] === 'true' && R.back === 'P-dates' && /11\/22–12\/1/.test(R.readout) && /📉 11\/22–12\/1/.test(R.toast) && R.rec.departure === '2026-11-22' && R.rec.return === '2026-12-01'),
+      'PIA-141 AC6 with real clicks: Move shows ◷ while its one write is out, then ‹ P-dates on the new plan (11/22–12/1) with its toast (↩); the record holds 11/22–12/01', real.map((R) => [R.width, R.busy, R.back, R.readout, R.toast]));
+    check(real.every((R) => R.ask && R.ask[0] === '⚠🗽 Confirm' && R.ask[1] === 'Confirm' && R.askPosts === 0),
+      'PIA-141 AC2 with real clicks: Move on a week that leaves Anjo\'s days out only asks (⚠🗽 Confirm, nothing sent), counted with its label', real.map((R) => [R.width, R.ask, R.askPosts]));
+    check(real.every((R) => R.day && R.day[0] === '⛔ 17:00' && R.day[1] === 'Daily limit' && R.dayWhy === 'Daily limit' && R.visit && R.visit[0] === '⛔ ↻' && R.visit[1] === 'New visit'),
+      'PIA-141 AC4 the PIA-140 locks on a week\'s button, at every width: ⛔ 17:00 (its tap says "Daily limit"), ⛔ ↻ at the visit\'s 8; nothing sent', real.map((R) => [R.width, R.day, R.dayWhy, R.visit]));
+    check(real.every((R) => R.widen.join() === '⟦◀,▶⟧' && R.widened.searchEnd === '2026-12-13' && R.widened.searchStart === '2026-11-13' && R.widened.departure === '2026-11-20' && R.widened.bars.indexOf('2026-11-28') >= 0 && R.o2.every((x) => x <= 0)),
+      'PIA-141 with real clicks: with no 📌, ⟦◀ ▶⟧ sit on the paging row; ▶⟧ saves ⟦11/13–12/13⟧ through the real Worker (the plan untouched) and the first new week (11/28) is on screen', real.map((R) => [R.width, R.widen, R.widened]));
+    check(real.every((R) => R.undated.length === 7 && R.undated.every((b) => b.wf === '⚠🌴🗽' && b.w >= 44) && R.undated[0].v === '2026-12-18' && R.o3.every((x) => x <= 0)),
+      'PIA-141 AC1 with real clicks: an undated idea\'s P-cheapest pages its 🌙4 weeks from 12/18, each ⚠🌴🗽, at every width', real.map((R) => [R.width, R.undated.length, R.undated[0] && R.undated[0].wf]));
+    check(real.every((R) => R.focus && R.focus[0] === 'cmove' && R.focus[1]),
+      'PIA-141 by keyboard, at every width: the focus that was on 🔍2 lands on Move once the week is priced (never on <body> inside the dialog)', real.map((R) => [R.width, R.focus]));
+    check(eq(r360.taps, ['Ashwin', 'Searches left']) && r360.tapPop === 'P-cheapest' && r360.warnTap === 'Leaves days out' && r360.stillAsks === true,
+      'PIA-141 nothing in P-cheapest looks like a dead control: a short tap on a face chip names it ("Ashwin"), on 🔍 26/30 "Searches left", on a left-out face\'s ⚠ "Leaves days out" (the confirm stays asked), each a counted label', { taps: r360.taps, warn: r360.warnTap, asks: r360.stillAsks });
+    check(real.every((R) => R.uPop === 'P-dates' && R.uMoved && R.uMoved.lock && !R.uMoved.mode && R.uMoved.save === 'No change' && /12\/18–12\/22/.test(R.uMoved.readout) && R.uSave === 0 && !/🗑/.test(R.uToast) &&
+      R.uRec && R.uRec.departure === '2026-12-18' && R.uRec.return === '2026-12-22'),
+      'PIA-141 with real clicks, at every width: Move on the undated idea (⚠🌴🗽 Confirm) dates it 12/18–12/22, and ‹ P-dates reads those dates in dates mode (🔒 there, no ⟦window⟧ toggle), its Save with no change to send; closing it says no 🗑', real.map((R) => [R.width, R.uPop, R.uMoved, R.uSave, R.uToast]));
+    check(r360.keys && ['cheapweek', 'weekcur', 'weekhollow', 'wcost', 'leaves', 'page', 'owndays', 'visit'].every((k) => r360.keys.indexOf(k) >= 0) && r360.keys2 && ['cheapest', 'weekfull'].every((k) => r360.keys2.indexOf(k) >= 0) && r360.keys3 && r360.keys3.indexOf('widen') >= 0,
+      'PIA-141 P-cheapest\'s ⓘ explains every glyph it draws (📉, the plan\'s outline, a hollow and a filled week, 🔍≤2, ⚠, ◀ ▶, ⟦◀ ▶⟧, ★, own days underlined, the visit\'s dots)', { k: r360.keys, k2: r360.keys2, k3: r360.keys3 });
+    // every walked organizer token phone: 📉 opens P-cheapest (counted, its bars ≤7 a page and ≥44px), or, greyed, names why
+    const opened = cheapLog.filter((x) => x.pid === 'P-cheapest'), greyed = cheapLog.filter((x) => x.why);
+    const badLay = opened.filter((x) => x.l0.bars.length > 7 || x.l0.bars.some((b) => b[0] < 44 || b[1] < 44) || x.l0.over > 0 || x.l0.pageOver > 0 || !x.l0.pagerBelow || x.back !== 'P-dates' || (x.l1 && (x.l1.bars.length > 7 || x.l1.bars.some((b) => b[0] < 44))));
+    const worst = opened.filter((x) => /^prices /.test(x.who));
+    check(opened.length >= 6 && badLay.length === 0 && worst.length === WIDTHS.length * 1 && worst.every((x) => x.l0.bars.length === 7 && x.l1 && /^🔍4\/\d+$/.test(x.cost || '')) &&
+      ['Dates locked', 'Nobody follows plan'].every((w) => greyed.some((x) => x.why === w)) && greyed.every((x) => x.pid === 'P-dates'),
+      'PIA-141 AC5 / AC6 on every organizer token phone and width, 📉 opens P-cheapest (≤7 bars a page, each ≥44px, the pager on its own row, no sideways scroll, ‹ back to P-dates; the worst case, 8 long names and four faces left out of every week, within 20 words, its hollow week 🔍4/n: the caps cut it short and say so), or, greyed, names why in a counted label ("Dates locked", "Nobody follows plan")',
+      { opened: opened.map((x) => x.who + ' ' + x.l0.bars.length + (x.cost ? ' ' + x.cost : '')), greyed: greyed.map((x) => x.who + ' ' + x.why), badLay: badLay.map((x) => x.who) });
   }
 
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');

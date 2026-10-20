@@ -595,7 +595,8 @@ function makeRooms(IdeaRoom, env, gate) {
       CLOCK -= 2 * 36e5;
     }
 
-    // A1: what one run may send. Only this trip's own legs (P-total's and each traveler's ±1 days: 15 here), never more than the
+    // A1: what one run may send. Only this trip's own legs (P-total's, each traveler's ±1 days and, PIA-141, the other candidate
+    // weeks of the cheapest week: 24 here), never more than the
     // control showed (n), ≤4 a tap, ≤8 a visit; the visit's count fails closed, so a reply whose X-Proxy-Cache the page cannot
     // read (an older deploy, a proxy, a dropped expose list) still counts and the 9th search never goes
     for (const strip of [false, true]) {
@@ -611,9 +612,44 @@ function makeRooms(IdeaRoom, env, gate) {
       const r2 = await c.api.runSearch(mine(c), { id: ID, n: 99 }); const n2 = sN() - s0; await settle(c);
       const r3 = await c.api.runSearch(mine(c), { id: ID, n: 99 }); const n3 = sN() - s0;
       await tap(c, { id: ID, v: 'total' }); await settle(c); const n4 = sN() - s0;
-      check(n0 === 0 && r0.asked === 0 && all.length === 15 && nn === 2 && n1 === 6 && n2 === 8 && n3 === 8 && n4 === 8 && r3.stop === 'session' && c.api.spentRead() === 8 && c.api.lockNow() === 'session' && serpCalls() - u0 === 8,
+      check(n0 === 0 && r0.asked === 0 && all.length === 24 && nn === 2 && n1 === 6 && n2 === 8 && n3 === 8 && n4 === 8 && r3.stop === 'session' && c.api.spentRead() === 8 && c.api.lockNow() === 'session' && serpCalls() - u0 === 8,
         'A1 app.html' + (strip ? ', X-Proxy-Cache unreadable' : '') + ': a run sends only this trip\'s own legs (10 others: 0), never more than its control showed (2), at most 4 a tap and 8 a visit' +
         (strip ? ' — the visit counts every reply that was not a readable HIT, so with the header gone it still stops at 8 (8 SerpAPI calls, never a 9th)' : ' (then the visit is locked: nothing more goes)'), { n0, nn, n1, n2, n3, n4, spent: c.api.spentRead(), all: all.length });
+    }
+
+    // A1, PIA-141: the cheapest week spends through the same gated path. A phone without the token (and a guest holding it) draws no
+    // week and sends nothing whatever is tapped; on the organizer's phone one week's 🔍, as P-cheapest draws it, sends exactly that
+    // week's legs (≤4, the model's own queries, the token in its header only); once the dates are 🔒 the same kind of keys are no
+    // longer this trip's to search (0 sent)
+    {
+      const env = spendEnv(), u0 = serpCalls();
+      const noTok = phone(env, { pialax_idea_keys_v1: keyRec, pialax_watchlist_v2: list, pialax_idea_me_v1: { [ID]: 'ashwin-p8' }, pialax_ui_v1: { v1read: 1 } });
+      const guest = phone(env, { pialax_proxy_token: TOKEN, pialax_watchlist_v2: list, pialax_idea_me_v1: { [ID]: 'anjo-z5' }, pialax_ui_v1: { v1read: 1 } });
+      const quiet = [];
+      for (const p of [noTok, guest]) {
+        await p.api.refreshAll(true);
+        const wk = TM.cheapCandidates(TM.tripModel(env.IDEAS.map.has('idea:' + ID) ? JSON.parse(env.IDEAS.map.get('idea:' + ID)) : doc, { today: today(), now: CLOCK, me: 'ashwin-p8', hasEditKey: true, hasToken: true }), {}, CLOCK, today()).find((x) => !x.current);
+        p.api.openSheet('cheap', { id: ID }); const h = p.api.SHEETS.cheap(p.api.S.sheet); p.api.closeSheet();
+        await tap(p, { id: ID, v: 'week', day: wk.s }); await p.api.runSearch(wk.need, { id: ID, n: 4 }); await settle(p);
+        quiet.push({ paid: p.paid().length, btn: /data-act="(search|cmove)"/.test(h), bars: /class="cbar/.test(h), dollars: /\$\d|\$—|\$∅/.test(h) });
+      }
+      const c = phone(env, ORG);
+      await c.api.refreshAll(true);
+      const sN = () => c.paid().filter((r) => r.path === '/search').length, s0 = sN();
+      const wk = TM.cheapCandidates(c.api.modelOf(ID), c.api.readFares(), CLOCK, today()).find((x) => !x.current);
+      c.api.openSheet('cheap', { id: ID }); c.api.S.sheet.local.sel = wk.s;
+      const drawnBtn = (/<button\b[^>]*\bdata-act="search"[^>]*data-v="week"[^>]*>/.exec(c.api.SHEETS.cheap(c.api.S.sheet)) || [''])[0], ds = {};
+      drawnBtn.replace(/\bdata-([a-z]+)="([^"]*)"/g, (_, k, v) => { ds[k] = v; return ''; });
+      await c.api.ACTS.search({ dataset: ds }); await settle(c);
+      const sent = c.paid().filter((r) => r.path === '/search').slice(s0);
+      const lockedDoc = JSON.parse(env.IDEAS.map.get('idea:' + ID)); lockedDoc.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+      env.IDEAS.map.set('idea:' + ID, JSON.stringify(lockedDoc));
+      await c.api.refreshAll(true);
+      const other = TM.cheapCandidates(TM.tripModel(lockedDoc, { today: today(), now: CLOCK, me: 'ashwin-p8', hasEditKey: true, hasToken: true }), c.api.readFares(), CLOCK, today()).find((x) => !x.current && x.s !== wk.s);
+      const s1 = sN(); await c.api.runSearch(other.need, { id: ID, n: 4 }); await settle(c);
+      check(quiet.every((q) => q.paid === 0 && !q.btn && !q.bars && !q.dollars) && ds.n === String(wk.need.length) && wk.need.length === 3 && sent.length === 3 &&
+        sent.every((r, i) => r.headers['X-Pialax-Token'] === TOKEN && r.url === W + '/search?' + TM.searchQuery(wk.need[i]) && r.url.indexOf(TOKEN) < 0) && c.api.modelOf(ID).locked && other.need.length === 3 && sN() === s1 && serpCalls() - u0 === 3,
+        'A1 app.html, PIA-141: the cheapest week spends only through the PIA-140 path: no token, or a guest holding one, draws no week, no $ and sends nothing; the organizer\'s drawn 🔍3 on one week sends exactly its 3 legs (the token in its header only); once the dates are 🔒 another week\'s legs are refused (0 sent)', { quiet, sent: sent.map((r) => r.url), n: ds.n });
     }
 
     // A1: the Worker's day cap (SERP_DAILY_CAP=1 here) → 429 daily_cap → locked until the next UTC day only; the month untouched
