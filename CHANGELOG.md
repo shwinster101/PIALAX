@@ -12,6 +12,12 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-143) — Map, pickups and destination previews (in `app.html`, still unlinked)
+- Map draws origin faces, routes, destination and alternate-airport pins from the selected trip. Its d3 7.9.0 and topojson 3.0.2 scripts use v1's exact SRI hashes. The world-atlas 2.0.2 data is verified with SHA-256 before parsing; the security gate checks its exact version and digest too. Faces, airport choices and pickups remain usable when any asset fails or its digest differs.
+- Every pickup chip opens that airport's day with names and recorded or explicitly marked cached flight times. The organizer can see the cheapest fresh cached pair landing within two hours, without spending a search. Overnight offers never appear as landing on the departure day. Alternate-pin airport choices write the shared arrival/departure fields, keeping links and pickups in agreement.
+- Organizers can preview another destination on chosen dates, see its real cached total and the exact search cost, then explicitly use it. Preview searches share the existing fare cache, 4-per-tap / 8-per-visit caps and daily/monthly locks. A preview changes no shared facts until Use; Use rechecks the fresh record. Locked, closed, past, undated or already-booked trips cannot spend on another destination. Guests and phones without the organizer token see no prices.
+- Adds model and browser coverage for map assets, failures, word budgets, touch targets, alternate airports, destination pricing, spend limits and stale previews. Calendar work and the full job-flow suite remain PIA-144 and PIA-145; v1 and the cutover remain unchanged.
+
 ### Fixed — v2 merge review
 - The Google Flights glyph fits inside its bordered 48px card button with wider emoji fonts; the tap target stays 48px. This fixes the card-fit browser assertion at 360px.
 

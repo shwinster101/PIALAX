@@ -25,6 +25,8 @@ const KEY2 = 'another-organizer-key-0123456789ABCDEFGHIJ';
 const TOKEN = 'org-token-0123456789abcdef';
 const ORIGIN = 'https://shwinster101.github.io';
 const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+const MAP_DATA = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
+const MAP_SCRIPTS = ['https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js'];
 const BASE = ORIGIN + '/PIALAX/app.html';
 
 let passCount = 0, failCount = 0;
@@ -222,23 +224,23 @@ function norm(doc) {
   const csp = (html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/g) || []);
   const cspv = csp.length === 1 ? /content="([^"]+)"/.exec(csp[0])[1] : '';
   const dir = (n) => { const m = new RegExp('(?:^|;)\\s*' + n + ' ([^;]+)').exec(cspv); return m ? m[1].trim() : null; };
-  check(csp.length === 1 && dir('default-src') === "'none'" && dir('connect-src') === W && dir('script-src') === "'unsafe-inline'" && dir('img-src') === 'data:' && !/unsafe-eval|\*/.test(cspv),
-    'one CSP meta: default-src none, scripts inline only, connect-src only the Worker, images only data:, no eval, no wildcards', cspv);
+  check(csp.length === 1 && dir('default-src') === "'none'" && dir('connect-src') === W + ' ' + MAP_DATA && dir('script-src') === "'unsafe-inline' " + MAP_SCRIPTS.join(' ') && dir('img-src') === 'data:' && !/unsafe-eval|\*/.test(cspv),
+    'PIA-143 CSP: only the Worker, exact pinned map-data URL and SRI script paths; data images, no eval or wildcards', cspv);
   {
     const { api } = loadApp();
-    check(Array.isArray(api.WORKER_OK) && eq(api.WORKER_OK.slice().sort(), String(dir('connect-src') || '').split(/\s+/).sort()),
-      'the Worker origins the app accepts (WORKER_OK) are exactly the CSP\'s connect-src list, so no accepted Worker URL is blocked', [api.WORKER_OK, dir('connect-src')]);
+    check(Array.isArray(api.WORKER_OK) && eq(api.WORKER_OK.slice().sort(), String(dir('connect-src') || '').split(/\s+/).filter((u) => u !== MAP_DATA).sort()),
+      'Worker origins match CSP network peers except the exact pinned map-data path', [api.WORKER_OK, dir('connect-src')]);
   }
   {
     const rs = html.slice(html.indexOf('function renderSheet('), html.indexOf('function setInert('));
     check(rs.indexOf('el.hidden = false') > 0 && rs.indexOf('el.hidden = false') < rs.indexOf('fitNames('), 'a sheet is shown before its names are fitted (a hidden sheet counts no words, so nothing would be dropped on a first open)');
   }
-  check(!/<script[^>]+src=|<link[^>]+rel=["']?stylesheet|@import|@font-face|url\(\s*["']?https?:/i.test(html) && (html.match(/<link /g) || []).length === 1 && /<link rel="icon" href="data:,">/.test(html),
-    'no external script, stylesheet, font or image (one data: favicon link only)');
+  check(!/<link[^>]+rel=["']?stylesheet|@import|@font-face|url\(\s*["']?https?:/i.test(html) && (html.match(/<link /g) || []).length === 1 && /<link rel="icon" href="data:,">/.test(html),
+    'no external stylesheet, font or image (one data: favicon link only)');
   check(/--font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto/.test(html) && !/fonts\.googleapis|woff2?/.test(html), 'system font stack only');
   check(/@media \(prefers-color-scheme: dark\) \{\s*:root:not\(\[data-theme="light"\]\) \{/.test(html) && /:root\[data-theme="dark"\] \{/.test(html) && /body \{[^}]*background: var\(--bg\)/.test(html),
     'light tokens on :root, dark tokens under prefers-color-scheme and [data-theme="dark"], and body has an explicit background');
-  check(!/console\.log/.test(html) && (html.match(/<script[ >]/g) || []).length === 1 && (html.match(/<\/script>/g) || []).length === 1, 'no console.log, one balanced <script> block');
+  check(!/console\.log/.test(html) && (html.match(/<script[ >]/g) || []).length === 3 && (html.match(/<\/script>/g) || []).length === 3, 'no console.log, three balanced script blocks (app plus two SRI libraries)');
 
   // ═══ AC10 (static) ═══
   section('AC10 no mock fares, estimators or seeded trips; PIA-140: the fare search lives in one gated place (paid)');
@@ -252,11 +254,11 @@ function norm(doc) {
     // PIA-140: fetch is called in exactly two places: api (the free /idea routes, never the token) and paid (GET /search and
     // /account only, the token in the X-Pialax-Token header only); no /extract or /alert route at all
     const fnBody = (name) => { const i = appPart.indexOf('function ' + name + '('), j = appPart.indexOf('\nfunction ', i + 10); return i >= 0 ? appPart.slice(i, j) : ''; };
-    const apiB = fnBody('api'), paidB = fnBody('paid'), rest = appPart.replace(apiB, '').replace(paidB, '');
-    check((appPart.match(/\bfetch\(/g) || []).length === 2 && /\bfetch\(/.test(apiB) && /\bfetch\(/.test(paidB) && !/['"`]\/(extract|alert)/.test(html) &&
+    const apiB = fnBody('api'), paidB = fnBody('paid'), mapB = fnBody('loadMap'), rest = appPart.replace(apiB, '').replace(paidB, '').replace(mapB, '');
+    check((appPart.match(/\bfetch\(/g) || []).length === 3 && /fetch\(MAP_URL,/.test(mapB) && /credentials: 'omit'/.test(mapB) && !/Token|token|workerBase|paid\(/.test(mapB) && /\bfetch\(/.test(apiB) && /\bfetch\(/.test(paidB) && !/['"`]\/(extract|alert)/.test(html) &&
       /path !== '\/search' && path !== '\/account'/.test(paidB) && (appPart.match(/X-Pialax-Token/g) || []).length === 1 && /X-Pialax-Token/.test(paidB) && !/X-Pialax-Token|pialax-token/i.test(apiB) &&
       !/['"`]\/search['"`]/.test(rest.replace(/paid\('\/search'/g, '')) && (rest.match(/paid\('\/(search|account)'/g) || []).length === 2,
-      'PIA-140 fetch is called in two places: api (the free /idea routes, no token) and paid (only GET /search and /account, the token in its header only); no /extract or /alert route; paid is called from the one search run and the /account sync only');
+      'PIA-143 map requests have no token; paid fetch remains gated in two places: api (the free /idea routes, no token) and paid (only GET /search and /account, the token in its header only); no /extract or /alert route; paid is called from the one search run and the /account sync only');
   }
 
   // ═══ AC7 router (pure) ═══
@@ -2804,15 +2806,15 @@ function norm(doc) {
     const mh = host.api.renderSelected('map', 'map').html;
     const guest = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'ashwin-p8' } }) });
     const mg = guest.api.renderSelected('map', 'map').html;
-    const chipRe = /<button class="pk arr" data-act="pickup" data-id="[^"]+" data-v="2026-11-05" data-code="anjo-z5" aria-label="Lands PIA 11\/5 at 15:10, booked, Anjo"[^>]*>[\s\S]*?<span class="t tn">15:10<\/span><span class="dp" data-k="tday" aria-hidden="true">☀<\/span><span class="pf" data-pic>🗽<\/span><span class="bk" data-k="booked" aria-hidden="true">🎫<\/span><\/button>/;
-    const depRe = /<button class="pk dep" data-act="pickup" data-id="[^"]+" data-v="2026-11-09" data-code="anjo-z5" aria-label="Leaves ORD 11\/9 at 18:05, booked, Anjo"[\s\S]*?18:05<\/span><span class="dp" data-k="tnight" aria-hidden="true">🌃<\/span>/;
+    const chipRe = /<button class="pk arr" data-act="pickup" data-id="[^"]+" data-ap="PIA" data-v="2026-11-05" data-code="anjo-z5" aria-label="Lands PIA 11\/5 at 15:10, booked, Anjo"[^>]*>[\s\S]*?<span class="t tn">15:10<\/span><span class="dp" data-k="tday" aria-hidden="true">☀<\/span><span class="pf" data-pic>🗽<\/span><span class="bk" data-k="booked" aria-hidden="true">🎫<\/span><\/button>/;
+    const depRe = /<button class="pk dep" data-act="pickup" data-id="[^"]+" data-ap="ORD" data-v="2026-11-09" data-code="anjo-z5" aria-label="Leaves ORD 11\/9 at 18:05, booked, Anjo"[\s\S]*?18:05<\/span><span class="dp" data-k="tnight" aria-hidden="true">🌃<\/span>/;
     check(chipRe.test(mh) && depRe.test(mh) && chipRe.test(mg) && depRe.test(mg) && /<b class="lc">PIA<\/b>/.test(mh) && /<b class="lc">ORD<\/b>/.test(mh) && mh.indexOf('$') < 0,
       'PIA-139 AC2 her times reach everyone\'s Map: the host\'s and a guest\'s pickup chips read →🛬 11/5 15:10☀ 🗽 under PIA and 🛫→ 11/9 18:05🌃 🗽 under ORD, each with its 🎫 corner (booked) and its half of the day (no price anywhere)');
     act(host, 'pickup', { id, v: '2026-11-05', code: 'anjo-z5' });
-    const pkPerson = host.api.S.sheet && host.api.S.sheet.type === 'person' && host.api.S.sheet.p.code === 'anjo-z5';
+    const pkPerson = host.api.S.sheet && host.api.S.sheet.type === 'day' && host.api.S.sheet.p.mapmode === true;
     host.api.closeSheet();
     act(host, 'pickup', { id, v: '2026-11-05' });
-    check(pkPerson && host.api.S.sheet && host.api.S.sheet.type === 'day' && host.api.S.sheet.p.date === '2026-11-05', 'a pickup chip of one traveler opens their sheet (who lands, when, where); a chip of several opens that day (P-day)');
+    check(pkPerson && host.api.S.sheet && host.api.S.sheet.type === 'day' && host.api.S.sheet.p.date === '2026-11-05', 'PIA-143 every pickup chip opens P-day map mode (who lands, when, where)');
     host.api.closeSheet();
     // her note still reads, and the organizer changes only her 🛫 for her (📞 kept as it reads)
     const mid = srv.read(id); mid.responses['anjo-z5'].note = '📞 ' + mid.responses['anjo-z5'].note; srv.write(mid);
@@ -4092,6 +4094,12 @@ function norm(doc) {
       ['<SCRIPT SRC="https://cdn.jsdelivr.net/npm/x@1/x.js"></SCRIPT>', 1, 'unpinned, upper case'], ['<script\n  src="https://cdn.jsdelivr.net/npm/x@1/x.js"></script>', 1, 'unpinned, split over lines'],
       ['<script src="' + D3 + '" integrity="sha512-AAAA"></script>', 1, 'a hash that is not the pinned one']];
     const wrong = cases.filter(([tag, want]) => runSri(tag) !== want).map((c) => c[2]);
+    const badMaps = [html.replace('world-atlas@2.0.2/countries-110m.json\';', 'world-atlas@2/countries-110m.json\';'), html.replace(/var MAP_SHA256 = '[^']+';/, "var MAP_SHA256 = '0000';")];
+    const mapFails = badMaps.map(body => {
+      const f = path.join(tmp, 'map.html'); fs.writeFileSync(f, body);
+      return require('child_process').spawnSync('bash', [path.join(ROOT, 'scripts', 'verify-sri.sh')], { encoding: 'utf8', env: Object.assign({}, process.env, { SRI_APP_ONLY: '1', SRI_APP_HTML: f }) }).status === 1;
+    });
+    check(mapFails.every(Boolean), 'PIA-143 SRI gate refuses a floating map-data version or changed map-data digest');
     fs.rmSync(tmp, { recursive: true, force: true });
     check(H.length > 40 && wrong.length === 0, 'verify-sri (app.html part, offline): ' + cases.map((c) => c[2] + (c[1] ? ' fails' : ' passes')).join('; '), wrong);
   }

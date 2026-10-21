@@ -41,7 +41,7 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const ROOT = path.resolve(process.argv[2] || path.join(__dirname, '..'));
-const APP_URL = 'file://' + path.join(ROOT, 'app.html');
+const APP_URL = process.env.PIALAX_TEST_APP_URL || 'file://' + path.join(ROOT, 'app.html');
 const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
 const NOW_ISO = '2026-10-17T19:00:00.000Z';
 const KEY = 'pialax-test-edit-key-0123456789abcdefghijk';
@@ -321,7 +321,7 @@ async function main() {
     const ctx = await browser.newContext({ viewport: { width: o.width || 360, height: 800 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, timezoneId: 'America/Los_Angeles', colorScheme: o.dark ? 'dark' : 'light' });
     const net = { mode: o.mode || 'ok', gets: 0, posts: 0, delay: o.delay || {}, kv: o.worker ? workerKV() : null, paid: [] };   // delay: {id: ms} holds that trip's answers
     if (net.kv && o.paid) Object.assign(net.kv.env, { PROXY_TOKEN: TOKEN, SERPAPI_KEY: 'serp-key' });   // PIA-140: the Worker's paid routes, for real
-    await ctx.route(/^https?:\/\//, (r) => { stray.push(r.request().url()); return r.abort(); });
+    await ctx.route(/^https?:\/\//, (r) => { const u = r.request().url(); if (u === APP_URL || u.startsWith(APP_URL + '?')) return r.continue(); if (/^https:\/\/(cdnjs.cloudflare.com\/ajax\/libs\/(d3\/7\.9\.0\/d3\.min\.js|topojson\/3\.0\.2\/topojson\.min\.js)|cdn.jsdelivr.net\/npm\/world-atlas@2\.0\.2\/countries-110m\.json)$/.test(u)) return r.abort(); stray.push(u); return r.abort(); });
     await ctx.route(W + '/**', async (route) => {
       const q = route.request(), u = new URL(q.url()), id = u.searchParams.get('id');
       const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key, X-Pialax-Token', 'access-control-expose-headers': 'X-Proxy-Cache, X-Fetched-At, X-SerpAPI-Status', 'content-type': 'application/json' };
@@ -2058,16 +2058,16 @@ async function main() {
     await keyCheck(page, 'Map › pickups'); await labelCheck(page, 'Map › pickups', 'booked-map');
     const corners = await page.$$eval('#screen .pk', (els) => els.filter((e) => e.querySelector('.bk')).length);
     await page.click('#screen .pk.arr'); await settle(page, 120);
-    const day = await popupId(page), dayWho = await page.evaluate(() => (document.querySelector('#sheet .pnm') || {}).textContent || '');
-    await measurePopup(page, 'Map › a pickup chip › that traveler\'s P-person');
+    const day = await popupId(page), dayWho = await page.evaluate(() => (document.querySelector('#sheet .mapday') || {}).textContent || '');
+    await measurePopup(page, 'Map › a pickup chip › P-day with names and times');
     await closeSheet(page);
     let multi = '';
     if (await page.$('#screen .pk:not([data-code])')) { await page.click('#screen .pk:not([data-code])'); await settle(page, 120); multi = await popupId(page); await measurePopup(page, 'Map › a chip of several › P-day'); await closeSheet(page); }
     check(bk.note === '🛬16:10 🛫18:05 Driving down from Chicago if flights are bad' && bk.booked && lanes.length === 1 && /^SAV: /.test(lanes[0]),
       'PIA-139 AC2 Bartholomew changes his 🛬 to 16:10 (his 🛫 18:05 and note kept); the Map\'s SAV lane shows everyone\'s chips with their times', { note: bk.note, lanes });
     check(lanes.length === 1 && ['16:10', '15:05', '15:40', '18:05', '20:00'].every((x) => lanes[0].indexOf(x) >= 0) && / ⏱0:35$/.test(lanes[0]) && /☀/.test(lanes[0]) && /🌃/.test(lanes[0]) && corners >= 5 &&
-      day === 'P-person' && /Bartholomew/.test(dayWho) && (multi === '' || multi === 'P-day'),
-      'PIA-139 AC2 the pickups read 16:10☀ on 12/10, then 15:05 and 15:40 on 12/11 (one ⏱ pickup run of 0:35), 18:05 and 20:00🌃 on the way home, every booked chip with its 🎫 corner; a chip of one traveler opens their sheet (a chip of several, P-day)', { lanes, corners, day, dayWho, multi });
+      day === 'P-day' && /Bartholomew/.test(dayWho) && /16:10/.test(dayWho) && (multi === '' || multi === 'P-day'),
+      'PIA-139 AC2 the pickups read 16:10☀ on 12/10, then 15:05 and 15:40 on 12/11 (one ⏱ pickup run of 0:35), 18:05 and 20:00🌃 on the way home, every booked chip with its 🎫 corner; every chip opens P-day map mode with the travelers and their times', { lanes, corners, day, dayWho, multi });
     await ctx.close();
   }
   {
