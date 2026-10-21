@@ -12,6 +12,9 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Fixed — v2 merge review
+- The Google Flights glyph fits inside its bordered 48px card button with wider emoji fonts; the tap target stays 48px. This fixes the card-fit browser assertion at 360px.
+
 ### Added (PIA-142) — Trips › Family: the people × trips board (in `app.html`, still not linked from anywhere)
 - **Who is coming to which idea, at a glance.** Trips › Family is a board: one row per person, merged across every trip on this phone by name (me first, 👋; two people of one name on a trip stay two rows), one column per trip in the cards' order. A v1 "Me" is my row when it is this phone; on anyone else's phone it is that trip's organizer, whom v1's family preset names by airport (P-migrate's own suggestion: "Me" at LAX is Ashwin), so it joins that person's row instead of showing as a nameless stranger (any other v1 "Me" is a row of its own, after the named ones). Each cell shows that person's answer on that trip as its own face shows it in the trip view (✓, ?, ⊘, ◌, and a host's unconfirmed default drawn outlined), with the same marks (⚠ and 🎫 or 🏠 in one corner, 📞 and 📝 in the other, on a chip that stays light in dark mode so a dark 📞 reads) and, under it, the day they set to arrive. Someone not on a trip is a faint dot.
 - **Who hosts, who is counted.** Each row's 🏠n is how many of this phone's trips that person hosts, past and planned (lives at the destination or a hub-pair drive away and has not said Out; dropped trips never), so the fairest next host shows at a glance; ⓘ and a long press call it "Hosted or hosting". Each column's foot is that trip's heads by headcount (Mom & Dad count 2), the same n/N as its card and its heads ring.
