@@ -1,0 +1,61 @@
+{
+  "search_metadata": {
+    "id": "6714f2a0c1e9d2b1a0fixture",
+    "status": "Success",
+    "json_endpoint": "https://serpapi.com/searches/6714f2a0c1e9d2b1a0fixture.json",
+    "created_at": "2026-10-17 19:00:00 UTC",
+    "processed_at": "2026-10-17 19:00:00 UTC",
+    "google_flights_url": "https://www.google.com/travel/flights?hl=en&gl=us&curr=USD&tfs=CBwQAhoeEgoyMDI2LTExLTIwagcIARIDTEFYcgcIARIDUElBQAFIAXABggELCP___________wGYAQI",
+    "raw_html_file": "https://serpapi.com/searches/6714f2a0c1e9d2b1a0fixture.html",
+    "prettify_html_file": "https://serpapi.com/searches/6714f2a0c1e9d2b1a0fixture.prettify",
+    "total_time_taken": 3.1
+  },
+  "search_parameters": { "engine": "google_flights", "hl": "en", "departure_id": "LAX", "arrival_id": "PIA", "outbound_date": "2026-11-20", "currency": "USD", "type": "2" },
+  "best_flights": [
+    {
+      "flights": [
+        { "departure_airport": { "name": "Los Angeles International Airport", "id": "LAX", "time": "2026-11-20 06:00" }, "arrival_airport": { "name": "Denver International Airport", "id": "DEN", "time": "2026-11-20 09:32" },
+          "duration": 152, "airplane": "Boeing 737MAX 9 Passenger", "airline": "United", "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png", "travel_class": "Economy", "flight_number": "UA 1234", "legroom": "30 in" },
+        { "departure_airport": { "name": "Denver International Airport", "id": "DEN", "time": "2026-11-20 10:40" }, "arrival_airport": { "name": "General Wayne A. Downing Peoria International Airport", "id": "PIA", "time": "2026-11-20 13:55" },
+          "duration": 135, "airplane": "Embraer 175", "airline": "United", "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png", "travel_class": "Economy", "flight_number": "UA 5678", "legroom": "31 in" }
+      ],
+      "layovers": [{ "duration": 68, "name": "Denver International Airport", "id": "DEN" }],
+      "total_duration": 355, "price": 318, "type": "One way", "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/UA.png"
+    }
+  ],
+  "other_flights": [
+    {
+      "flights": [
+        { "departure_airport": { "name": "Hollywood Burbank Airport", "id": "BUR", "time": "2026-11-20 7:15" }, "arrival_airport": { "name": "O'Hare International Airport", "id": "ORD", "time": "2026-11-20 13:20" },
+          "duration": 245, "airline": "American", "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/AA.png", "travel_class": "Economy", "flight_number": "AA 2210" },
+        { "departure_airport": { "name": "O'Hare International Airport", "id": "ORD", "time": "2026-11-20 14:30" }, "arrival_airport": { "name": "General Wayne A. Downing Peoria International Airport", "id": "PIA", "time": "2026-11-20 15:35" },
+          "duration": 65, "airline": "American", "airline_logo": "https://www.gstatic.com/flights/airline_logos/70px/AA.png", "travel_class": "Economy", "flight_number": "AA 3301" }
+      ],
+      "layovers": [{ "duration": 70, "name": "O'Hare International Airport", "id": "ORD" }],
+      "total_duration": 320, "price": 305, "type": "One way"
+    },
+    {
+      "flights": [
+        { "departure_airport": { "name": "Los Angeles International Airport", "id": "LAX", "time": "2026-11-20 08:05" }, "arrival_airport": { "name": "Dallas/Fort Worth International Airport", "id": "DFW", "time": "2026-11-20 13:10" },
+          "duration": 185, "airline": "American", "flight_number": "AA 118" },
+        { "departure_airport": { "name": "Dallas/Fort Worth International Airport", "id": "DFW", "time": "2026-11-20 14:25" }, "arrival_airport": { "name": "General Wayne A. Downing Peoria International Airport", "id": "PIA", "time": "2026-11-20 16:40" },
+          "duration": 135, "airline": "American", "flight_number": "AA 3550" }
+      ],
+      "layovers": [{ "duration": 75, "name": "Dallas/Fort Worth International Airport", "id": "DFW" }],
+      "total_duration": 395, "price": 341, "type": "One way"
+    },
+    {
+      "flights": [
+        { "departure_airport": { "name": "Los Angeles International Airport", "id": "LAX", "time": "2026-11-20 11:00" }, "arrival_airport": { "name": "Chicago Midway International Airport", "id": "MDW", "time": "2026-11-20 17:05" },
+          "duration": 245, "airline": "Southwest", "flight_number": "WN 902" },
+        { "departure_airport": { "name": "Chicago Midway International Airport", "id": "MDW", "time": "2026-11-20 18:00" }, "arrival_airport": { "name": "St. Louis Lambert International Airport", "id": "STL", "time": "2026-11-20 19:10" },
+          "duration": 70, "airline": "Southwest", "flight_number": "WN 1410" },
+        { "departure_airport": { "name": "St. Louis Lambert International Airport", "id": "STL", "time": "2026-11-20 20:00" }, "arrival_airport": { "name": "General Wayne A. Downing Peoria International Airport", "id": "PIA", "time": "2026-11-20 21:05" },
+          "duration": 65, "airline": "Southwest", "flight_number": "WN 77" }
+      ],
+      "layovers": [{ "duration": 55, "name": "Chicago Midway International Airport", "id": "MDW" }, { "duration": 50, "name": "St. Louis Lambert International Airport", "id": "STL" }],
+      "total_duration": 545, "price": 364, "type": "One way"
+    }
+  ],
+  "price_insights": { "lowest_price": 305, "price_level": "low", "typical_price_range": [330, 470], "price_history": [[1760659200, 352], [1760745600, 341], [1760832000, 318]] }
+}

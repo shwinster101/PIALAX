@@ -367,7 +367,10 @@ function legPlan(O, A, H, d1, d2, n) {
   if (A === H) return { trip: 1, adults: n, legs: [{ date: d1, from: O, to: [A] }, { date: d2, from: [A], to: O }] };
   return { trip: 3, adults: n, legs: [{ date: d1, from: O, to: [A] }, { date: d2, from: [H], to: O }] };
 }
-function fareKey(type, from, to, d, r, n) { return [type, from.join(','), to.join(','), d, r || '', n].join('|'); }
+/* PIA-140: a fare key names one search: its airports are a set, sorted and de-duplicated (the Worker's cache order), so the
+   key v1 caches a search under and the key this model prices it by are the same search */
+function codeSet(a) { return uniq([].concat(a || [])).sort().join(','); }
+function fareKey(type, from, to, d, r, n) { return [type, codeSet(from), codeSet(to), d, r || '', n].join('|'); }
 function legKeys(S, A, H, d1, d2, n) {
   if (A === H) return [{ kind: 'rt', key: fareKey(1, S, [A], d1, d2, n) }];
   return [{ kind: 'in', key: fareKey(2, S, [A], d1, '', n) }, { kind: 'out', key: fareKey(2, [H], S, d2, '', n) }];
@@ -514,6 +517,7 @@ function tripModel(doc, ctx) {
   var span = plan && win ? { s: minD(plan.s, win.s), e: maxD(plan.e, win.e) } : (win || plan);
   var others = (ctx.otherTrips || []).filter(function (od) { return od && od.id !== doc.id; });
   var rows = (I.members || []).filter(function (m) { return m && typeof m.code === 'string'; });
+  var times = answerTimes(doc);                                           // when each member last answered (PIA-135)
   // a label with no face (v1) reads with the hashed face of its name, moved on to the next free face if the trip
   // already shows it, so two tiles never share a face (the face is the primary identity)
   var shown = rows.map(function (m) { return splitLabel(m.label).face; }).filter(Boolean);
@@ -575,7 +579,7 @@ function tripModel(doc, ctx) {
       own1: own1, own2: own2, d1: hasDates ? d1 : '', d2: hasDates ? d2 : '', bad: bad, warn: warn, clash: clash,
       A: A, H: H, openJaw: A !== H, override: override, origin: originCode, O: O, from: from,
       traveler: traveler, booked: booked, called: note.called, arrTime: note.arr, depTime: note.dep, noteText: note.text,
-      link: link, why: why, keys: keys, at: (r && r.updated_at) || ''
+      link: link, why: why, keys: keys, at: (r && r.updated_at) || '', ansAt: (r && times[m.code]) || ''
     };
   });
   var travelers = members.filter(function (x) { return x.traveler; });
@@ -733,31 +737,99 @@ function windowRow(model, m, s, e, today) {
   var d1 = m.own1 || s, d2 = m.own2 || e, why = legWhy(model.dest, m.O, d1, d2, today, m.origin);
   return { code: m.code, color: m.color, why: why, keys: why ? [] : legKeys(m.from, m.A, m.H, d1, d2, m.headcount) };
 }
-/* cheapest-week candidates: each window is priced by priceRows, the same rule as priceTrip, from real cached fares
-   only. A bar is filled only when that total is complete; `missing` lists the legs still to search (missing or
-   stale), and `none` marks a window where a search found no fares. */
+/* ---- PIA-141: cheapest week on demand (D4) ----
+   The organizer asks for it (P-dates 📉 → P-cheapest), sees what pricing each week would cost, spends real searches through
+   the one spend path (spendable takes each week's legs) and moves the trip there in one tap. Every week is priced by
+   priceRows, the one rule priceTrip uses, from real cached fares only: a week nobody searched stays hollow, nothing is ever
+   estimated. Candidates keep the trip's length (the plan's nights, or 🌙N for an undated idea) and its 📌 day, fit the flex
+   window and start tomorrow at the earliest. Only plan-followers move with a week: an end someone set stays where it is (and
+   is priced as it is), and a booked traveler keeps the days they booked (organizerEdit writes their blank ends as their own
+   before the plan moves), so a booked flight is never searched here (it is bought: its cached price is the same in every week). */
+var WIDEN_DAYS = 7;   // ⟦◀ ▶⟧: the flex window grows a week a tap
+/* a traveler who moves with the plan: they travel, have not booked, and left at least one end blank */
+function followsPlan(m) { return !!m && m.traveler && !m.booked && (!m.own1 || !m.own2); }
+/* every candidate week: {s, e, current, missing (priceRows' legs not fresh: missing or a day old), need (what one 🔍 on this week
+   searches: those legs, never-searched first, none for a week that cannot be filled: a search found no fares, or someone cannot
+   be priced on it), filled (every leg fresh: total), priced (every leg has a real price, some maybe a day old: sum, grey), none,
+   blocked, per (each traveler's part: own days, booked, their sum), warn / warnCodes (the faces whose own days, or booked days,
+   that week would leave outside the plan: Move asks first), star (★ the cheapest filled week, once two are filled and one is
+   cheaper), bought (what the booked flights add to every week alike)} */
 function cheapCandidates(model, fares, now, today) {
-  var out = [];
-  candStarts(model.nights, model.win, model.pin, today).forEach(function (s) {
-    var e = addD(s, model.nights), warnFaces = [];
+  var out = [], L = model.nights, rows0 = model.travelers.filter(function (m) { return !m.booked; });
+  // a booked traveler's flight is bought and stays on their days whatever the week (organizerEdit pins them before a Move): its
+  // cached price, as P-total reads it, is the same in every week (never searched here, never what fills or greys a week). Every
+  // priced week adds it alike, so a week's total is the trip's whole cost (the plan's own week reads P-total's total) and the
+  // weeks, their bars and ★ still compare only what a Move changes
+  var bk = priceRows(model.travelers.filter(function (m) { return m.booked; }).map(priceRow), fares, now), bought = bk.total || 0;
+  candStarts(L, model.win, model.pin, today).forEach(function (s) {
+    var e = addD(s, L), warn = [], codes = [];
     model.members.forEach(function (m) {
-      if (m.answered && ((m.own1 && (m.own1 < s || m.own1 > e)) || (m.own2 && (m.own2 < s || m.own2 > e)))) warnFaces.push(m.face);
+      if (m.host || !m.answered) return;
+      var held = m.booked && !!m.d1 && !m.bad, a = held ? m.d1 : m.own1, b = held ? m.d2 : m.own2;
+      if ((a && (a < s || a > e)) || (b && (b < s || b > e))) { warn.push(m.face); codes.push(m.code); }
     });
-    var pr = priceRows(model.travelers.map(function (m) { return windowRow(model, m, s, e, today); }), fares, now);
+    var pr = priceRows(rows0.map(function (m) { return windowRow(model, m, s, e, today); }), fares, now);
+    var priced = rows0.length > 0 && !pr.blocked.length && Object.keys(pr.per).every(function (c) { return pr.per[c].legs.every(function (l) { return l.p != null; }); });
     var per = model.travelers.map(function (m) {
-      var p = pr.per[m.code];
-      return { code: m.code, face: m.face, color: m.color, sum: p.sum, complete: p.complete, stale: p.stale, own: !!(m.own1 || m.own2) };
+      var p = pr.per[m.code], q = p || bk.per[m.code];   // (q: a booked traveler's part, from their own cached legs)
+      return { code: m.code, face: m.face, color: m.color, own: !!(m.own1 || m.own2), booked: !p,
+        sum: q ? q.sum : null, hollow: q ? q.hollow : false, stale: q ? q.stale : false, complete: q ? q.complete : false,
+        none: !!q && q.legs.some(function (l) { return l.st === 'none'; }) };
     });
-    out.push({ s: s, e: e, missing: pr.search, filled: pr.complete, none: pr.none, total: pr.complete ? pr.total : null, price: pr,
-      per: per, warn: warnFaces, current: !!(model.plan && model.plan.s === s && model.plan.e === e) });
+    out.push({ s: s, e: e, missing: pr.search, need: pr.none || pr.blocked.length ? [] : spendKeys(pr.search, fares, now, today),
+      filled: pr.complete, priced: priced, stale: priced && !pr.complete, none: pr.none, blocked: pr.blocked,
+      total: pr.complete ? pr.total + bought : null, sum: priced ? pr.total + bought : null, bought: bought, price: pr,
+      per: per, warn: warn, warnCodes: codes, current: !!(model.plan && model.plan.s === s && model.plan.e === e) });
   });
-  var filledBars = out.filter(function (c) { return c.filled; });
-  if (filledBars.length >= 2) { var min = Math.min.apply(null, filledBars.map(function (c) { return c.total; })); filledBars.forEach(function (c) { if (c.total === min) c.star = true; }); }
+  // ★ the cheapest, once two weeks are filled and one is cheaper than another (equal totals have no cheapest), as endPrices
+  var filledBars = out.filter(function (c) { return c.filled; }), ts = filledBars.map(function (c) { return c.total; });
+  if (filledBars.length >= 2 && Math.min.apply(null, ts) < Math.max.apply(null, ts)) {
+    var min = Math.min.apply(null, ts); filledBars.forEach(function (c) { if (c.total === min) c.star = true; });
+  }
   return out;
 }
-/* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone;
-   with showPredicted (the organizer's token phone) a not-yet-booked arrival shows the cheapest cached offer's time,
-   from any cached search (fresh or stale; `now` is unused, kept so every fare reader takes the same arguments). */
+/* why P-dates' 📉 cannot open P-cheapest ('' it can): 'org' (not the organizer's phone), 'token' (no token here: no $ at all),
+   'legacy' (P-migrate first), 'closed' (paid or dropped), 'past' (the trip is over), 'locked' (🔓 first: Move is never offered
+   while the dates are 🔒), 'nodest' (no place to price), 'nights' (no length: an undated idea with no 🌙), 'window' (an undated
+   idea with no ⟦window⟧), 'nobody' (nobody follows the plan: everyone set both ends, or booked), 'unpriced' (someone still to
+   book has no airport to fly from, so no week could ever be complete), 'noweek' (no week fits, even a week wider either side) */
+function cheapWhy(model, today) {
+  if (!model || !model.org) return 'org';
+  if (!model.prices) return 'token';
+  if (model.legacy) return 'legacy';
+  if (model.closed) return 'closed';
+  if (model.past) return 'past';
+  if (model.locked) return 'locked';
+  if (!model.dest) return 'nodest';
+  if (!model.nights) return 'nights';
+  if (!model.win) return 'window';
+  if (!model.travelers.some(followsPlan)) return 'nobody';
+  if (model.travelers.some(function (m) { return !m.booked && (m.why === 'noairport' || m.why === 'local'); })) return 'unpriced';
+  var w = model.win, wide = { s: addD(w.s, -WIDEN_DAYS), e: addD(w.e, WIDEN_DAYS) };
+  if (!candStarts(model.nights, w, model.pin, today).length && !candStarts(model.nights, wide, model.pin, today).length) return 'noweek';
+  return '';
+}
+/* ⟦◀ (k < 0) or ▶⟧ (k > 0): the flex window a week wider on that side, or null when that adds no candidate week (the 📌 day or
+   tomorrow already bounds it) */
+function widenWin(model, k, today) {
+  var w = model && model.win; if (!w || !k || !model.nights) return null;
+  var nw = { s: k < 0 ? addD(w.s, -WIDEN_DAYS) : w.s, e: k > 0 ? addD(w.e, WIDEN_DAYS) : w.e };
+  return candStarts(model.nights, nw, model.pin, today).join() !== candStarts(model.nights, w, model.pin, today).join() ? nw : null;
+}
+/* the organizer edits P-cheapest makes (organizerEdit deltas): the wider window saved as the trip's ⟦window⟧ (its plan, 📌 and 🌙
+   untouched), and Move: the week as the plan, its 📌 kept (planDelta, the same write as P-dates' Save) */
+function widenDelta(w) { return { dates: { searchStart: w.s, searchEnd: w.e } }; }
+function moveDelta(model, c) { return planDelta(c.s, c.e, model.pin); }
+/* PIA-139: a cached offer's landing time as 'HH:MM', from 'HH:MM' or a 'YYYY-MM-DD HH:MM' stamp; anything else (a
+   malformed or hostile value in the fare cache) is no time at all, so it can never reach a chip, its markup or a ⏱ run */
+function cachedTime(v) {
+  var m = typeof v === 'string' ? /^(?:\d{4}-\d{2}-\d{2}[ T])?(\d{2}:\d{2})$/.exec(v) : null;
+  return m && HHMM_RE.test(m[1]) ? m[1] : '';
+}
+/* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone, while
+   that traveler is booked; with showPredicted (the organizer's token phone) an arrival with no recorded time shows the
+   cheapest cached offer's time (cachedTime), from any cached search (fresh or stale; `now` is unused, kept so every
+   fare reader takes the same arguments). Chips merge only with chips of the same kind, day, maybe and 🎫. */
 function pickups(model, fares, now, showPredicted) {
   var lanes = {};
   if (!model.dest) return lanes;
@@ -766,17 +838,18 @@ function pickups(model, fares, now, showPredicted) {
     if (!m.answered || !m.d1 || m.bad) return;
     var inKey = m.keys[0] && m.keys[0].key, f = inKey && fares && hasOwn(fares, inKey) ? fares[inKey] : null;
     var offer = f && f.off && f.off[0] ? f.off[0] : null;
-    var predicted = (model.prices || showPredicted) && f ? (f.ar || (offer && offer.ar) || '') : '';  // any cached offer, fresh or stale
-    var arrT = m.arrTime || predicted;
-    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !m.arrTime && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
-    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: m.depTime, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    var predicted = (model.prices || showPredicted) && f ? cachedTime(f.ar || (offer && offer.ar)) : '';  // any cached offer, fresh or stale
+    // PIA-139: a recorded time is a firm pickup only while its traveler is booked (a 🎫 taken back leaves none behind)
+    var arrT = (m.booked && m.arrTime) || predicted, depT = m.booked ? m.depTime : '';
+    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: depT, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
   });
   Object.keys(lanes).forEach(function (a) {
     var L = lanes[a], merged = [];
     L.sort(function (x, y) { return (x.date + (x.time || '99') + x.kind).localeCompare(y.date + (y.time || '99') + y.kind); });
     L.forEach(function (c) {
       var p = merged[merged.length - 1];
-      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
+      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe && p.booked === c.booked) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
       else merged.push(c);
     });
     // ⏱ one pickup run: arrivals at one airport on one day, chained ≤ 2h apart
@@ -835,13 +908,14 @@ function icsText(ev) {
    reversed ⚠ range gets the plan, so a reversed pair never becomes an event. Tentative ('? ' and STATUS:TENTATIVE)
    until the days are set: 🔒 (a legacy 🔒 reads as proposed), my own 🎫 on my own days, or 🏁 Done (every
    traveler booked, or 💵). The only link inside is the guest /i/<id> link. Both the Google TEMPLATE link and the
-   .ics text come from the same event. null when there are no days (an undated idea), the days are over, or the
-   trip is dropped (🗑). ctx = {today, now, worker}. */
+   .ics text come from the same event. null when the trip has no plan (an undated idea, even for someone who set
+   their own window: PIA-139, a window is not trip days), the days are over, or the trip is dropped (🗑).
+   ctx = {today, now, worker}. */
 function calendarAdd(model, ctx) {
   ctx = ctx || {};
   if (!isIso(ctx.today)) throw new Error('calendarAdd: ctx.today must be a YYYY-MM-DD day');
   if (typeof ctx.now !== 'number' || !isFinite(ctx.now)) throw new Error('calendarAdd: ctx.now must be epoch milliseconds');
-  if (model.decision === 'dropped') return null;
+  if (model.decision === 'dropped' || !model.plan) return null;
   var me = model.me, plan = model.plan, own = !!(me && me.traveler && !me.bad && me.d1 && me.d2);
   var d1 = own ? me.d1 : plan ? plan.s : '', d2 = own ? me.d2 : plan ? plan.e : '';
   if (!d1 || !d2 || d1 > d2 || d2 < ctx.today) return null;
@@ -969,13 +1043,23 @@ function faceOf(f) { return typeof f === 'string' && f && splitLabel(f).face ===
 /* members for a write: existing codes are kept as they are (answers hang off them); new rows get fresh codes.
    Every label written is '<face> <name>' and never reads as legacy (docLegacy): a row with no face gets an
    auto-assigned one, and a blank name or the v1 word 'Me' builds nothing (the screen asks for a real name). A kept
-   row's label is resent verbatim when it already starts with a face. */
+   row's label is resent verbatim when it already starts with a face. PIA-136: faces are unique within the trip. A
+   member resent as it is (its code alone, with a face already on its label) is KEPT: its label goes back verbatim
+   whatever it holds, and its face is reserved before any other row is built, wherever it sits in the list. Any
+   other row (new, renamed, re-faced) whose face a kept member or an earlier row already has gets a free one (a
+   nameless face-only label, which has nothing to rebuild its label from, is the only exception). So nobody else's
+   face is ever rewritten by an edit that does not touch them. */
 function buildMembers(list, prev, rand) {
   if (!Array.isArray(list) || !list.length || list.length > IDEA_MAX_MEMBERS) return null;
   var byCode = {}; (prev || []).forEach(function (m) { if (m) byCode[m.code] = m; });
   var taken = list.map(function (e) { return e && e.code; }).filter(function (c) { return typeof c === 'string' && MEMBER_CODE_RE.test(c); }).concat((prev || []).map(function (m) { return m && m.code; }));
-  var faces = [], out = [];
+  var faces = [], out = [], used = [];
   list.forEach(function (e) { var f = e && (faceOf(e.face) || splitLabel(e.label || (byCode[e.code] || {}).label).face); if (f) faces.push(f); });
+  var kept = list.map(function (e) {
+    var base = e && typeof e.code === 'string' && byCode[e.code];
+    return !!base && !hasOwn(e, 'name') && !hasOwn(e, 'face') && !hasOwn(e, 'label') && typeof base.label === 'string' && !!splitLabel(base.label).face;
+  });
+  list.forEach(function (e, k) { if (kept[k]) used.push(splitLabel(byCode[e.code].label).face); });
   for (var i = 0; i < list.length; i++) {
     var e = list[i] || {}, base = (typeof e.code === 'string' && byCode[e.code]) || null;
     var code = typeof e.code === 'string' && MEMBER_CODE_RE.test(e.code) ? e.code : null;
@@ -987,14 +1071,16 @@ function buildMembers(list, prev, rand) {
     else if (base) { raw = typeof base.label === 'string' ? base.label : ''; lab = splitLabel(raw); }
     else lab = { face: null, name: '' };
     if (isMeLabel(lab.name)) return null;
-    var label;
-    if (raw && lab.face && (lab.name || base)) label = raw;   // already '<face> <name>' (an existing face-only row stays)
+    var label, dup = !kept[i] && !!lab.face && used.indexOf(lab.face) >= 0;
+    if (kept[i]) label = raw;                                                          // as it is on the trip
+    else if (raw && lab.face && (lab.name || base) && (!dup || !lab.name)) label = raw;   // already '<face> <name>' (an existing face-only row stays)
     else {
       if (!lab.name) return null;
-      var face = lab.face;
-      if (!face) { face = autoFace(normName(lab.name), faces); faces.push(face); }
+      var face = dup ? null : lab.face;
+      if (!face) { face = autoFace(normName(lab.name), faces.concat(used)); faces.push(face); }
       label = memberLabel(face, lab.name);
     }
+    if (!kept[i]) used.push(splitLabel(label).face);
     if (!code) { code = memberCode(lab.name, taken, rand); if (!code) return null; taken.push(code); }
     var hc = hasOwn(e, 'headcount') ? +e.headcount : (base ? +base.headcount : 1);
     out.push({ code: code, label: label, airport: normIata(hasOwn(e, 'airport') ? e.airport : (base && base.airport)), headcount: Math.max(1, Math.min(9, Math.round(hc) || 1)) });
@@ -1067,8 +1153,10 @@ function respondRequest(doc, code, patch, opts) {
   var arr = has('arrTime') ? patch.arrTime || '' : n.arr, dep = has('depTime') ? patch.depTime || '' : n.dep;
   if ((arr && !HHMM_RE.test(arr)) || (dep && !HHMM_RE.test(dep))) return null;
   var called = opts.by === 'self' ? false : opts.by === 'proxy' ? true : n.called;
-  var body = { member: code, status: status, origin: origin, available_from: from, available_to: to,
-    note: buildRespNote(called, arr, dep, has('note') ? typedNote(patch.note) : n.text) };
+  var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text);
+  // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing
+  if ((has('arrTime') || has('depTime')) && parseRespNote(note).text !== String(text || '').trim()) return null;
+  var body = { member: code, status: status, origin: origin, available_from: from, available_to: to, note: note };
   var hub = hubPair(docDest(doc));
   var bad = ['arrive_at', 'leave_from'].some(function (k) {
     if (!has(k)) return false;
@@ -1081,7 +1169,10 @@ function respondRequest(doc, code, patch, opts) {
   return bad ? null : { method: 'POST', path: reqPath('/idea/respond', doc.id), body: body };
 }
 /* POST /idea/booked, preceded by a complete 'in' answer when the member has none (the Worker's answer_first).
-   Unbooking someone with no in/maybe answer builds nothing (the Worker would answer 400 answer_first). */
+   Unbooking someone with no in/maybe answer builds nothing (the Worker would answer 400 answer_first).
+   PIA-139: taking a 🎫 back clears the booked times that went with it (🛬 / 🛫), in one complete answer sent first (the
+   Worker keeps the 🎫 through it), so no phone shows a pickup for a flight that is no longer booked; their own write
+   clears 📞 as their own answer does, the organizer's keeps it as it reads. */
 function bookedRequests(doc, code, booked, opts) {
   if (!memberOf(doc, code) || !doc.id || (doc.decision && doc.decision.stage === 'dropped')) return null;
   var r = validResp(doc.responses && doc.responses[code]), out = [];
@@ -1091,6 +1182,11 @@ function bookedRequests(doc, code, booked, opts) {
     var first = respondRequest(doc, code, { status: 'in' }, opts);
     if (!first) return null;
     out.push(first);
+  }
+  var had = parseRespNote(r && r.note);
+  if (!booked && r.booked && (had.arr || had.dep)) {
+    var clear = respondRequest(doc, code, { arrTime: '', depTime: '' }, { by: opts && opts.by === 'self' ? 'self' : 'keep' });
+    if (clear) out.push(clear);
   }
   out.push({ method: 'POST', path: reqPath('/idea/booked', doc.id), body: { member: code, booked: !!booked } });
   return out;
@@ -1184,11 +1280,37 @@ function airportSyncRequests(fresh, idea) {
    4. a decision that closes the trip (dropped, or 💵 booked) goes in its own update after them, because the
       Worker refuses answers on a closed trip.
    On a trip that is already closed the Worker takes no answers, so an edit that would need step 1, or step 3
-   without this very update reopening the trip, builds nothing: reopen first, then edit. */
+   without this very update reopening the trip, builds nothing: reopen first, then edit.
+   PIA-136 opts.owed = {base, codes}: the airport-sync answers an earlier edit still owes (its update landed, these
+   answers did not). They are rebuilt here against the record as it is now, with base (the record that earlier edit
+   started from) as the old side, so a member's flights follow the move they really made; they ride the next idea
+   edit (replacing that edit's own answer for the same member), or go alone when the delta is empty. A closed trip
+   takes no answers, so on one they are not sent. */
+function owedSync(fresh, responses, decision, idea, owed) {
+  var old = { id: fresh.id, idea: owed.base.idea, responses: responses || {}, decision: decision };
+  return airportSyncRequests(old, idea).filter(function (q) { return owed.codes.indexOf(q.body.member) >= 0; });
+}
 function organizerEdit(fresh, editKey, delta, opts) {
-  delta = delta || {};
+  delta = delta || {}; opts = opts || {};
+  var owed = opts.owed && opts.owed.base && opts.owed.base.idea && Array.isArray(opts.owed.codes) ? opts.owed : null;
   var ideaEdit = IDEA_DELTA_KEYS.some(function (k) { return hasOwn(delta, k); });
+  if (datesHeld(fresh, delta)) return null;   // PIA-138: locked or closed dates never move from a phone that has not seen it
+  if (!ideaEdit && !delta.decision) {   // nothing to change: only what an earlier edit still owes
+    if (!owed || !fresh || !fresh.id || !fresh.idea || docClosed(fresh)) return null;
+    var only = owedSync(fresh, fresh.responses, fresh.decision, fresh.idea, owed);
+    return only.length ? only : null;
+  }
   var dst = delta.decision && delta.decision.stage, closes = dst === 'booked' || dst === 'dropped';
+  // PIA-139: 💵 paid on an open trip goes only once every traveler on the fresh record has booked; on a trip whose dates
+  // were never 🔒 (or were unlocked since), the plan is chosen first, because the Worker's booked needs a choice
+  if (dst === 'booked' && !docClosed(fresh)) {
+    if (paidHeld(fresh)) return null;
+    if (!ideaEdit && !(fresh.decision && fresh.decision.chosen)) {
+      var ch = updateRequest(fresh, editKey, { decision: { stage: 'chosen' } }, opts);
+      var bk = ch && updateRequest(Object.assign({}, fresh, { decision: ch.body.decision }), editKey, { decision: delta.decision }, opts);
+      return bk ? [ch, bk] : null;
+    }
+  }
   if (ideaEdit && closes && !docClosed(fresh)) {
     var tail = updateRequest(fresh, editKey, { decision: delta.decision }, opts);
     var rest = {}; Object.keys(delta).forEach(function (k) { if (k !== 'decision') rest[k] = delta[k]; });
@@ -1215,6 +1337,10 @@ function organizerEdit(fresh, editKey, delta, opts) {
   });
   // the sync answers resend dates too, so they start from the answers as they stand after step 1
   var after = airportSyncRequests({ id: fresh.id, idea: fresh.idea, responses: pinned, decision: open }, up.body.idea);
+  if (owed && (!closed || reopens)) {
+    var ows = owedSync(fresh, pinned, open, up.body.idea, owed);
+    after = after.filter(function (q) { return !ows.some(function (o) { return o.body.member === q.body.member; }); }).concat(ows);
+  }
   if (closed && (before.length || (after.length && !reopens))) return null;
   return before.concat([up], after);
 }
@@ -1260,6 +1386,865 @@ function migrateRequests(fresh, editKey, choice) {
   });
   return out;
 }
+
+/* ---- the shared watchlist (PIA-135): new answers, what needs me, list links, groups, book-by, the US map ---- */
+var LIST_LINK_MAX = 20;                                                  // trips one list link carries
+/* when each member last answered: the newest 'rsvp:' log entry by that member, or the answer's own updated_at when
+   the log no longer holds it (the Worker keeps its last 50 entries). Both are the Worker's ISO times. */
+function answerTimes(doc) {
+  var out = Object.create(null), R = (doc && doc.responses) || {};
+  var put = function (code, at) { if (typeof code === 'string' && MEMBER_CODE_RE.test(code) && typeof at === 'string' && at && (!out[code] || at > out[code])) out[code] = at; };
+  ((doc && doc.log) || []).forEach(function (l) { if (l && /^rsvp:/.test(String(l.event || ''))) put(l.by, l.at); });
+  Object.keys(R).forEach(function (c) { var r = validResp(R[c]); if (r) put(c, r.updated_at); });
+  return out;
+}
+/* the newest answer on the trip: what "seen" records (pialax_idea_seen_v1, v1's format: never older than v1's own
+   newest-rsvp-log rule, so v1 reads the same trip as seen too) */
+function newestAnswerAt(doc) { var t = answerTimes(doc), last = ''; Object.keys(t).forEach(function (c) { if (t[c] > last) last = t[c]; }); return last; }
+/* faces with an answer that arrived since my last look (seenAt), never my own; only on a trip I am in, off the shelf */
+function newAnswers(model, seenAt) {
+  if (!model || !model.me || model.shelf) return [];
+  var s = typeof seenAt === 'string' ? seenAt : '';
+  return model.members.filter(function (x) { return x.code !== model.me.code && !!x.resp && !!x.ansAt && x.ansAt > s; }).map(function (x) { return x.code; });
+}
+/* a trip still waiting on my own answer (a host's default In is not an answer yet) */
+function awaitsMe(model) {
+  var me = model && model.me;
+  return !!(me && !model.shelf && !model.closed && (me.status === 'waiting' || me.status === 'host-default'));
+}
+/* the book-by cue: the days to go, in red, only when it matters (the organizer, or a traveler who answered and has
+   not booked) and the book-by day (departure − 21) has passed with travelers unbooked; else null */
+function bookByCue(model) {
+  var me = model && model.me;
+  if (!model || !model.plan || model.shelf || !model.bookByPassed || model.daysTo == null || model.daysTo < 0) return null;
+  return model.org || !!(me && me.traveler && me.answered && !me.booked) ? model.daysTo : null;
+}
+/* the card's days to go (⏳N), on every upcoming dated trip off the shelf, for everyone. frac is the book-by arc
+   under it: the share of the days left that still come before the book-by day, (days to book-by) / (days to go),
+   so it empties as book-by nears and is empty once it has passed; null once every traveler has booked (nothing
+   left to book). late = the red cue (bookByCue: book-by passed, and it matters to this phone). null without a
+   plan, on the shelf, or once the trip has begun. */
+function togoCue(model) {
+  if (!model || !model.plan || model.shelf || model.daysTo == null || model.daysTo < 0) return null;
+  var open = model.travelers.some(function (x) { return !x.booked; });
+  var frac = !open ? null : model.daysTo > 0 ? Math.round(Math.max(0, Math.min(1, model.bookByLeft / model.daysTo)) * 1000) / 1000 : 0;
+  return { days: model.daysTo, frac: frac, late: bookByCue(model) != null };
+}
+/* trips grouped by who is in them: two trips share a group when they share anyone but me (a chain joins them).
+   Most trips first, then the group whose first trip comes first in the list. A trip with nobody else is in none.
+   Each group: {ids, people (normalized names), faces, names (short names, for a screen reader), first}. */
+function tripGroups(models, mine) {
+  var groups = [], order = {};
+  (models || []).forEach(function (m, i) {
+    if (!m) return;
+    order[m.id] = i;
+    var others = m.members.filter(function (x) { return x.norm && x.norm !== mine && !(m.me && x.code === m.me.code); });
+    if (!others.length) return;
+    var hit = groups.filter(function (g) { return others.some(function (x) { return g.people.indexOf(x.norm) >= 0; }); });
+    var g = { ids: [], people: [], faces: [], names: [] };
+    var add = function (norm, face, name) { if (g.people.indexOf(norm) < 0) { g.people.push(norm); g.faces.push(face); g.names.push(name); } };
+    hit.forEach(function (h) { g.ids = g.ids.concat(h.ids); h.people.forEach(function (n, k) { add(n, h.faces[k], h.names[k]); }); });
+    groups = groups.filter(function (x) { return hit.indexOf(x) < 0; });
+    g.ids.push(m.id);
+    others.forEach(function (x) { add(x.norm, x.face, x.short || x.one || x.name); });
+    groups.push(g);
+  });
+  groups.forEach(function (g) { g.ids.sort(function (a, b) { return order[a] - order[b]; }); g.first = order[g.ids[0]]; });
+  return groups.sort(function (a, b) { return b.ids.length - a.ids.length || a.first - b.first; });
+}
+/* PIA-142: Trips › Family, the people × trips board, read from the trips' own models (one tripModel per trip: the very
+   objects the cards and the trip views draw), so a cell can never say anything that trip's card or view does not.
+   models: the trips this phone lists that have been read, in the order the screens show them (the cards', then the
+   shelf's); o = {past: 🗄 adds the shelf's trips as columns (hosting history), name: who this phone is when no trip
+   shown says so (its profile name)}.
+   • cols: the trips off the shelf, then, with o.past, the shelf's; never a dropped trip (it never happened). They are the
+     models themselves, so a column's heads are that trip's own headsIn / heads (by headcount: Mom & Dad count 2).
+   • rows: one per person, merged across the columns by normalized name. The k-th member of a name on one trip joins the
+     k-th of that name on another, so two "Sam Lee"s on one trip stay two rows. A v1 'Me' (no name) is my row when it is
+     this phone's own face there; on any other phone it is that trip's organizer, whom v1's own family preset names by
+     airport (P-migrate's suggestion: 'Me' at LAX is Ashwin), so it joins that person's row when they are on the board by
+     name already (and not on its own trip by name); any other v1 'Me' is a row of its own, after the named rows. Me first
+     (who this phone is on a trip shown, else on any trip given, else o.name), then as they first appear. Each row: {key,
+     norm, name, short, one, face, color (of the first named appearance), headcount (the largest), me, hosted, cells},
+     with cells[i] = that trip's own member (answer, marks, own days: all the model's) or null (not on that trip).
+   • hosted: how many of the trips given (shown or not, a dropped one never) this person hosts, past and planned: a host
+     by airport who has not said Out. 🏠n on their row, the fairest next host at a glance. */
+function familyBoard(models, o) {
+  o = o || {};
+  var real = (models || []).filter(function (m) { return m && m.members && m.decision !== 'dropped'; });
+  var cols = real.filter(function (m) { return !m.shelf; }).concat(o.past ? real.filter(function (m) { return m.shelf; }) : []);
+  var keysOf = function (m) {
+    var n = {};
+    return m.members.map(function (x) {
+      if (!x.norm) return '#' + m.id + '|' + x.code;
+      n[x.norm] = (n[x.norm] || 0) + 1;
+      return n[x.norm] > 1 ? x.norm + '#' + n[x.norm] : x.norm;
+    });
+  };
+  var keys = real.map(keysOf), order = cols.concat(real), mine = '';
+  order.forEach(function (m) { if (!mine && m.me && m.me.norm) mine = keys[real.indexOf(m)][m.members.indexOf(m.me)] || ''; });
+  if (!mine && o.name) mine = normName(o.name);
+  // a v1 'Me' this phone is joins my own row (it is me, named or not); the first one is me when nothing else says who I am
+  order.forEach(function (m) {
+    var t = real.indexOf(m), i = m.me && !m.me.norm ? m.members.indexOf(m.me) : -1;
+    if (i < 0) return;
+    if (!mine) mine = keys[t][i];
+    else if (keys[t].indexOf(mine) < 0) keys[t][i] = mine;
+  });
+  // anyone else's v1 'Me': the family preset's person at its airport, when that person has a named row on the board
+  var named = {};
+  cols.forEach(function (m) { var t = real.indexOf(m); m.members.forEach(function (x, i) { if (x.norm) named[keys[t][i]] = 1; }); });
+  real.forEach(function (m, t) {
+    m.members.forEach(function (x, i) {
+      if (x.norm || keys[t][i] === mine) return;
+      var f = FAMILY_BY_AIRPORT[normIata(x.airport)], fam = f ? FAMILY.filter(function (g) { return g.key === f; })[0] : null, n = fam ? normName(fam.name) : '';
+      if (n && named[n] && keys[t].indexOf(n) < 0) keys[t][i] = n;
+    });
+  });
+  var hosted = {};
+  real.forEach(function (m, t) { m.members.forEach(function (x, i) { if (x.host && x.status !== 'out') hosted[keys[t][i]] = (hosted[keys[t][i]] || 0) + 1; }); });
+  var colKeys = cols.map(function (m) { return keys[real.indexOf(m)]; });
+  var rows = [], at = {};
+  cols.forEach(function (m, c) {
+    m.members.forEach(function (x, i) {
+      var k = colKeys[c][i], r = at[k];
+      if (!r) {
+        r = at[k] = { key: k, norm: x.norm, name: x.name, short: x.short, one: x.one, face: x.face, color: x.color, headcount: x.headcount, me: !!mine && k === mine,
+          hosted: hosted[k] || 0, cells: cols.map(function () { return null; }) };
+        rows.push(r);
+      }
+      if (!r.norm && x.norm) { r.norm = x.norm; r.name = x.name; r.short = x.short; r.one = x.one; r.face = x.face; r.color = x.color; }
+      r.headcount = Math.max(r.headcount, x.headcount);
+      r.cells[c] = x;
+    });
+  });
+  rows = rows.filter(function (r) { return r.norm || r.me; }).concat(rows.filter(function (r) { return !r.norm && !r.me; }));
+  var mi = -1;
+  rows.forEach(function (r, i) { if (mi < 0 && r.me) mi = i; });
+  if (mi > 0) rows.unshift(rows.splice(mi, 1)[0]);
+  return { cols: cols, rows: rows, mine: mine };
+}
+/* the v2 list link: <base>?l=<id>.<id>…&f=<my face>. Trip ids and one face only: never a key, a token or a price. */
+function listLink(base, ids, face) {
+  var b = String(base || ''), list = uniq((ids || []).filter(function (id) { return IDEA_ID_RE.test(String(id)); })).slice(0, LIST_LINK_MAX);
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^?#\s]*$/i.test(b) || !list.length) return '';
+  var f = faceOf(face);
+  return b + '?l=' + list.join('.') + (f ? '&f=' + encodeURIComponent(f) : '');
+}
+/* The US map: d3-geo's geoAlbersUsa fitted to a 360×230 box with 6px margins (scale 445.842, translate
+   192.959, 113.430), with its Alaska and Hawaii insets and clip boxes, ported exactly (checked against d3 for
+   every airport in the table). A point outside all three boxes is off the map: null. */
+var US_MAP = { w: 360, h: 230, k: 445.84219085444704, x: 192.95931303862665, y: 113.43020120431142 };
+function conicEqualArea(p0, p1, rot, cen, k, tx, ty, box) {
+  var R = Math.PI / 180, s0 = Math.sin(p0 * R), n = (s0 + Math.sin(p1 * R)) / 2, c = 1 + s0 * (2 * n - s0), r0 = Math.sqrt(c) / n;
+  var raw = function (lam, phi) { var r = Math.sqrt(c - 2 * n * Math.sin(phi)) / n, x = lam * n; return [r * Math.sin(x), r0 - r * Math.cos(x)]; };
+  var c0 = raw(cen[0] * R, cen[1] * R);
+  return function (lon, lat) {
+    var lam = (lon + rot) * R; if (lam > Math.PI) lam -= 2 * Math.PI; else if (lam < -Math.PI) lam += 2 * Math.PI;
+    var p = raw(lam, lat * R), X = tx + k * (p[0] - c0[0]), Y = ty - k * (p[1] - c0[1]);
+    return X >= box[0] && X <= box[2] && Y >= box[1] && Y <= box[3] ? [X, Y] : null;
+  };
+}
+var US_PROJ = (function (k, x, y) {
+  var e = 1e-6;
+  return [conicEqualArea(29.5, 45.5, 96, [-0.6, 38.7], k, x, y, [x - 0.455 * k, y - 0.238 * k, x + 0.455 * k, y + 0.238 * k]),
+    conicEqualArea(55, 65, 154, [-2, 58.5], k * 0.35, x - 0.307 * k, y + 0.201 * k, [x - 0.425 * k + e, y + 0.120 * k + e, x - 0.214 * k - e, y + 0.234 * k - e]),
+    conicEqualArea(8, 18, 157, [-3, 19.9], k, x - 0.205 * k, y + 0.212 * k, [x - 0.214 * k + e, y + 0.166 * k + e, x - 0.115 * k - e, y + 0.234 * k - e])];
+})(US_MAP.k, US_MAP.x, US_MAP.y);
+function usPoint(lat, lon) {
+  if (typeof lat !== 'number' || typeof lon !== 'number' || !isFinite(lat) || !isFinite(lon)) return null;
+  for (var i = 0; i < US_PROJ.length; i++) { var p = US_PROJ[i](lon, lat); if (p) return [Math.round(p[0] * 10) / 10, Math.round(p[1] * 10) / 10]; }
+  return null;
+}
+/* where an airport sits on the US map, or null (an unknown code, or a place off the map) */
+function mapXY(code) { var a = airportInfo(code); return a.known ? usPoint(a.lat, a.lon) : null; }
+
+/* ---- the one create path, organizer edits and join requests (PIA-136) ---- */
+var NAME_WORDS = 3;                                                      // a person's name: ≤3 words wherever it is typed
+var TITLE_WORDS = 12;                                                    // a trip name being typed (it counts on P-new-what)
+var CAPTION_WORDS = 20;                                                  // a caption (or a note): ≤20 words
+var NAME_CHARS = TEXT_MAX.label - 3;                                     // '<face> <name>' ≤40 UTF-16 units; a face is ≤2, then a space
+var TITLE_CHARS = TEXT_MAX.title - 3;                                    // '<scene> <name>' ≤80
+var CAPTION_CHARS = TEXT_MAX.notes - 13;                                 // a new trip's caption: room left after '📌YYYY-MM-DD ' (a new trip has 📌 or 🌙N, never both)
+var V1_IDEA_VERSIONS = { 'trip-idea-v1': 1, 'trip-idea-v0': 1 };         // = v1 TRIP_IDEA_BUILDER_VERSION (and its v0)
+function wordsIn(s) { return String(s == null ? '' : s).split(/\s+/).filter(function (w) { return /\p{L}/u.test(w); }).length; }
+/* a typed value under a word cap: the change is taken while it stays within the cap, or when it adds no word to a
+   text that was already longer (so nothing already there is ever cut); otherwise it is refused and prev stays */
+function capTyped(next, prev, max) { var n = wordsIn(next); return n <= max || n <= wordsIn(prev) ? String(next) : String(prev == null ? '' : prev); }
+/* the same rule for a change that inserts more than one keystroke (a paste, autocorrect): everything that was there
+   stays, and as much of the inserted text as fits under the cap goes in. {text, cut: some of the insertion was left
+   out, at: where the caret goes (after what went in; -1 when nothing was cut)}. The insertion is what lies between
+   the longest common start and end of prev and next. */
+function fitTyped(next, prev, max) {
+  var nx = String(next == null ? '' : next), pv = String(prev == null ? '' : prev), lim = Math.max(max, wordsIn(pv));
+  if (wordsIn(nx) <= lim) return { text: nx, cut: false, at: -1 };
+  var p = 0, s = 0;
+  while (p < nx.length && p < pv.length && nx.charCodeAt(p) === pv.charCodeAt(p)) p++;
+  if (p > 0 && /[\uD800-\uDBFF]/.test(nx.charAt(p - 1))) p--;                       // never split an emoji in two
+  while (s < nx.length - p && s < pv.length - p && nx.charCodeAt(nx.length - 1 - s) === pv.charCodeAt(pv.length - 1 - s)) s++;
+  if (s > 0 && /[\uDC00-\uDFFF]/.test(nx.charAt(nx.length - s))) s--;
+  var head = nx.slice(0, p), tail = nx.slice(nx.length - s), parts = nx.slice(p, nx.length - s).split(/(\s+)/), ins = '', best = '';
+  var apart = !tail || /^\s/.test(tail);                                            // a word may end the cut only if it cannot run into the text after it
+  for (var i = 0; i < parts.length; i++) {
+    ins += parts[i];
+    if (/\S/.test(parts[i]) && !apart) continue;
+    if (wordsIn(head + ins + tail) > lim) break;
+    best = ins;
+  }
+  return { text: head + best + tail, cut: true, at: head.length + best.length };
+}
+/* the first n words of a text, and whether words were left out (tokens with no letter ride along for free) */
+function firstWords(s, n) {
+  var parts = String(s == null ? '' : s).trim().split(/(\s+)/), out = '', w = 0, more = false;
+  for (var i = 0; i < parts.length; i++) {
+    var t = parts[i];
+    if (/\p{L}/u.test(t)) { if (w === n) { more = true; break; } w++; }
+    out += t;
+  }
+  return { text: out.trim(), more: more };
+}
+/* a person's name as typed (P-new-who, a join request): one space between words, ≤3 words, ≤37 units, a letter in
+   it and never the v1 word 'Me'; '' when it is not a usable name */
+function cleanName(s) {
+  var t = keepName(s);
+  return t && wordsIn(t) <= NAME_WORDS ? t : '';
+}
+/* a name that is already on a trip (a member's, or a group's from another trip): kept as it is, however many words it
+   has (the cap is for typing); '' when it is no name (no letter, or the v1 word 'Me') */
+function keepName(s) {
+  var t = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  if (!t || !/\p{L}/u.test(t) || isMeLabel(t)) return '';
+  return clip(t, NAME_CHARS);
+}
+/* a join request: <base>?idea=<id>&add=<name>.<IATA>. Someone not on the list shares it (P-face 🙋＋); on the
+   organizer's phone it opens the people editor with them added. The airport may be blank. */
+function joinLink(base, id, name, airport) {
+  var b = String(base || ''), n = cleanName(name);
+  if (!/^[a-z][a-z0-9+.-]*:\/\/[^?#\s]*$/i.test(b) || !IDEA_ID_RE.test(String(id || '')) || !n) return '';
+  return b + '?idea=' + id + '&add=' + encodeURIComponent(n + '.' + normIata(airport));
+}
+/* ?add=<name>.<IATA> → {name, airport}, or null (no usable name, or something after the last '.' that is no code) */
+function parseJoin(v) {
+  var s = String(v == null ? '' : v), i = s.lastIndexOf('.');
+  var tail = i >= 0 ? s.slice(i + 1).trim() : '', ap = normIata(tail);
+  if (tail && !ap) return null;
+  var name = cleanName(i >= 0 ? s.slice(0, i) : s);
+  return name ? { name: name, airport: ap } : null;
+}
+function b64text(s) {
+  var t = String(s).replace(/\s/g, '+').replace(/-/g, '+').replace(/_/g, '/');
+  while (t.length % 4) t += '=';
+  return typeof atob === 'function' ? atob(t) : Buffer.from(t, 'base64').toString('binary');
+}
+/* A v1 read-only ?tripIdea= link (v1's encodeTripIdeaSharePayload: base64 of the URI-encoded JSON payload, or the
+   URI-encoded JSON itself) → the draft P-new opens with: {name, code, mode 'dates'|'window', s, e, pin, nights,
+   caption, cut}. Only the place, the plan or window, the event day, the nights and the note are read; v1's prices, hub
+   and mode never are. Days already past are not offered again (the picker cannot choose them). v1's note has no
+   limit: the caption is its first 20 words within CAPTION_CHARS, and cut says that some of it was left out (the
+   sheet shows it with ⚠). null when the value is not such a payload. */
+function legacyDraft(raw, today) {
+  var s = String(raw == null ? '' : raw), p = null;
+  if (!s || s.length > 32768 || !isIso(today)) return null;
+  [function () { return decodeURIComponent(b64text(s)); }, function () { return decodeURIComponent(s); }].some(function (dec) {
+    try { var v = JSON.parse(dec()); if (v && typeof v === 'object' && hasOwn(V1_IDEA_VERSIONS, v.version)) { p = v; return true; } } catch (e) { /* not this encoding */ }
+    return false;
+  });
+  if (!p) return null;
+  var obj = function (v) { return v && typeof v === 'object' ? v : {}; };
+  var b = obj(p.builder), r = obj(p.recommendation), dest = obj(b.destination), d = obj(b.dates), c = obj(b.constraints);
+  var iso = function (v) { return isIso(v) ? v : ''; };
+  var code = normIata(r.airport) || normIata(dest.airport);
+  var name = clip(String(r.city || dest.city || '').replace(/\s+/g, ' '), TITLE_CHARS);
+  var out = { name: capTyped(name, '', TITLE_WORDS) === name ? name : firstWords(name, TITLE_WORDS).text, code: code, mode: 'dates', s: '', e: '', pin: '', nights: 3, caption: '', cut: false };
+  var dep = iso(r.departure) || iso(d.departure), ret = iso(r.return) || iso(d.return);
+  var w1 = iso(d.searchStart), w2 = iso(d.searchEnd), L = Math.round(+c.tripLength);
+  if (dep && ret && dep <= ret && dep >= today) { out.s = dep; out.e = ret; }
+  else if (w1 && w2 && w1 <= w2 && w2 >= today) { out.mode = 'window'; out.s = maxD(w1, today); out.e = w2; out.nights = L >= 1 && L <= 30 ? Math.min(L, Math.max(1, diffD(out.s, out.e))) : Math.max(1, Math.min(3, diffD(out.s, out.e))); }
+  var pin = iso(c.eventDate) || iso(p.eventContext);
+  if (out.mode === 'dates' && pin && pin >= today && (!out.s || (pin >= out.s && pin <= out.e))) out.pin = pin;
+  var notes = typeof p.notes === 'string' ? p.notes.replace(/\s+/g, ' ').trim() : '';
+  if (notes) { var fw = firstWords(notes, CAPTION_WORDS), c = clip(fw.text, CAPTION_CHARS); out.caption = c; out.cut = fw.more || c !== fw.text; }
+  return out;
+}
+/* the people of the trips this phone has seen, as ready groups for P-new-who: one per distinct set of people (by
+   name), in the order given (newest trip first). An unmigrated v1 trip offers no group: its faces are only read-time
+   stand-ins (a hashed face nobody chose), so a group built from it would hand someone a face they never had. Each:
+   {key, faces, rows [{face, name, airport, headcount, me}], family: it is the 👪 three (the token phone shows its
+   own 👪 chip)} */
+var FAMILY_KEY = FAMILY.map(function (f) { return normName(f.name); }).sort().join('|');
+function groupPresets(models) {
+  var out = [], seen = {};
+  (models || []).forEach(function (m) {
+    if (!m || !m.members || m.legacy) return;
+    var ms = m.members.filter(function (x) { return !!x.norm; });
+    if (!ms.length) return;
+    var key = ms.map(function (x) { return x.norm; }).sort().join('|');
+    if (hasOwn(seen, key)) return;
+    seen[key] = 1;
+    var faces = [], rows = ms.map(function (x) {
+      var f = faces.indexOf(x.face) < 0 ? x.face : freeFace(faces); faces.push(f);
+      return { face: f, name: x.name, airport: x.airport, headcount: x.headcount, me: !!(m.me && m.me.code === x.code) };
+    });
+    out.push({ key: key, faces: faces, rows: rows, family: key === FAMILY_KEY });
+  });
+  return out;
+}
+/* a face for someone new on a trip: the first face nobody on it has, preferring one nobody on this phone's other
+   trips has either (so faces stay telling when names are dropped to fit the words) */
+function freeFace(used, avoid) {
+  var u = used || [], a = avoid || [], i;
+  for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0 && a.indexOf(FACES[i]) < 0) return FACES[i];
+  for (i = 0; i < FACES.length; i++) if (u.indexOf(FACES[i]) < 0) return FACES[i];
+  return FACES[0];
+}
+
+/* ---- the trip view and its answers (PIA-137): who this phone is, the one primary action, the organizer's 🎫 ---- */
+/* Who this phone is on one trip, from what it remembers and what the link says. o = {stored: the code this phone
+   remembers for the trip (pialax_idea_me_v1), hint: a personal nudge link's code (#m=), names: the names this phone
+   already is (its profile, its faces on other trips), join: the name this phone asked to join this trip with}.
+   • A remembered face that is on the trip wins. A hint never overrides it: a different hint only asks (P-face, with
+     the remembered face outlined and the hint marked), and one tap there decides.
+   • The names this phone already is count as remembered too: a hint greets its face for this visit (it writes
+     nothing: the first answer does) only when none of those names belongs to a different member of the trip. A
+     forwarded nudge link on a phone whose profile is someone else here asks instead, that someone preselected.
+   • Else P-face asks. pre = the one member whose name is who this phone already is (a preselected tile, never saved
+     by itself); two members with that name, or a nameless v1 'Me', preselect nobody.
+   → {me: the code to show as me ('' = nobody), from: 'stored' | 'hint' | '', ask: open P-face, hint, pre} */
+function whoAmI(doc, o) {
+  o = o || {};
+  var ms = ((doc && doc.idea && doc.idea.members) || []).filter(function (m) { return m && typeof m.code === 'string'; });
+  var on = function (c) { return typeof c === 'string' && !!c && ms.some(function (m) { return m.code === c; }); };
+  var stored = on(o.stored) ? o.stored : '', hint = on(o.hint) ? o.hint : '';
+  if (stored) return { me: stored, from: 'stored', ask: !!hint && hint !== stored, hint: hint !== stored ? hint : '', pre: '' };
+  var names = (o.names || []).concat(o.join ? [o.join] : []).map(normName).filter(Boolean);
+  var hits = ms.filter(function (m) { var n = splitLabel(m.label).name; return !!n && !isMeLabel(n) && names.indexOf(normName(n)) >= 0; });
+  var pre = hits.length === 1 ? hits[0].code : '';
+  if (hint && (!hits.length || hits.some(function (m) { return m.code === hint; }))) return { me: hint, from: 'hint', ask: false, hint: hint, pre: '' };
+  return { me: '', from: '', ask: true, hint: hint, pre: pre };
+}
+/* The one primary action of a trip view, the same rule for every role (hosts have none):
+   • before the dates are set: share and look: 'share' [📣 Share | ✈↗ my search] for a traveler who answered in or
+     maybe (and for the organizer even before he answers), 'share-only' for an organizer who does not travel;
+   • once set (🔒), with my days still ahead: 'book' [✈ Book ↗ | 🎫 I booked];
+   • after my own 🎫: 'booked' [🎫 | ✈⏱↗ Flighty] (kept on a paid trip: a booked flight is still real);
+   • 'none': a host, someone who is out, a guest who has not answered (the answer row is the call) or has no face
+     here, a set plan whose days have begun, and a closed trip (paid or dropped). */
+function primaryAction(model, today) {
+  var me = model.me;
+  if (model.decision === 'dropped' || (me && me.host)) return 'none';
+  if (me && me.traveler && me.booked) return 'booked';
+  if (model.closed) return 'none';
+  if (!me || !me.traveler) return model.org && !model.locked ? 'share-only' : 'none';
+  if (!model.org && !me.answered) return 'none';
+  if (model.locked) return me.d1 && me.d1 >= today ? 'book' : 'none';
+  return 'share';
+}
+/* The organizer's 🎫 on someone else's row of the people board, shown once the dates are set or anyone has booked:
+   never on a host, never on his own row (his is the primary's), never on a closed trip or an unmigrated v1 doc.
+   Marking someone who has not answered in or maybe (waiting, or out) records them as in first (📞, bookedRequests),
+   so it asks for a confirming tap; so does taking a 🎫 away. → null (no control) or {on, confirm} */
+function bookToggle(model, code) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !model.org || model.legacy || model.closed || x.host || (model.me && model.me.code === code)) return null;
+  if (!model.locked && !model.anyBooked) return null;
+  return { on: x.booked, confirm: x.booked || !x.answered };
+}
+
+/* ---- dates: the one picker (PIA-138) ----
+   The plan is the organizer's; a person's own ends are theirs. Moving the plan carries every end that follows it (a
+   blank end), because every link, bar and pill is rebuilt from the record; an end someone set never moves with it. */
+var SHIFT_STEPS = [-7, -1, 1, 7];                                        // P-dates' day and week shifts
+/* a range moved by k days, keeping its length. why: '' it can go; 'past' it would start before today; 'pin' the event day
+   (📌) would fall outside it. null for no range. */
+function moveRange(s, e, k, pin, today) {
+  if (!isIso(s) || !isIso(e) || s > e || !isIso(today)) return null;
+  var a = addD(s, k), b = addD(e, k);
+  return { s: a, e: b, why: a < today ? 'past' : pin && (pin < a || pin > b) ? 'pin' : '' };
+}
+/* the organizer's one-tap shift on the trip view: the plan k days earlier or later, keeping its length and 📌. why also
+   says why the plan cannot move at all: 'org' (this phone does not organize it), 'legacy' (P-migrate first), 'closed'
+   (paid or dropped), 'locked' (🔓 first), 'none' (an undated idea has no plan to move) */
+function planShift(model, k, today) {
+  var why = !model.org ? 'org' : model.legacy ? 'legacy' : model.closed ? 'closed' : model.locked ? 'locked' : !model.plan ? 'none' : '';
+  return why ? { s: '', e: '', why: why } : moveRange(model.plan.s, model.plan.e, k, model.pin, today);
+}
+/* a phone that has not seen the 🔒 yet never moves a locked plan: a delta that changes the dates (the plan, the ⟦window⟧,
+   📌 or 🌙) of a record whose dates are 🔒 (chosen) or that is closed (paid or dropped) is held back, unless the same
+   update unlocks it (decision proposed). organizerEdit builds nothing for it, so it is checked on the fresh record every
+   write is rebuilt from, not on the screen it was tapped on. → 'locked' | 'closed' | '' (it can go) */
+function datesHeld(fresh, delta) {
+  var st = fresh && fresh.decision && fresh.decision.stage;
+  var why = st === 'booked' || st === 'dropped' ? 'closed' : st === 'chosen' && !docLegacy(fresh) ? 'locked' : '';
+  if (!why || !delta || !fresh.idea || (delta.decision && delta.decision.stage === 'proposed')) return '';
+  if (!hasOwn(delta, 'dates') && !hasOwn(delta, 'pin') && !hasOwn(delta, 'nights')) return '';
+  var a = cleanDates(fresh.idea.dates), b = cleanDates(hasOwn(delta, 'dates') ? delta.dates || {} : {}, a), N = parseNotes(fresh.idea.notes);
+  var pin = hasOwn(delta, 'pin') ? (isIso(delta.pin) ? delta.pin : '') : N.pin;
+  var nights = hasOwn(delta, 'nights') ? (delta.nights && +delta.nights > 0 ? Math.round(+delta.nights) : null) : N.nights;
+  var moved = ['departure', 'return', 'searchStart', 'searchEnd'].some(function (k) { return a[k] !== b[k]; }) || pin !== N.pin || nights !== N.nights;
+  return moved ? why : '';
+}
+/* a holiday chip: the holiday's whole long weekend (🦃 Wed–Sun; 🎗 and 🌭 Fri–Mon; 🎆 🎄 🎉 the day ±2), never before
+   today, with the holiday itself as the event day (📌) → {s, e, pin, g, k}; null for a day that is not a holiday (or is past) */
+function holidayPick(day, today) {
+  var h = isIso(day) && isIso(today) ? holidayOn(day) : null;
+  if (!h || h.d < today) return null;
+  var s = maxD(addD(h.d, h.r[0]), today);
+  return { s: s, e: maxD(addD(h.d, h.r[1]), s), pin: h.d, g: h.g, k: h.k };
+}
+/* what stops a picked plan (or ⟦window⟧ with o.window) from being saved: '' fine, 'empty' nothing picked, 'partial' only a
+   start, 'order', 'past' (it starts before today), 'pin' (the event day falls outside the plan: 📌⚠), 'nights' (a window
+   shorter than its 🌙 nights). o = {today, pin, window, nights} */
+function planCheck(s, e, o) {
+  o = o || {};
+  if (!s && !e) return 'empty';
+  if (!isIso(s) || !isIso(e)) return 'partial';
+  if (e < s) return 'order';
+  if (!isIso(o.today) || s < o.today) return 'past';
+  if (!o.window && o.pin && (o.pin < s || o.pin > e)) return 'pin';
+  if (o.window && o.nights && +o.nights > diffD(s, e)) return 'nights';
+  return '';
+}
+/* the organizer edits that change the dates (organizerEdit deltas; each touches nothing else):
+   • a plan (P-dates Save, ⬚ the best window): departure / return with 📌, and no 🌙 (a plan has its own length); the
+     ⟦window⟧ stays as it was;
+   • a ⟦window⟧ with 🌙 nights for an undated idea;
+   • 🗓⊘: the plan cleared, so the idea is undated again. It keeps a ⟦window⟧ (the flex window it had: the explicit one,
+     else the plan ± 7) and the plan's length as 🌙N, so its best window still has something to work with; 📌 stays. */
+function planDelta(s, e, pin) { return { dates: { departure: s, return: e }, pin: pin || '', nights: null }; }
+function windowDelta(s, e, nights) { return { dates: { departure: '', return: '', searchStart: s, searchEnd: e }, nights: nights || null }; }
+function clearDelta(model) {
+  var w = model.win;
+  return w ? { dates: { departure: '', return: '', searchStart: w.s, searchEnd: w.e }, nights: model.nights || null } : { dates: { departure: '', return: '' } };
+}
+/* one person's own days, set in P-dates or one leg at a time. end: null both ends (s, e); 0 the arrive end only (s); 1 the
+   leave end only (e). A blank value goes back to following the plan (s = e = '' with end null: follow the plan again). The
+   other end stays as it is (their own, or the plan's). → {patch (for respondRequest), d1, d2 (their days after it), why,
+   off} or null for someone not on the trip. why: '' fine; 'host' (a host is there all along: no days to set); 'out';
+   'answer' (no in / maybe answer yet: days are never set for someone who has not answered); 'partial' (an undated trip
+   needs both ends); 'order'; 'past' (an end set before today). off: an end set lands outside the plan (⚠, still allowed).
+   An end picked on the plan's own day for that side (the plan's first day as an arrival, its last as a departure) keeps
+   following the plan (blank), unless it is already their own: a pick that only repeats the plan never pins that end
+   against the next move (so "arrive a day later" with ↔ moves the arrival alone). same: the patch changes nothing they
+   have now (Save: No change). */
+function ownDays(model, code, s, e, end, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x) return null;
+  var plan = model.plan;
+  var pick = function (v, own, side) { v = v || ''; return v && v !== own && plan && v === side ? '' : v; };
+  var a = pick(s, x.own1, plan && plan.s), b = pick(e, x.own2, plan && plan.e);
+  var patch = end === 0 ? { available_from: a } : end === 1 ? { available_to: b } : { available_from: a, available_to: b };
+  var f = hasOwn(patch, 'available_from') ? patch.available_from : x.own1, t = hasOwn(patch, 'available_to') ? patch.available_to : x.own2;
+  var d1 = f || (plan ? plan.s : ''), d2 = t || (plan ? plan.e : '');
+  var bad = function (v) { return !!v && (!isIso(v) || v < today); };
+  var why = x.host ? 'host' : x.status === 'out' ? 'out' : !x.answered ? 'answer'
+    : (bad(patch.available_from) || bad(patch.available_to)) ? 'past' : !!d1 !== !!d2 ? 'partial' : d1 && d1 > d2 ? 'order' : '';
+  var off = !!plan && ((!!f && (f < plan.s || f > plan.e)) || (!!t && (t < plan.s || t > plan.e)));
+  return { patch: patch, d1: d1, d2: d2, why: why, off: off, same: f === x.own1 && t === x.own2 };
+}
+/* −1 / +1 on one leg (P-person's 🛬 / 🛫): that end alone moves a day and becomes the person's own (ownDays' rules) */
+function legShift(model, code, end, k, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x || !x.d1) return null;
+  var d = addD(end ? x.d2 : x.d1, k);
+  return ownDays(model, code, end ? '' : d, end ? d : '', end ? 1 : 0, today);
+}
+/* who is there on one day (P-day): in-members whose days cover it, and hosts (in, or in by default) on every day a screen
+   draws for the trip, are there: their heads are presentOn, so P-day agrees with the grid's numeral and never passes the
+   heads ring. Maybe-members whose days cover it are maybe; everyone else is away. → {day, n, there, maybe, away} (codes) */
+function dayPeople(model, day) {
+  var hd = hostDay(model, day), out = { day: day, n: presentOn(model, day), there: [], maybe: [], away: [] };
+  model.members.forEach(function (m) {
+    var cover = !!m.d1 && !m.bad && day >= m.d1 && day <= m.d2;
+    var there = m.host ? hd && (m.status === 'in' || m.status === 'host-default') : m.status === 'in' && cover;
+    var maybe = m.host ? hd && m.status === 'maybe' : m.status === 'maybe' && cover;
+    (there ? out.there : maybe ? out.maybe : out.away).push(m.code);
+  });
+  return out;
+}
+/* what the date pill (and my bar on the board) open on this phone: 'plan' the organizer's picker for the plan; 'mine' my
+   own days (I have answered in or maybe and travel); 'answer' nothing yet (I have not answered: the answer row asks
+   first, a day is never set for someone who has not answered); 'look' the plan to read (a host, someone out, a phone
+   that is nobody here, a trip that is closed or over) */
+function datesRole(model) {
+  if (model.closed || model.past) return 'look';
+  if (model.org && !model.legacy) return 'plan';
+  var me = model.me;
+  if (!me || me.host || me.status === 'out') return 'look';
+  return me.answered ? 'mine' : 'answer';
+}
+
+/* ---- booking (PIA-139): one booked control, flight times for pickups, and a trip that reaches Done by itself ----
+   The stage is derived in tripModel from the booked flags (🎫 Booking once any traveler has booked, 🏁 Done once every one
+   has), so every phone reads the same stage from the same record. A 🎫 never closes the answers: only 💵 paid (the Worker's
+   booked decision) or 🗑 does. */
+/* one traveler's hand-off slot in P-person, by the trip view's own rule (primaryAction, bookToggle): their Google Flights
+   search before the dates are set; [✈ Book ↗ | 🎫] side by side once they are; [✈⏱↗ Flighty | 🎫] after their 🎫. tk is
+   whose 🎫 sits there: 'self' (my own: one tap, taking it back asks first), 'org' (the organizer marking someone else:
+   bookToggle, a confirming tap for someone waiting or out), '' none. → {slot: 'gf' | 'book' | 'booked' | '', tk} */
+function bookSlot(model, code, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler) return { slot: '', tk: '' };
+  var mine = !!model.me && model.me.code === code;
+  var tk = model.closed ? '' : mine ? (x.booked || primaryAction(model, today) === 'book' ? 'self' : '') : bookToggle(model, code) ? 'org' : '';
+  return { slot: x.booked ? 'booked' : tk ? 'book' : 'gf', tk: tk };
+}
+/* a typed time → 'HH:MM' (24h); blank → ''; anything else → null. '15:10', '1510', '0905', '0:30' are times, and so
+   are '6:05 pm', '6pm', '11:05a' (am / pm typed). An hour 1–12 typed with no leading 0 and no am / pm ('310', '9:05',
+   '1105', '12:30') could be either half of the day, so it is not a time until its half is picked (half 'am' | 'pm',
+   the two readings timeHalves offers): a 12-hour reader's 3:10 PM never silently becomes 03:10 (PIA-139). */
+var TYPED_TIME_RE = /^(\d{1,2})(?::?(\d{2}))?(?:([ap])\.?m?\.?)?$/;
+function timeParts(s) {
+  var t = String(s == null ? '' : s).replace(/\s+/g, '').toLowerCase();
+  if (!t) return { blank: true };
+  var m = TYPED_TIME_RE.exec(t);
+  if (!m || (m[2] === undefined && !m[3]) || (m[2] !== undefined && +m[2] > 59)) return null;   // '15' alone is not a time; '6pm' is
+  return { h: +m[1], mi: m[2] === undefined ? 0 : +m[2], half: m[3] || '', lead: m[1].length === 2 && m[1].charAt(0) === '0' };
+}
+function hhmm(h, mi) { return ('0' + h).slice(-2) + ':' + ('0' + mi).slice(-2); }
+function typedTime(s, half) {
+  var p = timeParts(s);
+  if (!p) return null;
+  if (p.blank) return '';
+  var h = p.h, hf = p.half || (h >= 1 && h <= 12 && !p.lead ? (half === 'am' ? 'a' : half === 'pm' ? 'p' : '?') : '');
+  if (hf === '?') return null;                                   // either half of the day: timeHalves offers both
+  if (hf) { if (h < 1 || h > 12) return null; h = hf === 'p' ? (h % 12) + 12 : h % 12; }
+  else if (h > 23) return null;
+  return hhmm(h, p.mi);
+}
+/* the two readings of a time that could be either half of the day ('310' → {am: '03:10', pm: '15:10'}), else null */
+function timeHalves(s) {
+  var p = timeParts(s);
+  if (!p || p.blank || p.half || p.lead || p.h < 1 || p.h > 12) return null;
+  return { am: typedTime(s, 'am'), pm: typedTime(s, 'pm') };
+}
+/* the part of the day a booked time falls in, for its glyph: 'day' 06:00–17:59 (☀), 'night' otherwise (🌃), '' no time.
+   The two readings of one typed hour always fall in different parts, so the pick between them is never two of a kind. */
+function dayPart(t) { return typeof t === 'string' && HHMM_RE.test(t) ? (+t.slice(0, 2) >= 6 && +t.slice(0, 2) < 18 ? 'day' : 'night') : ''; }
+/* who may record a traveler's booked times (🛬 landing, 🛫 leaving) on this phone: 'self' (their own, once booked), 'proxy'
+   (the organizer for them), '' nobody (not booked, a host, someone out, a closed trip: the Worker takes no answer on a paid
+   one, a guest looking at someone else, a v1 doc on the organizer's phone) */
+function timesBy(model, code) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler || !x.booked || model.closed) return '';
+  if (model.me && model.me.code === code) return 'self';
+  return model.org && !model.legacy ? 'proxy' : '';
+}
+/* the answer that records booked times, built on the record it is sent against: the answer as it stands (days, airports,
+   origin, the 🎫 and the note's text all kept) with arr / dep as the 🛬 / 🛫 prefixes of the note ('HH:MM', '' clears one,
+   undefined leaves it). Their own times clear 📞 (as their own answer does); the organizer's keep it as it reads. null for
+   someone not booked, a time that is not HH:MM, no change, or times that would leave the note's text no room. */
+function timesRequest(doc, code, arr, dep, by) {
+  var r = validResp(doc && doc.responses && doc.responses[code]);
+  if (!r || !r.booked || (r.status !== 'in' && r.status !== 'maybe')) return null;
+  var n = parseRespNote(r.note), patch = {};
+  if (arr !== undefined && arr !== n.arr) patch.arrTime = arr;
+  if (dep !== undefined && dep !== n.dep) patch.depTime = dep;
+  if (!hasOwn(patch, 'arrTime') && !hasOwn(patch, 'depTime')) return null;
+  return respondRequest(doc, code, patch, { by: by === 'self' ? 'self' : 'keep' });
+}
+/* 💵 paid (P-stage): what the trip cost, recorded by the organizer once every traveler has booked, on his phone with the
+   token (the amount is a price, and prices stay there). → {why, unbooked, unanswered}: why '' it can be recorded; 'org' not
+   the organizer's phone; 'token' no token here; 'legacy' (P-migrate first); 'closed' (paid already, or dropped); 'nobody'
+   (no one travels); 'unbooked' (a traveler has no 🎫 yet: unbooked lists them); 'nodates' (no plan or no destination to 🔒,
+   which the Worker's booked needs first). unanswered: the people with no answer yet (hosts, in by default), whom 💵 closes
+   out, because the Worker takes no answer on a paid trip. notimes: the booked travelers with no 🛬 time recorded yet,
+   whose times 💵 freezes for the same reason (PIA-139: the confirm names both). again: a paid trip whose amount the
+   organizer can enter again on this phone (a typo fixed: the Worker takes a second booked decision). */
+function paidCheck(model) {
+  var unbooked = model.travelers.filter(function (x) { return !x.booked; }).map(function (x) { return x.code; });
+  var unanswered = model.members.filter(function (x) { return !x.resp; }).map(function (x) { return x.code; });
+  var notimes = model.travelers.filter(function (x) { return x.booked && !x.arrTime; }).map(function (x) { return x.code; });
+  var why = !model.org ? 'org' : !model.prices ? 'token' : model.legacy ? 'legacy' : model.closed ? 'closed' : !model.travelers.length ? 'nobody'
+    : unbooked.length ? 'unbooked' : !model.locked && (!model.plan || !model.dest) ? 'nodates' : '';
+  return { why: why, unbooked: unbooked, unanswered: unanswered, notimes: notimes, again: why === 'closed' && model.decision === 'booked' && model.paid != null };
+}
+/* the same rule on the record a 💵 is sent against: 'closed' (paid or dropped meanwhile), 'unbooked' (a 🎫 was taken away
+   on another phone since this one drew 🏁), '' it can go. Who travels and who has booked does not depend on the day, so
+   the model is read with any day. again (💵 entered again on a paid trip): '' while it is still paid, 'closed' once it
+   was dropped or reopened meanwhile. */
+function paidHeld(fresh, again) {
+  if (!fresh || !fresh.idea) return 'unbooked';
+  if (again === true) return fresh.decision && fresh.decision.stage === 'booked' && fresh.decision.chosen ? '' : 'closed';
+  if (docClosed(fresh)) return 'closed';
+  return tripModel(fresh, { today: '2000-01-01', now: 0 }).stage === 'done' ? '' : 'unbooked';
+}
+/* the 💵 amount as typed: whole dollars ('$1,490', '1490', '1490.40' → 1490); null when it is not an amount the Worker keeps
+   (at least $1, under $1,000,000) */
+function typedPaid(s) {
+  var t = String(s == null ? '' : s).replace(/[\s$,]/g, '');
+  if (!/^\d+(?:\.\d{0,2})?$/.test(t)) return null;
+  var v = Math.round(+t);
+  return v >= 1 && v < 1e6 ? v : null;
+}
+
+/* ---- PIA-140: prices. One honest total from real fares, never spent without a tap ----
+   Pure rules; the app makes the calls (GET /search and /account on the Worker, with the organizer token) and keeps the
+   counters. These decide what a tap may search, what it costs, what is locked, and what a reply means.
+   • searchQuery: a fare key is exactly one Worker search, in v1's parameters (engine, airports, dates, type, USD, en): the
+     airports of a nearby search comma-joined and sorted (≤5, the Worker's own order), adults only above 1 (SerpAPI's default
+     is 1). So a one-adult search is byte for byte v1's, and both apps hit one Worker cache entry for it.
+   • fareFromSerp keeps what was paid for (pialax_fares_v2): the cheapest price that search found (p), when SerpAPI was
+     called (f: the Worker's X-Fetched-At, which a cache HIT keeps), Google's price level and typical range, the ≤3 cheapest
+     offers (airports, times, stops), and, for ▼ / ▲, the price an earlier fetch of the identical search found (prev, pf). A
+     search with no fares is none (not offered again within 24h).
+   • spendKeys / spendCount: what one tap may search (missing legs first, then stale ones, never a past day): ≤4 a tap, ≤8 a
+     session. tapKeys / spendable: the legs of one trip a tap may search at all (never a booked traveler's).
+   • spendLock: 'month' (an upstream 429 or a plan with nothing left: exceeded; the organizer's month cap; 990 used; the plan's
+     last 10 searches), 'day' (the Worker's per-day cap, until the next UTC day), 'session' (8 spent); monthWhy says which.
+   • v1's own stores, in v1's formats, so both apps on one phone agree: pialax_serpapi_quota {period, used, budget, exceeded}
+     (quotaRead, quotaBump, quotaExceeded, quotaFromAccount) and the one-adult fares v1 keeps in pialax_prices_v1 (v1FareKey,
+     fareFromV1 to read them, v1Fare to write one as v1's own fetch would). */
+var SPEND_PER_TAP = 4;           // = v1 TRIP_LEG_CALLS_PER_PRESS
+var SPEND_PER_SESSION = 8;       // = v1 MAX_CALLS_PER_SESSION (v1's MAX_CALLS_PER_REFRESH is retired: a tap is the refresh)
+var QUOTA_LOCK_AT = 990;         // = v1 QUOTA_LOCK_AT, the month's safety cutoff
+var QUOTA_BUDGET = 1000;         // = v1's month budget when none is stored
+var PLAN_LEFT_MIN = 10;          // the plan's searches left at or under this lock the month
+var FARE_OFFERS = 3;             // the cheapest offers a fare keeps
+var FARES_KEEP = 400;            // fares this phone keeps (the newest; none for a day already past)
+var FARE_LEVELS = { low: 1, typical: 2, high: 3 };
+var SERP_TIME_RE = /^(\d{4}-\d{2}-\d{2}) (\d{1,2}):(\d{2})$/;
+/* a fare key → {type, from, to, d, r, n}, or null when it is not a search the Worker takes */
+function parseFareKey(key) {
+  var p = typeof key === 'string' ? key.split('|') : [];
+  if (p.length !== 6) return null;
+  var type = +p[0], from = p[1].split(','), to = p[2].split(','), n = +p[5];
+  var codes = function (a) { return a.length >= 1 && a.length <= 5 && a.every(isIata); };
+  if ((type !== 1 && type !== 2) || !codes(from) || !codes(to) || !isIso(p[3]) || !(n >= 1 && n <= 9 && n === Math.round(n))) return null;
+  if (type === 1 ? !(isIso(p[4]) && p[4] >= p[3]) : p[4] !== '') return null;
+  return { type: type, from: from, to: to, d: p[3], r: p[4], n: n };
+}
+/* the Worker /search query for one fare key ('' for none): v1's parameters, the strict allowlist's shapes */
+function searchQuery(key) {
+  var k = parseFareKey(key); if (!k) return '';
+  return 'engine=google_flights&departure_id=' + codeSet(k.from) + '&arrival_id=' + codeSet(k.to) + '&outbound_date=' + k.d + (k.type === 1 ? '&return_date=' + k.r : '') +
+    '&type=' + k.type + '&currency=USD&hl=en' + (k.n > 1 ? '&adults=' + k.n : '');
+}
+function serpTime(v) { var m = typeof v === 'string' ? SERP_TIME_RE.exec(v.trim()) : null; return m && +m[2] < 24 ? m[1] + ' ' + ('0' + m[2]).slice(-2) + ':' + m[3] : ''; }
+function serpList(v) { return Array.isArray(v) ? v : []; }
+/* one SerpAPI offer as a fare keeps it: price, first departure and last arrival airport and time, stops */
+function serpOffer(o) {
+  var segs = serpList(o.flights), a = segs[0] || {}, z = segs[segs.length - 1] || {}, da = a.departure_airport || {}, za = z.arrival_airport || {};
+  return { p: Math.round(o.price), d: normIata(da.id), a: normIata(za.id), dt: serpTime(da.time), ar: serpTime(za.time), s: segs.length ? segs.length - 1 : null };
+}
+function typRange(t) { var r = Array.isArray(t) ? t.map(Number) : []; return r.length === 2 && r[0] > 0 && r[1] >= r[0] ? [Math.round(r[0]), Math.round(r[1])] : null; }
+/* ▼ / ▲ compare two real fetches of the identical search: a fetch newer than the one kept takes the kept price as prev; a
+   cache HIT of the very fetch already kept keeps the prev it had */
+function withPrev(e, old) {
+  var at = old ? fareAt(old) : NaN;
+  if (old && typeof old.p === 'number' && !old.none && at < e.f) { e.prev = old.p; e.pf = at; }
+  else if (old && at === e.f && typeof old.prev === 'number') { e.prev = old.prev; e.pf = old.pf; }
+  return e;
+}
+/* a SerpAPI google_flights reply → the pialax_fares_v2 entry (at = when SerpAPI was called, ms; old = the entry kept) */
+function fareFromSerp(json, at, old) {
+  var j = json && typeof json === 'object' ? json : {};
+  var all = serpList(j.best_flights).concat(serpList(j.other_flights)).filter(function (o) { return o && typeof o.price === 'number' && isFinite(o.price) && o.price > 0; }).map(serpOffer);
+  all.sort(function (x, y) { return x.p - y.p; });
+  var off = all.slice(0, FARE_OFFERS), pi = j.price_insights && typeof j.price_insights === 'object' ? j.price_insights : {};
+  return withPrev({ p: off.length ? off[0].p : null, f: at, none: !off.length, lvl: hasOwn(FARE_LEVELS, pi.price_level) ? pi.price_level : '', typ: typRange(pi.typical_price_range), off: off }, old);
+}
+/* what a priced leg can say from data already paid for: its age, Google's level (1–3), stops, the airport that won when it is
+   not their own (an inbound or round trip: where the cheapest offer leaves from; the way home: where it lands), only ever one of
+   the airports that leg searched (set: their origin set), and the change */
+function fareFacts(f, kind, origin, now, set) {
+  var p = legTotal(f);   // the one rule that turns a cached fare into a price (priceRows'), so a leg shows what the total adds
+  if (p == null) return null;
+  var o = Array.isArray(f.off) && f.off[0] ? f.off[0] : null, at = fareAt(f), win = o ? (kind === 'out' ? o.a : o.d) : '';
+  var ok = isIata(win) && win !== origin && (!set || set.indexOf(win) >= 0);
+  return { p: p, age: isFinite(at) ? Math.max(0, now - at) : null, lvl: hasOwn(FARE_LEVELS, f.lvl) ? FARE_LEVELS[f.lvl] : 0, typ: f.typ || null,
+    stops: o && typeof o.s === 'number' ? o.s : null, win: ok ? win : '', delta: prevDelta(f) };
+}
+/* ▼ / ▲ of one fare: its price against the price an earlier real fetch of the identical search found, by the same rule (legTotal) */
+function prevDelta(f) { var p = legTotal(f); return p != null && typeof f.prev === 'number' ? p - legTotal({ p: f.prev }) : null; }
+/* the total's ▼ / ▲: only when every priced leg in it has an earlier real price for its identical search */
+function priceDelta(pr) {
+  if (!pr || !pr.per) return null;
+  var d = 0, n = 0, ok = true;
+  Object.keys(pr.per).forEach(function (c) { pr.per[c].legs.forEach(function (l) { if (l.p == null) return; n++; var x = l.f ? prevDelta(l.f) : null; if (x != null) d += x; else ok = false; }); });
+  return ok && n ? d : null;
+}
+/* the legs one tap may search: missing or stale (a no-fares answer younger than 24h is not offered again), each once, never
+   one for a day already past, never one the Worker would refuse; the never-searched first, then the day-old (in the order
+   given), so a tap the caps cut short prices a $— leg before it refreshes a grey one */
+function spendKeys(keys, fares, now, today) {
+  var miss = [], old = [];
+  (keys || []).forEach(function (k) {
+    var key = typeof k === 'string' ? k : (k && k.key), q = parseFareKey(key), f = q && fares && hasOwn(fares, key) ? fares[key] : null, st = fareState(f, now);
+    if (!q || q.d < today || miss.indexOf(key) >= 0 || old.indexOf(key) >= 0 || (st !== 'missing' && st !== 'stale')) return;
+    (st === 'missing' ? miss : old).push(key);
+  });
+  return miss.concat(old);
+}
+/* the legs P-total's one tap prices: every traveler's missing or day-old legs on the trip's current dates (priceTrip's), but
+   never a booked traveler's (their flight is bought: v1's Get Live Fares skips them too), each once */
+function tapKeys(model) {
+  var p = model && model.price, out = [];
+  if (!p) return out;
+  model.travelers.forEach(function (x) {
+    if (x.booked || !p.per[x.code]) return;
+    p.per[x.code].legs.forEach(function (l) { if ((l.st === 'missing' || l.st === 'stale') && out.indexOf(l.key) < 0) out.push(l.key); });
+  });
+  return out;
+}
+/* every search a tap on this trip may make (the app's spend path searches nothing else): P-total's legs (tapKeys), each
+   unbooked traveler's ends ±1 day (endPrices' need) and, PIA-141, while the cheapest week can be asked for (cheapWhy), each
+   candidate week's legs (cheapCandidates' need: never a booked traveler's) */
+function spendable(model, fares, now, today) {
+  var out = tapKeys(model);
+  if (!model || !model.price) return out;
+  var add = function (k) { if (out.indexOf(k) < 0) out.push(k); };
+  model.travelers.forEach(function (x) {
+    [0, 1].forEach(function (end) { var ep = endPrices(model, x.code, end, fares, now, today); (ep ? ep.need : []).forEach(add); });
+  });
+  if (!cheapWhy(model, today)) cheapCandidates(model, fares, now, today).forEach(function (c) { c.need.forEach(add); });
+  return out;
+}
+/* how many searches one tap makes (its cost, shown before it is tapped): ≤4, and never past the session's 8 */
+function spendCount(n, spent) { return Math.max(0, Math.min(n || 0, SPEND_PER_TAP, SPEND_PER_SESSION - (spent || 0))); }
+/* why the month is locked, for its label ('' when it is not): 'refused' (SerpAPI refused a search, or /account says the plan
+   has nothing left: exceeded), 'plan' (the plan's last 10), 'cap' (the organizer's own month cap: raising it lifts it),
+   'safety' (990, v1's cutoff). o as spendLock's. */
+function monthWhy(o) {
+  o = o || {};
+  var q = o.quota || {}, a = o.acct && typeof o.acct === 'object' ? o.acct : null, used = +q.used || 0, budget = +q.budget > 0 ? +q.budget : QUOTA_BUDGET;
+  var num = function (k) { return a && typeof a[k] === 'number' ? a[k] : null; }, pl = num('plan_searches_left'), tl = num('total_searches_left');
+  if (q.exceeded) return 'refused';
+  if ((pl !== null && pl <= PLAN_LEFT_MIN) || (tl !== null && tl <= 0)) return 'plan';
+  if (used >= budget) return 'cap';
+  if (used >= QUOTA_LOCK_AT) return 'safety';
+  return '';
+}
+/* what stops every spend: o = {quota, dayCap (pialax_daily_cap_v1), utcDay, acct (the last /account), acctDay, spent} */
+function spendLock(o) {
+  o = o || {};
+  var q = o.quota || {}, a = o.acct && typeof o.acct === 'object' ? o.acct : null, used = +q.used || 0, budget = +q.budget > 0 ? +q.budget : QUOTA_BUDGET;
+  var num = function (k) { return a && typeof a[k] === 'number' ? a[k] : null; }, pl = num('plan_searches_left'), tl = num('total_searches_left');
+  if (q.exceeded || used >= budget || used >= QUOTA_LOCK_AT || (pl !== null && pl <= PLAN_LEFT_MIN) || (tl !== null && tl <= 0)) return 'month';
+  var sp = a && a.spend && a.spend.serp;
+  if ((o.dayCap && o.dayCap === o.utcDay) || (sp && o.acctDay === o.utcDay && typeof sp.used === 'number' && typeof sp.cap === 'number' && sp.used >= sp.cap)) return 'day';
+  if ((o.spent || 0) >= SPEND_PER_SESSION) return 'session';
+  return '';
+}
+/* pialax_serpapi_quota as v1's readQuota reads it (raw: the parsed value, period: this local 'YYYY-MM'): nothing stored is a
+   fresh month (not written); v1's chained budget migration (100 → 250 → 1000) and a new month are written back */
+function quotaRead(raw, period) {
+  var fresh = function (b) { return { period: period, used: 0, budget: b, exceeded: false }; };
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { q: fresh(QUOTA_BUDGET), write: false };
+  var q = { period: raw.period, used: +raw.used >= 0 ? +raw.used : 0, budget: +raw.budget > 0 ? +raw.budget : QUOTA_BUDGET, exceeded: !!raw.exceeded }, write = false;
+  if (q.budget === 100) { q.budget = 250; write = true; }
+  if (q.budget === 250) { q.budget = 1000; write = true; }
+  if (write && q.used < q.budget) q.exceeded = false;
+  if (q.period !== period) { q = fresh(q.budget); write = true; }
+  return { q: q, write: write };
+}
+function quotaBump(q, n) { return { period: q.period, used: (+q.used || 0) + (n || 0), budget: q.budget, exceeded: !!q.exceeded }; }   // = v1 bumpQuota
+function quotaExceeded(q) { return { period: q.period, used: Math.max(+q.used || 0, +q.budget || 0), budget: q.budget, exceeded: true }; }   // = v1 markQuotaExceeded
+/* /account → the quota, as v1's syncSerpApiAccount reads it: SerpAPI's own count of this month (or the plan less what is left),
+   and exceeded from whether the plan has any search left, so a plan with nothing left locks the month and one with searches
+   left again lifts the lock a refusal set (a SerpAPI 429 can be a passing hourly limit). hold: a refusal just now (the app
+   holds it ACCT_MS) is not lifted yet. The organizer's month cap (budget) is never overwritten (unlike v1's sync). */
+function quotaFromAccount(q, a, hold) {
+  var out = { period: q.period, used: q.used, budget: q.budget, exceeded: !!q.exceeded };
+  if (!a || typeof a !== 'object') return out;
+  var left = typeof a.total_searches_left === 'number' ? a.total_searches_left : null, per = typeof a.searches_per_month === 'number' ? a.searches_per_month : null;
+  if (typeof a.this_month_usage === 'number' && a.this_month_usage >= 0) out.used = a.this_month_usage;
+  else if (left !== null && per !== null && per >= left) out.used = per - left;
+  if (left !== null && left <= 0) out.exceeded = true;
+  else if (left !== null && !hold) out.exceeded = false;
+  return out;
+}
+/* the key v1 caches this search under ('from|to|dep|ret', v1 _cacheKey), or '' (v1 never searches for more than one adult) */
+function v1FareKey(key) { var k = parseFareKey(key); return k && k.n === 1 ? [codeSet(k.from), codeSet(k.to), k.d, k.type === 1 ? k.r : ''].join('|') : ''; }
+/* a v1 key → the fare key of the same one-adult search, or '' */
+function fareKeyOfV1(k1) {
+  var p = typeof k1 === 'string' ? k1.split('|') : [];
+  if (p.length !== 4) return '';
+  var key = fareKey(p[3] ? 1 : 2, p[0].split(','), p[1].split(','), p[2], p[3], 1);
+  return parseFareKey(key) ? key : '';
+}
+/* a fare v1 fetched (pialax_prices_v1 {data, ts}) → the same fare as v2 keeps it (its cheapest offer; ts = when SerpAPI was
+   called), or null: a sample, a booked stand-in or anything v1 did not fetch live is never a price */
+function fareFromV1(e, old) {
+  var d = e && e.data;
+  if (!d || typeof d !== 'object' || d.live !== true || d.locked || typeof e.ts !== 'number' || !isFinite(e.ts)) return null;
+  var off = serpList(d.offers).filter(function (o) { return o && typeof o.price === 'number' && isFinite(o.price) && o.price > 0; }).map(function (o) {
+    return { p: Math.round(o.price), d: normIata(o.depAirport), a: normIata(o.arrAirport), dt: serpTime(o.depTime), ar: serpTime(o.arrTime), s: typeof o.stops === 'number' ? o.stops : null };
+  });
+  off.sort(function (x, y) { return x.p - y.p; });
+  var head = typeof d.rt === 'number' && d.rt > 0 ? d.rt : typeof d.ow === 'number' && d.ow > 0 ? d.ow : null;
+  if (!off.length && head === null) return null;
+  var ins = d.insights && typeof d.insights === 'object' ? d.insights : {};
+  return withPrev({ p: off.length ? off[0].p : Math.round(head), f: e.ts, none: false, lvl: hasOwn(FARE_LEVELS, ins.level) ? ins.level : '', typ: typRange(ins.typical), off: off.slice(0, FARE_OFFERS) }, old);
+}
+/* a SerpAPI reply as v1's own fetchFlights would cache it ({data, ts}: v1's tripFareParse, verbatim in what it keeps), so v1
+   on this phone reads the fare this app paid for; null when the search found no fares (v1 caches nothing then) */
+function v1Fare(json, at, hit, rt) {
+  var j = json && typeof json === 'object' ? json : {};
+  var top = serpList(j.best_flights), more = serpList(j.other_flights), best = top[0] || more[0] || null;
+  if (!best || typeof best.price !== 'number') return null;
+  var offer = function (o) {
+    var segs = serpList(o.flights), a = segs[0] || {}, z = segs[segs.length - 1] || {}, da = a.departure_airport || {}, za = z.arrival_airport || {};
+    return { price: o.price, airline: a.airline || null, flightNos: segs.map(function (s) { return s && s.flight_number; }).filter(Boolean).slice(0, 4),
+      depAirport: da.id || '', arrAirport: za.id || '', depTime: da.time || '', arrTime: za.time || '', stops: segs.length > 1 ? segs.length - 1 : 0, durMin: Number(o.total_duration) || null };
+  };
+  var all = top.concat(more).filter(function (o) { return o && typeof o.price === 'number' && o.price > 0; }).map(offer);
+  var offers = all.slice(0, 1).concat(all.slice(1).sort(function (x, y) { return x.price - y.price; })).slice(0, 6);
+  var byDep = {}, byArr = {};
+  all.forEach(function (o) {
+    if (o.depAirport && !(byDep[o.depAirport] <= o.price)) byDep[o.depAirport] = o.price;
+    if (o.arrAirport && !(byArr[o.arrAirport] <= o.price)) byArr[o.arrAirport] = o.price;
+  });
+  var segs = serpList(best.flights), first = segs[0] || {}, back = serpList(best.return_flights), bf = back[0] || {};
+  var pi = j.price_insights && typeof j.price_insights === 'object' ? j.price_insights : null, insights = null;
+  if (pi) {
+    var tr = Array.isArray(pi.typical_price_range) ? pi.typical_price_range.map(Number) : [];
+    var hist = serpList(pi.price_history).filter(function (p) { return Array.isArray(p) && Number(p[0]) > 0 && Number(p[1]) > 0; })
+      .map(function (p) { var t = Number(p[0]); return [t < 1e12 ? t * 1000 : t, Number(p[1])]; }).slice(-30);
+    insights = { level: typeof pi.price_level === 'string' ? pi.price_level : '', low: Number(pi.lowest_price) || null, typical: tr.length === 2 && tr[0] > 0 && tr[1] >= tr[0] ? tr : null, hist: hist };
+  }
+  // Google's own results link, as v1 checks it (it becomes an href there): https://www.google.com/travel/flights?… only
+  var gf = j.search_metadata && typeof j.search_metadata.google_flights_url === 'string' ? j.search_metadata.google_flights_url : '';
+  try { var gu = typeof URL === 'function' && gf ? new URL(gf) : null; gf = gu && gu.protocol === 'https:' && gu.hostname === 'www.google.com' && gu.pathname === '/travel/flights' ? gu.href : ''; } catch (e) { gf = ''; }
+  if (gf.indexOf('https://www.google.com/travel/flights?') !== 0 || /[\s<>\x22\x27\x60\x5c]/.test(gf)) gf = '';
+  var data = { ow: rt ? null : best.price, rt: rt ? best.price : null, live: true, airline: first.airline || null, flightNo: first.flight_number || null,
+    airlineLogo: first.airline_logo || best.airline_logo || null, stops: segs.length > 1 ? segs.length - 1 : 0, returnAirline: bf.airline || null,
+    returnFlightNo: bf.flight_number || null, returnAirlineLogo: bf.airline_logo || null, returnStops: back.length > 1 ? back.length - 1 : 0,
+    offers: offers, insights: insights, gfUrl: gf, byDep: byDep, byArr: byArr, lastVerified: new Date(at).toISOString() };
+  if (hit) { data.cached = true; data.edgeHit = true; }
+  return { data: data, ts: at };
+}
+/* the fare cache with one entry put in (never an older fetch over a newer one), fares for days already past dropped, and the
+   newest FARES_KEEP kept */
+function faresPut(fares, key, e, today) {
+  var out = {};
+  Object.keys(fares || {}).forEach(function (k) { var q = parseFareKey(k), f = fares[k]; if (q && q.d >= today && f && typeof f === 'object') out[k] = f; });
+  var old = hasOwn(out, key) ? out[key] : null;
+  if (parseFareKey(key) && e && !(old && fareAt(old) > e.f)) out[key] = e;
+  var ks = Object.keys(out);
+  if (ks.length > FARES_KEEP) { ks.sort(function (a, b) { return fareAt(out[b]) - fareAt(out[a]); }); ks.slice(FARES_KEEP).forEach(function (k) { delete out[k]; }); }
+  return out;
+}
+/* one traveler's end (0 the day they land, 1 the day they leave) priced ±1 day, by the one pricing rule (priceRows): the day
+   before, their day and the day after, each the leg that end changes (a round trip is one search; open-jaw, that end's one-way),
+   ★ on the cheapest once two are priced; need = the ±1 legs still to search (its 🔍 cost; none for a booked traveler). null
+   when that end cannot move. */
+function endPrices(model, code, end, fares, now, today) {
+  var x = model && model.members.filter(function (m) { return m.code === code; })[0];
+  if (!x || !x.traveler || x.why || !x.keys.length || !x.d1 || x.bad) return null;
+  var rows = [], need = [];
+  [-1, 0, 1].forEach(function (k) {
+    var d1 = end ? x.d1 : addD(x.d1, k), d2 = end ? addD(x.d2, k) : x.d2;
+    if (k && legWhy(model.dest, x.O, d1, d2, today, x.origin)) return;
+    var ks = legKeys(x.from, x.A, x.H, d1, d2, x.headcount), lk = ks.length === 1 ? ks[0] : ks[end ? 1 : 0];
+    var l = priceRows([{ code: x.code, color: x.color, keys: [lk], why: '' }], fares, now).per[x.code].legs[0];
+    rows.push({ k: k, day: end ? d2 : d1, key: lk.key, kind: lk.kind, st: l.st, p: l.p, f: l.f });
+    if (k && !x.booked && (l.st === 'missing' || l.st === 'stale')) need.push(lk.key);   // a booked traveler's days are shown, never searched
+  });
+  // ★ the cheapest, once two days are priced and one is cheaper than another (equal prices have no cheapest)
+  var priced = rows.filter(function (r) { return r.p != null; }), ps = priced.map(function (r) { return r.p; });
+  if (priced.length >= 2 && Math.min.apply(null, ps) < Math.max.apply(null, ps)) { var min = Math.min.apply(null, ps); priced.forEach(function (r) { if (r.p === min) r.star = true; }); }
+  return rows.length > 1 ? { end: end, rows: rows, need: need } : null;
+}
 /* === pialax trip-model: end === */
 
 if (typeof module !== 'undefined' && module.exports) {
@@ -1283,6 +2268,24 @@ if (typeof module !== 'undefined' && module.exports) {
     typedNote: typedNote, noteRoom: noteRoom, faceOf: faceOf, decisionBody: decisionBody,
     memberCode: memberCode, createRequest: createRequest, respondRequest: respondRequest, bookedRequests: bookedRequests,
     updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit,
-    migrateOptions: migrateOptions, migrateRequests: migrateRequests
+    migrateOptions: migrateOptions, migrateRequests: migrateRequests,
+    LIST_LINK_MAX: LIST_LINK_MAX, answerTimes: answerTimes, newestAnswerAt: newestAnswerAt, newAnswers: newAnswers, awaitsMe: awaitsMe, bookByCue: bookByCue, togoCue: togoCue,
+    tripGroups: tripGroups, familyBoard: familyBoard, listLink: listLink, US_MAP: US_MAP, usPoint: usPoint, mapXY: mapXY,
+    NAME_WORDS: NAME_WORDS, TITLE_WORDS: TITLE_WORDS, CAPTION_WORDS: CAPTION_WORDS, NAME_CHARS: NAME_CHARS, TITLE_CHARS: TITLE_CHARS,
+    wordsIn: wordsIn, capTyped: capTyped, firstWords: firstWords, cleanName: cleanName, joinLink: joinLink, parseJoin: parseJoin,
+    legacyDraft: legacyDraft, groupPresets: groupPresets, freeFace: freeFace, FAMILY_KEY: FAMILY_KEY,
+    fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
+    whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle,
+    SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
+    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, datesRole: datesRole, datesHeld: datesHeld,
+    bookSlot: bookSlot, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
+    timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime,
+    SPEND_PER_TAP: SPEND_PER_TAP, SPEND_PER_SESSION: SPEND_PER_SESSION, QUOTA_LOCK_AT: QUOTA_LOCK_AT, QUOTA_BUDGET: QUOTA_BUDGET, PLAN_LEFT_MIN: PLAN_LEFT_MIN,
+    FARE_OFFERS: FARE_OFFERS, FARES_KEEP: FARES_KEEP, codeSet: codeSet, parseFareKey: parseFareKey, searchQuery: searchQuery, serpTime: serpTime,
+    fareFromSerp: fareFromSerp, fareFacts: fareFacts, prevDelta: prevDelta, priceDelta: priceDelta, spendKeys: spendKeys, spendCount: spendCount, spendLock: spendLock,
+    tapKeys: tapKeys, spendable: spendable, monthWhy: monthWhy,
+    quotaRead: quotaRead, quotaBump: quotaBump, quotaExceeded: quotaExceeded, quotaFromAccount: quotaFromAccount,
+    v1FareKey: v1FareKey, fareKeyOfV1: fareKeyOfV1, fareFromV1: fareFromV1, v1Fare: v1Fare, faresPut: faresPut, endPrices: endPrices,
+    WIDEN_DAYS: WIDEN_DAYS, followsPlan: followsPlan, cheapWhy: cheapWhy, widenWin: widenWin, widenDelta: widenDelta, moveDelta: moveDelta
   };
 }

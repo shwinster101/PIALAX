@@ -554,7 +554,7 @@ function makeServer(worker) {
   const keysOf = mem(tgOrg({}), 'LAX').keys;
   check(keysOf.length === 2 && keysOf[0].kind === 'in' && keysOf[1].kind === 'out' && keysOf[0].key === '2|LAX|PIA|2026-11-20||1' && keysOf[1].key === '2|ORD|LAX|2026-11-29||1',
     'open-jaw is priced as two one-ways: LAX→PIA 11/20 and ORD→LAX 11/29');
-  check(mem(tgOrg({}, { multiAirport: true }), 'LAX').keys[0].key === '2|LAX,BUR,LGB,SNA,ONT|PIA|2026-11-20||1', 'with the Worker’s multi-airport search the leg is priced from the whole LA set');
+  check(mem(tgOrg({}, { multiAirport: true }), 'LAX').keys[0].key === '2|BUR,LAX,LGB,ONT,SNA|PIA|2026-11-20||1', 'with the Worker’s multi-airport search the leg is priced from the whole LA set (PIA-140: the key names the set sorted, the Worker\'s cache order)');
   const dwP = model(DW, { hasEditKey: true, hasToken: true });
   const mdLink = M.gfDecode(mem(dwP, 'momdad-k3').link.href);
   check(mem(dwP, 'momdad-k3').keys[0].key === '1|PIA|RDU|2026-11-06|2026-11-09|2' && mdLink.adults === 2 && mem(dwP, 'momdad-k3').link.href === G.dwMD && mem(dwP, 'ashwin-p8').keys[0].kind === 'rt',
@@ -684,8 +684,9 @@ function makeServer(worker) {
   const hubSrc = /const IDEA_HUBS = (\[\[[^;]*\]\]);/.exec(workerSrc);
   check(!!hubSrc && eq(JSON.parse(hubSrc[1].replace(/'/g, '"')), M.IDEA_HUBS), 'hub pairs are exactly worker.js IDEA_HUBS');
   const { loadApi } = require(path.join(ROOT, 'scripts', 'harness.js'));
-  const v1m = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['familyForDate', 'TRIP_NEARBY_GROUPS']);
-  const v1d = loadApi(path.join(ROOT, 'pialax.html'), 'pialax.html', ['familyForDate', 'TRIP_NEARBY_GROUPS']);
+  const QUIET = { console: { log() {}, warn() {}, error() {}, info() {} } };   // v1's boot notes (no CDN in Node), which surface at the next await
+  const v1m = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['familyForDate', 'TRIP_NEARBY_GROUPS'], QUIET);
+  const v1d = loadApi(path.join(ROOT, 'pialax.html'), 'pialax.html', ['familyForDate', 'TRIP_NEARBY_GROUPS'], QUIET);
   check(!v1m.missing.length && !v1d.missing.length && eq(v1m.api.TRIP_NEARBY_GROUPS, M.NEARBY_GROUPS) && eq(v1d.api.TRIP_NEARBY_GROUPS, M.NEARBY_GROUPS),
     'nearby groups are exactly v1 TRIP_NEARBY_GROUPS (both pialax.html and pialax-mobile.html)');
   const days = ['2026-06-25', '2026-08-15', '2026-08-31', '2026-09-01', '2026-10-17', '2026-11-26'];
@@ -743,7 +744,8 @@ function makeServer(worker) {
   check(ended.past && ended.shelf && !ended.bookByPassed, 'a plan that ended yesterday (10/16) is past and on the shelf, and never nags about book-by');
   const nd = mem(model(pricedDocs.noDest), 'ashwin-p8');
   check(nd.why === 'nodest' && !nd.link && nd.keys.length === 0, 'no destination: no link and no search');
-  const pk = model(tweak(DW, (d) => { d.responses['ashwin-p8'].note = '🛬10:00'; d.responses['momdad-k3'].note = '📞 🛬14:00'; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { note: '🛬11:30' }); }));
+  // (PIA-139: a recorded time is a pickup while its traveler is booked)
+  const pk = model(tweak(DW, (d) => { d.responses['ashwin-p8'].note = '🛬10:00'; d.responses['momdad-k3'].note = '📞 🛬14:00'; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { note: '🛬11:30' }); ['ashwin-p8', 'momdad-k3', 'anjo-z5'].forEach((c) => { d.responses[c].booked = true; }); }));
   const pkL = M.pickups(pk, {}, NOW, false), arr = pkL.RDU.filter((c) => c.kind === 'arr'), dep = pkL.RDU.filter((c) => c.kind === 'dep');
   check(eq(Object.keys(pkL), ['RDU']) && eq(arr.map((c) => c.time), ['10:00', '11:30', '14:00']) && !!arr[0].group && arr[0].group === arr[1].group && !arr[2].group,
     '⏱ one pickup run: arrivals 10:00 and 11:30 (90 min apart) share a run; 14:00 (150 min later) does not');
@@ -758,6 +760,1068 @@ function makeServer(worker) {
   const pGuest = chipOf(M.pickups(model(DW, { fares: pkF }), pkF, NOW, false));
   check(pOrg.time === '09:15' && pOrg.pred && pGuest.time === '' && !pGuest.pred && pGuest.codes.length === 2,
     "a predicted arrival (the cached offer's 09:15, even from a stale search) shows only on the organizer's token phone, marked predicted; elsewhere the untimed arrivals merge");
+
+  // ═══ PIA-135 ════════════════════════════════════════════════════════════
+  section('PIA-135 the shared watchlist: new answers, what waits on me, the book-by cue, groups, the list link, the US map');
+  {
+    // answer times come from the Worker's own record: answer through the real handler, read it back
+    const id = srv.seed(DW);
+    const d0 = await srv.get(id, KEY);
+    const seen0 = M.newestAnswerAt(d0);
+    const q = M.respondRequest(d0, 'anjo-z5', { status: 'maybe' }, { by: 'self' });
+    const rs = await srv.send([q]);
+    const d1 = await srv.get(id, KEY);
+    const t1 = M.answerTimes(d1), logAt = d1.log.filter((l) => l.event === 'rsvp:maybe' && l.by === 'anjo-z5').map((l) => l.at).pop();
+    check(srv.allOk(rs) && t1['anjo-z5'] === logAt && t1['anjo-z5'] >= d1.responses['anjo-z5'].updated_at && t1['momdad-k3'] === '2026-10-11T02:10:00.000Z' && M.newestAnswerAt(d1) === logAt,
+      'answerTimes: each member\'s newest rsvp log time from the Worker (the answer\'s updated_at when the log has none); newestAnswerAt is the trip\'s newest', { t1, logAt });
+    const mine = M.tripModel(d1, ctx({ me: 'ashwin-p8' }));
+    check(eq(M.newAnswers(mine, seen0), ['anjo-z5']) && eq(M.newAnswers(mine, M.newestAnswerAt(d1)), []) && eq(M.newAnswers(mine, '').sort(), ['anjo-z5', 'momdad-k3']),
+      'newAnswers: the faces that answered since my last look (never my own); nothing once I have seen the newest; all of them before any look');
+    check(eq(M.newAnswers(M.tripModel(d1, ctx()), ''), []) && eq(M.newAnswers(M.tripModel(tweak(d1, (d) => { d.decision.stage = 'dropped'; }), ctx({ me: 'ashwin-p8' })), ''), []),
+      'no new-answer marks on a trip where I am nobody yet, or on a shelf trip');
+    check(mem(mine, 'anjo-z5').ansAt === logAt && mem(M.tripModel(d0, ctx()), 'anjo-z5').ansAt === '', 'the model carries each face\'s answer time (ansAt; blank without an answer)');
+    // v1 reads what newestAnswerAt records as "seen" (v1's own rule is the newest rsvp log time, never later)
+    const v1rule = (doc) => { let last = ''; (doc.log || []).forEach((l) => { if (/^rsvp:/.test(l.event || '') && l.at > last) last = l.at; }); return last; };
+    check(M.newestAnswerAt(d1) >= v1rule(d1) && M.newestAnswerAt(DW) === '2026-10-11T02:11:00.000Z' && v1rule(DW) === '',
+      'seen = the newest answer, never older than v1\'s newest-rsvp-log rule (a doc whose log lost its rsvp lines still reads as seen)');
+  }
+  {
+    const anjo = M.tripModel(DW, ctx({ me: 'anjo-z5' })), ash = M.tripModel(DW, ctx({ me: 'ashwin-p8' }));
+    const host = M.tripModel(tweak(DW, (d) => { d.idea.destination.airport = 'PIA'; d.idea.destination.city = 'Peoria'; }), ctx({ me: 'momdad-k3' }));
+    const hostUn = M.tripModel(tweak(DW, (d) => { d.idea.destination.airport = 'PIA'; delete d.responses['momdad-k3']; }), ctx({ me: 'momdad-k3' }));
+    check(M.awaitsMe(anjo) && !M.awaitsMe(ash) && !M.awaitsMe(host) && M.awaitsMe(hostUn) && !M.awaitsMe(M.tripModel(DW, ctx())) &&
+      !M.awaitsMe(M.tripModel(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), ctx({ me: 'anjo-z5' }))),
+      'awaitsMe: a trip still waiting on my answer (a host\'s default In counts until confirmed); not once answered, not without an identity, not when dropped');
+  }
+  {
+    // Diwali (11/06) had to book by 10/16: 20 days to go. Tahoe (11/27) books by 11/06: no cue yet.
+    const cue = (doc, over) => M.bookByCue(M.tripModel(doc, ctx(over)));
+    const booked = tweak(DW, (d) => { d.responses['ashwin-p8'].booked = true; });
+    check(cue(DW, { me: 'ashwin-p8' }) === 20 && cue(DW, { hasEditKey: true }) === 20 && cue(TH, { me: 'ashwin-l2', hasEditKey: true }) === null,
+      'bookByCue: once book-by has passed, the days to go (Diwali ⏳20) for the organizer and for an answered traveler; none before (Tahoe)');
+    check(cue(DW, { me: 'anjo-z5' }) === null && cue(booked, { me: 'ashwin-p8' }) === null && cue(DW, {}) === null &&
+      cue(tweak(DW, (d) => { d.idea.destination.airport = 'LAX'; }), { me: 'ashwin-p8' }) === null && cue(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { hasEditKey: true }) === null,
+      'the cue shows only when it matters: never to someone who has not answered, who already booked, has no identity, hosts, or on a shelf trip');
+    // ⏳ days to go is on every upcoming dated card, for everyone; the book-by arc is (days to book-by) / (days to go)
+    const tg = (doc, over) => M.togoCue(M.tripModel(doc, ctx(over)));
+    const allBooked = tweak(TH, (d) => { Object.keys(d.responses).forEach((c) => { d.responses[c].status = 'in'; d.responses[c].booked = true; }); d.responses['leo-w6'] = { member: 'leo-w6', status: 'in', origin: 'SEA', available_from: '', available_to: '', note: '', arrive_at: '', leave_from: '', updated_at: '2026-10-16T10:00:00.000Z', booked: true }; });
+    check(eq(tg(TH, {}), { days: 41, frac: 0.488, late: false }) && eq(tg(DW, { me: 'anjo-z5' }), { days: 20, frac: 0, late: false }) && eq(tg(DW, { me: 'ashwin-p8' }), { days: 20, frac: 0, late: true }),
+      'togoCue: Tahoe ⏳41 with the arc 20/41 full, for anyone; Diwali ⏳20 with an empty arc, red only where the cue matters (Ashwin answered, Anjo has not)');
+    check(tg(allBooked, {}).frac === null && tg(CY, {}) === null && tg(tweak(TH, (d) => { d.decision.stage = 'dropped'; }), {}) === null && tg(tweak(TH, (d) => { d.idea.dates.departure = '2026-10-10'; }), {}) === null &&
+      eq(tg(tweak(TH, (d) => { d.idea.dates.departure = '2026-10-17'; }), {}), { days: 0, frac: 0, late: false }),
+      'no arc once every traveler has booked; no ⏳ on an undated idea, a shelf trip or one already under way; ⏳0 on the day');
+  }
+  {
+    // groups: 🌽🗽 family (Diwali, the shower, Thanksgiving) and 🦊🐼🐸 friends (Tahoe); a solo trip is in none
+    const solo = tweak(DW, (d) => { d.id = 'soSoloTripJustMe00s001'; d.idea.members = [d.idea.members[1]]; d.responses = {}; });
+    const ms = [M.tripModel(TH, ctx({ me: 'ashwin-l2' })), M.tripModel(DW, ctx({ me: 'ashwin-p8' })), M.tripModel(solo, ctx({ me: 'ashwin-p8' })), M.tripModel(CY, ctx({ me: 'ashwin-c3' })),
+      M.tripModel(tg, ctx({ me: 'LAX' }))];
+    const g = M.tripGroups(ms, 'ashwin');
+    check(g.length === 2 && eq(g[0].ids, [DW.id, CY.id, tg.id]) && eq(g[0].faces, ['🌽', '🗽']) && eq(g[1].ids, [TH.id]) && eq(g[1].faces, ['🦊', '🐼', '🐸']) && eq(g[1].names, ['Priya', 'Maya', 'Leo']) && g[0].names.length === 2,
+      'tripGroups: trips that share anyone but me form one group (a v1 "Me" is nobody), most trips first; a trip with nobody else is in none', g.map((x) => [x.ids, x.faces.join('')]));
+    // Anjo is on the LA beach weekend with the Tahoe friends, so that trip chains the two groups into one
+    const g2 = M.tripGroups([ms[0], M.tripModel(LX, ctx({ me: 'ashwin-x3' })), ms[1]], 'ashwin');
+    check(g2.length === 1 && eq(g2[0].ids, [TH.id, LX.id, DW.id]), 'a trip that shares someone with two groups joins them (connected, not first match), in list order', g2.map((x) => x.ids));
+    check(eq(M.tripGroups([], 'x'), []) && M.tripGroups([ms[2]], 'ashwin').length === 0, 'no trips, or only solo trips: no groups');
+  }
+  {
+    const A = 'dwDiwaliRaleigh2026a01', B = 'thTahoeSkiWeekend26b02', base = 'https://shwinster101.github.io/PIALAX/';
+    const L = M.listLink(base, [A, B, 'bad id', A], '🌴');
+    check(L === base + '?l=' + A + '.' + B + '&f=' + encodeURIComponent('🌴'), 'listLink: <base>?l=<id>.<id>&f=<my face>, valid ids once each', L);
+    const many = Array.from({ length: 30 }, (_, i) => ('t' + i).padEnd(22, 'q'));
+    check(M.LIST_LINK_MAX === 20 && new URL(M.listLink(base, many, '')).searchParams.get('l').split('.').length === 20 && !/[&?]f=/.test(M.listLink(base, many, 'not a face')),
+      'a list link carries at most 20 trips, and a face only when it is one emoji');
+    check(M.listLink(base, [], '🌴') === '' && M.listLink('javascript:alert(1)', [A], '') === '' && M.listLink(base + '?x=1', [A], '') === '', 'no link without trips or with a base that is not a plain address');
+    const u = new URL(L);
+    check(!u.hash && decodeURIComponent(u.search).replace(/[A-Za-z0-9_-]{22}/g, 'ID') === '?l=ID.ID&f=🌴', 'nothing in a list link but trip ids and one face: no key, token, hash or price');
+  }
+  {
+    // d3-geo's geoAlbersUsa fitted to 360×230 (the Map's box), golden values from d3 itself (rounded to 0.1)
+    const gold = { PIA: [233.4, 96.8], LAX: [54.3, 134], LGA: [324.7, 82.2], SEA: [59, 25.9], JAX: [292, 170.6], RDU: [303.5, 125.9], MIA: [307.2, 205], BOS: [337.7, 66.1], ANC: [64.2, 195.6], HNL: [116.9, 197.1] };
+    const off = Object.keys(gold).filter((k) => { const p = M.mapXY(k); return !p || Math.abs(p[0] - gold[k][0]) > 0.11 || Math.abs(p[1] - gold[k][1]) > 0.11; });
+    check(off.length === 0, 'mapXY: the US map projection matches d3\'s geoAlbersUsa (lower 48, Alaska and Hawaii insets)', off.map((k) => [k, M.mapXY(k), gold[k]]));
+    check(M.mapXY('LHR') === null && M.mapXY('CUN') === null && M.mapXY('ZZQ') === null && M.mapXY('') === null && M.usPoint(NaN, 0) === null,
+      'a place off the US map (London, Cancún), an unknown code or a bad point has no map position');
+  }
+
+  // ═══ PIA-136 ════════════════════════════════════════════════════════════
+  section('PIA-136 the one create path and organizer edits: typed caps, names, join requests, v1 idea links, groups, faces');
+  {
+    // typed text under a word cap: a change that adds a word past the cap is refused; nothing already there is ever cut
+    const twelve = 'one two three four five six seven eight nine ten eleven twelve', long = 'a b c d e f g h i j k l m n o p q r s t u v w x y z';
+    check(M.wordsIn('🎉 Diwali in 2026 — Raleigh') === 3 && M.wordsIn('') === 0 && M.wordsIn('  ') === 0 && M.wordsIn('Mom & Dad') === 2,
+      'wordsIn counts the strict rule\'s words: tokens with a letter (numerals, emoji and dashes are free)');
+    check(M.capTyped(twelve + ' thirteen', twelve, 12) === twelve && M.capTyped(twelve + ' 13', twelve, 12) === twelve + ' 13' && M.capTyped('a b', 'a', 12) === 'a b',
+      'capTyped refuses the word that would pass the cap (the field keeps what it had); numerals and emoji still go in');
+    check(M.capTyped(long.replace(' z', ''), long, 20) === long.replace(' z', '') && M.capTyped(long + 'z', long, 20) === long + 'z' && M.capTyped(long + ' zz', long, 20) === long,
+      'a text that was already longer than the cap (a v1 caption) can be edited and shortened, never grown, and is never cut by typing');
+    const fw = M.firstWords('Dad wants the  Peoria parade 🦃 at 9 and then lunch', 5);
+    check(fw.text === 'Dad wants the  Peoria parade 🦃' && fw.more === true && eq(M.firstWords('two words', 5), { text: 'two words', more: false }) && M.firstWords('', 3).text === '',
+      'firstWords: the first n words (tokens with no letter ride along), and whether any were left out', fw);
+  }
+  {
+    check(M.cleanName('  Sam   Lee ') === 'Sam Lee' && M.cleanName('Me') === '' && M.cleanName(' me ') === '' && M.cleanName('123') === '' && M.cleanName('Ana Maria de Souza') === '' &&
+      M.cleanName('Bartholomew Montgomery-Fitzgerald').length === 33 && M.cleanName('x'.repeat(60)).length === M.NAME_CHARS && M.NAME_CHARS === 37 && M.TITLE_CHARS === 77,
+      'cleanName: one space between words, ≤3 words, ≤37 characters (a label is "<face> <name>" ≤40), a letter in it, never the v1 word Me');
+    const id = 'dwDiwaliRaleigh2026a01', base = 'https://shwinster101.github.io/PIALAX/';
+    const L1 = M.joinLink(base, id, 'Sam', 'oak'), L2 = M.joinLink(base, id, ' Dr. Ana  Lee ', ''), L3 = M.joinLink(base, id, 'José', 'GRU');
+    const back = (u) => { const p = new URL(u).searchParams; return { idea: p.get('idea'), j: M.parseJoin(p.get('add')) }; };
+    check(L1 === base + '?idea=' + id + '&add=Sam.OAK' && eq(back(L1), { idea: id, j: { name: 'Sam', airport: 'OAK' } }) && eq(back(L2).j, { name: 'Dr. Ana Lee', airport: '' }) && eq(back(L3).j, { name: 'José', airport: 'GRU' }),
+      'joinLink → parseJoin round-trips through the address bar: ?idea=<id>&add=<name>.<IATA> (a name with a dot, no airport, an accent)', [L1, L2, L3]);
+    check(M.parseJoin('Sam.12') === null && M.parseJoin('.OAK') === null && M.parseJoin('Me.LAX') === null && M.parseJoin('') === null && eq(M.parseJoin('Priya'), { name: 'Priya', airport: '' }) &&
+      M.joinLink(base, 'short', 'Sam', 'OAK') === '' && M.joinLink(base, id, 'Me', 'OAK') === '' && M.joinLink('javascript:x', id, 'Sam', '') === '',
+      'a join request needs a real name and a 3-letter code or none; a bad id, the word Me or a base that is not an address builds nothing');
+    const u = new URL(L1);
+    check(!u.hash && eq([...u.searchParams.keys()], ['idea', 'add']), 'a join request carries the trip id, a name and an airport only: no key, token or hash');
+  }
+  {
+    // v1's read-only ?tripIdea= payload (encodeTripIdeaSharePayload: base64 of the URI-encoded JSON); test-app reads one v1 itself built
+    const enc = (p) => Buffer.from(encodeURIComponent(JSON.stringify(p)), 'binary').toString('base64');
+    const v1p = { version: 'trip-idea-v1', builder: { destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: '2026-11-06', return: '2026-11-09', searchStart: '', searchEnd: '' }, constraints: { tripLength: null, eventDate: '2026-11-08' } },
+      recommendation: { airport: 'RDU', city: 'Raleigh-Durham', departure: '2026-11-06', return: '2026-11-09', totalFare: 955, perTicketFare: 240, hub: 'LAX' }, fareStatus: 'estimated', notes: 'Lakshmi puja Sunday', eventContext: '2026-11-08' };
+    const d1 = M.legacyDraft(enc(v1p), TODAY);
+    check(eq(d1, { name: 'Raleigh-Durham', code: 'RDU', mode: 'dates', s: '2026-11-06', e: '2026-11-09', pin: '2026-11-08', nights: 3, caption: 'Lakshmi puja Sunday', cut: false }) && JSON.stringify(d1).indexOf('955') < 0,
+      'legacyDraft: a v1 idea link fills the create sheet with its place, plan, event day and note; v1\'s prices and hub are never read', d1);
+    // v1's builder note has no limit: the caption is its first 20 words (and fits the notes field), marked cut
+    const words40 = Array.from({ length: 40 }, (_, i) => 'note' + i).join(' '), huge = 'x'.repeat(849);
+    const c40 = M.legacyDraft(enc(Object.assign({}, v1p, { notes: words40 })), TODAY), cHuge = M.legacyDraft(enc(Object.assign({}, v1p, { notes: huge })), TODAY);
+    const built = M.createRequest({ emoji: '🪔', name: 'X', dest: { airport: 'RDU' }, dates: { departure: c40.s, return: c40.e }, pin: c40.pin, caption: cHuge.caption, members: [{ name: 'Ana', airport: 'LAX' }] }, { today: TODAY });
+    check(c40.cut && M.wordsIn(c40.caption) === 20 && c40.caption === words40.split(' ').slice(0, 20).join(' ') && cHuge.cut && cHuge.caption.length === M.CAPTION_CHARS &&
+      built.body.idea.notes === '📌2026-11-08 ' + cHuge.caption && built.body.idea.notes.length <= M.TEXT_MAX.notes,
+      'a longer v1 note is cut visibly, never silently: its first 20 words (849 characters → CAPTION_CHARS), marked cut; with 📌 it still fits the 500-character notes whole', { w: M.wordsIn(c40.caption), len: cHuge.caption.length });
+    const win = M.legacyDraft(encodeURIComponent(JSON.stringify({ version: 'trip-idea-v0', builder: { destination: { airport: 'cun' }, dates: { searchStart: '2026-10-01', searchEnd: '2026-12-20' }, constraints: { tripLength: 5 } } })), TODAY);
+    const past = M.legacyDraft(enc(Object.assign({}, v1p, { recommendation: Object.assign({}, v1p.recommendation, { departure: '2026-09-01', return: '2026-09-04' }), builder: Object.assign({}, v1p.builder, { dates: {} }) })), TODAY);
+    check(eq(win, { name: '', code: 'CUN', mode: 'window', s: TODAY, e: '2026-12-20', pin: '', nights: 5, caption: '', cut: false }) && past.s === '' && past.e === '' && past.pin === '2026-11-08',
+      'a window idea becomes a ⟦window⟧ (from today) with its nights; days already past are not offered again', { win, past });
+    check(M.legacyDraft('!!!', TODAY) === null && M.legacyDraft(enc({ version: 'something-else' }), TODAY) === null && M.legacyDraft('', TODAY) === null && M.legacyDraft(enc(v1p), 'nope') === null,
+      'anything that is not a v1 idea payload reads as nothing (the router then says the link is broken)');
+  }
+  {
+    // the groups P-new-who offers: the people of each trip this phone has seen, newest first, one per set of names
+    const solo = tweak(DW, (d) => { d.id = 'soSoloTripJustMe00s001'; d.idea.members = [d.idea.members[1]]; d.responses = {}; });
+    const ms = [M.tripModel(TH, ctx({ me: 'ashwin-l2' })), M.tripModel(DW, ctx({ me: 'ashwin-p8' })), M.tripModel(CY, ctx({ me: 'ashwin-c3' })), M.tripModel(solo, ctx()), M.tripModel(LEG, ctx({ me: 'LAX' }))];
+    const g = M.groupPresets(ms);
+    check(g.length === 3 && eq(g[0].faces, ['🦊', '🐼', '🌴', '🐸']) && eq(g[0].rows.map((r) => r.me), [false, false, true, false]) && g[1].family && eq(g[1].faces, ['🌽', '🌴', '🗽']) && !g[0].family &&
+      eq(g[2].rows.map((r) => r.name), ['Ashwin']) && eq(g[1].rows.map((r) => [r.name, r.airport, r.headcount]), [['Mom & Dad', 'PIA', 2], ['Ashwin', 'LAX', 1], ['Anjo', 'LGA', 1]]),
+      'groupPresets: Tahoe\'s friends (me marked from this phone\'s identity), the 👪 family once (Diwali and the shower are the same people), a solo trip', g.map((x) => x.faces.join('')));
+    const legOnly = M.groupPresets([M.tripModel(LEG, ctx({ me: 'LAX' }))]);
+    check(M.tripModel(LEG, ctx({ me: 'LAX' })).legacy && legOnly.length === 0 && g.every((x) => x.rows.every((r) => r.name !== 'Me')),
+      'an unmigrated v1 trip offers no group: its faces are read-time stand-ins (a hashed 🐻 for Anjo), so picking it would hand people faces they never had', legOnly.map((x) => x.faces.join('')));
+    check(M.freeFace(['🦊', '🐻']) === '🐼' && M.freeFace(['🦊'], ['🐻', '🐼']) === '🐨' && M.freeFace(M.FACES.slice(0, 23), M.FACES) === M.FACES[23] && M.FACES.indexOf(M.freeFace(M.FACES)) >= 0,
+      'freeFace: the first face nobody on the trip has, preferring one nobody on this phone has either');
+  }
+  {
+    // faces are unique within a trip whatever the screen sends; codes never change
+    const twins = M.createRequest({ emoji: '🎉', name: 'Twins', dest: { airport: 'RDU' }, members: [{ name: 'Ana', face: '🦊', airport: 'LAX' }, { name: 'Bo', face: '🦊', airport: 'SEA' }, { name: 'Cy', airport: 'SEA' }] }, { today: TODAY });
+    const faces = twins.body.idea.members.map((x) => M.splitLabel(x.label).face);
+    check(new Set(faces).size === 3 && faces[0] === '🦊' && faces[1] !== '🦊', 'createRequest: a face an earlier member already has is replaced by a free one (faces stay unique in the trip)', faces);
+    const id = srv.seed(DW), fresh = await srv.get(id, KEY);
+    const dup = M.updateRequest(fresh, KEY, { members: fresh.idea.members.map((m) => ({ code: m.code })).concat([{ name: 'Priya', face: '🌽', airport: 'DEN' }]) });
+    const df = dup.body.idea.members.map((x) => M.splitLabel(x.label).face);
+    check(new Set(df).size === 4 && eq(dup.body.idea.members.slice(0, 3).map((x) => x.label), fresh.idea.members.map((x) => x.label)) && eq(dup.body.idea.members.slice(0, 3).map((x) => x.code), fresh.idea.members.map((x) => x.code)),
+      'an edit that adds someone with a face already on the trip gives them a free one; the kept members\' labels and codes are resent verbatim', df);
+    // the people editor's own changes, through the real Worker: an airport change resends the answered member's flights
+    const ed = M.organizerEdit(fresh, KEY, { members: fresh.idea.members.map((m) => (m.code === 'ashwin-p8' ? { code: m.code, name: 'Ashwin', face: '🌴', airport: 'SFO', headcount: 1 } : { code: m.code })) });
+    const res = await srv.send(ed), after = await srv.get(id, KEY);
+    check(srv.allOk(res) && ed.length === 2 && /respond/.test(ed[1].path) && ed[1].body.member === 'ashwin-p8' && after.responses['ashwin-p8'].origin === 'SFO' && after.responses['ashwin-p8'].status === 'in' &&
+      after.responses['ashwin-p8'].note === fresh.responses['ashwin-p8'].note && M.tripModel(after, ctx({ me: 'ashwin-p8' })).me.O.join() === 'SFO',
+      'moving an answered member\'s home airport (Ashwin LAX → SFO) is one update plus a complete answer resent with the new origin: his flights follow, his answer and note stay', ed.map((q) => q.path.split('?')[0]));
+    const rm = M.organizerEdit(after, KEY, { members: after.idea.members.filter((m) => m.code !== 'anjo-z5').map((m) => ({ code: m.code })) });
+    const rmRes = await srv.send(rm), gone = await srv.get(id, KEY);
+    check(srv.allOk(rmRes) && gone.idea.members.length === 2 && !gone.responses['anjo-z5'] && gone.responses['momdad-k3'].status === 'in',
+      'removing someone drops their answers on the Worker (why the editor asks twice for someone who answered); everyone else\'s answers stay');
+  }
+  {
+    // a kept member (its code alone) keeps its label whatever order the list is in: a new or edited row never takes its face
+    const id = srv.seed(tweak(DW, (d) => { d.id = 'dwKeptFacesFirst000k01'; })), fresh = await srv.get(id, KEY);
+    const kept = fresh.idea.members.map((m) => ({ code: m.code }));
+    const first = M.updateRequest(fresh, KEY, { members: [{ name: 'Priya', face: '🌽', airport: 'DEN' }].concat(kept) });
+    const pf = first.body.idea.members.map((x) => x.label);
+    check(eq(pf.slice(1), fresh.idea.members.map((x) => x.label)) && M.splitLabel(pf[0]).face !== '🌽' && new Set(pf.map((l) => M.splitLabel(l).face)).size === 4,
+      'reverse order: a new row listed BEFORE the kept members, with a face one of them has (🌽), gets a free face; the kept labels go back verbatim', pf);
+    const refaced = M.updateRequest(fresh, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', face: '🗽' }, { code: 'anjo-z5' }] });
+    const rf = refaced.body.idea.members.map((x) => x.label);
+    check(rf[0] === fresh.idea.members[0].label && rf[2] === fresh.idea.members[2].label && M.splitLabel(rf[1]).face !== '🗽' && M.splitLabel(rf[1]).name === 'Ashwin',
+      'a member re-faced to a face someone kept already has (Anjo\'s 🗽, later in the list) gets a free one instead; Anjo keeps hers', rf);
+    const air = M.updateRequest(fresh, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', airport: 'SFO' }, { code: 'anjo-z5' }] });
+    check(eq(air.body.idea.members.map((x) => x.label), fresh.idea.members.map((x) => x.label)) && air.body.idea.members[1].airport === 'SFO' && air.body.idea.members[1].headcount === 1,
+      'an airport-only change ({code, airport}) leaves every label as it is (another device\'s rename of the same member would survive)');
+    // a long name already on the trip (another client, P-migrate) is kept as it is; the word cap is for typing only
+    check(M.keepName('Mary  Ann Van Dyke') === 'Mary Ann Van Dyke' && M.cleanName('Mary Ann Van Dyke') === '' && M.keepName('Me') === '' && M.keepName('42') === '' && M.keepName('x'.repeat(60)).length === M.NAME_CHARS,
+      'keepName keeps a name that is already on a trip however many words it has (never the word Me, never one without a letter); cleanName is the typed rule');
+  }
+  {
+    // an edit whose update landed but whose airport-sync answer did not: the answer is still owed, rebuilt from the record that edit began with
+    const id = srv.seed(tweak(DW, (d) => { d.id = 'dwOwedAnswerRetry00o01'; })), base = await srv.get(id, KEY);
+    const ed = M.organizerEdit(base, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', airport: 'SFO' }, { code: 'anjo-z5' }] });
+    await srv.send(ed.slice(0, 1));   // the update lands; the connection drops before Ashwin's answer
+    const landed = await srv.get(id, KEY);
+    const naive = M.organizerEdit(landed, KEY, { members: [{ code: 'momdad-k3' }, { code: 'ashwin-p8', airport: 'SFO' }, { code: 'anjo-z5' }] });
+    const owed = { base, codes: ['ashwin-p8'] };
+    const alone = M.organizerEdit(landed, KEY, {}, { owed }), withEdit = M.organizerEdit(landed, KEY, { caption: 'Puja at 6' }, { owed });
+    check(M.tripModel(landed, ctx({ me: 'ashwin-p8' })).me.override === 'LAX' && naive.length === 1 && M.organizerEdit(landed, KEY, {}) === null,
+      'after the landed update the record reads LAX as an override (his flights still from LAX); rebuilt from the landed record the same edit owes nothing, so a plain retry would never send the answer', naive.map((q) => q.path.split('?')[0]));
+    check(alone.length === 1 && /\/idea\/respond/.test(alone[0].path) && alone[0].body.member === 'ashwin-p8' && alone[0].body.origin === '' && alone[0].body.note === base.responses['ashwin-p8'].note &&
+      withEdit.length === 2 && /update/.test(withEdit[0].path) && withEdit[1].body.member === 'ashwin-p8' && withEdit[1].body.origin === '',
+      'opts.owed: the owed answer is rebuilt against base (origin "" — his own home now), alone for an empty delta or after the next idea edit\'s update', [alone.map((q) => q.body), withEdit.map((q) => q.path.split('?')[0])]);
+    const res = await srv.send(alone), fixed = await srv.get(id, KEY);
+    check(srv.allOk(res) && fixed.responses['ashwin-p8'].origin === 'SFO' && M.tripModel(fixed, ctx({ me: 'ashwin-p8' })).me.override === '' && M.tripModel(fixed, ctx({ me: 'ashwin-p8' })).me.O.join() === 'SFO',
+      'through the real Worker the owed answer puts him on SFO for good (no override left)');
+    const closed = clone(landed); closed.decision = { stage: 'dropped' };
+    check(M.organizerEdit(closed, KEY, {}, { owed }) === null && M.organizerEdit(landed, KEY, {}, { owed: { base, codes: ['nobody-zz'] } }) === null,
+      'nothing is owed on a closed trip (it takes no answers), nor for a member who has no answer');
+  }
+  {
+    // a paste (or autocorrect) that would pass a word cap: everything already there stays, and as much of the paste as fits goes in
+    const prev = 'Diwali in', pasted = 'Diwali in ' + Array.from({ length: 18 }, (_, i) => 'w' + i + 'x').join(' ');
+    const f1 = M.fitTyped(pasted, prev, 12), mid = M.fitTyped('Sam PASTE ME HERE Lee', 'Sam Lee', 3), ok = M.fitTyped('Sam Lee', 'Sam', 3);
+    check(f1.cut && M.wordsIn(f1.text) === 12 && f1.text.indexOf('Diwali in w0x') === 0 && f1.at === f1.text.length && mid.cut && mid.text === 'Sam PASTE Lee' && mid.at === 10 && !ok.cut && ok.text === 'Sam Lee' && ok.at === -1 &&
+      eq(M.fitTyped('🦊🦁 a b', '🦊🦁', 1), { text: '🦊🦁 a ', cut: true, at: 7 }) && M.fitTyped(prev + ' 12 13', prev, 2).cut === false,
+      'fitTyped: a paste past the cap keeps the text that was there (before and after the cursor) and the first words that fit, and says it was cut; numerals ride free', [f1.text, mid.text]);
+  }
+
+  // ═══ PIA-137 ════════════════════════════════════════════════════════════
+  section('PIA-137 the trip view: who this phone is, the one primary action, the organizer\'s 🎫, and answers that keep everything');
+  {
+    // who this phone is: a remembered face wins, a hint greets only when nothing is remembered, else P-face asks
+    const w = (doc, o) => M.whoAmI(doc, o);
+    const a = w(DW, { stored: 'anjo-z5' }), b = w(DW, { stored: 'anjo-z5', hint: 'anjo-z5' }), c = w(DW, { stored: 'anjo-z5', hint: 'momdad-k3' }), d = w(DW, { stored: 'anjo-z5', hint: 'nobody-zz' });
+    check(a.me === 'anjo-z5' && a.from === 'stored' && !a.ask && b.me === 'anjo-z5' && !b.ask && !b.hint && d.me === 'anjo-z5' && !d.ask && !d.hint,
+      'a remembered face that is on the trip is me; the same hint (or one for nobody on the trip) asks nothing', [a, b, d]);
+    check(c.me === 'anjo-z5' && c.ask && c.hint === 'momdad-k3' && c.from === 'stored',
+      'a hint that differs from the remembered face never overrides it: P-face asks, the remembered face outlined and the hint marked (one tap decides)', c);
+    const h = w(DW, { hint: 'anjo-z5' }), gone = w(DW, { stored: 'removed-x1' });
+    check(h.me === 'anjo-z5' && h.from === 'hint' && !h.ask && gone.me === '' && gone.ask,
+      'with nothing remembered a hint greets that face (2 taps: the link, then In); a remembered face that left the trip counts as none', [h, gone]);
+    const pre = w(DW, { names: ['anjo'] }), none = w(DW, {}), twoSams = w(M8, { names: ['Sam Lee'] }), legacy = w(LEG, { names: ['me', 'Me'] }), lgAnjo = w(LEG, { names: ['ANJO '] });
+    check(pre.me === '' && pre.ask && pre.pre === 'anjo-z5' && none.ask && none.pre === '' && twoSams.ask && twoSams.pre === '' && legacy.pre === '' && lgAnjo.pre === 'LGA',
+      'with neither, P-face asks; the one member named as this phone already is (its profile, its faces elsewhere) is preselected, never saved; two "Sam Lee"s or a v1 "Me" preselect nobody', [pre.pre, twoSams.pre, legacy.pre, lgAnjo.pre]);
+    const joined = tweak(TH, (x) => { x.idea.members.push({ code: 'sam-j1', label: '🐨 Sam', airport: 'OAK', headcount: 1 }); });
+    check(w(joined, { join: 'Sam' }).pre === 'sam-j1' && w(TH, { join: 'Sam' }).pre === '',
+      'a phone that asked to join as Sam preselects Sam once the organizer has added him (and nobody before)');
+    // a forwarded nudge link: the names this phone already is count as remembered, so a hint for someone else here asks
+    const fwd = w(DW, { hint: 'anjo-z5', names: ['Mom & Dad'] }), fwd2 = w(DW, { hint: 'anjo-z5', names: ['Ashwin'] });
+    const own = w(DW, { hint: 'anjo-z5', names: ['Anjo', 'Mom & Dad'] }), stranger = w(DW, { hint: 'anjo-z5', names: ['Priya Raman'] }), asked = w(joined, { hint: 'ashwin-l2', join: 'Sam' });
+    check(fwd.me === '' && fwd.ask && fwd.hint === 'anjo-z5' && fwd.pre === 'momdad-k3' && fwd.from === '' && fwd2.ask && fwd2.pre === 'ashwin-p8' && !fwd2.me,
+      'PIA-137 a nudge link for Anjo on a phone whose profile (or face on another trip) is Mom & Dad here never greets Anjo: P-face asks, Mom & Dad preselected, the hint marked', [fwd, fwd2]);
+    check(own.me === 'anjo-z5' && own.from === 'hint' && !own.ask && stranger.me === 'anjo-z5' && !stranger.ask && stranger.from === 'hint',
+      'a hint still greets its face when one of this phone\'s names is that face, or when none of them is on the trip', [own, stranger]);
+    const twoHint = w(M8, { hint: 'samlee-kz', names: ['Sam Lee'] }), twoOther = w(M8, { hint: 'grandmajosephine-nf', names: ['Sam Lee'] });
+    check(twoHint.me === 'samlee-kz' && !twoHint.ask && twoOther.ask && twoOther.pre === '' && twoOther.hint === 'grandmajosephine-nf' && asked.ask && asked.pre === 'sam-j1' && asked.hint === 'ashwin-l2',
+      'two "Sam Lee"s: a hint for one of them greets; a hint for someone else asks with nobody preselected (the hint marked); the name a phone asked to join with counts too', [twoHint, twoOther, asked]);
+  }
+  {
+    // the one primary action: share and look before the dates are set, book and mark booked once set, Flighty after
+    const P = (doc, o, today) => M.primaryAction(model(doc, o), today || TODAY);
+    const locked = tweak(DW, (x) => { x.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }; });
+    const bookedAnjo = tweak(locked, (x) => { x.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const paid = tweak(bookedAnjo, (x) => { x.decision.stage = 'booked'; x.decision.actual_total = 900; });
+    const dropped = tweak(bookedAnjo, (x) => { x.decision.stage = 'dropped'; });
+    const outAnjo = tweak(DW, (x) => { x.responses['anjo-z5'] = R('out', 'LGA'); }), inAnjo = tweak(DW, (x) => { x.responses['anjo-z5'] = R('in', 'LGA'); });
+    check(P(DW, { me: 'ashwin-p8', hasEditKey: true }) === 'share' && P(DW, { me: 'anjo-z5', hasEditKey: true }) === 'share' && P(DW, { hasEditKey: true }) === 'share-only' &&
+      P(inAnjo, { me: 'anjo-z5' }) === 'share' && P(DW, { me: 'anjo-z5' }) === 'none' && P(outAnjo, { me: 'anjo-z5' }) === 'none' && P(DW, {}) === 'none',
+      'before the dates are set: [📣 Share | ✈↗] for the organizer and for a guest who answered; a guest who has not answered (the answer row is the call), who is out, or who has no face here has none');
+    check(P(tg, { me: 'PIA' }) === 'none' && P(tg, { me: 'PIA', hasEditKey: true }) === 'none', 'hosts have none, as guests and as the organizer');
+    check(P(locked, { me: 'anjo-z5', hasEditKey: true }) === 'book' && P(locked, { me: 'ashwin-p8' }) === 'book' && P(locked, { hasEditKey: true }) === 'none' && P(locked, { me: 'ashwin-p8' }, '2026-11-07') === 'none',
+      'once set (🔒): [✈ Book ↗ | 🎫] while my days are ahead; an organizer who does not travel has none once set, and nobody books days that have begun');
+    check(P(bookedAnjo, { me: 'anjo-z5' }) === 'booked' && P(paid, { me: 'anjo-z5' }) === 'booked' && P(paid, { me: 'ashwin-p8' }) === 'none' && P(dropped, { me: 'anjo-z5' }) === 'none',
+      'after my 🎫: [🎫 | ✈⏱↗ Flighty], kept on a paid trip; a paid trip offers nothing else, a dropped one nothing at all');
+    // the organizer's 🎫 on other rows
+    const T = (doc, me, code, org) => M.bookToggle(model(doc, { me, hasEditKey: org !== false }), code);
+    const lockedOut = tweak(locked, (x) => { x.responses['anjo-z5'] = R('out', 'LGA'); });
+    check(T(DW, 'ashwin-p8', 'anjo-z5') === null && eq(T(locked, 'ashwin-p8', 'anjo-z5'), { on: false, confirm: true }) && eq(T(locked, 'ashwin-p8', 'momdad-k3'), { on: false, confirm: false }) &&
+      eq(T(lockedOut, 'ashwin-p8', 'anjo-z5'), { on: false, confirm: true }) && eq(T(bookedAnjo, 'ashwin-p8', 'anjo-z5'), { on: true, confirm: true }),
+      'the organizer\'s 🎫 shows once the dates are set: one tap for someone in, a confirming tap for someone waiting or out (recorded in first, 📞) and for taking a 🎫 away');
+    check(T(locked, 'ashwin-p8', 'ashwin-p8') === null && T(locked, 'ashwin-p8', 'anjo-z5', false) === null && T(paid, 'ashwin-p8', 'momdad-k3') === null && T(dropped, 'ashwin-p8', 'momdad-k3') === null &&
+      M.bookToggle(model(tg, { me: 'LAX', hasEditKey: true, }), 'PIA') === null && T(LEG, 'LAX', 'LGA') === null,
+      'never on his own row, never for a guest, never on a closed trip, never on a host, never on an unmigrated v1 doc');
+    const anyB = tweak(DW, (x) => { x.responses['ashwin-p8'].booked = true; });
+    check(eq(T(anyB, 'ashwin-p8', 'momdad-k3'), { on: false, confirm: false }), 'someone booking early shows the column before the dates are set');
+  }
+  {
+    // answering never erases a person's dates, note or origin (each write the trip view makes, through the real Worker)
+    const id = srv.seed(tg), at = async () => (await srv.get(id)).responses.LGA;
+    const steps = [
+      ['she answers In with her own days, a note, an EWR override and home from ORD', (doc) => M.respondRequest(doc, 'LGA', { status: 'in', available_from: '2026-11-24', available_to: '2026-11-29', note: 'Arriving late', origin: 'EWR', leave_from: 'ORD' }, { by: 'self' })],
+      ['she changes to Maybe (the status alone)', (doc) => M.respondRequest(doc, 'LGA', { status: 'maybe' }, { by: 'self' })],
+      ['the organizer answers Out for her (📞)', (doc) => M.respondRequest(doc, 'LGA', { status: 'out' }, { by: 'proxy' })],
+      ['she answers In herself again', (doc) => M.respondRequest(doc, 'LGA', { status: 'in' }, { by: 'self' })],
+      ['she flies into ORD (an airport cell)', (doc) => M.respondRequest(doc, 'LGA', { arrive_at: 'ORD' }, { by: 'self' })],
+      ['the organizer moves her home airport cell back to PIA', (doc) => M.respondRequest(doc, 'LGA', { leave_from: '' }, { by: 'keep' })],
+      ['she marks herself booked', (doc) => M.bookedRequests(doc, 'LGA', true, { by: 'self' })],
+      ['she answers Maybe after booking', (doc) => M.respondRequest(doc, 'LGA', { status: 'maybe' }, { by: 'self' })]
+    ];
+    const log = [];
+    for (const [what, build] of steps) {
+      const doc = await srv.get(id), res = await srv.send(build(doc)), r = await at();
+      log.push({ what, ok: srv.allOk(res), status: r.status, from: r.available_from, to: r.available_to, note: r.note, origin: r.origin, A: r.arrive_at, H: r.leave_from, booked: !!r.booked });
+    }
+    const kept = log.every((x) => x.ok && x.from === '2026-11-24' && x.to === '2026-11-29' && M.parseRespNote(x.note).text === 'Arriving late' && x.origin === 'EWR');
+    check(kept, 'PIA-137 answering never erases her dates, note or origin: In, Maybe, the organizer\'s Out, In again, two airport cells, 🎫 and Maybe after it, each through the real Worker', log);
+    check(log[2].note === '📞 Arriving late' && log[3].note === 'Arriving late' && log[1].H === 'ORD' && log[4].A === 'ORD' && log[4].H === 'ORD' && log[5].H === '' && log[5].A === 'ORD' && log[6].booked && log[7].booked && log[7].status === 'maybe',
+      'the organizer\'s answer is marked 📞 and hers clears it; airport picks change only when a cell is tapped; the 🎫 stays through a later Maybe', log.map((x) => [x.status, x.note, x.A, x.H, x.booked]));
+    // a trip that is merely Done (every traveler booked) still takes answers; a paid one is closed
+    const did = srv.seed(tg);
+    await srv.send(M.bookedRequests(await srv.get(did), 'LAX', true, { by: 'self' }));
+    await srv.send(M.bookedRequests(await srv.get(did), 'LGA', true, { by: 'self' }));
+    const done = await srv.get(did, KEY), doneM = model(done, { me: 'LGA' });
+    const ans = M.respondRequest(done, 'LGA', { status: 'maybe' }, { by: 'self' }), ansRes = await srv.send(ans);
+    check(doneM.stage === 'done' && !doneM.closed && ans && srv.allOk(ansRes) && (await srv.get(did)).responses.LGA.status === 'maybe' && (await srv.get(did)).responses.LGA.booked === true,
+      'PIA-137 a trip that is merely Done (every traveler booked, nothing paid) still takes an answer, and keeps the 🎫', { stage: doneM.stage, closed: doneM.closed });
+    const payRes = await srv.send(M.updateRequest(await srv.get(did, KEY), KEY, { decision: { stage: 'booked', actual_total: 1180 } }));
+    const paidDoc = await srv.get(did, KEY), paidM = model(paidDoc, { me: 'LGA' });
+    const raw = await srv.call('POST', '/idea/respond?id=' + did, { member: 'LGA', status: 'in', origin: '', available_from: '', available_to: '', note: '' });
+    check(srv.allOk(payRes) && paidM.closed && paidM.paid === 1180 && M.respondRequest(paidDoc, 'LGA', { status: 'in' }, { by: 'self' }) === null && raw.status === 409 && raw.json.code === 'closed',
+      'once paid (💵) the trip is closed: no answer is built (the Worker would refuse it, 409 closed), so the trip view shows its closed state instead of taps that fail', { raw: raw.status });
+  }
+
+  // ═══ PIA-138 ════════════════════════════════════════════════════════════
+  section('PIA-138 dates, the one picker: the plan moves with everyone who follows it, own ends stay, 📌 stays inside, undated ideas collect windows');
+  {
+    // the organizer's ±1: the whole plan, keeping its length and 📌; why it cannot move otherwise
+    const org = model(DW, { me: 'ashwin-p8', hasEditKey: true });
+    const p1 = M.planShift(org, 1, TODAY), m1 = M.planShift(org, -1, TODAY), p3 = M.planShift(org, 3, TODAY), m3 = M.planShift(org, -3, TODAY);
+    check(eq(p1, { s: '2026-11-07', e: '2026-11-10', why: '' }) && eq(m1, { s: '2026-11-05', e: '2026-11-08', why: '' }) && p3.why === 'pin' && m3.why === 'pin' && M.planShift(org, 2, TODAY).why === '' && M.planShift(org, -2, TODAY).why === 'pin' && M.planShift(org, 7, TODAY).why === 'pin',
+      'PIA-138 AC1 ±1 moves the whole plan a day (11/6–11/9 → 11/7–11/10 or 11/5–11/8), keeping its 3 nights; a move that would leave 📌 11/8 outside it cannot go (📌⚠)', [p1, m1, p3]);
+    const soon = model(tweak(DW, (d) => { d.idea.dates.departure = '2026-10-18'; d.idea.dates.return = '2026-10-21'; d.idea.notes = ''; }), { hasEditKey: true });
+    const locked = tweak(DW, (d) => { d.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }; });
+    const why = (doc, o) => M.planShift(model(doc, o), 1, TODAY).why;
+    check(M.planShift(soon, -1, TODAY).why === '' && M.planShift(soon, -2, TODAY).why === 'past' && why(DW, { me: 'anjo-z5' }) === 'org' && why(locked, { hasEditKey: true }) === 'locked' &&
+      why(LEG, { hasEditKey: true }) === 'legacy' && why(CY, { hasEditKey: true }) === 'none' && why(tweak(locked, (d) => { d.decision.stage = 'dropped'; }), { hasEditKey: true }) === 'closed',
+      'it never starts before today (⏳⚠); only the organizer moves it; locked dates do not move until 🔓; a v1 doc waits for P-migrate; an undated idea has no plan to move');
+    const r7 = M.moveRange('2026-11-06', '2026-11-09', 7, '', TODAY), r7m = M.moveRange('2026-11-06', '2026-11-09', -7, '', TODAY);
+    check(eq(r7, { s: '2026-11-13', e: '2026-11-16', why: '' }) && eq(r7m, { s: '2026-10-30', e: '2026-11-02', why: '' }) && M.moveRange('2026-10-20', '2026-10-22', -7, '', TODAY).why === 'past' && M.moveRange('', '', 1, '', TODAY) === null,
+      'PIA-138 AC2 the day and week shifts move the whole range and keep its length (±7 a week), never before today', [r7, r7m]);
+    check(eq(M.SHIFT_STEPS, [-7, -1, 1, 7]), 'the picker\'s shift row is −7 −1 +1 +7');
+  }
+  {
+    // a shift through the real Worker: every end that follows the plan moves with it; an end someone set stays (⚠ once off the plan)
+    const base = tweak(DW, (d) => {
+      d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-09', { note: 'Leaving early Monday' });
+      d.responses['ashwin-p8'] = R('in', 'LAX', '', '', { booked: true });
+    });
+    const id = srv.seed(base), before = await srv.get(id, KEY), mb = model(before, { me: 'ashwin-p8', hasEditKey: true });
+    const sh = M.planShift(mb, 1, TODAY), reqs = M.organizerEdit(before, KEY, { dates: { departure: sh.s, return: sh.e } });
+    const res = await srv.send(reqs), after = await srv.get(id, KEY), ma = model(after, { me: 'ashwin-p8', hasEditKey: true });
+    const dec = (x) => { const d = M.gfDecode(x.link && x.link.href); return d ? d.legs.map((L) => L.date) : null; };
+    check(srv.allOk(res) && eq(ma.plan, { s: '2026-11-07', e: '2026-11-10' }) && ma.pin === '2026-11-08' && after.idea.notes === before.idea.notes && eq(after.idea.members, before.idea.members),
+      'PIA-138 AC1 one shift is one organizer edit: the plan moves to 11/7–11/10 and nothing else in the idea changes (📌, caption, people)', reqs.map((q) => q.path));
+    check(eq(dec(mem(ma, 'momdad-k3')), ['2026-11-07', '2026-11-10']) && eq(dec(mem(mb, 'momdad-k3')), ['2026-11-06', '2026-11-09']) && mem(ma, 'momdad-k3').d1 === '2026-11-07',
+      'Mom & Dad follow the plan: their days and their Google Flights link move with it (11/7 out, 11/10 home)', [dec(mem(mb, 'momdad-k3')), dec(mem(ma, 'momdad-k3'))]);
+    const an0 = mem(mb, 'anjo-z5'), an1 = mem(ma, 'anjo-z5');
+    check(an0.link.href === an1.link.href && an1.own1 === '2026-11-05' && an1.own2 === '2026-11-09' && an0.warn.indexOf('off') >= 0 && an1.warn.indexOf('off') >= 0 &&
+      after.responses['anjo-z5'].available_from === '2026-11-05' && M.parseRespNote(after.responses['anjo-z5'].note).text === 'Leaving early Monday',
+      'Anjo set her own 11/5–11/9: they stay put (her link is byte for byte the same) and carry ⚠ while they fall off the plan; her note is untouched', an1.warn);
+    const ash1 = mem(ma, 'ashwin-p8');
+    check(reqs.length === 2 && reqs[0].path.indexOf('/idea/respond') === 0 && ash1.booked && ash1.own1 === '2026-11-06' && ash1.own2 === '2026-11-09' && eq(dec(ash1), ['2026-11-06', '2026-11-09']) && ash1.warn.indexOf('off') >= 0,
+      'Ashwin had booked while following the plan: before the plan moves his booked days are written as his own (11/6–11/9), so a move never changes the days he booked (⚠ shows they are now off the plan)', { own: [ash1.own1, ash1.own2] });
+  }
+  {
+    // holiday chips: a whole long weekend and its event day in one tap
+    const tgk = M.holidayPick('2026-11-26', TODAY), xm = M.holidayPick('2026-12-25', TODAY), lab = M.holidayPick('2027-09-06', TODAY), mem27 = M.holidayPick('2027-05-31', TODAY);
+    check(tgk.s === '2026-11-25' && tgk.e === '2026-11-29' && tgk.pin === '2026-11-26' && tgk.g === '🦃' && M.dowOf(tgk.s) === 3 && M.dowOf(tgk.e) === 0 && xm.s === '2026-12-23' && xm.e === '2026-12-27' && xm.pin === '2026-12-25' &&
+      lab.s === '2027-09-03' && lab.e === '2027-09-06' && M.dowOf(lab.s) === 5 && mem27.s === '2027-05-28' && mem27.e === '2027-05-31',
+      'PIA-138 AC2 one holiday tap picks its whole long weekend and pins the holiday: 🦃 Wed 11/25–Sun 11/29 📌11/26, 🎄 12/23–12/27, 🌭 and 🎗 Fri–Mon', [tgk, xm, lab, mem27]);
+    check(M.holidayPick('2026-11-26', '2026-11-26').s === '2026-11-26' && M.holidayPick('2026-11-27', TODAY) === null && M.holidayPick('2026-07-04', TODAY) === null,
+      'never a day before today (on Thanksgiving itself the weekend starts that day); a day that is no holiday, or one already past, picks nothing');
+  }
+  {
+    // what stops a pick from being saved: the event day is pinned and can never fall outside the plan
+    const c = (s, e, o) => M.planCheck(s, e, Object.assign({ today: TODAY }, o));
+    check(c('', '') === 'empty' && c('2026-11-06', '') === 'partial' && c('2026-11-09', '2026-11-06') === 'order' && c('2026-10-16', '2026-10-20') === 'past' && c('2026-11-09', '2026-11-12', { pin: '2026-11-08' }) === 'pin' &&
+      c('2026-11-06', '2026-11-09', { pin: '2026-11-08' }) === '' && c('2026-12-18', '2026-12-20', { window: true, nights: 4 }) === 'nights' && c('2026-12-18', '2027-01-04', { window: true, nights: 4, pin: '2026-11-08' }) === '',
+      'PIA-138 AC2 a plan is saved only whole (a start and an end, in order, from today) and with 📌 inside it (📌⚠ otherwise); a ⟦window⟧ must hold its 🌙 nights');
+  }
+  {
+    // clearing a plan makes the idea undated again; the best window (explicit windows only) turns back into a plan in one write
+    const id = srv.seed(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-06', '2026-11-12'); d.responses['ashwin-p8'] = R('in', 'LAX', '2026-11-07', '2026-11-11'); }));
+    const f0 = await srv.get(id, KEY), m0 = model(f0, { hasEditKey: true });
+    const cd = M.clearDelta(m0), clr = await srv.send(M.organizerEdit(f0, KEY, cd)), f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    check(srv.allOk(clr) && eq(cd.dates, { departure: '', return: '', searchStart: '2026-10-30', searchEnd: '2026-11-16' }) && m1.undated && !m1.plan && eq(m1.win, { s: '2026-10-30', e: '2026-11-16' }) && m1.nightsN === 3 && m1.nights === 3 &&
+      m1.pin === '2026-11-08' && m1.caption === 'Lakshmi puja Sunday evening',
+      'PIA-138 AC5 🗓⊘ clears the plan: the idea is undated again, keeping its flex window ⟦10/30–11/16⟧ as its window, its length as 🌙3, its 📌 and caption', f1.idea);
+    check(!!m1.best && m1.best.s === '2026-11-07' && m1.best.e === '2026-11-10' && m1.best.full === 2 && mem(m1, 'anjo-z5').own1 === '2026-11-06' && f1.responses['ashwin-p8'].available_from === '2026-11-07',
+      'the undated idea suggests its best 3-night window from the two people who set their own days, keeping 📌 11/8 inside (11/7–11/10), and nobody\'s own days changed', m1.best);
+    const tk = await srv.send(M.organizerEdit(f1, KEY, M.planDelta(m1.best.s, m1.best.e, m1.pin))), f2 = await srv.get(id, KEY), m2 = model(f2, { hasEditKey: true });
+    check(srv.allOk(tk) && eq(m2.plan, { s: '2026-11-07', e: '2026-11-10' }) && !m2.nightsN && eq(m2.win, { s: '2026-10-30', e: '2026-11-16' }) && m2.best === null && f2.idea.notes === '📌2026-11-08 Lakshmi puja Sunday evening',
+      'the organizer takes it in one write: it becomes the plan (its own length, so no 🌙; 📌 and the caption kept), the ⟦window⟧ stays, and the best window no longer shows (it is the plan)', [m2.plan, f2.idea.notes]);
+  }
+  {
+    // an undated idea collects a rough window and nights; members set their own days inside it; the organizer takes the best window
+    const id = srv.seed(CY), f0 = await srv.get(id, KEY), m0 = model(f0, { hasEditKey: true });
+    const wd = await srv.send(M.organizerEdit(f0, KEY, M.windowDelta('2026-12-18', '2027-01-04', 5))), f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    check(srv.allOk(wd) && m1.undated && m1.nightsN === 5 && eq(m1.win, { s: '2026-12-18', e: '2027-01-04' }) && f1.idea.notes === '🌙5 New date TBD' && !!m1.best && m1.best.s === '2026-12-21' && m1.best.e === '2026-12-26',
+      'PIA-138 AC5 the organizer sets the rough window and 🌙 nights (⟦12/18–1/4⟧ 🌙5): the best 5-night window follows Ashwin and Anjo\'s own days (12/21–12/26)', [m1.best, f1.idea.notes]);
+    const both = M.ownDays(m1, 'anjo-c4', '2026-12-20', '2026-12-26', null, TODAY);
+    const sent = await srv.send(M.respondRequest(f1, 'anjo-c4', both.patch, { by: 'self' })), f2 = await srv.get(id, KEY), m2 = model(f2, { hasEditKey: true });
+    check(both.why === '' && srv.allOk(sent) && f2.responses['anjo-c4'].available_from === '2026-12-20' && !!m2.best && m2.best.s === '2026-12-20' && m2.best.e === '2026-12-25' && eq(M.dayPeople(m2, '2026-12-24').there.sort(), ['anjo-c4', 'ashwin-c3']),
+      'a member sets her own window (12/20–12/26) and the best window moves with it (12/20–12/25); P-day 12/24 has both of them there', m2.best);
+    const tk = await srv.send(M.organizerEdit(f2, KEY, M.planDelta(m2.best.s, m2.best.e, m2.pin))), f3 = await srv.get(id, KEY), m3 = model(f3, { hasEditKey: true });
+    check(srv.allOk(tk) && eq(m3.plan, { s: '2026-12-20', e: '2026-12-25' }) && !m3.undated && f3.idea.notes === 'New date TBD' && f3.responses['ashwin-c3'].available_from === '2026-12-19' && f3.responses['anjo-c4'].available_to === '2026-12-26',
+      'the best window becomes the plan in one write (🌙 gone: the plan has its own length); everyone\'s own days stay as they set them', f3.idea);
+  }
+  {
+    // 🔒 locks the plan as it stands (no price, the plan's own dates), 🔓 unlocks it
+    const id = srv.seed(DW), f0 = await srv.get(id, KEY);
+    const lk = M.organizerEdit(f0, KEY, Object.assign(M.planDelta('2026-11-13', '2026-11-16', ''), { decision: { stage: 'chosen' } }));
+    const r1 = await srv.send(lk), f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    check(srv.allOk(r1) && lk.length === 1 && m1.locked && m1.stage === 'set' && f1.decision.chosen.departure === '2026-11-13' && f1.decision.chosen.return === '2026-11-16' && f1.decision.chosen.totalFare === null && m1.pin === '',
+      'PIA-138 AC3 🔒 with a new plan picked is one update: the plan, then the decision chosen from that very plan (no price stored)', f1.decision.chosen);
+    check(M.planShift(m1, 1, TODAY).why === 'locked', 'locked dates cannot be moved until unlocked');
+    const r2 = await srv.send(M.organizerEdit(f1, KEY, { decision: { stage: 'proposed' } })), m2 = model(await srv.get(id, KEY), { hasEditKey: true });
+    check(srv.allOk(r2) && !m2.locked && m2.stage === 'asking' && eq(m2.plan, { s: '2026-11-13', e: '2026-11-16' }) && M.planShift(m2, 1, TODAY).why === '', '🔓 unlocks it (the plan stays), and it can move again');
+  }
+  {
+    // a phone that has not seen the 🔒 yet never moves a locked plan: every write is rebuilt from the fresh record, and on a
+    // locked (or closed) one organizerEdit builds nothing for a date move (datesHeld)
+    const id = srv.seed(DW), f0 = await srv.get(id, KEY);
+    await srv.send(M.organizerEdit(f0, KEY, { decision: { stage: 'chosen' } }));   // another organizer phone locks it
+    const f1 = await srv.get(id, KEY), m1 = model(f1, { hasEditKey: true });
+    const move = { dates: { departure: '2026-11-07', return: '2026-11-10' } };
+    const mv = M.organizerEdit(f1, KEY, move), lkmv = M.organizerEdit(f1, KEY, Object.assign(M.planDelta('2026-11-13', '2026-11-16', '2026-11-14'), { decision: { stage: 'chosen' } }));
+    const clr = M.organizerEdit(f1, KEY, M.clearDelta(m1)), pin = M.organizerEdit(f1, KEY, { pin: '2026-11-07' }), nights = M.organizerEdit(f1, KEY, { nights: 4 });
+    const same = M.organizerEdit(f1, KEY, M.planDelta('2026-11-06', '2026-11-09', '2026-11-08')), cap = M.organizerEdit(f1, KEY, { caption: 'Puja at 6' });
+    const unmv = M.organizerEdit(f1, KEY, Object.assign({ decision: { stage: 'proposed' } }, move));
+    check(m1.locked && M.datesHeld(f1, move) === 'locked' && mv === null && lkmv === null && clr === null && pin === null && nights === null && !!same && !!cap && cap.length === 1 && !!unmv && M.datesHeld(f1, { title: 'x' }) === '',
+      'PIA-138 AC3 on a record another phone has 🔒: a move, a lock with new dates, 🗓⊘, a new 📌 or 🌙 build nothing (datesHeld: locked); the same dates, a caption, or an unlock-and-move in one update still go', { mv, lkmv: !!lkmv, clr, pin });
+    const res = await srv.send(unmv), f2 = await srv.get(id, KEY);
+    check(srv.allOk(res) && f2.decision.stage === 'proposed' && eq(M.docPlan(f2), { s: '2026-11-07', e: '2026-11-10' }) && !(f2.decision.chosen && f2.decision.chosen.departure === '2026-11-06' && f2.decision.stage === 'chosen'),
+      'through the real Worker: unlock-and-move lands as one update, so the plan never disagrees with a 🔒 snapshot', f2.decision);
+    const dropped = tweak(DW, (d) => { d.decision = { stage: 'dropped' }; }), legacyChosen = tweak(LEG, (d) => { d.decision = { stage: 'chosen' }; });
+    check(M.datesHeld(dropped, move) === 'closed' && M.organizerEdit(dropped, KEY, move) === null && M.datesHeld(DW, move) === '' && M.datesHeld(legacyChosen, move) === '' && M.datesHeld(null, move) === '',
+      'a dropped or paid trip holds a move too (closed); an open trip does not; a v1 doc is P-migrate\'s (its edits are refused there anyway)');
+  }
+  {
+    // nobody's own days are changed behind their back: a pick that only repeats the plan's day keeps that end following
+    const one = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', ''); }), m1 = model(one, { me: 'anjo-z5' });
+    const o = (s, e, end) => M.ownDays(m1, 'anjo-z5', s, e, end === undefined ? null : end, TODAY);
+    const opened = o('2026-11-05', '2026-11-09'), later = o('2026-11-07', '2026-11-09'), plan = o('2026-11-06', '2026-11-09'), leave = o('', '2026-11-09', 1), fol = o('', '');
+    check(opened.same && eq(opened.patch, { available_from: '2026-11-05', available_to: '' }) && !later.same && eq(later.patch, { available_from: '2026-11-07', available_to: '' }) &&
+      !plan.same && eq(plan.patch, { available_from: '', available_to: '' }) && leave.same && eq(leave.patch, { available_to: '' }) && !fol.same && fol.d1 === '2026-11-06',
+      'PIA-138 Anjo set her arrival (11/5) and follows the leave end: her days as they are change nothing (same: Save "No change"); "arrive a day later" (11/7 → 11/9, the plan\'s own last day) sets the arrival only; picking the plan\'s own days follows it again', [opened.patch, later.patch, plan.patch]);
+    const own = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-06', '2026-11-09'); }), mo = model(own, { me: 'anjo-z5' });
+    const keep = M.ownDays(mo, 'anjo-z5', '2026-11-06', '2026-11-09', null, TODAY), md1 = M.legShift(model(DW, { me: 'momdad-k3' }), 'momdad-k3', 0, 1, TODAY), back = M.legShift(model(tweak(DW, (d) => { d.responses['momdad-k3'].available_from = '2026-11-07'; }), { me: 'momdad-k3' }), 'momdad-k3', 0, -1, TODAY);
+    check(keep.same && eq(keep.patch, { available_from: '2026-11-06', available_to: '2026-11-09' }) && eq(md1.patch, { available_from: '2026-11-07' }) && eq(back.patch, { available_from: '' }),
+      'days someone set that equal the plan stay theirs (they pinned them); a leg shift off the plan\'s day is their own (+1: 11/7), and back onto it follows the plan again (−1: blank)', [keep.patch, md1.patch, back.patch]);
+  }
+  {
+    // members set either end or both, or follow the plan again; never someone who has not answered; ⚠ when off the plan
+    const mo = tweak(DW, (d) => { d.responses['anjo-z5'] = R('maybe', 'LGA', '', '', { note: 'PTO pending', arrive_at: '' }); });
+    const m = model(mo, { me: 'anjo-z5' }), o = (c, s, e, end, today) => M.ownDays(m, c, s, e, end, today || TODAY);
+    const both = o('anjo-z5', '2026-11-05', '2026-11-08', null), arr = o('anjo-z5', '2026-11-07', '', 0), dep = o('anjo-z5', '', '2026-11-08', 1), fol = o('anjo-z5', '', '', null);
+    check(both.why === '' && eq(both.patch, { available_from: '2026-11-05', available_to: '2026-11-08' }) && both.off && arr.why === '' && eq(arr.patch, { available_from: '2026-11-07' }) && arr.d2 === '2026-11-09' && !arr.off &&
+      eq(dep.patch, { available_to: '2026-11-08' }) && dep.d1 === '2026-11-06' && eq(fol.patch, { available_from: '', available_to: '' }) && fol.why === '' && fol.d1 === '2026-11-06',
+      'PIA-138 AC4 a member sets both ends, or the arrive end alone (the leave end still follows the plan), or the leave end alone, or follows the plan again; ⚠ when an end lands off the plan', [both, arr, dep]);
+    check(o('momdad-k3', '2026-11-05', '2026-11-08', null).why === '' && o('anjo-z5', '2026-11-10', '', 0).why === 'order' && o('anjo-z5', '', '2026-11-05', 1).why === 'order' &&
+      o('anjo-z5', '2026-10-16', '', 0).why === 'past' && M.ownDays(model(DW), 'anjo-z5', '2026-11-05', '2026-11-08', null, TODAY).why === 'answer' &&
+      M.ownDays(model(tweak(DW, (d) => { d.responses['anjo-z5'] = R('out', 'LGA'); })), 'anjo-z5', '2026-11-05', '2026-11-08', null, TODAY).why === 'out' && M.ownDays(model(tg), 'PIA', '2026-11-21', '2026-11-22', null, TODAY).why === 'host',
+      'an end that would cross the other (an arrival after the leave day) or fall before today is refused; nobody sets days for someone who has not answered (they answer first), who is out, or who hosts');
+    check(M.ownDays(model(CY), 'ashwin-c3', '2026-12-20', '', 0, TODAY).why === '' && M.ownDays(model(tweak(CY, (d) => { d.responses['ashwin-c3'].available_to = ''; d.responses['ashwin-c3'].available_from = ''; })), 'ashwin-c3', '2026-12-20', '', 0, TODAY).why === 'partial',
+      'an undated idea has no plan to follow: a member there sets both ends (one end alone, with nothing to follow, waits for the other)');
+    // through the real Worker: a one-end write keeps the other end, the note, the airports and the 🎫
+    const id = srv.seed(tweak(tg, (d) => { d.responses.LGA = R('in', 'LGA', '2026-11-24', '2026-11-29', { note: 'Arriving late', leave_from: 'ORD', booked: true }); }));
+    const f0 = await srv.get(id), mm = model(f0, { me: 'LGA' }), ls = M.legShift(mm, 'LGA', 0, -1, TODAY);
+    const r1 = await srv.send(M.respondRequest(f0, 'LGA', ls.patch, { by: 'self' })), x1 = (await srv.get(id)).responses.LGA;
+    check(ls.why === '' && eq(ls.patch, { available_from: '2026-11-23' }) && srv.allOk(r1) && x1.available_from === '2026-11-23' && x1.available_to === '2026-11-29' && x1.note === 'Arriving late' && x1.leave_from === 'ORD' && x1.booked === true,
+      'PIA-138 AC4 one leg at a time: −1 on her 🛬 makes 11/23 her own; the Worker keeps her 🛫 11/29, her note, her ORD leave and her 🎫', x1);
+    const f1 = await srv.get(id), m1 = model(f1, { me: 'LGA' }), fl = M.ownDays(m1, 'LGA', '', '', null, TODAY);
+    const r2 = await srv.send(M.respondRequest(f1, 'LGA', fl.patch, { by: 'self' })), x2 = (await srv.get(id)).responses.LGA, m2 = model(await srv.get(id), { me: 'LGA' });
+    check(srv.allOk(r2) && x2.available_from === '' && x2.available_to === '' && mem(m2, 'LGA').d1 === m2.plan.s && mem(m2, 'LGA').d2 === m2.plan.e && x2.booked === true,
+      'and back to following the plan: both ends blank, her days are the plan\'s again (her 🎫 stays)');
+    check(M.legShift(m1, 'LGA', 1, 1, TODAY).why === '' && M.legShift(m1, 'LGA', 0, 7, TODAY).why === 'order' && M.legShift(model(DW), 'zz-none', 0, 1, TODAY) === null,
+      'a leg shift that would cross the other end is refused (+7 on an arrival 6 days before the leave)');
+  }
+  {
+    // daily presence never contradicts the heads ring, and P-day names exactly the heads the grid counts
+    const docs = { tg, diwali: DW, tahoe: TH, m8: M8, undated: CY, laxLocal: LX, legacy: LEG };
+    const bad = [];
+    let days = 0;
+    Object.keys(docs).forEach((k) => {
+      const m = model(docs[k]), a = [m.span, m.range].filter(Boolean); if (!a.length) return;
+      const s0 = a.map((x) => x.s).sort()[0], e0 = a.map((x) => x.e).sort().pop();
+      eachDay(M.addD(s0, -2), M.addD(e0, 2), (day) => {
+        days++;
+        const p = M.dayPeople(m, day), heads = (cs) => cs.reduce((n, c) => n + mem(m, c).headcount, 0);
+        const fill = M.dotsOn(m, day).filter((x) => x.kind === 'fill').length;
+        if (p.n !== M.presentOn(m, day) || heads(p.there) !== p.n || p.n > m.headsIn || fill !== p.n || p.there.length + p.maybe.length + p.away.length !== m.members.length) bad.push(k + ' ' + day);
+      });
+    });
+    check(bad.length === 0 && days > 150, 'PIA-138 AC6 on every day of every fixture (' + days + ' days), P-day\'s faces there add up to the grid\'s numeral (presentOn), which equals its filled dots and never passes the heads ring', bad.slice(0, 5));
+    const tgm = model(tg), d21 = M.dayPeople(tgm, '2026-11-21');
+    check(d21.n === 3 && eq(d21.there, ['PIA', 'LAX']) && eq(d21.away, ['LGA']) && tgm.headsIn === 4, 'Thanksgiving 11/21: Mom & Dad (×2) and Ashwin are there (3, while the ring reads 4/4); Anjo, who lands 11/24, is away');
+    const m8 = model(M8), d12 = M.dayPeople(m8, '2026-12-12');
+    check(d12.maybe.indexOf('anastasiakonstantinopoulou-x1') >= 0 && d12.there.indexOf('samlee-kz') < 0 && d12.away.indexOf('samlee-kz') >= 0, 'someone who said maybe is drawn as maybe (not counted there), someone out is away');
+  }
+  {
+    // the best window reflects only people who set their own days; following the plan never counts
+    const id = srv.seed(tweak(DW, (d) => { d.idea.notes = 'Lakshmi puja Sunday evening'; })), f0 = await srv.get(id), m0 = model(f0);
+    const set = M.ownDays(model(f0, { me: 'momdad-k3' }), 'momdad-k3', '2026-11-12', '2026-11-16', null, TODAY);
+    await srv.send(M.respondRequest(f0, 'momdad-k3', set.patch, { by: 'proxy' }));
+    const f1 = await srv.get(id), m1 = model(f1);
+    const f2 = tweak(f1, (d) => { d.responses['ashwin-p8'].status = 'maybe'; }), m2 = model(f2);
+    await srv.send(M.respondRequest(f1, 'momdad-k3', M.ownDays(m1, 'momdad-k3', '', '', null, TODAY).patch, { by: 'proxy' }));
+    const m3 = model(await srv.get(id));
+    check(m0.best === null && !!m1.best && m1.best.s === '2026-11-12' && m1.best.e === '2026-11-15' && m1.best.full === 2 && eq(m2.best, m1.best) && m3.best === null && f1.responses['momdad-k3'].note === '📞',
+      'PIA-138 AC6 nobody set days: no best window; Mom & Dad (×2) set 11/12–11/16 (by the organizer, 📞): best 11/12–11/15 for their 2 heads; Ashwin, who follows the plan, changes nothing; back to following: none again', [m0.best, m1.best, m3.best]);
+  }
+  {
+    // what the date pill opens, for each role
+    const role = (doc, o) => M.datesRole(model(doc, o));
+    const inAnjo = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA'); }), outAnjo = tweak(DW, (d) => { d.responses['anjo-z5'] = R('out', 'LGA'); });
+    const past = tweak(DW, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-04'; });
+    check(role(DW, { me: 'ashwin-p8', hasEditKey: true }) === 'plan' && role(DW, { me: 'anjo-z5' }) === 'answer' && role(inAnjo, { me: 'anjo-z5' }) === 'mine' && role(outAnjo, { me: 'anjo-z5' }) === 'look' &&
+      role(tg, { me: 'PIA' }) === 'look' && role(DW, {}) === 'look' && role(past, { me: 'ashwin-p8', hasEditKey: true }) === 'look' && role(LEG, { me: 'LAX', hasEditKey: true }) === 'mine' &&
+      role(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { hasEditKey: true }) === 'look' && role(CY, { me: 'anjo-c4' }) === 'mine',
+      'PIA-138 the date pill opens the plan for the organizer, my own days once I have answered (the answer row asks first otherwise), and the plan to read for a host, someone out, nobody, or a trip that is over, dropped or a v1 doc\'s guest');
+  }
+
+  // ═══ PIA-139 ════════════════════════════════════════════════════════════
+  section('PIA-139 booking: one booked control, flight times for pickups, a stage that reaches Done by itself, 💵 only once everyone booked, calendars');
+  {
+    const lockAt = (d) => { d.decision = clone(CHOSEN); };
+    const peoria = (d) => { d.idea.destination = { city: 'Peoria', airport: 'PIA' }; delete d.responses['momdad-k3']; };
+    // AC4 the stage moves on from the booked flags alone, read the same by every phone; a 🎫 never locks out anyone who has not answered
+    const id = srv.seed(tweak(DW, (d) => { peoria(d); lockAt(d); d.decision.chosen.airport = 'PIA'; d.decision.chosen.city = 'Peoria'; }));
+    const phones = async () => {
+      const o = await srv.get(id, KEY), g = await srv.get(id);
+      const ms = [model(o, { me: 'ashwin-p8', hasEditKey: true, hasToken: true }), model(g, { me: 'anjo-z5' }), model(g, { me: 'momdad-k3' }), model(g, {})];
+      return ms.map((m) => m.stage);
+    };
+    const s0 = await phones();
+    await srv.send(M.bookedRequests(await srv.get(id), 'ashwin-p8', true, { by: 'self' }));
+    const s1 = await phones();
+    const ans = await srv.send(M.respondRequest(await srv.get(id), 'anjo-z5', { status: 'maybe' }, { by: 'self' }));
+    const s2 = await phones();
+    // the organizer marks Anjo (she said maybe) booked: one /idea/booked
+    const tk = M.bookedRequests(await srv.get(id), 'anjo-z5', true, { by: 'proxy' });
+    await srv.send(tk);
+    const s3 = await phones();
+    const host = await srv.send(M.respondRequest(await srv.get(id), 'momdad-k3', { status: 'in' }, { by: 'self' }));
+    const s4 = await phones(), fin = await srv.get(id);
+    check(eq(s0, ['set', 'set', 'set', 'set']) && eq(s1, ['booking', 'booking', 'booking', 'booking']) && eq(s3, ['done', 'done', 'done', 'done']) && eq(s4, s3),
+      'PIA-139 AC4 through the real Worker: 🔒 Dates set, then Ashwin\'s 🎫 makes it 🎫 Booking, and Anjo\'s makes it 🏁 Done, the same on the organizer\'s, Anjo\'s, the host\'s and a faceless phone', { s0, s1, s3, s4 });
+    check(srv.allOk(ans) && eq(s2, s1) && tk.length === 1 && srv.allOk(host) && fin.responses['momdad-k3'].status === 'in' && fin.decision.stage === 'chosen' &&
+      fin.responses['ashwin-p8'].booked && fin.responses['anjo-z5'].booked && fin.responses['anjo-z5'].status === 'maybe' && !model(fin).closed,
+      'PIA-139 AC4 a 🎫 never locks anyone out: while Booking, Anjo (not answered) still answers Maybe; at 🏁 Done the hosts (not answered) still answer In; the record is still open, the 🎫s kept', { ans: ans.map((r) => r.status), host: host.map((r) => r.status) });
+    // AC3 the organizer marks someone who has not answered: recorded in first (📞), then booked
+    const wid = srv.seed(tweak(DW, lockAt));
+    const wq = M.bookedRequests(await srv.get(wid), 'anjo-z5', true, { by: 'proxy' }), wres = await srv.send(wq), wd = await srv.get(wid);
+    const om = model(await srv.get(wid, KEY), { me: 'ashwin-p8', hasEditKey: true });
+    const out = srv.seed(tweak(DW, (d) => { lockAt(d); d.responses['anjo-z5'] = R('out', 'LGA', '', '', { note: 'Work trip' }); }));
+    const oq = M.bookedRequests(await srv.get(out), 'anjo-z5', true, { by: 'proxy' }), ores = await srv.send(oq), od = await srv.get(out);
+    check(eq(wq.map((q) => q.path.split('?')[0]), ['/idea/respond', '/idea/booked']) && wq[0].body.status === 'in' && wq[0].body.note === '📞' && srv.allOk(wres) &&
+      wd.responses['anjo-z5'].status === 'in' && wd.responses['anjo-z5'].booked === true && wd.responses['anjo-z5'].note === '📞' && om.stage === 'booking' &&
+      srv.allOk(ores) && od.responses['anjo-z5'].status === 'in' && od.responses['anjo-z5'].booked && od.responses['anjo-z5'].note === '📞 Work trip',
+      'PIA-139 AC3 the organizer marks Anjo booked before she answered: one complete In (📞) first, then the 🎫, through the Worker; marking someone who said Out does the same and keeps her note', wq.map((q) => q.path));
+    check(eq(M.bookToggle(model(tweak(DW, lockAt), { me: 'ashwin-p8', hasEditKey: true }), 'anjo-z5'), { on: false, confirm: true }) &&
+      M.bookToggle(model(tweak(DW, lockAt), { me: 'ashwin-p8', hasEditKey: true }), 'momdad-k3').confirm === false &&
+      M.bookToggle(model(tweak(DW, (d) => { peoria(d); lockAt(d); }), { me: 'ashwin-p8', hasEditKey: true }), 'momdad-k3') === null && M.bookToggle(model(tweak(DW, lockAt), { me: 'anjo-z5' }), 'momdad-k3') === null,
+      'PIA-139 AC3 the board\'s 🎫 is the organizer\'s only: a confirming tap for someone not answered (one tap for someone in), none on a host, none on a guest\'s phone');
+
+    // AC1 the booking slot: Book and 🎫 together once the dates are set, Flighty after
+    const slot = (doc, me, code, over) => M.bookSlot(model(doc, Object.assign({ me }, over || {})), code, TODAY);
+    const lk = tweak(DW, (d) => { lockAt(d); d.responses['anjo-z5'] = R('in', 'LGA'); });
+    const lkB = tweak(lk, (d) => { d.responses['anjo-z5'].booked = true; });
+    const ORGK = { hasEditKey: true };
+    check(eq(slot(DW, 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }) && eq(slot(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA'); }), 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }) &&
+      eq(slot(lk, 'anjo-z5', 'anjo-z5'), { slot: 'book', tk: 'self' }) && eq(slot(lkB, 'anjo-z5', 'anjo-z5'), { slot: 'booked', tk: 'self' }) &&
+      eq(slot(lk, 'ashwin-p8', 'anjo-z5', ORGK), { slot: 'book', tk: 'org' }) && eq(slot(lkB, 'ashwin-p8', 'anjo-z5', ORGK), { slot: 'booked', tk: 'org' }) &&
+      eq(slot(lk, 'momdad-k3', 'anjo-z5'), { slot: 'gf', tk: '' }) && eq(slot(tweak(DW, (d) => { peoria(d); lockAt(d); }), 'momdad-k3', 'momdad-k3'), { slot: '', tk: '' }) &&
+      eq(slot(tweak(lkB, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 900; }), 'anjo-z5', 'anjo-z5'), { slot: 'booked', tk: '' }) &&
+      eq(slot(tweak(lk, (d) => { d.idea.dates.departure = '2026-10-10'; d.idea.dates.return = '2026-10-20'; d.decision.chosen.departure = '2026-10-10'; d.decision.chosen.return = '2026-10-20'; }), 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }),
+      'PIA-139 AC1 one slot rule: before 🔒 their ✈↗ alone; once 🔒 [✈ Book ↗ | 🎫] (mine, or the organizer\'s for someone); after the 🎫 [✈⏱↗ | 🎫]; a host has none; a paid trip keeps Flighty with no 🎫 to take away; days already begun book nothing');
+    const lkH = M.handoffs(model(lkB, { me: 'anjo-z5' }), 'anjo-z5', ctx()), lkH0 = M.handoffs(model(lk, { me: 'anjo-z5' }), 'anjo-z5', ctx());
+    check(lkH.flighty && lkH.flighty.href === M.FLIGHTY_URL && lkH.flighty.target === '_blank' && !lkH0.flighty && !!lkH0.gf && M.primaryAction(model(lkB, { me: 'anjo-z5' }), TODAY) === 'booked',
+      'PIA-139 AC1 after her 🎫 the slot hands off to Flighty (a new tab); before it, Google Flights');
+
+    // AC2 booked times: typed, recorded by her or by the organizer for her, kept in the note's prefix without erasing it
+    check(eq(['15:10', '1510', '0905', ' 07:45 ', '0:30', '', '24:00', '15:60', '15:1', 'abc', '12345', '15', '13:00pm'].map((s) => M.typedTime(s)), ['15:10', '15:10', '09:05', '07:45', '00:30', '', null, null, null, null, null, null, null]),
+      'PIA-139 AC2 a typed time reads as HH:MM (15:10, 1510, 0905, 0:30); blank clears it; anything else is not a time');
+    // a 12-hour reader's 3:10 PM never silently becomes 03:10: an hour 1–12 with no leading 0 and no am / pm is not a time until
+    // its half is picked (the two readings differ in ☀ / 🌃), and an am / pm typed with it decides
+    check(eq(['310', '6:05', '905', '1105', '12:30'].map((s) => M.typedTime(s)), [null, null, null, null, null]) &&
+      eq(M.timeHalves('310'), { am: '03:10', pm: '15:10' }) && eq(M.timeHalves('6:05'), { am: '06:05', pm: '18:05' }) && eq(M.timeHalves('12:30'), { am: '00:30', pm: '12:30' }) &&
+      M.timeHalves('1510') === null && M.timeHalves('0310') === null && M.timeHalves('6:05 pm') === null && M.timeHalves('') === null && M.timeHalves('25:99') === null &&
+      M.typedTime('310', 'pm') === '15:10' && M.typedTime('310', 'am') === '03:10' && M.typedTime('12:30', 'am') === '00:30' && M.typedTime('1510', 'am') === '15:10' &&
+      eq(['6:05 pm', '6:05pm', '6pm', '3PM', '11:05a', '11:05 a.m.', '12am', '12:15 pm'].map((s) => M.typedTime(s)), ['18:05', '18:05', '18:00', '15:00', '11:05', '11:05', '00:00', '12:15']) &&
+      ['310', '905', '1105', '12:30', '6:05', '1:00', '5:59'].every((s) => { const h = M.timeHalves(s); return M.dayPart(h.am) !== M.dayPart(h.pm); }) &&
+      eq(['05:59', '06:00', '17:59', '18:00', '00:30', '12:00', 'x'].map(M.dayPart), ['night', 'day', 'day', 'night', 'night', 'day', '']),
+      'PIA-139 AC2 "310" and "6:05" are never saved as 03:10 / 06:05: they wait for ☀ / 🌃 (03:10 or 15:10, 06:05 or 18:05; the two readings never share a glyph); "6:05 pm" is 18:05, "11:05a" 11:05, "0310" 03:10');
+    const tId = srv.seed(tweak(DW, (d) => { peoria(d); lockAt(d); d.responses['anjo-z5'] = R('in', 'EWR', '2026-11-05', '2026-11-09', { note: '📞 Taking the red-eye', leave_from: 'ORD', booked: true, booked_at: '2026-10-16T00:00:00.000Z' }); }));
+    const t0 = await srv.get(tId), mine = model(t0, { me: 'anjo-z5' }), orgM = model(await srv.get(tId, KEY), { me: 'ashwin-p8', hasEditKey: true }), guestM = model(t0, { me: 'ashwin-p8' });
+    check(M.timesBy(mine, 'anjo-z5') === 'self' && M.timesBy(orgM, 'anjo-z5') === 'proxy' && M.timesBy(guestM, 'anjo-z5') === '' && M.timesBy(mine, 'ashwin-p8') === '' &&
+      M.timesBy(orgM, 'ashwin-p8') === '' && M.timesBy(model(tweak(t0, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 1; }), { me: 'anjo-z5' }), 'anjo-z5') === '' &&
+      M.timesBy(model(tweak(DW, (d) => { peoria(d); d.responses['momdad-k3'] = R('in', 'PIA', '', '', { booked: true }); }), { me: 'momdad-k3' }), 'momdad-k3') === '',
+      'PIA-139 AC2 who records booked times: the traveler once booked (self), the organizer for her (proxy); nobody for someone not booked, a host, on a paid trip, or on a guest\'s phone looking at someone else');
+    const tq = M.timesRequest(t0, 'anjo-z5', '15:10', '18:05', 'self'), tRes = await srv.send(tq), t1 = await srv.get(tId);
+    const r1 = t1.responses['anjo-z5'];
+    check(srv.allOk(tRes) && r1.note === '🛬15:10 🛫18:05 Taking the red-eye' && r1.available_from === '2026-11-05' && r1.available_to === '2026-11-09' && r1.origin === 'EWR' && r1.leave_from === 'ORD' && r1.booked === true && r1.status === 'in' &&
+      !('arrive_at' in tq.body) && !('leave_from' in tq.body),
+      'PIA-139 AC2 her own 🛬 15:10 / 🛫 18:05 go as the note\'s prefixes in one complete answer through the Worker: her note\'s text, own days, EWR, the ORD leave and her 🎫 all kept (her own write clears 📞)', r1);
+    const pk1 = (doc, ctxOver) => M.pickups(model(doc, ctxOver), {}, NOW, false);
+    const host1 = pk1(t1, { me: 'momdad-k3' }), guest1 = pk1(t1, { me: 'ashwin-p8' });
+    const aChip = (ln) => (ln.PIA || []).find((c) => c.kind === 'arr' && c.codes.indexOf('anjo-z5') >= 0), dChip = (ln) => (ln.ORD || []).find((c) => c.kind === 'dep' && c.codes.indexOf('anjo-z5') >= 0);
+    check(aChip(host1).time === '15:10' && aChip(host1).date === '2026-11-05' && !aChip(host1).pred && dChip(host1).time === '18:05' && dChip(host1).date === '2026-11-09' && eq(aChip(guest1), aChip(host1)) && eq(dChip(guest1), dChip(host1)) &&
+      mem(model(t1, { me: 'momdad-k3' }), 'anjo-z5').noteText === 'Taking the red-eye',
+      'PIA-139 AC2 the times reach everyone\'s pickup chips from the record: the host\'s phone and another guest\'s both read 🛬 PIA 11/5 15:10 and 🛫 ORD 11/9 18:05, and her note still reads "Taking the red-eye"');
+    const pq = M.timesRequest(await srv.get(tId), 'anjo-z5', '16:40', undefined, 'proxy'), pRes = await srv.send(pq), t2 = await srv.get(tId);
+    const t2b = tweak(t2, (d) => { d.responses['anjo-z5'].note = '📞 ' + d.responses['anjo-z5'].note; });
+    const keepCalled = M.timesRequest(t2b, 'anjo-z5', undefined, '', 'proxy');
+    check(srv.allOk(pRes) && t2.responses['anjo-z5'].note === '🛬16:40 🛫18:05 Taking the red-eye' && keepCalled.body.note === '📞 🛬16:40 Taking the red-eye' &&
+      M.timesRequest(t2, 'anjo-z5', '16:40', '18:05', 'self') === null && M.timesRequest(t2, 'anjo-z5', '25:00', undefined, 'self') === null && M.timesRequest(t2, 'ashwin-p8', '10:00', undefined, 'self') === null,
+      'PIA-139 AC2 the organizer changes only her 🛬 (16:40; 🛫 stays); his write keeps a 📞 as it reads, and a blank clears one time; no change, a bad time or someone not booked builds nothing');
+    const room = M.noteRoom(false, '', ''), longId = srv.seed(tweak(t2, (d) => { d.responses['anjo-z5'].note = 'z'.repeat(room); }));
+    const longQ = M.timesRequest(await srv.get(longId), 'anjo-z5', '15:10', '', 'self');
+    const shortId = srv.seed(tweak(t2, (d) => { d.responses['anjo-z5'].note = 'z'.repeat(room - 8); }));
+    const shortQ = M.timesRequest(await srv.get(shortId), 'anjo-z5', '15:10', '', 'self'), shortRes = await srv.send(shortQ);
+    check(longQ === null && srv.allOk(shortRes) && (await srv.get(shortId)).responses['anjo-z5'].note === '🛬15:10 ' + 'z'.repeat(room - 8),
+      'PIA-139 AC2 times never cut a note short: a 280-character note leaves no room, so nothing is built; one with room takes 🛬15:10 and keeps every character');
+    const paidT = srv.seed(tweak(t2, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 900; }));
+    const late = await srv.send(M.respondRequest(tweak(await srv.get(paidT), (d) => { d.decision.stage = 'chosen'; }), 'anjo-z5', { arrTime: '11:00' }, { by: 'self' }));
+    check(late[0].status === 409 && M.timesRequest(await srv.get(paidT), 'anjo-z5', '11:00', undefined, 'self') === null,
+      'once 💵 is recorded the Worker takes no answer (409), and times are not offered then (timesBy is nobody on a closed trip; see Owed)');
+    // taking the 🎫 back clears the times that went with it (one complete answer first, then the 🎫), so no pickup outlives it
+    const unQ = M.bookedRequests(await srv.get(tId), 'anjo-z5', false, { by: 'self' }), unRes = await srv.send(unQ), t3 = await srv.get(tId), r3 = t3.responses['anjo-z5'];
+    const plainUn = M.bookedRequests(tweak(t3, (d) => { d.responses['anjo-z5'].booked = true; }), 'anjo-z5', false, { by: 'self' });
+    const orgUn = M.bookedRequests(tweak(t2b, () => {}), 'anjo-z5', false, { by: 'proxy' });
+    check(eq(unQ.map((q) => q.path.split('?')[0]), ['/idea/respond', '/idea/booked']) && srv.allOk(unRes) && r3.note === 'Taking the red-eye' && r3.booked === false && r3.status === 'in' &&
+      r3.available_from === '2026-11-05' && r3.leave_from === 'ORD' && r3.origin === 'EWR' && !aChip(pk1(t3, { me: 'momdad-k3' })).time && !dChip(pk1(t3, { me: 'momdad-k3' })).time &&
+      eq(plainUn.map((q) => q.path.split('?')[0]), ['/idea/booked']) && orgUn[0].body.note === '📞 Taking the red-eye',
+      'PIA-139 her 🎫 taken back: one complete answer clears 🛬 / 🛫 (her note, days, EWR and the ORD leave kept), then the 🎫 goes; the hosts\' chips no longer show a time. With no times only the 🎫 goes; the organizer\'s keeps 📞', r3);
+    // a time left in a note without a 🎫 (an older write) is never drawn as a pickup; nor is a cached offer's time that is not HH:MM
+    const stale = pk1(tweak(t3, (d) => { d.responses['anjo-z5'].note = '🛬09:00 🛫21:00'; }), { me: 'momdad-k3' });
+    const hk = mem(model(t3, ORG), 'anjo-z5').keys[0].key, hostile = {}, stamp = {};
+    hostile[hk] = { p: 300, f: at(30), ar: '<img src=x onerror=alert(1)>', off: [{ ar: '"><b>' }] }; stamp[hk] = { p: 300, f: at(30), off: [{ ar: '2026-11-05 15:10' }] };
+    const hc = aChip(M.pickups(model(t3, Object.assign({ fares: hostile }, ORG)), hostile, NOW, false)), sc = aChip(M.pickups(model(t3, Object.assign({ fares: stamp }, ORG)), stamp, NOW, false));
+    check(!aChip(stale).time && !dChip(stale).time && hc.time === '' && !hc.pred && sc.time === '15:10' && sc.pred &&
+      eq(['<img src=x onerror=alert(1)>', '2026-11-05 15:10', '2026-11-05T07:05', '15:10', '25:00', '1510', 3, null].map(M.cachedTime), ['', '15:10', '07:05', '15:10', '', '', '', '']),
+      'PIA-139 a 🛬 / 🛫 left in an unbooked traveler\'s note is never drawn; a cached offer\'s time is drawn only as HH:MM (a "YYYY-MM-DD HH:MM" stamp reads as its time), so markup or junk never reaches a chip or a ⏱ run');
+
+    // AC5 💵 only once every traveler has booked, on the organizer's token phone
+    const pc = (doc, over) => M.paidCheck(model(doc, over));
+    const ORGT = { me: 'ashwin-p8', hasEditKey: true, hasToken: true };
+    const doneL = tweak(DW, (d) => { lockAt(d); d.responses['momdad-k3'].booked = true; d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const doneHostWait = tweak(DW, (d) => { peoria(d); lockAt(d); d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const NT = ['momdad-k3', 'ashwin-p8', 'anjo-z5'];   // booked with no 🛬 time recorded yet
+    check(eq(pc(tweak(DW, lockAt), ORGT), { why: 'unbooked', unbooked: ['momdad-k3', 'ashwin-p8', 'anjo-z5'], unanswered: ['anjo-z5'], notimes: [], again: false }) &&
+      pc(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }), ORGT).why === 'unbooked' && eq(pc(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }), ORGT).unbooked, ['anjo-z5']) &&
+      eq(pc(doneL, ORGT), { why: '', unbooked: [], unanswered: [], notimes: NT, again: false }) && eq(pc(doneHostWait, ORGT), { why: '', unbooked: [], unanswered: ['momdad-k3'], notimes: ['ashwin-p8', 'anjo-z5'], again: false }) &&
+      eq(pc(tweak(doneL, (d) => { d.responses['anjo-z5'].note = '🛬15:10'; d.responses['ashwin-p8'].note = '🛫18:00'; }), ORGT).notimes, ['momdad-k3', 'ashwin-p8']) &&
+      pc(doneL, { me: 'ashwin-p8', hasEditKey: true }).why === 'token' && pc(doneL, { me: 'anjo-z5', hasToken: true }).why === 'org' &&
+      pc(tweak(doneL, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), ORGT).why === 'closed' && pc(tweak(doneL, (d) => { d.decision.stage = 'dropped'; }), ORGT).why === 'closed' &&
+      pc(tweak(doneL, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), ORGT).again === true && pc(tweak(doneL, (d) => { d.decision.stage = 'dropped'; d.decision.actual_total = 905; }), ORGT).again === false &&
+      pc(tweak(doneL, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), { me: 'ashwin-p8', hasEditKey: true }).again === false &&
+      pc(tweak(LX, (d) => { ['priya-x1', 'leo-x4', 'anjo-x5'].forEach((c) => { d.responses[c] = R('out', ''); }); }), { hasEditKey: true, hasToken: true }).why === 'nobody' && pc(LEG, { me: 'LAX', hasEditKey: true, hasToken: true }).why === 'legacy',
+      'PIA-139 AC5 💵 can be recorded only at 🏁 Done (every traveler booked; the unbooked are listed otherwise), only on the organizer\'s phone with the token, never twice or on a dropped, all-host or v1 trip; the hosts still unanswered are named (paying closes their answers)');
+    const pdId = srv.seed(doneL), pdFresh = await srv.get(pdId, KEY);
+    const pdReq = M.organizerEdit(pdFresh, KEY, { decision: { stage: 'booked', actual_total: M.typedPaid('$1,490') } }), pdRes = await srv.send(pdReq), pdDoc = await srv.get(pdId, KEY), pdGuest = await srv.get(pdId);
+    check(pdReq.length === 1 && eq(pdReq[0].body.decision, { stage: 'booked', actual_total: 1490 }) && srv.allOk(pdRes) && pdDoc.decision.stage === 'booked' && pdDoc.decision.actual_total === 1490 &&
+      model(pdDoc, ORGT).paid === 1490 && model(pdGuest, { me: 'anjo-z5' }).paid === null && model(pdGuest).closed,
+      'PIA-139 AC5 at 🏁 Done on a 🔒 trip, 💵 $1,490 is one update {stage booked, actual_total 1490}; the organizer\'s record reads it, the guest view never carries the amount');
+    const upId = srv.seed(tweak(doneL, (d) => { d.decision = { stage: 'proposed', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null }; }));
+    const upReq = M.organizerEdit(await srv.get(upId, KEY), KEY, { decision: { stage: 'booked', actual_total: 905 } }), upRes = await srv.send(upReq), upDoc = await srv.get(upId, KEY);
+    check(upReq.length === 2 && eq(upReq[0].body.decision, { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }) && eq(upReq[1].body.decision, { stage: 'booked', actual_total: 905 }) &&
+      srv.allOk(upRes) && upDoc.decision.stage === 'booked' && upDoc.decision.actual_total === 905 && upDoc.decision.chosen.departure === '2026-11-06',
+      'PIA-139 AC5 on a trip whose dates were never 🔒 (or were unlocked), 💵 chooses the plan first, then records 905: two updates the Worker takes in order');
+    const halfId = srv.seed(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }));
+    const halfFresh = await srv.get(halfId, KEY);
+    check(M.organizerEdit(halfFresh, KEY, { decision: { stage: 'booked', actual_total: 905 } }) === null && M.paidHeld(halfFresh) === 'unbooked' && M.paidHeld(pdFresh) === '' && M.paidHeld(pdDoc) === 'closed' &&
+      M.updateRequest(pdDoc, KEY, { decision: { stage: 'booked', actual_total: 905 } }) !== null &&
+      M.organizerEdit(tweak(pdDoc, (d) => { d.decision.stage = 'dropped'; }), KEY, { decision: { stage: 'booked', actual_total: 1490 } }) !== null,
+      'PIA-139 AC5 on the record it is sent against: a 🎫 taken away meanwhile builds no 💵 (paidHeld unbooked), a paid record is closed; ↩ restoring a dropped paid trip still re-records its amount');
+    // a typo in 💵 can be fixed: the amount entered again on a paid trip is one more booked update the Worker takes
+    const agQ = M.organizerEdit(pdDoc, KEY, { decision: { stage: 'booked', actual_total: M.typedPaid('1,940') } }), agRes = await srv.send(agQ), agDoc = await srv.get(pdId, KEY);
+    check(agQ.length === 1 && eq(agQ[0].body.decision, { stage: 'booked', actual_total: 1940 }) && srv.allOk(agRes) && agDoc.decision.stage === 'booked' && agDoc.decision.actual_total === 1940 &&
+      M.paidHeld(pdDoc, true) === '' && M.paidHeld(tweak(pdDoc, (d) => { d.decision.stage = 'dropped'; }), true) === 'closed' && M.paidHeld(tweak(pdDoc, (d) => { d.decision.stage = 'chosen'; }), true) === 'closed',
+      'PIA-139 AC5 💵 entered again on a paid trip (149 meant 1,490): one update {booked, 1940} through the Worker; held back once the trip was dropped or reopened meanwhile');
+    check(eq(['905', '$1,490', '1490.40', '0.6', ' 12 ', '', '0', '-5', '1e3', 'abc', '1000000', '12.345'].map(M.typedPaid), [905, 1490, 1490, 1, 12, null, null, null, null, null, null, null]),
+      'PIA-139 AC5 the 💵 amount reads as whole dollars ($1,490 → 1490); nothing under $1 or from $1,000,000, and no other text');
+
+    // AC6 at any dated stage the trip can go into a calendar: tentative before the dates are set, only the guest link inside
+    const stages = [['idea', tweak(DW, (d) => { d.responses = {}; })], ['asking', DW], ['set', tweak(DW, lockAt)], ['booking', tweak(DW, (d) => { lockAt(d); d.responses['ashwin-p8'].booked = true; })], ['done', doneL]];
+    const calRows = stages.map(([st, doc]) => { const m = model(doc, { me: 'anjo-z5' }), c = M.handoffs(m, '', ctx()).calendar; return { st, stage: m.stage, tentative: c && c.tentative, ok: !!c && c.details === M.WORKER_URL + '/i/' + DW.id && c.google.href.indexOf(KEY) < 0 && c.ics.text.indexOf('#k=') < 0 }; });
+    check(calRows.every((r) => r.ok && r.stage === r.st) && eq(calRows.map((r) => r.tentative), [true, true, false, false, false]) &&
+      M.handoffs(model(CY, { me: 'momdad-c1' }), '', ctx()).calendar === null && M.handoffs(model(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { me: 'anjo-z5' }), '', ctx()).calendar === null &&
+      M.handoffs(model(tweak(CY, (d) => { d.responses['ashwin-c3'] = R('in', 'LAX', '2026-12-19', '2026-12-26'); }), { me: 'ashwin-c3' }), '', ctx()).calendar === null &&
+      M.calendarAdd(model(tweak(CY, (d) => { d.responses['ashwin-c3'] = R('in', 'LAX', '2026-12-19', '2026-12-26'); }), { me: 'ashwin-c3' }), ctx()) === null,
+      'PIA-139 AC6 calendar-plus at every dated stage (💡 🗳 🔒 🎫 🏁): tentative ("? ", STATUS:TENTATIVE) until 🔒, set from then on; the event carries only the guest link; none for an undated idea (even for someone with their own 12/19–12/26 window) or a dropped trip', calRows);
+  }
+
+  // ═══ PIA-140 ════════════════════════════════════════════════════════════
+  section('PIA-140 prices: one honest total from real fares; each search exactly the Worker\'s; caps, locks and v1\'s stores in v1\'s formats');
+  {
+    const SERP = fx('serp-flights.json');
+    const H1 = 36e5;
+    // AC1 the one pricing function: the trip's legs, a traveler's ±1 days and the cheapest-week bars price the same keys the same way
+    const tgP = (fares, over) => model(tg, Object.assign({ me: 'LAX', hasEditKey: true, hasToken: true, fares: fares || {} }, over || {}));
+    const ash = mem(tgP(), 'LAX'), anjo = mem(tgP(), 'LGA');
+    const f0 = {}; f0[ash.keys[0].key] = { p: 305, f: NOW - 3 * H1 }; f0[ash.keys[1].key] = { p: 200, f: NOW - 3 * H1 };
+    const ep = M.endPrices(tgP(f0), 'LAX', 0, f0, NOW, TODAY);
+    check(!!ep && eq(ep.rows.map((r) => [r.k, r.day, r.kind]), [[-1, '2026-11-19', 'in'], [0, '2026-11-20', 'in'], [1, '2026-11-21', 'in']]) && ep.rows[1].key === ash.keys[0].key && ep.rows[1].p === 305 &&
+      ep.rows[1].p === tgP(f0).price.per.LAX.legs[0].p && eq(ep.need, ['2|LAX|PIA|2026-11-19||1', '2|LAX|PIA|2026-11-21||1']),
+      'PIA-140 AC6 one end ±1 day: the day before, their day and the day after (open-jaw: that end\'s one-way only); their day is the very leg the total prices, the ±1 legs are what 🔍2 searches', ep);
+    const f1 = Object.assign({}, f0, { '2|LAX|PIA|2026-11-19||1': { p: 280, f: NOW - H1 }, '2|LAX|PIA|2026-11-21||1': { p: 330, f: NOW - H1 } });
+    const ep1 = M.endPrices(tgP(f1), 'LAX', 0, f1, NOW, TODAY), ep2 = M.endPrices(tgP(f1), 'LAX', 1, f1, NOW, TODAY);
+    check(ep1.need.length === 0 && eq(ep1.rows.map((r) => !!r.star), [true, false, false]) && ep2.rows.every((r) => r.kind === 'out') && ep2.rows[1].p === 200 && ep2.need.length === 2,
+      'PIA-140 AC6 once priced, ★ marks the cheapest day (11/19 $280); the leave end prices the way home (ORD→LAX) ±1');
+    const dwm = model(DW, { me: 'ashwin-p8', hasEditKey: true, hasToken: true }), dwRt = M.endPrices(dwm, 'ashwin-p8', 1, {}, NOW, TODAY);
+    check(dwRt && dwRt.rows.every((r) => r.kind === 'rt') && dwRt.rows[0].key === '1|LAX|RDU|2026-11-06|2026-11-08|1' && dwRt.rows[2].key === '1|LAX|RDU|2026-11-06|2026-11-10|1' &&
+      M.endPrices(model(DW, { me: 'anjo-z5', hasEditKey: true, hasToken: true }), 'momdad-k3', 0, {}, NOW, TODAY).rows[0].key === '1|PIA|RDU|2026-11-05|2026-11-09|2',
+      'PIA-140 AC6 a round trip\'s end ±1 is the round trip with that day moved (Mom & Dad: still 2 adults)');
+    const pastEnd = tweak(DW, (d) => { d.idea.dates.departure = '2026-10-18'; d.idea.dates.return = '2026-10-20'; });
+    const pe = M.endPrices(model(pastEnd, { hasEditKey: true, hasToken: true }), 'ashwin-p8', 0, {}, NOW, '2026-10-18');
+    check(pe && eq(pe.rows.map((r) => r.k), [0, 1]) && M.endPrices(model(DW, ORG), 'momdad-k3', 0, {}, NOW, TODAY) && M.endPrices(model(tg, ORG), 'PIA', 0, {}, NOW, TODAY) === null,
+      'PIA-140 AC6 a day before today is never offered (or searched); a host has no end to price');
+    // AC2 what a priced leg says, from data already paid for
+    const e = M.fareFromSerp(SERP, NOW - 2 * H1, null);
+    check(e.p === 305 && e.f === NOW - 2 * H1 && !e.none && e.lvl === 'low' && eq(e.typ, [330, 470]) && e.off.length === 3 && eq(e.off.map((o) => o.p), [305, 318, 341]) &&
+      e.off[0].d === 'BUR' && e.off[0].a === 'PIA' && e.off[0].dt === '2026-11-20 07:15' && e.off[0].ar === '2026-11-20 15:35' && e.off[0].s === 1 && e.prev === undefined,
+      'PIA-140 AC2 a SerpAPI reply keeps the cheapest real fare ($305), when SerpAPI was called, Google\'s level and typical range, and the 3 cheapest offers (airports, times as HH:MM, stops)', e);
+    const facts = M.fareFacts(e, 'in', 'LAX', NOW);
+    check(facts.age === 2 * H1 && facts.lvl === 1 && facts.stops === 1 && facts.win === 'BUR' && facts.delta === null && M.fareFacts(e, 'in', 'BUR', NOW).win === '' &&
+      M.fareFacts(Object.assign({}, e, { off: [{ p: 200, d: 'ORD', a: 'BUR', s: 0 }] }), 'out', 'LAX', NOW).win === 'BUR' && M.fareFacts({ p: null, none: true, f: NOW }, 'in', 'LAX', NOW) === null,
+      'PIA-140 AC2 a leg\'s facts: its age, Google\'s level (low = 1 of 3), its stops, and the airport that won when it is not their own (in: where it leaves; home: where it lands)');
+    // AC1 a leg shows the price the total adds: fareFacts and ▼ / ▲ read a cached fare through the same rule as priceRows (legTotal)
+    const fx2 = {}; fx2[ash.keys[0].key] = M.fareFromSerp(SERP, NOW - H1, { p: 340, f: NOW - 30 * H1 }); fx2[ash.keys[1].key] = { p: 200, f: NOW - H1, prev: 210, pf: NOW - 40 * H1 };
+    const pr2 = tgP(fx2).price.per.LAX.legs;
+    check(pr2.every((l) => M.fareFacts(l.f, l.kind, 'LAX', NOW).p === l.p) && M.prevDelta(fx2[ash.keys[0].key]) === -35 && M.prevDelta(fx2[ash.keys[1].key]) === -10 &&
+      M.priceDelta(tgP(fx2).price) === -45 && M.priceDelta(tgP(Object.assign({ [anjo.keys[0].key]: { p: 150, f: NOW - H1 } }, fx2)).price) === null && M.prevDelta({ p: null, none: true, prev: 300 }) === null,
+      'PIA-140 AC1 a leg shows exactly the price the total adds for it (fareFacts and ▼ / ▲ go through priceRows\' own rule): ▼$35 and ▼$10, the total ▼$45; once Anjo\'s leg is priced with no earlier price for it, the total shows no change');
+    const hostile = M.fareFromSerp({ best_flights: [{ price: 99.6, flights: [{ departure_airport: { id: '<b>x</b>', time: '"><img src=x>' }, arrival_airport: { id: 'pia', time: '2026-11-20 25:00' } }] }], price_insights: { price_level: '<script>', typical_price_range: ['a', 3] } }, NOW, null);
+    check(hostile.p === 100 && hostile.off[0].d === '' && hostile.off[0].a === 'PIA' && hostile.off[0].dt === '' && hostile.off[0].ar === '' && hostile.lvl === '' && hostile.typ === null,
+      'PIA-140 AC2 nothing from a reply reaches the cache unchecked: airports are codes or nothing, times are times or nothing, the level is low / typical / high or nothing', hostile);
+    const nf = M.fareFromSerp({ error: 'Google Flights hasn\'t returned any results for this query.' }, NOW, null);
+    check(nf.none === true && nf.p === null && M.fareState(nf, NOW) === 'none' && M.fareState(nf, NOW + 25 * H1) === 'stale',
+      'PIA-140 AC4 a search that found no fares is kept as none ($∅): not offered again within 24h, offered once it is a day old');
+    // AC5 ▼ / ▲ only between two real fetches of the identical search
+    const later = M.fareFromSerp(tweak(SERP, (j) => { j.other_flights[0].price = 285; }), NOW, e), hitAgain = M.fareFromSerp(SERP, NOW, later);
+    check(later.prev === 305 && later.pf === NOW - 2 * H1 && M.fareFacts(later, 'in', 'LAX', NOW).delta === -20 && hitAgain.prev === 305 &&
+      M.fareFromSerp(SERP, NOW, { p: null, none: true, f: NOW - H1 }).prev === undefined && M.fareFromSerp(SERP, NOW - 3 * H1, later).prev === undefined,
+      'PIA-140 AC5 ▼$20: a newer fetch of the same search remembers the price before it; a cache HIT of that same fetch keeps it; no-fares or an older fetch is never a "before"');
+    const two = {}; two[ash.keys[0].key] = later; two[ash.keys[1].key] = { p: 200, f: NOW - H1 };
+    const twoBoth = Object.assign({}, two); twoBoth[ash.keys[1].key] = { p: 200, f: NOW - H1, prev: 180, pf: NOW - 30 * H1 };
+    check(M.priceDelta(tgP(two).price) === null && M.priceDelta(tgP(twoBoth).price) === 0 && M.priceDelta(tgP(Object.assign({}, twoBoth, { [ash.keys[1].key]: { p: 150, f: NOW - H1, prev: 180, pf: NOW - 30 * H1 } })).price) === -50,
+      'PIA-140 AC5 the total\'s change only when every priced leg has an earlier price for its identical search (one leg new: no change shown)');
+    // AC3 every search is the Worker's, in v1's own parameters; nearby airports sorted, ≤5; adults only above 1
+    const tgMulti = model(tg, { me: 'LAX', hasEditKey: true, hasToken: true, multiAirport: true }), mdDw = mem(model(DW, Object.assign({ multiAirport: true }, ORG)), 'momdad-k3');
+    const v1q = new URLSearchParams({ engine: 'google_flights', departure_id: 'LAX', arrival_id: 'PIA', outbound_date: '2026-11-20', type: 2, currency: 'USD', hl: 'en' });
+    const q1 = new URLSearchParams(M.searchQuery(ash.keys[0].key));
+    check(eq([...q1.entries()].sort(), [...v1q.entries()].sort()) && M.searchQuery(mem(tgMulti, 'LAX').keys[0].key).indexOf('departure_id=BUR,LAX,LGB,ONT,SNA&arrival_id=PIA') > 0 &&
+      M.searchQuery(mdDw.keys[0].key) === 'engine=google_flights&departure_id=ORD,PIA&arrival_id=RDU&outbound_date=2026-11-06&return_date=2026-11-09&type=1&currency=USD&hl=en&adults=2' &&
+      ['', 'x', '3|LAX|PIA|2026-11-20||1', '2|LAX,BUR,LGB,SNA,ONT,SAN|PIA|2026-11-20||1', '2|lax|PIA|2026-11-20||1', '1|LAX|PIA|2026-11-20||1', '2|LAX|PIA|2026-11-20|2026-11-22|1', '2|LAX|PIA|2026-11-20||0'].every((k) => M.searchQuery(k) === ''),
+      'PIA-140 AC3 a one-adult search is v1\'s exact parameter set (one Worker cache entry for both apps); a nearby search names its ≤5 airports sorted; Mom & Dad add adults=2; anything the Worker would refuse builds nothing');
+    // the REAL worker.js accepts every search the model builds, for every fixture traveler, with and without nearby airports
+    const serpSeen = [], realFetch = globalThis.fetch;
+    globalThis.fetch = async (u) => { if (/^https:\/\/serpapi\.com\/search\.json\?/.test(String(u))) { serpSeen.push(String(u)); return new Response(JSON.stringify(SERP), { status: 200 }); } return realFetch(u); };
+    const wenv = { PROXY_TOKEN: 'trip-model-token-0123456789', SERPAPI_KEY: 'k', IDEAS: { m: new Map(), async get(k) { return this.m.has(k) ? this.m.get(k) : null; }, async put(k, v) { this.m.set(k, String(v)); } } };
+    const allKeys = [];
+    [tg, DW, TH, M8, LX].forEach((d) => [false, true].forEach((ma) => model(d, Object.assign({ multiAirport: ma }, ORG)).travelers.forEach((t) => t.keys.forEach((k) => { if (allKeys.indexOf(k.key) < 0) allKeys.push(k.key); }))));
+    const statuses = [];
+    for (const k of allKeys) {
+      const res = await worker.fetch(new Request('https://w.dev/search?' + M.searchQuery(k), { headers: { Origin: ORIGIN, 'X-Pialax-Token': wenv.PROXY_TOKEN } }), wenv);
+      statuses.push(res.status + ' ' + res.headers.get('X-Proxy-Cache'));
+    }
+    globalThis.fetch = realFetch;
+    check(allKeys.length >= 20 && statuses.every((s) => s === '200 MISS') && serpSeen.length === allKeys.length && serpSeen.every((u) => !/token|no_cache/.test(u)),
+      'PIA-140 AC3 the real Worker takes every search the model builds (' + allKeys.length + ' keys over 5 trips, nearby airports on and off): 200, one SerpAPI call each, nothing the strict allowlist refuses', statuses.filter((s) => s !== '200 MISS').slice(0, 4));
+    // AC3 / AC4 what one tap may search, and what it costs
+    const fz = {}; fz['2|LAX|PIA|2026-11-20||1'] = { p: 305, f: NOW - H1 }; fz['2|ORD|LAX|2026-11-29||1'] = { p: 200, f: NOW - 30 * H1 }; fz['2|LGA|PIA|2026-11-24||1'] = { p: null, none: true, f: NOW - H1 };
+    const want = ['2|LAX|PIA|2026-11-20||1', '2|ORD|LAX|2026-11-29||1', '2|LGA|PIA|2026-11-24||1', '2|ORD|LGA|2026-11-29||1', '2|ORD|LGA|2026-11-29||1', '2|LAX|PIA|2026-10-10||1', 'junk'];
+    check(eq(M.spendKeys(want, fz, NOW, TODAY), ['2|ORD|LGA|2026-11-29||1', '2|ORD|LAX|2026-11-29||1']) && M.spendKeys(want, fz, NOW + 25 * H1, TODAY).indexOf('2|LGA|PIA|2026-11-24||1') >= 0,
+      'PIA-140 AC4 a tap searches only what is missing or a day old, each once, the never-searched first (a tap the caps cut short prices a $— leg before it refreshes a grey one): never a fresh fare, never a no-fares answer within 24h, never a day already past, never a key the Worker refuses');
+    // a booked traveler's flight is bought: P-total's tap (tapKeys) and every ±1 day leave them out; spendable is all one trip may search
+    {
+      const bk = clone(DW); bk.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '', available_to: '', note: '', arrive_at: '', leave_from: '', booked: true };
+      const bm = model(bk, { me: 'ashwin-p8', hasEditKey: true, hasToken: true }), anjo = mem(bm, 'anjo-z5'), dm = model(DW, { me: 'ashwin-p8', hasEditKey: true, hasToken: true });
+      const all = M.spendable(dm, {}, NOW, TODAY), allB = M.spendable(bm, {}, NOW, TODAY), epB = M.endPrices(bm, 'anjo-z5', 0, {}, NOW, TODAY);
+      check(anjo.booked && eq(M.tapKeys(dm), dm.price.search) && M.tapKeys(bm).length === 2 && M.tapKeys(bm).indexOf(anjo.keys[0].key) < 0 && bm.price.search.indexOf(anjo.keys[0].key) >= 0 &&
+        all.length === 24 && all.every((k) => !!M.parseFareKey(k)) && allB.length === 16 && allB.indexOf(anjo.keys[0].key) < 0 && epB && epB.rows.length === 3 && epB.need.length === 0 && eq(M.tapKeys(null), []) &&
+        M.cheapCandidates(bm, {}, NOW, TODAY).every((c) => c.need.every((k) => allB.indexOf(k) >= 0) && c.need.indexOf(anjo.keys[0].key) < 0),
+        'PIA-140 a booked traveler\'s legs are shown but never offered to a tap: P-total\'s tap (tapKeys) leaves Anjo\'s out (2 of the 3), her ±1 days are drawn with nothing to search, and all one trip may search (spendable: 24 legs, P-total\'s, every end ±1 and, PIA-141, the 3 other candidate weeks\' 9) drops her 8 (her 5, and her 3 candidate weeks)', { all: all.length, allB: allB.length });
+    }
+    check(M.spendCount(9, 0) === 4 && M.spendCount(9, 6) === 2 && M.spendCount(3, 0) === 3 && M.spendCount(9, 8) === 0 && M.spendCount(0, 0) === 0 && M.SPEND_PER_TAP === 4 && M.SPEND_PER_SESSION === 8,
+      'PIA-140 AC3 a tap costs at most 4 searches, and never more than the session has left of its 8');
+    // AC3 the locks
+    const Q = (o) => Object.assign({ period: '2026-10', used: 12, budget: 1000, exceeded: false }, o || {});
+    const L = (o) => M.spendLock(Object.assign({ quota: Q(), utcDay: '2026-10-17', spent: 0 }, o));
+    check(L({}) === '' && L({ quota: Q({ exceeded: true }) }) === 'month' && L({ quota: Q({ used: 300, budget: 300 }) }) === 'month' && L({ quota: Q({ used: 990, budget: 5000 }) }) === 'month' &&
+      L({ acct: { plan_searches_left: 10 } }) === 'month' && L({ acct: { plan_searches_left: 11 } }) === '' && L({ acct: { total_searches_left: 0 } }) === 'month',
+      'PIA-140 AC3 the month lock: an upstream 429 (exceeded), the organizer\'s month cap, 990 used, or the plan\'s last 10 searches (or none left at all)');
+    check(L({ dayCap: '2026-10-17' }) === 'day' && L({ dayCap: '2026-10-16' }) === '' && L({ dayCap: '2026-10-17', utcDay: '2026-10-18' }) === '' &&
+      L({ acct: { spend: { serp: { used: 30, cap: 30 } } }, acctDay: '2026-10-17' }) === 'day' && L({ acct: { spend: { serp: { used: 30, cap: 30 } } }, acctDay: '2026-10-16' }) === '' &&
+      L({ spent: 8 }) === 'session' && L({ spent: 7 }) === '' && L({ dayCap: '2026-10-17', quota: Q({ exceeded: true }) }) === 'month',
+      'PIA-140 AC3 the Worker\'s day cap locks only until the next UTC day (pialax_daily_cap_v1, or today\'s /account at its cap); 8 spent locks the session; the month lock wins');
+    // v1's own stores in v1's formats: the quota counter, and v1's one-adult fare cache read and written as v1 would
+    const { loadApi: la } = require(path.join(ROOT, 'scripts', 'harness.js'));
+    const v1Quota = (raw) => {
+      const ls = require(path.join(ROOT, 'scripts', 'harness.js')).makeLocalStorage(); if (raw !== undefined) ls.setItem('pialax_serpapi_quota', JSON.stringify(raw));
+      class D extends Date { constructor(...a) { if (a.length) super(...a); else super(NOW); } static now() { return NOW; } }
+      const v = la(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['readQuota', 'bumpQuota', 'markQuotaExceeded'], Object.assign({ localStorage: ls, Date: D }, QUIET));
+      return { api: v.api, missing: v.missing, ls };
+    };
+    const raws = [undefined, Q(), Q({ period: '2026-09', used: 500, exceeded: true }), Q({ used: 40, budget: 100, exceeded: true }), Q({ used: 300, budget: 250, exceeded: true }), Q({ used: 7, budget: 2000 })];
+    const qrows = raws.map((raw) => {
+      const v = v1Quota(raw), got = v.api.readQuota(), stored = v.ls.getItem('pialax_serpapi_quota'), mine = M.quotaRead(raw === undefined ? null : raw, '2026-10');
+      v.api.bumpQuota(1); const b1 = JSON.parse(v.ls.getItem('pialax_serpapi_quota'));
+      v.api.markQuotaExceeded(); const x1 = JSON.parse(v.ls.getItem('pialax_serpapi_quota'));
+      return { ok: !v.missing.length && eq(got, mine.q) && (raw === undefined ? stored !== null : stored !== JSON.stringify(raw)) === mine.write && eq(b1, M.quotaBump(mine.q, 1)) && eq(x1, M.quotaExceeded(M.quotaBump(mine.q, 1))), raw, got, mine };
+    });
+    check(qrows.every((r) => r.ok), 'PIA-140 pialax_serpapi_quota is read, migrated (100 → 250 → 1000), reset for a new month, bumped and locked exactly as v1\'s own readQuota / bumpQuota / markQuotaExceeded do (v1 run in-process)', qrows.filter((r) => !r.ok).slice(0, 2));
+    const qa = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41, total_searches_left: 959, spend: {} });
+    const qh = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41, total_searches_left: 959 }, true);
+    const qn = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41 }), qp = M.quotaFromAccount(Q({ used: 3 }), { searches_per_month: 5000, total_searches_left: 4900 });
+    check(qa.used === 41 && qa.exceeded === false && qa.budget === 1000 && qh.exceeded === true && qh.used === 41 && qn.exceeded === true && qp.used === 100 && qp.budget === 1000 &&
+      M.quotaFromAccount(Q(), { total_searches_left: 0 }).exceeded === true && M.quotaFromAccount(Q(), { total_searches_left: 0 }, true).exceeded === true && eq(M.quotaFromAccount(Q(), null), Q()),
+      'PIA-140 /account, as v1\'s sync reads it: the month\'s usage from SerpAPI\'s own count (or the plan less what is left), a plan with nothing left locks the month and one with searches left lifts a refusal\'s lock (v1 does the same) unless the app still holds it (a refusal just now); an /account that says nothing of what is left lifts nothing; the organizer\'s month cap is never touched');
+    check(M.monthWhy({ quota: Q({ exceeded: true }) }) === 'refused' && M.monthWhy({ quota: Q(), acct: { plan_searches_left: 4 } }) === 'plan' && M.monthWhy({ quota: Q(), acct: { total_searches_left: 0 } }) === 'plan' &&
+      M.monthWhy({ quota: Q({ used: 300, budget: 300 }) }) === 'cap' && M.monthWhy({ quota: Q({ used: 990, budget: 5000 }) }) === 'safety' && M.monthWhy({ quota: Q() }) === '' && M.monthWhy({}) === '' &&
+      ['refused', 'plan', 'cap', 'safety'].every((w) => L(w === 'refused' ? { quota: Q({ exceeded: true }) } : w === 'plan' ? { acct: { plan_searches_left: 4 } } : w === 'cap' ? { quota: Q({ used: 300, budget: 300 }) } : { quota: Q({ used: 990, budget: 5000 }) }) === 'month'),
+      'PIA-140 monthWhy names every month lock for its label: refused (SerpAPI\'s 429, or the plan empty on /account), the plan\'s last 10, the organizer\'s own cap (raising it lifts it), 990 (v1\'s cutoff); each is a month lock');
+    const v1k = M.v1FareKey(mem(tgMulti, 'LAX').keys[0].key);
+    check(M.v1FareKey(ash.keys[0].key) === 'LAX|PIA|2026-11-20|' && v1k === 'BUR,LAX,LGB,ONT,SNA|PIA|2026-11-20|' && M.v1FareKey(mdDw.keys[0].key) === '' &&
+      M.fareKeyOfV1('LAX|PIA|2026-11-20|') === ash.keys[0].key && M.fareKeyOfV1('LAX|RDU|2026-11-06|2026-11-09') === '1|LAX|RDU|2026-11-06|2026-11-09|1' && M.fareKeyOfV1(v1k) === mem(tgMulti, 'LAX').keys[0].key && M.fareKeyOfV1('junk') === '',
+      'PIA-140 a one-adult fare key is v1\'s cache key (from|to|dep|ret, nearby airports sorted as v1 sorts them) and back; a 2-adult search is never v1\'s (v1 searches one adult)');
+    const v1e = M.v1Fare(SERP, NOW - H1, true, false);
+    const back = M.fareFromV1(v1e, null);
+    check(v1e.ts === NOW - H1 && v1e.data.live === true && v1e.data.ow === 318 && v1e.data.rt === null && v1e.data.cached === true && v1e.data.offers.length === 4 && v1e.data.byDep.BUR === 305 &&
+      v1e.data.lastVerified === new Date(NOW - H1).toISOString() && back.p === 305 && back.f === NOW - H1 && eq(back.off.map((o) => o.p), [305, 318, 341]) && back.lvl === 'low' &&
+      M.v1Fare({ error: 'none' }, NOW, false, false) === null && M.fareFromV1({ data: { ow: 99 }, ts: NOW }) === null && M.fareFromV1({ data: { live: true, ow: 99, locked: true }, ts: NOW }) === null && M.fareFromV1({ data: { live: true, ow: 99 } }) === null,
+      'PIA-140 a fare is written to v1\'s cache as v1\'s own fetch would (headline best_flights[0] $318, offers, byDep, original fetch time, HIT marked) and v1\'s live fares read back by v2\'s rule (the cheapest, $305); a sample, a booked stand-in or no fetch time is never a price');
+    // the cache keeps itself: never an older fetch over a newer, no fares for days already past, the newest 400
+    const big = {}; for (let i = 0; i < 420; i++) big['2|LAX|PIA|2026-12-' + String(1 + (i % 28)).padStart(2, '0') + '||' + (1 + Math.floor(i / 28) % 9)] = { p: i + 1, f: NOW - i * 1000 };
+    big['2|LAX|PIA|2026-10-01||1'] = { p: 1, f: NOW };
+    const put = M.faresPut(fz, '2|LAX|PIA|2026-11-20||1', { p: 999, f: NOW - 5 * H1 }, TODAY), put2 = M.faresPut(fz, '2|LAX|PIA|2026-11-20||1', { p: 299, f: NOW }, TODAY);
+    const kept = M.faresPut(big, '2|SEA|PIA|2026-12-01||1', { p: 5, f: NOW }, TODAY);
+    check(put['2|LAX|PIA|2026-11-20||1'].p === 305 && put2['2|LAX|PIA|2026-11-20||1'].p === 299 && Object.keys(kept).length <= M.FARES_KEEP && !kept['2|LAX|PIA|2026-10-01||1'] && kept['2|SEA|PIA|2026-12-01||1'].p === 5 &&
+      Object.keys(M.faresPut({ junk: { p: 1, f: NOW } }, 'nope', { p: 1, f: NOW }, TODAY)).length === 0,
+      'PIA-140 the fare cache: an older fetch never replaces a newer one; fares for a day already past go; at most the newest ' + M.FARES_KEEP + ' are kept');
+    // AC7 no price is ever written to the record: no write builder can reach a fare. Each builder (and what it calls in the region)
+    // is read as source: none takes or reads the fare cache, a leg's price or the pricing rule (the app's own write-and-share
+    // check in test-app covers what the app hands them)
+    {
+      const src = fs.readFileSync(path.join(ROOT, 'scripts', 'trip-model.js'), 'utf8');
+      const fnSrc = (name) => {
+        const m0 = new RegExp('\\bfunction\\s+' + name + '\\s*\\(').exec(src); if (!m0) return null;
+        let i = src.indexOf('{', m0.index), depth = 0;
+        for (; i < src.length; i++) { const c = src[i]; if (c === '{') depth++; else if (c === '}' && --depth === 0) return src.slice(m0.index, i + 1); }
+        return null;
+      };
+      const builders = ['createRequest', 'respondRequest', 'bookedRequests', 'updateRequest', 'airportSyncRequests', 'organizerEdit', 'timesRequest', 'migrateRequests', 'decisionBody'];
+      const PRICE_RE = /\bfares?\b|legTotal|priceRows|priceTrip|fareFacts|fareState|fareAt|\.price\b|pialax_fares/;
+      const rows = builders.map((n) => { const s = fnSrc(n); return { n, found: !!s, hit: s ? (s.match(PRICE_RE) || [])[0] || '' : '' }; });
+      check(rows.every((r) => r.found && !r.hit), 'PIA-140 AC7 no write builder can carry a fetched price: ' + builders.join(', ') + ' never take or read a fare, a leg\'s price or the pricing rule', rows.filter((r) => !r.found || r.hit));
+    }
+  }
+
+  // ═══ PIA-141 ════════════════════════════════════════════════════════════
+  section('PIA-141 cheapest week on demand: weeks that keep the length, 📌 and window; only followers move; real fares only; ★; Move through the plan write');
+  {
+    const H1 = 36e5, ORGP = { me: 'LAX', hasEditKey: true, hasToken: true };
+    // the spec's Thanksgiving S1 (the migrated legacy doc): Ashwin follows the 11/20–11/29 plan (into PIA, home from ORD: two
+    // one-ways), Anjo's own 11/24–11/29 (home from ORD) is fixed and cached, Mom & Dad host. Fares 3h old: Ashwin 🛬 $305 + 🛫 $200,
+    // Anjo $290 + $160 = $955
+    const S1 = { '2|LAX|PIA|2026-11-20||1': { p: 305, f: NOW - 3 * H1 }, '2|ORD|LAX|2026-11-29||1': { p: 200, f: NOW - 3 * H1 },
+      '2|LGA|PIA|2026-11-24||1': { p: 290, f: NOW - 3 * H1 }, '2|ORD|LGA|2026-11-29||1': { p: 160, f: NOW - 3 * H1 } };
+    // P-migrate re-chose the legacy doc (🔒): the cheapest week waits for 🔓, which S1 is ("before locking"), through the real Worker
+    const s1Id = srv.seed(tg), s1Un = await srv.send(M.organizerEdit(await srv.get(s1Id, KEY), KEY, { decision: { stage: 'proposed' } })), TS1 = await srv.get(s1Id, KEY);
+    check(M.cheapWhy(model(tg, Object.assign({ fares: S1 }, ORGP)), TODAY) === 'locked' && srv.allOk(s1Un) && !model(TS1, ORGP).locked && eq(model(TS1, ORGP).plan, { s: '2026-11-20', e: '2026-11-29' }),
+      'PIA-141 AC6 the migrated Thanksgiving is 🔒 (P-migrate kept its chosen): no cheapest week until 🔓, which gives S1 (the same plan, unlocked)');
+    const s1m = (fares, doc) => model(doc || TS1, Object.assign({ fares }, ORGP));
+    const c0 = M.cheapCandidates(s1m(S1), S1, NOW, TODAY), anjoKeys = mem(s1m(S1), 'LGA').keys.map((k) => k.key);
+    const starts = c0.map((c) => c.s), marked = c0.filter((c) => c.warn.length);
+    check(M.cheapWhy(s1m(S1), TODAY) === '' && c0.length === 10 && starts[0] === '2026-11-17' && starts[9] === '2026-11-26' && starts.every((s, i) => i === 0 || M.diffD(starts[i - 1], s) === 1) &&
+      c0.every((c) => M.diffD(c.s, c.e) === 9 && c.s <= '2026-11-26' && c.e >= '2026-11-26' && c.s > TODAY),
+      'PIA-141 AC1 Thanksgiving S1 (the migrated legacy doc, 📌 11/26): 10 candidate weeks, 11/17–11/26, each 9 nights (the plan\'s length) with the dinner inside, all in the future', starts);
+    check(marked.length === 5 && eq(marked.map((c) => c.s), ['2026-11-17', '2026-11-18', '2026-11-19', '2026-11-25', '2026-11-26']) && marked.every((c) => eq(c.warn, ['🗽']) && eq(c.warnCodes, ['LGA'])),
+      'PIA-141 AC2 5 weeks carry Anjo\'s 🗽: they would leave her own 11/24–11/29 outside the plan (11/17–11/19 end too soon, 11/25–11/26 start too late)', marked.map((c) => c.s));
+    const cur = c0.find((c) => c.current), others = c0.filter((c) => !c.current);
+    check(cur && cur.s === '2026-11-20' && cur.filled && cur.total === 955 && cur.need.length === 0 && others.every((c) => c.need.length === 2 && !c.filled && c.total === null && c.sum === null && !c.star) &&
+      c0.every((c) => c.need.length <= 2 && c.need.every((k) => anjoKeys.indexOf(k) < 0) && c.price.per.LGA.legs.map((l) => l.key).join() === anjoKeys.join() && c.price.per.LGA.sum === 450) &&
+      others.every((c) => eq(c.need, ['2|LAX|PIA|' + c.s + '||1', '2|ORD|LAX|' + c.e + '||1'])),
+      'PIA-141 AC2 / AC4 only Ashwin moves with a week: each other week costs ≤2 searches (his two one-ways for it), Anjo\'s legs stay hers (the same keys, $450 from the cache, never searched again); the current 11/20 week is already filled ($955); unsearched weeks stay hollow (no total), nothing estimated');
+    check(!c0.some((c) => c.star), 'PIA-141 AC3 ★ only once two weeks are priced: with one filled week there is no cheapest');
+    const S1b = Object.assign({}, S1, { '2|LAX|PIA|2026-11-22||1': { p: 280, f: NOW - H1 }, '2|ORD|LAX|2026-12-01||1': { p: 160, f: NOW - H1 } });
+    const c1 = M.cheapCandidates(s1m(S1b), S1b, NOW, TODAY), w22 = c1.find((c) => c.s === '2026-11-22');
+    check(w22 && w22.filled && w22.total === 890 && w22.star && c1.filter((c) => c.star).length === 1 && !c1.find((c) => c.current).star && c1.find((c) => c.current).total === 955 &&
+      eq(w22.per.map((p) => [p.code, p.sum, p.own]), [['LAX', 440, false], ['LGA', 450, true]]) && w22.e === '2026-12-01' && !w22.warn.length,
+      'PIA-141 AC4 the pinned S1 sample: once 11/22\'s two legs are searched it reads $890 (Ashwin 🛬 11/22 $280 + 🛫 12/01 $160 + Anjo $450, fixed and cached) with ★, the 11/20 plan $955 without; the chips name each part, Anjo\'s own days marked', w22 && w22.per);
+    // never a week after the dinner: whatever the window, the 📌 day is inside every week; widening adds nothing then
+    const wide = tweak(TS1, (d) => { d.idea.dates.searchStart = '2026-11-01'; d.idea.dates.searchEnd = '2026-12-31'; });
+    const cw = M.cheapCandidates(s1m(S1, wide), S1, NOW, TODAY), nopin = tweak(TS1, (d) => { d.idea.notes = M.buildNotes('', null, M.parseNotes(d.idea.notes).caption); });
+    const nw = M.widenWin(s1m(S1, nopin), 1, TODAY), np = s1m(S1, nopin);
+    check(cw.length === 10 && cw.every((c) => c.s >= '2026-11-17' && c.s <= '2026-11-26') && !cw.some((c) => c.s === '2026-12-03') && M.widenWin(s1m(S1), 1, TODAY) === null && M.widenWin(s1m(S1), -1, TODAY) === null &&
+      M.parseNotes(TS1.idea.notes).pin === '2026-11-26' && !!nw && nw.e === '2026-12-13' && nw.s === np.win.s && M.cheapCandidates(np, S1, NOW, TODAY).length === 15 &&
+      M.cheapCandidates(model(tweak(nopin, (d) => { d.idea.dates.searchStart = np.win.s; d.idea.dates.searchEnd = nw.e; }), Object.assign({ fares: S1 }, ORGP)), S1, NOW, TODAY).length === 22,
+      'PIA-141 AC1 Thanksgiving is never offered a week after the dinner (the migrated 📌 11/26 is there): even in a 11/1–12/31 window every week holds 11/26 (no 12/3 week), and ⟦◀ ▶⟧ add nothing; without the 📌 the plan ±7 holds 15 weeks and ▶⟧ widens to 12/13 (22)');
+    check(M.cheapWhy(model(lgOrg, Object.assign({ fares: S1 }, ORGP)), TODAY) === 'legacy', 'PIA-141 the unmigrated v1 doc offers no cheapest week (P-migrate first: its 📌 lives in v1 storage until then)');
+    // an undated idea: its stated 🌙4 inside its ⟦window⟧, tomorrow at the earliest
+    const cyM = model(CY, { me: 'ashwin-c3', hasEditKey: true, hasToken: true }), cyC = M.cheapCandidates(cyM, {}, NOW, TODAY);
+    const mdK = (c) => c.price.per['momdad-c1'].legs.map((l) => l.key).join();
+    const fixedK = (c) => ['ashwin-c3', 'anjo-c4'].map((x) => c.price.per[x].legs.map((l) => l.key).join()).join();
+    check(M.cheapWhy(cyM, TODAY) === '' && cyC.length === 14 && cyC[0].s === '2026-12-18' && cyC[13].s === '2026-12-31' && cyC.every((c) => M.diffD(c.s, c.e) === 4 && c.e <= '2027-01-04') &&
+      cyC.every((c) => mdK(c) === '1|PIA|RDU|' + c.s + '|' + c.e + '|2' && c.need.length === 3 && c.need[0] === mdK(c) && fixedK(c) === fixedK(cyC[0]) && eq(c.warnCodes, ['ashwin-c3', 'anjo-c4'])),
+      'PIA-141 AC1 an undated idea keeps its stated 🌙4 inside its ⟦12/18–1/04⟧ window (14 weeks): Mom & Dad (waiting) move with each (one round trip for 2), Ashwin\'s and Anjo\'s own windows stay (the same two searches in every week, still uncached: ≤3) and mark every week');
+    const soon = tweak(DW, (d) => { d.idea.dates.departure = '2026-10-19'; d.idea.dates.return = '2026-10-22'; d.idea.notes = ''; });
+    const sc = M.cheapCandidates(model(soon, ORGP), {}, NOW, TODAY);
+    check(sc.length > 0 && sc[0].s === '2026-10-18' && sc.every((c) => c.s > TODAY && c.e <= '2026-10-29'), 'PIA-141 AC1 weeks start tomorrow at the earliest, never inside the past part of the window (10/12–10/29)', sc.map((c) => c.s));
+    // a booked traveler keeps the days they booked: never priced or searched here, their face marks every week that would leave them out
+    const bk = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const bkm = model(bk, ORGP), bkc = M.cheapCandidates(bkm, {}, NOW, TODAY), aK = mem(model(DW, ORGP), 'anjo-z5').keys[0].key;
+    check(bkc.length === 4 && bkc.every((c) => c.price.per['anjo-z5'] === undefined && c.per.find((p) => p.code === 'anjo-z5').booked && c.need.indexOf(aK) < 0 && !c.need.some((k) => /\|LGA\|/.test(k))) &&
+      eq(bkc.filter((c) => c.warn.length).map((c) => c.s), ['2026-11-05', '2026-11-07', '2026-11-08']) && bkc.filter((c) => c.warn.length).every((c) => eq(c.warnCodes, ['anjo-z5'])) && M.cheapWhy(bkm, TODAY) === '',
+      'PIA-141 AC2 a booked follower (Anjo 🎫) stays on the days she booked: her flight is bought, so no week prices or searches it, and every week but the plan carries her 🗽 (it would leave her days out)');
+    // fix pass: a booked flight's cached price is the same in every week, so every week's total is the trip's whole cost and the
+    // plan's own bar reads P-total's total (D2: no two screens disagree), booked or not; it is never searched, and a day-old fare of
+    // hers (never refreshed: it is bought) neither greys a week nor holds Move back
+    const S1k = tweak(TS1, (d) => { d.responses.LGA.booked = true; d.responses.LGA.booked_at = '2026-10-16T00:00:00.000Z'; });
+    const kFares = Object.assign({}, S1b, { '2|LGA|PIA|2026-11-24||1': { p: 290, f: NOW - 30 * H1 } });
+    const km = s1m(kFares, S1k), kc = M.cheapCandidates(km, kFares, NOW, TODAY), kcur = kc.find((c) => c.current), k22 = kc.find((c) => c.s === '2026-11-22');
+    const kAnjo = (c) => c.per.find((p) => p.code === 'LGA');
+    check(km.anyBooked === 1 && kc.length === 10 && kc.every((c) => c.bought === 450 && c.price.per.LGA === undefined && kAnjo(c).booked && kAnjo(c).sum === 450 && c.need.every((k) => anjoKeys.indexOf(k) < 0)) &&
+      kcur.filled && kcur.total === 955 && km.price.total === 955 && !km.price.complete && k22.filled && k22.total === 890 && k22.star && kc.filter((c) => c.star).length === 1 &&
+      kc.filter((c) => !c.current && c.s !== '2026-11-22').every((c) => c.total === null && c.sum === null),
+      'PIA-141 a booked traveler\'s cached price ($450, one fare a day old) is in every week alike: the plan\'s bar reads $955, P-total\'s total; 11/22 still $890 ★ (only Ashwin\'s part moves); never searched, never what greys a week', { cur: kcur && kcur.total, w22: k22 && k22.total, pt: km.price.total });
+    check(M.cheapWhy(model(tweak(DW, (d) => { ['momdad-k3', 'ashwin-p8'].forEach((c) => { d.responses[c].available_from = '2026-11-06'; d.responses[c].available_to = '2026-11-09'; }); d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-09'); }), ORGP), TODAY) === 'nobody' &&
+      M.cheapWhy(model(tweak(DW, (d) => { ['momdad-k3', 'ashwin-p8', 'anjo-z5'].forEach((c) => { d.responses[c] = R('in', '', '', '', { booked: true }); }); }), ORGP), TODAY) === 'nobody',
+      'PIA-141 AC6 the entry is unavailable when nobody follows the plan: everyone set both ends, or everyone has booked');
+    const whys = {
+      org: model(DW, { me: 'ashwin-p8', hasToken: true }), token: model(DW, { me: 'ashwin-p8', hasEditKey: true }),
+      closed: model(tweak(DW, (d) => { d.decision = { stage: 'dropped' }; }), ORGP), past: model(tweak(DW, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-04'; d.idea.notes = ''; }), ORGP),
+      locked: model(tweak(DW, (d) => { d.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }; }), ORGP),
+      nodest: model(tweak(DW, (d) => { d.idea.destination = { city: '', airport: '' }; }), ORGP),
+      nights: model(tweak(CY, (d) => { d.idea.notes = 'New date TBD'; }), ORGP), window: model(tweak(CY, (d) => { d.idea.dates.searchStart = ''; d.idea.dates.searchEnd = ''; }), ORGP),
+      unpriced: model(tweak(DW, (d) => { d.idea.members[0].airport = ''; d.responses['momdad-k3'].origin = ''; }), ORGP),
+      noweek: model(tweak(DW, (d) => { d.idea.dates.departure = '2026-10-17'; d.idea.dates.return = '2026-10-20'; d.idea.notes = '📌2026-10-17'; }), ORGP)
+    };
+    const gotW = Object.keys(whys).map((k) => [k, M.cheapWhy(whys[k], TODAY)]);
+    check(gotW.every(([k, w]) => k === w) && M.cheapCandidates(whys.noweek, {}, NOW, TODAY).length === 0 && M.cheapWhy(null, TODAY) === 'org',
+      'PIA-141 AC6 P-dates\' 📉 says why it cannot open: not the organizer\'s phone, no token, dropped, over, 🔒 (Move is never offered while the dates are locked), no place, no nights, no window, someone with no airport, no week that fits', gotW);
+    // ★ needs a cheaper week (equal totals have no cheapest); a week whose search found no fares, or where someone cannot be priced,
+    // offers nothing to spend; a day-old week is priced (grey), not filled, and offers its refresh
+    const fillDW = (doc, f) => { const fr = {}; M.cheapCandidates(model(doc, ORGP), {}, NOW, TODAY).forEach((c) => c.need.forEach((k) => { fr[k] = f(k); })); return fr; };
+    const eqF = fillDW(DW, () => ({ p: 100, f: NOW - H1 })), eqC = M.cheapCandidates(model(DW, Object.assign({ fares: eqF }, ORGP)), eqF, NOW, TODAY);
+    const noneF = Object.assign({}, eqF), w5 = eqC.find((c) => c.s === '2026-11-05'); noneF[w5.missing.length ? w5.missing[0] : w5.price.per['ashwin-p8'].legs[0].key] = { p: null, none: true, f: NOW - H1 };
+    const noneC = M.cheapCandidates(model(DW, Object.assign({ fares: noneF }, ORGP)), noneF, NOW, TODAY).find((c) => c.s === '2026-11-05');
+    const staleF = Object.assign({}, eqF), w7k = eqC.find((c) => c.s === '2026-11-07').price.per['ashwin-p8'].legs[0].key; staleF[w7k] = { p: 120, f: NOW - 30 * H1 };
+    const staleC = M.cheapCandidates(model(DW, Object.assign({ fares: staleF }, ORGP)), staleF, NOW, TODAY).find((c) => c.s === '2026-11-07');
+    const cross = tweak(DW, (d) => { d.responses['ashwin-p8'].available_from = '2026-11-09'; });
+    const crossC = M.cheapCandidates(model(cross, Object.assign({ fares: fillDW(cross, () => ({ p: 90, f: NOW - H1 })) }, ORGP)), fillDW(cross, () => ({ p: 90, f: NOW - H1 })), NOW, TODAY).find((c) => c.s === '2026-11-05');
+    check(eqC.every((c) => c.filled && c.total === 300) && !eqC.some((c) => c.star) && noneC.none && !noneC.filled && noneC.need.length === 0 &&
+      staleC.priced && staleC.stale && !staleC.filled && staleC.total === null && staleC.sum === 320 && eq(staleC.need, [w7k]) &&
+      crossC.blocked.length === 1 && crossC.blocked[0].why === 'order' && !crossC.filled && crossC.need.length === 0,
+      'PIA-141 AC3 four weeks priced alike ($300 each) have no ★; a week where a search found no fares is $∅ and offers nothing to spend; a day-old week shows its real $320 grey and offers only its refresh; a week where someone\'s own arrival would come after the week ends offers nothing');
+    // spendable takes each week's legs while the cheapest week can be asked for, and never while the dates are locked
+    const dwm0 = model(DW, ORGP), allW = M.cheapCandidates(dwm0, {}, NOW, TODAY).reduce((a, c) => a.concat(c.need), []);
+    check(allW.length === 12 && allW.every((k) => M.spendable(dwm0, {}, NOW, TODAY).indexOf(k) >= 0) && M.spendable(whys.locked, {}, NOW, TODAY).length === 15,
+      'PIA-141 AC4 one spend path: every candidate week\'s legs are among what a tap on this trip may search (spendable, the PIA-140 path, its caps and locks), and none of them once the dates are 🔒');
+    // Move: the week becomes the plan in ONE /idea/update (planDelta, 📌 kept), through the real Worker; every follower's link follows,
+    // own days stay; a booked follower's days are written as hers first (PIA-138's rule); a 🔒 meanwhile holds it back
+    const mvId = srv.seed(TS1), mvFresh = await srv.get(mvId, KEY), mvM = model(mvFresh, Object.assign({ fares: S1b }, ORGP));
+    const target = M.cheapCandidates(mvM, S1b, NOW, TODAY).find((c) => c.s === '2026-11-22');
+    const mvReqs = M.organizerEdit(mvFresh, KEY, M.moveDelta(mvM, target)), anjoBefore = mem(mvM, 'LGA').link.href;
+    const mvRes = await srv.send(mvReqs), mvDoc = await srv.get(mvId, KEY), after = model(mvDoc, Object.assign({ fares: S1b }, ORGP));
+    const ashDec = M.gfDecode(mem(after, 'LAX').link.href);
+    check(mvReqs.length === 1 && mvReqs[0].path.indexOf('/idea/update') === 0 && srv.allOk(mvRes) && eq(after.plan, { s: '2026-11-22', e: '2026-12-01' }) && after.pin === '2026-11-26' &&
+      ashDec.legs[0].date === '2026-11-22' && ashDec.legs[1].date === '2026-12-01' && mem(after, 'LGA').link.href === anjoBefore && after.price.complete && after.price.total === 890 &&
+      M.cheapCandidates(after, S1b, NOW, TODAY).find((c) => c.current).s === '2026-11-22',
+      'PIA-141 AC6 Move writes the new plan once (one /idea/update through the real Worker, 📌 11/26 kept): Ashwin\'s link now reads 11/22 → 12/01, Anjo\'s is unchanged, and the trip\'s total is the bar\'s $890');
+    const bkId = srv.seed(bk), bkFresh = await srv.get(bkId, KEY), bkReqs = M.organizerEdit(bkFresh, KEY, M.moveDelta(model(bkFresh, ORGP), { s: '2026-11-07', e: '2026-11-10' }));
+    const bkRes = await srv.send(bkReqs), bkAfter = model(await srv.get(bkId, KEY), ORGP);
+    check(bkReqs.map((q) => q.path.split('?')[0]).join() === '/idea/respond,/idea/update' && srv.allOk(bkRes) && mem(bkAfter, 'anjo-z5').d1 === '2026-11-06' && mem(bkAfter, 'anjo-z5').d2 === '2026-11-09' &&
+      mem(bkAfter, 'ashwin-p8').d1 === '2026-11-07' && mem(bkAfter, 'momdad-k3').d2 === '2026-11-10',
+      'PIA-141 AC6 with a booked follower the plan is still written once: her booked days are made her own first (PIA-138\'s rule), then the one update moves everyone else');
+    check(M.organizerEdit(tweak(mvFresh, (d) => { d.decision = { stage: 'chosen', chosen: { airport: 'PIA', city: 'Peoria', departure: '2026-11-20', return: '2026-11-29' } }; }), KEY, M.moveDelta(mvM, target)) === null,
+      'PIA-141 AC6 a Move on a record locked meanwhile builds nothing (datesHeld: 🔒 first)');
+    // ⟦◀ ▶⟧ saves the wider window as the trip's ⟦⟧ (plan, 📌 and 🌙 untouched)
+    const wdId = srv.seed(nopin), wdFresh = await srv.get(wdId, KEY), wdM = model(wdFresh, ORGP), wNew = M.widenWin(wdM, 1, TODAY);
+    const wdRes = await srv.send(M.organizerEdit(wdFresh, KEY, M.widenDelta(wNew))), wdAfter = model(await srv.get(wdId, KEY), ORGP);
+    check(srv.allOk(wdRes) && eq(wdAfter.plan, wdM.plan) && wdAfter.explicitWin && eq(wdAfter.win, wNew) && wdAfter.pin === '' && M.cheapCandidates(wdAfter, {}, NOW, TODAY).length === 22 && M.widenWin(wdM, -1, TODAY) !== null,
+      'PIA-141 ▶⟧ widens the flex window by a week and saves it (searchStart / searchEnd through the real Worker): the plan stays, 15 weeks become 22');
+  }
+
+  // ═══ PIA-142 ════════════════════════════════════════════════════════════
+  section('PIA-142 Trips › Family: people merged across trips by name, cells that are the trips\' own members, 🏠n hosted, heads by headcount, past trips as columns');
+  {
+    const PAST = tweak(TH, (d) => { d.id = 'psTahoePastSeptember01'; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; });
+    const DROP = tweak(LX, (d) => { d.id = 'drLaxDroppedTrip000d01'; d.decision.stage = 'dropped'; });
+    // NYC (LGA): Anjo hosts it; a past Done trip she hosted, Ashwin and Mom & Dad flew in
+    const NYC = tweak(DW, (d) => { d.id = 'nyNewYorkPastDone00n01'; d.idea.title = '🌆 New York'; d.idea.destination = { city: 'New York', airport: 'LGA' };
+      d.idea.dates.departure = '2026-06-24'; d.idea.dates.return = '2026-07-04'; d.responses['anjo-z5'] = R('in', 'LGA'); d.decision.stage = 'booked'; });
+    const ms = (o) => {
+      const mk = (doc, me) => model(doc, Object.assign({ me }, o || {}));
+      return [mk(DW, 'ashwin-p8'), mk(TH, 'ashwin-l2'), mk(M8), mk(CY, 'ashwin-c3'), mk(LX, 'ashwin-x3'), mk(PAST, 'ashwin-l2'), mk(NYC, 'ashwin-p8'), mk(DROP, 'ashwin-x3')];
+    };
+    const all = ms(), B = M.familyBoard(all), Bp = M.familyBoard(all, { past: true });
+    const row = (b, key) => b.rows.find((r) => r.key === key), ids = (b) => b.cols.map((m) => m.id);
+    check(eq(ids(B), [DW.id, TH.id, M8.id, CY.id, LX.id]) && eq(ids(Bp), [DW.id, TH.id, M8.id, CY.id, LX.id, PAST.id, NYC.id]) && ids(Bp).indexOf(DROP.id) < 0,
+      'PIA-142 AC5 the columns are the trips off the shelf in the order given (the cards\'); 🗄 adds the past ones after them; a dropped trip is never a column', ids(Bp));
+    const ash = row(B, 'ashwin');
+    check(B.rows[0] === ash && ash.me && B.mine === 'ashwin' && ash.cells.filter(Boolean).length === 4 && ash.cells[2] === null &&
+      [0, 1, 3, 4].every((c) => ash.cells[c] === B.cols[c].members.find((x) => x.norm === 'ashwin')),
+      'PIA-142 AC1 people are merged across trips by name: Ashwin is one row (me, first) whose cells ARE the four trips\' own member objects, none on the 8-member trip');
+    const sams = B.rows.filter((r) => r.norm === 'sam lee');
+    const twoSam = tweak(LX, (d) => { d.id = 'tsTwoSamsOtherTrip0t01'; d.idea.members.push({ code: 'samlee-q1', label: '🐳 Sam Lee', airport: 'SEA', headcount: 1 }); });
+    const S2 = M.familyBoard([model(M8), model(twoSam)]), s2 = S2.rows.filter((r) => r.norm === 'sam lee');
+    check(sams.length === 2 && sams[0].cells[2].code === 'samlee-kz' && sams[1].cells[2].code === 'samlee-sb' && sams[1].key === 'sam lee#2' &&
+      s2.length === 2 && s2[0].cells[1] && s2[0].cells[1].code === 'samlee-q1' && s2[1].cells[1] === null,
+      'PIA-142 AC1 two "Sam Lee"s on one trip stay two rows; the first Sam Lee of another trip joins the first of them (the k-th joins the k-th)');
+    const LG1 = tweak(LEG, (d) => { d.id = 'lgLegacyOneMe000000l01'; }), LG2 = tweak(LEG, (d) => { d.id = 'lgLegacyTwoMe000000l02'; });
+    const LB = M.familyBoard([model(LG1, { me: 'LAX' }), model(LG2)]), meRows = LB.rows.filter((r) => !r.norm);
+    check(meRows.length === 2 && meRows[0].key === '#' + LG1.id + '|LAX' && meRows[0].me && LB.rows[0] === meRows[0] && meRows[0].cells[1] === null && meRows[1].cells[0] === null && meRows[1].name === '' &&
+      LB.rows.filter((r) => r.norm === 'anjo').length === 1,
+      'PIA-142 a v1 "Me" (no name) is a row of its own on its trip (never merged, never a word); this phone\'s "Me" is still me, first; named people still merge');
+    const LB2 = M.familyBoard([model(DW, { me: 'ashwin-p8' }), model(LG1, { me: 'LAX' }), model(LG2)]), me2 = LB2.rows[0];
+    check(me2.key === 'ashwin' && me2.me && me2.cells[1] && me2.cells[1].code === 'LAX' && me2.cells[0].code === 'ashwin-p8' && me2.cells[2] && me2.cells[2].code === 'LAX' && me2.cells[2] === LB2.cols[2].members.find((x) => x.code === 'LAX') &&
+      LB2.rows.filter((r) => !r.norm).length === 0,
+      'PIA-142 the v1 "Me" this phone is joins my own row (Ashwin on Diwali, "Me" on the v1 Thanksgiving); so does the "Me" of a v1 trip this phone is nobody on: it is that trip\'s organizer, whom v1\'s family preset names by airport (LAX: Ashwin, P-migrate\'s own suggestion)');
+    // fix pass: on Mom's phone (nobody on the v1 doc, Mom & Dad on Diwali) the v1 "Me" at LAX is Ashwin's row, named from his Diwali
+    // face even though the v1 trip comes first; a v1 "Me" at an airport outside the preset (SEA), or whose preset name is on its own
+    // trip by name, stays a row of its own, after every named row, and is never anybody's row by guess
+    const momB = M.familyBoard([model(LG1), model(DW, { me: 'momdad-k3' })]), momAsh = momB.rows.find((r) => r.key === 'ashwin');
+    const SEA = tweak(LEG, (d) => { d.id = 'lgLegacySeaMe00000l03'; d.idea.members[1].airport = 'SEA'; });
+    const NAMED = tweak(LEG, (d) => { d.id = 'lgLegacyNamedAsh00l04'; d.idea.members.push({ code: 'ASH', label: 'Ashwin', airport: 'SFO', headcount: 1 }); });
+    const seaB = M.familyBoard([model(SEA), model(DW, { me: 'momdad-k3' })]), namedB = M.familyBoard([model(NAMED), model(DW, { me: 'momdad-k3' })]);
+    const lastNameless = (b) => { const i = b.rows.findIndex((r) => !r.norm); return i >= 0 && b.rows.slice(i).every((r) => !r.norm); };
+    check(momAsh && momAsh.name === 'Ashwin' && momAsh.face === '🌴' && momAsh.cells[0] && momAsh.cells[0].code === 'LAX' && momAsh.cells[1].code === 'ashwin-p8' && momB.rows.filter((r) => !r.norm).length === 0 && momB.rows[0].key === 'mom & dad' && momB.rows[0].me &&
+      seaB.rows.filter((r) => !r.norm).length === 1 && lastNameless(seaB) && seaB.rows.find((r) => r.key === 'ashwin').cells[0] === null &&
+      namedB.rows.filter((r) => !r.norm).length === 1 && lastNameless(namedB) && namedB.rows.find((r) => r.key === 'ashwin').cells[0].code === 'ASH',
+      'PIA-142 on another phone a v1 "Me" at a family airport joins the preset\'s person when they have a named row (named from that row, not the v1 face); one outside the preset, or whose preset name is already on its trip, stays a row of its own after the named rows',
+      { mom: momB.rows.map((r) => r.key), sea: seaB.rows.map((r) => r.key), named: namedB.rows.map((r) => r.key) });
+    const md = row(B, 'mom & dad'), dwCol = B.cols[0];
+    check(md.headcount === 2 && dwCol.headsIn === 3 && dwCol.heads === 4 && md.cells[0].headcount === 2 &&
+      B.cols.every((m) => m.heads === m.members.reduce((s, x) => s + x.headcount, 0) && m.headsIn === m.members.filter((x) => x.status === 'in' || x.status === 'host-default').reduce((s, x) => s + x.headcount, 0)),
+      'PIA-142 AC3 heads per trip by headcount: Mom & Dad ×2 on their row, Diwali 3/4 (Mom & Dad 2 + Ashwin; Anjo has not answered); every column\'s heads are its own model\'s');
+    const anjoP = row(Bp, 'anjo'), mayaP = row(Bp, 'maya'), ashP = row(Bp, 'ashwin');
+    check(anjoP.hosted === 1 && anjoP.cells[6].host && anjoP.cells[6].status === 'in' && row(B, 'anjo').hosted === 1 && mayaP.hosted === 1 && ashP.hosted === 1 && md.hosted === 0 &&
+      row(Bp, 'grandma josephine').hosted === 1 && row(Bp, 'guadalupe hernández-villanueva').hosted === 1,
+      'PIA-142 AC2 🏠n counts the trips a person hosts across the active and past trips, shown or not: Anjo hosted the past New York (🏠1 with 🗄 off too), Ashwin and Maya the LA beach weekend (SNA is in LA\'s set), Grandma and Guadalupe the Savannah trip; Mom & Dad none');
+    const dropAsh = M.familyBoard([model(DW, { me: 'ashwin-p8' }), model(tweak(LX, (d) => { d.id = 'drLaxDroppedTrip000d02'; d.decision.stage = 'dropped'; }), { me: 'ashwin-x3' })]);
+    const outHost = M.familyBoard([model(DW, { me: 'ashwin-p8' }), model(tweak(LX, (d) => { d.id = 'ohLaxHostSaidOut000o01'; d.responses['ashwin-x3'].status = 'out'; }), { me: 'ashwin-x3' })]);
+    check(row(dropAsh, 'ashwin').hosted === 0 && row(outHost, 'ashwin').hosted === 0 && row(outHost, 'ashwin').cells[1].status === 'out' && row(outHost, 'ashwin').cells[1].host,
+      'PIA-142 AC2 a dropped trip never counts as hosted (it never happened), nor one the host said Out to (their cell still shows it: ⊘ with 🏠)');
+    const shown = (b, key) => b.rows.find((r) => r.key === key).cells.filter((x) => x && x.host && x.status !== 'out').length;
+    check(Bp.rows.every((r) => r.hosted === shown(Bp, r.key)),
+      'PIA-142 AC5 with 🗄 on, every row\'s 🏠n is exactly the 🏠 cells on its row (so hosting history reads off the board)', Bp.rows.map((r) => [r.key, r.hosted, shown(Bp, r.key)]));
+    const tgB = M.familyBoard([model(tg, { me: 'LAX' }), model(DW, { me: 'ashwin-p8' })]), tgMD = tgB.rows.find((r) => r.cells[0] && r.cells[0].code === 'PIA');
+    check(tgMD && tgMD.cells[0].status === 'host-default' && tgMD.cells[0].unconfirmed && tgMD.cells[0].host && tgMD.key === 'mom & dad' && tgMD.cells[1].code === 'momdad-k3' && tgB.rows[0].cells[0].code === 'LAX' && tgB.rows[0].me,
+      'PIA-142 AC1 the migrated Thanksgiving: Mom & Dad\'s cell is their unconfirmed host default (🏠, in until they answer), merged with their Diwali cell; Ashwin (LAX) first');
+    const cyAsh = row(B, 'ashwin').cells[3], cyAnjo = row(B, 'anjo').cells[3];
+    check(cyAsh.own1 === '2026-12-19' && cyAnjo.own1 === '2026-12-21' && row(B, 'mom & dad').cells[3].own1 === '' && row(B, 'mom & dad').cells[3].status === 'waiting',
+      'PIA-142 AC1 each cell carries that person\'s own arrival day when they set one (Cary: Ashwin 12/19, Anjo 12/21; Mom & Dad waiting, none)');
+    const m8 = row(B, 'bartholomew montgomery-fitzgerald').cells[2], ol = row(B, 'oluwaseun adebayo-richardson').cells[2];
+    check(m8.warn.length && m8.noteText && ol.called && row(B, 'sam lee').cells[2].noteText === 'Work' && row(B, 'sam lee').cells[2].status === 'out',
+      'PIA-142 AC1 the marks come with the member: ⚠ and 📝 for Bartholomew, 📞 for Oluwaseun, ⊘ and 📝 for Sam Lee');
+    const anon = M.familyBoard([model(DW), model(TH)], { name: 'Ashwin' }), anon2 = M.familyBoard([model(DW), model(TH)]);
+    check(anon.rows[0].key === 'ashwin' && anon.rows[0].me && !anon2.rows.some((r) => r.me) && anon2.rows[0].key === 'mom & dad',
+      'PIA-142 with no face picked on any trip, this phone\'s profile name puts that row first as me; with neither, nobody is me and rows keep their order');
+    const clashDoc = tweak(TH, (d) => { d.id = 'clClashingTripIdea0c01'; d.idea.dates.departure = '2026-11-07'; d.idea.dates.return = '2026-11-10'; d.responses['ashwin-l2'].status = 'in'; });
+    const dwC = model(DW, { me: 'ashwin-p8', otherTrips: [clashDoc] }), clB = M.familyBoard([dwC, model(clashDoc, { me: 'ashwin-l2', otherTrips: [DW] })]);
+    check(row(clB, 'ashwin').cells[0].warn.indexOf('clash') >= 0 && row(clB, 'ashwin').cells[0] === mem(dwC, 'ashwin-p8'),
+      'PIA-142 AC1 a clash is the model\'s own mark on my cell (Diwali 11/6–11/9 against a trip 11/7–11/10 on this phone): the cell is the trip view\'s member, so the two can never differ');
+    const tok = M.familyBoard(ms({ hasEditKey: true, hasToken: true, fares: { x: { p: 1, f: NOW } } }));
+    const hasPrice = (v) => scan(v).keys.some((k) => /^(price|prices|total|sum|p|paid|fares|per|segs)$/.test(k));
+    check(tok.cols.every((m) => m.prices && m.price) && tok.rows.every((r) => !hasPrice(r)),'PIA-142 the board\'s rows carry no price on any phone (a token phone\'s models do; the board reads only their members)');
+  }
 
   // ═══ AC11 ═══════════════════════════════════════════════════════════════
   section('AC11 the inlined region is clean, the encoder port is exact, and the suite is offline and in preflight');
