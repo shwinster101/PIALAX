@@ -15,11 +15,13 @@ EXPECTED=(
   "https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js|vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A=="
   "https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js|4UKI/XKm3xrvJ6pZS5oTRvIQGIzZFoXR71rRBb1y2N+PbwAsKa5tPl2J6WvbEvwN3TxQCm8hMzsl/pO+82iRlg=="
 )
+MAP_URL='https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json'
+MAP_SHA256='2516c915867c7baf18ddec727aec46c315541a07cfb3d79a6559b05d5e94eee8'
 
 fail=0
 
 # PIA-134: app.html (the v2 shell) may load a CDN script only with an integrity=
-# value pinned above. It has none yet (PIA-143 adds the map basemap); every
+# value pinned above. PIA-143 adds the two map libraries; every
 # <script src> it ever gains must match one EXPECTED entry exactly. Offline-safe:
 # this part needs no network, so it runs before the cdnjs fetches below.
 # Every <script> tag is read (any case, split over lines or not), and its src= and
@@ -31,6 +33,12 @@ attr() { printf '%s' "$1" | sed -nE "s/.*[[:space:]]$2[[:space:]]*=[[:space:]]*(
 SRC_ATTR='[sS][rR][cC]'
 INT_ATTR='[iI][nN][tT][eE][gG][rR][iI][tT][yY]'
 if [ -f "$APP_HTML" ]; then
+  if grep -Fq "var MAP_URL = '$MAP_URL';" "$APP_HTML" && grep -Fq "var MAP_SHA256 = '$MAP_SHA256';" "$APP_HTML"; then
+    printf "OK    app.html map data: exact version and SHA-256 pinned\n"
+  else
+    printf "FAIL  app.html map data URL or SHA-256 differs from its pinned value\n"
+    fail=1
+  fi
   n=0
   flat="$(tr '\r\n\t' '   ' < "$APP_HTML")"
   while IFS= read -r tag; do
@@ -74,5 +82,13 @@ for entry in "${EXPECTED[@]}"; do
     fail=1
   fi
 done
+
+got_map="$(curl -fsSL "$MAP_URL" | openssl dgst -sha256 | awk '{print $NF}')"
+if [[ "$got_map" == "$MAP_SHA256" ]]; then
+  printf "OK    %s (SHA-256)\n" "$MAP_URL"
+else
+  printf "FAIL  %s\n  expected %s\n  got      %s\n" "$MAP_URL" "$MAP_SHA256" "$got_map"
+  fail=1
+fi
 
 exit "$fail"

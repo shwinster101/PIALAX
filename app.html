@@ -3,9 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<!-- PIA-134: the v2 app (not linked from anywhere until the PIA-147 cutover). Same strict CSP idea as v1, tighter:
-     no external script, style, font or image at all, and the only network peer is the Worker. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src https://pialax-proxy.ashwinyedavalli.workers.dev; base-uri 'none'; form-action 'none'; object-src 'none'">
+<!-- PIA-143: exact CDN script paths, with v1's SRI hashes below; map data has an exact version and a runtime digest. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js; style-src 'unsafe-inline'; img-src data:; connect-src https://pialax-proxy.ashwinyedavalli.workers.dev https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex">
 <meta name="color-scheme" content="light dark">
@@ -365,6 +364,20 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .map .tray { position: absolute; left: 4px; top: 4px; display: flex; gap: 2px; z-index: 2; }
 .map .tray .facebtn { width: 44px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
 .map .tray .more { width: 44px; height: 44px; display: grid; place-items: center; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
+.map .land { fill: var(--sunk); stroke: var(--line); stroke-width: .6; }
+.map .arc { fill: none; stroke-width: 1.8; opacity: .8; }
+.map .arc.homeward { stroke-dasharray: 3 3; }
+.map .facebtn { background: var(--surface); border-radius: 50%; }
+.map-faces { display: flex; flex-wrap: wrap; gap: 4px; }
+.map-faces .facebtn { width: 44px; height: 44px; }
+.map-faces .facebtn[aria-pressed="true"] { border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink); }
+.map-fallback { min-height: 100px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 16px; background: var(--surface); }
+.map-places { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.map-places .chip { min-height: 44px; min-width: 44px; justify-content: center; }
+.mapday { display: grid; gap: 8px; }
+.mapday .pk { width: 100%; justify-content: flex-start; white-space: normal; text-align: left; }
+.mapday .pk .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.pair { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
 .lanes { display: grid; gap: 10px; }
 .lane { display: flex; gap: 8px; align-items: flex-start; }
 .lane .lh { min-width: 66px; flex: none; display: flex; align-items: center; gap: 6px; min-height: 44px; }
@@ -892,6 +905,8 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-label="Sheet" tabindex="-1" hidden></div>
 <div id="lbl" class="lbl-bubble" role="tooltip" hidden></div>
 <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js" integrity="sha512-vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A==" crossorigin="anonymous" onload="window.dispatchEvent(new Event('pialax-map-ready'))"></script>
+<script async src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js" integrity="sha512-4UKI/XKm3xrvJ6pZS5oTRvIQGIzZFoXR71rRBb1y2N+PbwAsKa5tPl2J6WvbEvwN3TxQCm8hMzsl/pO+82iRlg==" crossorigin="anonymous" onload="window.dispatchEvent(new Event('pialax-map-ready'))"></script>
 <script>
 'use strict';
 (function () {
@@ -1698,6 +1713,50 @@ function cachedTime(v) {
   var m = typeof v === 'string' ? /^(?:\d{4}-\d{2}-\d{2}[ T])?(\d{2}:\d{2})$/.exec(v) : null;
   return m && HHMM_RE.test(m[1]) ? m[1] : '';
 }
+/* PIA-143: destination previews use the same record and pricing rule as the trip. A bought flight cannot be
+   repriced to another city; unlock first and settle bookings through the existing edit flow. */
+function candidateWhy(model) {
+  if (!model || !model.org) return 'org';
+  if (!model.prices) return 'token';
+  if (model.legacy) return 'legacy';
+  if (model.closed) return 'closed';
+  if (model.past) return 'past';
+  if (model.locked) return 'locked';
+  if (model.anyBooked) return 'booked';
+  if (!model.plan) return 'dates';
+  return '';
+}
+function destinationCandidate(doc, ctx, dest) {
+  var base = tripModel(doc, ctx), ap = normIata(dest);
+  if (candidateWhy(base) || !ap) return null;
+  var copy = Object.assign({}, doc, { idea: Object.assign({}, doc.idea, { destination: { airport: ap, city: airportInfo(ap).city } }) });
+  return tripModel(copy, ctx);
+}
+/* Cheapest pair of different travelers landing at one airport on one day, at most two hours apart. Only fresh
+   cached offers qualify. Booked travelers' recorded times remain facts; no alternative offer is assigned to them.
+   Each pair uses the complete traveler price (including an open jaw's return), never a made-up per-person price. */
+function pickupPair(model, fares, now, ap, day) {
+  if (!model || !model.prices) return null;
+  var rows = [];
+  model.travelers.forEach(function (x) {
+    if (!x.answered || x.booked || x.bad || x.A !== ap || x.d1 !== day || !x.keys.length) return;
+    var pr = priceRows([priceRow(x)], fares, now);
+    if (!pr.complete) return;
+    var first = fares[x.keys[0].key], other = pr.per[x.code].sum - legTotal(first);
+    (first && Array.isArray(first.off) ? first.off : []).forEach(function (o) {
+      var t = cachedTime(o.ar), date = typeof o.ar === 'string' && /^\d{4}-\d{2}-\d{2}[ T]/.test(o.ar) ? o.ar.slice(0, 10) : day;
+      if (!t || date !== day || o.a !== ap || typeof o.p !== 'number' || !isFinite(o.p) || o.p <= 0) return;
+      rows.push({ code: x.code, time: t, min: +t.slice(0, 2) * 60 + +t.slice(3), p: legTotal(o) + other });
+    });
+  });
+  var best = null;
+  rows.forEach(function (a, i) { rows.slice(i + 1).forEach(function (b) {
+    var wait = Math.abs(a.min - b.min), sum = a.p + b.p;
+    if (a.code !== b.code && wait <= 120 && (!best || sum < best.sum || (sum === best.sum && wait < best.wait)))
+      best = { codes: [a.code, b.code], times: [a.time, b.time], sum: sum, wait: wait };
+  }); });
+  return best;
+}
 /* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone, while
    that traveler is booked; with showPredicted (the organizer's token phone) an arrival with no recorded time shows the
    cheapest cached offer's time (cachedTime), from any cached search (fresh or stale; `now` is unused, kept so every
@@ -1710,7 +1769,10 @@ function pickups(model, fares, now, showPredicted) {
     if (!m.answered || !m.d1 || m.bad) return;
     var inKey = m.keys[0] && m.keys[0].key, f = inKey && fares && hasOwn(fares, inKey) ? fares[inKey] : null;
     var offer = f && f.off && f.off[0] ? f.off[0] : null;
-    var predicted = (model.prices || showPredicted) && f ? cachedTime(f.ar || (offer && offer.ar)) : '';  // any cached offer, fresh or stale
+    var rawArrival = f && (f.ar || (offer && offer.ar));
+    var predicted = (model.prices || showPredicted) && f ? cachedTime(rawArrival) : '';  // any cached offer, fresh or stale
+    // A search departs on d1. An overnight offer must not be presented as landing on that same day.
+    if (predicted && /^\d{4}-\d{2}-\d{2}[ T]/.test(rawArrival) && rawArrival.slice(0, 10) !== m.d1) predicted = '';
     // PIA-139: a recorded time is a firm pickup only while its traveler is booked (a 🎫 taken back leaves none behind)
     var arrT = (m.booked && m.arrTime) || predicted, depT = m.booked ? m.depTime : '';
     if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
@@ -3521,7 +3583,8 @@ function runSearch(keys, o) {
   var tm = o.id ? modelOf(o.id) : null, shown = o.n > 0 ? Math.floor(o.n) : 0;
   if (!S || S.spendBusy || !hasToken() || !tm || !tm.prices || tm.closed) { if (S && S.spendBusy) toast('◷'); return Promise.resolve(out); }
   var lk = lockNow(); if (lk) { out.stop = lk; return Promise.resolve(out); }
-  var fares = readFares(), now = nowMs(), today = todayLocal(), mine = spendable(tm, fares, now, today);
+  var fares = readFares(), now = nowMs(), today = todayLocal(), cm = o.dest ? candidateOf(o.id, o.dest) : null;
+  var mine = o.dest ? (cm ? tapKeys(cm) : []) : spendable(tm, fares, now, today);
   var todo = spendKeys((keys || []).filter(function (k) { return mine.indexOf(typeof k === 'string' ? k : (k && k.key)) >= 0; }), fares, now, today);
   todo = todo.slice(0, Math.min(spendCount(todo.length, spentRead()), shown));
   if (!todo.length) return Promise.resolve(out);
@@ -3531,7 +3594,9 @@ function runSearch(keys, o) {
   function next() {
     if (i >= todo.length || out.stop) return Promise.resolve();
     var l2 = lockNow(); if (l2) { out.stop = l2; return Promise.resolve(); }
-    var key = todo[i++], q = searchQuery(key);
+    var key = todo[i++], q = searchQuery(key), current = modelOf(o.id), preview = o.dest ? candidateOf(o.id, o.dest) : null;
+    var allowed = o.dest ? (preview ? tapKeys(preview) : []) : current && current.prices && !current.closed ? spendable(current, readFares(), nowMs(), todayLocal()) : [];
+    if (allowed.indexOf(key) < 0) { out.stop = 'changed'; return Promise.resolve(); }
     out.asked++;
     return paid('/search', q).then(function (r) {
       var stop = searchStop(r), own = stop === 'network' || stop === 'day' || stop === 'no_token' || (r.status === 400 && r.json && r.json.code === 'bad_params');
@@ -4159,7 +4224,8 @@ var LEGEND = {
   weekcur: ['<span class="kbar cur"></span>', 'Current dates'], wcost: ['🔍≤2', 'Searches needed'], leaves: ['⚠', 'Leaves days out'], page: ['◀ ▶', 'Page'],
   widen: ['⟦◀ ▶⟧', 'Widen window'], owndays: ['<span class="kown">🙂</span>', 'Own days'],
   // PIA-142: the Family board (a cell's own arrival day, someone not on a trip, the trips hosted, 🗄 the past trips as columns)
-  ownarr: ['<span class="tn">11/24</span>', 'Own arrival'], notinv: ['<span class="sh-none"></span>', 'Not invited'], hosted: ['🏠2', 'Hosted or hosting'], pastcols: ['🗄', 'Past trips']
+  ownarr: ['<span class="tn">11/24</span>', 'Own arrival'], notinv: ['<span class="sh-none"></span>', 'Not invited'], hosted: ['🏠2', 'Hosted or hosting'], pastcols: ['🗄', 'Past trips'],
+  candidate: ['＋📍', 'Another destination'], mapunavailable: ['🗺 ◷', 'Map unavailable'], pair: ['★', 'Cheapest pickup pair'], predicted: ['≈', 'Cached flight time']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -4417,7 +4483,7 @@ function spendBtn(m, keys, o) {
   if (!todo.length) return '';
   // data-n: the cost drawn on it; the tap never spends more (a count that grew meanwhile is drawn again first)
   // (PIA-141: o.week, one candidate week of P-cheapest: data-v="week" with its first day)
-  var a = 'data-act="search" data-id="' + m.id + '"' + (o.code ? ' data-code="' + esc(o.code) + '" data-end="' + o.end + '"' : o.week ? ' data-v="week" data-day="' + esc(o.week) + '"' : ' data-v="total"') + ' data-n="' + n + '"', cls = 'btn ' + (o.cls || 'pri wide');
+  var a = 'data-act="search" data-id="' + m.id + '"' + (o.dest ? ' data-v="candidate" data-dest="' + esc(o.dest) + '"' : o.code ? ' data-code="' + esc(o.code) + '" data-end="' + o.end + '"' : o.week ? ' data-v="week" data-day="' + esc(o.week) + '"' : ' data-v="total"') + ' data-n="' + n + '"', cls = 'btn ' + (o.cls || 'pri wide');
   if (S.spendBusy) return '<button class="' + cls + ' busy" ' + a + ' aria-disabled="true" aria-busy="true" data-why="1" aria-label="Searching" data-lbl="Searching" data-k="busy">◷</button>';
   if (lk === 'session') return visitBtn(cls);
   if (lk) {
@@ -4888,20 +4954,101 @@ function renderSelected(id, scope) {
   }
   var sel = selectedId(act), m = act.filter(function (x) { return x.id === sel; })[0];
   S.shown = m.id;
-  return { id: id, html: tabTop(act.length > 1 ? tripChips(act, sel) : '') + '<p class="subttl" id="sel-title" data-free>' + esc(m.title) + '</p>' + miniCard(m) + (scope === 'map' ? lanesHTML(m) : '') };
+  return { id: id, html: tabTop(act.length > 1 ? tripChips(act, sel) : '') + '<p class="subttl" id="sel-title" data-free>' + esc(m.title) + '</p>' + miniCard(m) + (scope === 'map' ? mapHTML(m) + lanesHTML(m) : '') };
+}
+/* PIA-143: map assets are decorative. Faces, airport controls and pickups are ordinary HTML from the model,
+   so an unavailable library, failed fetch or bad digest cannot remove the trip's useful controls. No token on map requests. */
+var MAP_URL = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
+var MAP_SHA256 = '2516c915867c7baf18ddec727aec46c315541a07cfb3d79a6559b05d5e94eee8';
+var MAP = { state: '', geo: null };
+function mapLibraries() { return typeof window.d3 === 'object' && typeof window.d3.geoPath === 'function' && typeof window.topojson === 'object' && typeof window.topojson.feature === 'function'; }
+function loadMap() {
+  if (MAP.state || !mapLibraries()) return;
+  MAP.state = 'loading';
+  Promise.resolve().then(function () {
+    if (!window.crypto || !window.crypto.subtle) throw new Error('digest unavailable');
+    return fetch(MAP_URL, { credentials: 'omit', referrerPolicy: 'no-referrer', cache: 'force-cache' });
+  }).then(function (r) { if (!r.ok) throw new Error('map unavailable'); return r.arrayBuffer(); }).then(function (bytes) {
+    if (bytes.byteLength > 500000) throw new Error('map too large');
+    return window.crypto.subtle.digest('SHA-256', bytes).then(function (digest) {
+      var hex = Array.from(new Uint8Array(digest)).map(function (b) { return ('0' + b.toString(16)).slice(-2); }).join('');
+      if (hex !== MAP_SHA256) throw new Error('map digest');
+      var topo = JSON.parse(new TextDecoder().decode(bytes));
+      if (topo.type !== 'Topology' || !topo.objects || !topo.objects.countries) throw new Error('map shape');
+      MAP.geo = window.topojson.feature(topo, topo.objects.countries); MAP.state = 'ready';
+    });
+  }).catch(function () { MAP.state = 'failed'; MAP.geo = null; }).then(function () { if (S && S.tab === 'map') changed(); });
+}
+window.addEventListener('pialax-map-ready', function () { if (S && S.tab === 'map') changed(); });
+function mapFace(m, x, cls, style) {
+  return '<button class="facebtn' + (cls ? ' ' + cls : '') + '"' + (style ? ' style="' + style + '"' : '') + ' data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(personAria(x) + (x.origin ? ', from ' + x.origin : '')) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 32, { marks: true }) + '</button>';
+}
+function mapPin(m, ap, alt, style) {
+  return '<button class="' + (style ? 'o pin' + (alt ? ' alt' : '') : 'chip') + '"' + (style ? ' style="' + style + '"' : '') + ' data-act="mapairport" data-id="' + m.id + '" data-v="' + ap + '" aria-label="' + (alt ? 'Other airport ' : 'Destination ') + ap + '" data-lbl="' + ap + '">' +
+    (style ? '<span class="head" data-k="' + (alt ? 'altpin' : 'dest') + '"><span>' + (alt ? '' : m.emoji) + '</span></span>' : '<span data-k="' + (alt ? 'altpin' : 'dest') + '">' + (alt ? ALTPIN : '📍') + '</span>' + ap) + '</button>';
+}
+function mapHTML(m) {
+  loadMap();
+  var faces = m.members.filter(function (x) { return x.status !== 'out'; }), map = '', pins = [m.dest].concat(m.alt ? [m.alt] : []).filter(Boolean);
+  if (MAP.geo && mapLibraries()) try {
+    var d3 = window.d3, all = pins.concat(faces.map(function (x) { return x.origin; })).map(airportInfo).filter(function (a) { return a.known; });
+    var us = all.length && all.every(function (a) { return a.lon >= -126 && a.lon <= -66 && a.lat >= 24 && a.lat <= 50; });
+    var proj = us ? d3.geoMercator().center([-98, 38]).scale(240).translate([180, 115]) : d3.geoNaturalEarth1().fitExtent([[12, 12], [348, 218]], MAP.geo);
+    proj.clipExtent([[0, 0], [360, 230]]);
+    var path = d3.geoPath(proj), svg = '<path class="land" d="' + esc(path(MAP.geo) || '') + '"/>', overlay = '', placed = [];
+    var point = function (ap) { var a = airportInfo(ap); return a.known ? proj([a.lon, a.lat]) : null; };
+    var position = function (p) { return 'left:' + (p[0] / 3.6).toFixed(2) + '%;top:' + (p[1] / 2.3).toFixed(2) + '%'; };
+    pins.forEach(function (ap, i) { var p = point(ap); if (!p) return; p = [Math.max(26, Math.min(334, p[0])), Math.max(26, Math.min(204, p[1]))];
+      if (placed.some(function (q) { return Math.abs(p[0] - q[0]) < 50 && Math.abs(p[1] - q[1]) < 50; })) p[1] = p[1] > 115 ? p[1] - 52 : p[1] + 52;
+      placed.push(p); overlay += mapPin(m, ap, !!i, position(p));
+    });
+    faces.filter(function (x) { return !x.host; }).forEach(function (x) {
+      var p = point(x.origin); if (!p) return;
+      [x.A, x.H].filter(function (ap, i, a) { return ap && a.indexOf(ap) === i; }).forEach(function (ap, i) {
+        var a = airportInfo(x.origin), b = airportInfo(ap); if (!b.known) return;
+        var arc = path({ type: 'LineString', coordinates: [[a.lon, a.lat], [b.lon, b.lat]] });
+        if (arc) svg += '<path class="arc' + (i ? ' homeward' : '') + '" stroke="var(--p' + x.color + ')" d="' + esc(arc) + '"/>';
+      });
+      // Resolve neighboring origins onto a 44px grid. The roster below always retains all faces, including unknown airports.
+      var options = [], best = null, distance = Infinity;
+      for (var yy = 26; yy <= 204; yy += 50) for (var xx = 26; xx <= 334; xx += 50) options.push([xx, yy]);
+      options.forEach(function (q) { var dist = Math.pow(q[0] - p[0], 2) + Math.pow(q[1] - p[1], 2);
+        if (dist < distance && !placed.some(function (r) { return Math.abs(q[0] - r[0]) < 50 && Math.abs(q[1] - r[1]) < 50; })) { best = q; distance = dist; }
+      });
+      if (best) {
+        svg += '<path class="arc" stroke="var(--p' + x.color + ')" d="M' + p[0].toFixed(2) + ',' + p[1].toFixed(2) + 'L' + best[0] + ',' + best[1] + '"/>';
+        placed.push(best); overlay += mapFace(m, x, 'o face', position(best));
+      }
+    });
+    map = '<div class="map" data-map="ready"><svg viewBox="0 0 360 230" aria-hidden="true" focusable="false">' + svg + '</svg>' + overlay + '</div>';
+  } catch (e) { map = ''; }
+  if (!map) map = '<div class="map-fallback" data-map="fallback"><span data-k="mapunavailable" data-lbl="Map unavailable">🗺 ◷</span></div>';
+  var h = map + '<div class="map-places">' + pins.map(function (ap, i) { return mapPin(m, ap, !!i, ''); }).join('') +
+    (m.drive ? '<span class="tn" data-k="drive">🚗 ' + esc(m.drive) + '</span>' : '') +
+    (m.org && !m.legacy && !m.closed && !m.past ? '<button class="chip" data-act="candidate" data-id="' + m.id + '" aria-label="Price another destination" data-lbl="Another destination" data-k="candidate">＋📍</button>' : '') + '</div>';
+  h += '<div class="map-faces">' + faces.map(function (x) { return mapFace(m, x); }).join('') + '</div>';
+  h += totalRow(m);
+  if (m.prices) h += '<div class="apills">' + m.travelers.map(function (x) {
+    var pr = m.price && m.price.per[x.code];
+    return '<button class="apill' + (!pr || !pr.complete ? ' hollow' : '') + '" style="--pc:var(--p' + x.color + ')" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(faceLabel(x) + ', fare') + '" data-lbl="' + esc(faceLabel(x)) + '"><span class="pf" data-pic>' + x.face + '</span><span class="tn' + (pr && pr.stale ? ' stl' : '') + '" data-k="total">' + (pr && pr.sum != null ? money(pr.sum) + (pr.hollow ? '+' : '') : '$—') + '</span></button>';
+  }).join('') + '</div>';
+  return h;
+}
+function candidateOf(id, ap) {
+  if (!DOCS[id]) return null;
+  try { return destinationCandidate(DOCS[id], ctxFor(id), ap); } catch (e) { return null; }
 }
 /* PIA-139: the pickups under the Map's trip, one lane per labelled airport (the destination, and the hub's other airport):
    who lands (🛬) and leaves (🛫) on which day, with the times booked travelers recorded, for everyone, hosts included (the
    organizer's token phone also shows a cached offer's time, ≈ grey, for someone not booked yet). Arrivals at one airport
-   ≤2h apart are bracketed ⏱ as one pickup run, with how long it waits. A chip opens that day (P-day). The full map with its
-   pins and arcs is PIA-143's; these chips are the model's pickups and will hang under its pins. */
+   ≤2h apart are bracketed ⏱ as one pickup run, with how long it waits. A chip opens that day (P-day). PIA-143 keeps these lanes beneath the map's labelled airport pins, including when its assets fail. */
 function pickupChip(m, c, ap) {
   var arr = c.kind === 'arr', who = c.codes.map(function (code) { var x = memberIn(m, code); return x ? faceLabel(x) : ''; }).filter(Boolean).join(', ');
   var faces = c.faces.slice(0, 4).join('') + (c.faces.length > 4 ? '+' + (c.faces.length - 4) : '');
   // PIA-139: only an HH:MM time is drawn, escaped (the model's pickups already refuse anything else); a booked traveler's
   // chip carries a 🎫 corner, so a host tells "booked, no time yet" from "not booked"; a chip of one traveler opens their sheet
   var t = typeof c.time === 'string' && HHMM_RE.test(c.time) ? c.time : '', one = c.codes.length === 1 && memberIn(m, c.codes[0]) ? c.codes[0] : '';
-  return '<button class="pk ' + (arr ? 'arr' : 'dep') + (c.maybe ? ' maybe' : '') + '" data-act="pickup" data-id="' + m.id + '" data-v="' + esc(c.date) + '"' + (one ? ' data-code="' + esc(one) + '"' : '') + ' aria-label="' +
+  return '<button class="pk ' + (arr ? 'arr' : 'dep') + (c.maybe ? ' maybe' : '') + '" data-act="pickup" data-id="' + m.id + '" data-ap="' + esc(ap) + '" data-v="' + esc(c.date) + '"' + (one ? ' data-code="' + esc(one) + '"' : '') + ' aria-label="' +
     esc((arr ? 'Lands ' : 'Leaves ') + ap + ' ' + md(c.date) + (t ? (c.pred ? ' about ' : ' at ') + t : '') + (c.booked ? ', booked' : '') + (who ? ', ' + who : '')) + '" data-lbl="' + (arr ? 'Arrive' : 'Leave') + '">' +
     (arr ? '<span data-k="arrive">→🛬</span>' : '<span data-k="leave">🛫→</span>') + '<span class="tn">' + md(c.date) + '</span>' +
     (t ? '<span class="t tn' + (c.pred ? ' pred' : '') + '">' + (c.pred ? '≈' : '') + esc(t) + '</span>' + dayGlyph(t) : '') + '<span class="pf" data-pic>' + faces + '</span>' +
@@ -5024,7 +5171,7 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
 var SHEETS = {};
 var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
   edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
-  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week' };   // each sheet's accessible name
+  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
@@ -6668,12 +6815,61 @@ SHEETS.dates = function (sh) {
 /* P-day: who is there on one day of a trip (from P-dates: 👥 then a day, or any day of a plan to read). Faces there are
    full, maybe dashed, away dimmed; the numeral is the grid's (presentOn), so the two never disagree, and never pass the
    heads ring. A face opens that person's sheet (‹ comes back). */
+SHEETS.candidate = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local, why = candidateWhy(m);
+  var h = shHd('<span data-k="candidate">＋📍</span>', { right: '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' });
+  if (why) return h + '<p class="rowc">' + esc(why === 'booked' ? 'Flights booked' : why === 'dates' ? 'Pick dates' : cheapLabel(why)) + '</p>';
+  if (L.typed == null) L.typed = sh.p.ap || '';
+  h += '<div class="rowc"><label class="fld"><span class="vh">Airport</span><input id="candidate-ap" aria-label="Airport" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="IATA" value="' + esc(L.typed) + '"' + (L.busy || S.spendBusy ? ' disabled' : '') + '></label><button class="btn" data-act="candpreview"' + (L.busy || S.spendBusy ? ' disabled' : '') + '>Preview</button></div>';
+  var c = L.ap ? candidateOf(m.id, L.ap) : null;
+  if (!c) return h;
+  h += '<div class="rowc"><b>' + c.dest + '</b>' + (airportInfo(c.dest).known ? '' : '<span data-k="unknown" data-lbl="Unknown airport">📍⚠</span>') + '<span class="sp"></span>' + totalHTML(c) + '</div>';
+  h += '<div class="map-faces">' + c.members.map(function (x) { return '<span role="img" aria-label="' + esc(faceLabel(x) + (x.host ? ', host' : ', traveler')) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 32, { marks: true }) + '</span>'; }).join('') + '</div>';
+  if (c.price.blocked.length) h += '<p class="rowc">Fix airports or dates</p>';
+  h += budgetHTML() + spendBtn(c, tapKeys(c), { dest: c.dest });
+  var can = (c.price.complete || !c.travelers.length) && c.dest !== m.dest && !S.spendBusy && !L.busy;
+  h += '<button class="btn wide' + (can ? '' : ' dis') + '" data-act="canduse"' + (can ? '' : ' aria-disabled="true" data-why="1" data-lbl="' + (L.busy ? 'Saving' : c.dest === m.dest ? 'Current destination' : 'Price first') + '"') + '>' + (L.busy ? '◷' : L.failed ? '⚠ Retry' : 'Use') + '</button>';
+  return h;
+};
+/* A pin opens the people using that airport. The own/organizer airport radio controls write the existing
+   arrive_at / leave_from fields, so Map, prices, links and pickups all move together. */
+SHEETS.mapairport = function (sh) {
+  var m = modelOf(sh.p.id), ap = sh.p.ap, L = sh.local;
+  if (!m || m.hub.indexOf(ap) < 0) return shHd('');
+  var h = shHd(esc(ap), { right: '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' }), can = !m.closed && !m.past;
+  var members = m.members.filter(function (x) { return x.status !== 'out'; }), x = memberIn(m, L.code) || (m.me && m.me.status !== 'out' ? m.me : members.filter(function (p) { return p.A === ap || p.H === ap; })[0]) || members[0];
+  h += '<div class="map-faces">' + members.map(function (p) { return '<button class="facebtn" data-act="mapwho" data-code="' + esc(p.code) + '" aria-label="' + esc(faceLabel(p)) + '" aria-pressed="' + !!(x && x.code === p.code) + '" data-lbl="' + esc(faceLabel(p)) + '">' + avatar(p, 32) + '</button>'; }).join('') + '</div>';
+  if (x) {
+    h += '<div class="rowc">' + nameTag(x.one, 1) + (x.host ? '<span data-k="host">🏠</span>' : '') + '</div>';
+    if (x.traveler) [0, 1].forEach(function (end) {
+      var pick = end ? x.H : x.A, edit = can && x.answered && !x.booked && (m.org && !m.legacy || m.me && m.me.code === x.code);
+      h += '<div class="rowc"><span data-k="' + (end ? 'leave' : 'arrive') + '">' + (end ? '🛫' : '🛬') + '</span>' + (edit && m.hub.length === 2 ? m.hub.map(function (a) {
+        return '<button class="btn" data-act="legair" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + end + '" data-v="' + a + '" aria-pressed="' + (pick === a) + '" aria-label="' + (end ? 'Leave ' : 'Arrive ') + a + '">' + a + '</button>';
+      }).join('') : '<b>' + esc(pick) + '</b>') + '</div>';
+    });
+  }
+  return h;
+};
 SHEETS.day = function (sh) {
   var m = modelOf(sh.p.id), d = sh.p.date, hd = isIso(d) ? holidayOn(d) : null;
   var head = '<span class="tn">' + (isIso(d) ? md(d) : '') + '</span>' + (hd ? '<span data-k="' + hd.k + '">' + hd.g + '</span>' : '');
   if (!m || !isIso(d)) return shHd(head);
   var p = dayPeople(m, d);
-  var h = shHd(head + '<span class="dayn" data-k="present"><span aria-hidden="true">👥</span>' + p.n + '</span>');
+  var h = shHd(head + '<span class="dayn" data-k="present"><span aria-hidden="true">👥</span>' + p.n + '</span>', sh.p.mapmode ? { right: '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' } : {});
+  if (sh.p.mapmode) {
+    var ap = m.hub.indexOf(sh.p.ap) >= 0 ? sh.p.ap : m.dest, fares = m.prices ? readFares() : {}, lane = pickups(m, fares, RT.now, false)[ap] || [];
+    var pair = pickupPair(m, fares, RT.now, ap, d);
+    h += '<div class="rowc"><b>' + esc(ap) + '</b></div>';
+    if (pair) h += '<div class="pair" data-lbl="Cheapest pickup pair"><span data-k="pair">★</span>' + pair.codes.map(function (code, i) {
+      var x = memberIn(m, code); return '<span data-pic>' + x.face + '</span><span data-k="predicted">≈</span><span class="tn">' + pair.times[i] + '</span>';
+    }).join('') + '<span data-k="pickup">⏱</span><span class="tn">' + Math.floor(pair.wait / 60) + ':' + ('0' + pair.wait % 60).slice(-2) + '</span></div>';
+    h += '<div class="mapday">';
+    lane.filter(function (c) { return c.date === d; }).forEach(function (c) { c.codes.forEach(function (code) {
+      var x = memberIn(m, code); if (!x) return;
+      h += '<button class="pk" data-act="person" data-id="' + m.id + '" data-code="' + esc(code) + '" aria-label="' + esc(faceLabel(x) + (c.kind === 'arr' ? ', lands' : ', leaves') + (c.time ? ' ' + c.time : ', time not set')) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 32) + nameTag(x.one, m.members.indexOf(x) + 1) + '<span data-k="' + (c.kind === 'arr' ? 'arrive' : 'leave') + '">' + (c.kind === 'arr' ? '🛬' : '🛫') + '</span>' + (c.pred ? '<span data-k="predicted">≈</span>' : '') + '<span class="tn">' + (c.time || '––:––') + '</span>' + (c.booked ? '<span data-k="booked">🎫</span>' : '') + '</button>';
+    }); });
+    return h + '</div>';
+  }
   return h + '<div class="dayfaces">' + m.members.map(function (x, i) {
     var st = p.there.indexOf(x.code) >= 0 ? 'there' : p.maybe.indexOf(x.code) >= 0 ? 'maybe' : 'away';
     return '<button class="dayf' + (st === 'away' ? ' dimf' : st === 'maybe' ? ' mayf' : '') + '" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' +
@@ -6820,6 +7016,9 @@ function onTyped(t) {
   if (t.id === 'org-token' || t.id === 'org-url') {   // a token or a URL has no spaces, so a typed value is one word at most
     var v = t.value.replace(/\s+/g, ''); if (v !== t.value) t.value = v;
     if (t.id === 'org-token') { L.tok = v; L.badTok = false; L.tokEdited = true; } else { L.url = v; L.badUrl = false; L.urlEdited = true; }
+  } else if (t.id === 'candidate-ap' && S.sheet.type === 'candidate') {
+    var ca = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); if (ca !== t.value) t.value = ca;
+    L.typed = ca; L.ap = ''; L.failed = false; renderSheet(false);
   } else if (t.id === 'org-cap') {   // PIA-140: the month cap: digits only (a typed value is never a word)
     var cd = t.value.replace(/[^0-9]/g, '').slice(0, 6); if (cd !== t.value) t.value = cd;
     L.cap = cd; L.capEdited = true; L.badCap = false;
@@ -7385,6 +7584,7 @@ var ACTS = {
     // the searches are read from the model as it stands when they go: the same legs the control counted (one search a leg)
     var keysNow = function () {
       var mm = modelOf(id); if (!mm || !mm.prices || mm.closed) return [];
+      if (v === 'candidate') { var cd = candidateOf(id, el.dataset.dest); return cd ? tapKeys(cd) : []; }
       if (v === 'week') {   // PIA-141: one candidate week of P-cheapest (its legs not fresh here), while the cheapest week can be asked for
         var today = todayLocal(), wk = cheapWhy(mm, today) ? null : cheapCandidates(mm, readFares(), nowMs(), today).filter(function (x) { return x.s === el.dataset.day; })[0];
         return wk ? wk.need : [];
@@ -7396,7 +7596,7 @@ var ACTS = {
     var go = function () {
       var now = spendCount(spendKeys(keysNow(), readFares(), nowMs(), todayLocal()).length, spentRead());
       if (now > shown) { render(true); toast('🔍' + now + '?'); return null; }
-      return runSearch(keysNow(), { id: id, tag: tag, n: shown });
+      return runSearch(keysNow(), { id: id, tag: tag, n: shown, dest: v === 'candidate' ? el.dataset.dest : '' });
     };
     // an /account read still out (P-total or a sheet just opened it) decides whether a leg is the nearby search: the tap waits
     // for it (◷), so it never pays for single-airport searches the next render would drop
@@ -7571,7 +7771,7 @@ var ACTS = {
   /* PIA-137: the trip view */
   person: function (el) {
     var m = modelOf(el.dataset.id); if (!m || !memberIn(m, el.dataset.code)) return;
-    openSheet('person', { id: m.id, code: el.dataset.code, outside: !tripShowing() }, { back: !!(S.sheet && (S.sheet.type === 'day' || S.sheet.type === 'total')) });   // PIA-138: from P-day, ‹ goes back to it (PIA-140: from P-total too)
+    openSheet('person', { id: m.id, code: el.dataset.code, outside: !tripShowing() }, { back: !!(S.sheet && (S.sheet.type === 'day' || S.sheet.type === 'total' || S.sheet.type === 'mapairport')) });   // PIA-138: from P-day, ‹ goes back to it (PIA-140: from P-total too)
     if (m.prices) accountSync();
   },
   face: function (el) {
@@ -7790,12 +7990,34 @@ var ACTS = {
     if (nx && !String(nx.value || '')) focusId('tm-dep'); else focusId('tm-' + k);
     return null;
   },
-  /* a pickup chip on the Map: the one traveler it names (their sheet: days, times, airports), else who is there that day
-     (P-day), until PIA-143's map mode names who lands when */
+  /* PIA-143: each pickup chip opens P-day map mode, naming who lands or leaves at this airport and when. */
+  candidate: function (el) { var m = modelOf(el.dataset.id); if (!m || !m.org) return; openSheet('candidate', { id: m.id }); if (m.prices) accountSync(); },
+  candpreview: function () {
+    var sh = S.sheet; if (!sh || sh.type !== 'candidate' || sh.local.busy || S.spendBusy) return;
+    sh.local.ap = normIata(sh.local.typed); sh.local.failed = false; renderSheet(false);
+  },
+  canduse: function (el) {
+    var sh = S.sheet; if (!sh || sh.type !== 'candidate' || sh.local.busy || S.spendBusy) return;
+    var id = sh.p.id, c = candidateOf(id, sh.local.ap), m = modelOf(id);
+    if (!c || c.dest === m.dest || (!c.price.complete && c.travelers.length)) { explain(el); return; }
+    var before = c.planHash, keys = c.travelers.map(function (x) { return x.keys.map(function (k) { return k.key; }).join(','); }).join(';');
+    sh.local.busy = true; renderSheet(false);
+    return organizerWrite(id, { destination: { airport: c.dest } }, { guard: function (fresh) {
+      var cm = destinationCandidate(fresh, ctxFor(id), c.dest);
+      return !cm ? 'changed' : cm.planHash !== before || cm.travelers.map(function (x) { return x.keys.map(function (k) { return k.key; }).join(','); }).join(';') !== keys || (cm.travelers.length && !cm.price.complete) ? 'changed' : '';
+    } }).then(function (r) {
+      sh.local.busy = false; sh.local.failed = !r.ok;
+      if (r.ok) { if (S.sheet === sh) closeSheet(); toast('📍' + c.dest + ' ✓'); }
+      else if (S.sheet === sh) { renderSheet(false); toast(r.held ? 'Trip changed' : '⚠ Retry'); }
+      else showError(r.code, r.retry);
+      return r;
+    });
+  },
+  mapairport: function (el) { var m = modelOf(el.dataset.id); if (!m || m.hub.indexOf(el.dataset.v) < 0) return; openSheet('mapairport', { id: m.id, ap: el.dataset.v }); },
+  mapwho: function (el) { if (!S.sheet || S.sheet.type !== 'mapairport') return; S.sheet.local.code = el.dataset.code; renderSheet(false); },
   pickup: function (el) {
     var m = modelOf(el.dataset.id); if (!m || !isIso(el.dataset.v)) return;
-    if (el.dataset.code && memberIn(m, el.dataset.code)) openSheet('person', { id: m.id, code: el.dataset.code, outside: true });
-    else openSheet('day', { id: m.id, date: el.dataset.v });
+    openSheet('day', { id: m.id, date: el.dataset.v, ap: el.dataset.ap, mapmode: true });
   },
   star: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.pin = !x.pin; listWrite(L); render(true); },
   hidehere: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.arch = !x.arch; listWrite(L); render(true); toast('🗄'); },

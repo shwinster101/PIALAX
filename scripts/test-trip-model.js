@@ -1863,6 +1863,43 @@ function makeServer(worker) {
   check(M.clip('🦊' + 'x'.repeat(37) + '🐻', 40).length === 39 && M.memberLabel('🦊', 'Bartholomew Montgomery-Fitzgerald the Third').length <= 40, 'clipping never splits an emoji in half');
   const pf = fs.readFileSync(path.join(ROOT, 'scripts', 'preflight.sh'), 'utf8');
   check(/suites=\([^)]*\btest-trip-model\.sh\b[^)]*\)/.test(pf) && fs.existsSync(path.join(ROOT, 'scripts', 'test-trip-model.sh')), 'preflight runs this suite (test-trip-model.sh is in its suites list)');
+
+  section('PIA-143 map pricing and pickup pairs');
+  {
+    const d = clone(DW), cc = ctx({ hasEditKey: true, hasToken: true }), before = JSON.stringify(d);
+    const preview = M.destinationCandidate(d, cc, 'PIA');
+    check(preview && preview.dest === 'PIA' && preview.hosts.some(x => x.code === 'momdad-k3') && JSON.stringify(d) === before,
+      'destination preview derives hosts, travelers and fares from the same record without mutating it');
+    check(eq(preview.price, M.priceTrip(preview, {}, NOW)) && preview.price.total === null && !preview.price.complete,
+      'an unsearched destination has no estimated fare; its total uses priceTrip');
+    const f = {};
+    preview.travelers.forEach(x => x.keys.forEach(k => { f[k.key] = { p: 315, f: NOW - 1000 }; }));
+    const priced = M.destinationCandidate(d, Object.assign({}, cc, { fares: f }), 'PIA');
+    check(priced.price.complete && priced.price.total === priced.travelers.length * 315, 'only real cached fares fill a destination total');
+    check(M.destinationCandidate(d, ctx({ hasToken: true }), 'PIA') === null && M.destinationCandidate(d, ctx({ hasEditKey: true }), 'PIA') === null,
+      'guests, including a token-only phone, and organizers without a token cannot price another destination');
+    for (const [name, mutate] of [['locked', d => { d.decision.stage = 'chosen'; }], ['closed', d => { d.decision.stage = 'dropped'; }],
+      ['booked', d => { d.responses['ashwin-p8'] = R('in', 'LAX', '', '', { booked: true }); }], ['undated', d => { d.idea.dates.departure = ''; d.idea.dates.return = ''; }]]) {
+      check(M.destinationCandidate(tweak(d, mutate), cc, 'DEN') === null, name + ' trip cannot spend on a different destination');
+    }
+    check(M.destinationCandidate(d, cc, '<x>') === null && M.destinationCandidate(d, cc, 'ZZQ').dest === 'ZZQ', 'unknown IATA is accepted; malformed airport text is refused');
+    d.responses = Object.fromEntries(d.idea.members.map(x => [x.code, R('in', x.airport)]));
+    const m = M.tripModel(d, cc), ap = m.dest, day = m.plan.s, fares = {};
+    m.travelers.forEach((x, i) => x.keys.forEach(k => { fares[k.key] = { p: 100 + i * 10, f: NOW - 1000,
+      off: [{ p: 100 + i * 10, a: ap, ar: day + ' ' + ['08:00', '15:00', '16:00'][i] }, { p: 150 + i * 10, a: ap, ar: day + ' 15:30' }] }; }));
+    const pair = M.pickupPair(m, fares, NOW, ap, day);
+    check(pair && pair.sum === 230 && pair.wait === 60 && eq(pair.codes, m.travelers.slice(1).map(x => x.code)),
+      'cheapest pickup pair compares distinct travelers and every cached offer within two hours, rather than taking the first two arrivals', pair);
+    const stale = Object.fromEntries(Object.entries(fares).map(([k, v]) => [k, Object.assign({}, v, { f: NOW - 25 * HOUR })]));
+    check(M.pickupPair(m, stale, NOW, ap, day) === null && M.pickupPair(M.tripModel(d, ctx()), fares, NOW, ap, day) === null,
+      'stale fares and guest phones have no cheapest pickup pair');
+    const overnight = clone(fares); Object.values(overnight).forEach(v => v.off.forEach(o => { o.ar = M.addD(day, 1) + ' 15:00'; }));
+    check(M.pickupPair(m, overnight, NOW, ap, day) === null && M.pickups(m, overnight, NOW, false)[ap].every(c => !c.pred), 'an overnight offer neither forms a same-day pickup pair nor shows a time on the wrong day');
+    const hostile = clone(fares); Object.values(hostile).forEach(v => v.off.forEach(o => { o.ar = '<img src=x>'; o.p = -20; }));
+    check(M.pickupPair(m, hostile, NOW, ap, day) === null, 'malformed times and invalid offer prices never form a pickup pair');
+    const bought = M.tripModel(tweak(d, x => { x.responses[m.travelers[1].code].booked = true; x.responses[m.travelers[2].code].booked = true; }), cc);
+    check(M.pickupPair(bought, fares, NOW, ap, day) === null, 'a bought flight is never replaced by an alternative cached offer');
+  }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 
   console.log('');

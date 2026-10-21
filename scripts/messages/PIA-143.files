@@ -1,0 +1,11 @@
+app.html
+scripts/trip-model.js
+scripts/test-trip-model.js
+scripts/test-app.js
+scripts/test-words.js
+scripts/test-map-browser.js
+scripts/verify-sri.sh
+CLAUDE.md
+CHANGELOG.md
+scripts/messages/PIA-143.msg
+scripts/messages/PIA-143.files

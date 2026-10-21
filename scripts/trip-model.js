@@ -826,6 +826,50 @@ function cachedTime(v) {
   var m = typeof v === 'string' ? /^(?:\d{4}-\d{2}-\d{2}[ T])?(\d{2}:\d{2})$/.exec(v) : null;
   return m && HHMM_RE.test(m[1]) ? m[1] : '';
 }
+/* PIA-143: destination previews use the same record and pricing rule as the trip. A bought flight cannot be
+   repriced to another city; unlock first and settle bookings through the existing edit flow. */
+function candidateWhy(model) {
+  if (!model || !model.org) return 'org';
+  if (!model.prices) return 'token';
+  if (model.legacy) return 'legacy';
+  if (model.closed) return 'closed';
+  if (model.past) return 'past';
+  if (model.locked) return 'locked';
+  if (model.anyBooked) return 'booked';
+  if (!model.plan) return 'dates';
+  return '';
+}
+function destinationCandidate(doc, ctx, dest) {
+  var base = tripModel(doc, ctx), ap = normIata(dest);
+  if (candidateWhy(base) || !ap) return null;
+  var copy = Object.assign({}, doc, { idea: Object.assign({}, doc.idea, { destination: { airport: ap, city: airportInfo(ap).city } }) });
+  return tripModel(copy, ctx);
+}
+/* Cheapest pair of different travelers landing at one airport on one day, at most two hours apart. Only fresh
+   cached offers qualify. Booked travelers' recorded times remain facts; no alternative offer is assigned to them.
+   Each pair uses the complete traveler price (including an open jaw's return), never a made-up per-person price. */
+function pickupPair(model, fares, now, ap, day) {
+  if (!model || !model.prices) return null;
+  var rows = [];
+  model.travelers.forEach(function (x) {
+    if (!x.answered || x.booked || x.bad || x.A !== ap || x.d1 !== day || !x.keys.length) return;
+    var pr = priceRows([priceRow(x)], fares, now);
+    if (!pr.complete) return;
+    var first = fares[x.keys[0].key], other = pr.per[x.code].sum - legTotal(first);
+    (first && Array.isArray(first.off) ? first.off : []).forEach(function (o) {
+      var t = cachedTime(o.ar), date = typeof o.ar === 'string' && /^\d{4}-\d{2}-\d{2}[ T]/.test(o.ar) ? o.ar.slice(0, 10) : day;
+      if (!t || date !== day || o.a !== ap || typeof o.p !== 'number' || !isFinite(o.p) || o.p <= 0) return;
+      rows.push({ code: x.code, time: t, min: +t.slice(0, 2) * 60 + +t.slice(3), p: legTotal(o) + other });
+    });
+  });
+  var best = null;
+  rows.forEach(function (a, i) { rows.slice(i + 1).forEach(function (b) {
+    var wait = Math.abs(a.min - b.min), sum = a.p + b.p;
+    if (a.code !== b.code && wait <= 120 && (!best || sum < best.sum || (sum === best.sum && wait < best.wait)))
+      best = { codes: [a.code, b.code], times: [a.time, b.time], sum: sum, wait: wait };
+  }); });
+  return best;
+}
 /* pickup chips under the labelled pins (destination and hub alternate). Times recorded at 🎫 show for everyone, while
    that traveler is booked; with showPredicted (the organizer's token phone) an arrival with no recorded time shows the
    cheapest cached offer's time (cachedTime), from any cached search (fresh or stale; `now` is unused, kept so every
@@ -838,7 +882,10 @@ function pickups(model, fares, now, showPredicted) {
     if (!m.answered || !m.d1 || m.bad) return;
     var inKey = m.keys[0] && m.keys[0].key, f = inKey && fares && hasOwn(fares, inKey) ? fares[inKey] : null;
     var offer = f && f.off && f.off[0] ? f.off[0] : null;
-    var predicted = (model.prices || showPredicted) && f ? cachedTime(f.ar || (offer && offer.ar)) : '';  // any cached offer, fresh or stale
+    var rawArrival = f && (f.ar || (offer && offer.ar));
+    var predicted = (model.prices || showPredicted) && f ? cachedTime(rawArrival) : '';  // any cached offer, fresh or stale
+    // A search departs on d1. An overnight offer must not be presented as landing on that same day.
+    if (predicted && /^\d{4}-\d{2}-\d{2}[ T]/.test(rawArrival) && rawArrival.slice(0, 10) !== m.d1) predicted = '';
     // PIA-139: a recorded time is a firm pickup only while its traveler is booked (a 🎫 taken back leaves none behind)
     var arrT = (m.booked && m.arrTime) || predicted, depT = m.booked ? m.depTime : '';
     if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
@@ -2264,6 +2311,7 @@ if (typeof module !== 'undefined' && module.exports) {
     legWhy: legWhy, docDest: docDest, docPlan: docPlan, docLegacy: docLegacy, memberOf: memberOf, personDatesIn: personDatesIn,
     tripModel: tripModel, priceRows: priceRows, priceTrip: priceTrip, hostDay: hostDay, presentOn: presentOn, dotsOn: dotsOn, bestWindow: bestWindow, boardRange: boardRange,
     candStarts: candStarts, windowRow: windowRow, cheapCandidates: cheapCandidates, pickups: pickups,
+    candidateWhy: candidateWhy, destinationCandidate: destinationCandidate, pickupPair: pickupPair,
     familyForDate: familyForDate, familyPreset: familyPreset, migrateLabel: migrateLabel, v1SharedIds: v1SharedIds, v1PinFor: v1PinFor,
     typedNote: typedNote, noteRoom: noteRoom, faceOf: faceOf, decisionBody: decisionBody,
     memberCode: memberCode, createRequest: createRequest, respondRequest: respondRequest, bookedRequests: bookedRequests,
