@@ -16,7 +16,7 @@ const clone = x => JSON.parse(JSON.stringify(x));
 let checks = 0;
 function check(value, message) { assert.ok(value, message); checks++; process.stdout.write('  OK  ' + message + '\n'); }
 async function main() {
-  const pw = require('playwright');
+  const pw = (() => { try { return require('playwright'); } catch (_) { return require('playwright-core'); } })();
   const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-map-'));
   let browser, server;
   try {
