@@ -4096,7 +4096,7 @@ function norm(doc) {
   section('AC12 / AC14 preflight covers app.html; the playbook records the v2 decisions');
   const pf = fs.readFileSync(path.join(ROOT, 'scripts', 'preflight.sh'), 'utf8');
   check(/FILES=\([^)]*app\.html[^)]*\)/.test(pf), 'preflight FILES includes app.html (console.log, secret scan, <script> balance, presence)');
-  check(/suites=\([^)]*\btest-app\.sh\b[^)]*\)/.test(pf) && /suites=\([^)]*\btest-words\.sh\b[^)]*\)/.test(pf), 'preflight runs test-app.sh and test-words.sh');
+  check(/suites=\([^)]*\btest-app\.sh\b[^)]*\)/.test(pf) && /suites=\([^)]*\btest-job-flows\.sh\b[^)]*\)/.test(pf) && /test-words\.js/.test(fs.readFileSync(path.join(ROOT, 'scripts', 'test-job-flows.js'), 'utf8')), 'PIA-145 preflight runs app checks and the required job-flow suite, including the full word gate');
   const sri = fs.readFileSync(path.join(ROOT, 'scripts', 'verify-sri.sh'), 'utf8');
   check(/app\.html/.test(sri) && /integrity=/.test(sri), 'verify-sri.sh checks app.html\'s integrity= attributes against its pinned hashes');
   {

@@ -96,6 +96,7 @@ const browser = await launch();
 
 console.log('▶ test-viewport: mobile layout regression suite');
 
+if (process.env.PIALAX_VIEWPORT_SCOPE !== 'v2') {
 for (const file of FILES) {
   const url = pathToFileURL(path.join(ROOT, file)).href;
   for (const vp of VIEWPORTS) {
@@ -1108,6 +1109,8 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
   await ctx.close();
 }
 
+}
+
 // ---- PIA-134: app.html, the v2 shell, at 360 / 390 / 430 in light and dark ----
 // PIA-135 adds the Ideas states: the organizer's total and ⏳ cue, the list-share sheet, the receiving sheet (with
 // ⤓ Save, and with nothing new).
@@ -1248,7 +1251,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     for (const scheme of ['light', 'dark']) {
       const label = `app.html @ ${vp.name} ${scheme}`;
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
-      await ctx.route(/^https?:\/\//, (r) => r.abort());
+      await ctx.route(/^https?:\/\//, (r) => process.env.PIALAX_TEST_APP_URL && r.request().url().startsWith(process.env.PIALAX_TEST_APP_URL) ? r.continue() : r.abort());
       const net = { search: 0, account: 0 };
       await ctx.route(W + '/**', (route) => {
         const q = route.request(), u = new URL(q.url()), id = u.searchParams.get('id');
@@ -1269,7 +1272,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
       try {
         await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
         // the first visit is the empty phone; the seed lands before the second
-        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' });
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href), { waitUntil: 'load' });
         await page.waitForTimeout(150);
         let states = 0;
         const measure = async (s) => {
@@ -1427,7 +1430,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         // two of the linked trips are new on this phone, so the sheet shows them and ⤓ Save; then, once saved, the same
         // link again shows the dimmed "nothing new" stack
         await page.evaluate(() => { const L = JSON.parse(localStorage.getItem('pialax_watchlist_v2')); localStorage.setItem('pialax_watchlist_v2', JSON.stringify(L.filter((x) => x.id !== 'thTahoeSkiWeekend26b02' && x.id !== 'm8GrandmaNinetieth0c03'))); });
-        const listLink = pathToFileURL(path.join(ROOT, 'app.html')).href + '?l=' + ids.join('.') + '.zzTripThatIsGone0000z1&f=' + encodeURIComponent('🦊');
+        const listLink = (process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?l=' + ids.join('.') + '.zzTripThatIsGone0000z1&f=' + encodeURIComponent('🦊');
         await page.goto(listLink, { waitUntil: 'load' }); await page.waitForTimeout(300);
         await measure('P-savelist (⤓ Save 2)');
         const save = await page.$eval('#sheet [data-act="svsave"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => null);
@@ -1589,22 +1592,22 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
         if (cells.some((c) => c[1] > 0)) fails.push('a price cell is clipped: ' + JSON.stringify(cells.filter((c) => c[1] > 0)));
         await tapJs('#screen [data-act="back"]');
         // PIA-136: a join request on the full 8-member trip (the joiner open, ⚠ 9/8), and a v1 idea link with a long note (📝⚠, then its P-note)
-        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?idea=' + M8 + '&add=' + encodeURIComponent('Nina Okafor.BOS'), { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?idea=' + M8 + '&add=' + encodeURIComponent('Nina Okafor.BOS'), { waitUntil: 'load' }); await page.waitForTimeout(300);
         if (!(await page.$('#who-cap'))) fails.push('a join request on the full trip should open P-edit-who with ⚠ 9/8');
         await measure('P-edit-who (join request, ⚠ 9/8)');
         const v1idea = { version: 'trip-idea-v1', builder: { destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: '2026-11-06', return: '2026-11-09' }, constraints: { eventDate: '2026-11-08' } },
           notes: 'Puja Sunday then ' + Array.from({ length: 30 }, (_, i) => 'lamplighting' + i).join(' ') };
         const tripIdea = Buffer.from(encodeURIComponent(JSON.stringify(v1idea)), 'binary').toString('base64');
-        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?tripIdea=' + encodeURIComponent(tripIdea), { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?tripIdea=' + encodeURIComponent(tripIdea), { waitUntil: 'load' }); await page.waitForTimeout(300);
         await measure('P-new-what (a v1 idea link, 📝⚠)');
         await page.click('#sheet [data-act="nnote"]'); await page.waitForTimeout(120); await measure('P-note (the new trip\'s note)');
         // PIA-137: a join request opened on a phone that does not organize that trip (Tahoe): P-joinfwd sends it on
-        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href + '?idea=thTahoeSkiWeekend26b02&add=' + encodeURIComponent('Bartholomew Montgomery.OAK'), { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?idea=thTahoeSkiWeekend26b02&add=' + encodeURIComponent('Bartholomew Montgomery.OAK'), { waitUntil: 'load' }); await page.waitForTimeout(300);
         if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-joinfwd') fails.push('a join request on a trip this phone does not organize should open P-joinfwd');
         await measure('P-joinfwd');
         // PIA-142: a phone whose trips are all on the shelf (one past, one dropped): the Family board's ghost row, then 🗄
         await page.evaluate(([a, b]) => { localStorage.setItem('pialax_watchlist_v2', JSON.stringify([a, b].map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false })))); }, [PSV, DRV]);
-        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href), { waitUntil: 'load' }); await page.waitForTimeout(300);
         await page.click('#screen [data-act="seg"][data-v="family"]'); await page.waitForTimeout(120); await measure('family ghost row (every trip on the shelf)');
         if (!(await page.$('#screen [data-ghost="family"] .gface')) || !(await page.$('#screen [data-ghost="family"] [data-act="fampast"]'))) fails.push('an empty board should show its ghost row with ＋ and 🗄');
         await page.$eval('#screen [data-act="fampast"]', (e) => e.click()); await page.waitForTimeout(120); await measure('family 🗄 (only the past trip)');
@@ -1621,7 +1624,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     for (const scheme of ['light', 'dark']) {
       const label = `app.html P-dates @ ${vp.name} ${scheme}`;
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
-      await ctx.route(/^https?:\/\//, (r) => r.abort());
+      await ctx.route(/^https?:\/\//, (r) => process.env.PIALAX_TEST_APP_URL && r.request().url().startsWith(process.env.PIALAX_TEST_APP_URL) ? r.continue() : r.abort());
       await ctx.route(W + '/**', (route) => {
         const q = route.request(), id = new URL(q.url()).searchParams.get('id');
         const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
@@ -1634,7 +1637,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
       let states = 0;
       try {
         await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
-        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' });
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href), { waitUntil: 'load' });
         await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
         await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
         const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
@@ -1696,7 +1699,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
     for (const scheme of ['light', 'dark']) {
       const label = `app.html P-person names @ ${vp.name} ${scheme}`;
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
-      await ctx.route(/^https?:\/\//, (r) => r.abort());
+      await ctx.route(/^https?:\/\//, (r) => process.env.PIALAX_TEST_APP_URL && r.request().url().startsWith(process.env.PIALAX_TEST_APP_URL) ? r.continue() : r.abort());
       const net = { search: 0 };
       await ctx.route(W + '/**', (route) => {
         const q = route.request(), u = new URL(q.url()), id = u.searchParams.get('id');
@@ -1714,7 +1717,7 @@ for (const file of ['pialax-mobile.html', 'pialax.html']) {
       const fails = [], seen = { n: 0, crowded: 0, all3: 0, stk: 0, bare: 0 };
       try {
         await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
-        await page.goto(pathToFileURL(path.join(ROOT, 'app.html')).href, { waitUntil: 'load' });
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href), { waitUntil: 'load' });
         await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, Object.assign({}, seed, { pialax_idea_me_v1: NAMES_ME }));
         await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
         const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };

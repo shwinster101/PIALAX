@@ -4979,10 +4979,13 @@ function renderSelected(id, scope) {
    tabs, redraws and background reads retain the month being viewed. All facts come from the model. */
 function calendarHTML(m) {
   if (!S.calView || S.calView.id !== m.id) S.calView = { id: m.id, ym: ym(m.plan ? m.plan.s : m.win ? m.win.s : RT.today) };
-  return monthHeader(S.calView.ym, 'calmonth', null) + gridHTML(S.calView.ym, function (day) {
-    var p = calendarDay(m, day), c = tripCell(m, day, { pin: m.pin, mine: m.me && !m.me.bad && m.me.d1 ? m.me : null });
+  return monthHeader(S.calView.ym, 'calmonth', null, { k: 'page' }) + gridHTML(S.calView.ym, function (day) {
+    var p = calendarDay(m, day), c = tripCell(m, day, { pin: m.pin, mine: m.me && !m.me.bad && m.me.d1 ? m.me : null }), hd = holidayOn(day);
+    // The fixed day's own trip picture is not an icon. Holidays and month arrows are explained by the key.
+    var facts = c.html.replace('class="pinday"', 'class="pinday" data-pic');
+    var holiday = day !== m.pin && hd ? '<span class="hg" data-k="' + hd.k + '" aria-hidden="true">' + hd.g + '</span>' : '';
     return '<button class="' + dayCls(day) + c.cls + '" data-act="calday" data-id="' + m.id + '" data-v="' + day + '" data-n="' + p.n + '" aria-label="' + md(day) + ', ' + p.n + ' present' + (p.clashes.length ? ', overlapping trips' : '') + '" data-lbl="' + md(day) + ' · 👥' + p.n + (p.clashes.length ? ' · ⚠' : '') + '">' +
-      '<span class="dn">' + (+day.slice(8)) + '</span>' + (day === m.pin ? '' : holMark(day)) + c.html +
+      '<span class="dn">' + (+day.slice(8)) + '</span>' + holiday + facts +
       (p.n ? '' : '<span class="pc-n" data-k="daycount">0</span>') + (p.clashes.length ? '<span class="warn" data-k="calclash">⚠</span>' : '') + '</button>';
   });
 }
@@ -5556,12 +5559,12 @@ function guessScene(title) { var t = String(title || '').toLowerCase(); for (var
 function shiftMonth(ymStr, k) { var y = +ymStr.slice(0, 4), mo = +ymStr.slice(5, 7) - 1 + k; y += Math.floor(mo / 12); mo = ((mo % 12) + 12) % 12; return y + '-' + (mo < 9 ? '0' : '') + (mo + 1); }
 /* the one date grid (P-new-when now; P-dates and Calendar build on it): ◀ month ▶, two named weekend columns */
 function monthHeader(ymStr, act, minYm, o) {
-  var prevOk = !minYm || ymStr > minYm;
+  var prevOk = !minYm || ymStr > minYm, key = o && o.k ? ' data-k="' + esc(o.k) + '"' : '';
   // PIA-138 o.why: ◀ on the first month says why it cannot go back (a tap explains, as a long press does) instead of
   // being a native disabled button that says nothing
   var no = prevOk ? '' : o && o.why ? ' aria-disabled="true" data-why="1" data-lbl="' + o.why + '"' : ' disabled';
-  return '<div class="monthhd"><button class="ib' + (!prevOk && o && o.why ? ' dis' : '') + '" data-act="' + act + '" data-v="-1" aria-label="Previous month' + (!prevOk && o && o.why ? ', ' + o.why : '') + '"' + no + '>◀</button><h3>' + MONTHS[+ymStr.slice(5, 7) - 1] + ' <span class="tn">' + ymStr.slice(0, 4) + '</span></h3>' +
-    '<button class="ib" data-act="' + act + '" data-v="1" aria-label="Next month">▶</button></div>';
+  return '<div class="monthhd"><button class="ib' + (!prevOk && o && o.why ? ' dis' : '') + '" data-act="' + act + '"' + key + ' data-v="-1" aria-label="Previous month' + (!prevOk && o && o.why ? ', ' + o.why : '') + '"' + no + '>◀</button><h3>' + MONTHS[+ymStr.slice(5, 7) - 1] + ' <span class="tn">' + ymStr.slice(0, 4) + '</span></h3>' +
+    '<button class="ib" data-act="' + act + '"' + key + ' data-v="1" aria-label="Next month">▶</button></div>';
 }
 var WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 /* o.days (PIA-138, P-dates): every weekday column named, so "is 11/7 a Saturday?" needs no counting */

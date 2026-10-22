@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-145) — Required browser job-flow gate and purpose review
+- Preflight now requires Chromium and runs the full word/tap-count jobs, Calendar, v2 viewport assertions and verified-map jobs through one non-skipping runner. It starts its own local HTTP server, records per-suite logs and a JSON report, and blocks on a missing browser, skip, timeout or failed assertion. Existing 13/19-tap creation and three-step RSVP targets remain checked.
+- Adds cross-screen agreement, failed-write, cross-phone RSVP, year-boundary, crowded day and Calendar glyph coverage. Calendar month arrows and holidays are now included in ⓘ, while the pinned event's own picture is identified as a trip picture.
+- `V2_ACCEPTANCE.md` records evidence against the posted 140–145 checklist, purpose coverage and deliberate retirements for v1 features, plus the remaining migration, cutover and human checks. The unavailable original six-asks wording is not represented as verified. No entry URL changes.
+
 ### Added (PIA-144) — Calendar presence and overlapping trips
 - Calendar now shows the selected trip's month, plan, fixed event day, personal dates and daily presence by headcount. Its day sheet uses the same presence calculation and identifies overlapping people/trips already known on this phone. Maybe remains separate; Mom & Dad count as two.
 - Every day opens its people in one tap; a person opens their existing sheet with Back. A future/today day offers ＋ into the normal create flow with that date prefilled. Month browsing survives tab changes and resets when the selected trip changes. Calendar makes no paid requests, works without map assets and preserves the word and touch-target limits. `app.html` remains unlinked.

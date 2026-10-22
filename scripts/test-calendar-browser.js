@@ -21,7 +21,7 @@ function fixture() {
   return [d, other];
 }
 async function main() {
-  const { chromium } = require('playwright'), temp = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-calendar-'));
+  const { chromium } = (() => { try { return require('playwright'); } catch (_) { return require('playwright-core'); } })(), temp = fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-calendar-'));
   let browser, server;
   try {
     const file = path.join(temp, 'worker.mjs'); fs.copyFileSync(path.join(ROOT, 'worker.js'), file);
@@ -92,6 +92,7 @@ async function main() {
       await p.waitForSelector('[data-act="calday"][data-v="2026-11-09"]');
       check((await p.locator('.monthhd h3').innerText()).includes('Nov'), width + '/' + dark + ': Calendar is one tap away and starts at the selected trip');
       await agreement(t, docs); await measure(p, 'Calendar');
+      check(await p.locator('.monthhd button[data-k="page"]').count() === 2 && await p.locator('.pinday[data-pic]').count() === 1, 'Calendar arrows are keyed and the event-day picture is identified as the trip picture');
       if (width === 360) await p.screenshot({ path: '/tmp/pialax144-calendar-' + (dark ? 'dark' : 'light') + '.png', fullPage: true });
       await tap(p, '[data-act="calday"][data-v="2026-11-09"]'); // one tap to day details
       check((await p.locator('#sheet .dayn').innerText()).includes('3') && await p.locator('#sheet .clashrow').count() === 1, 'P-day shows the same headcount and the overlapping person/trip');
@@ -119,7 +120,36 @@ async function main() {
     await tap(b.page, '#sheet [data-act="answer"][data-v="out"]'); await replied;
     await a.page.reload(); await a.page.waitForSelector('[data-act="calday"]'); await agreement(a, docs);
     check(await a.page.locator('[data-act="calday"][data-v="2026-11-09"]').getAttribute('data-n') === '2' && await a.page.locator('[data-v="2026-11-09"] [data-k="calclash"]').count() === 0, 'another phone’s Out updates presence and clears its overlap');
+    await tap(a.page, '#screen .mini');
+    check((await a.page.locator('#screen .ring text').textContent()) === '2/4', 'after reconciliation the trip ring agrees with Calendar presence and the shared answer');
+    await tap(a.page, '#screen [data-act="back"]'); await tap(a.page, '#tabbar [data-v="trips"]');
+    await tap(a.page, '#screen [data-act="seg"][data-v="family"]');
+    check((await a.page.locator('#fam-board .ft').allTextContents())[0] === '2/4', 'Family shows the same reconciled headcount');
+    await tap(a.page, '#tabbar [data-v="map"]');
+    check(await a.page.locator('.map-faces [data-code="ashwin-p8"]').count() === 0, 'Map excludes the same traveler who answered Out');
+    await tap(a.page, '#tabbar [data-v="cal"]'); await agreement(a, docs);
     await a.ctx.close(); await b.ctx.close();
+    const link = await phone(fixture());
+    await tap(link.page, '#tabbar [data-v="cal"]'); await tap(link.page, '[data-act="calday"][data-v="2026-11-09"]'); await tap(link.page, '#sheet .clashtrip');
+    await link.page.waitForSelector('#screen[data-screen="trip-organizer"]');
+    check((await link.page.locator('#screen h2.ttl').innerText()).includes('Another family trip'), 'the overlapping-trip link opens that real trip');
+    await link.ctx.close();
+    const failed = await phone(fixture(), { guest: true });
+    await tap(failed.page, '#tabbar [data-v="cal"]'); await tap(failed.page, '[data-act="calday"][data-v="2026-11-09"]'); await tap(failed.page, '#sheet .dayfaces [data-code="ashwin-p8"]');
+    failed.net.failWrite = true;
+    const refusal = failed.page.waitForResponse(r => r.url().includes('/idea/respond') && r.request().method() === 'POST');
+    await tap(failed.page, '#sheet [data-act="answer"][data-v="out"]'); check((await refusal).status() === 503, 'a failed Calendar-origin RSVP is a real refused Worker write');
+    await failed.page.waitForFunction(() => document.querySelector('#sheet [data-act="answer"][data-v="in"]')?.getAttribute('aria-pressed') === 'true');
+    check(failed.db.read(failed.id).responses['ashwin-p8'].status === 'in', 'a failed RSVP does not become a saved Out');
+    await failed.ctx.close();
+    const crowded = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/idea-8members.json')));
+    crowded.idea.dates = { departure: '2026-12-30', return: '2027-01-02' };
+    for (const x of crowded.idea.members) crowded.responses[x.code] = { status: 'in', origin: x.airport, note: '' };
+    const many = await phone([crowded], { height: 667 });
+    await tap(many.page, '#tabbar [data-v="cal"]'); await tap(many.page, '[data-act="calmonth"][data-v="1"]');
+    check((await many.page.locator('.monthhd h3').innerText()).includes('Jan 2027'), 'month paging crosses the year boundary');
+    await agreement(many, [crowded]); await tap(many.page, '[data-act="calday"][data-v="2027-01-01"]'); await measure(many.page, 'Eight long names on a short-screen Calendar day');
+    await many.ctx.close();
     const guest = await phone(fixture(), { guest: true, nobody: true });
     await tap(guest.page, '#tabbar [data-v="cal"]'); await tap(guest.page, '[data-act="calday"][data-v="2026-11-09"]');
     check(!(await guest.page.locator('#sheet').innerText()).includes('$'), 'an unidentified guest sees no prices in Calendar');
