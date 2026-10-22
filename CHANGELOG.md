@@ -12,6 +12,10 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-144) — Calendar presence and overlapping trips
+- Calendar now shows the selected trip's month, plan, fixed event day, personal dates and daily presence by headcount. Its day sheet uses the same presence calculation and identifies overlapping people/trips already known on this phone. Maybe remains separate; Mom & Dad count as two.
+- Every day opens its people in one tap; a person opens their existing sheet with Back. A future/today day offers ＋ into the normal create flow with that date prefilled. Month browsing survives tab changes and resets when the selected trip changes. Calendar makes no paid requests, works without map assets and preserves the word and touch-target limits. `app.html` remains unlinked.
+
 ### Added (PIA-143) — Map, pickups and destination previews (in `app.html`, still unlinked)
 - Map draws origin faces, routes, destination and alternate-airport pins from the selected trip. Its d3 7.9.0 and topojson 3.0.2 scripts use v1's exact SRI hashes. The world-atlas 2.0.2 data is verified with SHA-256 before parsing; the security gate checks its exact version and digest too. Faces, airport choices and pickups remain usable when any asset fails or its digest differs.
 - Every pickup chip opens that airport's day with names and recorded or explicitly marked cached flight times. The organizer can see the cheapest fresh cached pair landing within two hours, without spending a search. Overnight offers never appear as landing on the departure day. Alternate-pin airport choices write the shared arrival/departure fields, keeping links and pickups in agreement.

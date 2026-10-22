@@ -4072,6 +4072,26 @@ function norm(doc) {
       'PIA-142 AC6 an empty board shows its ghost row (dotted faces, ＋) and 🗄 while there are past trips to show (one tap brings them in); with only dropped trips the ghost alone; trips not read yet ◷', { g1: g1.id, g2: g2.id, g3: g3.id });
   }
 
+
+  section('PIA-144 Calendar: selected trip, presence, overlaps and dated create');
+  {
+    const base = fx('idea-diwali.json'); base.idea.destination = { airport: 'PIA', city: 'Peoria' };
+    base.responses = { 'ashwin-p8': { status: 'in', origin: 'LAX', available_from: '', available_to: '', note: '' } };
+    const id = seedAs(base), other = seedAs(base, d => { d.idea.dates.departure = '2026-11-09'; d.idea.dates.return = '2026-11-12'; });
+    const t = await boot136({ ls: lsOf([id, other], { pialax_idea_keys_v1: keyOf([id]), pialax_idea_me_v1: { [id]: 'ashwin-p8' }, pialax_ui_v1: { sel: id, v1read: 1 } }) });
+    act(t, 'tab', { v: 'cal' }); const html = t.api.renderSelected('calendar', 'cal').html;
+    check((html.match(/data-act="calday"/g) || []).length === 30 && /data-v="2026-11-09" data-n="3"[^>]*overlapping trips/.test(html), 'Calendar draws the plan month with presence by headcount and inclusive-day overlaps');
+    act(t, 'calday', { id, v: '2026-11-09' }); const h = sheet(t);
+    check(t.api.S.sheet.p.calendar && /class="dayn"[^>]*>[\s\S]*?3<\/span>/.test(h) && h.includes('data-id="' + other + '"'), 'one day opens P-day with its own count and a link to the overlapping trip');
+    act(t, 'person', { id, code: 'ashwin-p8' }); check(t.api.S.sheet.type === 'person' && t.api.S.sheet.back.type === 'day', 'a Calendar day face opens the existing person sheet with Back');
+    act(t, 'sh-back'); act(t, 'calnew', { v: '2026-11-09' });
+    check(D(t).s === '2026-11-09' && D(t).name === '' && D(t).dest === '', 'day plus starts the normal create flow with the selected date and no copied title/place');
+    t.api.closeSheet(); act(t, 'calmonth', { v: '1' }); act(t, 'tab', { v: 'map' }); act(t, 'tab', { v: 'cal' });
+    check(t.api.S.calView.ym === '2026-12', 'Calendar retains month navigation across tabs');
+    act(t, 'pick', { id: other }); check(t.api.S.calView.id === other && t.api.S.calView.ym === '2026-11', 'selecting another trip resets Calendar to its start month');
+    const n = t.fetches.length; act(t, 'calmonth', { v: '-1' }); act(t, 'calday', { id: other, v: '2026-10-01' });
+    check(!/data-act="calnew"/.test(sheet(t)) && t.fetches.length === n, 'past days are readable, offer no dated create and make no network call');
+  }
   // ═══ AC12 / AC14 ═══
   section('AC12 / AC14 preflight covers app.html; the playbook records the v2 decisions');
   const pf = fs.readFileSync(path.join(ROOT, 'scripts', 'preflight.sh'), 'utf8');

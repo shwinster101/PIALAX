@@ -1908,6 +1908,20 @@ function dayPeople(model, day) {
   });
   return out;
 }
+/* PIA-144: Calendar and its day sheet share presence and overlap facts. Clashes are limited to the
+   other trips this phone supplied to tripModel, with the same inclusive dates and name matching. */
+function calendarDay(model, day) {
+  var p = dayPeople(model, day), clashes = [], seen = {};
+  if (isIso(day)) model.members.forEach(function (x) {
+    (x.clash || []).forEach(function (c) {
+      var key = x.code + '|' + c.id;
+      if (day >= c.s && day <= c.e && !seen[key]) {
+        seen[key] = true; clashes.push({ code: x.code, id: c.id, emoji: c.emoji, s: c.s, e: c.e });
+      }
+    });
+  });
+  return { day: day, n: p.n, there: p.there, maybe: p.maybe, away: p.away, clashes: clashes };
+}
 /* what the date pill (and my bar on the board) open on this phone: 'plan' the organizer's picker for the plan; 'mine' my
    own days (I have answered in or maybe and travel); 'answer' nothing yet (I have not answered: the answer row asks
    first, a day is never set for someone who has not answered); 'look' the plan to read (a host, someone out, a phone
@@ -2325,7 +2339,7 @@ if (typeof module !== 'undefined' && module.exports) {
     fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
     whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle,
     SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
-    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, datesRole: datesRole, datesHeld: datesHeld,
+    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, calendarDay: calendarDay, datesRole: datesRole, datesHeld: datesHeld,
     bookSlot: bookSlot, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
     timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime,
     SPEND_PER_TAP: SPEND_PER_TAP, SPEND_PER_SESSION: SPEND_PER_SESSION, QUOTA_LOCK_AT: QUOTA_LOCK_AT, QUOTA_BUDGET: QUOTA_BUDGET, PLAN_LEFT_MIN: PLAN_LEFT_MIN,

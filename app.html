@@ -456,6 +456,11 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .dc.nope { opacity: .45; }
 .calfab { position: fixed; z-index: 30; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; border-radius: 18px; background: var(--ink); color: var(--on-ink); font-size: 24px; display: grid; place-items: center; box-shadow: 0 6px 18px var(--shade); }
 
+.cal-clashes { display: grid; gap: 6px; }
+.cal-clashes .clashrow { display: flex; align-items: center; gap: 6px; }
+.cal-clashes .facebtn { width: 44px; height: 44px; flex: none; }
+.cal-clashes .clashtrip { flex: 1; min-width: 0; min-height: 44px; padding: 6px 10px; text-align: left; border-radius: 12px; border: 1px solid var(--line); overflow-wrap: anywhere; }
+.cal-clashes .clashtrip .tn { white-space: nowrap; }
 /* ---------- sheets ---------- */
 .scrim { position: fixed; inset: 0; z-index: 70; background: var(--scrim); }
 .sheet { position: fixed; z-index: 71; left: 0; right: 0; bottom: 0; max-height: min(calc(100% - 0px - 12px), 88vh); overflow: auto; background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px var(--shade);
@@ -2795,6 +2800,20 @@ function dayPeople(model, day) {
   });
   return out;
 }
+/* PIA-144: Calendar and its day sheet share presence and overlap facts. Clashes are limited to the
+   other trips this phone supplied to tripModel, with the same inclusive dates and name matching. */
+function calendarDay(model, day) {
+  var p = dayPeople(model, day), clashes = [], seen = {};
+  if (isIso(day)) model.members.forEach(function (x) {
+    (x.clash || []).forEach(function (c) {
+      var key = x.code + '|' + c.id;
+      if (day >= c.s && day <= c.e && !seen[key]) {
+        seen[key] = true; clashes.push({ code: x.code, id: c.id, emoji: c.emoji, s: c.s, e: c.e });
+      }
+    });
+  });
+  return { day: day, n: p.n, there: p.there, maybe: p.maybe, away: p.away, clashes: clashes };
+}
 /* what the date pill (and my bar on the board) open on this phone: 'plan' the organizer's picker for the plan; 'mine' my
    own days (I have answered in or maybe and travel); 'answer' nothing yet (I have not answered: the answer row asks
    first, a day is never set for someone who has not answered); 'look' the plan to read (a host, someone out, a phone
@@ -4225,7 +4244,7 @@ var LEGEND = {
   widen: ['⟦◀ ▶⟧', 'Widen window'], owndays: ['<span class="kown">🙂</span>', 'Own days'],
   // PIA-142: the Family board (a cell's own arrival day, someone not on a trip, the trips hosted, 🗄 the past trips as columns)
   ownarr: ['<span class="tn">11/24</span>', 'Own arrival'], notinv: ['<span class="sh-none"></span>', 'Not invited'], hosted: ['🏠2', 'Hosted or hosting'], pastcols: ['🗄', 'Past trips'],
-  candidate: ['＋📍', 'Another destination'], mapunavailable: ['🗺 ◷', 'Map unavailable'], pair: ['★', 'Cheapest pickup pair'], predicted: ['≈', 'Cached flight time']
+  candidate: ['＋📍', 'Another destination'], mapunavailable: ['🗺 ◷', 'Map unavailable'], pair: ['★', 'Cheapest pickup pair'], predicted: ['≈', 'Cached flight time'], calclash: ['⚠', 'Overlapping trips']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -4954,7 +4973,18 @@ function renderSelected(id, scope) {
   }
   var sel = selectedId(act), m = act.filter(function (x) { return x.id === sel; })[0];
   S.shown = m.id;
-  return { id: id, html: tabTop(act.length > 1 ? tripChips(act, sel) : '') + '<p class="subttl" id="sel-title" data-free>' + esc(m.title) + '</p>' + miniCard(m) + (scope === 'map' ? mapHTML(m) + lanesHTML(m) : '') };
+  return { id: id, html: tabTop(act.length > 1 ? tripChips(act, sel) : '') + '<p class="subttl" id="sel-title" data-free>' + esc(m.title) + '</p>' + miniCard(m) + (scope === 'map' ? mapHTML(m) + lanesHTML(m) : calendarHTML(m)) };
+}
+/* PIA-144: Calendar's month is view state only. Switching trips resets it to that trip's plan/window;
+   tabs, redraws and background reads retain the month being viewed. All facts come from the model. */
+function calendarHTML(m) {
+  if (!S.calView || S.calView.id !== m.id) S.calView = { id: m.id, ym: ym(m.plan ? m.plan.s : m.win ? m.win.s : RT.today) };
+  return monthHeader(S.calView.ym, 'calmonth', null) + gridHTML(S.calView.ym, function (day) {
+    var p = calendarDay(m, day), c = tripCell(m, day, { pin: m.pin, mine: m.me && !m.me.bad && m.me.d1 ? m.me : null });
+    return '<button class="' + dayCls(day) + c.cls + '" data-act="calday" data-id="' + m.id + '" data-v="' + day + '" data-n="' + p.n + '" aria-label="' + md(day) + ', ' + p.n + ' present' + (p.clashes.length ? ', overlapping trips' : '') + '" data-lbl="' + md(day) + ' · 👥' + p.n + (p.clashes.length ? ' · ⚠' : '') + '">' +
+      '<span class="dn">' + (+day.slice(8)) + '</span>' + (day === m.pin ? '' : holMark(day)) + c.html +
+      (p.n ? '' : '<span class="pc-n" data-k="daycount">0</span>') + (p.clashes.length ? '<span class="warn" data-k="calclash">⚠</span>' : '') + '</button>';
+  });
 }
 /* PIA-143: map assets are decorative. Faces, airport controls and pickups are ordinary HTML from the model,
    so an unavailable library, failed fetch or bad digest cannot remove the trip's useful controls. No token on map requests. */
@@ -6855,7 +6885,7 @@ SHEETS.day = function (sh) {
   var head = '<span class="tn">' + (isIso(d) ? md(d) : '') + '</span>' + (hd ? '<span data-k="' + hd.k + '">' + hd.g + '</span>' : '');
   if (!m || !isIso(d)) return shHd(head);
   var p = dayPeople(m, d);
-  var h = shHd(head + '<span class="dayn" data-k="present"><span aria-hidden="true">👥</span>' + p.n + '</span>', sh.p.mapmode ? { right: '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' } : {});
+  var h = shHd(head + '<span class="dayn" data-k="present"><span aria-hidden="true">👥</span>' + p.n + '</span>', sh.p.mapmode || sh.p.calendar ? { right: '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' } : {});
   if (sh.p.mapmode) {
     var ap = m.hub.indexOf(sh.p.ap) >= 0 ? sh.p.ap : m.dest, fares = m.prices ? readFares() : {}, lane = pickups(m, fares, RT.now, false)[ap] || [];
     var pair = pickupPair(m, fares, RT.now, ap, d);
@@ -6869,6 +6899,14 @@ SHEETS.day = function (sh) {
       h += '<button class="pk" data-act="person" data-id="' + m.id + '" data-code="' + esc(code) + '" aria-label="' + esc(faceLabel(x) + (c.kind === 'arr' ? ', lands' : ', leaves') + (c.time ? ' ' + c.time : ', time not set')) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 32) + nameTag(x.one, m.members.indexOf(x) + 1) + '<span data-k="' + (c.kind === 'arr' ? 'arrive' : 'leave') + '">' + (c.kind === 'arr' ? '🛬' : '🛫') + '</span>' + (c.pred ? '<span data-k="predicted">≈</span>' : '') + '<span class="tn">' + (c.time || '––:––') + '</span>' + (c.booked ? '<span data-k="booked">🎫</span>' : '') + '</button>';
     }); });
     return h + '</div>';
+  }
+  if (sh.p.calendar) {
+    var cd = calendarDay(m, d);
+    if (cd.clashes.length) h += '<div class="cal-clashes"><span data-k="calclash" data-lbl="Overlapping trips">⚠</span>' + cd.clashes.map(function (c) {
+      var x = memberIn(m, c.code), other = modelOf(c.id); if (!x || !other) return '';
+      return '<div class="clashrow">' + mapFace(m, x) + '<button class="clashtrip" data-act="open" data-id="' + other.id + '" aria-label="' + esc('Overlapping trip, ' + other.title) + '" data-lbl="Overlapping trip"><span data-free>' + esc(other.title) + '</span> <span class="tn">' + md(c.s) + '–' + md(c.e) + '</span></button></div>';
+    }).join('') + '</div>';
+    if (d >= RT.today) h += '<button class="btn wide" data-act="calnew" data-v="' + d + '" aria-label="New trip starting ' + md(d) + '" data-lbl="New trip" data-k="new">＋</button>';
   }
   return h + '<div class="dayfaces">' + m.members.map(function (x, i) {
     var st = p.there.indexOf(x.code) >= 0 ? 'there' : p.maybe.indexOf(x.code) >= 0 ? 'maybe' : 'away';
@@ -8015,6 +8053,13 @@ var ACTS = {
   },
   mapairport: function (el) { var m = modelOf(el.dataset.id); if (!m || m.hub.indexOf(el.dataset.v) < 0) return; openSheet('mapairport', { id: m.id, ap: el.dataset.v }); },
   mapwho: function (el) { if (!S.sheet || S.sheet.type !== 'mapairport') return; S.sheet.local.code = el.dataset.code; renderSheet(false); },
+  calmonth: function (el) {
+    if (!S.calView || S.tab !== 'cal' || (el.dataset.v !== '-1' && el.dataset.v !== '1')) return;
+    var nx = shiftMonth(S.calView.ym, +el.dataset.v); if (!isIso(nx + '-01')) return;
+    S.calView.ym = nx; render(true);
+  },
+  calday: function (el) { var m = modelOf(el.dataset.id); if (m && isIso(el.dataset.v)) openSheet('day', { id: m.id, date: el.dataset.v, calendar: true }); },
+  calnew: function (el) { if (!isIso(el.dataset.v) || el.dataset.v < todayLocal()) return; openCreate({ draft: newDraft(el.dataset.v) }); },
   pickup: function (el) {
     var m = modelOf(el.dataset.id); if (!m || !isIso(el.dataset.v)) return;
     openSheet('day', { id: m.id, date: el.dataset.v, ap: el.dataset.ap, mapmode: true });

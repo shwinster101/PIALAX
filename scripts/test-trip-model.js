@@ -1864,6 +1864,30 @@ function makeServer(worker) {
   const pf = fs.readFileSync(path.join(ROOT, 'scripts', 'preflight.sh'), 'utf8');
   check(/suites=\([^)]*\btest-trip-model\.sh\b[^)]*\)/.test(pf) && fs.existsSync(path.join(ROOT, 'scripts', 'test-trip-model.sh')), 'preflight runs this suite (test-trip-model.sh is in its suites list)');
 
+
+  section('PIA-144 Calendar presence and overlapping trips');
+  {
+    const d = clone(DW); d.idea.destination = { airport: 'PIA', city: 'Peoria' };
+    d.idea.dates = { departure: '2026-11-06', return: '2026-11-09', searchStart: '', searchEnd: '' };
+    d.responses = { 'ashwin-p8': R('in', 'LAX', '2026-11-05', '2026-11-09'), 'anjo-z5': R('maybe', 'LGA') };
+    const other = clone(d); other.id = 'calendarOtherTrip00001'; other.idea.dates.departure = '2026-11-09'; other.idea.dates.return = '2026-11-12'; other.responses = { 'ashwin-p8': R('in', 'LAX') };
+    const m = model(d, { otherTrips: [other, other] });
+    const day = M.calendarDay(m, '2026-11-09');
+    check(day.n === 3 && day.there.includes('momdad-k3') && day.there.includes('ashwin-p8') && day.maybe.includes('anjo-z5'), 'Calendar counts the host pair as two, the traveler as one, and Maybe separately');
+    check(day.n === M.presentOn(m, day.day) && eq(day.there, M.dayPeople(m, day.day).there), 'Calendar and P-day use the same presence rule');
+    check(day.clashes.length === 1 && day.clashes[0].code === 'ashwin-p8' && day.clashes[0].id === other.id, 'an inclusive end/start overlap is flagged once per person/trip, even when supplied twice');
+    check(!M.calendarDay(m, '2026-11-08').clashes.length && M.calendarDay(m, '2026-11-10').n === 2, 'only actual overlap days warn; host presence follows the existing trip span');
+    const dropped = clone(other); dropped.decision.stage = 'dropped';
+    check(!M.calendarDay(model(d, { otherTrips: [dropped] }), '2026-11-09').clashes.length, 'dropped trips cannot create a Calendar conflict');
+    const away = clone(d); away.responses['ashwin-p8'].status = 'out';
+    check(!M.calendarDay(model(away, { otherTrips: [other] }), '2026-11-09').clashes.length, 'an Out traveler has no Calendar clash');
+    const bad = clone(d); bad.responses['ashwin-p8'].available_to = '2026-11-04';
+    check(!M.calendarDay(model(bad, { otherTrips: [other] }), '2026-11-09').clashes.length, 'reversed personal dates are not counted or flagged as bookings');
+    const dated = clone(d); dated.idea.dates = { departure: '2026-12-30', return: '2027-01-02' }; dated.responses['ashwin-p8'] = R('in', 'LAX');
+    const mm = model(dated);
+    check(['2026-12-31', '2027-01-01', '2027-01-02'].every(day => M.calendarDay(mm, day).n === 3), 'presence crosses month and year boundaries and includes the departure day');
+    check(M.calendarDay(model(d), '2026-11-09').clashes.length === 0, 'a phone with only this trip claims no knowledge of other bookings');
+  }
   section('PIA-143 map pricing and pickup pairs');
   {
     const d = clone(DW), cc = ctx({ hasEditKey: true, hasToken: true }), before = JSON.stringify(d);
