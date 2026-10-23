@@ -27,7 +27,7 @@ async function main() {
       const bytes = fs.readFileSync(file), got = crypto.createHash(a.alg || 'sha512').update(bytes).digest(a.alg ? 'hex' : 'base64');
       assert.equal(got, a.hash, a.name + ' pinned digest'); assets[a.url] = bytes;
     }
-    check(scripts.length === 2 && scripts.every(a => fs.readFileSync(path.join(ROOT, 'pialax.html'), 'utf8').includes('integrity="sha512-' + a.hash + '"')),
+    check(scripts.length === 2 && scripts.every(a => JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/v1-cutover-contract.json'))).sri.includes(a.hash)),
       'd3 and topojson use v1’s exact security hashes; exact-version map bytes match their digest');
     const workerFile = path.join(temp, 'worker.mjs'); fs.writeFileSync(workerFile, fs.readFileSync(path.join(ROOT, 'worker.js')));
     const worker = (await import('file://' + workerFile)).default;

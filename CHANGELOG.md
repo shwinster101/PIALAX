@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-147) — v2.0.0 cutover candidate
+- Root, desktop and mobile entry URLs now redirect to one app, preserving query strings and fragments with Back-safe navigation. The app and shims identify as 2.0.0; actual release date/tag await launch checks.
+- Retire the v1 dashboard, duplicate builder/parity and v1-only UI tests. Keep immutable v1 link/storage/quota/fare contracts and all Worker/v2 trust coverage. Add mandatory browser checks for redirects, organizer access, list import, fallback and desktop layout.
+- Real fares only, explicit history import and per-phone shared lists replace the old estimated-price dashboard; deliberate feature retirements and migration limitations are recorded in V2_ACCEPTANCE.md and RELEASE_V2.md. Same-day live migration/device evidence and deployed-byte verification remain release gates.
+
 ### Added (PIA-146) — Review legacy trips and import family history
 - Organizers can update a legacy shared trip in place, reviewing dates and identities before saving. The event day, member codes, access, personal windows, airport choices and bookings survive; a moved plan pins a booked traveler's inherited dates first. Chosen legacy estimates are cleared. Undated ideas keep their existing window.
 - Settings offers an explicit history import with date, traveler and shared-note review. It reconstructs v1's real starter history plus saved changes and added trips, reuses shared records, preserves NYC's absent return and treats postponed Cary as dropped. Original source storage stays unchanged and can be downloaded without organizer credentials. Nothing imports automatically or searches for fares.

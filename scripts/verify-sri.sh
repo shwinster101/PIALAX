@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # verify-sri.sh — PIA-001 standing check.
-# Re-hashes the CDN files referenced by pialax.html / pialax-mobile.html and
-# compares against the SRI integrity= values pinned in those files. PIA-134: it
-# also greps app.html's integrity= attributes against the same pinned list.
+# Re-hashes app.html's exact CDN scripts and map-data URL against pinned digests.
+# The PIA-147 entry shims load no external assets.
 # Exit 0 = match. Exit 1 = mismatch (cdnjs republished, or tampered).
 #
 # Usage:  ./scripts/verify-sri.sh

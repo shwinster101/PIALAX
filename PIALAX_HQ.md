@@ -323,3 +323,18 @@ PIA-046 through PIA-051, this file's §10 positioning principle unchanged._
 
 Until PIA-147: nothing links to `app.html`, v1 stays untouched, and the Deployment team (T4) ships v2 tickets like any other envelope (preflight GO), knowing they change nothing the family sees.
 
+
+### PIA-147 implementation amendment (2026-10-23)
+
+The cutover candidate replaces all three public entry pages with fixed redirects
+to the one app. On this branch, v1 parity and builder drift rules are retired;
+current commands and architecture are in [CLAUDE.md](CLAUDE.md). Historical rules
+above describe prior releases. The browser gate is mandatory: missing or skipped
+coverage is NO-GO. Explicit PIA-146 import may reread the read-only v1 watchlist
+for later shared IDs; it never silently creates history on boot.
+
+[PLAN_PIA_147_CUTOVER.md](PLAN_PIA_147_CUTOVER.md) defines the cutover contract;
+[RELEASE_V2.md](RELEASE_V2.md) records retained/retired tests, pending same-day
+actual migration, human/device checks and rollback. Fixture tests do not complete
+these launch checks. Public cutover and family-link sharing wait for recorded
+release readiness and verified deployed bytes.

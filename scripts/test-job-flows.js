@@ -15,10 +15,7 @@ async function main() {
   if (!pw || !pw.chromium) throw new Error('PIA-145 requires Playwright and Chromium. Install them or set NODE_PATH and PLAYWRIGHT_CHROMIUM_EXECUTABLE. This gate cannot skip.');
   const executable = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || ['/usr/bin/chromium', '/opt/pw-browsers/chromium', pw.chromium.executablePath()].find(f => fs.existsSync(f));
   const probe = await pw.chromium.launch(executable ? { executablePath: executable } : {}); await probe.close();
-  const server = http.createServer((req, res) => {
-    if (new URL(req.url, 'http://localhost').pathname !== '/app.html') { res.writeHead(404); res.end(); return; }
-    res.setHeader('Content-Type', 'text/html'); res.end(fs.readFileSync(path.join(ROOT, 'app.html')));
-  });
+  const server = http.createServer(require('./entry-server.js').entryHandler(ROOT));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const out = process.env.PIALAX_TEST_REPORT_DIR || fs.mkdtempSync(path.join(os.tmpdir(), 'pialax-job-flows-'));
   fs.mkdirSync(out, { recursive: true });
@@ -28,7 +25,7 @@ async function main() {
   try {
     // Existing word jobs preserve the documented 13/19/3 tap targets and cover booking, prices, cheapest
     // week, Family, failures and concurrent writes. The other suites cover the new Calendar and real map.
-    for (const script of ['test-migration-browser.js', 'test-calendar-browser.js', 'test-words.js', 'test-viewport.mjs', 'test-map-browser.js']) {
+    for (const script of ['test-cutover-browser.js', 'test-migration-browser.js', 'test-calendar-browser.js', 'test-words.js', 'test-viewport.mjs', 'test-map-browser.js']) {
       process.stdout.write('\n▶ PIA-145 ' + script + '\n');
       const started = Date.now(), log = [];
       const result = await new Promise((resolve, reject) => {

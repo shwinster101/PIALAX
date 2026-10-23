@@ -1,6 +1,8 @@
-# v2 acceptance review — PIA-145
+# v2 acceptance review — PIA-145–147
 
-This build completes PIA-144/145 beside v1. It does not authorize cutover.
+PIA-144/145 established this acceptance contract. PIA-146 adds explicit migration;
+PIA-147 implements entry cutover as a release candidate. See [RELEASE_V2.md](RELEASE_V2.md)
+for the coverage disposition and pending actual-family launch checks.
 The acceptance contract is the owner's posted PIA-140–145 checklist and the
 repository's documented job/tap targets. The separate original “six asks” text
 was not available; this review does not invent it or claim to verify its wording.
@@ -81,7 +83,7 @@ Retirements below are explicit design choices under D1/D4, not claims of parity.
 | Desktop/mobile navigation, themes, labels and touch access | Covered by three labelled tabs, centered desktop phone layout, one sheet, keyboard focus/Back, glyph key, strict words and viewport gates |
 | Security, credentials and cache trust | Covered by unchanged Worker authorization plus app token/header, share-privacy, CSP/SRI/data-digest and v1 cache-compatibility tests |
 | Debug flags, mock/live badges and unrestricted proxy overrides | Debug/mock presentation retired; settings are limited to the configured CSP Worker peers and explicit organizer access |
-| Root URL / old-page replacement | Staged for PIA-147; this build deliberately keeps v1 serving the family |
+| Root URL / old-page replacement | Implemented by PIA-147 redirect shims; public deployment pending release checks |
 
 ## PIA-146 migration and history import
 
@@ -122,6 +124,11 @@ partial and lost writes, stale reviews, booking protection, history, word budget
 These are fixture migrations; no family's live shared records are changed by tests.
 
 ## Remaining cutover requirements
+
+Implementation order, test-retirement mapping, intent-level acceptance criteria,
+release evidence and rollback are specified in
+[`PLAN_PIA_147_CUTOVER.md`](PLAN_PIA_147_CUTOVER.md). This is a plan, not evidence
+that the pending checks below have passed.
 
 - Use PIA-146's review/import on the organizer's actual phone and reconcile the
   resulting shared IDs before PIA-147. A green fixture suite is not a live-data import.

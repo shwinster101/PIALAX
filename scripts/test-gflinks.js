@@ -542,8 +542,8 @@ function main() {
   const badId = cal(tweak(DW, (d) => { d.id = 'x\r\nDESCRIPTION:https://evil.example/'; }), 'ashwin-p8');
   check(/\r\nUID:trip-ashwin-p8@pialax\r\n/.test(badId.ics.text) && badId.ics.text.indexOf('evil') < 0 && badId.details === '' && badId.ics.text.indexOf('DESCRIPTION') < 0,
     'the UID is built from checked codes only: a malformed trip id never reaches the .ics (UID falls back to "trip", and with no guest link there is no DESCRIPTION)');
-  const appPx = ['pialax.html', 'pialax-mobile.html'].map((f) => (/var PROXY_URL = '([^']+)';/.exec(fs.readFileSync(path.join(ROOT, f), 'utf8')) || [])[1]);
-  check(appPx.every((u) => u === M.WORKER_URL), 'the default Worker for guest links is v1’s PROXY_URL (both pialax.html and pialax-mobile.html)', appPx);
+  const legacy = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/v1-cutover-contract.json'), 'utf8'));
+  check(legacy.worker === M.WORKER_URL, 'guest links retain the frozen v1 Worker origin');
 
   // ═══ AC8 ════════════════════════════════════════════════════════════════
   section('AC8 Flighty is offered only after that traveler is booked');
@@ -556,7 +556,7 @@ function main() {
   check(!M.handoffs(model(outBooked), 'ashwin-p8', ctx()).flighty && !M.handoffs(model(tgBooked), 'PIA', ctx()).flighty, 'a stray booked flag on someone who is out, or on a host, offers no Flighty');
   const maybeBooked = tweak(DW, (d) => { d.responses['ashwin-p8'].status = 'maybe'; d.responses['ashwin-p8'].booked = true; });
   check(!!M.handoffs(model(maybeBooked), 'ashwin-p8', ctx()).flighty, 'a maybe who marked booked is a booked traveler: Flighty shows');
-  check(['pialax.html', 'pialax-mobile.html'].every((f) => fs.readFileSync(path.join(ROOT, f), 'utf8').indexOf('href="' + M.FLIGHTY_URL + '"') >= 0), 'the Flighty hand-off is v1’s https://www.flighty.com/ (both HTML files link it)');
+  check(legacy.flighty === M.FLIGHTY_URL, 'Flighty retains the frozen v1 handoff URL');
 
   // ═══ AC9 ════════════════════════════════════════════════════════════════
   section('AC9 no test or app path calls Google live');

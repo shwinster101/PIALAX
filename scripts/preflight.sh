@@ -20,7 +20,7 @@ while [ -L "$SOURCE" ]; do
 done
 HERE="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 # PIA-134: app.html (the v2 shell) gets the same console.log / secret / <script> checks as the v1 pair.
-FILES=("$HERE/pialax.html" "$HERE/pialax-mobile.html" "$HERE/app.html")
+FILES=("$HERE/index.html" "$HERE/pialax.html" "$HERE/pialax-mobile.html" "$HERE/app.html")
 fail=0
 
 step() { printf "\n▶ %s\n" "$1"; }
@@ -131,18 +131,9 @@ else
   [ "$strict" = "1" ] || note "advisory mode — set STRICT=1 to block ship on shellcheck warnings"
 fi
 
-# 8 — trip-assistant test suites (PIA-051). Each script self-skips (exit 0,
-# printed as a note below) when node — or, for test-viewport, Playwright — is
-# unavailable, so a fresh machine without either never fails the gate here;
-# it just gets no coverage from this step. A real failure inside any suite
-# DOES block the push, same as every other step above. test-viewport.sh is
-# deliberately NOT run here — it needs a browser and takes real wall-clock
-# time, so it stays a manual/CI-optional check rather than a pre-push gate.
-# PIA-145: test-job-flows.sh requires real Chromium and runs the full word,
-# Calendar, v2 viewport and verified-map jobs. Missing browser support is NO-GO.
-# The legacy v1 viewport suite remains a separate optional check.
+# PIA-147: all retained suites are mandatory; v1 UI/parity suites retired.
 step "8/8  trip-assistant test suites"
-suites=(test-core.sh test-extraction.sh test-worker.sh test-trip-idea.sh test-trust.sh test-trip-model.sh test-gflinks.sh test-app.sh test-job-flows.sh)
+suites=(test-worker.sh test-trust.sh test-trip-model.sh test-gflinks.sh test-app.sh test-job-flows.sh)
 for s in "${suites[@]}"; do
   sf="$HERE/scripts/$s"
   if [ ! -f "$sf" ]; then
@@ -151,7 +142,7 @@ for s in "${suites[@]}"; do
   fi
   if bash "$sf" "$HERE" > /tmp/pialax-suite-"$s".log 2>&1; then
     if grep -q "SKIPPED" /tmp/pialax-suite-"$s".log; then
-      note "$s: skipped ($(grep -o 'SKIPPED.*' /tmp/pialax-suite-"$s".log | head -1))"
+      warn "$s: skipped ($(grep -o 'SKIPPED.*' /tmp/pialax-suite-"$s".log | head -1))"
     else
       pass "$s: $(grep -E '^(all|[0-9]+ failing)' /tmp/pialax-suite-"$s".log | tail -1)"
     fi

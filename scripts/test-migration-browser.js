@@ -88,15 +88,12 @@ async function main() {
     const legacy = () => JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/idea-thanksgiving-legacy.json')));
     const storage = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/v1-watchlist-storage.json')));
     // Pure import adapter must reconstruct the same visible facts as shipping v1, not merely parse overrides.
-    const { loadApi, makeLocalStorage } = require('./harness.js');
-    const ls = makeLocalStorage(); ls.setItem('pialax_watchlist_v1', JSON.stringify(storage));
-    const v1 = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['loadWatchlist', 'WATCHLIST'], { localStorage: ls, console: { log() {}, warn() {}, error() {} } });
-    v1.api.loadWatchlist();
+    const v1History = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/v1-cutover-contract.json'))).history;
     const imported = M.historyItems(JSON.stringify(storage), TODAY), exact = imported.every(it => {
-      const before = v1.api.WATCHLIST.find(x => x.id === it.key);
+      const before = v1History.find(x => x.id === it.key);
       return before && ['title', 'dep', 'ret', 'eventDate', 'notes', 'sharedIdeaId'].every(k => (it.source[k] || '') === (before[k] || ''));
     });
-    check(exact && imported.length === v1.api.WATCHLIST.length, 'history adapter matches v1 starters, corrections, overrides and added trips');
+    check(exact && imported.length === v1History.length, 'history adapter matches v1 starters, corrections, overrides and added trips');
     check(M.historyItems('{', TODAY) === null && M.historyItems('[]', TODAY) === null && M.historyItems('{"added":{}}', TODAY) === null, 'corrupt sources fail closed');
     const polluted = M.historyItems('{"added":[{"id":"__proto__"},{"id":"constructor"}]}', TODAY);
     check(polluted.length === 6, 'prototype-like local IDs cannot enter the import journal');

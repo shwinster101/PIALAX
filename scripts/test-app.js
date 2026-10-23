@@ -211,15 +211,16 @@ function norm(doc) {
   {
     const cli = require('child_process').spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'harness.js'), ROOT, 'app.html'], { encoding: 'utf8' });
     const def = require('child_process').spawnSync(process.execPath, [path.join(ROOT, 'scripts', 'harness.js'), ROOT], { encoding: 'utf8' });
-    check(cli.status === 0 && /app\.html: app block found/.test(cli.stdout) && def.status === 0 && /pialax\.html/.test(def.stdout) && /pialax-mobile\.html/.test(def.stdout) && !/app\.html/.test(def.stdout),
-      'harness CLI takes the app file as an argument (app.html), and with none it checks the v1 pair', cli.stdout + def.stdout);
+    check(cli.status === 0 && /app\.html: app block found/.test(cli.stdout) && def.status === 0 && /app\.html: app block found/.test(def.stdout) && !/pialax-mobile/.test(def.stdout),
+      'harness CLI takes the app file as an argument (app.html), and with none it checks app.html', cli.stdout + def.stdout);
   }
 
   // ═══ AC1, AC13, AC15 (static) ═══
-  section('AC1 / AC13 / AC15 a new unlinked file: no web-app mode, a strict CSP, system fonts, light and dark tokens');
-  const v1Files = ['pialax.html', 'pialax-mobile.html', 'index.html', 'worker.js', 'scripts/trip-idea-builder.js'];
-  const linking = v1Files.filter((f) => fs.readFileSync(path.join(ROOT, f), 'utf8').indexOf('app.html') >= 0);
-  check(linking.length === 0, 'nothing links to app.html yet (v1 pages, index.html, worker.js, the builder)', linking);
+  section('AC1 / AC13 / AC15 the shipping app: no web-app mode, a strict CSP, system fonts, light and dark tokens');
+  const contract = fx('v1-cutover-contract.json');
+  const entries = ['index.html', 'pialax.html', 'pialax-mobile.html'].map(f => fs.readFileSync(path.join(ROOT, f), 'utf8'));
+  check(entries.every(s => s.includes("var target = 'app.html' + window.location.search + window.location.hash;") && s.includes('window.location.replace(target)')),
+    'PIA-147 every public entry forwards query/hash to the fixed app destination');
   check(!/apple-mobile-web-app-capable/i.test(html) && !/rel=["']?manifest/i.test(html), 'app.html declares no apple-mobile-web-app-capable and no manifest');
   const csp = (html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/g) || []);
   const cspv = csp.length === 1 ? /content="([^"]+)"/.exec(csp[0])[1] : '';
@@ -302,11 +303,9 @@ function norm(doc) {
     check(api.readLink('?tab=evil', '', '/').tab === '', 'only map and cal are starting tabs');
     const qp = api.qsParse('?__proto__=x&constructor=y&prototype=z&idea=' + A);
     check(Object.getPrototypeOf(qp) === Object.prototype && eq(Object.keys(qp), ['idea']) && ({}).polluted === undefined, 'query keys __proto__, constructor and prototype are dropped, never assigned');
-    // v1's own encoders build the ?w= and ?wl= payloads that v2 must read
-    const v1 = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['wlShareEncode', 'wlShareDecode'], { console: QUIET }).api;
-    const payload = { overrides: { thanksgiving: { stage: 'planning', sharedIdeaId: A } }, added: [{ id: 'added-1', mode: 'family', origin: 'LAX', dest: 'RDU', dep: '2026-12-01', sharedIdeaId: B, stage: 'watching' }] };
-    const w = v1.wlShareEncode(payload);
-    check(typeof w === 'string' && v1.wlShareDecode(w) && eq(api.v1ShortIds(w).sort(), [A, B].sort()), "v1's short ?w= payload (built by v1's own wlShareEncode) reads as its shared trip ids", api.v1ShortIds(w));
+    // Immutable outputs captured from the shipping v1 encoder before retirement.
+    const payload = contract.list.input, w = contract.list.w;
+    check(typeof w === 'string' && eq(api.v1ShortIds(w).sort(), [A, B].sort()), 'frozen v1 short link reads its shared trip IDs');
     L = api.readLink('?w=' + w + '&flags=assistant', '', '/');
     check(eq(L.ids.slice().sort(), [A, B].sort()) && L.list && eq(L.drop, ['w']), '?w= is read once for ids and dropped; other v1 params (?flags=) are left alone');
     const legacy = encodeURIComponent(Buffer.from(encodeURIComponent(JSON.stringify(payload)), 'binary').toString('base64'));
@@ -361,8 +360,7 @@ function norm(doc) {
       'list link: the receiving sheet opens with its ids and the sender\'s face (nothing listed yet, no keys, no token); ?l and ?f consumed, ?flags kept', { list: t.api.listIds(), sheet: sh && sh.type });
   }
   {
-    const v1 = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['wlShareEncode'], { console: QUIET }).api;
-    const w = v1.wlShareEncode({ overrides: { thanksgiving: { sharedIdeaId: C } }, added: [] });
+    const w = contract.single.w;
     const t = loadApp({ url: BASE + '?w=' + w });
     check(eq(t.api.listIds(), []) && t.api.S.sheet && t.api.S.sheet.type === 'savelist' && eq(t.api.S.sheet.p.ids, [C]) && t.api.S.sheet.p.face === '' && t.loc.search === '',
       'a v1 ?w= share link opened in v2 offers its shared trip on the receiving sheet and is read once (dropped from the address bar)');
@@ -413,21 +411,18 @@ function norm(doc) {
     dw.log = [{ at: '2026-10-11T02:10:00.000Z', event: 'rsvp:in', by: 'momdad-k3' }, { at: '2026-10-11T02:11:00.000Z', event: 'rsvp:in', by: 'ashwin-p8' }, { at: '2026-10-12T00:00:00.000Z', event: 'edited', by: 'organizer' }];
     t.api.markSeen(dw);
     check(eq(JSON.parse(t.ls.getItem('pialax_idea_seen_v1')), { [A]: '2026-10-11T02:11:00.000Z' }), 'seen: pialax_idea_seen_v1 {id: the newest rsvp log time}, v1\'s tripIdeaMarkSeen rule');
-    // v1 itself reads what v2 wrote
+    // Stored formats are public contracts retained after the v1 runtime is retired.
     t.api.saveKey(A, KEY, 'Diwali'); t.api.setToken(TOKEN); t.api.setWorker(W);
-    const v1 = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['_tripIdeaKeys', 'tripIdeaMe', 'proxyToken', 'tripIdeaHasNewAnswers', 'PROXY_URL', 'tripIdeaOrganizerLink'], { localStorage: t.ls, console: QUIET }).api;
-    check(v1._tripIdeaKeys()[A].edit_key === KEY && v1.tripIdeaMe(A) === 'ashwin-p8' && v1.proxyToken() === TOKEN && v1.tripIdeaHasNewAnswers(dw) === false && t.ls.getItem('pialax_proxy_url') === W && v1.PROXY_URL === W &&
-      /#k=pialax-test-edit-key/.test(v1.tripIdeaOrganizerLink(A)), 'v1 (pialax-mobile.html, unchanged) reads every key v2 wrote: the edit key, identity, token, seen state and Worker URL (the bare origin string)');
+    check(JSON.parse(t.ls.getItem('pialax_idea_keys_v1'))[A].edit_key === KEY &&
+      JSON.parse(t.ls.getItem('pialax_idea_me_v1'))[A] === 'ashwin-p8' && t.ls.getItem('pialax_proxy_token') === TOKEN &&
+      JSON.parse(t.ls.getItem('pialax_idea_seen_v1'))[A] === '2026-10-11T02:11:00.000Z' && t.ls.getItem('pialax_proxy_url') === contract.worker,
+      'v2 writes the legacy key, identity, token, seen timestamp and bare Worker URL formats');
   }
   {
     const t = loadApp({ ls: seedLs({ pialax_idea_keys_v1: { [A]: { edit_key: KEY, title: '', created_at: 'c' } }, pialax_proxy_token: TOKEN, pialax_watchlist_v2: listOf([A, B]) }) });
     const org = t.api.organizerLink(A), dev = t.api.devicesLink();
-    // PIA-136: on the app's folder, exactly as v1 builds it (index.html sends it to v1 today, to app.html after the cutover)
-    const v1loc = { search: '', hash: '', pathname: '/PIALAX/pialax-mobile.html', origin: ORIGIN, href: ORIGIN + '/PIALAX/pialax-mobile.html', hostname: 'shwinster101.github.io' };
-    const v1w = makeShim().window; v1w.location = v1loc; v1w.localStorage = t.ls;   // v1 reads window.location
-    const v1l = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['tripIdeaOrganizerLink'], { localStorage: t.ls, location: v1loc, window: v1w, console: QUIET }).api;
-    check(org === ORIGIN + '/PIALAX/?idea=' + A + '#k=' + KEY + '&t=' + TOKEN && org === v1l.tripIdeaOrganizerLink(A) && org.indexOf('app.html') < 0 && t.api.organizerLink(B) === '',
-      "the organizer link is v1's own, byte for byte (v1's tripIdeaOrganizerLink): <folder>/?idea=<id>#k=<key>&t=<token>, never naming app.html (only for a trip this phone holds the key to)", [org, v1l.tripIdeaOrganizerLink(A)]);
+    check(org === ORIGIN + '/PIALAX/?idea=' + A + '#k=' + KEY + '&t=' + TOKEN && org.indexOf('app.html') < 0 && t.api.organizerLink(B) === '',
+      'organizer links retain the legacy folder/query/hash format and require that trip key');
     const back = t.api.readLink(new URL(dev).search, new URL(dev).hash, new URL(dev).pathname);
     check(eq(back.ids.sort(), [A, B].sort()) && eq(back.keys, { [A]: KEY }) && back.token === TOKEN, 'the devices link round-trips through the router: every listed id, every key, the token');
   }
@@ -1289,10 +1284,8 @@ function norm(doc) {
     check(L.join === null && eq(L.drop, ['add']) && t.api.readLink('?idea=' + E6 + '&add=Me.LAX', '', '/').join === null, 'without ?idea= (or for the name Me) there is no join request; ?add is still consumed');
   }
   {
-    // AC8 v1's read-only ?tripIdea= link (built here by v1's own encoder) opens a prefilled create sheet; a broken one says so
-    const v1 = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['serializeTripIdeaSharePayload', 'encodeTripIdeaSharePayload', 'createTripIdeaBuilderState'], { console: QUIET }).api;
-    const builder = v1.createTripIdeaBuilderState({ destination: { city: 'Raleigh-Durham', airport: 'RDU' }, dates: { departure: '2026-11-06', return: '2026-11-09' }, constraints: { eventDate: '2026-11-08' } });
-    const raw = v1.encodeTripIdeaSharePayload(v1.serializeTripIdeaSharePayload(builder, { airport: 'RDU', city: 'Raleigh-Durham', departure: '2026-11-06', return: '2026-11-09', totalFare: 955 }, { notes: 'Puja Sunday', timestamp: '2026-10-01T00:00:00.000Z' }));
+    // Frozen v1 builder output opens the same create sheet without carrying its estimated fare.
+    const raw = contract.builder;
     const sp = new URLSearchParams(); sp.set('tripIdea', raw);
     const t = loadApp({ url: BASE + '?' + sp.toString(), ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
     const d = D(t);
