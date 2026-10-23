@@ -28,7 +28,7 @@ async function main() {
   try {
     // Existing word jobs preserve the documented 13/19/3 tap targets and cover booking, prices, cheapest
     // week, Family, failures and concurrent writes. The other suites cover the new Calendar and real map.
-    for (const script of ['test-calendar-browser.js', 'test-words.js', 'test-viewport.mjs', 'test-map-browser.js']) {
+    for (const script of ['test-migration-browser.js', 'test-calendar-browser.js', 'test-words.js', 'test-viewport.mjs', 'test-map-browser.js']) {
       process.stdout.write('\n▶ PIA-145 ' + script + '\n');
       const started = Date.now(), log = [];
       const result = await new Promise((resolve, reject) => {
