@@ -249,7 +249,8 @@ function norm(doc) {
   const hits = mockIds.filter((s) => html.indexOf(s) >= 0);
   check(hits.length === 0, 'none of the prototype or v1 mock / sample / estimator identifiers are in app.html', hits);
   const seeded = (appPart.match(/['"][A-Za-z0-9_-]{22}['"]/g) || []);
-  check(seeded.length === 0 && !/Thanksgiving at home|Diwali|Tahoe|Grandma/.test(html), 'no seeded trip: no trip id literal and no sample trip title in the app', seeded);
+  const withoutImportSource = html.replace(/var HISTORY_STARTERS = [\s\S]*?;\n\/\* PIA-146:/, '/* PIA-146:');
+  check(seeded.length === 0 && !/Thanksgiving at home|Diwali|Tahoe|Grandma/.test(withoutImportSource), 'no automatic seeded trips: historical starter facts live only in the explicit PIA-146 import source; no shared id literal', seeded);
   {
     // PIA-140: fetch is called in exactly two places: api (the free /idea routes, never the token) and paid (GET /search and
     // /account only, the token in the X-Pialax-Token header only); no /extract or /alert route at all

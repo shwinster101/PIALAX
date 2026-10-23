@@ -59,3 +59,12 @@ SemVer git tags on `main` (`v1.0.0` = first baseline, 2026-10-01); rules and his
 - SRI hashes: if cdnjs republishes a pinned file, loads break by design — re-copy the hash from cdnjs and update **both** HTML files.
 
 PIA-145 acceptance evidence and deliberate feature retirements are recorded in `V2_ACCEPTANCE.md`. The job-flow runner starts its own loopback HTTP server, preserves existing tap targets, writes suite logs/report.json to a temporary directory (or `PIALAX_TEST_REPORT_DIR`), and fails if any required suite fails or skips. Install global Playwright plus Chromium, or configure `NODE_PATH` and `PLAYWRIGHT_CHROMIUM_EXECUTABLE`; no package.json is introduced. Calendar uses the selected trip, with daily headcounts and known-trip overlap details; month navigation is view state, never shared trip data.
+
+PIA-146 adds an explicit, organizer-initiated history import and legacy-trip review.
+The frozen historical source is never loaded into the trip list at boot. ⤒ may
+re-read `pialax_watchlist_v1` and discover newer shared IDs/keys; it never writes
+that source. Progress lives in `pialax_transfer_v1`, with Web Locks across tabs.
+Do not clear an uncertain creation or retry its POST: the unchanged Worker has
+no creation-idempotency lookup. The required job-flow gate also runs
+`test-migration-browser.js`; `V2_ACCEPTANCE.md` records the recovery limits and
+the distinction between fixture tests and the actual family's on-device import.

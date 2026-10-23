@@ -83,9 +83,48 @@ Retirements below are explicit design choices under D1/D4, not claims of parity.
 | Debug flags, mock/live badges and unrestricted proxy overrides | Debug/mock presentation retired; settings are limited to the configured CSP Worker peers and explicit organizer access |
 | Root URL / old-page replacement | Staged for PIA-147; this build deliberately keeps v1 serving the family |
 
+## PIA-146 migration and history import
+
+`P-migrate` is offered only with valid organizer access. It reviews the existing
+plan or the confirmed travelers' span, names/faces and notes. It updates the same
+record and preserves member codes, access keys, personal dates, airport picks,
+answers and booking marks. Booked travelers' inherited dates are pinned before
+a plan move. Chosen legacy prices are removed; undated ideas retain their window.
+Fresh reads reject a stale review before writing. Partial steps are journalled,
+and a lost update reply is recognized from its resulting record rather than
+blindly repeated. A changed record requires review again.
+
+Settings' explicit ⤒ import reconstructs v1's six real starter records with its
+existing corrections, local overrides and added items. It also discovers live
+shared IDs/keys added since this phone first opened v2. Linked trips are reused;
+new records require review of dates, travelers and the shortened shared note.
+Original notes can be read in pages, and a source-only JSON backup preserves
+the full original storage and resolved records without keys or tokens. The v1
+storage is never modified. Importing a past booking marks confirmed travelers,
+not a fabricated payment. Postponed Cary is dropped without attendance; NYC
+keeps its absent return, shows its known departure and has no invented continuous
+Calendar presence. London uses four people and Anjo's historical JAX origin.
+
+`pialax_transfer_v1` holds per-phone progress, source mappings and migration
+steps. Web Locks serialize imports across tabs. Unsupported locking, corrupt
+progress or unavailable durable storage stops creation. Confirmed creations
+resume remaining writes after reload; known matching shared history is reused.
+There is no global list: another phone must receive the shared IDs before it can
+recognize those records. The unchanged Worker generates a random ID/key on
+creation and has no idempotency lookup. If its creation response is lost, that
+source is marked uncertain and cannot be blindly retried. This is a deliberate
+duplicate-prevention stop, not a claim of automatic recovery of unknown IDs.
+
+`test-migration-browser.js` runs real Chromium against the in-process Worker,
+covering the three mobile widths and both themes, storage/source compatibility,
+partial and lost writes, stale reviews, booking protection, history, word budgets,
+44px targets and no paid requests. It is required by the job-flow preflight gate.
+These are fixture migrations; no family's live shared records are changed by tests.
+
 ## Remaining cutover requirements
 
-- PIA-146 brings the family's existing history and live legacy trips across.
+- Use PIA-146's review/import on the organizer's actual phone and reconcile the
+  resulting shared IDs before PIA-147. A green fixture suite is not a live-data import.
 - PIA-147 switches entry URLs, preserving query strings and hashes, only after migration.
 - Record the two-person shared-list comprehension check and Mom & Dad icon check.
 - Complete previously recorded real-device booking-return, keyboard and calendar-file checks and the real adults=2 fare-price verification. Browser fixtures are not proof of a provider's live party-price convention.

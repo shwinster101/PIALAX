@@ -511,6 +511,7 @@ function tripModel(doc, ctx) {
   var N = parseNotes(I.notes);
   var dts = I.dates || {};
   var plan = docPlan(doc);
+  var departureOnly = !plan && isIso(dts.departure) && !dts.return ? dts.departure : '';
   var nights = plan ? diffD(plan.s, plan.e) : (N.nights || null);
   var explicitWin = isIso(dts.searchStart) && isIso(dts.searchEnd) && dts.searchStart <= dts.searchEnd;
   var win = explicitWin ? { s: dts.searchStart, e: dts.searchEnd } : (plan ? { s: addD(plan.s, -FLEX_DAYS), e: addD(plan.e, FLEX_DAYS) } : null);
@@ -595,7 +596,7 @@ function tripModel(doc, ctx) {
   members.forEach(function (x) { heads += x.headcount; if (x.status === 'in' || x.status === 'host-default') headsIn += x.headcount; });
   var me = ctx.me ? members.filter(function (x) { return x.code === ctx.me; })[0] || null : null;
   var org = !!ctx.hasEditKey, prices = org && !!ctx.hasToken;
-  var shelf = !!((plan && plan.e < today) || decision === 'dropped' || ctx.hidden);
+  var shelf = !!((plan && plan.e < today) || (departureOnly && departureOnly < today) || decision === 'dropped' || ctx.hidden);
   var bookBy = plan ? addD(plan.s, -BOOK_BY_DAYS) : null;
   var cityInfo = airportInfo(dest);
   var model = {
@@ -603,7 +604,7 @@ function tripModel(doc, ctx) {
     dest: dest, city: cityInfo.city || (I.destination && I.destination.city) || '', lat: cityInfo.lat, lon: cityInfo.lon,
     legacy: legacy, legacyLock: legacy && decision === 'chosen',
     hub: hub, alt: alt, local: loc, drive: alt ? DRIVE[hub.join('|')] || '' : '',
-    plan: plan, nights: nights, win: win, explicitWin: explicitWin, span: span, undated: !plan,
+    plan: plan, departureOnly: departureOnly, nights: nights, win: win, explicitWin: explicitWin, span: span, undated: !plan,
     pin: N.pin, nightsN: N.nights, caption: N.caption.trim(),
     stage: stage, decision: decision, locked: (decision === 'chosen' && !legacy) || decision === 'booked',
     closed: decision === 'booked' || decision === 'dropped',
@@ -1411,25 +1412,252 @@ function migrateOptions(doc, v1raw) {
    one answer per member whose own window now equals the plan, sent blank (follows the plan). */
 function migrateRequests(fresh, editKey, choice) {
   choice = choice || {};
-  if (!fresh || !fresh.idea || !choice.plan || !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s) return null;
+  if (!fresh || !fresh.idea || (choice.plan ? !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s : !!docPlan(fresh))) return null;
   var rec = fresh.idea.recommendation || {}, ap = normIata(rec.airport) || docDest(fresh);
   var city = airportInfo(ap).city || clip(rec.city || (fresh.idea.destination && fresh.idea.destination.city), TEXT_MAX.city);
   var labels = {}; (choice.labels || []).forEach(function (x) { if (x && x.code) labels[x.code] = x.label; });
   var delta = {
     destination: { airport: ap, city: city },
-    dates: { departure: choice.plan.s, return: choice.plan.e },
+    dates: choice.plan ? { departure: choice.plan.s, return: choice.plan.e } : cleanDates(fresh.idea.dates),
     pin: hasOwn(choice, 'pin') ? choice.pin : parseNotes(fresh.idea.notes).pin,
     members: (fresh.idea.members || []).map(function (m) { return { code: m.code, label: labels[m.code] || migrateLabel(m) }; })
   };
-  if (fresh.decision && fresh.decision.stage === 'chosen') delta.decision = { stage: 'chosen' };   // re-chosen on the migrated idea, with no price
+  if (choice.plan && delta.pin && (delta.pin < choice.plan.s || delta.pin > choice.plan.e)) return null;
+  if (fresh.decision && fresh.decision.stage === 'chosen' && choice.plan) delta.decision = { stage: 'chosen' };   // re-chosen on the migrated idea, with no price
+  // A migrated plan cannot move a booked traveler's implicit dates. Pin them before the update.
+  var before = [], oldPlan = docPlan(fresh), R = JSON.parse(JSON.stringify(fresh.responses || {}));
+  var moves = oldPlan && choice.plan && (oldPlan.s !== choice.plan.s || oldPlan.e !== choice.plan.e);
+  if (docClosed(fresh) && moves) return null;
+  if (moves) Object.keys(R).forEach(function (c) {
+    var r = R[c]; if (!r || !r.booked || (r.available_from && r.available_to)) return;
+    var patch = { available_from: r.available_from || oldPlan.s, available_to: r.available_to || oldPlan.e };
+    var q = respondRequest(fresh, c, patch, { by: 'keep' });
+    if (q) { before.push(q); R[c] = Object.assign({}, r, patch); }
+  });
+  // Adding structure must never silently clip an existing caption.
+  var caption = hasOwn(choice, 'caption') ? choice.caption : parseNotes(fresh.idea.notes).caption;
+  if (buildNotes(delta.pin, null, caption).length < ((delta.pin ? '📌' + delta.pin + (String(caption || '').trim() ? ' ' : '') : '') + String(caption || '').trim()).length) return null;
+  if (hasOwn(choice, 'caption')) delta.caption = choice.caption;
   var up = updateRequest(fresh, editKey, delta, { migrate: true });
   if (!up) return null;
-  var after = { id: fresh.id, idea: up.body.idea, responses: fresh.responses || {}, decision: fresh.decision }, out = [up];
-  Object.keys(fresh.responses || {}).forEach(function (c) {
-    var r = validResp(fresh.responses[c]);
-    if (!r || r.available_from !== choice.plan.s || r.available_to !== choice.plan.e) return;
+  var after = { id: fresh.id, idea: up.body.idea, responses: R, decision: fresh.decision }, out = before.concat([up]);
+  Object.keys(R).forEach(function (c) {
+    var r = validResp(R[c]);
+    if (!choice.plan || docClosed(fresh) || !r || r.booked || r.available_from !== choice.plan.s || r.available_to !== choice.plan.e) return;
     var q = respondRequest(after, c, { available_from: '', available_to: '' }, { by: 'keep' });
     if (q) out.push(q);
+  });
+  return out;
+}
+
+var HISTORY_STARTERS = [
+  {
+    "id": "nyc",
+    "mode": "solo",
+    "title": "NYC — First visit to Anjo (booked)",
+    "routeTxt": "LAX → JFK (one-way · chains into Memphis)",
+    "origin": "LAX",
+    "dest": "JFK",
+    "dep": "2026-08-28",
+    "ret": null,
+    "stage": "booked",
+    "notes": "Booked: B6 424 LAX 9:49a → JFK 6:24p, Fri Aug 28. First NYC visit since the move. No return leg on purpose — Mon Aug 31 continues LGA → MEM for the work week.",
+    "reminders": [
+      "Anjo meets at JFK Friday evening"
+    ],
+    "nextAction": "",
+    "blockers": [],
+    "gf": {
+      "from": "LAX",
+      "to": "JFK"
+    }
+  },
+  {
+    "id": "memphis",
+    "mode": "solo",
+    "title": "Memphis — Work trip",
+    "routeTxt": "LGA → MEM · MEM → LAX (via DFW)",
+    "origin": "LGA",
+    "dest": "MEM",
+    "dep": "2026-08-31",
+    "ret": "2026-09-03",
+    "stage": "booked",
+    "notes": "BOOKED: DL 4903 LGA 8:41a → MEM 10:36a, Mon Aug 31 — departs from NYC, chained after the Anjo visit. Return Thu Sep 3: AA 3932 MEM 7:31p → DFW 9:20p, AA 1913 DFW 10:45p → LAX 11:57p — home the night before Peru.",
+    "reminders": [],
+    "nextAction": "",
+    "blockers": [],
+    "gf": {
+      "from": "LGA",
+      "to": "MEM"
+    }
+  },
+  {
+    "id": "peru",
+    "key": "peru",
+    "mode": "solo",
+    "title": "Peru — Machu Picchu (solo)",
+    "routeTxt": "LAX → SCL → LIM → CUZ · LIM → LAX",
+    "origin": "LAX",
+    "dest": "CUZ",
+    "dep": "2026-09-04",
+    "ret": "2026-09-13",
+    "stage": "completed",
+    "notes": "BOOKED: LATAM via Santiago (not the direct red-eye the plan assumed) — LA 603 LAX 3:55p Sep 4 → SCL 5:35a+1 · LA 650 SCL 7:50a → LIM 10:45a · LA 2028 LIM 1:05p → CUZ 2:25p Sep 5. Lands 2.5h before the 17:00 briefing. Return LA 2224 CUZ 9:20p Sep 12 → LIM · LA 2478 LIM 12:40a → LAX 7:50a Sep 13. Trek was already booked ($1,200).",
+    "reminders": [
+      "Trek briefing 17:00 Sep 5 · trek operator office",
+      "Passport valid 6+ months from entry",
+      "A friend is also in Cusco Sep 5–12"
+    ],
+    "nextAction": "",
+    "blockers": [],
+    "gf": {
+      "from": "LAX",
+      "to": "CUZ",
+      "openjaw": true
+    }
+  },
+  {
+    "id": "thanksgiving",
+    "key": null,
+    "mode": "family",
+    "title": "🦃 Thanksgiving at home — Peoria",
+    "routeTxt": "Ashwin (LAX) + Anjo (LGA) → PIA Fri Nov 20 · home from ORD Sun Nov 29 · Mom & Dad host",
+    "hub": "PIA",
+    "dep": "2026-11-20",
+    "ret": "2026-11-29",
+    "eventDate": "2026-11-26",
+    "stage": "planning",
+    "bookBy": "2026-11-01",
+    "notes": "Thanksgiving at Mom & Dad’s in Peoria, with the Peoria parade. Plan: fly in direct to PIA Fri Nov 20, fly home from ORD Sun Nov 29 (two one-ways). Arrivals can still be staggered — everyone picks their own arrive / leave dates on the RSVP link.",
+    "reminders": [
+      "Send the RSVP link to the family group text",
+      "Thanksgiving-week fares rise fast — book soon after everyone answers"
+    ],
+    "nextAction": "Ask the family — everyone picks arrive / leave",
+    "blockers": [
+      "dates"
+    ],
+    "calendarEvents": [
+      {
+        "title": "Thanksgiving dinner — Peoria",
+        "start": "2026-11-26",
+        "end": "2026-11-27",
+        "location": "Peoria, IL",
+        "notes": "At Mom & Dad’s"
+      }
+    ],
+    "gf": {
+      "from": "LAX",
+      "to": "PIA",
+      "returnFrom": "ORD"
+    }
+  },
+  {
+    "id": "tgiving",
+    "key": null,
+    "mode": "family",
+    "title": "🦃 Cary baby shower — postponed",
+    "routeTxt": "Was: Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU",
+    "hub": "RDU",
+    "dep": "2026-11-26",
+    "ret": "2026-11-29",
+    "eventDate": null,
+    "stage": "completed",
+    "notes": "Postponed — the shower is being rescheduled. Kept in history; move back to Planning with new dates when it is set.",
+    "reminders": [],
+    "nextAction": "Postponed — revive when the shower is rescheduled",
+    "blockers": [],
+    "gf": {
+      "from": "LGA",
+      "to": "RDU"
+    }
+  },
+  {
+    "id": "london",
+    "key": "london",
+    "mode": "family",
+    "title": "London — Family trip",
+    "routeTxt": "PIA + LAX + JAX → LHR",
+    "hub": "LHR",
+    "dep": "2026-06-25",
+    "ret": "2026-07-03",
+    "stage": "completed",
+    "notes": "Completed — flew Jun 25, returned Jul 3.",
+    "reminders": [],
+    "gf": {
+      "from": "LAX",
+      "to": "LHR"
+    }
+  }
+];
+/* PIA-146: an explicit import source, never fed into the list or model on boot. The frozen starter
+   records are v1's real family history; the caller overlays this phone's v1 storage, then reviews each
+   item before creating a shared doc. No fare or recommendation is copied into a shared price. */
+function historyItems(raw, today) {
+  var stored = raw == null || raw === '' ? { overrides: {}, added: [] } : readV1Storage(raw);
+  if (!stored || Array.isArray(stored) || (stored.overrides && (typeof stored.overrides !== 'object' || Array.isArray(stored.overrides))) || (stored.added && !Array.isArray(stored.added))) return null;
+  var list = JSON.parse(JSON.stringify(HISTORY_STARTERS)), over = JSON.parse(JSON.stringify(stored.overrides || {}));
+  // v1's targeted corrections, applied to a copy; the original storage is never changed.
+  if (over.peru && over.peru.dep === '2026-09-05') delete over.peru.dep;
+  if (over.thanksgiving && over.thanksgiving.dep === '2026-11-25') delete over.thanksgiving.dep;
+  if (over.tgiving) ['stage', 'dep', 'ret', 'eventDate', 'nextAction', 'blockers'].forEach(function (k) { delete over.tgiving[k]; });
+  if (over.peru && over.peru.stage === 'booked') delete over.peru.stage;
+  ['peru', 'memphis'].forEach(function (id) {
+    var o = over[id]; if (!o) return;
+    if (o.stage === 'watching' || o.stage === 'planning') delete o.stage;
+    delete o.dep; delete o.ret;
+  });
+  list.forEach(function (t) {
+    var o = over[t.id]; if (!o || typeof o !== 'object') return;
+    ['stage', 'sharedIdeaId', 'notes', 'nextAction', 'dep', 'ret', 'eventDate', 'blockers'].forEach(function (k) {
+      if (!hasOwn(o, k)) return;
+      if (k === 'dep' || k === 'ret' || k === 'eventDate') { if (isIso(o[k])) t[k] = o[k]; }
+      else t[k] = o[k];
+    });
+  });
+  (stored.added || []).forEach(function (a) {
+    if (!a || typeof a !== 'object' || typeof a.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || /^(?:__proto__|constructor|prototype)$/.test(a.id) || list.some(function (t) { return t.id === a.id; })) return;
+    var end = a.ret || a.dep;
+    // v1's date-scoped duplicates of the NYC / Memphis starters.
+    if (a.mode === 'solo' && /^(NYC|JFK|LGA|EWR)$/i.test(String(a.dest || '')) && a.dep >= '2026-08-26' && a.dep <= '2026-09-01') return;
+    if (a.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(a.dest || '')) && a.dep && a.dep <= '2026-09-04' && end >= '2026-08-31') return;
+    var copy = JSON.parse(JSON.stringify(a)), codeRe = /^[A-Za-z0-9_-]{1,32}$/, destRe = copy.mode === 'family' ? /^[A-Za-z0-9 _&.,'-]{1,48}$/ : codeRe;
+    if (['origin', 'hub', 'key'].some(function (k) { return copy[k] != null && (typeof copy[k] !== 'string' || !codeRe.test(copy[k])); }) || copy.dest != null && (typeof copy.dest !== 'string' || !destRe.test(copy.dest))) return;
+    if (copy.gf && (copy.gf.from != null && !codeRe.test(String(copy.gf.from)) || copy.gf.to != null && !destRe.test(String(copy.gf.to)))) return;
+    ['dep', 'ret', 'eventDate'].forEach(function (k) { if (copy[k] != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(copy[k]))) copy[k] = null; });
+    if (copy.sharedIdeaId != null && !IDEA_ID_RE.test(String(copy.sharedIdeaId))) delete copy.sharedIdeaId;
+    if (['watching', 'planning', 'booked', 'completed'].indexOf(copy.stage) < 0) copy.stage = 'watching';
+    copy.mode = copy.mode === 'family' ? 'family' : 'solo';
+    list.push(copy);
+  });
+  return list.map(function (t) {
+    var postponed = t.id === 'tgiving' || /postponed/i.test(String(t.title || '') + ' ' + String(t.notes || ''));
+    var end = t.ret || t.dep, past = isIso(end) && end < today;
+    return { key: t.id, source: t, linked: IDEA_ID_RE.test(String(t.sharedIdeaId || '')) ? t.sharedIdeaId : '',
+      stage: postponed ? 'dropped' : (t.stage === 'completed' || t.stage === 'booked' ? 'booked' : 'proposed'),
+      archive: postponed || t.stage === 'completed' || (t.stage === 'booked' && past) };
+  });
+}
+function historyDraft(item, today) {
+  var t = item.source, family = t.mode === 'family', known = HISTORY_STARTERS.some(function (s) { return s.id === item.key; });
+  return { title: String(t.title || ''), dest: { airport: normIata(t.hub) || normIata(t.dest) || normIata(t.gf && t.gf.to) },
+    dates: { departure: isIso(t.dep) ? t.dep : '', return: isIso(t.ret) ? t.ret : '' }, pin: isIso(t.eventDate) ? t.eventDate : '',
+    caption: firstWords(String(t.notes || ''), 12).text.slice(0, 480),
+    members: family ? familyPreset(t.dep, today).map(function (m) { return { name: m.name, face: m.face, airport: m.airport, headcount: m.headcount }; }) :
+      [{ name: known ? 'Ashwin' : '', face: '🌴', airport: normIata(t.origin) || normIata(t.gf && t.gf.from), headcount: 1 }],
+    stage: item.stage, archive: item.archive };
+}
+/* Booking marks record a reviewed historical booking, never an invented payment. Postponed imports close
+   without any In answers. Active imports invite people but do not answer for them. Safe to rebuild on retry. */
+function historyFinishRequests(doc, key, draft) {
+  if (!doc || docClosed(doc)) return [];
+  if (draft.stage === 'dropped') { var drop = updateRequest(doc, key, { decision: { stage: 'dropped' } }); return drop ? [drop] : null; }
+  if (draft.stage !== 'booked') return [];
+  var out = [], current = doc;
+  (doc.idea.members || []).forEach(function (m) {
+    var r = validResp((doc.responses || {})[m.code]);
+    if (!r) { var q = respondRequest(current, m.code, { status: 'in' }, { by: 'keep' }); if (q) out.push(q); }
+    if ((!r || !r.booked) && localSet(docDest(doc)).indexOf(normIata(m.airport)) < 0) { var qs = bookedRequests(current, m.code, true, { by: 'keep' }); if (qs) { if (!r) qs = qs.filter(function (q) { return q.path.indexOf('/idea/booked') === 0; }); out = out.concat(qs); } }
   });
   return out;
 }
@@ -2331,6 +2559,7 @@ if (typeof module !== 'undefined' && module.exports) {
     memberCode: memberCode, createRequest: createRequest, respondRequest: respondRequest, bookedRequests: bookedRequests,
     updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit,
     migrateOptions: migrateOptions, migrateRequests: migrateRequests,
+    historyItems: historyItems, historyDraft: historyDraft, historyFinishRequests: historyFinishRequests,
     LIST_LINK_MAX: LIST_LINK_MAX, answerTimes: answerTimes, newestAnswerAt: newestAnswerAt, newAnswers: newAnswers, awaitsMe: awaitsMe, bookByCue: bookByCue, togoCue: togoCue,
     tripGroups: tripGroups, familyBoard: familyBoard, listLink: listLink, US_MAP: US_MAP, usPoint: usPoint, mapXY: mapXY,
     NAME_WORDS: NAME_WORDS, TITLE_WORDS: TITLE_WORDS, CAPTION_WORDS: CAPTION_WORDS, NAME_CHARS: NAME_CHARS, TITLE_CHARS: TITLE_CHARS,

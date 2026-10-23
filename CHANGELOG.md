@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-146) — Review legacy trips and import family history
+- Organizers can update a legacy shared trip in place, reviewing dates and identities before saving. The event day, member codes, access, personal windows, airport choices and bookings survive; a moved plan pins a booked traveler's inherited dates first. Chosen legacy estimates are cleared. Undated ideas keep their existing window.
+- Settings offers an explicit history import with date, traveler and shared-note review. It reconstructs v1's real starter history plus saved changes and added trips, reuses shared records, preserves NYC's absent return and treats postponed Cary as dropped. Original source storage stays unchanged and can be downloaded without organizer credentials. Nothing imports automatically or searches for fares.
+- Durable progress and cross-tab locks prevent repeated creations; confirmed partial updates resume after reload. A lost creation response blocks blind retries because the existing Worker cannot recover the generated ID/key. The new Chromium suite joins required preflight. Entry URLs and the PIA-147 cutover remain unchanged.
+
 ### Added (PIA-145) — Required browser job-flow gate and purpose review
 - Preflight now requires Chromium and runs the full word/tap-count jobs, Calendar, v2 viewport assertions and verified-map jobs through one non-skipping runner. It starts its own local HTTP server, records per-suite logs and a JSON report, and blocks on a missing browser, skip, timeout or failed assertion. Existing 13/19-tap creation and three-step RSVP targets remain checked.
 - Adds cross-screen agreement, failed-write, cross-phone RSVP, year-boundary, crowded day and Calendar glyph coverage. Calendar month arrows and holidays are now included in ⓘ, while the pinned event's own picture is identified as a trip picture.

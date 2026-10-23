@@ -1403,6 +1403,7 @@ function tripModel(doc, ctx) {
   var N = parseNotes(I.notes);
   var dts = I.dates || {};
   var plan = docPlan(doc);
+  var departureOnly = !plan && isIso(dts.departure) && !dts.return ? dts.departure : '';
   var nights = plan ? diffD(plan.s, plan.e) : (N.nights || null);
   var explicitWin = isIso(dts.searchStart) && isIso(dts.searchEnd) && dts.searchStart <= dts.searchEnd;
   var win = explicitWin ? { s: dts.searchStart, e: dts.searchEnd } : (plan ? { s: addD(plan.s, -FLEX_DAYS), e: addD(plan.e, FLEX_DAYS) } : null);
@@ -1487,7 +1488,7 @@ function tripModel(doc, ctx) {
   members.forEach(function (x) { heads += x.headcount; if (x.status === 'in' || x.status === 'host-default') headsIn += x.headcount; });
   var me = ctx.me ? members.filter(function (x) { return x.code === ctx.me; })[0] || null : null;
   var org = !!ctx.hasEditKey, prices = org && !!ctx.hasToken;
-  var shelf = !!((plan && plan.e < today) || decision === 'dropped' || ctx.hidden);
+  var shelf = !!((plan && plan.e < today) || (departureOnly && departureOnly < today) || decision === 'dropped' || ctx.hidden);
   var bookBy = plan ? addD(plan.s, -BOOK_BY_DAYS) : null;
   var cityInfo = airportInfo(dest);
   var model = {
@@ -1495,7 +1496,7 @@ function tripModel(doc, ctx) {
     dest: dest, city: cityInfo.city || (I.destination && I.destination.city) || '', lat: cityInfo.lat, lon: cityInfo.lon,
     legacy: legacy, legacyLock: legacy && decision === 'chosen',
     hub: hub, alt: alt, local: loc, drive: alt ? DRIVE[hub.join('|')] || '' : '',
-    plan: plan, nights: nights, win: win, explicitWin: explicitWin, span: span, undated: !plan,
+    plan: plan, departureOnly: departureOnly, nights: nights, win: win, explicitWin: explicitWin, span: span, undated: !plan,
     pin: N.pin, nightsN: N.nights, caption: N.caption.trim(),
     stage: stage, decision: decision, locked: (decision === 'chosen' && !legacy) || decision === 'booked',
     closed: decision === 'booked' || decision === 'dropped',
@@ -2303,25 +2304,252 @@ function migrateOptions(doc, v1raw) {
    one answer per member whose own window now equals the plan, sent blank (follows the plan). */
 function migrateRequests(fresh, editKey, choice) {
   choice = choice || {};
-  if (!fresh || !fresh.idea || !choice.plan || !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s) return null;
+  if (!fresh || !fresh.idea || (choice.plan ? !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s : !!docPlan(fresh))) return null;
   var rec = fresh.idea.recommendation || {}, ap = normIata(rec.airport) || docDest(fresh);
   var city = airportInfo(ap).city || clip(rec.city || (fresh.idea.destination && fresh.idea.destination.city), TEXT_MAX.city);
   var labels = {}; (choice.labels || []).forEach(function (x) { if (x && x.code) labels[x.code] = x.label; });
   var delta = {
     destination: { airport: ap, city: city },
-    dates: { departure: choice.plan.s, return: choice.plan.e },
+    dates: choice.plan ? { departure: choice.plan.s, return: choice.plan.e } : cleanDates(fresh.idea.dates),
     pin: hasOwn(choice, 'pin') ? choice.pin : parseNotes(fresh.idea.notes).pin,
     members: (fresh.idea.members || []).map(function (m) { return { code: m.code, label: labels[m.code] || migrateLabel(m) }; })
   };
-  if (fresh.decision && fresh.decision.stage === 'chosen') delta.decision = { stage: 'chosen' };   // re-chosen on the migrated idea, with no price
+  if (choice.plan && delta.pin && (delta.pin < choice.plan.s || delta.pin > choice.plan.e)) return null;
+  if (fresh.decision && fresh.decision.stage === 'chosen' && choice.plan) delta.decision = { stage: 'chosen' };   // re-chosen on the migrated idea, with no price
+  // A migrated plan cannot move a booked traveler's implicit dates. Pin them before the update.
+  var before = [], oldPlan = docPlan(fresh), R = JSON.parse(JSON.stringify(fresh.responses || {}));
+  var moves = oldPlan && choice.plan && (oldPlan.s !== choice.plan.s || oldPlan.e !== choice.plan.e);
+  if (docClosed(fresh) && moves) return null;
+  if (moves) Object.keys(R).forEach(function (c) {
+    var r = R[c]; if (!r || !r.booked || (r.available_from && r.available_to)) return;
+    var patch = { available_from: r.available_from || oldPlan.s, available_to: r.available_to || oldPlan.e };
+    var q = respondRequest(fresh, c, patch, { by: 'keep' });
+    if (q) { before.push(q); R[c] = Object.assign({}, r, patch); }
+  });
+  // Adding structure must never silently clip an existing caption.
+  var caption = hasOwn(choice, 'caption') ? choice.caption : parseNotes(fresh.idea.notes).caption;
+  if (buildNotes(delta.pin, null, caption).length < ((delta.pin ? '📌' + delta.pin + (String(caption || '').trim() ? ' ' : '') : '') + String(caption || '').trim()).length) return null;
+  if (hasOwn(choice, 'caption')) delta.caption = choice.caption;
   var up = updateRequest(fresh, editKey, delta, { migrate: true });
   if (!up) return null;
-  var after = { id: fresh.id, idea: up.body.idea, responses: fresh.responses || {}, decision: fresh.decision }, out = [up];
-  Object.keys(fresh.responses || {}).forEach(function (c) {
-    var r = validResp(fresh.responses[c]);
-    if (!r || r.available_from !== choice.plan.s || r.available_to !== choice.plan.e) return;
+  var after = { id: fresh.id, idea: up.body.idea, responses: R, decision: fresh.decision }, out = before.concat([up]);
+  Object.keys(R).forEach(function (c) {
+    var r = validResp(R[c]);
+    if (!choice.plan || docClosed(fresh) || !r || r.booked || r.available_from !== choice.plan.s || r.available_to !== choice.plan.e) return;
     var q = respondRequest(after, c, { available_from: '', available_to: '' }, { by: 'keep' });
     if (q) out.push(q);
+  });
+  return out;
+}
+
+var HISTORY_STARTERS = [
+  {
+    "id": "nyc",
+    "mode": "solo",
+    "title": "NYC — First visit to Anjo (booked)",
+    "routeTxt": "LAX → JFK (one-way · chains into Memphis)",
+    "origin": "LAX",
+    "dest": "JFK",
+    "dep": "2026-08-28",
+    "ret": null,
+    "stage": "booked",
+    "notes": "Booked: B6 424 LAX 9:49a → JFK 6:24p, Fri Aug 28. First NYC visit since the move. No return leg on purpose — Mon Aug 31 continues LGA → MEM for the work week.",
+    "reminders": [
+      "Anjo meets at JFK Friday evening"
+    ],
+    "nextAction": "",
+    "blockers": [],
+    "gf": {
+      "from": "LAX",
+      "to": "JFK"
+    }
+  },
+  {
+    "id": "memphis",
+    "mode": "solo",
+    "title": "Memphis — Work trip",
+    "routeTxt": "LGA → MEM · MEM → LAX (via DFW)",
+    "origin": "LGA",
+    "dest": "MEM",
+    "dep": "2026-08-31",
+    "ret": "2026-09-03",
+    "stage": "booked",
+    "notes": "BOOKED: DL 4903 LGA 8:41a → MEM 10:36a, Mon Aug 31 — departs from NYC, chained after the Anjo visit. Return Thu Sep 3: AA 3932 MEM 7:31p → DFW 9:20p, AA 1913 DFW 10:45p → LAX 11:57p — home the night before Peru.",
+    "reminders": [],
+    "nextAction": "",
+    "blockers": [],
+    "gf": {
+      "from": "LGA",
+      "to": "MEM"
+    }
+  },
+  {
+    "id": "peru",
+    "key": "peru",
+    "mode": "solo",
+    "title": "Peru — Machu Picchu (solo)",
+    "routeTxt": "LAX → SCL → LIM → CUZ · LIM → LAX",
+    "origin": "LAX",
+    "dest": "CUZ",
+    "dep": "2026-09-04",
+    "ret": "2026-09-13",
+    "stage": "completed",
+    "notes": "BOOKED: LATAM via Santiago (not the direct red-eye the plan assumed) — LA 603 LAX 3:55p Sep 4 → SCL 5:35a+1 · LA 650 SCL 7:50a → LIM 10:45a · LA 2028 LIM 1:05p → CUZ 2:25p Sep 5. Lands 2.5h before the 17:00 briefing. Return LA 2224 CUZ 9:20p Sep 12 → LIM · LA 2478 LIM 12:40a → LAX 7:50a Sep 13. Trek was already booked ($1,200).",
+    "reminders": [
+      "Trek briefing 17:00 Sep 5 · trek operator office",
+      "Passport valid 6+ months from entry",
+      "A friend is also in Cusco Sep 5–12"
+    ],
+    "nextAction": "",
+    "blockers": [],
+    "gf": {
+      "from": "LAX",
+      "to": "CUZ",
+      "openjaw": true
+    }
+  },
+  {
+    "id": "thanksgiving",
+    "key": null,
+    "mode": "family",
+    "title": "🦃 Thanksgiving at home — Peoria",
+    "routeTxt": "Ashwin (LAX) + Anjo (LGA) → PIA Fri Nov 20 · home from ORD Sun Nov 29 · Mom & Dad host",
+    "hub": "PIA",
+    "dep": "2026-11-20",
+    "ret": "2026-11-29",
+    "eventDate": "2026-11-26",
+    "stage": "planning",
+    "bookBy": "2026-11-01",
+    "notes": "Thanksgiving at Mom & Dad’s in Peoria, with the Peoria parade. Plan: fly in direct to PIA Fri Nov 20, fly home from ORD Sun Nov 29 (two one-ways). Arrivals can still be staggered — everyone picks their own arrive / leave dates on the RSVP link.",
+    "reminders": [
+      "Send the RSVP link to the family group text",
+      "Thanksgiving-week fares rise fast — book soon after everyone answers"
+    ],
+    "nextAction": "Ask the family — everyone picks arrive / leave",
+    "blockers": [
+      "dates"
+    ],
+    "calendarEvents": [
+      {
+        "title": "Thanksgiving dinner — Peoria",
+        "start": "2026-11-26",
+        "end": "2026-11-27",
+        "location": "Peoria, IL",
+        "notes": "At Mom & Dad’s"
+      }
+    ],
+    "gf": {
+      "from": "LAX",
+      "to": "PIA",
+      "returnFrom": "ORD"
+    }
+  },
+  {
+    "id": "tgiving",
+    "key": null,
+    "mode": "family",
+    "title": "🦃 Cary baby shower — postponed",
+    "routeTxt": "Was: Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU",
+    "hub": "RDU",
+    "dep": "2026-11-26",
+    "ret": "2026-11-29",
+    "eventDate": null,
+    "stage": "completed",
+    "notes": "Postponed — the shower is being rescheduled. Kept in history; move back to Planning with new dates when it is set.",
+    "reminders": [],
+    "nextAction": "Postponed — revive when the shower is rescheduled",
+    "blockers": [],
+    "gf": {
+      "from": "LGA",
+      "to": "RDU"
+    }
+  },
+  {
+    "id": "london",
+    "key": "london",
+    "mode": "family",
+    "title": "London — Family trip",
+    "routeTxt": "PIA + LAX + JAX → LHR",
+    "hub": "LHR",
+    "dep": "2026-06-25",
+    "ret": "2026-07-03",
+    "stage": "completed",
+    "notes": "Completed — flew Jun 25, returned Jul 3.",
+    "reminders": [],
+    "gf": {
+      "from": "LAX",
+      "to": "LHR"
+    }
+  }
+];
+/* PIA-146: an explicit import source, never fed into the list or model on boot. The frozen starter
+   records are v1's real family history; the caller overlays this phone's v1 storage, then reviews each
+   item before creating a shared doc. No fare or recommendation is copied into a shared price. */
+function historyItems(raw, today) {
+  var stored = raw == null || raw === '' ? { overrides: {}, added: [] } : readV1Storage(raw);
+  if (!stored || Array.isArray(stored) || (stored.overrides && (typeof stored.overrides !== 'object' || Array.isArray(stored.overrides))) || (stored.added && !Array.isArray(stored.added))) return null;
+  var list = JSON.parse(JSON.stringify(HISTORY_STARTERS)), over = JSON.parse(JSON.stringify(stored.overrides || {}));
+  // v1's targeted corrections, applied to a copy; the original storage is never changed.
+  if (over.peru && over.peru.dep === '2026-09-05') delete over.peru.dep;
+  if (over.thanksgiving && over.thanksgiving.dep === '2026-11-25') delete over.thanksgiving.dep;
+  if (over.tgiving) ['stage', 'dep', 'ret', 'eventDate', 'nextAction', 'blockers'].forEach(function (k) { delete over.tgiving[k]; });
+  if (over.peru && over.peru.stage === 'booked') delete over.peru.stage;
+  ['peru', 'memphis'].forEach(function (id) {
+    var o = over[id]; if (!o) return;
+    if (o.stage === 'watching' || o.stage === 'planning') delete o.stage;
+    delete o.dep; delete o.ret;
+  });
+  list.forEach(function (t) {
+    var o = over[t.id]; if (!o || typeof o !== 'object') return;
+    ['stage', 'sharedIdeaId', 'notes', 'nextAction', 'dep', 'ret', 'eventDate', 'blockers'].forEach(function (k) {
+      if (!hasOwn(o, k)) return;
+      if (k === 'dep' || k === 'ret' || k === 'eventDate') { if (isIso(o[k])) t[k] = o[k]; }
+      else t[k] = o[k];
+    });
+  });
+  (stored.added || []).forEach(function (a) {
+    if (!a || typeof a !== 'object' || typeof a.id !== 'string' || !/^[A-Za-z0-9_-]{1,32}$/.test(a.id) || /^(?:__proto__|constructor|prototype)$/.test(a.id) || list.some(function (t) { return t.id === a.id; })) return;
+    var end = a.ret || a.dep;
+    // v1's date-scoped duplicates of the NYC / Memphis starters.
+    if (a.mode === 'solo' && /^(NYC|JFK|LGA|EWR)$/i.test(String(a.dest || '')) && a.dep >= '2026-08-26' && a.dep <= '2026-09-01') return;
+    if (a.mode === 'solo' && /^(MEM|MEMPHIS)$/i.test(String(a.dest || '')) && a.dep && a.dep <= '2026-09-04' && end >= '2026-08-31') return;
+    var copy = JSON.parse(JSON.stringify(a)), codeRe = /^[A-Za-z0-9_-]{1,32}$/, destRe = copy.mode === 'family' ? /^[A-Za-z0-9 _&.,'-]{1,48}$/ : codeRe;
+    if (['origin', 'hub', 'key'].some(function (k) { return copy[k] != null && (typeof copy[k] !== 'string' || !codeRe.test(copy[k])); }) || copy.dest != null && (typeof copy.dest !== 'string' || !destRe.test(copy.dest))) return;
+    if (copy.gf && (copy.gf.from != null && !codeRe.test(String(copy.gf.from)) || copy.gf.to != null && !destRe.test(String(copy.gf.to)))) return;
+    ['dep', 'ret', 'eventDate'].forEach(function (k) { if (copy[k] != null && !/^\d{4}-\d{2}-\d{2}$/.test(String(copy[k]))) copy[k] = null; });
+    if (copy.sharedIdeaId != null && !IDEA_ID_RE.test(String(copy.sharedIdeaId))) delete copy.sharedIdeaId;
+    if (['watching', 'planning', 'booked', 'completed'].indexOf(copy.stage) < 0) copy.stage = 'watching';
+    copy.mode = copy.mode === 'family' ? 'family' : 'solo';
+    list.push(copy);
+  });
+  return list.map(function (t) {
+    var postponed = t.id === 'tgiving' || /postponed/i.test(String(t.title || '') + ' ' + String(t.notes || ''));
+    var end = t.ret || t.dep, past = isIso(end) && end < today;
+    return { key: t.id, source: t, linked: IDEA_ID_RE.test(String(t.sharedIdeaId || '')) ? t.sharedIdeaId : '',
+      stage: postponed ? 'dropped' : (t.stage === 'completed' || t.stage === 'booked' ? 'booked' : 'proposed'),
+      archive: postponed || t.stage === 'completed' || (t.stage === 'booked' && past) };
+  });
+}
+function historyDraft(item, today) {
+  var t = item.source, family = t.mode === 'family', known = HISTORY_STARTERS.some(function (s) { return s.id === item.key; });
+  return { title: String(t.title || ''), dest: { airport: normIata(t.hub) || normIata(t.dest) || normIata(t.gf && t.gf.to) },
+    dates: { departure: isIso(t.dep) ? t.dep : '', return: isIso(t.ret) ? t.ret : '' }, pin: isIso(t.eventDate) ? t.eventDate : '',
+    caption: firstWords(String(t.notes || ''), 12).text.slice(0, 480),
+    members: family ? familyPreset(t.dep, today).map(function (m) { return { name: m.name, face: m.face, airport: m.airport, headcount: m.headcount }; }) :
+      [{ name: known ? 'Ashwin' : '', face: '🌴', airport: normIata(t.origin) || normIata(t.gf && t.gf.from), headcount: 1 }],
+    stage: item.stage, archive: item.archive };
+}
+/* Booking marks record a reviewed historical booking, never an invented payment. Postponed imports close
+   without any In answers. Active imports invite people but do not answer for them. Safe to rebuild on retry. */
+function historyFinishRequests(doc, key, draft) {
+  if (!doc || docClosed(doc)) return [];
+  if (draft.stage === 'dropped') { var drop = updateRequest(doc, key, { decision: { stage: 'dropped' } }); return drop ? [drop] : null; }
+  if (draft.stage !== 'booked') return [];
+  var out = [], current = doc;
+  (doc.idea.members || []).forEach(function (m) {
+    var r = validResp((doc.responses || {})[m.code]);
+    if (!r) { var q = respondRequest(current, m.code, { status: 'in' }, { by: 'keep' }); if (q) out.push(q); }
+    if ((!r || !r.booked) && localSet(docDest(doc)).indexOf(normIata(m.airport)) < 0) { var qs = bookedRequests(current, m.code, true, { by: 'keep' }); if (qs) { if (!r) qs = qs.filter(function (q) { return q.path.indexOf('/idea/booked') === 0; }); out = out.concat(qs); } }
   });
   return out;
 }
@@ -3243,7 +3471,7 @@ var TOKEN_RE = /^[A-Za-z0-9_\-]{16,128}$/;    // = v1 setProxyToken
 var ST = {                                    // localStorage keys (the first seven are shared with v1, byte-compatible)
   keys: 'pialax_idea_keys_v1', me: 'pialax_idea_me_v1', seen: 'pialax_idea_seen_v1', token: 'pialax_proxy_token',
   url: 'pialax_proxy_url', multi: 'pialax_multi_airport_v1', v1list: 'pialax_watchlist_v1',
-  list: 'pialax_watchlist_v2', ui: 'pialax_ui_v1',
+  list: 'pialax_watchlist_v2', ui: 'pialax_ui_v1', transfer: 'pialax_transfer_v1',
   fares: 'pialax_fares_v2', shared: 'pialax_shared_at_v1', profile: 'pialax_me_profile_v1',  // PIA-135 (v2 only)
   soon: 'pialax_soon_v2',                     // PIA-138 (v2 only): a run of ±1 taps the page was left before it settled
   // PIA-140, shared with v1 in v1's exact formats: the month's SerpAPI counter, the Worker's day cap, v1's one-adult fares
@@ -4115,7 +4343,7 @@ function devicesLink() {
 /* ---- models: one tripModel per listed doc, rebuilt on every render ---- */
 var S = null, MC = {}, RT = null;
 function runCtx() { var today = todayLocal(), now = nowMs(); return { today: today, now: now, hctx: { today: today, now: now, worker: workerBase() } }; }
-function docOnShelf(doc, id, entry) { var p = docPlan(doc); return !!((p && p.e < RT.today) || (doc.decision && doc.decision.stage === 'dropped') || (entry && entry.arch)); }
+function docOnShelf(doc, id, entry) { var p = docPlan(doc), d = doc.idea && doc.idea.dates || {}; return !!((p && p.e < RT.today) || (isIso(d.departure) && !d.return && d.departure < RT.today) || (doc.decision && doc.decision.stage === 'dropped') || (entry && entry.arch)); }
 function ctxFor(id) {
   var L = listRead(), entry = L.filter(function (x) { return x.id === id; })[0];
   var others = L.filter(function (x) { return x.id !== id && DOCS[x.id] && STAT[x.id] !== 'missing' && !docOnShelf(DOCS[x.id], x.id, x); }).map(function (x) { return DOCS[x.id]; });
@@ -4198,6 +4426,7 @@ var CALPLUS = '<svg class="calp" viewBox="0 0 24 24" aria-hidden="true"><rect x=
 var ALTPIN = '<span class="minipin alt" aria-hidden="true"><span></span></span>';
 /* the context key: every data-k on a screen has an entry here (P-key lists the ones shown; long-press names a control) */
 var LEGEND = {
+  import: ['⤒', 'Import history'], migrate: ['⤒', 'Update trip'], backup: ['⤓', 'History backup'],
   key: ['ⓘ', 'Key'], settings: ['⚙', 'Settings'], back: ['‹', 'Back'], close: ['⌄', 'Close'], newtrip: ['＋', 'New trip'],
   offline: ['📶⚠', 'Offline'], stale: ['◷', 'Not updated'],
   gf: ['✈↗', 'Google Flights'], flighty: ['✈⏱↗', 'Track flight'], explore: ['🧭↗', 'Explore'], fixdates: ['✈⚠', 'Fix dates'],
@@ -4392,6 +4621,7 @@ function cardWarn(m) {
 function datesText(m, long) {
   if (m.plan) return '<span class="dt"><span data-k="dates">' + G('🗓') + '</span>' + md(m.plan.s) + '–' + md(m.plan.e) + '</span>' + (long ? ' <span data-k="nights">' + m.nights + G('🌙') + '</span>' : '') +
     (m.pin && long ? ' <span data-k="pin">' + G('📌') + md(m.pin) + '</span>' : '');
+  if (m.departureOnly) return '<span data-k="dates">' + G('🗓') + md(m.departureOnly) + ' → —</span>';
   if (m.win) return '<span data-k="dates">' + G('🗓') + '</span><span data-k="window">⟦' + md(m.win.s) + '–' + md(m.win.e) + '⟧</span>' + (m.nightsN ? ' <span data-k="nights">' + G('🌙') + m.nightsN + '</span>' : '');
   return '<span data-k="dates">' + G('🗓') + '?</span>';
 }
@@ -4430,7 +4660,7 @@ function cardPill(m) {
 function datesAria(m, o) {
   o = o || {};
   var t = 'Dates ' + (m.plan ? md(m.plan.s) + '–' + md(m.plan.e) + ', ' + m.nights + ' nights'
-    : m.win ? 'window ' + md(m.win.s) + '–' + md(m.win.e) + (m.nightsN ? ', ' + m.nightsN + ' nights' : '') : 'not set');
+    : m.win ? 'window ' + md(m.win.s) + '–' + md(m.win.e) + (m.nightsN ? ', ' + m.nightsN + ' nights' : '') : m.departureOnly ? md(m.departureOnly) + ', return not set' : 'not set');
   if (m.pin) t += ', event day ' + md(m.pin);
   if (m.locked) t += ', locked';
   if (o.warn) t += ', check dates';
@@ -4656,7 +4886,7 @@ function famCell(m, x, hl) {
 function famHead(m) {
   var when = m.plan ? md(m.plan.s) + '–' + md(m.plan.e) : '🌙' + (m.nightsN || '?');
   return '<button class="hd' + (m.shelf ? ' past' : '') + '" data-act="open" data-id="' + m.id + '" aria-label="' + (m.shelf ? 'Open past trip' : 'Open trip') + '" data-lbl="' + esc(when) + '" data-ttl="' + esc(m.title) + '" aria-describedby="fh-' + m.id + '">' +
-    '<span class="sc" data-pic>' + m.emoji + '</span>' + (m.plan ? '<span class="tn">' + md(m.plan.s) + '</span>' : '<span data-k="nights">🌙' + (m.nightsN || '?') + '</span>') + '</button>';
+    '<span class="sc" data-pic>' + m.emoji + '</span>' + (m.plan || m.departureOnly ? '<span class="tn">' + md(m.plan ? m.plan.s : m.departureOnly) + '</span>' : '<span data-k="nights">🌙' + (m.nightsN || '?') + '</span>') + '</button>';
 }
 /* a row's head: their face (×N), 🏠n trips hosted (past and planned), and their first name (👋 for me), a name fitNames may
    drop (prio: the larger goes first) */
@@ -4716,7 +4946,7 @@ function renderFamily() {
 function memberIn(m, code) { return m && code ? m.members.filter(function (x) { return x.code === code; })[0] || null : null; }
 /* PIA-136: the organizer's ✎ (P-edit) sits in the nav of a trip this phone holds the key to (never on a v1 doc, which
    P-migrate brings across first); 📝 opens the caption */
-function editBtn(m) { return m.org && !m.legacy ? '<button class="ib edit" data-act="edit" data-id="' + m.id + '" aria-label="Edit" data-k="edit">✎</button>' : ''; }
+function editBtn(m) { if (m.org && (m.legacy || (transferRead().migrations[m.id] && !transferRead().migrations[m.id].done))) return '<button class="ib edit" data-act="migrate" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate">⤒</button>'; return m.org && !m.legacy ? '<button class="ib edit" data-act="edit" data-id="' + m.id + '" aria-label="Edit" data-k="edit">✎</button>' : ''; }
 /* the organizer's 📣 asks for attention while anyone has not answered, and after the plan moved since his last 📣 */
 function sharePulse(m) { return !!m.org && m.decision !== 'dropped' && (m.waitingAny || readMap(ST.shared)[m.id] !== m.planHash); }
 /* the nav's 📣 (the guest link): hidden while the primary is Share, and on a dropped trip */
@@ -4978,7 +5208,7 @@ function renderSelected(id, scope) {
 /* PIA-144: Calendar's month is view state only. Switching trips resets it to that trip's plan/window;
    tabs, redraws and background reads retain the month being viewed. All facts come from the model. */
 function calendarHTML(m) {
-  if (!S.calView || S.calView.id !== m.id) S.calView = { id: m.id, ym: ym(m.plan ? m.plan.s : m.win ? m.win.s : RT.today) };
+  if (!S.calView || S.calView.id !== m.id) S.calView = { id: m.id, ym: ym(m.plan ? m.plan.s : m.departureOnly || (m.win ? m.win.s : RT.today)) };
   return monthHeader(S.calView.ym, 'calmonth', null, { k: 'page' }) + gridHTML(S.calView.ym, function (day) {
     var p = calendarDay(m, day), c = tripCell(m, day, { pin: m.pin, mine: m.me && !m.me.bad && m.me.d1 ? m.me : null }), hd = holidayOn(day);
     // The fixed day's own trip picture is not an icon. Holidays and month arrows are explained by the key.
@@ -5202,7 +5432,7 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
    failed read). While a sheet is open the screen and tab bar behind it are inert, and closing it puts focus
    back on the control that opened it. ---- */
 var SHEETS = {};
-var SHEET_NAME = { key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
+var SHEET_NAME = { migrate: 'Update trip', import: 'Import history', history: 'Review history', source: 'Original notes', mignote: 'Migration note', key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
   edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
   caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
@@ -5260,6 +5490,242 @@ SHEETS.key = function (sh) {
   h += '<div class="rowc"><button class="tool" data-act="settings" aria-label="Settings">⚙</button></div>';
   return h;
 };
+/* ---- PIA-146: explicit, journalled conversion. Never runs at boot, on focus or on a poll. ---- */
+var IMPORT_BUSY = false;
+function transferRead() { var raw = lsGet(ST.transfer), v = jparse(raw); return plainObj(v) && v.v === 1 && plainObj(v.history) && plainObj(v.migrations) ? v : { v: 1, history: {}, migrations: {}, invalid: !!raw }; }
+function transferSave(v) { return !v.invalid && lsSet(ST.transfer, JSON.stringify(v)); }
+function transferFacts(doc) {
+  var responses = {}, D = doc.decision || {}, c = D.chosen;
+  Object.keys(doc.responses || {}).sort().forEach(function (code) {
+    var r = doc.responses[code], x = {};
+    ['status', 'origin', 'available_from', 'available_to', 'note', 'arrive_at', 'leave_from'].forEach(function (k) { x[k] = r[k] || ''; });
+    x.booked = !!r.booked; responses[code] = x;
+  });
+  function sorted(x) { if (!x || typeof x !== 'object') return x; if (Array.isArray(x)) return x.map(sorted); var o = {}; Object.keys(x).sort().forEach(function (k) { o[k] = sorted(x[k]); }); return o; }
+  return JSON.stringify(sorted({ idea: doc.idea, responses: responses, decision: { stage: D.stage, actual: D.actual_total || null, estimate: D.estimate_total || null,
+    chosen: c ? { city: c.city || '', airport: c.airport || '', s: c.departure || '', e: c.return || '', total: c.familyTotal || null } : null } }));
+}
+/* The journal's next step is compared with BOTH sides of its write. A lost update response can be
+   recognized after reload. Any intervening semantic change stops the sequence for another review. */
+function transferRun(id, entry, save) {
+  if (!editKeyFor(id) || KEYBAD[id]) return Promise.resolve({ ok: false, code: 'forbidden' });
+  return queueWrite(id, function () { return null; }, function (w) {
+    var last = null;
+    function done(r) { return writeDone(id, w, r, last); }
+    function step() {
+      return api('GET', reqPath('/idea', id)).then(function (g) {
+        var fresh = docOf(g, id); if (!g.ok || !fresh) return done({ ok: false, code: g.code || 'network' });
+        last = fresh; takeBase(id, fresh);
+        if (g.json.organizer === false) { KEYBAD[id] = true; return done({ ok: false, code: 'forbidden' }); }
+        if (entry.at >= entry.steps.length) { entry.done = true; if (!save()) return done({ ok: false, code: 'storage' }); return done({ ok: true, json: { doc: fresh } }); }
+        var q = clone(entry.steps[entry.at]), after = applyLocal(entry.base, [q]), sig = transferFacts(fresh);
+        if (sig === transferFacts(after)) { entry.base = fresh; entry.at++; if (!save()) return done({ ok: false, code: 'storage' }); return step(); }
+        if (sig !== transferFacts(entry.base)) return done({ ok: false, code: 'changed' });
+        if (!save()) return done({ ok: false, code: 'storage' });
+        if (reqRoute(q) === '/idea/update') q.body.edit_key = editKeyFor(id);
+        return api(q.method, q.path, q.body).then(function (r) {
+          if (!r.ok || !docOf(r, id)) return done({ ok: false, code: r.code || 'network' });
+          entry.base = r.json.doc; entry.at++; last = r.json.doc; takeBase(id, last);
+          if (!save()) return done({ ok: false, code: 'storage' }); return step();
+        });
+      });
+    }
+    return step().catch(function () { return done({ ok: false, code: 'network' }); });
+  });
+}
+function transferSteps(reqs) { return reqs.map(function (q) { var x = clone(q); delete x.body.edit_key; return x; }); }
+function migrateSave(sh) {
+  var L = sh.local, id = sh.p.id; if (L.busy || !editKeyFor(id) || KEYBAD[id]) return Promise.resolve(null);
+  L.busy = true; L.failed = ''; renderSheet(false);
+  return withTransferLock(function () {
+    var book = transferRead(), entry = book.migrations[id];
+    if (!entry || entry.done) {
+      return api('GET', reqPath('/idea', id)).then(function (g) {
+        var fresh = docOf(g, id);
+        if (!g.ok || !fresh) return { ok: false, code: g.code || 'network' };
+        setDoc(id, fresh);
+        if (g.json.organizer === false) { KEYBAD[id] = true; return { ok: false, code: 'forbidden' }; }
+        if (transferFacts(fresh) !== L.review) { L.base = clone(fresh); L.review = transferFacts(fresh); L.options = migrateOptions(fresh, lsGet(ST.v1list)); L.labels = clone(L.options.labels); L.caption = parseNotes(fresh.idea.notes).caption; L.plan = 'current'; return { ok: false, code: 'changed' }; }
+        if (!docLegacy(fresh)) return { ok: true };
+        if (!L.labels.every(function (x) { return !!keepName(splitLabel(x.label).name); })) return { ok: false, code: 'bad_body' };
+        var opts = L.options, reqs = migrateRequests(fresh, editKeyFor(id), { plan: opts[L.plan], pin: opts.pin, labels: L.labels, caption: L.caption });
+        if (!reqs) return { ok: false, code: 'bad_body' };
+        entry = { original: clone(fresh), base: fresh, steps: transferSteps(reqs), at: 0, done: false }; book.migrations[id] = entry;
+        if (!transferSave(book)) return { ok: false, code: 'storage' };
+        return transferRun(id, entry, function () { return transferSave(book); });
+      });
+    }
+    return transferRun(id, entry, function () { return transferSave(book); });
+  }).then(function (r) {
+    L.busy = false; L.failed = r && !r.ok ? r.code : ''; L.saved = !!(r && r.ok);
+    if (S.sheet === sh) renderSheet(false); return r;
+  });
+}
+/* Web Locks serialize migration/import across same-origin tabs. No non-atomic localStorage lease and
+   no timed-out lock that could create a second trip while the first POST is still committing. */
+function withTransferLock(run) {
+  if (IMPORT_BUSY) return Promise.resolve({ ok: false, code: 'busy' });
+  if (!navigator.locks || !navigator.locks.request) return Promise.resolve({ ok: false, code: 'browser' });
+  IMPORT_BUSY = true;
+  return navigator.locks.request('pialax-transfer-v1', { ifAvailable: true }, function (lock) { return lock ? run() : { ok: false, code: 'busy' }; }).catch(function () { return { ok: false, code: 'network' }; }).then(function (r) { IMPORT_BUSY = false; return r; });
+}
+function historySource() { return historyItems(lsGet(ST.v1list), todayLocal()); }
+function historyBackup() {
+  // Source only: never organizer keys, tokens, journal or shared private records.
+  var data = { v: 1, at: new Date().toISOString(), raw: lsGet(ST.v1list), items: historySource() };
+  var u = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  var a = document.createElement('a'); a.href = u; a.download = 'pialax-v1-history.json'; a.click(); later(function () { URL.revokeObjectURL(u); }, 1000);
+}
+function historyValid(D) {
+  return !!(D.title.trim() && D.title.length <= TEXT_MAX.title && normIata(D.dest.airport) && isIso(D.dates.departure) &&
+    (!D.dates.return || isIso(D.dates.return) && D.dates.return >= D.dates.departure) && (!D.pin || isIso(D.pin) && D.pin >= D.dates.departure && (!D.dates.return || D.pin <= D.dates.return)) &&
+    wordsIn(D.caption) <= CAPTION_WORDS && buildNotes(D.pin, null, D.caption).length === ((D.pin ? '📌' + D.pin + (D.caption.trim() ? ' ' : '') : '') + D.caption.trim()).length &&
+    D.members.length && D.members.length <= IDEA_MAX_MEMBERS && D.members.every(function (m) { return cleanName(m.name) && normIata(m.airport) && m.headcount >= 1 && m.headcount <= 9; }) &&
+    createRequest(D, { today: todayLocal() }));
+}
+function historySave(sh) {
+  var L = sh.local, item = L.item, D = L.d;
+  if (L.busy || !L.confirm || !historyValid(D) || !orgPhone()) return Promise.resolve(null);
+  L.busy = true; L.failed = ''; renderSheet(false);
+  return withTransferLock(async function () {
+    var book = transferRead(), entry = book.history[item.key];
+    if (book.invalid) return { ok: false, code: 'storage' };
+    if (entry && entry.state === 'uncertain') return { ok: false, code: 'uncertain' };
+    if (entry && entry.state === 'done') return { ok: true, id: entry.id };
+    function finish() {
+      var id = entry.id;
+      if (!saveKey(id, entry.key, entry.doc.idea.title)) return Promise.resolve({ ok: false, code: 'storage' });
+      listAdd([id]); setDoc(id, entry.doc);
+      if (entry.draft.archive) { var list = listRead(); list.forEach(function (x) { if (x.id === id) x.arch = true; }); if (!listWrite(list)) return Promise.resolve({ ok: false, code: 'storage' }); }
+      if (!entry.steps) { entry.base = entry.doc; entry.steps = transferSteps(historyFinishRequests(entry.doc, entry.key, entry.draft) || []); entry.at = 0; }
+      return transferRun(id, entry, function () { return transferSave(book); }).then(function (r) {
+        if (r.ok) { entry.state = 'done'; if (!transferSave(book)) return { ok: false, code: 'storage' }; }
+        r.id = id; return r;
+      });
+    }
+    if (entry && entry.id) return finish();
+    // Check the *current* v1 card before creating. A link added in another tab always wins.
+    var source = historySource(), current = source && source.filter(function (x) { return x.key === item.key; })[0];
+    if (!current || JSON.stringify(current) !== JSON.stringify(item)) return { ok: false, code: 'changed' };
+    if (current.linked) return { ok: false, code: 'changed' };
+    await refreshAll(true);
+    if (listIds().some(function (id) { return STAT[id] !== 'ok' && STAT[id] !== 'missing'; })) return { ok: false, code: 'network' };
+    var same = listIds().filter(function (id) { var doc = DOCS[id], I = doc && doc.idea, dates = I && I.dates; return I && I.title === D.title && docDest(doc) === D.dest.airport && dates.departure === D.dates.departure && (dates.return || '') === (D.dates.return || ''); })[0];
+    if (same) { book.history[item.key] = { state: 'done', id: same }; return transferSave(book) ? { ok: true, id: same } : { ok: false, code: 'storage' }; }
+    if (listIds().length >= APP_LIST_MAX) return { ok: false, code: 'listfull' };
+    var latest = historySource(), latestItem = latest && latest.filter(function (x) { return x.key === item.key; })[0];
+    if (!latestItem || JSON.stringify(latestItem) !== JSON.stringify(item)) return { ok: false, code: 'changed' };
+    var req = createRequest(D, { today: todayLocal() }); if (!req) return { ok: false, code: 'bad_body' };
+    // Persist before POST. With the existing Worker API, a lost creation response cannot reveal its
+    // random id/key. Fail closed on reload: no automatic or manual blind second POST for this source.
+    entry = { state: 'uncertain', draft: clone(D), source: clone(item) }; book.history[item.key] = entry;
+    if (!transferSave(book)) return { ok: false, code: 'storage' };
+    return api(req.method, req.path, req.body).then(function (r) {
+      var j = r.json || {};
+      if (!r.ok || !IDEA_ID_RE.test(String(j.id)) || !IDEA_KEY_RE.test(String(j.edit_key)) || !j.doc) {
+        if (r.status >= 400 && r.status < 500) { delete book.history[item.key]; transferSave(book); }
+        return { ok: false, code: r.status >= 400 && r.status < 500 ? r.code : 'uncertain' };
+      }
+      entry.state = 'created'; entry.id = j.id; entry.key = j.edit_key; entry.doc = j.doc;
+      if (!transferSave(book)) { saveKey(j.id, j.edit_key, j.doc.idea.title); listAdd([j.id]); setDoc(j.id, j.doc); return { ok: false, code: 'storage' }; }
+      return finish();
+    });
+  }).then(function (r) {
+    L.busy = false; L.failed = r && !r.ok ? r.code : ''; L.saved = !!(r && r.ok);
+    if (r && r.id) L.id = r.id;
+    if (S.sheet === sh) renderSheet(false); return r;
+  });
+}
+function transferError(code) {
+  var labels = { listfull: 'Trip list full', changed: 'Changed. Review again', storage: 'Storage unavailable', forbidden: 'Organizer access required', uncertain: 'Creation uncertain. Do not retry', browser: 'Browser update required', busy: 'Another import is running', bad_body: 'Review dates, people and notes' };
+  return code ? '<p class="warnline">⚠ ' + esc(labels[code] || 'Not saved. Try again') + '</p>' : '';
+}
+function transferPager(act, page, total) {
+  return '<div class="rowc"><button class="ib" data-act="' + act + '" data-v="-1" aria-label="Previous page" data-k="page"' + (page ? '' : ' disabled') + '>◀</button><span>' + (page + 1) + '/' + total + '</span><button class="ib" data-act="' + act + '" data-v="1" aria-label="Next page" data-k="page"' + (page < total - 1 ? '' : ' disabled') + '>▶</button></div>';
+}
+SHEETS.migrate = function (sh) {
+  var L = sh.local, doc = DOCS[sh.p.id], h = shHd('⤒ Update trip');
+  if (!doc || !editKeyFor(sh.p.id) || KEYBAD[sh.p.id]) return h + transferError('forbidden');
+  if (!L.base) {
+    L.base = clone(doc); L.review = transferFacts(doc); L.options = migrateOptions(doc, lsGet(ST.v1list)); L.plan = 'current';
+    L.labels = clone(L.options.labels); L.caption = parseNotes(doc.idea.notes).caption; L.page = 0; L.row = 0;
+  }
+  var pending = transferRead().migrations[sh.p.id];
+  if (L.saved || !docLegacy(doc) && (!pending || pending.done)) return h + '<p class="rowc">✓</p>';
+  if (pending && !pending.done) return h + '<p class="rowc">Continue update</p>' + transferError(L.failed) + '<button class="btn pri wide" data-act="migsav"' + (L.busy ? ' disabled' : '') + '>↻</button>' + '<button class="btn wide" data-act="migreview">Review again</button>';
+  h += transferPager('migpage', L.page, 3);
+  if (L.page === 0) {
+    ['current', 'span'].forEach(function (key) { var p = L.options[key]; if (p) h += '<button class="btn wide" data-act="migplan" data-v="' + key + '" aria-pressed="' + (L.plan === key) + '">' + (key === 'current' ? 'Current' : 'Travelers') + ' ' + esc(p.s) + ' → ' + esc(p.e) + '</button>'; });
+    h += '<p class="rowc">📌 ' + esc(L.options.pin || '—') + '</p>';
+  } else if (L.page === 1) {
+    L.row = Math.min(L.row, L.labels.length - 1); var lab = splitLabel(L.labels[L.row].label);
+    h += transferPager('migrow', L.row, L.labels.length) + '<p class="rowc">Confirm name</p><div class="rowc"><span>' + esc(lab.face || '🙂') + '</span><input class="txt" id="mig-name" aria-label="Name" value="' + esc(lab.name) + '"></div>';
+  } else {
+    h += '<p class="rowc">Names, dates, notes</p><button class="btn wide" data-act="migsource" data-id="' + sh.p.id + '">📝 Review notes</button>' +
+      '<button class="btn pri wide" data-act="migsav"' + (L.busy ? ' disabled' : '') + '>Update</button>';
+  }
+  return h + transferError(L.failed);
+};
+SHEETS.import = function (sh) {
+  var L = sh.local, source = historySource(), h = shHd('⤒ Import');
+  if (!orgPhone()) return h + transferError('forbidden');
+  if (transferRead().invalid) return h + transferError('storage');
+  if (!source) return h + '<p class="warnline">Unreadable history</p><button class="btn wide" data-act="hbackup">⤓ Backup</button>';
+  L.page = Math.max(0, Math.min(L.page || 0, Math.max(0, Math.ceil(source.length / 4) - 1)));
+  var book = transferRead(); h += transferPager('hipage', L.page, Math.max(1, Math.ceil(source.length / 4)));
+  source.slice(L.page * 4, L.page * 4 + 4).forEach(function (item) {
+    var entry = book.history[item.key], id = item.linked || entry && entry.id, mark = entry && entry.state === 'done' ? '✓' : entry && entry.state === 'uncertain' ? '⚠' : id ? '↗' : '⤒';
+    h += '<button class="btn wide" data-act="hitem" data-v="' + esc(item.key) + '" aria-label="Review ' + esc(item.source.title) + '"><span data-free>' + esc(item.source.title) + '</span> ' + mark + '</button>';
+  });
+  return h + '<button class="btn wide" data-act="hbackup" data-k="backup">⤓ Backup</button>';
+};
+SHEETS.history = function (sh) {
+  var L = sh.local, D = L.d, h = shHd('⤒') + '<p class="ttl" data-free>' + esc(D.title) + '</p>', entry = transferRead().history[L.item.key];
+  if (L.saved || entry && entry.state === 'done') return h + '<p class="rowc">✓</p><button class="btn pri wide" data-act="hopen" data-id="' + esc(L.id || entry.id) + '">Open</button>';
+  if (entry && entry.state === 'uncertain') return h + transferError('uncertain');
+  if (entry && entry.id) return h + '<p class="rowc">Continue import</p>' + transferError(L.failed) + '<button class="btn pri wide" data-act="hsave"' + (L.busy ? ' disabled' : '') + '>↻</button>' + (L.failed === 'changed' ? '<button class="btn wide" data-act="hkeep">Keep current trip</button>' : '');
+  h += transferPager('hpage', L.page, 4);
+  if (L.page === 0) {
+    h += '<div class="rowc"><span>📍</span><input id="hi-dest" class="txt" aria-label="Destination" value="' + esc(D.dest.airport) + '" maxlength="3"></div>';
+    ['departure', 'return'].forEach(function (k) { h += '<div class="rowc"><label for="hi-' + k + '">' + (k === 'departure' ? 'Depart' : 'Return') + '</label><input class="txt" id="hi-' + k + '" type="date" aria-label="' + k + '" value="' + esc(D.dates[k]) + '"></div>'; });
+    h += '<div class="rowc"><label for="hi-pin">📌</label><input class="txt" id="hi-pin" type="date" aria-label="Event day" value="' + esc(D.pin) + '"></div>';
+    h += '<div class="rowc">' + [['proposed', '💡', 'Active'], ['booked', '🎫', 'Booked'], ['dropped', '🗑', 'Postponed']].map(function (x) { return '<button class="tool" data-act="hstage" data-v="' + x[0] + '" aria-pressed="' + (D.stage === x[0]) + '" aria-label="' + x[2] + '">' + x[1] + '</button>'; }).join('') + '</div>';
+  } else if (L.page === 1) {
+    L.row = Math.max(0, Math.min(L.row, D.members.length - 1)); var m = D.members[L.row];
+    h += '<p class="rowc">Confirm travelers</p>' + transferPager('hrow', L.row, D.members.length) + '<div class="rowc"><span>' + esc(m.face || '🙂') + '</span><input class="txt" id="hi-name" aria-label="Name" value="' + esc(m.name) + '"></div>' +
+      '<div class="rowc"><input class="txt" id="hi-airport" aria-label="Origin" value="' + esc(m.airport) + '" maxlength="3"><span>×</span><input class="txt" style="max-width:72px" id="hi-count" aria-label="Headcount" type="number" min="1" max="9" value="' + m.headcount + '"></div>' +
+      '<div class="rowc"><button class="tool" data-act="hadd" aria-label="Add person"' + (D.members.length < IDEA_MAX_MEMBERS ? '' : ' disabled') + '>＋</button><button class="tool" data-act="hremove" aria-label="Remove person"' + (D.members.length > 1 ? '' : ' disabled') + '>−</button></div>';
+  } else if (L.page === 2) {
+    h += '<p class="rowc">Shared note</p><textarea class="txt" id="hi-caption" aria-label="Shared note" maxlength="480">' + esc(D.caption) + '</textarea><button class="btn wide" data-act="hisource">📝 Original</button><button class="btn wide" data-act="hbackup">⤓ Backup</button><p class="hintline">Backup keeps originals</p>';
+  } else {
+    h += '<p class="rowc">' + esc(D.dates.departure) + ' → ' + esc(D.dates.return || '—') + '</p><p class="rowc">' + D.members.map(function (m) { return esc(m.face || '🙂') + ' ×' + m.headcount; }).join(' ') + '</p>' +
+      '<button class="btn wide" data-act="hconfirm" aria-pressed="' + !!L.confirm + '">' + (L.confirm ? '☑' : '☐') + ' Confirm people, dates, note</button>' +
+      '<button class="btn pri wide" data-act="hsave"' + (!L.confirm || !historyValid(D) || L.busy ? ' disabled' : '') + '>Import</button>';
+  }
+  return h + transferError(L.failed);
+};
+SHEETS.mignote = function (sh) {
+  return shHd('📝 Shared note') + '<textarea class="txt" id="mig-caption" aria-label="Shared note" maxlength="480">' + esc(sh.local.text) + '</textarea><button class="btn wide" data-act="mignoteoriginal">Original</button><button class="btn pri wide" data-act="mignotesave">Save</button>';
+};
+SHEETS.source = function (sh) {
+  var L = sh.local, words = String(sh.p.text || '').split(/\s+/).filter(Boolean), pages = Math.max(1, Math.ceil(words.length / 12));
+  L.page = Math.max(0, Math.min(L.page || 0, pages - 1));
+  return shHd('📝 Original') + transferPager('srcpage', L.page, pages) + '<p class="notev">' + esc(words.slice(L.page * 12, L.page * 12 + 12).join(' ')) + '</p>';
+};
+function transferTyped(t) {
+  var sh = S.sheet, L = sh.local, D = L.d, id = t.id, v = t.value;
+  if (sh.type === 'mignote' && id === 'mig-caption') { L.text = firstWords(v, 12).text.slice(0, 480); t.value = L.text; return true; }
+  if (sh.type === 'migrate' && id === 'mig-name') { var old = splitLabel(L.labels[L.row].label); v = firstWords(v, NAME_WORDS).text.slice(0, NAME_CHARS); L.labels[L.row].label = memberLabel(old.face, v); t.value = v; L.failed = ''; return true; }
+  if (sh.type !== 'history' || !/^hi-/.test(id) || !D) return false;
+  if (id === 'hi-dest' || id === 'hi-airport') { v = v.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); t.value = v; if (id === 'hi-dest') D.dest.airport = v; else D.members[L.row].airport = v; }
+  else if (id === 'hi-departure' || id === 'hi-return') D.dates[id.slice(3)] = v;
+  else if (id === 'hi-pin') D.pin = v;
+  else if (id === 'hi-name') { v = firstWords(v, NAME_WORDS).text.slice(0, NAME_CHARS); D.members[L.row].name = v; t.value = v; }
+  else if (id === 'hi-count') { v = Math.max(1, Math.min(9, Math.round(+v) || 1)); D.members[L.row].headcount = v; t.value = v; }
+  else if (id === 'hi-caption') { v = firstWords(v, 12).text.slice(0, 480); D.caption = v; t.value = v; }
+  L.confirm = false; L.failed = ''; return true;
+}
+
 /* ⚙ P-organizer: the organizer token, the Worker, and the links for my own devices */
 SHEETS.organizer = function (sh) {
   var L = sh.local, d = S.drafts.organizer;
@@ -5282,7 +5748,7 @@ SHEETS.organizer = function (sh) {
       (ml ? '<span class="tn capt" role="img" aria-label="' + esc(ml[1]) + '" data-lbl="' + esc(ml[0]) + '" data-k="cap">' + esc(lockText('month')) + '</span>' : '') + '</div>';
   }
   h += '<button class="btn pri wide" data-act="orgsave">Save</button>';
-  var tools = '';
+  var tools = orgPhone() ? '<button class="tool" data-act="himport" aria-label="Import history" data-k="import">⤒</button>' : '';
   if (devicesLink()) tools += '<button class="tool" data-act="devlink" aria-label="Devices link">🔑📱</button>';
   if (S.sel && editKeyFor(S.sel)) tools += '<button class="tool" data-act="orglink" data-id="' + S.sel + '" aria-label="Organizer link">🔑' + esc((listEntry(S.sel) || {}).e || '💡') + '</button>';
   if (tools) h += '<div class="rowc">' + tools + '</div>';
@@ -7054,6 +7520,7 @@ function patchChips(D) {
 function onTyped(t) {
   if (!t || !S || !S.sheet) return;
   var L = S.sheet.local;
+  if (transferTyped(t)) return;
   if (t.id === 'org-token' || t.id === 'org-url') {   // a token or a URL has no spaces, so a typed value is one word at most
     var v = t.value.replace(/\s+/g, ''); if (v !== t.value) t.value = v;
     if (t.id === 'org-token') { L.tok = v; L.badTok = false; L.tokEdited = true; } else { L.url = v; L.badUrl = false; L.urlEdited = true; }
@@ -7378,6 +7845,39 @@ function dropMapEntry(toTrip) {
   try { history.go(-n); } catch (e) { S.ignorePop--; }
 }
 var ACTS = {
+  migrate: function (el) { if (editKeyFor(el.dataset.id) && !KEYBAD[el.dataset.id]) openSheet('migrate', { id: el.dataset.id }); },
+  migpage: function (el) { var L = S.sheet.local; L.page = Math.max(0, Math.min(2, L.page + (+el.dataset.v))); renderSheet(false); },
+  migrow: function (el) { var L = S.sheet.local; L.row = Math.max(0, Math.min(L.labels.length - 1, L.row + (+el.dataset.v))); renderSheet(false); },
+  migplan: function (el) { S.sheet.local.plan = el.dataset.v; S.sheet.local.failed = ''; renderSheet(false); },
+  migsav: function () { return migrateSave(S.sheet); },
+  migreview: function () { var sh = S.sheet; if (sh.local.busy) return; return withTransferLock(function () { var b = transferRead(); delete b.migrations[sh.p.id]; if (!transferSave(b)) return { ok: false, code: 'storage' }; sh.local = {}; if (S.sheet === sh) renderSheet(false); return { ok: true }; }); },
+  migsource: function () { var sh = S.sheet; openSheet('mignote', {}, { back: true, local: { text: firstWords(sh.local.caption, 12).text, original: sh.local.caption } }); },
+  mignotesave: function () { var sh = S.sheet; if (sh.back && sh.back.type === 'migrate') sh.back.local.caption = sh.local.text; closeSheet(); },
+  mignoteoriginal: function () { openSheet('source', { text: S.sheet.local.original }, { back: true }); },
+  himport: function () { if (!orgPhone()) return; listAdd(v1SharedIds(lsGet(ST.v1list)).concat(keyIds(), Object.keys(readMap(ST.me)))); refreshAll(true); openSheet('import', {}, { back: !!S.sheet }); },
+  hipage: function (el) { var L = S.sheet.local; L.page = Math.max(0, (L.page || 0) + (+el.dataset.v)); renderSheet(false); },
+  hitem: function (el) {
+    var source = historySource(), item = source && source.filter(function (x) { return x.key === el.dataset.v; })[0]; if (!item) return;
+    var entry = transferRead().history[item.key], id = item.linked || entry && entry.state === 'done' && entry.id;
+    if (id) { listAdd([id]); openTrip(id); refresh(id); return; }
+    openSheet('history', {}, { back: true, local: { item: item, d: entry && entry.draft || historyDraft(item, todayLocal()), page: 0, row: 0, confirm: !!(entry && entry.id) } });
+  },
+  hpage: function (el) { var L = S.sheet.local; L.page = Math.max(0, Math.min(3, L.page + (+el.dataset.v))); renderSheet(false); },
+  hrow: function (el) { var L = S.sheet.local; L.row = Math.max(0, Math.min(L.d.members.length - 1, L.row + (+el.dataset.v))); renderSheet(false); },
+  hstage: function (el) { var L = S.sheet.local; L.d.stage = el.dataset.v; L.d.archive = el.dataset.v === 'dropped' || L.item.archive; L.confirm = false; renderSheet(false); },
+  hadd: function () { var L = S.sheet.local; if (L.d.members.length >= IDEA_MAX_MEMBERS) return; L.d.members.push({ name: '', face: freeFace(L.d.members.map(function (m) { return m.face; })), airport: '', headcount: 1 }); L.row = L.d.members.length - 1; L.confirm = false; renderSheet(false); },
+  hremove: function () { var L = S.sheet.local; if (L.d.members.length <= 1) return; L.d.members.splice(L.row, 1); L.row = Math.min(L.row, L.d.members.length - 1); L.confirm = false; renderSheet(false); },
+  hconfirm: function () { var L = S.sheet.local; L.confirm = !L.confirm; renderSheet(false); },
+  hsave: function () { return historySave(S.sheet); },
+  hkeep: function () {
+    var sh = S.sheet, key = sh.local.item.key;
+    return withTransferLock(function () { var b = transferRead(), e = b.history[key]; if (!e || !e.id) return { ok: false, code: 'bad_body' }; e.state = 'done'; e.done = true; if (!transferSave(b)) return { ok: false, code: 'storage' }; sh.local.saved = true; sh.local.id = e.id; if (S.sheet === sh) renderSheet(false); return { ok: true }; });
+  },
+  hisource: function () { openSheet('source', { text: String(S.sheet.local.item.source.notes || '') }, { back: true }); },
+  hbackup: function () { historyBackup(); },
+  hopen: function (el) { openTrip(el.dataset.id); },
+  srcpage: function (el) { var L = S.sheet.local; L.page = Math.max(0, (L.page || 0) + (+el.dataset.v)); renderSheet(false); },
+
   tab: function (el) {
     var v = el.dataset.v; if (!hasOwn(TABS, v)) return;
     if (S.mapFrom && S.tab === 'map' && v !== 'map') {
