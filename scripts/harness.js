@@ -101,8 +101,8 @@ function makeLocalStorage() {
 function makeShim() {
   const elStub = makeElementStub();
   const loc = {
-    search: '', pathname: '/pialax.html', origin: 'http://localhost',
-    href: 'http://localhost/pialax.html', hash: '', hostname: 'localhost',
+    search: '', pathname: '/app.html', origin: 'http://localhost',
+    href: 'http://localhost/app.html', hash: '', hostname: 'localhost',
   };
   const hist = { replaceState: () => {}, pushState: () => {}, state: null };
   const ls = makeLocalStorage();
@@ -178,14 +178,11 @@ function loadApi(filepath, label, EXPECT, shimOverrides) {
   return { api, missing };
 }
 
-// ---- PIA-134: the app file is an argument --------------------------------
-// v1 stays the default: with no file named, the harness means the v1 pair. The
-// v2 shell (app.html) uses the same markers, so `loadApi(app.html, …)` and
-// `node scripts/harness.js app.html` work on it unchanged.
-const V1_APP_FILES = ['pialax.html', 'pialax-mobile.html'];
+// PIA-147: app.html is the only shipping app; entry shims have no app body.
+const APP_FILES = ['app.html'];
 function appFiles(args) {
   const named = (args || []).filter((a) => typeof a === 'string' && /\.html?$/i.test(a));
-  return named.length ? named : V1_APP_FILES.slice();
+  return named.length ? named : APP_FILES.slice();
 }
 // CLI: `node scripts/harness.js [root] [file.html …]` checks that the app block is found in each file.
 if (require.main === module) {
@@ -201,4 +198,4 @@ if (require.main === module) {
   });
   process.exit(bad ? 1 : 0);
 }
-module.exports = { extractAppBody, makeElementStub, makeLocalStorage, makeShim, loadApi, appFiles, V1_APP_FILES };
+module.exports = { extractAppBody, makeElementStub, makeLocalStorage, makeShim, loadApi, appFiles, APP_FILES };

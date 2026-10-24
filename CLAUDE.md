@@ -1,70 +1,108 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Purpose and release status
 
-## What PIALAX is
+PIALAX coordinates family trips above Google Flights (booking) and Flighty
+(day-of tracking). The shared trip is the source of place, dates, people, answers,
+bookings and stage; the app helps the family decide and coordinate.
 
-A family flight dashboard: a **trip watchlist / group-trip coordination layer** that sits above Google Flights (live search/booking — hand off via deep links) and Flighty (day-of tracking — stay out of that lane). It owns the pre-booking "considering trips" phase: group meetup economics (total family cost to gather at a hub), cheapest-week finder, RSVP/coordination, trip binder, shareable plan. Every new feature must answer "what can't Google Flights or Flighty do here?" — see `PIALAX_HQ.md` §10 and `SPRINT_PROPOSAL_2026-07-21.md`.
+This branch implements PIA-147 for v2.0.0. Public cutover is pending the release
+record in [RELEASE_V2.md](RELEASE_V2.md). The implementation follows
+[PLAN_PIA_147_CUTOVER.md](PLAN_PIA_147_CUTOVER.md) and the current v2 requirements
+in [PIALAX_HQ.md](PIALAX_HQ.md) §12. Historical v1 documents describe prior
+releases; the purpose/disposition table in [V2_ACCEPTANCE.md](V2_ACCEPTANCE.md)
+records v2's deliberate feature retirements.
 
 ## Architecture
 
-No build system, no framework, no package.json. Node test suites live in `scripts/test-*.js` (run by preflight). Three deployable files served by GitHub Pages (`https://shwinster101.github.io/PIALAX/`):
+No framework, package.json or build step. GitHub Pages serves
+`https://shwinster101.github.io/PIALAX/` from main.
 
-- `index.html` — device-detect redirect shim (desktop vs mobile), preserves query string + hash.
-- `pialax.html` (~5,000 lines) — desktop dashboard. Single-file vanilla HTML/CSS/JS, IIFE + strict mode. d3 v7 + topojson from cdnjs with **SRI integrity hashes** (primary tamper guard) and a strict CSP meta tag.
-- `pialax-mobile.html` (~5,100 lines) — mobile dashboard. **Largely duplicated logic** from `pialax.html`; every behavior change must be mirrored in both files (mobile parity is a standing requirement). A shared `pialax-core.js` extraction is a deferred backlog item (PIA-008). Exception: the Trip Idea Builder block is kept identical in both HTML files and in `scripts/trip-idea-builder.js`; `scripts/test-trip-idea.js` fails if the three drift.
-- `app.html` (PIA-134) — **the v2 app, built beside v1 and not linked from anywhere until the cutover (PIA-147).** Same-origin single file, IIFE + strict mode, the same harness markers as v1. Three labelled tabs (Trips with an [Ideas | Family] segment, Map, Calendar), bottom sheets one at a time, a trip store over the Worker's free `/idea` routes, a link router, system fonts and inline SVG/emoji only, light and dark tokens. Its CSP allows only v1's exact d3/topojson CDN paths (with the same SRI hashes), the Worker and the exact world-atlas@2.0.2 map-data path; the data's SHA-256 is checked before parsing. No external style, font or image. `test-app` checks that `WORKER_OK` matches the CSP's Worker peers, excluding that map-data path. Faces and pickups survive map asset failures. The trip model in `scripts/trip-model.js` is inlined **byte-identical** between its `/* === pialax trip-model: begin/end === */` markers (`test-app` fails on drift); model logic is never forked into `app.html`. Do not edit `pialax.html`, `pialax-mobile.html`, `index.html` or `scripts/trip-idea-builder.js` for v2 work: v1 keeps serving the family until the cutover.
-- `worker.js` + `wrangler.toml` — Cloudflare Worker. Deploy with `wrangler deploy`.
-  - **Paid routes need the organizer token** (`X-Pialax-Token` == `PROXY_TOKEN` secret, PIA-114) and stop at per-day caps (`SERP_/EXTRACT_/EMAIL_DAILY_CAP`), which the `SpendMeter` Durable Object makes exact under concurrency (PIA-118; `/account` → `spend`): `GET /search` (strict allowlisted params; it injects `SERPAPI_KEY`; `departure_id`/`arrival_id` may be up to 5 comma-joined codes for a nearby-airport search, sorted in the cache key — PIA-122, sent only once `/account` → `features.multi_airport`), `GET /account`, `/extract`, `/alert`, `/alerts/sync`. Any unknown GET path → 404. Never add a paid route without `authGate` + `spendGate`.
-  - **Fare cache:** IDEAS KV `fare:<sha256 canonical params>`, 24h, which keeps the original `X-Fetched-At`; a HIT spends nothing (PIA-115).
-  - **Shared trips (`/idea*`, free):** each trip's writes are serialized through the `IdeaRoom` Durable Object, which writes through to KV (PIA-116). Mutations apply only their own delta.
-  - Client: the token lives in localStorage `pialax_proxy_token` (Advanced → Organizer token, or the organizer link `#k=…&t=…`). Never put it in family links.
+- `app.html`: the single vanilla HTML/CSS/JS app, IIFE + strict mode. Trips
+  (Ideas/Family), Map, Calendar; one sheet at a time; light/dark system tokens;
+  centered phone layout on desktop from 700px. No standalone web-app mode.
+- `index.html`, `pialax.html`, `pialax-mobile.html`: fixed sibling redirects to
+  `app.html`, preserving query and hash verbatim with `location.replace`.
+  JavaScript-disabled fallback explains the requirement and offers an app link.
+- `scripts/trip-model.js`: pure derivation of the one shared `/idea` record.
+  The marked region is inlined byte-identically in `app.html`; drift fails tests.
+- `worker.js` + `wrangler.toml`: existing Cloudflare backend. PIA-147 does not
+  deploy or change it. `/idea*` writes serialize through IdeaRoom, backed by KV.
+  Paid routes require `authGate` and `spendGate`; SpendMeter makes caps exact.
+  Fare cache uses canonical parameters and retains the original fetch timestamp.
 
-Inside the HTML files, state lives in a single `S` object plus localStorage (flight-price cache, quota counter `pialax_serpapi_quota`, proxy URL override, watchlist). URL query/hash carry shareable state (`syncURL`/`restoreFromURL`). Key domain logic to preserve on any edit:
+## v2 contracts
 
-- **FAMILY array is date-aware**: sister's airport is JAX before 2026-09-01, LGA after (`FAMILY_INFO.JAX.moveAirport`; JFK is her alternate) (`familyForDate`, per-member effective dates). Family composition is 4 people total — PIA=2 (Mom & Dad), LAX=1 (Ashwin), JAX/LGA=1 (Sister, Anjo) — not 1 per airport.
-- **Quota-safe fetching**: SerpAPI calls are strictly button-gated (never auto-fetch — day-old fares get a one-tap nudge, PIA-125), capped per refresh/session, locked near quota exhaustion (a Worker `daily_cap` 429 locks only until the next UTC day); mock/"Sample" data is the fallback and is labeled as estimates. `PROXY_URL` empty → mock-only mode.
-- Meetup math: `computeRanking`, `computeBestMeetupWeekends`, ORD drive-to pivot for Peoria.
+- **D1:** cover or explicitly retire each v1 feature's purpose; do not revive
+  estimated-price UI, extraction UI or duplicate desktop/mobile code for parity.
+- **D2:** derive trip facts from `/idea` through the model on each render.
+- **D3:** per-phone lists store known IDs, not a backend family list. Trips travel
+  by shared links. Newly created trips do not automatically appear on other phones.
+- **D4:** real fares only, explicit organizer search, shown cost before spending.
+  At most 4 searches per tap and 8 per visit. Daily locks lift next UTC day;
+  monthly locks follow their reset. Cached HITs preserve age and spend nothing.
+- **D5:** the same app and behaviors serve phone and centered desktop.
 
-### v2 (`app.html`) — the decisions it is built on
+`familyForDate` uses JAX before 2026-09-01, then LGA with JFK in its alternate
+set. Mom & Dad count as two, Ashwin one, Anjo one. Keep the Peoria ORD drive
+pivot. A missing fare remains unsearched; no synthetic total or estimated week.
 
-- **D1 — purposes, not features.** Every v1 feature's purpose is either served by a v2 element or deliberately dropped (the feature-disposition table of the redesign spec); "zero feature loss" no longer means keeping every v1 control.
-- **D2 — one record.** The shared `/idea` doc is the only store of trip facts (place, plan, people, answers, stage). `tripModel` in `scripts/trip-model.js` derives everything a screen shows from it on every render, so no screen and no phone can disagree.
-- **D3 — the shared watchlist is a list of ids.** Each phone keeps the trips it has opened (`pialax_watchlist_v2`); trips travel by link (`?idea=`, the list link `?l=<id>.<id>…&f=<face>`, the organizer's own-devices links). No backend list. It must be easy to understand: a 2-person comprehension check is owed before cutover.
-- **D4 — cheapest week on demand.** Organizer-initiated, real searches only, the cost shown before spending; never a synthetic or estimated price.
-- **D5 — desktop is the phone app in a centred column** (`@media (min-width:700px)`), reached through redirect shims at cutover.
+Shared storage keys retain v1 formats: `pialax_idea_keys_v1`,
+`pialax_idea_me_v1`, `pialax_idea_seen_v1`, `pialax_proxy_token`,
+`pialax_proxy_url`, price cache and quota keys. Never delete or replace an edit
+key. `pialax_watchlist_v1` is read-only. Boot discovers legacy IDs once; explicit
+PIA-146 import may rediscover later additions. Nothing seeds personal trips on boot.
+The frozen history source exists only for explicit organizer review/import.
 
-**The strict word rule (v2).** A word is a visible whitespace-separated token that contains a Unicode letter: tab and segment labels, airport codes, month names, person names, button verbs, placeholders and typed values all count. Free: trip names (`[data-free]`), numerals, prices, dates, emoji, glyphs and shapes. Every screen ≤10 words and every popup (sheet, long-press label, toast) ≤20, **in every state**. `scripts/test-words.sh` counts the rendered DOM in Chromium against fixtures (8 members with long names, unknown airports, a revealed token, long typed values…) and fails the gate on any excess; optional names beside faces are dropped by `fitNames` to stay within budget.
+Keep legacy `?idea=`, `?w=`, `?wl=`, `?tripIdea=` and organizer fragment formats;
+`?l=` is the v2 list format. Secrets leave the address bar after the app consumes
+them. Organizer credentials never enter guest shares or calendar files. Fixed
+entry redirects never use query values as a destination.
 
-**Amended domain rules for v2.** The mock/estimate engine is retired in v2: no `getMock`, sample fares, `computeRanking` / `computeBestMeetupWeekends` estimates or seeded personal trips in `app.html`; a missing fare is shown as unsearched, never estimated (v1 keeps its labelled mock fallback until cutover). Kept, inside the trip model: the ORD drive pivot for Peoria (`DRIVE_PIVOT`, hub pairs PIA/ORD and LGA/JFK) and the date-aware family preset (`familyForDate`: Anjo JAX before 2026-09-01, LGA after; Mom & Dad ×2). Keys v2 shares with v1 (`pialax_idea_keys_v1`, `pialax_idea_me_v1`, `pialax_idea_seen_v1`, `pialax_proxy_token`, `pialax_proxy_url`, …) are read and written in v1's exact formats; v2 never deletes or replaces an edit key and only reads `pialax_watchlist_v1` (once). v2's list parameter is `?l=` because v1 owns `?w=` (PIA-131) and `?wl=`.
+Migration progress lives in `pialax_transfer_v1`; Web Locks serialize tabs.
+Confirmed IDs resume incomplete writes. An uncertain creation cannot be blindly
+retried or cleared: the Worker has no creation-idempotency lookup. Actual-family
+migration and on-device checks are recorded separately from fixture evidence.
 
-**Build and cutover plan.** PIA-134 starts `app.html` as the shell; PIA-135 … PIA-145 fill its screens (Ideas, create, trip view, dates, booking, prices, cheapest week, Family, Map, Calendar, the job-flow suite), each gated by `test-app`, `test-words` and `test-viewport`; PIA-146 brings history and the live v1 trips across; **PIA-147 is the cutover**: `index.html`, `pialax.html` and `pialax-mobile.html` become redirect shims to `app.html` (query and hash kept), v1 code and its parity work are retired, and v2.0.0 ships. Until PIA-147 nothing links to `app.html`, and no v2 link may be shared with the family. Owed before cutover: the prototype's Mom & Dad icon check and the 2-person shared-list comprehension check.
+## UI and security
 
-## Commands
+Screens have at most 10 visible words; popups at most 20. Count visible
+whitespace-separated tokens with a Unicode letter, including names, airport
+codes, labels, placeholders and typed values. Trip names marked `data-free`,
+numerals, prices, dates, emoji and glyphs are exempt. Use named 44px targets,
+keyboard focus/Back, glyph explanations and the existing sheet patterns.
 
-There is no build step. Verification is `bash scripts/preflight.sh` (exit 0 = GO; its suites include `test-trust.sh`, the A1/A2/A3 trust gate, and `test-trip-idea.sh`): file presence, no `console.log` in shipping HTML (`app.html` included), secret scan, `<script>` tag balance, SRI hash freshness (`scripts/verify-sri.sh`, which also checks `app.html`'s `integrity=` attributes against its pinned list), `bash -n` on all scripts, optional shellcheck (`STRICT=1` to make it blocking). For v2: `test-trip-model.sh` and `test-gflinks.sh` (the model), `test-app.sh` (the shell in Node: drift, router, storage formats, store, writes against the real Worker) and `test-job-flows.sh` (the required Chromium acceptance gate: Calendar, full word/tap-count jobs, v2 viewport and verified map; missing browser support fails preflight). `scripts/harness.js` takes the app file as an argument (`node scripts/harness.js app.html`; no argument = the v1 pair). `bash scripts/test-viewport.sh` includes v1 and v2 at 360/390/430 in light and dark. PIA-145 preflight runs its v2 assertions with `PIALAX_VIEWPORT_SCOPE=v2` over local HTTP; the full legacy viewport run remains optional. PIA-143's `node scripts/test-map-browser.js` checks real map assets (verified against their hashes), each asset failure, airport picks and destination pricing through shared-record writes to the real Worker at those widths and themes. It needs Playwright/Chromium; `PIALAX_MAP_ASSETS` can point to previously downloaded pinned assets. `PIALAX_TEST_APP_URL` lets the word suite use a local HTTP server when browser policy blocks file URLs.
+Preserve strict CSP, exact d3/topojson paths and their frozen SRI hashes, exact
+world-atlas@2.0.2 URL and runtime SHA-256, no external fonts/styles/images, and
+faces/pickups fallback if any map asset fails. Entry files load no external assets.
+Credentials remain in existing storage/header formats, never logs or fixtures.
 
-After any Worker deploy, run `PIALAX_TOKEN=… bash scripts/verify-live.sh`. It needs network and spends 1 SerpAPI search, and it aborts before spending if the Worker isn't gated. Trust tickets close only when it passes.
+## Verification and shipping
 
-Shipping is envelope-based (see `PIALAX_HQ.md` §2.4): write `scripts/messages/<PIA-id>.msg` (conventional-commit message) and `<PIA-id>.files` (path manifest, must include both envelope files), then `bash scripts/ship.sh <PIA-id>` runs preflight, stages exactly the manifest, commits, and pushes.
+`bash scripts/preflight.sh` is mandatory. It checks all four HTML files,
+secrets, script balance, live SRI/map hashes, shell syntax, Worker, trust, model,
+Google Flights links, app and all six browser suites (cutover, migration,
+Calendar, words/taps, viewport, map). Missing or skipped required suites fail.
+Shellcheck remains advisory unless `STRICT=1`.
 
-## Versioning
+Install Node, global Playwright and Chromium; configure `NODE_PATH` and
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE` if needed. `PIALAX_TEST_REPORT_DIR` chooses the
+browser evidence directory. `PIALAX_MAP_ASSETS` can supply previously downloaded
+assets, still verified by hash. Job-flow tests serve over local HTTP.
+`node scripts/harness.js` defaults to `app.html`. Legacy UI suites and the
+three-way builder drift check are retired; captured v1 compatibility fixtures
+remain tested. Detailed coverage mapping is in `RELEASE_V2.md`.
 
-SemVer git tags on `main` (`v1.0.0` = first baseline, 2026-10-01); rules and history in `CHANGELOG.md`. Each ticket adds a line under **Unreleased** in its own commit. To release: rename **Unreleased** to `[X.Y.Z] — date`, merge, then `git tag -a vX.Y.Z -m "..." <merge-sha> && git push origin vX.Y.Z`.
+Every ticket has one implementation commit, an Unreleased changelog entry, and
+`scripts/messages/<ticket>.msg` plus `.files`. The manifest includes both envelope
+files and exactly the ticket diff (including deleted paths). Run preflight before
+push. Existing user authorization governs publishing; do not repeat approvals.
+A build request can prepare a PR while actual release prerequisites are pending.
+Never declare Pages current without comparing served and committed bytes.
 
-## Process conventions (from PIALAX_HQ.md — the operating playbook)
-
-- Work is ticketed as `PIA-NNN` with intent-level (not implementation-level) acceptance criteria; one ticket = one commit. Backlog lives in `backlog.md`; closed items in `MITIGATED.md` (auditors must not re-flag them).
-- Code edits belong in `pialax.html` + `pialax-mobile.html` (+ `worker.js`/`index.html` when in scope) for v1, and in `app.html` + `scripts/trip-model.js` for v2 tickets (PIA-134 onward); the `.md`/`.txt` files are ops docs. `PIALAX_HQ.md` is the multi-team playbook (Requirements / Coder / Test / Deploy / Auditor roles and their prompts) — read it before nontrivial work.
-- SRI hashes: if cdnjs republishes a pinned file, loads break by design — re-copy the hash from cdnjs and update **both** HTML files.
-
-PIA-145 acceptance evidence and deliberate feature retirements are recorded in `V2_ACCEPTANCE.md`. The job-flow runner starts its own loopback HTTP server, preserves existing tap targets, writes suite logs/report.json to a temporary directory (or `PIALAX_TEST_REPORT_DIR`), and fails if any required suite fails or skips. Install global Playwright plus Chromium, or configure `NODE_PATH` and `PLAYWRIGHT_CHROMIUM_EXECUTABLE`; no package.json is introduced. Calendar uses the selected trip, with daily headcounts and known-trip overlap details; month navigation is view state, never shared trip data.
-
-PIA-146 adds an explicit, organizer-initiated history import and legacy-trip review.
-The frozen historical source is never loaded into the trip list at boot. ⤒ may
-re-read `pialax_watchlist_v1` and discover newer shared IDs/keys; it never writes
-that source. Progress lives in `pialax_transfer_v1`, with Web Locks across tabs.
-Do not clear an uncertain creation or retry its POST: the unchanged Worker has
-no creation-idempotency lookup. The required job-flow gate also runs
-`test-migration-browser.js`; `V2_ACCEPTANCE.md` records the recovery limits and
-the distinction between fixture tests and the actual family's on-device import.
+Release v2.0.0 only after the same-day migration and device/provider evidence in
+`RELEASE_V2.md`. Date the changelog on release, then create an annotated tag at
+verified main. Preserve unrelated Unreleased entries. Revert only PIA-147 for UI
+rollback; retain shared records and local migration journals. No Worker deploy
+is required. If a later ticket does deploy the Worker, `verify-live.sh` spends
+one authorized SerpAPI search and must be explicitly budgeted.

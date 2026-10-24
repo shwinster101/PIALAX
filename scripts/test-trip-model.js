@@ -685,13 +685,10 @@ function makeServer(worker) {
   check(!!hubSrc && eq(JSON.parse(hubSrc[1].replace(/'/g, '"')), M.IDEA_HUBS), 'hub pairs are exactly worker.js IDEA_HUBS');
   const { loadApi } = require(path.join(ROOT, 'scripts', 'harness.js'));
   const QUIET = { console: { log() {}, warn() {}, error() {}, info() {} } };   // v1's boot notes (no CDN in Node), which surface at the next await
-  const v1m = loadApi(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['familyForDate', 'TRIP_NEARBY_GROUPS'], QUIET);
-  const v1d = loadApi(path.join(ROOT, 'pialax.html'), 'pialax.html', ['familyForDate', 'TRIP_NEARBY_GROUPS'], QUIET);
-  check(!v1m.missing.length && !v1d.missing.length && eq(v1m.api.TRIP_NEARBY_GROUPS, M.NEARBY_GROUPS) && eq(v1d.api.TRIP_NEARBY_GROUPS, M.NEARBY_GROUPS),
-    'nearby groups are exactly v1 TRIP_NEARBY_GROUPS (both pialax.html and pialax-mobile.html)');
-  const days = ['2026-06-25', '2026-08-15', '2026-08-31', '2026-09-01', '2026-10-17', '2026-11-26'];
-  check(!v1m.missing.length && !v1d.missing.length && days.every((d) => eq(M.familyForDate(d), v1m.api.familyForDate(d)) && eq(M.familyForDate(d), v1d.api.familyForDate(d))),
-    'familyForDate matches v1 (both files) on every test day, across the 9/1 move');
+  const legacy = fx('v1-cutover-contract.json');
+  check(eq(legacy.nearby, M.NEARBY_GROUPS), 'nearby groups match the frozen v1 contract');
+  check(Object.entries(legacy.family).every(([d, expected]) => eq(M.familyForDate(d), expected)),
+    'familyForDate matches the frozen v1 contract on every date across the September move');
   const pre = (dep) => M.familyPreset(dep, TODAY).map((f) => f.airport).join();
   check(pre('') === 'PIA,LAX,LGA' && pre('2026-08-15') === 'PIA,LAX,JAX' && pre('2026-08-31') === 'PIA,LAX,JAX' && pre('2026-09-01') === 'PIA,LAX,LGA',
     'familyPreset: undated on 2026-10-17 → LGA; departure 2026-08-15 → JAX; 8/31 JAX, 9/1 LGA');
@@ -1552,21 +1549,12 @@ function makeServer(worker) {
       L({ spent: 8 }) === 'session' && L({ spent: 7 }) === '' && L({ dayCap: '2026-10-17', quota: Q({ exceeded: true }) }) === 'month',
       'PIA-140 AC3 the Worker\'s day cap locks only until the next UTC day (pialax_daily_cap_v1, or today\'s /account at its cap); 8 spent locks the session; the month lock wins');
     // v1's own stores in v1's formats: the quota counter, and v1's one-adult fare cache read and written as v1 would
-    const { loadApi: la } = require(path.join(ROOT, 'scripts', 'harness.js'));
-    const v1Quota = (raw) => {
-      const ls = require(path.join(ROOT, 'scripts', 'harness.js')).makeLocalStorage(); if (raw !== undefined) ls.setItem('pialax_serpapi_quota', JSON.stringify(raw));
-      class D extends Date { constructor(...a) { if (a.length) super(...a); else super(NOW); } static now() { return NOW; } }
-      const v = la(path.join(ROOT, 'pialax-mobile.html'), 'pialax-mobile.html', ['readQuota', 'bumpQuota', 'markQuotaExceeded'], Object.assign({ localStorage: ls, Date: D }, QUIET));
-      return { api: v.api, missing: v.missing, ls };
-    };
-    const raws = [undefined, Q(), Q({ period: '2026-09', used: 500, exceeded: true }), Q({ used: 40, budget: 100, exceeded: true }), Q({ used: 300, budget: 250, exceeded: true }), Q({ used: 7, budget: 2000 })];
-    const qrows = raws.map((raw) => {
-      const v = v1Quota(raw), got = v.api.readQuota(), stored = v.ls.getItem('pialax_serpapi_quota'), mine = M.quotaRead(raw === undefined ? null : raw, '2026-10');
-      v.api.bumpQuota(1); const b1 = JSON.parse(v.ls.getItem('pialax_serpapi_quota'));
-      v.api.markQuotaExceeded(); const x1 = JSON.parse(v.ls.getItem('pialax_serpapi_quota'));
-      return { ok: !v.missing.length && eq(got, mine.q) && (raw === undefined ? stored !== null : stored !== JSON.stringify(raw)) === mine.write && eq(b1, M.quotaBump(mine.q, 1)) && eq(x1, M.quotaExceeded(M.quotaBump(mine.q, 1))), raw, got, mine };
+    const qrows = legacy.quota.map(v => {
+      const mine = M.quotaRead(v.raw, '2026-10');
+      return { ok: eq(v.got, mine.q) && v.write === mine.write && eq(v.bump, M.quotaBump(mine.q, 1)) &&
+        eq(v.exceeded, M.quotaExceeded(M.quotaBump(mine.q, 1))), raw: v.raw };
     });
-    check(qrows.every((r) => r.ok), 'PIA-140 pialax_serpapi_quota is read, migrated (100 → 250 → 1000), reset for a new month, bumped and locked exactly as v1\'s own readQuota / bumpQuota / markQuotaExceeded do (v1 run in-process)', qrows.filter((r) => !r.ok).slice(0, 2));
+    check(qrows.every(r => r.ok), 'quota migration, monthly reset, bump and lock match frozen v1 outputs', qrows.filter(r => !r.ok));
     const qa = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41, total_searches_left: 959, spend: {} });
     const qh = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41, total_searches_left: 959 }, true);
     const qn = M.quotaFromAccount(Q({ used: 1000, exceeded: true }), { this_month_usage: 41 }), qp = M.quotaFromAccount(Q({ used: 3 }), { searches_per_month: 5000, total_searches_left: 4900 });

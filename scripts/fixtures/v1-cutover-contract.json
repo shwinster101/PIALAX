@@ -1,0 +1,460 @@
+{
+  "source": {
+    "commit": "07a13220da09ef14a06c4f7d18c26beea07057a4",
+    "file": "pialax-mobile.html",
+    "purpose": "Frozen outputs captured from v1 before retirement; synthetic access values only."
+  },
+  "list": {
+    "input": {
+      "overrides": {
+        "thanksgiving": {
+          "stage": "planning",
+          "sharedIdeaId": "dwDiwaliRaleigh2026a01"
+        }
+      },
+      "added": [
+        {
+          "id": "added-1",
+          "mode": "family",
+          "origin": "LAX",
+          "dest": "RDU",
+          "dep": "2026-12-01",
+          "sharedIdeaId": "thTahoeSkiWeekend26b02",
+          "stage": "watching"
+        }
+      ]
+    },
+    "w": "eyJ2IjoyLCJvIjp7InRoYW5rc2dpdmluZyI6eyJzaCI6ImR3RGl3YWxpUmFsZWlnaDIwMjZhMDEifX0sImEiOlt7ImkiOiJhZGRlZC0xIiwibyI6IkxBWCIsImQiOiJSRFUiLCJwIjoiMjAyNi0xMi0wMSIsIm0iOiJmIiwiZyI6MCwieiI6eyJzaGFyZWRJZGVhSWQiOiJ0aFRhaG9lU2tpV2Vla2VuZDI2YjAyIn19XX0"
+  },
+  "single": {
+    "id": "cyCaryShowerUndated004",
+    "w": "eyJ2IjoyLCJvIjp7InRoYW5rc2dpdmluZyI6eyJzaCI6ImN5Q2FyeVNob3dlclVuZGF0ZWQwMDQifX19"
+  },
+  "builder": "JTdCJTIydmVyc2lvbiUyMiUzQSUyMnRyaXAtaWRlYS12MSUyMiUyQyUyMmJ1aWxkZXIlMjIlM0ElN0IlMjJtb2RlJTIyJTNBJTIyZGF0ZXMtZmlyc3QlMjIlMkMlMjJiYXNlSHViJTIyJTNBJTIyYWxsJTIyJTJDJTIyZGVzdGluYXRpb24lMjIlM0ElN0IlMjJjaXR5JTIyJTNBJTIyUmFsZWlnaC1EdXJoYW0lMjIlMkMlMjJhaXJwb3J0JTIyJTNBJTIyUkRVJTIyJTJDJTIyYWx0ZXJuYXRpdmVzJTIyJTNBJTVCJTVEJTdEJTJDJTIyZGF0ZXMlMjIlM0ElN0IlMjJkZXBhcnR1cmUlMjIlM0ElMjIyMDI2LTExLTA2JTIyJTJDJTIycmV0dXJuJTIyJTNBJTIyMjAyNi0xMS0wOSUyMiUyQyUyMnNlYXJjaFN0YXJ0JTIyJTNBJTIyJTIyJTJDJTIyc2VhcmNoRW5kJTIyJTNBJTIyJTIyJTJDJTIyZmxleGliaWxpdHlEYXlzJTIyJTNBMCUyQyUyMmZsZXhpYmlsaXR5TW9kZSUyMiUzQSUyMmluZGVwZW5kZW50JTIyJTJDJTIyYXV0b1dpbmRvdyUyMiUzQWZhbHNlJTdEJTJDJTIyY29uc3RyYWludHMlMjIlM0ElN0IlMjJ0cmlwTGVuZ3RoJTIyJTNBbnVsbCUyQyUyMm5vbnN0b3BQcmVmZXJyZWQlMjIlM0FmYWxzZSUyQyUyMmV2ZW50RGF0ZSUyMiUzQSUyMjIwMjYtMTEtMDglMjIlMkMlMjJzYXZlZENpdHlQcmlvcml0eSUyMiUzQXRydWUlN0QlMkMlMjJyZWNvbW1lbmRhdGlvbiUyMiUzQW51bGwlMkMlMjJwcmljZVN0YXR1cyUyMiUzQSUyMmVzdGltYXRlZCUyMiU3RCUyQyUyMnJlY29tbWVuZGF0aW9uJTIyJTNBJTdCJTIyYWlycG9ydCUyMiUzQSUyMlJEVSUyMiUyQyUyMmNpdHklMjIlM0ElMjJSYWxlaWdoLUR1cmhhbSUyMiUyQyUyMmRlcGFydHVyZSUyMiUzQSUyMjIwMjYtMTEtMDYlMjIlMkMlMjJyZXR1cm4lMjIlM0ElMjIyMDI2LTExLTA5JTIyJTJDJTIydG90YWxGYXJlJTIyJTNBOTU1JTdEJTJDJTIyZmFyZVN0YXR1cyUyMiUzQSUyMmVzdGltYXRlZCUyMiUyQyUyMnRpbWVzdGFtcCUyMiUzQSUyMjIwMjYtMTAtMDFUMDAlM0EwMCUzQTAwLjAwMFolMjIlMkMlMjJub3RlcyUyMiUzQSUyMlB1amElMjBTdW5kYXklMjIlMkMlMjJldmVudENvbnRleHQlMjIlM0ElMjIyMDI2LTExLTA4JTIyJTdE",
+  "history": [
+    {
+      "id": "nyc",
+      "mode": "solo",
+      "title": "NYC — First visit to Anjo (booked)",
+      "routeTxt": "LAX → JFK (one-way · chains into Memphis)",
+      "origin": "LAX",
+      "dest": "JFK",
+      "dep": "2026-08-28",
+      "ret": null,
+      "stage": "completed",
+      "notes": "Booked: B6 424 LAX 9:49a → JFK 6:24p, Fri Aug 28. First NYC visit since the move.",
+      "reminders": [
+        "Anjo meets at JFK Friday evening"
+      ],
+      "nextAction": "",
+      "blockers": [],
+      "gf": {
+        "from": "LAX",
+        "to": "JFK"
+      }
+    },
+    {
+      "id": "memphis",
+      "mode": "solo",
+      "title": "Memphis — Work trip",
+      "routeTxt": "LGA → MEM · MEM → LAX (via DFW)",
+      "origin": "LGA",
+      "dest": "MEM",
+      "dep": "2026-08-31",
+      "ret": "2026-09-03",
+      "stage": "completed",
+      "notes": "BOOKED: DL 4903 LGA 8:41a → MEM 10:36a, Mon Aug 31.",
+      "reminders": [],
+      "nextAction": "",
+      "blockers": [],
+      "gf": {
+        "from": "LGA",
+        "to": "MEM"
+      }
+    },
+    {
+      "id": "peru",
+      "key": "peru",
+      "mode": "solo",
+      "title": "Peru — Machu Picchu (solo)",
+      "routeTxt": "LAX → SCL → LIM → CUZ · LIM → LAX",
+      "origin": "LAX",
+      "dest": "CUZ",
+      "dep": "2026-09-04",
+      "ret": "2026-09-13",
+      "stage": "completed",
+      "notes": "BOOKED: LATAM via Santiago.",
+      "reminders": [
+        "Trek briefing 17:00 Sep 5 · trek operator office",
+        "Passport valid 6+ months from entry",
+        "A friend is also in Cusco Sep 5–12"
+      ],
+      "nextAction": "",
+      "blockers": [],
+      "gf": {
+        "from": "LAX",
+        "to": "CUZ",
+        "openjaw": true
+      }
+    },
+    {
+      "id": "thanksgiving",
+      "key": null,
+      "mode": "family",
+      "title": "🦃 Thanksgiving at home — Peoria",
+      "routeTxt": "Ashwin (LAX) + Anjo (LGA) → PIA Fri Nov 20 · home from ORD Sun Nov 29 · Mom & Dad host",
+      "hub": "PIA",
+      "dep": "2026-11-20",
+      "ret": "2026-11-29",
+      "eventDate": "2026-11-26",
+      "stage": "planning",
+      "bookBy": "2026-11-01",
+      "notes": "Thanksgiving at Mom & Dad’s in Peoria, with the Peoria parade.",
+      "reminders": [
+        "Send the RSVP link to the family group text",
+        "Thanksgiving-week fares rise fast — book soon after everyone answers"
+      ],
+      "nextAction": "Ask the family — everyone picks arrive / leave",
+      "blockers": [
+        "dates"
+      ],
+      "calendarEvents": [
+        {
+          "title": "Thanksgiving dinner — Peoria",
+          "start": "2026-11-26",
+          "end": "2026-11-27",
+          "location": "Peoria, IL",
+          "notes": "At Mom & Dad’s"
+        }
+      ],
+      "gf": {
+        "from": "LAX",
+        "to": "PIA",
+        "returnFrom": "ORD"
+      },
+      "sharedIdeaId": "tgLegacyThanksgiving01"
+    },
+    {
+      "id": "tgiving",
+      "key": null,
+      "mode": "family",
+      "title": "🦃 Cary baby shower — postponed",
+      "routeTxt": "Was: Ashwin Nov 21 + Anjo Nov 24 → PIA → RDU",
+      "hub": "RDU",
+      "dep": "2026-11-26",
+      "ret": "2026-11-29",
+      "eventDate": null,
+      "stage": "completed",
+      "notes": "Postponed — the shower is being rescheduled.",
+      "reminders": [],
+      "nextAction": "Postponed — revive when the shower is rescheduled",
+      "blockers": [],
+      "gf": {
+        "from": "LGA",
+        "to": "RDU"
+      }
+    },
+    {
+      "id": "london",
+      "key": "london",
+      "mode": "family",
+      "title": "London — Family trip",
+      "routeTxt": "PIA + LAX + JAX → LHR",
+      "hub": "LHR",
+      "dep": "2026-06-25",
+      "ret": "2026-07-03",
+      "stage": "completed",
+      "notes": "Completed — flew Jun 25, returned Jul 3.",
+      "reminders": [],
+      "gf": {
+        "from": "LAX",
+        "to": "LHR"
+      },
+      "blockers": [],
+      "nextAction": ""
+    },
+    {
+      "id": "builder-mg1x2y",
+      "_added": true,
+      "mode": "family",
+      "title": "Raleigh · Trip idea",
+      "routeTxt": "PIA_ORD → RDU",
+      "origin": "PIA",
+      "dest": "RDU",
+      "dep": "2026-11-06",
+      "ret": "2026-11-09",
+      "stage": "watching",
+      "notes": "",
+      "reminders": [],
+      "nextAction": "Refresh pricing before booking",
+      "blockers": [],
+      "eventDate": "2026-11-08",
+      "sharedIdeaId": "dwDiwaliRaleigh2026a01",
+      "gf": {
+        "from": "PIA",
+        "to": "RDU"
+      }
+    },
+    {
+      "id": "builder-bad001",
+      "_added": true,
+      "mode": "solo",
+      "title": "Broken link",
+      "dest": "SFO",
+      "dep": "2026-12-01",
+      "ret": null,
+      "stage": "watching",
+      "eventDate": null,
+      "nextAction": "",
+      "blockers": [],
+      "reminders": []
+    }
+  ],
+  "nearby": [
+    [
+      "LAX",
+      "BUR",
+      "LGB",
+      "SNA",
+      "ONT"
+    ],
+    [
+      "LGA",
+      "JFK",
+      "EWR"
+    ]
+  ],
+  "worker": "https://pialax-proxy.ashwinyedavalli.workers.dev",
+  "flighty": "https://www.flighty.com/",
+  "family": {
+    "2026-06-25": [
+      "PIA",
+      "LAX",
+      "JAX"
+    ],
+    "2026-08-15": [
+      "PIA",
+      "LAX",
+      "JAX"
+    ],
+    "2026-08-31": [
+      "PIA",
+      "LAX",
+      "JAX"
+    ],
+    "2026-09-01": [
+      "PIA",
+      "LAX",
+      "LGA"
+    ],
+    "2026-10-17": [
+      "PIA",
+      "LAX",
+      "LGA"
+    ],
+    "2026-11-26": [
+      "PIA",
+      "LAX",
+      "LGA"
+    ]
+  },
+  "sri": [
+    "vc58qvvBdrDR4etbxMdlTt4GBQk1qjvyORR2nrsPsFPyrs+/u5c3+1Ct6upOgdZoIl7eq6k3a1UPDSNAQi/32A==",
+    "4UKI/XKm3xrvJ6pZS5oTRvIQGIzZFoXR71rRBb1y2N+PbwAsKa5tPl2J6WvbEvwN3TxQCm8hMzsl/pO+82iRlg=="
+  ],
+  "quota": [
+    {
+      "raw": null,
+      "got": {
+        "period": "2026-10",
+        "used": 0,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "write": false,
+      "bump": {
+        "period": "2026-10",
+        "used": 1,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "exceeded": {
+        "period": "2026-10",
+        "used": 1000,
+        "budget": 1000,
+        "exceeded": true
+      }
+    },
+    {
+      "raw": {
+        "period": "2026-10",
+        "used": 12,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "got": {
+        "period": "2026-10",
+        "used": 12,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "write": false,
+      "bump": {
+        "period": "2026-10",
+        "used": 13,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "exceeded": {
+        "period": "2026-10",
+        "used": 1000,
+        "budget": 1000,
+        "exceeded": true
+      }
+    },
+    {
+      "raw": {
+        "period": "2026-09",
+        "used": 500,
+        "budget": 1000,
+        "exceeded": true
+      },
+      "got": {
+        "period": "2026-10",
+        "used": 0,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "write": true,
+      "bump": {
+        "period": "2026-10",
+        "used": 1,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "exceeded": {
+        "period": "2026-10",
+        "used": 1000,
+        "budget": 1000,
+        "exceeded": true
+      }
+    },
+    {
+      "raw": {
+        "period": "2026-10",
+        "used": 40,
+        "budget": 100,
+        "exceeded": true
+      },
+      "got": {
+        "period": "2026-10",
+        "used": 40,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "write": true,
+      "bump": {
+        "period": "2026-10",
+        "used": 41,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "exceeded": {
+        "period": "2026-10",
+        "used": 1000,
+        "budget": 1000,
+        "exceeded": true
+      }
+    },
+    {
+      "raw": {
+        "period": "2026-10",
+        "used": 300,
+        "budget": 250,
+        "exceeded": true
+      },
+      "got": {
+        "period": "2026-10",
+        "used": 300,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "write": true,
+      "bump": {
+        "period": "2026-10",
+        "used": 301,
+        "budget": 1000,
+        "exceeded": false
+      },
+      "exceeded": {
+        "period": "2026-10",
+        "used": 1000,
+        "budget": 1000,
+        "exceeded": true
+      }
+    },
+    {
+      "raw": {
+        "period": "2026-10",
+        "used": 7,
+        "budget": 2000,
+        "exceeded": false
+      },
+      "got": {
+        "period": "2026-10",
+        "used": 7,
+        "budget": 2000,
+        "exceeded": false
+      },
+      "write": false,
+      "bump": {
+        "period": "2026-10",
+        "used": 8,
+        "budget": 2000,
+        "exceeded": false
+      },
+      "exceeded": {
+        "period": "2026-10",
+        "used": 2000,
+        "budget": 2000,
+        "exceeded": true
+      }
+    }
+  ],
+  "fare": {
+    "data": {
+      "ow": 210,
+      "rt": null,
+      "live": true,
+      "airline": "UA",
+      "flightNo": null,
+      "airlineLogo": null,
+      "stops": 0,
+      "returnAirline": null,
+      "returnFlightNo": null,
+      "returnAirlineLogo": null,
+      "returnStops": 0,
+      "offers": [
+        {
+          "price": 210,
+          "airline": "UA",
+          "flightNos": [],
+          "depAirport": "",
+          "arrAirport": "",
+          "depTime": "",
+          "arrTime": "",
+          "stops": 0,
+          "durMin": null
+        }
+      ],
+      "insights": null,
+      "gfUrl": "",
+      "byDep": {},
+      "byArr": {},
+      "lastVerified": "2026-10-17T14:00:00.000Z",
+      "cached": true,
+      "edgeHit": true
+    },
+    "ts": 1792245600000
+  }
+}

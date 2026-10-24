@@ -20,7 +20,6 @@ process.env.TZ = 'America/Los_Angeles';   // PIA-140: the app's local reset time
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const vm = require('vm');
 
 const ROOT = process.argv[2] || process.cwd();
 let passCount = 0, failCount = 0;
@@ -358,58 +357,16 @@ function makeRooms(IdeaRoom, env, gate) {
     check(acct && acct.spend && acct.spend.exact === false, 'B3 without the meter /account says exact:false');
   }
 
-  // Client side, both dashboards: fetchFlights runs for real in a sandbox with
-  // a fetch that answers like a Worker cache HIT from five hours ago.
-  for (const file of ['pialax.html', 'pialax-mobile.html']) {
-    const html = fs.readFileSync(path.join(ROOT, file), 'utf8');
-    const fns = ['fareStamp', 'fetchFlights', 'freshnessLabel', '_freshPill', 'tripFareParse', 'fareAgeLabel'].map((n) => extractFn(html, n));
-    if (fns.some((f) => !f)) { bad(`A3 ${file}: could not find fareStamp/fetchFlights/freshnessLabel/tripFareParse`); continue; }
-    const fetchedAt = new Date(Date.now() - 5 * 3600 * 1000).toISOString();
-    const quota = { n: 0 };
-    const ctx = {
-      console: { warn() {}, log() {} }, Date, Math, JSON, Object, Promise, URLSearchParams, setTimeout, clearTimeout, isNaN, Number, String,
-      PROXY_URL: 'https://w.dev', FLIGHT_CACHE_TTL_MS: 86400000, _flightCache: {}, _flightInflight: {}, _lastFetchError: null, _liveFetchErrorCount: 0,
-      _cacheKey: (a, b, c, d) => [a, b, c, d].join('|'), isQuotaExceeded: () => false, isFetchLocked: () => false,
-      findLockedTrip: () => null, AbortController, getMock: () => ({ mock: true }), fmtISO: (d) => d.toISOString().slice(0, 10), persistFlightCache() {}, markQuotaExceeded() {},
-      bumpQuota: (n) => { quota.n += n; }, proxyToken: () => TOKEN, paidHeaders: () => ({ 'X-Pialax-Token': TOKEN }), noteMissingToken() {},
-      fetch: async () => new Response(JSON.stringify({ best_flights: [{ price: 210, flights: [{ airline: 'UA' }] }] }), { status: 200, headers: { 'X-Proxy-Cache': 'HIT', 'X-Fetched-At': fetchedAt } }),
-    };
-    vm.createContext(ctx);
-    vm.runInContext(fns.join('\n'), ctx);
-    const data = await ctx.fetchFlights('LAX', 'PIA', '2026-11-20', null);
-    const entry = ctx._flightCache['LAX|PIA|2026-11-20|'];
-    const label = ctx.freshnessLabel(data, null).label;
-    check(data.lastVerified === fetchedAt && data.cached === true, `A3 ${file}: a Worker HIT keeps lastVerified = X-Fetched-At (${label})`, data.lastVerified);
-    check(quota.n === 0, `A3 ${file}: a Worker HIT does not move the SerpAPI quota or session counter`, 'bumpQuota ' + quota.n);
-    check(entry && entry.ts === Date.parse(fetchedAt), `A3 ${file}: the client cache TTL runs from the original fetch time`);
-    check(/CACHED 5h ago/.test(label), `A3 ${file}: the label reads "CACHED 5h ago", not LIVE`, label);
-    // PIA-140: app.html writes a fare it searched into v1's cache exactly as this file's own fetchFlights caches it, so v1 on
-    // the same phone reads the search app.html paid for (and app.html reads v1's back: fareFromV1)
-    const TMv = require(path.resolve(ROOT, 'scripts', 'trip-model.js'));
-    const sortK = (v) => (Array.isArray(v) ? v.map(sortK) : v && typeof v === 'object' ? Object.keys(v).sort().reduce((o, k) => { o[k] = sortK(v[k]); return o; }, {}) : v);
-    const mine = TMv.v1Fare({ best_flights: [{ price: 210, flights: [{ airline: 'UA' }] }] }, Date.parse(fetchedAt), true, false);
-    check(entry && JSON.stringify(sortK(entry)) === JSON.stringify(sortK(mine)) && TMv.fareFromV1(entry, null).p === 210 && TMv.fareFromV1(entry, null).f === Date.parse(fetchedAt),
-      `A3 ${file}: app.html's v1Fare writes a fare exactly as this file's fetchFlights caches it (HIT kept as cached, its first fetch time), and reads it back as $210 fetched then`, { entry, mine });
-    // PIA-121: the shared parser keeps the same headline price and adds the offers.
-    check(entry && entry.data.ow === 210 && entry.data.airline === 'UA' && Array.isArray(entry.data.offers) && entry.data.offers[0].price === 210,
-      `A3 ${file}: the cached fare keeps its price ($210, UA) and now carries its offers`);
-    ctx.fetch = async () => new Response(JSON.stringify({ best_flights: [{ price: 220 }] }), { status: 200, headers: { 'X-Proxy-Cache': 'MISS', 'X-Fetched-At': new Date().toISOString() } });
-    await ctx.fetchFlights('LAX', 'ORD', '2026-11-20', null);
-    check(quota.n === 1, `A3 ${file}: a MISS (real SerpAPI call) counts exactly once`, 'bumpQuota ' + quota.n);
-    // PIA-125: the Worker's own daily cap (429 daily_cap) locks only until tomorrow,
-    // never the month; a SerpAPI 429 keeps the month lock.
-    const marks = { day: 0, month: 0 };
-    ctx.tripDailyCapMark = () => { marks.day++; }; ctx.markQuotaExceeded = () => { marks.month++; };
-    ctx.fetch = async () => new Response(JSON.stringify({ error: 'Daily cap reached', code: 'daily_cap' }), { status: 429 });
-    const capped = await ctx.fetchFlights('LAX', 'BUR', '2026-11-21', null);
-    ctx.fetch = async () => new Response('{"error":"rate"}', { status: 429 });
-    await ctx.fetchFlights('LAX', 'SNA', '2026-11-21', null);
-    check(capped && capped.mock === true && marks.day === 1 && marks.month === 1, `A1 ${file}: a Worker daily_cap 429 locks today only (month untouched); a SerpAPI 429 still locks the month`, JSON.stringify(marks));
-    let calls = 0;
-    ctx.proxyToken = () => '';
-    ctx.fetch = async () => { calls++; return new Response('{}'); };
-    const noTok = await ctx.fetchFlights('LAX', 'JFK', '2026-11-20', null);
-    check(calls === 0 && noTok && noTok.mock === true, `A1 ${file}: with no organizer token the dashboard never calls the Worker (sample fares)`);
+  // PIA-147: v1 UI retired; preserve the shared fare format against captured v1 output.
+  {
+    const M = require(path.resolve(ROOT, 'scripts/trip-model.js'));
+    const entry = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/v1-cutover-contract.json'))).fare;
+    const input = { best_flights: [{ price: 210, flights: [{ airline: 'UA' }] }] };
+    const sort = v => Array.isArray(v) ? v.map(sort) : v && typeof v === 'object' ? Object.keys(v).sort().reduce((o,k) => { o[k] = sort(v[k]); return o; }, {}) : v;
+    check(JSON.stringify(sort(M.v1Fare(input, entry.ts, true, false))) === JSON.stringify(sort(entry)),
+      'A3 shared cache writes match the frozen v1 fare bytes, age and offers');
+    check(M.fareFromV1(entry, null).p === 210 && M.fareFromV1(entry, null).f === entry.ts,
+      'A3 shared cache reads retain the captured v1 price and original age');
   }
 
   // PIA-140: app.html's own spend path (it replaces PIA-134's "no /search at all" check). The app runs in-process
@@ -712,22 +669,6 @@ function makeRooms(IdeaRoom, env, gate) {
 })().catch((e) => { bad('crashed: ' + (e && e.stack || e)); finish(); });
 
 // Pull `function name(...) {...}` (or `async function`) out of an HTML file by
-// brace matching, skipping string literals and comments.
-function extractFn(src, name) {
-  const m = new RegExp('(?:async\\s+)?function\\s+' + name + '\\s*\\(').exec(src);
-  if (!m) return null;
-  let i = src.indexOf('{', m.index), depth = 0;
-  for (; i < src.length; i++) {
-    const c = src[i];
-    if (c === '"' || c === "'" || c === '`') { const q = c; i++; while (i < src.length && src[i] !== q) { if (src[i] === '\\') i++; i++; } continue; }
-    if (c === '/' && src[i + 1] === '/') { while (i < src.length && src[i] !== '\n') i++; continue; }
-    if (c === '/' && src[i + 1] === '*') { i = src.indexOf('*/', i + 2) + 1; continue; }
-    if (c === '{') depth++;
-    else if (c === '}' && --depth === 0) return src.slice(m.index, i + 1);
-  }
-  return null;
-}
-
 function finish(tmpDir) {
   if (tmpDir) fs.rmSync(tmpDir, { recursive: true, force: true });
   console.log('');
