@@ -12,6 +12,9 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-149) — Shorter Nebby notes
+- Condense the in-app travel guidance while retaining airline confirmation, carrier requirements, pet fees, vet advice and private security screening. No behavior or data changes.
+
 ### Added (PIA-148) — Nebby travel notes
 - Expandable in-cabin travel guidance in trip Notes, including carrier/vet preparation, airline reservation and fees, security, and Peoria airport tradeoffs. Available in new, legacy and shared trips; reference text is exempt from word limits.
 - Existing shared notes, human headcounts, RSVP answers and airfare remain unchanged. Pet availability and fees must be confirmed with the airline.
