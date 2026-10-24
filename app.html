@@ -799,6 +799,12 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .split.two > * { flex: 1 1 0; min-width: 0; }
 .tiles6 .tool.bad { color: var(--bad); }
 .tiles6 .tool.done { border-color: var(--in); background: color-mix(in srgb, var(--in) 14%, var(--surface)); }
+.pet-notes { margin-top: 16px; overflow-wrap: anywhere; }
+.pet-notes summary { min-height: 44px; padding: 12px 4px; cursor: pointer; font-weight: 700; }
+.pet-notes-body { font-size: 16px; line-height: 1.5; }
+.pet-notes-body h3 { font-size: 17px; margin-bottom: 6px; }
+.pet-notes-body ul { padding-left: 24px; }
+.pet-notes-body li { margin-bottom: 10px; }
 .notev { margin: 0; font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
 .counter .w { color: var(--bad); }
 .toprow .ib.edit, .nav .ib.edit { font-size: 22px; }
@@ -5172,7 +5178,7 @@ function renderTrip(id) {
   // the destination is one tap from the Map on every trip view (a host's too)
   var hero = '<div class="hero">' + postcard(m, 'lg', { noLock: true }) +
     '<button class="chip" data-act="tomap" data-id="' + m.id + '" aria-label="Map" data-k="dest">📍' + esc(m.dest || '?') + '</button>' +
-    (m.caption ? '<button class="nt" data-act="cap" data-id="' + m.id + '" aria-label="Note" data-k="note"><span>📝</span></button>' : '') +
+    '<button class="nt" data-act="cap" data-id="' + m.id + '" aria-label="Note" data-k="note"><span>📝</span></button>' +
     '<div class="cap"><button class="pipbtn" data-act="stage" data-id="' + m.id + '" aria-label="' + esc(stageName(m)) + '">' + pip1(m, true) + '</button></div>' +
     '<button class="ring" data-act="ring" data-id="' + m.id + '" aria-label="Heads in" data-k="heads">' + headsRing(m) + '</button></div><h2 class="ttl" data-free>' + esc(m.title) + '</h2>';
   var html = nav + hero + meRow(m) + dateRow(m) + mineLine(m) + answerRow(m, m.me) + peopleBoard(m) + totalRow(m) + paidDoor(m) + primaryHTML(m, prim);
@@ -6385,7 +6391,7 @@ function draftNoteHTML(sh) {
   h += '<div class="rowc"><button class="tool" data-act="nnoteclr" aria-label="Clear note">🗑</button></div>';
   return h;
 }
-SHEETS.note = function (sh) {
+function tripNoteHTML(sh) {
   if (sh.p.draft) return draftNoteHTML(sh);
   if (sh.p.code) return personNoteHTML(sh);   // PIA-137: one person's own note
   var m = modelOf(sh.p.id), L = sh.local;
@@ -6401,6 +6407,25 @@ SHEETS.note = function (sh) {
   h += '<div class="counter" id="note-count">' + (L.long ? '<span class="w" data-k="warn">⚠</span> ' : '') + cutMark(L, 'note-text') + ' <span class="tn">' + wordsIn(L.text) + '/' + CAPTION_WORDS + '</span></div>';
   if (L.armed) h += '<p class="warnline"><span data-k="warn">⚠</span> <span data-k="close">⌄</span></p>';
   return h;
+};
+/* PIA-148: reference notes are outside the word budget by explicit product request.
+   This is guidance, not shared booking state: opening it never writes a trip or RSVP. */
+function nebbyTravelNotes(open) {
+  return '<details class="pet-notes" data-free' + (open ? ' open' : '') + '><summary id="nebby-notes-toggle">Nebby’s travel plan 🐈</summary>' +
+    '<div class="pet-notes-body"><p>Plan: travel in the cabin with Ashwin, if Nebby fits comfortably in the airline-approved carrier under the seat. Prefer nonstop flights and minimize total travel time.</p>' +
+    '<p>For Peoria, compare a connection into PIA with a nonstop to ORD plus the drive.</p>' +
+    '<h3>Before booking</h3><ul><li>Confirm cats are accepted and pet space is available on every flight, including the return. Check the operating airline on connections.</li>' +
+    '<li>Confirm carrier dimensions, weight limits, required health documents and pet fees each way.</li>' +
+    '<li>Reserve Nebby’s place directly with the airline. Buying Ashwin’s ticket alone does not confirm her space.</li></ul>' +
+    '<h3>Before departure</h3><ul><li>Practice relaxing in the carrier. Pack absorbent liners, cleanup supplies, food and a portable litter kit.</li>' +
+    '<li>Ask her vet about fitness to fly and travel anxiety. Do not sedate her without veterinary advice.</li></ul>' +
+    '<h3>At security</h3><p>Request a private screening room so Nebby can be removed from her carrier safely.</p>' +
+    '<h3>Still to confirm</h3><p>Airline, flights, carrier fit, pet reservation and total pet fees.</p>' +
+    '<p>Pet fees are not included in displayed airfare. Nebby is not counted as a human passenger or family RSVP.</p></div></details>';
+}
+SHEETS.note = function (sh) {
+  var h = tripNoteHTML(sh);
+  return !sh.p.code && (sh.p.draft || modelOf(sh.p.id)) ? h + nebbyTravelNotes(sh.local.nebbyOpen) : h;
 };
 /* a caption leaves with its sheet: unchanged → nothing is sent; a longer v1 text being replaced asks for a second ⌄
    (false = the sheet stays open); else one organizer edit, kept here to try again when it fails. The create sheet's
@@ -7592,6 +7617,7 @@ function renderSheet(first) {
   // (a toggle or a chip has no id)
   var el = $('#sheet'), act = document.activeElement, inside = !!(act && act !== el && el.contains(act)), fid = inside && act.id ? act.id : null, sig = inside && !fid && !first ? ctlSig(act) : null, sel = null;
   if (fid && act.selectionStart != null) { try { sel = [act.selectionStart, act.selectionEnd]; } catch (e) { sel = null; } }
+  if (!first && sh.type === 'note') { var petNotes = el.querySelector('.pet-notes'); if (petNotes) sh.local.nebbyOpen = petNotes.open; }
   el.innerHTML = SHEETS[sh.type](sh);
   el.setAttribute('data-popup', popupName(sh));
   el.setAttribute('aria-label', sheetName(sh));
@@ -8835,7 +8861,7 @@ function wire() {
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (S && S.sheet) { e.preventDefault(); closeSheet(); } return; }
     if (e.key === 'Tab' && S && S.sheet) {   // Tab wraps inside the open sheet (the page behind it is inert)
-      var f = $$('#sheet button:not([disabled]), #sheet a[href], #sheet input:not([disabled]), #sheet textarea').filter(isShown), a = document.activeElement, i = f.indexOf(a);
+      var f = $$('#sheet button:not([disabled]), #sheet a[href], #sheet input:not([disabled]), #sheet textarea, #sheet summary').filter(isShown), a = document.activeElement, i = f.indexOf(a);
       if (!f.length) { e.preventDefault(); return; }
       if (e.shiftKey ? i <= 0 : (i < 0 || i === f.length - 1)) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
       return;

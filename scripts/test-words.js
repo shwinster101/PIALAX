@@ -1557,6 +1557,15 @@ async function main() {
     await page.click('#screen [data-act="cap"]'); await settle(page, 120);
     const before = await page.$eval('#note-text', (e) => e.value.split(/\s+/).length);
     await measurePopup(page, 'P-note (a longer v1 caption, first 20 words)');
+    const captionBeforePet = await page.$eval('#note-text', (e) => e.value);
+    await page.focus('#sheet .pet-notes summary');
+    await page.keyboard.press('Enter');
+    await measurePopup(page, 'P-note (Nebby guidance expanded, exempt notes)');
+    const pet = await page.$eval('#sheet .pet-notes', (e) => ({ open: e.open, text: e.innerText, exempt: e.hasAttribute('data-free'), width: e.scrollWidth <= e.clientWidth }));
+    check(pet.open && pet.exempt && pet.width && pet.text.includes('Pet fees are not included') && pet.text.includes('private screening room') && pet.text.includes('return') && (await page.$eval('#note-text', (e) => e.value)) === captionBeforePet,
+      'PIA-148 Nebby guidance expands without changing the saved-note field, fits the phone and leaves fees/reservation unconfirmed', pet);
+    await page.click('#sheet .pet-notes summary');
+
     await page.fill('#note-text', ''); await page.type('#note-text', 'Dad wants the Peoria parade and then we eat ' + Array.from({ length: 15 }, (_, i) => 'w' + i).join(' '), { delay: 0 });
     const typed = await page.$eval('#note-text', (e) => e.value.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length);   // numerals are free: "w11" stops at its letter
     await page.click('#sheet [data-act="sh-close"]'); await settle(page, 120);
