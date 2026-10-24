@@ -6412,16 +6412,15 @@ function tripNoteHTML(sh) {
    This is guidance, not shared booking state: opening it never writes a trip or RSVP. */
 function nebbyTravelNotes(open) {
   return '<details class="pet-notes" data-free' + (open ? ' open' : '') + '><summary id="nebby-notes-toggle">Nebby’s travel plan 🐈</summary>' +
-    '<div class="pet-notes-body"><p>Plan: travel in the cabin with Ashwin, if Nebby fits comfortably in the airline-approved carrier under the seat. Prefer nonstop flights and minimize total travel time.</p>' +
-    '<p>For Peoria, compare a connection into PIA with a nonstop to ORD plus the drive.</p>' +
-    '<h3>Before booking</h3><ul><li>Confirm cats are accepted and pet space is available on every flight, including the return. Check the operating airline on connections.</li>' +
-    '<li>Confirm carrier dimensions, weight limits, required health documents and pet fees each way.</li>' +
-    '<li>Reserve Nebby’s place directly with the airline. Buying Ashwin’s ticket alone does not confirm her space.</li></ul>' +
-    '<h3>Before departure</h3><ul><li>Practice relaxing in the carrier. Pack absorbent liners, cleanup supplies, food and a portable litter kit.</li>' +
-    '<li>Ask her vet about fitness to fly and travel anxiety. Do not sedate her without veterinary advice.</li></ul>' +
-    '<h3>At security</h3><p>Request a private screening room so Nebby can be removed from her carrier safely.</p>' +
-    '<h3>Still to confirm</h3><p>Airline, flights, carrier fit, pet reservation and total pet fees.</p>' +
-    '<p>Pet fees are not included in displayed airfare. Nebby is not counted as a human passenger or family RSVP.</p></div></details>';
+    '<div class="pet-notes-body"><p>In cabin with Ashwin, fitting comfortably in an approved under-seat carrier. Prefer nonstop.</p>' +
+    '<p>Peoria: compare PIA connections with nonstop ORD plus the drive.</p>' +
+    '<h3>Before booking</h3><ul><li>Confirm pet space on every flight, including return. Reserve with each operating airline; your ticket doesn’t reserve Nebby.</li>' +
+    '<li>Check carrier size/weight, health documents and fees each way.</li></ul>' +
+    '<h3>Before travel</h3><ul><li>Practice carrier time. Pack liners, cleanup supplies, food and a litter kit.</li>' +
+    '<li>Ask her vet about travel fitness and anxiety. No sedation without veterinary advice.</li></ul>' +
+    '<h3>Security</h3><p>Request a private screening room before removing Nebby.</p>' +
+    '<p>Still unconfirmed: flights, carrier fit, pet reservation and fees.</p>' +
+    '<p>Pet fees are not included in airfare.</p></div></details>';
 }
 SHEETS.note = function (sh) {
   var h = tripNoteHTML(sh);
