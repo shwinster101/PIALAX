@@ -68,7 +68,7 @@ migration and on-device checks are recorded separately from fixture evidence.
 
 Screens have at most 10 visible words; popups at most 20. Count visible
 whitespace-separated tokens with a Unicode letter, including names, airport
-codes, labels, placeholders and typed values. Trip names marked `data-free`,
+codes, labels, placeholders and typed values. Trip names and the expandable Nebby travel-reference notes marked `data-free`,
 numerals, prices, dates, emoji and glyphs are exempt. Use named 44px targets,
 keyboard focus/Back, glyph explanations and the existing sheet patterns.
 

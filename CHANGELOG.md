@@ -12,6 +12,10 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Added (PIA-148) — Nebby travel notes
+- Expandable in-cabin travel guidance in trip Notes, including carrier/vet preparation, airline reservation and fees, security, and Peoria airport tradeoffs. Available in new, legacy and shared trips; reference text is exempt from word limits.
+- Existing shared notes, human headcounts, RSVP answers and airfare remain unchanged. Pet availability and fees must be confirmed with the airline.
+
 ### Changed (PIA-147) — v2.0.0 cutover candidate
 - Root, desktop and mobile entry URLs now redirect to one app, preserving query strings and fragments with Back-safe navigation. The app and shims identify as 2.0.0; actual release date/tag await launch checks.
 - Retire the v1 dashboard, duplicate builder/parity and v1-only UI tests. Keep immutable v1 link/storage/quota/fare contracts and all Worker/v2 trust coverage. Add mandatory browser checks for redirects, organizer access, list import, fallback and desktop layout.
