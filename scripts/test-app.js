@@ -73,7 +73,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-140
   'runSearch', 'accountSync', 'lockNow', 'readQuota', 'spentRead', 'absorbV1Fares', 'totalRow', 'fareRows', 'spendBtn', 'cardHTML', 'peopleBoard', 'renderSheet',
   // PIA-142
-  'renderFamily', 'famBoard', 'FAM_PER'];
+  'renderFamily', 'famBoard', 'FAM_PER',
+  // PIA-152
+  'BUILD', 'MIG_PULSE_MS', 'MIG_SPENT', 'migPulse'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -4040,7 +4042,7 @@ function norm(doc) {
     why.push(await tap(t, sp, 'answer', { v: 'in', proxy: '1' })); await tick();
     t.api.closeSheet();
     act(t, 'open', { id: PS }); const tv = t.api.renderTrip(PS).html; act(t, 'back');
-    check(/data-act="answer" data-v="in"[^>]*aria-disabled="true" data-why="1" aria-label="In, Update trip first" data-lbl="Update trip first"/.test(sl) && shownLbl(sl) === 'Update trip first' &&
+    check(/data-act="answer" data-v="in"[^>]*aria-disabled="true" data-why="1" aria-label="In, Update trip first" data-lbl="⤒ Update trip first"/.test(sl) && shownLbl(sl) === '⤒ Update trip first' &&
       /aria-label="In, Trip over" data-lbl="Trip over"/.test(sp) && !/data-act="nudge"/.test(sp) && /class="ans in ro"/.test(sp) && /aria-label="In, Trip over"/.test(tv) && posts(t).length === q0 && why.every((r) => r === null),
       'PIA-142 the organizer\'s cell on a v1 doc and on a past trip nobody closed: the answer row stays, greyed, and says why on a tap ("Update trip first" until PIA-146\'s update; "Trip over", the trip view\'s own row too); a trip that is over offers no 📣; nothing is sent');
     // the board's heads name their trips on a long press: the title (free) and the days; 🏠n's key says past or planned
@@ -4421,6 +4423,99 @@ function norm(doc) {
     const aA = lab('anjo-z5', 'a'), aD = lab('anjo-z5', 'd'), sA = lab('ashwin-p8', 'a'), sD = lab('ashwin-p8', 'd');
     check(r && r.e >= '2026-11-09' && /^right:/.test(aA) && /^right:/.test(aD) && /^left:/.test(sA) && /^left:/.test(sD),
       'PIA-151 AC7 the board\'s time labels never run past the track: Anjo landing on its last day (11/9) reads her 09:05 right-aligned to her bar\'s end; Ashwin leaving on its first day reads his 19:40 left-aligned to his bar\'s start', { aA, aD, sA, sD, r });
+  }
+
+  // ═══ PIA-152: a smooth first look ═══
+  section('PIA-152 a smooth first look: a v1 trip shows the family\'s faces everywhere (nothing written), ⤒ Update trip invites the organizer\'s tap, ⚙ shows the build');
+  const STAND = /🦄|🍩|🐻/;   // the stand-in faces the unmigrated Thanksgiving showed before PIA-152 (Mom & Dad, the v1 "Me", Anjo)
+  const migBtn = (h) => { const m = /<button class="ib edit( pulse)?" data-act="migrate" data-id="[^"]+" aria-label="Update trip" data-k="migrate"(?: style="animation-delay:-\d+ms")?>⤒<\/button>/.exec(h); return m ? (m[1] ? 'pulse' : 'still') : 'none'; };
+  {
+    // AC1 the unmigrated legacy Thanksgiving on its organizer's phone (he is its v1 "Me" at LAX) and on Mom's: 🌽 Mom & Dad, 💪 him,
+    // 🗽 Anjo on the card, the trip view and its board, a person's sheet, P-face, the Family board, the Map, the Calendar and P-day
+    const TG = seedAs(TGX), rec0 = JSON.stringify(srv.read(TG));
+    const views = async (ls, me) => {
+      const t = await boot136({ ls }), out = {};
+      out.card = t.api.renderIdeas().html;
+      act(t, 'open', { id: TG }); out.trip = screen(t);
+      act(t, 'person', { id: TG, code: 'LGA' }); out.anjo = sheet(t); t.api.closeSheet();
+      act(t, 'person', { id: TG, code: me }); out.mine = sheet(t); t.api.closeSheet();
+      act(t, 'face', { id: TG }); out.face = sheet(t); t.api.closeSheet();
+      act(t, 'back'); act(t, 'seg', { v: 'family' }); out.fam = t.api.renderFamily().html; act(t, 'seg', { v: 'ideas' });
+      act(t, 'tab', { v: 'map' }); out.map = t.api.renderSelected('map', 'map').html;
+      act(t, 'tab', { v: 'cal' }); out.cal = t.api.renderSelected('calendar', 'cal').html;
+      act(t, 'calday', { id: TG, v: '2026-11-26' }); out.day = sheet(t); t.api.closeSheet();
+      act(t, 'tab', { v: 'trips' });
+      return { t, out, faces: t.api.modelOf(TG).members.map((x) => x.code + x.face).join(' ') };
+    };
+    const org = await views(lsOf([TG], { pialax_idea_keys_v1: keyOf([TG]), pialax_idea_me_v1: { [TG]: 'LAX' } }), 'LAX');
+    const mom = await views(lsOf([TG], { pialax_idea_me_v1: { [TG]: 'PIA' } }), 'PIA');
+    const bad = [], has3 = (h) => ['🌽', '💪', '🗽'].every((f) => h.indexOf(f) >= 0);
+    [['organizer', org], ['Mom', mom]].forEach(([who, v]) => {
+      Object.keys(v.out).forEach((k) => { if (STAND.test(v.out[k])) bad.push(who + ' ' + k + ': a stand-in face'); });
+      ['card', 'trip', 'face', 'fam', 'map', 'day'].forEach((k) => { if (!has3(v.out[k])) bad.push(who + ' ' + k + ': not 🌽 💪 🗽'); });
+      if (v.out.anjo.indexOf('🗽') < 0) bad.push(who + ' Anjo\'s sheet: no 🗽');
+      if (v.faces !== 'PIA🌽 LAX💪 LGA🗽') bad.push(who + ' model: ' + v.faces);
+    });
+    check(bad.length === 0 && /class="tile legacy" data-act="pickface" data-id="[^"]+" data-code="LAX" aria-label="Person"/.test(mom.out.face) && shown(mom.out.face).indexOf('Me') < 0 && shown(org.out.trip + mom.out.trip).indexOf('Me') < 0 &&
+      posts(org.t).length === 0 && posts(mom.t).length === 0 && JSON.stringify(srv.read(TG)) === rec0,
+      'PIA-152 AC1 the unmigrated v1 Thanksgiving shows 🌽 Mom & Dad, 💪 the v1 "Me" at LAX and 🗽 Anjo everywhere, on the organizer\'s phone and on Mom\'s: the card, the trip view and its board, a person\'s sheet, P-face, the Family board, the Map and P-day; no stand-in face (🦄 🍩 🐻) anywhere; the "Me" is still a face with no word (never a pickable name); nothing is sent and the record is unchanged', bad);
+    // after ⤒ Update trip (its own requests, through the real Worker) the faces are identical: no jump
+    const wsend = async (reqs) => { const st = []; for (const q of reqs || []) { const r = await srv.fetch(W + q.path, { method: q.method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q.body) }); st.push(r.status); } return st; };
+    const d0 = srv.read(TG), mo = TM.migrateOptions(d0, null), st = await wsend(TM.migrateRequests(d0, KEY, { plan: mo.current, pin: mo.pin, labels: mo.labels }));
+    await org.t.api.refreshAll(true); await tick(); org.t.api.render();
+    act(org.t, 'open', { id: TG }); const after = screen(org.t), m2 = org.t.api.modelOf(TG);
+    check(st.length > 0 && st.every((s) => s === 200) && !m2.legacy && m2.members.map((x) => x.code + x.face).join(' ') === org.faces && migBtn(after) === 'none' && /data-act="edit"/.test(after) && !STAND.test(after),
+      'PIA-152 AC1 after ⤒ Update trip (its own requests, the real Worker) every face is what it was (🌽 💪 🗽: no jump), and ✎ takes the place of ⤒', { st, faces: m2.members.map((x) => x.code + x.face) });
+  }
+  {
+    // AC2 the organizer's ⤒ on the v1 trip pulses once a visit (the share pulse's .pulse, one pulse long), until the trip is updated
+    const TG = seedAs(TGX), DW = seedAs(DWX);
+    const ls = () => lsOf([TG, DW], { pialax_idea_keys_v1: keyOf([TG, DW]), pialax_idea_me_v1: { [TG]: 'LAX', [DW]: 'ashwin-p8' } });
+    const t = await boot136({ ls: ls() }), P = t.api.MIG_PULSE_MS, s = [];
+    s.push(migBtn(t.api.renderIdeas().html));                                   // 0 the cards: no ⤒ there
+    act(t, 'open', { id: TG }); s.push(migBtn(screen(t))); const first = screen(t); t.api.render(); s.push(migBtn(screen(t)));   // 1, 2 drawn again: still one pulse
+    CLOCK = NOW + 1200; t.api.render(); const midway = screen(t);              // drawn again 1.2 s in: the new button carries on from 1.2 s in
+    CLOCK = NOW + P + 1; s.push(migBtn(screen(t)));                             // 3 the pulse is over
+    act(t, 'back'); act(t, 'open', { id: TG }); s.push(migBtn(screen(t)));      // 4 the same visit: not again
+    act(t, 'back'); act(t, 'open', { id: DW }); const dw = screen(t); act(t, 'back');
+    // a greyed "Update trip first" row (the organizer's, for Anjo) names ⤒ by its glyph, and points to it: ⤒ pulses once its sheet closes
+    act(t, 'open', { id: TG }); act(t, 'person', { id: TG, code: 'LGA' });
+    const pa = sheet(t), inB = ctl(pa, 'answer', { v: 'in' });
+    const r0 = t.api.ACTS.answer(el0(inB, true)); s.push(migBtn(screen(t)));   // 5 under the sheet: not yet
+    t.api.closeSheet(); s.push(migBtn(screen(t)));                               // 6 the sheet closed: ⤒ pulses
+    CLOCK += P + 1; s.push(migBtn(screen(t)));                                  // 7 one pulse long
+    // a tap on ⤒ takes the invitation: it pulses no more this visit
+    act(t, 'person', { id: TG, code: 'LGA' }); t.api.ACTS.answer(el0(ctl(sheet(t), 'answer', { v: 'in' }), true)); t.api.closeSheet(); s.push(migBtn(screen(t)));   // 8 pointed again
+    act(t, 'migrate', { id: TG }); const mig = t.api.S.sheet && t.api.S.sheet.type; t.api.closeSheet(); s.push(migBtn(screen(t)));   // 9 taken
+    const spent = t.api.S.migPulse[TG]; CLOCK = 1; const spentEarly = t.api.migPulse(t.api.modelOf(TG));   // (taken, whatever the clock reads)
+    CLOCK = NOW;
+    // a new visit (the page opened again): it pulses again; a guest's phone (no key) has no ⤒; Mom's neither
+    const t2 = await boot136({ ls: ls() }); act(t2, 'open', { id: TG }); s.push(migBtn(screen(t2)));   // 10
+    const g = await boot136({ ls: lsOf([TG], { pialax_idea_me_v1: { [TG]: 'PIA' } }) }); act(g, 'open', { id: TG }); s.push(migBtn(screen(g)));   // 11
+    const trip0 = screen(t2);
+    check(eq(s, ['none', 'pulse', 'pulse', 'still', 'still', 'still', 'pulse', 'still', 'pulse', 'still', 'pulse', 'none']) && r0 === null && mig === 'migrate' &&
+      migBtn(midway) === 'pulse' && /data-k="migrate" style="animation-delay:-1200ms">⤒</.test(midway) && !/animation-delay/.test(first) && spent === t.api.MIG_SPENT && typeof spent !== 'number' && spentEarly === null &&
+      /<button class="ib edit" data-act="edit"/.test(dw) && !/class="ib edit pulse"/.test(dw) &&
+      /data-act="answer" data-v="in"[^>]*aria-disabled="true" data-why="1" aria-label="In, Update trip first" data-lbl="⤒ Update trip first"/.test(pa) && posts(t).length === 0,
+      'PIA-152 AC2 the organizer\'s ⤒ on the v1 trip pulses (.pulse, as 📣) the first time its trip view is drawn in a visit, for one pulse (drawn again meanwhile, it carries on from where it was: 1.2 s in, a -1200ms delay, so a redraw never adds a second pulse); not again that visit; a greyed In ("⤒ Update trip first": ⤒ named by its glyph) points to it: ⤒ pulses again as that sheet closes; a tap on ⤒ (P-migrate) takes the invitation; a new visit pulses again; a guest\'s phone has no ⤒; ✎ on a v2 trip never pulses; nothing sent', s);
+    // no new words: ⤒ is a glyph with the same label ("Update trip", its key's), pulsing or not; the trip view's words are the same
+    CLOCK = NOW + P + 1; const still = screen(t2); CLOCK = NOW;
+    check(eq(shown(trip0), shown(still)) && t.api.LEGEND.migrate[1] === 'Update trip' && /aria-label="Update trip" data-k="migrate">⤒</.test(trip0),
+      'PIA-152 AC2 no word is added: the trip view says the same words while ⤒ pulses and after; its label stays "Update trip"', { words: shown(trip0) });
+  }
+  {
+    // AC3 ⚙ shows the build as one number (#152: no word), from ONE constant, the newest ticket's number; the meta says the same
+    const src = fs.readFileSync(APP, 'utf8'), decl = src.match(/\bvar BUILD = (\d+);/g) || [];
+    const nums = fs.readdirSync(path.join(ROOT, 'scripts', 'messages')).map((f) => (/^PIA-(\d+)\.msg$/.exec(f) || [])[1]).filter(Boolean).map(Number);
+    const newest = Math.max(...nums), meta = (/<meta name="pialax-build" content="(\d+)">/.exec(src) || [])[1];
+    const t = await boot136({ ls: lsOf([]) });
+    act(t, 'settings'); const gear = sheet(t);
+    const tag = '<span class="tn bld" role="img" aria-label="Build ' + newest + '" data-lbl="Build">#' + newest + '</span>';
+    check(decl.length === 1 && t.api.BUILD === newest && +meta === newest && /<meta name="pialax-version" content="2\.0\.0">\n<meta name="pialax-build" content="\d+">/.test(src) &&
+      t.api.S.sheet && t.api.S.sheet.type === 'organizer' && gear.indexOf('<div class="ttlg">⚙ ' + tag + '</div>') >= 0 && shown(tag).length === 0 && (src.match(/>#' \+ BUILD \+ '</g) || []).length === 1,
+      'PIA-152 AC3 ⚙ shows the build as a number only (#' + newest + ', no word) from the one BUILD constant, which is the newest ticket\'s number (scripts/messages/PIA-' + newest + '.msg: the next ticket must bump it) and agrees with <meta name="pialax-build"> beside pialax-version', { BUILD: t.api.BUILD, newest, meta, decl, gear: gear.slice(0, 300) });
+    const how = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8') + fs.readFileSync(path.join(ROOT, 'RELEASE_V2.md'), 'utf8');
+    check((how.match(/⚙ #NNN/g) || []).length >= 2 && /pialax-build/.test(how), 'PIA-152 AC3 CLAUDE.md and RELEASE_V2.md say how to check a phone\'s build (⚙ #NNN) against main');
   }
 
   // ═══ AC12 / AC14 ═══

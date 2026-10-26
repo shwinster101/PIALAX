@@ -399,6 +399,10 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates (a locked plan to read, 🔓)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-trip="tgLegacyThanksgiving01"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(200); await measure('P-face (by itself, a v1 trip)');
+        // PIA-152: the v1 trip's tiles are the family's own faces (🌽 💪 🗽), each inside its tile
+        const tg = await page.$$eval('#sheet [data-act="pickface"]', (es) => es.map((e) => { const r = e.getBoundingClientRect(), f = e.querySelector('.f') || e, g = document.createRange(); g.selectNodeContents(f); const t = g.getBoundingClientRect();
+          return { face: (e.querySelector('.f') || {}).textContent || '', fits: t.width > 0 && t.left >= r.left - 0.5 && t.right <= r.right + 0.5 }; })).catch(() => []);
+        if (tg.map((x) => x.face).sort().join('') !== ['🌽', '💪', '🗽'].sort().join('') || !tg.every((x) => x.fits)) fails.push('P-face on the v1 Thanksgiving should show the family\'s 🌽 💪 🗽, each inside its tile; got ' + JSON.stringify(tg));
         await tapJs('#sheet [data-act="pickface"][data-code="PIA"]'); await measure('the host\'s trip view (In unconfirmed)');
         await tapJs('#screen [data-act="back"]');
         for (const tab of ['map', 'cal']) { await page.click('#tabbar [data-v="' + tab + '"]'); await page.waitForTimeout(120); await measure(tab); }
@@ -498,6 +502,10 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(100); await measure('⚙ (🔍 today, this visit, the month cap, ⛔)');
         if (!(await page.$('#sheet #org-cap')) || !(await page.$('#sheet .budget .bud')) || !(await page.$('#sheet .capt'))) fails.push('⚙ on the organizer\'s phone should show the searches left today, the month cap and ⛔');
+        // PIA-152: ⚙ shows the build beside its glyph, one line, inside the header, readable (not the background's colour)
+        const bld = await page.$eval('#sheet .sh-hd .bld', (e) => { const r = e.getBoundingClientRect(), h = e.closest('.sh-hd').getBoundingClientRect(), cs = getComputedStyle(e);
+          return { txt: e.textContent, in: r.left >= h.left && r.right <= h.right && r.height < 30, color: cs.color, bg: getComputedStyle(document.querySelector('#sheet')).backgroundColor }; }).catch(() => null);
+        if (!bld || !/^#\d+$/.test(bld.txt) || !bld.in || bld.color === bld.bg) fails.push('⚙ should show the build (#NNN) inside its header, on one line, readable; got ' + JSON.stringify(bld));
         await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); });
         await page.click('#sheet [data-act="devlink"]'); await page.waitForTimeout(150); await measure('P-link');
         // PIA-140 fix pass: the visit's 8 spent (⛔ ↻ in P-total and in a person's square, then ↻8? asked), the month locked by SerpAPI

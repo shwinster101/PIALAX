@@ -8,6 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
+<meta name="pialax-build" content="152">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -473,6 +474,7 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .sh-hd { display: flex; align-items: center; gap: 8px; min-height: 48px; position: sticky; top: -8px; background: var(--surface); z-index: 3; margin: 0 -4px; padding-top: 2px; }
 .sh-hd.pers { padding-top: 12px; padding-bottom: 6px; }
 .sh-hd .ttlg { font-size: 22px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.sh-hd .ttlg .bld { font-size: 14px; font-weight: 600; color: var(--ink2); letter-spacing: .02em; }   /* PIA-152: ⚙'s build number */
 .rowc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rowc.nw { flex-wrap: nowrap; }
 .hchip { min-height: 44px; padding: 0 10px; border-radius: 22px; border: 1.5px solid var(--line); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -1444,16 +1446,16 @@ function tripModel(doc, ctx) {
   var others = (ctx.otherTrips || []).filter(function (od) { return od && od.id !== doc.id; });
   var rows = (I.members || []).filter(function (m) { return m && typeof m.code === 'string'; });
   var times = answerTimes(doc);                                           // when each member last answered (PIA-135)
-  // a label with no face (v1) reads with the hashed face of its name, moved on to the next free face if the trip
-  // already shows it, so two tiles never share a face (the face is the primary identity)
-  var shown = rows.map(function (m) { return splitLabel(m.label).face; }).filter(Boolean);
-  var members = rows.map(function (m) {
+  // a label with no face (v1) reads with the family preset's face for someone the preset recognises (PIA-152), else with
+  // the hashed face of its name, moved on to the next free face if the trip already shows it, so two tiles never share
+  // a face (the face is the primary identity): memberFaces, the faces ⤒ Update trip writes
+  var faces = memberFaces(rows);
+  var members = rows.map(function (m, i) {
     var r = validResp(R[m.code]);
     // a legacy 'Me' shows its face only and has no name identity until P-migrate, so nobody can pick it as a name
     var lab = splitLabel(m.label), meWord = isMeLabel(lab.name);
     var norm = meWord ? '' : normName(lab.name || '?'), name = meWord ? '' : (lab.name || '?');
-    var seed = norm || '#' + m.code, face = lab.face;
-    if (!face) { face = autoFace(seed, shown); shown.push(face); }
+    var seed = norm || '#' + m.code, face = faces[i];
     var airport = normIata(m.airport), hc = Math.max(1, Math.min(9, Math.round(+m.headcount) || 1));
     var host = !!dest && !!airport && loc.indexOf(airport) >= 0;
     var status = r ? r.status : (host ? 'host-default' : 'waiting');
@@ -1951,14 +1953,61 @@ function familyPreset(departure, today) {
   var day = isIso(departure) ? departure : today, codes = familyForDate(day);
   return FAMILY.map(function (f, i) { return { preset: f.key, face: f.face, name: f.name, label: memberLabel(f.face, f.name), airport: codes[i], headcount: f.headcount }; });
 }
-/* P-migrate's suggested face and name for a v1 member (by home airport; others keep their name with a hashed face) */
-function migrateLabel(member) {
+/* PIA-152: the family preset's person a v1 member is (P-migrate's rule): a label with no face, or the v1 word 'Me', at one
+   of the preset's home airports (FAMILY_BY_AIRPORT), named as the preset names them, 'Me', or not named at all. Anyone else
+   (a label with its own face and a real name, another airport, another name) is nobody's preset: null. */
+function familyOf(member) {
   var lab = splitLabel(member && member.label), key = FAMILY_BY_AIRPORT[normIata(member && member.airport)];
   var fam = key ? FAMILY.filter(function (f) { return f.key === key; })[0] : null;
+  if (!fam || (lab.face && !isMeLabel(lab.name))) return null;
+  return isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || !lab.name ? fam : null;
+}
+/* P-migrate's suggested face and name for a v1 member (by home airport; others keep their name with a hashed face) */
+function migrateLabel(member) {
+  var lab = splitLabel(member && member.label), fam = familyOf(member);
   if (lab.face && !isMeLabel(lab.name)) return member.label;
-  if (fam && (isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || !lab.name)) return memberLabel(fam.face, fam.name);
+  if (fam) return memberLabel(fam.face, fam.name);
   var name = isMeLabel(lab.name) || !lab.name ? (member && member.code) || '?' : lab.name;
   return memberLabel(lab.face || hashedFace(normName(name)), name);
+}
+/* the faces a trip's members showed before PIA-152, in member order: a label's own face, else the hashed face of its name
+   ('#code' for a nameless v1 'Me'), moved on to the next free face if the trip already shows it (autoFace) */
+function nameFaces(rows) {
+  var shown = rows.map(function (m) { return splitLabel(m && m.label).face; }).filter(Boolean);
+  return rows.map(function (m) {
+    var lab = splitLabel(m && m.label), norm = isMeLabel(lab.name) ? '' : normName(lab.name || '?');
+    if (lab.face) return lab.face;
+    var f = autoFace(norm || '#' + (m && m.code), shown); shown.push(f); return f;
+  });
+}
+/* PIA-152: the face every member of a trip shows, unique within it, in member order. A label's own face stays. Someone the
+   family preset recognises (familyOf) shows the preset's face (🌽 / 💪 / 🗽), a v1 '<face> Me' at a family airport too (it
+   is that person, as ⤒ Update trip writes), unless a label on the trip already has that face or an earlier row is that
+   person: then the face they showed before. Everyone else shows the face they showed before (nameFaces), moved on to the next
+   free face only when the family now shows it (a friend whose hashed face is 🌽 or 🗽). Only a v1 doc has a label with no face
+   or 'Me', so a v2 trip shows exactly the faces stored in it. Nothing here is written: ⤒ Update trip (migrateLabels) writes
+   these same faces, so nobody's face changes when a v1 trip is updated. */
+function memberFaces(rows) {
+  var fams = rows.map(familyOf), was = nameFaces(rows), took = [];
+  var faces = rows.map(function (m, i) { return fams[i] ? '' : splitLabel(m && m.label).face || ''; }), own = faces.slice();
+  rows.forEach(function (m, i) { var f = fams[i] && fams[i].face; if (f && own.indexOf(f) < 0 && took.indexOf(f) < 0) { faces[i] = f; took.push(f); } });
+  var shown = faces.filter(Boolean);
+  rows.forEach(function (m, i) { if (!faces[i] && shown.indexOf(was[i]) < 0) { faces[i] = was[i]; shown.push(was[i]); } });
+  rows.forEach(function (m, i) {
+    if (faces[i]) return;
+    var lab = splitLabel(m && m.label), norm = isMeLabel(lab.name) ? '' : normName(lab.name || '?');
+    faces[i] = autoFace(norm || '#' + (m && m.code), shown); shown.push(faces[i]);
+  });
+  return faces;
+}
+/* PIA-152: P-migrate's labels for a v1 doc's members: migrateLabel's names (the preset's for someone it recognises, a v1 'Me'
+   or a nameless row named by its code), each with the face the trip already shows for them (memberFaces): no face jumps */
+function migrateLabels(members) {
+  var rows = (members || []).filter(function (m) { return m && typeof m.code === 'string'; }), faces = memberFaces(rows);
+  return rows.map(function (m, i) {
+    var l = migrateLabel(m), s = splitLabel(l);
+    return { code: m.code, label: s.face === faces[i] ? l : memberLabel(faces[i], s.name) };
+  });
 }
 function readV1Storage(raw) {
   var s = raw;
@@ -2330,8 +2379,7 @@ function migrateOptions(doc, v1raw) {
     a = a ? minD(a, x) : x; b = b ? maxD(b, y) : y;
   });
   if (a && pin) { a = minD(a, pin); b = maxD(b, pin); }
-  return { current: plan, span: a ? { s: a, e: b } : null, pin: pin,
-    labels: ((doc && doc.idea && doc.idea.members) || []).map(function (m) { return { code: m.code, label: migrateLabel(m) }; }) };
+  return { current: plan, span: a ? { s: a, e: b } : null, pin: pin, labels: migrateLabels(doc && doc.idea && doc.idea.members) };
 }
 /* P-migrate: one update that copies the recommendation's airport, city and the picked plan into the idea, adds 📌,
    puts faces on the labels (codes never change), nulls recommendation and re-chooses when the doc was chosen; then
@@ -2341,12 +2389,12 @@ function migrateRequests(fresh, editKey, choice) {
   if (!fresh || !fresh.idea || (choice.plan ? !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s : !!docPlan(fresh))) return null;
   var rec = fresh.idea.recommendation || {}, ap = normIata(rec.airport) || docDest(fresh);
   var city = airportInfo(ap).city || clip(rec.city || (fresh.idea.destination && fresh.idea.destination.city), TEXT_MAX.city);
-  var labels = {}; (choice.labels || []).forEach(function (x) { if (x && x.code) labels[x.code] = x.label; });
+  var labels = {}; migrateLabels(fresh.idea.members).concat(choice.labels || []).forEach(function (x) { if (x && x.code && x.label) labels[x.code] = x.label; });
   var delta = {
     destination: { airport: ap, city: city },
     dates: choice.plan ? { departure: choice.plan.s, return: choice.plan.e } : cleanDates(fresh.idea.dates),
     pin: hasOwn(choice, 'pin') ? choice.pin : parseNotes(fresh.idea.notes).pin,
-    members: (fresh.idea.members || []).map(function (m) { return { code: m.code, label: labels[m.code] || migrateLabel(m) }; })
+    members: (fresh.idea.members || []).map(function (m) { return { code: m.code, label: labels[m.code] || migrateLabel(m) }; })   // (labels: what the trip shows, then the review's)
   };
   if (choice.plan && delta.pin && (delta.pin < choice.plan.s || delta.pin > choice.plan.e)) return null;
   if (fresh.decision && fresh.decision.stage === 'chosen' && choice.plan) delta.decision = { stage: 'chosen' };   // re-chosen on the migrated idea, with no price
@@ -2869,7 +2917,7 @@ function legacyDraft(raw, today) {
 }
 /* the people of the trips this phone has seen, as ready groups for P-new-who: one per distinct set of people (by
    name), in the order given (newest trip first). An unmigrated v1 trip offers no group: its faces are only read-time
-   stand-ins (a hashed face nobody chose), so a group built from it would hand someone a face they never had. Each:
+   stand-ins (the preset's or a hashed face, never stored), so a group built from it would hand someone a face they never had. Each:
    {key, faces, rows [{face, name, airport, headcount, me}], family: it is the 👪 three (the token phone shows its
    own 👪 chip)} */
 var FAMILY_KEY = FAMILY.map(function (f) { return normName(f.name); }).sort().join('|');
@@ -3530,6 +3578,10 @@ function endPrices(model, code, end, fares, now, today) {
    ===================================================================================================== */
 
 /* ---- constants (outside the model region) ---- */
+/* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
+   under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
+   ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
+var BUILD = 152;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -5014,7 +5066,27 @@ function renderFamily() {
 function memberIn(m, code) { return m && code ? m.members.filter(function (x) { return x.code === code; })[0] || null : null; }
 /* PIA-136: the organizer's ✎ (P-edit) sits in the nav of a trip this phone holds the key to (never on a v1 doc, which
    P-migrate brings across first); 📝 opens the caption */
-function editBtn(m) { if (m.org && (m.legacy || (transferRead().migrations[m.id] && !transferRead().migrations[m.id].done))) return '<button class="ib edit" data-act="migrate" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate">⤒</button>'; return m.org && !m.legacy ? '<button class="ib edit" data-act="edit" data-id="' + m.id + '" aria-label="Edit" data-k="edit">✎</button>' : ''; }
+function editBtn(m) {
+  if (m.org && (m.legacy || (transferRead().migrations[m.id] && !transferRead().migrations[m.id].done))) {
+    var pl = migPulse(m);   // (drawn again mid-pulse, the new button carries on from where the pulse was: a negative delay)
+    return '<button class="ib edit' + (pl ? ' pulse' : '') + '" data-act="migrate" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate"' + (pl && pl.at > 0 ? ' style="animation-delay:-' + pl.at + 'ms"' : '') + '>⤒</button>';
+  }
+  return m.org && !m.legacy ? '<button class="ib edit" data-act="edit" data-id="' + m.id + '" aria-label="Edit" data-k="edit">✎</button>' : '';
+}
+/* PIA-152: ⤒ Update trip invites the organizer's tap until the trip is updated (then it is ✎), as 📣 asks for its own: it pulses
+   (the same .pulse) once a visit, from the first time the trip view is drawn with no sheet over it, for the length of one
+   pulse (drawn again meanwhile, it carries on: {at: ms into the pulse}, else null). Its label stays "Update trip"; no word is
+   added. A tap on ⤒ spends it (MIG_SPENT); a tap on a greyed "Update trip first" row points to it again (migPoint): it pulses
+   the next time the trip view is in view. */
+var MIG_PULSE_MS = 4800, MIG_SPENT = 'spent';
+function migPulse(m) {
+  if (!S || !m || !m.id) return null;
+  var P = S.migPulse || (S.migPulse = {});
+  if (!hasOwn(P, m.id)) { if (S.sheet || S.tab !== 'trips' || S.trip !== m.id) return null; P[m.id] = nowMs(); }
+  var at = typeof P[m.id] === 'number' ? Math.max(0, Math.round(nowMs() - P[m.id])) : MIG_PULSE_MS;
+  return at < MIG_PULSE_MS ? { at: at } : null;
+}
+function migPoint(id) { if (S && S.migPulse && id) delete S.migPulse[id]; }
 /* the organizer's 📣 asks for attention while anyone has not answered, and after the plan moved since his last 📣 */
 function sharePulse(m) { return !!m.org && m.decision !== 'dropped' && (m.waitingAny || readMap(ST.shared)[m.id] !== m.planHash); }
 /* the nav's 📣 (the guest link): hidden while the primary is Share, and on a dropped trip */
@@ -5062,18 +5134,19 @@ function mineLine(m) {
    PIA-142: a trip that is over (its last day before today, not closed) takes no answers: the row stays, greyed, and a tap
    says "Trip over"; o.why 'legacy': the organizer's row for someone on a v1 doc he has not updated yet ("Update trip first"). */
 var ANS_WHY = { past: 'Trip over', legacy: 'Update trip first' };
+var ANS_GLYPH = { legacy: '⤒ ' };   // PIA-152: what a tap shows names the control that unlocks the row by its glyph (no word added)
 function answerRow(m, x, o) {
   o = o || {};
   if (m.closed) {
     var dr = m.decision === 'dropped';
     return '<div class="closed" role="img" aria-label="' + (dr ? 'Dropped' : 'Trip closed') + '" data-k="' + (dr ? 'dropped' : 'st-done') + '">' + (dr ? '🗑' : '🏁') + '</div>';
   }
-  var st = x ? x.status : '', code = x ? x.code : '', busy = !!(PEND[m.id] && x && x.resp), why = ANS_WHY[m.past ? 'past' : o.why] || '';
+  var wk = m.past ? 'past' : o.why, st = x ? x.status : '', code = x ? x.code : '', busy = !!(PEND[m.id] && x && x.resp), why = ANS_WHY[wk] || '', wlbl = why ? (ANS_GLYPH[wk] || '') + why : '';
   var b = function (v, word) {
     var def = v === 'in' && st === 'host-default', arm = !why && v === 'out' && !!x && armed(armKey(m.id, code, 'out'));
     // Out on someone booked waits for its confirming tap (it takes the 🎫 away): it pulses with 🎫↩
     return '<button class="ans ' + v + (def ? ' def' : '') + (arm ? ' arm' : '') + (why ? ' ro' : '') + '" data-act="answer" data-v="' + v + '" data-id="' + m.id + '" data-code="' + esc(code) + '"' + (o.proxy ? ' data-proxy="1"' : '') +
-      ' aria-pressed="' + (st === v) + '"' + (why ? ' aria-disabled="true" data-why="1" aria-label="' + word + ', ' + why + '" data-lbl="' + why + '"' : arm ? ' aria-label="Confirm Out"' : '') + ' data-k="' + (def ? 'hostdef' : v) + '">' + MK[v] + word + (arm ? '<span class="cfm" aria-hidden="true">🎫↩</span>' : '') + '</button>';
+      ' aria-pressed="' + (st === v) + '"' + (why ? ' aria-disabled="true" data-why="1" aria-label="' + word + ', ' + why + '" data-lbl="' + wlbl + '"' : arm ? ' aria-label="Confirm Out"' : '') + ' data-k="' + (def ? 'hostdef' : v) + '">' + MK[v] + word + (arm ? '<span class="cfm" aria-hidden="true">🎫↩</span>' : '') + '</button>';
   };
   // while the answer is on its way the pressed one breathes (aria-busy); a failed one goes back and P-error says so
   return '<div class="answers' + (!o.proxy && S.pulseAns === m.id ? ' nudge' : '') + '" role="group" aria-label="Answer"' + (busy ? ' aria-busy="true"' : '') + '>' + b('in', 'In') + b('maybe', 'Maybe') + b('out', 'Out') + '</div>';
@@ -5824,7 +5897,8 @@ SHEETS.organizer = function (sh) {
   if (L.tok == null && d) { L.tok = d.tok; L.url = d.url; L.tokEdited = d.tokEdited; L.urlEdited = d.urlEdited; if (d.capEdited) { L.cap = d.cap; L.capEdited = true; } }
   if (L.tok == null) L.tok = tokenStr();
   if (L.url == null) L.url = workerBase();
-  var h = shHd('⚙');
+  // PIA-152: the build, a number only (#152: no word), beside ⚙ on every phone (ⓘ reaches ⚙ everywhere): compare it with main's
+  var h = shHd('⚙ <span class="tn bld" role="img" aria-label="Build ' + BUILD + '" data-lbl="Build">#' + BUILD + '</span>');
   h += '<div class="rowc nw"><span class="fld' + (L.badTok || (S.acctBad && !L.tokEdited) ? ' bad' : '') + '"><label for="org-token" aria-hidden="true">🔑</label><input id="org-token" type="' + (L.show ? 'text' : 'password') +
     '" aria-label="' + (S.acctBad && !L.tokEdited ? 'Token, refused by the Worker' : 'Token') + '" autocomplete="off" autocapitalize="off" spellcheck="false" value="' + esc(L.tok) + '"></span>' +
     '<button class="ib tool" data-act="tokshow" aria-pressed="' + !!L.show + '" aria-label="Show token">👁</button></div>';
@@ -8032,7 +8106,11 @@ function dropMapEntry(toTrip) {
   try { history.go(-n); } catch (e) { S.ignorePop--; }
 }
 var ACTS = {
-  migrate: function (el) { if (editKeyFor(el.dataset.id) && !KEYBAD[el.dataset.id]) openSheet('migrate', { id: el.dataset.id }); },
+  migrate: function (el) {
+    if (!editKeyFor(el.dataset.id) || KEYBAD[el.dataset.id]) return;
+    (S.migPulse || (S.migPulse = {}))[el.dataset.id] = MIG_SPENT;   // PIA-152: the invitation is taken: ⤒ pulses no more this visit
+    openSheet('migrate', { id: el.dataset.id });
+  },
   migpage: function (el) { var L = S.sheet.local; L.page = Math.max(0, Math.min(2, L.page + (+el.dataset.v))); renderSheet(false); },
   migrow: function (el) { var L = S.sheet.local; L.row = Math.max(0, Math.min(L.labels.length - 1, L.row + (+el.dataset.v))); renderSheet(false); },
   migplan: function (el) { S.sheet.local.plan = el.dataset.v; S.sheet.local.failed = ''; renderSheet(false); },
@@ -8559,7 +8637,12 @@ var ACTS = {
      nothing, unless it is mine and the organizer entered it: my own tap takes it over (📞 goes). Out on someone booked
      takes their 🎫 away (the Worker drops it), so it asks for a confirming tap. */
   answer: function (el) {
-    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return null; }   // PIA-142: "Trip over", "Update trip first"
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') {   // PIA-142: "Trip over", "Update trip first"
+      explain(el);
+      // PIA-152: "⤒ Update trip first" points to ⤒: it pulses again the next time the trip view is in view (closing this sheet)
+      var lm = modelOf(el.dataset.id); if (lm && lm.org && lm.legacy && !lm.past && !lm.closed) migPoint(lm.id);
+      return null;
+    }
     var id = el.dataset.id, v = el.dataset.v, m = modelOf(id); if (!m || m.closed || m.past || !hasOwn(IDEA_STATUSES, v)) return null;
     var code = el.dataset.code;
     if (!code) { ACTS.face({ dataset: { id: id } }); return null; }

@@ -2864,8 +2864,30 @@ async function main() {
     if (r.why) await measurePopup(page, 'famv1 › In on a v1 doc says why', '#lbl');
     await untilLabelGone(page); await closeSheet(page);
     r.posts = net.posts - p0;
-    check(r.s === 'P-person' && eq(r.ro, ['true|Update trip first', 'true|Update trip first', 'true|Update trip first']) && r.why === 'Update trip first' && r.posts === 0,
-      'PIA-142 the organizer\'s cell on an unmigrated v1 doc: his answer row for them is there, greyed, and says "Update trip first" on a tap; nothing is sent', r);
+    check(r.s === 'P-person' && eq(r.ro, ['true|⤒ Update trip first', 'true|⤒ Update trip first', 'true|⤒ Update trip first']) && r.why === '⤒ Update trip first' && r.posts === 0,
+      'PIA-142 the organizer\'s cell on an unmigrated v1 doc: his answer row for them is there, greyed, and says "⤒ Update trip first" on a tap (PIA-152: ⤒ named by its glyph); nothing is sent', r);
+    // PIA-152 AC1 / AC2 his v1 trip: the family's faces (🌽 💪 🗽, never a stand-in), and ⤒ Update trip pulsing as the trip view first
+    // shows (the share pulse's .pulse); his tap on ⤒ takes it; a greyed "⤒ Update trip first" points to it: it pulses again as that
+    // sheet closes; every state within the word budget, ⤒ still labelled "Update trip"
+    const q = {};
+    const migCls = () => page.$eval('#screen [data-act="migrate"]', (e) => (e.classList.contains('pulse') ? 'pulse' : 'still') + '|' + e.getAttribute('aria-label') + '|' + e.textContent).catch(() => 'none');
+    await page.click('#screen .hd[data-act="open"][data-id="' + TG + '"]'); await settle(page, 200);
+    q.open = await migCls(); await measureScreen(page, 'famv1 › the v1 Thanksgiving (⤒ pulsing)');
+    q.faces = await page.$$eval('#screen .pb-row .facebtn[data-act="person"] .av .f', (es) => es.map((e) => e.textContent).join(''));
+    q.stand = /🦄|🍩|🐻/.test(await page.$eval('#screen', (e) => e.textContent));
+    await fingerTap(page, '#screen [data-act="migrate"]'); await settle(page, 150); q.mig = await popupId(page);
+    await closeSheet(page); q.taken = await migCls();
+    const faceSel = '#screen .pb-row .facebtn[data-act="person"][data-code="LGA"]';
+    await page.$eval(faceSel, (e) => e.scrollIntoView({ block: 'center' })).catch(() => {});   // (clear of the tab bar, which a finger would hit instead)
+    await fingerTap(page, faceSel); await settle(page, 150); q.p = await popupId(page);
+    await fingerTap(page, '#sheet [data-act="answer"][data-v="in"]'); q.why = await lblNow(page);
+    q.under = await migCls();
+    await untilLabelGone(page); await closeSheet(page); q.pointed = await migCls();
+    await measureScreen(page, 'famv1 › the v1 Thanksgiving (⤒ pointed to again)');
+    q.posts = net.posts - p0;
+    check(q.open === 'pulse|Update trip|⤒' && /🌽/.test(q.faces) && /💪/.test(q.faces) && /🗽/.test(q.faces) && !q.stand && q.mig === 'P-migrate' && q.taken === 'still|Update trip|⤒' && q.p === 'P-person' &&
+      q.why === '⤒ Update trip first' && q.under === 'still|Update trip|⤒' && q.pointed === 'pulse|Update trip|⤒' && q.posts === 0,
+      'PIA-152 AC1/AC2 the organizer\'s v1 Thanksgiving shows 🌽 💪 🗽 (no stand-in face); its ⤒ pulses as the trip view first shows, labelled "Update trip"; his tap on ⤒ (P-migrate) takes it; a tap on a greyed In says "⤒ Update trip first" and ⤒ pulses again once that sheet closes; within the word budget; nothing sent', q);
     await ctx.close();
   }
 

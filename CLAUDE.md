@@ -100,6 +100,10 @@ push. Existing user authorization governs publishing; do not repeat approvals.
 A build request can prepare a PR while actual release prerequisites are pending.
 Never declare Pages current without comparing served and committed bytes.
 
+A PIA ticket also bumps `BUILD` and `<meta name="pialax-build">` in `app.html` to
+its number (test-app fails otherwise). To check a phone's build against main, open
+⚙ (ⓘ → ⚙ on any phone): ⚙ #NNN must equal main's `pialax-build`.
+
 Release v2.0.0 only after the same-day migration and device/provider evidence in
 `RELEASE_V2.md`. Date the changelog on release, then create an annotated tag at
 verified main. Preserve unrelated Unreleased entries. Revert only PIA-147 for UI

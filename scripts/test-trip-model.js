@@ -162,8 +162,11 @@ function makeServer(worker) {
   const lgMe = mem(lg, 'LAX');
   check(meHits.length === 0 && lgMe.name === '' && lgMe.norm === '' && !!lgMe.face && lgMe.label === lgMe.face,
     "no 'Me' word in any string of the model (organizer and guest): the 'Me' member's label is its face alone, with no name", meHits);
-  check(mem(lg, 'PIA').face === M.hashedFace('mom & dad') && mem(lg, 'LGA').face === M.hashedFace('anjo') && new Set(lg.members.map((x) => x.face)).size === 3,
-    'emoji-less v1 labels get the hashed face FACES[fnv1a(name) % 24], moved on when the trip already shows it: three tiles, three faces');
+  // (PIA-152: the family preset's people on a v1 doc show the preset's faces; the same labels anywhere else keep the hashed rule)
+  const lgAway = model(tweak(lgOrg, (d) => { d.idea.members.forEach((x) => { x.airport = 'DEN'; }); }), { me: 'LAX' });
+  check(mem(lg, 'PIA').face === '🌽' && lgMe.face === '💪' && mem(lg, 'LGA').face === '🗽' && new Set(lg.members.map((x) => x.face)).size === 3 &&
+    mem(lgAway, 'PIA').face === M.hashedFace('mom & dad') && mem(lgAway, 'LGA').face === M.hashedFace('anjo') && new Set(lgAway.members.map((x) => x.face)).size === 3,
+    'emoji-less v1 labels the family preset recognises (Mom & Dad at PIA, the v1 "Me" at LAX, Anjo at LGA) show its faces 🌽 💪 🗽 (PIA-152); any other gets the hashed face FACES[fnv1a(name) % 24], moved on when the trip already shows it: three tiles, three faces');
   const lgScan = scan(lg);
   check(!lgScan.nums.includes(704) && !lgScan.keys.some((k) => /familyTotal|totalFare|perTicketFare|estimate_total|actual_total/.test(k)) && lg.price && lg.price.total === null && lg.paid === null,
     'never a price from the record: 704 and familyTotal appear nowhere in the model, and with no cached fares the total is empty');
@@ -903,7 +906,7 @@ function makeServer(worker) {
       'groupPresets: Tahoe\'s friends (me marked from this phone\'s identity), the 👪 family once (Diwali and the shower are the same people), a solo trip', g.map((x) => x.faces.join('')));
     const legOnly = M.groupPresets([M.tripModel(LEG, ctx({ me: 'LAX' }))]);
     check(M.tripModel(LEG, ctx({ me: 'LAX' })).legacy && legOnly.length === 0 && g.every((x) => x.rows.every((r) => r.name !== 'Me')),
-      'an unmigrated v1 trip offers no group: its faces are read-time stand-ins (a hashed 🐻 for Anjo), so picking it would hand people faces they never had', legOnly.map((x) => x.faces.join('')));
+      'an unmigrated v1 trip offers no group: its faces are read-time stand-ins (the preset\'s or a hashed face, never stored), so picking it would hand people faces they never had', legOnly.map((x) => x.faces.join('')));
     check(M.freeFace(['🦊', '🐻']) === '🐼' && M.freeFace(['🦊'], ['🐻', '🐼']) === '🐨' && M.freeFace(M.FACES.slice(0, 23), M.FACES) === M.FACES[23] && M.FACES.indexOf(M.freeFace(M.FACES)) >= 0,
       'freeFace: the first face nobody on the trip has, preferring one nobody on this phone has either');
   }
@@ -1966,9 +1969,29 @@ function makeServer(worker) {
       const used = [], wrote = uniqNames.map((n) => { const f = oldAuto(M.normName(n), used); used.push(f); return f; });
       if (!cr || !eq(cr.body.idea.members.map((x) => M.splitLabel(x.label).face), wrote)) writeMoved++;
     }
+    // PIA-152: the legacy Thanksgiving's family shows the preset (🌽 💪 🗽); the same faceless labels away from the family's airports
+    // (nobody the preset recognises) still show the faces derived from their names, as before 💪: Anjo there is still 🐻
     const lgFaces = model(LEG).members.map((x) => x.face);
-    check(hashMoved === 0 && readMoved === 0 && writeMoved === 0 && eq(lgFaces, [oldAuto('mom & dad', []), oldAuto('#LAX', [lgFaces[0]]), oldAuto('anjo', lgFaces.slice(0, 2))]) && lgFaces[2] === '🐻',
-      'a face derived from a name never moves: hashed faces (4,016 names), the faces a faceless v1 trip shows (300 trips, and the legacy Thanksgiving: Anjo still 🐻) and the faces written for faceless rows (300 creates) are what they were before 💪', { hashMoved, readMoved, writeMoved, lgFaces });
+    const awayFaces = model(tweak(LEG, (d) => { d.idea.members.forEach((x, j) => { x.airport = ['DEN', 'SEA', 'BOS'][j]; }); })).members.map((x) => x.face);
+    check(hashMoved === 0 && readMoved === 0 && writeMoved === 0 && eq(lgFaces, ['🌽', '💪', '🗽']) &&
+      eq(awayFaces, [oldAuto('mom & dad', []), oldAuto('#LAX', [awayFaces[0]]), oldAuto('anjo', awayFaces.slice(0, 2))]) && awayFaces[2] === '🐻',
+      'a face derived from a name never moves: hashed faces (4,016 names), the faces a faceless v1 trip of people the family preset does not recognise shows (300 trips, and the legacy Thanksgiving\'s labels away from the family\'s airports: Anjo still 🐻) and the faces written for faceless rows (300 creates) are what they were before 💪; the legacy Thanksgiving itself shows the family\'s 🌽 💪 🗽 (PIA-152)', { hashMoved, readMoved, writeMoved, lgFaces, awayFaces });
+    // PIA-152: on the Thanksgiving with friends, a friend shows the face derived before PIA-152 (the family's old stand-ins 🦄 🍩 🐻 still
+    // ahead of them), unless it is a face the family now shows (🌽 / 🗽): then a face of their own nobody else on the trip shows
+    const FR = ['Sam', 'Bob', 'Nina', 'Frank', 'Priya', 'Maya', 'Leo', 'Max', 'Ravi', 'Lena', 'Kim', 'Zed', 'Oluwaseun', 'Bo'];
+    let mixFamily = 0, mixMoved = 0, mixOff = 0, mixBad = 0;
+    for (let t = 0; t < 300; t++) {
+      const fr = []; for (let j = 0; j < 1 + (t % 5); j++) { const n = FR[(t * 5 + j * 3) % FR.length]; if (fr.indexOf(n) < 0) fr.push(n); }
+      const doc = tweak(LEG, (d) => { d.idea.members = d.idea.members.concat(fr.map((n, j) => ({ code: 'f' + j, label: n, airport: ['BOS', 'DEN', 'SEA', 'SFO', 'MIA'][j], headcount: 1 }))); });
+      const was = []; ['mom & dad', '#LAX', 'anjo'].concat(fr.map(M.normName)).forEach((n) => was.push(oldAuto(n, was)));
+      const got = model(doc).members.map((x) => x.face);
+      if (!eq(got.slice(0, 3), ['🌽', '💪', '🗽'])) mixFamily++;
+      if (new Set(got).size !== got.length) mixBad++;
+      got.slice(3).forEach((f, j) => { const w = was[3 + j]; if (['🌽', '🗽'].indexOf(w) < 0) { if (f !== w) mixMoved++; } else { mixOff++; if (f === w || was.slice(3).indexOf(f) >= 0) mixBad++; } });
+    }
+    const samFace = model(tweak(LEG, (d) => { d.idea.members.push({ code: 'sam', label: 'Sam', airport: 'BOS', headcount: 1 }); })).members[3].face;
+    check(mixFamily === 0 && mixMoved === 0 && mixBad === 0 && mixOff > 0 && samFace === '🐢' && samFace === oldAuto('sam', ['🦄', '🍩', '🐻']),
+      'PIA-152 a friend\'s face never moves on a v1 trip with the family (300 trips of the Thanksgiving and 1 to 5 friends; Sam at BOS stays 🐢, not the 🍩 the family no longer holds), except a friend whose face was one the family now shows (🌽 / 🗽), who gets a face nobody else there has', { mixFamily, mixMoved, mixOff, mixBad, samFace });
     // a trip saved with 🌴 keeps it: the record's faces are its own
     const keptDw = model(DW, { me: 'ashwin-p8' });
     check(mem(keptDw, 'ashwin-p8').face === '🌴' && mem(keptDw, 'anjo-z5').face === '🗽' && mem(keptDw, 'momdad-k3').face === '🌽',
@@ -2044,6 +2067,68 @@ function makeServer(worker) {
     const mv2 = M.organizerEdit(await srv.get(id2, KEY), KEY, { dates: { departure: '2026-11-07', return: '2026-11-10' } }), r2 = await srv.send(mv2), g2 = await srv.get(id2);
     check(srv.allOk(r2) && mv2.length === 2 && eq(M.flightEnds(model(g2), 'anjo-z5').map((e) => e.day), ['2026-11-06', '2026-11-09']) && g2.responses['anjo-z5'].available_from === '2026-11-06',
       'AC3 a booked traveler still following in the record is pinned to her booked 11/6–11/9 before the plan moves (organizerEdit, unchanged): her flight rows read the same days after the move');
+  }
+
+  section('PIA-152 a smooth first look: a v1 trip shows the family\'s own faces (read from the record, never written), and ⤒ Update trip keeps every face');
+  {
+    const RING = M.FACES.slice(0, M.FACE_RING);
+    const oldAuto = (norm, used) => { const s = M.fnv1a(norm) % RING.length; for (let i = 0; i < RING.length; i++) { const f = RING[(s + i) % RING.length]; if (used.indexOf(f) < 0) return f; } return RING[s]; };
+    const facesOf = (m) => m.members.map((x) => x.code + x.face).join(' ');
+    // AC1 the legacy Thanksgiving on every phone: the organizer's, a guest's, a phone that is nobody there, Mom's
+    const before = JSON.stringify(lgOrg), beforeG = JSON.stringify(lgGuest), beforeL = JSON.stringify(LEG);
+    const ms = [model(lgOrg, { me: 'LAX', hasEditKey: true, hasToken: true }), model(lgGuest, { me: 'LGA' }), model(lgGuest), model(LEG, { me: 'PIA' })];
+    const meX = mem(ms[0], 'LAX');
+    check(ms.every((m) => facesOf(m) === 'PIA🌽 LAX💪 LGA🗽' && m.legacy) && meX.name === '' && meX.norm === '' && meX.short === '' && meX.label === '💪' &&
+      JSON.stringify(lgOrg) === before && JSON.stringify(lgGuest) === beforeG && JSON.stringify(LEG) === beforeL && lgOrg.idea.members.every((x) => !M.splitLabel(x.label).face),
+      'AC1 the unmigrated legacy Thanksgiving shows the family preset\'s faces on every phone (organizer, guest, nobody, Mom): 🌽 Mom & Dad, 💪 the v1 "Me" at LAX, 🗽 Anjo at LGA; the "Me" still has no name (its label is its face alone, never a pickable word); the record is untouched (its labels stay faceless)', ms.map(facesOf));
+    // the rule is migrateLabel's own: whoever P-migrate gives the preset's label shows the preset's face already. migrateLabel's own
+    // outputs are pinned literally (what it wrote before PIA-152 factored familyOf out of it), so a change to the shared rule fails here
+    const cases = [['a', 'Me', 'LAX'], ['b', 'Ashwin', 'LAX'], ['c', '', 'LAX'], ['d', 'Anjo', 'JAX'], ['e', 'Anjo', 'JFK'], ['f', 'anjo', 'EWR'], ['g', 'Mom & Dad', 'ORD'], ['g2', 'Mom &  dad', 'PIA'],
+      ['h', 'Priya', 'LAX'], ['i', 'Anjo', 'SEA'], ['j', '🌴 Ashwin', 'LAX'], ['k', 'Me', 'DEN'], ['l', 'Mom', 'PIA'], ['m', 'Ashwin', ''], ['n', '🦊 Me', 'LGA']].map(([code, label, airport]) => ({ code, label, airport, headcount: 1 }));
+    const LIT = ['💪 Ashwin', '💪 Ashwin', '💪 Ashwin', '🗽 Anjo', '🗽 Anjo', '🗽 Anjo', '🌽 Mom & Dad', '🌽 Mom & Dad', '🦊 Priya', '🐻 Anjo', '🌴 Ashwin', '🐳 k', '🚲 Mom', '🐙 Ashwin', '🗽 Anjo'];
+    const presetLabel = (l) => M.FAMILY.some((g) => l === M.memberLabel(g.face, g.name));
+    const rule = cases.map((c, k) => { const f = M.familyOf(c), alone = model(tweak(LEG, (d) => { d.idea.members = [c]; d.responses = {}; })).members[0];
+      return { code: c.code, key: f ? f.key : '', wrote0: M.migrateLabel(c), lit: LIT[k], agree: !!f === presetLabel(LIT[k]), face: alone.face, wrote: M.splitLabel(M.migrateLabels([c])[0].label).face }; });
+    check(eq(rule.map((r) => r.key), ['ashwin', 'ashwin', 'ashwin', 'anjo', 'anjo', 'anjo', 'momdad', 'momdad', '', '', '', '', '', '', 'anjo']) && eq(rule.map((r) => r.wrote0), LIT) && rule.every((r) => r.agree && r.face === r.wrote) &&
+      eq(rule.filter((r) => r.key).map((r) => r.face), ['💪', '💪', '💪', '🗽', '🗽', '🗽', '🌽', '🌽', '🗽']) && rule.find((r) => r.code === 'j').face === '🌴' && rule.find((r) => r.code === 'h').face === oldAuto('priya', []),
+      'AC1 recognised by migrateLabel\'s own rule (the home airport, and a matching name, a v1 "Me" or no name): the preset\'s face, alone on a trip; Priya at LAX, Anjo at SEA, a "Me" at DEN, "Mom", an airport-less Ashwin are nobody\'s preset (a hashed face); a face already on a label stays (🌴), and a "🦊 Me" at LGA is Anjo (🗽, as P-migrate always wrote); migrateLabel writes exactly what it wrote before (15 literal labels); what each shows is what P-migrate writes', rule);
+    // AC1 anyone else keeps the face they showed before PIA-152; faces stay unique. The oracle is the rule before PIA-152, written out here:
+    // stored faces first, then every faceless row in member order (the family's stand-ins 🦄 🍩 🐻 too) gets its name's hashed face, moved on
+    // past the faces already shown. A friend keeps that face unless the family now shows it (Nina's 🗽, Frank's 🌽): then the next free one
+    const MIX = tweak(LEG, (d) => { d.id = 'pia152MixedLegacy00001'; d.idea.members = d.idea.members.concat([{ code: 'sam', label: 'Sam', airport: 'BOS', headcount: 1 }, { code: 'nina', label: 'nina', airport: 'DEN', headcount: 1 },
+      { code: 'frank', label: 'Frank', airport: 'SEA', headcount: 1 }, { code: 'leo', label: '🐼 Leo', airport: 'SEA', headcount: 1 }, { code: 'bos', label: 'Me', airport: 'BOS', headcount: 1 }]); });
+    const mixBefore = JSON.stringify(MIX), mx = model(MIX), mf = mx.members.map((x) => x.face);
+    const today = [], used = ['🐼'];
+    ['mom & dad', '#LAX', 'anjo', 'sam', 'nina', 'frank', null, '#bos'].forEach((n) => { if (!n) { today.push('🐼'); return; } const f = oldAuto(n, used); used.push(f); today.push(f); });
+    check(MIX.idea.members.length === M.IDEA_MAX_MEMBERS && eq(today, ['🦄', '🍩', '🐻', '🐢', '🗽', '🌽', '🐼', today[7]]) && eq(mf, ['🌽', '💪', '🗽', '🐢', '🐳', '🍉', '🐼', today[7]]) &&
+      [3, 6, 7].every((k) => mf[k] === today[k]) && new Set(mf).size === 8 && mem(mx, 'bos').name === '' && JSON.stringify(MIX) === mixBefore,
+      'AC1 on a v1 trip with friends too (8 people): the family shows 🌽 💪 🗽; Sam keeps 🐢 (not the 🍩 the family no longer holds), Leo his own 🐼, the "Me" at BOS the face it showed before PIA-152; only a friend whose face the family now shows moves to the next free one (Nina 🗽 → 🐳, Frank 🌽 → 🍉); eight faces, eight tiles; the "Me" has no name; nothing written', { mf, today });
+    const CL = tweak(LEG, (d) => { d.idea.members.unshift({ code: 'corn', label: '🌽 Corn', airport: 'DEN', headcount: 1 }); d.idea.members.push({ code: 'jfk', label: '', airport: 'JFK', headcount: 1 }); });
+    const cf = model(CL).members.map((x) => x.face), clWas = [];
+    ['mom & dad', '#LAX', 'anjo', '?'].forEach((n) => clWas.push(oldAuto(n, ['🌽'].concat(clWas))));
+    check(eq(cf, ['🌽', clWas[0], '💪', '🗽', clWas[3]]) && cf[1] === '🦄' && new Set(cf).size === 5,
+      'AC1 faces stay unique and are never taken: a friend\'s stored 🌽 keeps it (Mom & Dad then keeps the face they showed before, 🦄), and a second person the preset would call Anjo (a nameless row at JFK) keeps the face they showed before, not a second 🗽', { cf, clWas });
+    // a v2 trip shows exactly the faces stored in it (Diwali keeps Ashwin's 🌴; every fixture, every member)
+    const v2docs = [DW, TH, M8, CY, LX, tg], v2 = v2docs.map((d) => model(d));
+    const stored = v2docs.every((d, k) => eq(v2[k].members.map((x) => x.face), d.idea.members.map((x) => M.splitLabel(x.label).face)));
+    check(stored && !v2.some((m) => m.legacy) && mem(v2[0], 'ashwin-p8').face === '🌴',
+      'AC1 a v2 trip (every fixture, and the migrated Thanksgiving) shows exactly the faces stored in its labels: the preset never changes a face a trip already has (Diwali\'s Ashwin stays 🌴)');
+    // the screens all read these faces: the Family board's rows, the Map's pickup lanes
+    const B = M.familyBoard([ms[3], model(DW, { me: 'momdad-k3' })], {}), lanes = M.pickups(ms[0], {}, NOW, false);
+    const laneFaces = [].concat(...Object.values(lanes).map((l) => [].concat(...l.map((c) => c.faces || []))));
+    check(B.rows.find((r) => r.key === 'anjo').cells[1] && B.rows.find((r) => r.key === 'anjo').cells.every((c) => !c || c.face === '🗽') && laneFaces.length >= 2 && laneFaces.every((f) => ['💪', '🗽'].indexOf(f) >= 0) &&
+      B.rows.find((r) => r.key === 'ashwin').cells[0] && B.rows.find((r) => r.key === 'ashwin').cells[0].code === 'LAX' && B.rows.find((r) => r.key === 'ashwin').cells[0].face === '💪',
+      'AC1 every screen reads them: on the Family board Anjo is 🗽 on both trips, the v1 "Me" is 💪 in Ashwin\'s row; the Map\'s pickup lanes show 💪 and 🗽', { laneFaces });
+    // AC1 after ⤒ Update trip the faces are identical (through the real Worker): the Thanksgiving, and the v1 trip with friends
+    const byCode = (m) => Object.fromEntries(m.members.map((x) => [x.code, x.face]));
+    const mxId = srv.seed(MIX), mxOrg = await srv.get(mxId, KEY), mo = M.migrateOptions(mxOrg, null), mr = M.migrateRequests(mxOrg, KEY, { plan: mo.current, pin: mo.pin, labels: mo.labels });
+    const mxRes = await srv.send(mr), mxAfter = await srv.get(mxId, KEY);
+    const plain = M.migrateRequests(mxOrg, KEY, { plan: mo.current, pin: mo.pin }), plainLabels = plain.find((q) => /\/idea\/update/.test(q.path)).body.idea.members.map((x) => x.label);
+    check(eq(byCode(model(tg)), byCode(model(lgOrg))) && eq(tg.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '💪 Ashwin', '🗽 Anjo']) &&
+      srv.allOk(mxRes) && !model(mxAfter).legacy && eq(byCode(model(mxAfter)), byCode(model(mxOrg))) && eq(mo.labels.map((x) => M.splitLabel(x.label).face), mf) &&
+      eq(mxAfter.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '💪 Ashwin', '🗽 Anjo', '🐢 Sam', '🐳 nina', '🍉 Frank', '🐼 Leo', today[7] + ' bos']) && eq(plainLabels, mxAfter.idea.members.map((x) => x.label)) &&
+      new Set(mxAfter.idea.members.map((x) => M.splitLabel(x.label).face)).size === 8,
+      'AC1 after ⤒ Update trip (the real Worker) every face is what it was: the Thanksgiving writes 🌽 Mom & Dad, 💪 Ashwin, 🗽 Anjo; on the trip with friends P-migrate suggests the faces shown and writes them (🐢 Sam, 🐳 nina, 🍉 Frank, the "Me" at BOS named by its code; no jump, no face twice), with or without the review\'s labels', { labels: mxAfter.idea.members.map((x) => x.label) });
   }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 

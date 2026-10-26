@@ -67,6 +67,8 @@ or paid search is performed by this build.
 
 ## Release and rollback
 
+Phone build check (PIA-152): open ⚙ (ⓘ → ⚙ on any phone); ⚙ #NNN must equal `<meta name="pialax-build">` in main's `app.html`.
+
 Follow [PLAN_PIA_147_CUTOVER.md](PLAN_PIA_147_CUTOVER.md). Merge the dependency,
 rebase/retest if its tree changes, complete same-day migration and human checks,
 then merge the verified cutover. Compare served bytes for `/`, `index.html`,

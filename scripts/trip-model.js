@@ -522,16 +522,16 @@ function tripModel(doc, ctx) {
   var others = (ctx.otherTrips || []).filter(function (od) { return od && od.id !== doc.id; });
   var rows = (I.members || []).filter(function (m) { return m && typeof m.code === 'string'; });
   var times = answerTimes(doc);                                           // when each member last answered (PIA-135)
-  // a label with no face (v1) reads with the hashed face of its name, moved on to the next free face if the trip
-  // already shows it, so two tiles never share a face (the face is the primary identity)
-  var shown = rows.map(function (m) { return splitLabel(m.label).face; }).filter(Boolean);
-  var members = rows.map(function (m) {
+  // a label with no face (v1) reads with the family preset's face for someone the preset recognises (PIA-152), else with
+  // the hashed face of its name, moved on to the next free face if the trip already shows it, so two tiles never share
+  // a face (the face is the primary identity): memberFaces, the faces ⤒ Update trip writes
+  var faces = memberFaces(rows);
+  var members = rows.map(function (m, i) {
     var r = validResp(R[m.code]);
     // a legacy 'Me' shows its face only and has no name identity until P-migrate, so nobody can pick it as a name
     var lab = splitLabel(m.label), meWord = isMeLabel(lab.name);
     var norm = meWord ? '' : normName(lab.name || '?'), name = meWord ? '' : (lab.name || '?');
-    var seed = norm || '#' + m.code, face = lab.face;
-    if (!face) { face = autoFace(seed, shown); shown.push(face); }
+    var seed = norm || '#' + m.code, face = faces[i];
     var airport = normIata(m.airport), hc = Math.max(1, Math.min(9, Math.round(+m.headcount) || 1));
     var host = !!dest && !!airport && loc.indexOf(airport) >= 0;
     var status = r ? r.status : (host ? 'host-default' : 'waiting');
@@ -1029,14 +1029,61 @@ function familyPreset(departure, today) {
   var day = isIso(departure) ? departure : today, codes = familyForDate(day);
   return FAMILY.map(function (f, i) { return { preset: f.key, face: f.face, name: f.name, label: memberLabel(f.face, f.name), airport: codes[i], headcount: f.headcount }; });
 }
-/* P-migrate's suggested face and name for a v1 member (by home airport; others keep their name with a hashed face) */
-function migrateLabel(member) {
+/* PIA-152: the family preset's person a v1 member is (P-migrate's rule): a label with no face, or the v1 word 'Me', at one
+   of the preset's home airports (FAMILY_BY_AIRPORT), named as the preset names them, 'Me', or not named at all. Anyone else
+   (a label with its own face and a real name, another airport, another name) is nobody's preset: null. */
+function familyOf(member) {
   var lab = splitLabel(member && member.label), key = FAMILY_BY_AIRPORT[normIata(member && member.airport)];
   var fam = key ? FAMILY.filter(function (f) { return f.key === key; })[0] : null;
+  if (!fam || (lab.face && !isMeLabel(lab.name))) return null;
+  return isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || !lab.name ? fam : null;
+}
+/* P-migrate's suggested face and name for a v1 member (by home airport; others keep their name with a hashed face) */
+function migrateLabel(member) {
+  var lab = splitLabel(member && member.label), fam = familyOf(member);
   if (lab.face && !isMeLabel(lab.name)) return member.label;
-  if (fam && (isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || !lab.name)) return memberLabel(fam.face, fam.name);
+  if (fam) return memberLabel(fam.face, fam.name);
   var name = isMeLabel(lab.name) || !lab.name ? (member && member.code) || '?' : lab.name;
   return memberLabel(lab.face || hashedFace(normName(name)), name);
+}
+/* the faces a trip's members showed before PIA-152, in member order: a label's own face, else the hashed face of its name
+   ('#code' for a nameless v1 'Me'), moved on to the next free face if the trip already shows it (autoFace) */
+function nameFaces(rows) {
+  var shown = rows.map(function (m) { return splitLabel(m && m.label).face; }).filter(Boolean);
+  return rows.map(function (m) {
+    var lab = splitLabel(m && m.label), norm = isMeLabel(lab.name) ? '' : normName(lab.name || '?');
+    if (lab.face) return lab.face;
+    var f = autoFace(norm || '#' + (m && m.code), shown); shown.push(f); return f;
+  });
+}
+/* PIA-152: the face every member of a trip shows, unique within it, in member order. A label's own face stays. Someone the
+   family preset recognises (familyOf) shows the preset's face (🌽 / 💪 / 🗽), a v1 '<face> Me' at a family airport too (it
+   is that person, as ⤒ Update trip writes), unless a label on the trip already has that face or an earlier row is that
+   person: then the face they showed before. Everyone else shows the face they showed before (nameFaces), moved on to the next
+   free face only when the family now shows it (a friend whose hashed face is 🌽 or 🗽). Only a v1 doc has a label with no face
+   or 'Me', so a v2 trip shows exactly the faces stored in it. Nothing here is written: ⤒ Update trip (migrateLabels) writes
+   these same faces, so nobody's face changes when a v1 trip is updated. */
+function memberFaces(rows) {
+  var fams = rows.map(familyOf), was = nameFaces(rows), took = [];
+  var faces = rows.map(function (m, i) { return fams[i] ? '' : splitLabel(m && m.label).face || ''; }), own = faces.slice();
+  rows.forEach(function (m, i) { var f = fams[i] && fams[i].face; if (f && own.indexOf(f) < 0 && took.indexOf(f) < 0) { faces[i] = f; took.push(f); } });
+  var shown = faces.filter(Boolean);
+  rows.forEach(function (m, i) { if (!faces[i] && shown.indexOf(was[i]) < 0) { faces[i] = was[i]; shown.push(was[i]); } });
+  rows.forEach(function (m, i) {
+    if (faces[i]) return;
+    var lab = splitLabel(m && m.label), norm = isMeLabel(lab.name) ? '' : normName(lab.name || '?');
+    faces[i] = autoFace(norm || '#' + (m && m.code), shown); shown.push(faces[i]);
+  });
+  return faces;
+}
+/* PIA-152: P-migrate's labels for a v1 doc's members: migrateLabel's names (the preset's for someone it recognises, a v1 'Me'
+   or a nameless row named by its code), each with the face the trip already shows for them (memberFaces): no face jumps */
+function migrateLabels(members) {
+  var rows = (members || []).filter(function (m) { return m && typeof m.code === 'string'; }), faces = memberFaces(rows);
+  return rows.map(function (m, i) {
+    var l = migrateLabel(m), s = splitLabel(l);
+    return { code: m.code, label: s.face === faces[i] ? l : memberLabel(faces[i], s.name) };
+  });
 }
 function readV1Storage(raw) {
   var s = raw;
@@ -1408,8 +1455,7 @@ function migrateOptions(doc, v1raw) {
     a = a ? minD(a, x) : x; b = b ? maxD(b, y) : y;
   });
   if (a && pin) { a = minD(a, pin); b = maxD(b, pin); }
-  return { current: plan, span: a ? { s: a, e: b } : null, pin: pin,
-    labels: ((doc && doc.idea && doc.idea.members) || []).map(function (m) { return { code: m.code, label: migrateLabel(m) }; }) };
+  return { current: plan, span: a ? { s: a, e: b } : null, pin: pin, labels: migrateLabels(doc && doc.idea && doc.idea.members) };
 }
 /* P-migrate: one update that copies the recommendation's airport, city and the picked plan into the idea, adds 📌,
    puts faces on the labels (codes never change), nulls recommendation and re-chooses when the doc was chosen; then
@@ -1419,12 +1465,12 @@ function migrateRequests(fresh, editKey, choice) {
   if (!fresh || !fresh.idea || (choice.plan ? !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s : !!docPlan(fresh))) return null;
   var rec = fresh.idea.recommendation || {}, ap = normIata(rec.airport) || docDest(fresh);
   var city = airportInfo(ap).city || clip(rec.city || (fresh.idea.destination && fresh.idea.destination.city), TEXT_MAX.city);
-  var labels = {}; (choice.labels || []).forEach(function (x) { if (x && x.code) labels[x.code] = x.label; });
+  var labels = {}; migrateLabels(fresh.idea.members).concat(choice.labels || []).forEach(function (x) { if (x && x.code && x.label) labels[x.code] = x.label; });
   var delta = {
     destination: { airport: ap, city: city },
     dates: choice.plan ? { departure: choice.plan.s, return: choice.plan.e } : cleanDates(fresh.idea.dates),
     pin: hasOwn(choice, 'pin') ? choice.pin : parseNotes(fresh.idea.notes).pin,
-    members: (fresh.idea.members || []).map(function (m) { return { code: m.code, label: labels[m.code] || migrateLabel(m) }; })
+    members: (fresh.idea.members || []).map(function (m) { return { code: m.code, label: labels[m.code] || migrateLabel(m) }; })   // (labels: what the trip shows, then the review's)
   };
   if (choice.plan && delta.pin && (delta.pin < choice.plan.s || delta.pin > choice.plan.e)) return null;
   if (fresh.decision && fresh.decision.stage === 'chosen' && choice.plan) delta.decision = { stage: 'chosen' };   // re-chosen on the migrated idea, with no price
@@ -1947,7 +1993,7 @@ function legacyDraft(raw, today) {
 }
 /* the people of the trips this phone has seen, as ready groups for P-new-who: one per distinct set of people (by
    name), in the order given (newest trip first). An unmigrated v1 trip offers no group: its faces are only read-time
-   stand-ins (a hashed face nobody chose), so a group built from it would hand someone a face they never had. Each:
+   stand-ins (the preset's or a hashed face, never stored), so a group built from it would hand someone a face they never had. Each:
    {key, faces, rows [{face, name, airport, headcount, me}], family: it is the 👪 three (the token phone shows its
    own 👪 chip)} */
 var FAMILY_KEY = FAMILY.map(function (f) { return normName(f.name); }).sort().join('|');
@@ -2591,6 +2637,7 @@ if (typeof module !== 'undefined' && module.exports) {
     candStarts: candStarts, windowRow: windowRow, cheapCandidates: cheapCandidates, pickups: pickups,
     candidateWhy: candidateWhy, destinationCandidate: destinationCandidate, pickupPair: pickupPair,
     familyForDate: familyForDate, familyPreset: familyPreset, migrateLabel: migrateLabel, v1SharedIds: v1SharedIds, v1PinFor: v1PinFor,
+    familyOf: familyOf, memberFaces: memberFaces, nameFaces: nameFaces, migrateLabels: migrateLabels, autoFace: autoFace,
     typedNote: typedNote, noteRoom: noteRoom, faceOf: faceOf, decisionBody: decisionBody,
     memberCode: memberCode, createRequest: createRequest, respondRequest: respondRequest, bookedRequests: bookedRequests,
     updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit,

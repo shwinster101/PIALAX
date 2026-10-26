@@ -1,0 +1,11 @@
+CHANGELOG.md
+CLAUDE.md
+RELEASE_V2.md
+app.html
+scripts/messages/PIA-152.files
+scripts/messages/PIA-152.msg
+scripts/test-app.js
+scripts/test-trip-model.js
+scripts/test-viewport.mjs
+scripts/test-words.js
+scripts/trip-model.js
