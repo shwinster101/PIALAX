@@ -1222,9 +1222,14 @@ function makeServer(worker) {
     check(ls.why === '' && eq(ls.patch, { available_from: '2026-11-23' }) && srv.allOk(r1) && x1.available_from === '2026-11-23' && x1.available_to === '2026-11-29' && x1.note === 'Arriving late' && x1.leave_from === 'ORD' && x1.booked === true,
       'PIA-138 AC4 one leg at a time: −1 on her 🛬 makes 11/23 her own; the Worker keeps her 🛫 11/29, her note, her ORD leave and her 🎫', x1);
     const f1 = await srv.get(id), m1 = model(f1, { me: 'LGA' }), fl = M.ownDays(m1, 'LGA', '', '', null, TODAY);
-    const r2 = await srv.send(M.respondRequest(f1, 'LGA', fl.patch, { by: 'self' })), x2 = (await srv.get(id)).responses.LGA, m2 = model(await srv.get(id), { me: 'LGA' });
-    check(srv.allOk(r2) && x2.available_from === '' && x2.available_to === '' && mem(m2, 'LGA').d1 === m2.plan.s && mem(m2, 'LGA').d2 === m2.plan.e && x2.booked === true,
-      'and back to following the plan: both ends blank, her days are the plan\'s again (her 🎫 stays)');
+    // PIA-151: booked, she never goes back to following the plan (the next plan move would carry a bought flight): her days stay hers
+    check(fl.same && eq(fl.patch, { available_from: '2026-11-23', available_to: '2026-11-29' }),
+      'PIA-151 booked, "follow the plan" changes nothing: her own 11/23–11/29 stay hers (No change)', fl.patch);
+    const id2 = srv.seed(tweak(tg, (d) => { d.responses.LGA = R('in', 'LGA', '2026-11-23', '2026-11-29', { note: 'Arriving late', leave_from: 'ORD' }); }));
+    const g1 = await srv.get(id2), gl = M.ownDays(model(g1, { me: 'LGA' }), 'LGA', '', '', null, TODAY);
+    const r2 = await srv.send(M.respondRequest(g1, 'LGA', gl.patch, { by: 'self' })), x2 = (await srv.get(id2)).responses.LGA, m2 = model(await srv.get(id2), { me: 'LGA' });
+    check(srv.allOk(r2) && x2.available_from === '' && x2.available_to === '' && mem(m2, 'LGA').d1 === m2.plan.s && mem(m2, 'LGA').d2 === m2.plan.e && x2.note === 'Arriving late' && x2.leave_from === 'ORD',
+      'and, not booked, back to following the plan: both ends blank, her days are the plan\'s again (her note and her ORD leave stay)');
     check(M.legShift(m1, 'LGA', 1, 1, TODAY).why === '' && M.legShift(m1, 'LGA', 0, 7, TODAY).why === 'order' && M.legShift(model(DW), 'zz-none', 0, 1, TODAY) === null,
       'a leg shift that would cross the other end is refused (+7 on an arrival 6 days before the leave)');
   }
@@ -1316,11 +1321,13 @@ function makeServer(worker) {
       'PIA-139 AC3 the board\'s 🎫 is the organizer\'s only: a confirming tap for someone not answered (one tap for someone in), none on a host, none on a guest\'s phone');
 
     // AC1 the booking slot: Book and 🎫 together once the dates are set, Flighty after
-    const slot = (doc, me, code, over) => M.bookSlot(model(doc, Object.assign({ me }, over || {})), code, TODAY);
+    const slot = (doc, me, code, over) => { const s = M.bookSlot(model(doc, Object.assign({ me }, over || {})), code, TODAY); return { slot: s.slot, tk: s.tk }; };
     const lk = tweak(DW, (d) => { lockAt(d); d.responses['anjo-z5'] = R('in', 'LGA'); });
     const lkB = tweak(lk, (d) => { d.responses['anjo-z5'].booked = true; });
     const ORGK = { hasEditKey: true };
-    check(eq(slot(DW, 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }) && eq(slot(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA'); }), 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }) &&
+    // (PIA-151: before the 🔒 her flight section offers [✈ Book ↗ | 🎫] too once she has answered, her days being known and ahead;
+    // before she answers, her ✈↗ alone, as before)
+    check(eq(slot(DW, 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }) && eq(slot(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA'); }), 'anjo-z5', 'anjo-z5'), { slot: 'book', tk: 'self' }) &&
       eq(slot(lk, 'anjo-z5', 'anjo-z5'), { slot: 'book', tk: 'self' }) && eq(slot(lkB, 'anjo-z5', 'anjo-z5'), { slot: 'booked', tk: 'self' }) &&
       eq(slot(lk, 'ashwin-p8', 'anjo-z5', ORGK), { slot: 'book', tk: 'org' }) && eq(slot(lkB, 'ashwin-p8', 'anjo-z5', ORGK), { slot: 'booked', tk: 'org' }) &&
       eq(slot(lk, 'momdad-k3', 'anjo-z5'), { slot: 'gf', tk: '' }) && eq(slot(tweak(DW, (d) => { peoria(d); lockAt(d); }), 'momdad-k3', 'momdad-k3'), { slot: '', tk: '' }) &&
@@ -1966,6 +1973,77 @@ function makeServer(worker) {
     const keptDw = model(DW, { me: 'ashwin-p8' });
     check(mem(keptDw, 'ashwin-p8').face === '🌴' && mem(keptDw, 'anjo-z5').face === '🗽' && mem(keptDw, 'momdad-k3').face === '🌽',
       'a trip already saved keeps the faces stored in it (Diwali\'s Ashwin is still 🌴); the organizer changes a face in ✎');
+  }
+
+  section('PIA-151 my flight: each traveler\'s two ends in one place; a booked day is stored as theirs; different days per person agree everywhere');
+  {
+    // Diwali (RDU, 11/6–11/9, 📌 11/8): Anjo lands a day early and leaves a day early (11/5–11/8, her own); Ashwin follows the plan
+    const ANJ = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-08'); });
+    const orgCtx = { me: 'ashwin-p8', hasEditKey: true, hasToken: true };
+    const five = (doc, who, d1, d2) => {
+      const m = model(doc, orgCtx), x = mem(m, who), fe = M.flightEnds(m, who), out = {};
+      out.rows = fe ? fe.map((e) => e.day) : null;
+      const gf = M.handoffs(m, who, { today: TODAY, now: NOW }).gf, dec = gf ? M.gfDecode(gf.href) : null;
+      out.book = dec ? dec.legs.map((L) => L.date) : null;
+      const keys = M.tapKeys(m).filter((k) => x.keys.some((q) => q.key === k)), q = keys.map((k) => M.searchQuery(k));
+      out.search = keys.map((k) => { const p = M.parseFareKey(k); return [p.d, p.r]; });
+      out.query = q.every((s) => s.indexOf('outbound_date=' + d1) >= 0 && s.indexOf('return_date=' + d2) >= 0) && q.length === 1;
+      out.cal = [M.addD(d1, -1), d1, d2, M.addD(d2, 1)].map((day) => M.calendarDay(m, day).there.indexOf(who) >= 0);
+      const lane = M.pickups(m, {}, NOW, false)[m.dest] || [];
+      out.map = ['arr', 'dep'].map((k) => (lane.filter((c) => c.kind === k && c.codes.indexOf(who) >= 0)[0] || {}).date || '');
+      out.ok = eq(out.rows, [d1, d2]) && eq(out.book, [d1, d2]) && eq(out.search, [[d1, d2]]) && out.query && eq(out.cal, [false, true, true, false]) && eq(out.map, [d1, d2]);
+      return out;
+    };
+    const a1 = five(ANJ, 'anjo-z5', '2026-11-05', '2026-11-08'), s1 = five(ANJ, 'ashwin-p8', '2026-11-06', '2026-11-09');
+    check(a1.ok && s1.ok,
+      'AC6 Anjo on her own 11/5–11/8, Ashwin on the plan\'s 11/6–11/9: each one\'s flight rows, Book link (Google Flights legs), the organizer\'s price search (the Worker query\'s dates), Calendar presence (the day before and after: not there) and Map pickups (landing and leaving day) all read that traveler\'s own days', { a1, s1 });
+    const m1 = model(ANJ, orgCtx), fa = M.flightEnds(m1, 'anjo-z5'), fs = M.flightEnds(m1, 'ashwin-p8');
+    check(fa[0].own && fa[1].own && !fa[0].follow && fa[0].off && !fa[1].off && fs[0].follow && fs[1].follow && !fs[0].own && fs.every((e) => e.ap === 'RDU' && e.aps.length === 0 && e.time === '') &&
+      M.flightEnds(m1, 'momdad-k3')[0].follow && M.flightEnds(model(tg), 'PIA') === null && M.flightEnds(model(tweak(ANJ, (d) => { d.responses['anjo-z5'].status = 'out'; })), 'anjo-z5') === null && M.flightEnds(m1, 'nobody') === null,
+      'AC1/AC3 flightEnds: Anjo\'s ends are her own (her 11/5 arrival is off the plan: ⚠), Ashwin\'s and Mom & Dad\'s follow the plan; RDU is no hub pair, so no airport choice; nothing for a host, someone out or nobody');
+    const pia = model(tweak(tg, (d) => { d.responses.LGA = R('in', 'LGA', '', '', { leave_from: 'ORD', booked: true, note: '🛬09:05 🛫18:30 Red-eye' }); }), { me: 'LGA' }), fl = M.flightEnds(pia, 'LGA');
+    check(eq(fl.map((e) => [e.ap, e.aps.join('|'), e.time, e.follow, e.own, e.booked]), [['PIA', 'PIA|ORD', '09:05', false, false, true], ['ORD', 'PIA|ORD', '18:30', false, false, true]]),
+      'AC1/AC3 on Thanksgiving (PIA|ORD) Anjo\'s booked ends: PIA in, ORD home, a hub choice each, her recorded 09:05 and 18:30; booked days never read as following the plan, even blank in the record');
+    // a booked traveler's pick is her own day, even on the plan's own day; an unbooked one there still follows the plan
+    const bkOwn = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '', { booked: true }); });
+    const ub = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', ''); });
+    const bkBlank = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const pb = M.ownDays(model(bkOwn), 'anjo-z5', '2026-11-06', '', 0, TODAY), pu = M.ownDays(model(ub), 'anjo-z5', '2026-11-06', '', 0, TODAY);
+    const pbl = M.ownDays(model(bkBlank), 'anjo-z5', '2026-11-06', '', 0, TODAY), pbl2 = M.ownDays(model(bkBlank), 'anjo-z5', '', '2026-11-09', 1, TODAY), ls = M.legShift(model(bkOwn), 'anjo-z5', 0, 1, TODAY);
+    check(eq(pb.patch, { available_from: '2026-11-06' }) && !pb.same && eq(pu.patch, { available_from: '' }) && !pu.same && !pbl.same && eq(pbl.patch, { available_from: '2026-11-06' }) &&
+      !pbl2.same && eq(pbl2.patch, { available_to: '2026-11-09' }) && eq(ls.patch, { available_from: '2026-11-06' }),
+      'AC3 booked Anjo moving her arrival from 11/5 onto the plan\'s 11/6 stores 11/6 as her own (±1 too); unbooked she would follow the plan again (blank); booked with an end still blank, a pick of the day it already is (the plan\'s 11/6, or 11/9 to leave) stores that day as hers: "my flight is this day" is always recorded', [pb.patch, pu.patch, pbl.patch, pbl2.patch]);
+    // a booked end never goes back to following the plan: a blank pick (Follow plan) keeps the day of her own; still blank stays blank
+    const fo = M.ownDays(model(bkOwn), 'anjo-z5', '', '', null, TODAY), fb = M.ownDays(model(bkBlank), 'anjo-z5', '', '', null, TODAY), fu = M.ownDays(model(ub), 'anjo-z5', '', '', null, TODAY);
+    check(fo.same && eq(fo.patch, { available_from: '2026-11-05', available_to: '' }) && fb.same && eq(fb.patch, { available_from: '', available_to: '' }) && !fu.same && eq(fu.patch, { available_from: '', available_to: '' }),
+      'AC3 booked, a blank pick ("follow the plan") keeps her own 11/5 and changes nothing (No change), and a booked end still blank stays as it is; unbooked, the same pick follows the plan again', [fo.patch, fb.patch, fu.patch]);
+    // AC5 / AC8 the 🎫 is in her flight section before the 🔒 (a flight bought early can be recorded): hers once she has answered, the
+    // organizer's for anyone with days ahead (a confirming tap for someone waiting); never on a past, closed or v1 trip, nor with no days
+    const slot5 = (doc, ctx2, code) => M.bookSlot(model(doc, ctx2), code, TODAY);
+    const ub0 = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA'); }), ORG5 = { me: 'ashwin-p8', hasEditKey: true };
+    const und = tweak(ub0, (d) => { d.idea.dates.departure = ''; d.idea.dates.return = ''; });
+    const pastT = tweak(ub0, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-04'; d.idea.notes = ''; });
+    const b5 = [slot5(ub0, { me: 'anjo-z5' }, 'anjo-z5'), slot5(ub0, ORG5, 'anjo-z5'), slot5(DW, ORG5, 'anjo-z5'), slot5(ub0, ORG5, 'ashwin-p8'), slot5(und, { me: 'anjo-z5' }, 'anjo-z5'), slot5(pastT, { me: 'anjo-z5' }, 'anjo-z5'), slot5(DW, { me: 'anjo-z5' }, 'anjo-z5')];
+    check(eq(b5.map((s) => [s.slot, s.tk, s.early]), [['book', 'self', true], ['book', 'org', true], ['book', 'org', true], ['book', 'self', true], ['gf', '', false], ['gf', '', false], ['gf', '', true]]) &&
+      M.bookToggle(model(ub0, ORG5), 'anjo-z5') === null && eq(M.bookToggle(model(DW, ORG5), 'anjo-z5', true), { on: false, confirm: true }) && M.primaryAction(model(ub0, { me: 'anjo-z5' }), TODAY) === 'share' &&
+      M.earlyBook(model(tweak(ub0, (d) => { d.decision = clone(CHOSEN); })), 'anjo-z5', TODAY) === false && M.earlyBook(model(tweak(ub0, (d) => { d.decision.stage = 'dropped'; })), 'anjo-z5', TODAY) === false,
+      'PIA-151 AC5 before the 🔒: her flight section has [✈ Book ↗ | 🎫] (hers once she answered; the organizer\'s for her, a confirming tap while she is waiting; his own), the board\'s 🎫 and the trip view\'s [📣 Share | ✈↗] keep their rule; no 🎫 with no days, on a trip that is over, or before she answers', b5);
+    // through the real Worker: her booked 11/6 is stored; the organizer moves the plan +1: her booked flight stays, Ashwin follows,
+    // and all five places agree on both of them again
+    const id = srv.seed(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-08', { booked: true, note: '🛬09:05 🛫18:30' }); }));
+    const f0 = await srv.get(id), op = M.ownDays(model(f0), 'anjo-z5', '2026-11-06', '', 0, TODAY);
+    const r0 = await srv.send(M.respondRequest(f0, 'anjo-z5', op.patch, { by: 'self' })), f1 = await srv.get(id);
+    const mv = M.organizerEdit(await srv.get(id, KEY), KEY, { dates: { departure: '2026-11-07', return: '2026-11-10' } }), r1 = await srv.send(mv), f2 = await srv.get(id);
+    const a2 = five(f2, 'anjo-z5', '2026-11-06', '2026-11-08'), s2 = five(f2, 'ashwin-p8', '2026-11-07', '2026-11-10'), x2 = f2.responses['anjo-z5'];
+    check(srv.allOk(r0) && f1.responses['anjo-z5'].available_from === '2026-11-06' && f1.responses['anjo-z5'].note === '🛬09:05 🛫18:30' && f1.responses['anjo-z5'].booked && srv.allOk(r1) && mv.length === 1 &&
+      x2.available_from === '2026-11-06' && x2.available_to === '2026-11-08' && x2.booked && a2.rows && eq(a2.rows, ['2026-11-06', '2026-11-08']) && eq(a2.map, ['2026-11-06', '2026-11-08']) && eq(a2.cal, [false, true, true, false]) &&
+      a2.search.length === 0 && s2.ok,
+      'AC3/AC6 through the real Worker: booked Anjo\'s 11/6 is stored as hers (times and 🎫 kept); the plan moves to 11/7–11/10 in one update: her flight stays 11/6–11/8 (rows, Calendar, Map; a bought flight is never searched again), Ashwin\'s five places move with the plan', { a2, s2, x2 });
+    // a booked traveler whose ends were blank is pinned by the move itself (the model's rule, kept), so her rows never jump
+    const id2 = srv.seed(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); }));
+    const mv2 = M.organizerEdit(await srv.get(id2, KEY), KEY, { dates: { departure: '2026-11-07', return: '2026-11-10' } }), r2 = await srv.send(mv2), g2 = await srv.get(id2);
+    check(srv.allOk(r2) && mv2.length === 2 && eq(M.flightEnds(model(g2), 'anjo-z5').map((e) => e.day), ['2026-11-06', '2026-11-09']) && g2.responses['anjo-z5'].available_from === '2026-11-06',
+      'AC3 a booked traveler still following in the record is pinned to her booked 11/6–11/9 before the plan moves (organizerEdit, unchanged): her flight rows read the same days after the move');
   }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 

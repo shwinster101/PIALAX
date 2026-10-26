@@ -810,7 +810,8 @@ async function main() {
       const codes = await page.evaluate(() => [...document.querySelectorAll('#screen .pb [data-act="person"]')].map((e) => e.getAttribute('data-code')));
       for (const c of codes) {
         await jsClick(page, '#screen .pb [data-act="person"][data-code="' + c + '"]'); await settle(page, 80);
-        if (await page.$('#sheet [data-act="dates"][data-end="1"]')) {
+        // (PIA-151: a day that cannot be set here, on a trip closed or over, is a button that says why: not this walk's leg)
+        if (await page.$('#sheet [data-act="dates"][data-end="1"]:not([aria-disabled="true"])')) {
           seenOn(who + ' leg').done = true;
           await measurePopup(page, tag('P-person ' + c + ' (−1 / +1 on each leg)'));
           await jsClick(page, '#sheet [data-act="dates"][data-end="1"]'); await settle(page, 80);
@@ -1858,8 +1859,8 @@ async function main() {
     await measurePopup(page, 'diwali › Mom & Dad\'s P-person after 🛬 −1');
     await settle(page, 1300);
     const md = kv().responses['momdad-k3'];
-    check(lf === 'legshift,0,-1' && own[0] === '11/24' && own[1] && net.posts - n2 === 1 && md.available_from === '2026-11-24' && md.available_to === '' && md.note === '📞',
-      'PIA-138 AC4 the organizer moves Mom & Dad\'s 🛬 a day earlier (11/24, now their own, underlined; focus stays on −1): one answer, their leave end still following the plan, marked 📞', { lf, own, md });
+    check(lf === 'legshift,0,-1' && own[0] === '11/24⚠' && own[1] && net.posts - n2 === 1 && md.available_from === '2026-11-24' && md.available_to === '' && md.note === '📞',
+      'PIA-138 AC4 the organizer moves Mom & Dad\'s 🛬 a day earlier (11/24, now their own, underlined, and PIA-151: ⚠ outside the plan, allowed; focus stays on −1): one answer, their leave end still following the plan, marked 📞', { lf, own, md });
     await closeSheet(page);
     await ctx.close();
   }
@@ -2116,6 +2117,144 @@ async function main() {
     check(door && focus === 'paid-amt' && dbl.posts === 0 && dbl.btn === 'Confirm' && asked && ask.btn === 'Confirm' && /⚠/.test(ask.faces) && /🔒/.test(ask.faces) && /^Closes answers and flight times; no answer from /.test(ask.label) && ask.amt === '$1,490' && ask.lp === 'Closes answers' &&
       d.stage === 'booked' && d.actual_total === 1490 && /💵\s*\$1,490/.test(shown) && again === '$1,490' && closed.closed === '🏁' && closed.answers === 0 && !closed.door,
       'PIA-139 AC5 at 🏁 Done the trip view\'s 💵 ＋ opens P-stage at the field; a double tap on Save only asks (⚠ the hosts, 🛬 who has no landing time, 🔒; read out in words; 1490 reads back as $1,490), then ↵ records it through the Worker (booked, $1,490); P-stage reads 💵 $1,490 with ✎ to fix it, and the trip shows 🏁 closed', { door, focus, dbl, ask, d: { stage: d.stage, total: d.actual_total }, shown, again, closed });
+    await ctx.close();
+  }
+
+  // ═══ PIA-151: my flight, with real clicks through the real Worker ═══
+  section('PIA-151 my flight with real clicks through the real Worker: one place per traveler, a one-tap day calendar, 🎫 → landing time, the board\'s final check; the job tap counts');
+  {
+    // Leo on the set Christmas trip (PIA | ORD, 🔒 12/22–12/27, not booked yet)
+    const { ctx, page, net } = await phone('booked', { worker: true, url: '?idea=' + LK });
+    await settle(page, 200);
+    const rec = () => JSON.parse(net.kv.map.get('idea:' + LK)).responses['leo-k3'];
+    const focusId = () => page.evaluate(() => (document.activeElement || {}).id || '');
+    // a save's way back is waited for by what it shows (his flight section again, or ⚠ ↻), never a bare sleep; then the app's own
+    // 400ms tap hold after a sheet change (TAP_HOLD_MS: a quick second tap is dropped by design) is let pass before the next tap
+    const TAP_HOLD = 450;
+    const backIn = async () => { await page.waitForFunction(() => { const s = document.querySelector('#sheet'); return !!s && !s.hidden && s.getAttribute('data-popup') === 'P-person'; }, null, { timeout: 8000 }).catch(() => {}); await settle(page, TAP_HOLD); };
+    const failedIn = () => page.waitForFunction(() => { const b = document.querySelector('#sheet [data-act="dsave"]'); return !!b && b.textContent.trim() === '⚠ ↻'; }, null, { timeout: 8000 }).catch(() => {});
+    const recUntil = async (f) => { for (let i = 0; i < 160 && !f(rec()); i++) await page.waitForTimeout(50); };
+    const r = {};
+    let taps = 0;
+    const tapS = async (sel, ms) => { await page.click(sel); taps++; await settle(page, ms || 150); };          // a tap in the sheet
+    const tapJ = async (sel, ms) => { await jsClick(page, sel); taps++; await settle(page, ms || 150); };       // a tap on the screen (the sticky bar may cover a row)
+    // AC1 one tap on his own bar: his flight section, its ✈ Book ↗ for exactly the days and airports in its rows, 🎫 beside it
+    await tapJ('#screen .pb [data-act="flight"][data-code="leo-k3"]');
+    r.open = { pop: await popupId(page), taps, rows: await page.$$eval('#sheet .leg .ld', (els) => els.map((e) => e.textContent.trim())), cells: (await page.$$('#sheet .leg [data-act="legair"]')).length,
+      book: await page.$eval('#sheet .split a[data-ret]', (e) => e.href).catch(() => ''), tk: !!(await page.$('#sheet .split a[data-ret] + [data-act="mybook"]')) };
+    const dec = MODEL.gfDecode(r.open.book);
+    r.open.legs = dec ? dec.legs.map((L) => L.date + ':' + [].concat(L.from).join(',') + '>' + [].concat(L.to).join(',')) : null;
+    await measurePopup(page, 'my flight › his flight section (not booked: days following the plan, PIA | ORD, Book | 🎫)');
+    // AC5 / AC9 🎫 → landing time: 🎫 (1), the 🛬 field in its row, inviting (2), typed, ↵ ↵
+    taps = 0; const p0 = net.posts;
+    await tapS('#sheet [data-act="mybook"]', 50); await page.waitForSelector('#sheet #tm-arr', { timeout: 8000 }).catch(() => {}); await settle(page, 100);
+    r.invite = await page.$eval('#sheet #tm-arr', (e) => e.closest('.fld').classList.contains('invite') && !!e.closest('.leg')).catch(() => false);
+    r.noShift = !(await page.$('#sheet [data-act="legshift"]'));
+    await tapS('#sheet #tm-arr', 80);
+    await page.keyboard.type('0905'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter'); await recUntil((x) => /🛬09:05/.test(x.note)); await settle(page, 150);
+    r.jobB = { taps, posts: net.posts - p0, booked: rec().booked === true, note: rec().note };
+    await measurePopup(page, 'my flight › booked: each row its day, its time field and its airports');
+    check(r.open.pop === 'P-person' && r.open.taps === 1 && eq(r.open.rows, ['12/22🗓', '12/27🗓']) && r.open.cells === 4 && r.open.tk && eq(r.open.legs, ['2026-12-22:SEA>PIA', '2026-12-27:PIA>SEA']) &&
+      r.invite && r.noShift && r.jobB.taps === 2 && r.jobB.posts === 2 && r.jobB.booked && /^🛬09:05 Red-eye/.test(r.jobB.note),
+      'PIA-151 AC1/AC5/AC9 one tap on Leo\'s bar opens his flight section: 🛬 12/22 and 🛫 12/27 (both following the plan, 🗓), PIA | ORD for each end, ✈ Book ↗ for exactly SEA→PIA 12/22 and PIA→SEA 12/27 with 🎫 beside it; then 🎫 → landing time in 2 taps: 🎫, the 🛬 field (in its own row, inviting, in place of −1 / +1), 0905 ↵ ↵ saved', r);
+    await page.click('#sheet [data-act="sh-close"]'); await settle(page, 300);
+    // AC9 record my booked arrive DAY + time from the trip page in ≤5 taps: my booked bar (1), my 🛬 day (2), the day (3), ⚠ 🎫 Confirm
+    // (4: the first move after my 🎫 asks once), the time typed in the 🛬 field that has the focus, ⌄ (5)
+    taps = 0; const p1 = net.posts;
+    await tapJ('#screen .split.prim [data-act="mytimes"]');
+    r.f1 = await focusId();
+    await tapS('#sheet [data-act="dates"][data-end="0"]');
+    r.cal = { pop: await popupId(page), endg: await page.$eval('#sheet .sh-hd .endg', (e) => e.textContent).catch(() => ''), save: !!(await page.$('#sheet [data-act="dsave"]')),
+      cross: await page.$eval('#sheet [data-act="dday"][data-v="2026-12-28"]', (e) => e.getAttribute('data-lbl')).catch(() => ''), pin: !!(await page.$('#sheet [data-act="dday"][data-v="2026-12-25"] .pinday')) };
+    await measurePopup(page, 'my flight › the one-end calendar (🛬)');
+    await tapS('#sheet [data-act="dday"][data-v="2026-12-21"]');
+    r.ask = await page.$eval('#sheet [data-act="dsave"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '');
+    r.askPosts = net.posts - p1;
+    await measurePopup(page, 'my flight › the one-end calendar asking (⚠ 🎫 Confirm)');
+    await tapS('#sheet [data-act="dsave"]', 50); await backIn();
+    r.back = { pop: await popupId(page), focus: await focusId(), day: await page.$eval('#sheet .leg .ld', (e) => e.textContent.trim()).catch(() => '') };
+    await page.fill('#sheet #tm-arr', '1510');
+    await tapS('#sheet [data-act="sh-close"]', 50); await recUntil((x) => /🛬15:10/.test(x.note)); await settle(page, 200);
+    r.jobA = { taps, posts: net.posts - p1, from: rec().available_from, to: rec().available_to, note: rec().note, booked: rec().booked === true };
+    r.board = await page.$eval('#screen .pb [data-act="flight"][data-code="leo-k3"] .btm.a', (e) => e.textContent).catch(() => '');
+    await measureScreen(page, 'set trip › my bar with my landing time (the final check)');
+    check(r.f1 === 'tm-arr' && r.cal.pop === 'P-dates' && r.cal.endg === '🛬' && !r.cal.save && r.cal.cross === 'Ends cross' && r.cal.pin && r.ask === '⚠ 🎫 Confirm' && r.askPosts === 0 &&
+      r.back.pop === 'P-person' && r.back.focus === 'tm-arr' && r.back.day === '12/21⚠' && r.jobA.taps === 5 && r.jobA.posts === 2 && r.jobA.from === '2026-12-21' && r.jobA.to === '' && r.jobA.booked &&
+      /^🛬15:10 Red-eye/.test(r.jobA.note) && /^15:10/.test(r.board),
+      'PIA-151 AC2/AC9 from the trip page Leo records his booked arrive day and time in 5 taps: his booked bar (🛬 focused), his 🛬 day (a month calendar for that end: 📌 on its day, days past his 🛫 greyed "Ends cross", no Save to find), 12/21, ⚠ 🎫 Confirm (once a visit, nothing sent before it), back at his 🛬 field, 1510, ⌄: two writes (the day, then the time), his 🎫 kept, and his bar reads 15:10', r);
+    // AC4 one end saving (◷) and failed (⚠ ↻, the day still picked; ↻ saves it), each a counted popup state
+    await jsClick(page, '#screen .pb [data-act="flight"][data-code="leo-k3"]'); await settle(page, 150);
+    await page.click('#sheet [data-act="dates"][data-end="1"]'); await settle(page, 150);
+    let release; net.holdPost = new Promise((res) => { release = res; });
+    await page.click('#sheet [data-act="dday"][data-v="2026-12-26"]'); await settle(page, 150);
+    r.busy = await page.$eval('#sheet [data-act="dsave"]', (e) => e.textContent.trim() + '|' + e.getAttribute('aria-busy')).catch(() => '');
+    await measurePopup(page, 'my flight › the one-end calendar saving (◷)');
+    net.holdPost = null; release(); await backIn();
+    r.afterBusy = { pop: await popupId(page), to: rec().available_to };
+    await page.click('#sheet [data-act="dates"][data-end="1"]'); await settle(page, 150);
+    net.failPost = true;
+    await page.click('#sheet [data-act="dday"][data-v="2026-12-24"]'); await failedIn(); await settle(page, 100);
+    r.failed = { btn: await page.$eval('#sheet [data-act="dsave"]', (e) => e.textContent.trim()).catch(() => ''), picked: await page.$eval('#sheet [data-act="dday"][data-v="2026-12-24"]', (e) => e.getAttribute('aria-pressed')).catch(() => ''), to: rec().available_to };
+    await measurePopup(page, 'my flight › the one-end calendar after a failed save (⚠ ↻)');
+    await page.click('#sheet [data-act="dsave"]'); await backIn();
+    r.retried = { pop: await popupId(page), to: rec().available_to, note: rec().note };
+    check(r.busy === '◷|true' && r.afterBusy.pop === 'P-person' && r.afterBusy.to === '2026-12-26' && r.failed.btn === '⚠ ↻' && r.failed.picked === 'true' && r.failed.to === '2026-12-26' &&
+      r.retried.pop === 'P-person' && r.retried.to === '2026-12-24' && /^🛬15:10 Red-eye/.test(r.retried.note),
+      'PIA-151 AC4 picking his 🛫 day: ◷ while the write is out, then back in his flight section (12/26); a save that fails keeps 12/24 picked with ⚠ ↻, and ↻ saves it (his time and note kept)', { busy: r.busy, afterBusy: r.afterBusy, failed: r.failed, retried: r.retried });
+    await closeSheet(page);
+    await ctx.close();
+  }
+  {
+    // AC7 / AC8 the organizer's final check on the Done 8-member trip: who is booked, when each lands and leaves, who has no time;
+    // a tap on a row opens that traveler's flight section (focused on the missing time): recorded in 2 taps, 📞
+    const { ctx, page, net } = await phone('bookorg', { worker: true, url: '?idea=' + BK });
+    await settle(page, 200);
+    const rows = () => page.evaluate(() => [...document.querySelectorAll('#screen .pb .pb-row')].map((row) => {
+      const f = row.querySelector('.who [data-act="person"]'), tr = row.querySelector('.track');
+      return { code: f && f.getAttribute('data-code'), btn: !!(tr && tr.tagName === 'BUTTON' && tr.getAttribute('data-act') === 'flight'), h: tr ? Math.round(tr.getBoundingClientRect().height) : 0,
+        a: ((row.querySelector('.btm.a') || {}).textContent || ''), miss: !!row.querySelector('.btm.a.miss'), d: ((row.querySelector('.btm.d') || {}).textContent || '') };
+    }));
+    const b0 = await rows(), by = (c) => b0.find((x) => x.code === c) || {};
+    const w0 = await measureScreen(page, 'Done 8-member trip › the board\'s final check (times, ––:––)');
+    let taps = 0;
+    await jsClick(page, '#screen .pb [data-act="flight"][data-code="samlee-sb"]'); taps++; await settle(page, 150);
+    const s = { pop: await popupId(page), focus: await page.evaluate(() => (document.activeElement || {}).id || '') };
+    await measurePopup(page, 'Done 8-member trip › Sam Lee\'s flight section from his row (the organizer)');
+    await page.fill('#sheet #tm-arr', '1730');
+    await page.click('#sheet [data-act="sh-close"]'); taps++; await settle(page, 700);
+    const note = JSON.parse(net.kv.map.get('idea:' + BK)).responses['samlee-sb'].note, b1 = await rows();
+    check(by('bartholomewmontgomeryfitzgera-dj').a === '15:10☀' && by('bartholomewmontgomeryfitzgera-dj').d === '18:05🌃' && by('anastasiakonstantinopoulou-x1').a === '15:40☀' && !by('anastasiakonstantinopoulou-x1').d &&
+      by('oluwaseunadebayorichardson-ew').a === '15:05☀' && by('oluwaseunadebayorichardson-ew').d === '20:00🌃' && by('samlee-sb').miss && by('samlee-sb').a === '––:––' && by('maximilianoyelaranwhitfield-5u').miss &&
+      b0.filter((x) => x.btn).every((x) => x.h >= 44) && b0.some((x) => !x.btn) && w0.length <= SCREEN_MAX &&
+      s.pop === 'P-person' && s.focus === 'tm-arr' && taps === 2 && note === '🛬17:30' && (b1.find((x) => x.code === 'samlee-sb') || {}).a === '17:30☀',
+      'PIA-151 AC7/AC8 at a glance on the 8-name board (≤10 words): Bartholomew lands 15:10☀ and leaves 18:05🌃, Anastasia lands 15:40☀, Oluwaseun 15:05☀ / 20:00🌃, Sam Lee and Maximiliano booked with ––:–– (no landing time); a tap on Sam Lee\'s row opens his flight section at 🛬, 1730 and ⌄: recorded for him in 2 taps (his 📞 mark as it reads, as PIA-139\'s organizer times), and his row reads 17:30', { b0, s, note, w: w0.length });
+    await ctx.close();
+  }
+  {
+    // AC5 / AC9 a trip still Asking (its dates not 🔒: a new trip's default), the worst case for the flight section's words: 8 long names,
+    // PIA | ORD, every traveler on their own days, on the organizer's token phone. Each section has [✈ Book ↗ | 🎫] (a flight bought early
+    // can be recorded); his 🎫 for Anastasia (in): one tap, then her 🛬 field invites the time; ≤20 words in every state
+    const { ctx, page, net } = await phone('prices', { worker: true, url: '?idea=' + PW });
+    await settle(page, 300);
+    const codes = await page.evaluate(() => [...document.querySelectorAll('#screen .pb [data-act="flight"]')].map((e) => e.getAttribute('data-code')));
+    const seen = [];
+    for (const c of codes) {
+      await jsClick(page, '#screen .pb [data-act="flight"][data-code="' + c + '"]'); await settle(page, 120);
+      const w = await measurePopup(page, 'Asking 8-name trip › ' + c + '\'s flight section ([✈ Book ↗ | 🎫] before the 🔒)');
+      seen.push({ c, book: !!(await page.$('#sheet .split a[data-ret]')), tk: !!(await page.$('#sheet .split [data-act="booked"], #sheet .split [data-act="mybook"]')), w: w.length });
+      await closeSheet(page);
+    }
+    const w0 = await measureScreen(page, 'Asking 8-name trip › the trip view (nobody booked yet)');
+    await jsClick(page, '#screen .pb [data-act="flight"][data-code="anastasia-w2"]'); await settle(page, 120);
+    const p0 = net.posts;
+    await page.click('#sheet .split [data-act="booked"]'); await page.waitForSelector('#sheet #tm-arr', { timeout: 8000 }).catch(() => {}); await settle(page, 150);
+    const inv = await page.$eval('#sheet #tm-arr', (e) => e.closest('.fld').classList.contains('invite') && !!e.closest('.leg')).catch(() => false);
+    const w2 = await measurePopup(page, 'Asking 8-name trip › Anastasia marked booked by the organizer (her 🛬 field inviting)');
+    const an = JSON.parse(net.kv.map.get('idea:' + PW)).responses['anastasia-w2'];
+    await closeSheet(page);
+    const w3 = await measureScreen(page, 'Asking 8-name trip › the trip view once Anastasia has booked (her ––:––)');
+    check(codes.length === 8 && seen.every((x) => x.book && x.tk && x.w <= POPUP_MAX) && inv && an.booked === true && net.posts - p0 === 1 && w2.length <= POPUP_MAX && w0.length <= SCREEN_MAX && w3.length <= SCREEN_MAX,
+      'PIA-151 AC5/AC9 on the 8-name trip still Asking, every traveler\'s flight section has [✈ Book ↗ | 🎫] (≤20 words each); the organizer\'s 🎫 for Anastasia is one tap (one write), then her 🛬 field invites the time; the trip view stays ≤10 words before and after', { seen, inv, posts: net.posts - p0, w2: w2.length, w0: w0.length, w3: w3.length });
     await ctx.close();
   }
 

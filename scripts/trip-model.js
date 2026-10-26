@@ -2021,12 +2021,21 @@ function primaryAction(model, today) {
 /* The organizer's 🎫 on someone else's row of the people board, shown once the dates are set or anyone has booked:
    never on a host, never on his own row (his is the primary's), never on a closed trip or an unmigrated v1 doc.
    Marking someone who has not answered in or maybe (waiting, or out) records them as in first (📞, bookedRequests),
-   so it asks for a confirming tap; so does taking a 🎫 away. → null (no control) or {on, confirm} */
-function bookToggle(model, code) {
+   so it asks for a confirming tap; so does taking a 🎫 away. early (PIA-151: their flight section, earlyBook): the same
+   control before the dates are 🔒, for a traveler whose days are known and still ahead. → null (no control) or {on, confirm} */
+function bookToggle(model, code, early) {
   var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
   if (!x || !model.org || model.legacy || model.closed || x.host || (model.me && model.me.code === code)) return null;
-  if (!model.locked && !model.anyBooked) return null;
+  if (!model.locked && !model.anyBooked && !early) return null;
   return { on: x.booked, confirm: x.booked || !x.answered };
+}
+/* PIA-151: a flight already bought can be recorded before the dates are 🔒: in a traveler's flight section (P-person) the 🎫
+   sits beside Book once their days are known (their own, or the plan's) and still ahead, on a trip still open (the Worker's
+   /idea/booked takes a 🎫 at any stage but dropped). Not on a v1 doc still to be updated (P-migrate first, as before). The
+   trip view's primary keeps its own rule (primaryAction). */
+function earlyBook(model, code, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  return !!x && x.traveler && !model.closed && !model.locked && !model.legacy && !model.past && !!x.d1 && !x.bad && x.d1 >= today;
 }
 
 /* ---- dates: the one picker (PIA-138) ----
@@ -2103,13 +2112,16 @@ function clearDelta(model) {
    needs both ends); 'order'; 'past' (an end set before today). off: an end set lands outside the plan (⚠, still allowed).
    An end picked on the plan's own day for that side (the plan's first day as an arrival, its last as a departure) keeps
    following the plan (blank), unless it is already their own: a pick that only repeats the plan never pins that end
-   against the next move (so "arrive a day later" with ↔ moves the arrival alone). same: the patch changes nothing they
-   have now (Save: No change). */
+   against the next move (so "arrive a day later" with ↔ moves the arrival alone). PIA-151: a booked traveler's pick is
+   always stored as their own day, the plan's own day too, even an end still blank picked on the day it already is (their
+   flight is bought: no later plan move may carry it; organizerEdit also pins a booked traveler's blank ends before every
+   move), and a booked end never goes back to following the plan: a blank pick keeps the day of their own it has (an end
+   still blank stays blank: nothing changes). same: the patch changes nothing they have now (Save: No change). */
 function ownDays(model, code, s, e, end, today) {
   var x = model.members.filter(function (m) { return m.code === code; })[0];
   if (!x) return null;
   var plan = model.plan;
-  var pick = function (v, own, side) { v = v || ''; return v && v !== own && plan && v === side ? '' : v; };
+  var pick = function (v, own, side) { v = v || (x.booked ? own : '') || ''; return v && v !== own && plan && v === side && !x.booked ? '' : v; };
   var a = pick(s, x.own1, plan && plan.s), b = pick(e, x.own2, plan && plan.e);
   var patch = end === 0 ? { available_from: a } : end === 1 ? { available_to: b } : { available_from: a, available_to: b };
   var f = hasOwn(patch, 'available_from') ? patch.available_from : x.own1, t = hasOwn(patch, 'available_to') ? patch.available_to : x.own2;
@@ -2126,6 +2138,24 @@ function legShift(model, code, end, k, today) {
   if (!x || !x.d1) return null;
   var d = addD(end ? x.d2 : x.d1, k);
   return ownDays(model, code, end ? '' : d, end ? d : '', end ? 1 : 0, today);
+}
+/* PIA-151: one traveler's flight, the two rows of their flight section (P-person) and the times on their board bar, from the
+   model alone, so the rows, the Book link, the price search, Calendar and the Map all read the same days: for each end (0 🛬
+   arrive, 1 🛫 leave) the day (their own, else the plan's), own (a day they set), follow (the end moves with the plan: blank,
+   and not booked; a booked traveler's day never follows, organizerEdit writes it as theirs before the plan moves), off (their
+   own day falls outside the plan: ⚠, still allowed), the airport they land at or leave from, the hub pair it can be switched
+   within (the Worker's IDEA_HUBS only, else none), and once booked the time recorded for it ('' none yet). null for someone
+   with no flight here: not on the trip, a host, someone out. */
+function flightEnds(model, code) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler) return null;
+  var plan = model.plan, aps = model.hub.length === 2 ? model.hub.slice() : [];
+  return [0, 1].map(function (end) {
+    var own = end ? x.own2 : x.own1, day = end ? x.d2 : x.d1;
+    return { end: end, day: day, own: !!own, follow: !!plan && !!day && !own && !x.booked, booked: x.booked,
+      off: !!(own && plan && (own < plan.s || own > plan.e)), ap: end ? x.H : x.A, aps: aps,
+      time: x.booked ? (end ? x.depTime : x.arrTime) : '' };
+  });
 }
 /* who is there on one day (P-day): in-members whose days cover it, and hosts (in, or in by default) on every day a screen
    draws for the trip, are there: their heads are presentOn, so P-day agrees with the grid's numeral and never passes the
@@ -2173,13 +2203,15 @@ function datesRole(model) {
 /* one traveler's hand-off slot in P-person, by the trip view's own rule (primaryAction, bookToggle): their Google Flights
    search before the dates are set; [✈ Book ↗ | 🎫] side by side once they are; [✈⏱↗ Flighty | 🎫] after their 🎫. tk is
    whose 🎫 sits there: 'self' (my own: one tap, taking it back asks first), 'org' (the organizer marking someone else:
-   bookToggle, a confirming tap for someone waiting or out), '' none. → {slot: 'gf' | 'book' | 'booked' | '', tk} */
+   bookToggle, a confirming tap for someone waiting or out), '' none. PIA-151: their flight section also offers
+   [✈ Book ↗ | 🎫] before the 🔒 once their days are known and ahead (earlyBook; early: true), mine where the trip view's
+   primary is [📣 Share | ✈↗] (an answer in or maybe, or the organizer's own). → {slot: 'gf' | 'book' | 'booked' | '', tk, early} */
 function bookSlot(model, code, today) {
   var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
-  if (!x || !x.traveler) return { slot: '', tk: '' };
-  var mine = !!model.me && model.me.code === code;
-  var tk = model.closed ? '' : mine ? (x.booked || primaryAction(model, today) === 'book' ? 'self' : '') : bookToggle(model, code) ? 'org' : '';
-  return { slot: x.booked ? 'booked' : tk ? 'book' : 'gf', tk: tk };
+  if (!x || !x.traveler) return { slot: '', tk: '', early: false };
+  var mine = !!model.me && model.me.code === code, early = earlyBook(model, code, today), pa = mine ? primaryAction(model, today) : '';
+  var tk = model.closed ? '' : mine ? (x.booked || pa === 'book' || (early && pa === 'share') ? 'self' : '') : bookToggle(model, code, early) ? 'org' : '';
+  return { slot: x.booked ? 'booked' : tk ? 'book' : 'gf', tk: tk, early: early };
 }
 /* a typed time → 'HH:MM' (24h); blank → ''; anything else → null. '15:10', '1510', '0905', '0:30' are times, and so
    are '6:05 pm', '6pm', '11:05a' (am / pm typed). An hour 1–12 typed with no leading 0 and no am / pm ('310', '9:05',
@@ -2572,8 +2604,8 @@ if (typeof module !== 'undefined' && module.exports) {
     fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
     whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle,
     SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
-    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, dayPeople: dayPeople, calendarDay: calendarDay, datesRole: datesRole, datesHeld: datesHeld,
-    bookSlot: bookSlot, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
+    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, flightEnds: flightEnds, dayPeople: dayPeople, calendarDay: calendarDay, datesRole: datesRole, datesHeld: datesHeld,
+    bookSlot: bookSlot, earlyBook: earlyBook, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
     timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime,
     SPEND_PER_TAP: SPEND_PER_TAP, SPEND_PER_SESSION: SPEND_PER_SESSION, QUOTA_LOCK_AT: QUOTA_LOCK_AT, QUOTA_BUDGET: QUOTA_BUDGET, PLAN_LEFT_MIN: PLAN_LEFT_MIN,
     FARE_OFFERS: FARE_OFFERS, FARES_KEEP: FARES_KEEP, codeSet: codeSet, parseFareKey: parseFareKey, searchQuery: searchQuery, serpTime: serpTime,

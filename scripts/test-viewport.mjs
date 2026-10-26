@@ -100,6 +100,8 @@ console.log('▶ test-viewport: mobile layout regression suite');
     d.responses['bartholomewmontgomeryfitzgera-dj'].note = '🛬15:10 🛫18:05 ' + d.responses['bartholomewmontgomeryfitzgera-dj'].note;
     d.responses['anastasiakonstantinopoulou-x1'].note = '🛬15:40';
     d.responses['oluwaseunadebayorichardson-ew'].note = '📞 🛬15:05 🛫20:00';
+    // PIA-151: Sam Lee (booked, no landing time yet) flies in on the board's last day: his ––:–– sits at the track's right edge
+    d.responses['samlee-sb'].available_from = '2026-12-14'; d.responses['samlee-sb'].available_to = '2026-12-14';
     return d;
   })();
   // PIA-139 fix pass: the same Done trip on Bartholomew's phone (his booked bar), and paid (💵 $1,490, ✎; times 🔒)
@@ -330,6 +332,25 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await measure('P-person (☀ / 🌃 asked, a time marked ⚠)');
         if ((await page.$$('#sheet #tm-half:not([hidden]) [data-act="tmhalf"]')).length !== 2 || !(await page.$('#sheet .fld.bad #tm-dep'))) fails.push('"310" left should ask ☀ / 🌃, and "25:99" left should be marked ⚠');
         await page.evaluate(() => { ['tm-arr', 'tm-dep'].forEach((id) => { const f = document.getElementById(id); f.value = f.defaultValue; f.dispatchEvent(new Event('input', { bubbles: true })); }); });
+        // PIA-151: the time fields sit in their own 🛬 / 🛫 rows (one line each); his 🛬 day opens the one-end calendar, where a day asks
+        // ⚠ 🎫 Confirm first (booked); ‹ back leaves it unsent
+        const rowsOk = await page.evaluate(() => { const L = [...document.querySelectorAll('#sheet .leg')]; return L.length === 2 && !!L[0].querySelector('#tm-arr') && !!L[1].querySelector('#tm-dep') && L.every((e) => e.getBoundingClientRect().height < 60); });
+        if (!rowsOk) fails.push('a booked traveler\'s flight rows should each hold their time field on one line');
+        await tapJs('#sheet [data-act="dates"][data-end="0"]'); await measure('P-dates (one end, from the flight section)');
+        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-dates' || !(await page.$('#sheet .sh-hd .endg')) || (await page.$('#sheet [data-act="dsave"]'))) fails.push('a day in the flight section should open the one-end calendar (no Save bar)');
+        await tapJs('#sheet [data-act="dday"][data-v="2026-12-09"]'); await measure('P-dates (one end, ⚠ 🎫 Confirm)');
+        if (!(await page.$('#sheet [data-act="dsave"].arm'))) fails.push('a booked traveler\'s first one-end pick should ask ⚠ 🎫 Confirm');
+        await tapJs('#sheet [data-act="sh-back"]');
+        await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-151: the board's final check: booked bars carry their times (a ––:–– for no landing time); every traveler's bar is a 44px button
+        // (5 booked: Bartholomew 15:10 / 18:05, Anastasia 15:40, Oluwaseun 15:05 / 20:00, Maximiliano and Sam Lee ––:––; Sam lands on the
+        // board's last day: every label stays inside its own track, and the page never scrolls sideways)
+        const fin = await page.evaluate(() => ({ times: document.querySelectorAll('#screen .pb .btm').length, miss: document.querySelectorAll('#screen .pb .btm.miss').length, bars: [...document.querySelectorAll('#screen .pb button.track')].map((e) => Math.round(e.getBoundingClientRect().height)),
+          out: [...document.querySelectorAll('#screen .pb .btm')].filter((b) => { const t = b.closest('.track').getBoundingClientRect(), r = b.getBoundingClientRect(); return r.left < t.left - 1 || r.right > t.right + 1; }).map((b) => b.getAttribute('aria-label')),
+          over: document.documentElement.scrollWidth - innerWidth }));
+        if (fin.times !== 7 || fin.miss !== 2 || !fin.bars.length || fin.bars.some((h) => h < 44) || fin.out.length || fin.over > 0) fails.push('the Done trip\'s board should show its 7 booked times (2 ––:––) on 44px bars, each inside its track, with no sideways scroll: ' + JSON.stringify(fin));
+        await tapJs('#screen .pb [data-act="flight"][data-code="samlee-sb"]'); await measure('P-person from a traveler\'s bar (the organizer, no landing time yet)');
+        if ((await page.evaluate(() => (document.activeElement || {}).id)) !== 'tm-arr') fails.push('a booked traveler\'s bar with no landing time should open their flight at the 🛬 field');
         await tapJs('#sheet [data-act="sh-close"]');
         if (!(await page.$('#screen [data-act="paidopen"]'))) fails.push('at 🏁 the organizer\'s trip view should have 💵 ＋');
         await tapJs('#screen [data-act="paidopen"]'); await page.type('#sheet #paid-amt', '$123,456'); await measure('P-stage (💵 typed)');

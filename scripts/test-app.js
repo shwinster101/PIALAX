@@ -1883,7 +1883,7 @@ function norm(doc) {
     const hold = deferred(); srv.hold = hold.p;
     const w = tap(t, s0, 'legair', { end: '1', v: 'ORD' });
     t.flush();   // the next frame: before the Worker has answered
-    const mid = t.api.modelOf(id).me, s1 = sheet(t), href = (/<a class="btn pri wide" href="([^"]+)"/.exec(s1) || [])[1] || '';
+    const mid = t.api.modelOf(id).me, s1 = sheet(t), href = (/<a class="btn pri(?: wide)?" href="([^"]+)"/.exec(s1) || [])[1] || '';   // (PIA-151: Book beside her 🎫)
     const dec = TM.gfDecode(href.replace(/&amp;/g, '&')), board = screen(t);
     srv.hold = null; hold.res(); await w; await tick();
     check(nPosts(t) - p0 === 1 && mid.H === 'ORD' && mid.link.trip === 3 && dec && dec.trip === 3 && eq(dec.legs[1].from, ['ORD']) && /data-end="1" data-v="ORD"/.test(s1) && /aria-checked="true" data-act="legair"[^>]*data-end="1" data-v="ORD"/.test(s1) &&
@@ -2569,7 +2569,7 @@ function norm(doc) {
     const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
     act(t, 'open', { id });
     const h = screen(t);
-    check(!/data-act="shift"/.test(h) && /class="track mybar" data-act="dates" data-id="[^"]+" data-code="anjo-z5" aria-label="My dates 11\/6–11\/9" data-lbl="My dates"/.test(h), 'a guest has no −1 / +1; her own bar opens P-dates (read out with her days)');
+    check(!/data-act="shift"/.test(h) && /class="track mybar" data-act="flight" data-id="[^"]+" data-code="anjo-z5" aria-label="My flight 11\/6–11\/9" data-lbl="My flight"/.test(h), 'a guest has no −1 / +1; her own bar opens her flight section (PIA-151; read out with her days)');
     tap(t, h, 'dates');
     const L = dsh(t);
     check(t.api.popupName(t.api.S.sheet) === 'P-dates' && L && L.target === 'me' && L.who === 'anjo-z5', 'her plan pill itself (the trip view\'s control, tapped) opens P-dates on her own days');
@@ -2642,8 +2642,8 @@ function norm(doc) {
     const t = await boot136({ ls: org138(id) });
     act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
     const s0 = sheet(t);
-    check(/class="ld" data-act="dates" data-id="[^"]+" data-code="anjo-z5" data-end="0" aria-label="Arrive date 11\/6" data-lbl="Arrive date">11\/6<\/button>/.test(s0) && /data-act="legshift"[^>]*data-end="1" data-v="1" aria-label="Later" data-k="shift">\+1/.test(s0),
-      'PIA-138 AC4 P-person: each leg\'s day opens P-dates for that end (read out with its day: "Arrive date 11/6"), with −1 / +1 beside it');
+    check(/class="ld fol" data-act="dates" data-id="[^"]+" data-code="anjo-z5" data-end="0" aria-label="Arrive date 11\/6, follows plan" data-lbl="Arrive, follows plan" id="ld-0">11\/6<span class="fm" data-k="follow" aria-hidden="true">🗓<\/span><\/button>/.test(s0) && /data-act="legshift"[^>]*data-end="1" data-v="1" aria-label="Later" data-k="shift">\+1/.test(s0),
+      'PIA-138 AC4 P-person: each leg\'s day opens P-dates for that end (read out with its day: "Arrive date 11/6", and PIA-151: that it follows the plan, 🗓, which a long press says too), with −1 / +1 beside it');
     tap(t, sheet(t), 'legshift', { end: '0', v: '-1' }); tap(t, sheet(t), 'legshift', { end: '0', v: '-1' }); tap(t, sheet(t), 'legshift', { end: '1', v: '1' });
     const mid = t.api.modelOf(id).members.find((x) => x.code === 'anjo-z5'), pre = nPosts(t);
     await settleWrites(t, id);
@@ -3297,6 +3297,19 @@ function norm(doc) {
       !/data-code="ashwin-p8" data-end="0" data-n="\d" aria-label="Search/.test(ps1) &&
       /<button class="dch[^"]* tap" data-act="legshift" data-id="[^"]+" data-code="ashwin-p8" data-end="0" data-day="2026-11-05"/.test(ps1) && x0.keys[0].key === ep.rows[1].key,
       'PIA-140 AC6 in Ashwin\'s sheet 🔍2 prices his arrival ±1 day (2 searches, the round trip with that day moved); the three days then read their $ with ★ on the cheapest, and the day before or after is a tap from being his (−1 / +1)', { chips, urls: s3.map((f) => f.url) });
+    {
+      // PIA-151: once he has booked, a booked day moves only on its calendar (with its ⚠ 🎫 confirm): the day before and after still
+      // read their price, and a tap on one says so instead of moving his flight on a second tap
+      const bd = srv.read(DP); bd.responses['ashwin-p8'].booked = true; bd.responses['ashwin-p8'].booked_at = '2026-10-16T00:00:00.000Z'; srv.write(bd);
+      c.api.closeSheet(); await c.api.refreshAll(true); await tick(); act(c, 'person', { id: DP, code: 'ashwin-p8' });
+      const pb = sheet(c), n0 = nPosts(c);
+      const ro = /<button class="dch[^"]* ro" data-act="legshift" aria-disabled="true" data-why="1" aria-label="Arrive 11\/5, \$[\d,]+ round trip[^"]*, booked: change the day above" data-lbl="Booked: tap day">/.test(pb);
+      const r0 = c.api.ACTS.legshift({ dataset: { id: DP, code: 'ashwin-p8', end: '0', day: '2026-11-05' }, getAttribute: (k) => (k === 'aria-disabled' ? 'true' : null) });
+      await tick();
+      check(ro && !/class="dch[^"]* tap" data-act="legshift"/.test(pb) && r0 === null && nPosts(c) === n0 && c.api.modelOf(DP).members.find((x) => x.code === 'ashwin-p8').own1 === '',
+        'PIA-151 booked, his day-before / day-after chips read their $ and say "Booked: tap day" on a tap: nothing moves, nothing is sent (his day changes on its calendar)', { ro });
+      c.api.closeSheet();
+    }
 
     // AC3 the locks, as every spend control shows them: the Worker's day cap (⛔ 17:00 local, until 00:00 UTC), the month (⛔ 11/1)
     const DL = seedAs(DWX);
@@ -4102,6 +4115,314 @@ function norm(doc) {
     const n = t.fetches.length; act(t, 'calmonth', { v: '-1' }); act(t, 'calday', { id: other, v: '2026-10-01' });
     check(!/data-act="calnew"/.test(sheet(t)) && t.fetches.length === n, 'past days are readable, offer no dated create and make no network call');
   }
+  // ═══ PIA-151: my flight ═══
+  section('PIA-151 my flight: each traveler\'s two ends in one place (day on a one-tap calendar, airport, time), one write a save, the board\'s final check, different days per person');
+  const el0 = (ds, dis) => ({ dataset: ds, getAttribute: (k) => (dis && k === 'aria-disabled' ? 'true' : null) });   // a tapped control (aria-disabled when dis)
+  const legOf = (h, end) => (h.match(/<div class="leg"[\s\S]*?(?=<div class="leg"|<\/div><(?:div|button|a|p|span class="sdots")|$)/g) || [])[end] || '';
+  const toastTxt = (t) => (t.rec['#toast'] ? t.rec['#toast'].innerHTML : '');
+  {
+    // AC1 / AC2 / AC3 / AC5 Anjo (in, her own 11/5–11/8) on her phone: her bar opens her flight section; each end's day opens a month
+    // calendar for that end alone, where one tap picks it and saves it; nothing else changes
+    const id = seedAs(DWX, anjoIn({ available_from: '2026-11-05', available_to: '2026-11-08', note: 'Window seat' }));
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }), rec: ['#toast'] });
+    act(t, 'open', { id });
+    const h0 = screen(t), bar = ctl(h0, 'flight', { code: 'anjo-z5' });
+    act(t, 'flight', bar);
+    const s0 = sheet(t), gf = (/<a class="btn pri(?: wide)?" href="([^"]+)"[^>]*data-k="gf">/.exec(s0) || [])[1], dec = gf ? TM.gfDecode(gf.replace(/&amp;/g, '&')) : null;
+    check(!!bar && /class="track mybar" data-act="flight"[^>]*aria-label="My flight 11\/5–11\/8, outside plan"/.test(h0) && t.api.S.sheet && t.api.S.sheet.type === 'person' && t.api.S.sheet.p.code === 'anjo-z5' &&
+      /class="ld own" data-act="dates"[^>]*data-end="0" aria-label="Arrive date 11\/5, own day, outside plan" data-lbl="Arrive, own day"[^>]*>11\/5<span class="fm off" data-k="offplan" aria-hidden="true">⚠<\/span><\/button>/.test(s0) &&
+      /class="ld own" data-act="dates"[^>]*data-end="1" aria-label="Leave date 11\/8, own day" data-lbl="Leave, own day"[^>]*>11\/8<\/button>/.test(s0) &&
+      /data-act="legshift"/.test(s0) && !/id="tm-arr"/.test(s0) && !!dec && eq(dec.legs.map((L) => L.date), ['2026-11-05', '2026-11-08']) && dec.legs[0].to.join() === 'RDU' &&
+      /<div class="split"><a class="btn pri" href="[^"]+"[^>]*data-ret="[^"]+" data-code="anjo-z5" aria-label="Book on Google Flights"[^>]*>[\s\S]*?<\/a><button class="btn sq" data-act="mybook"/.test(s0),
+      'PIA-151 AC1/AC5 one tap on her own bar opens her flight section: 🛬 11/5 (⚠: outside the plan, allowed) and 🛫 11/8, each her own (underlined, and a long press says so), −1 / +1 beside them, and [✈ Book ↗ | 🎫] for exactly those days to RDU while the dates are not 🔒 yet', { s0: s0.slice(0, 400) });
+    act(t, 'dates', ctl(s0, 'dates', { end: '0' }));
+    const L0 = dsh(t), c0 = sheet(t);
+    act(t, 'dmonth', { v: '-1' }); const cOct = sheet(t); act(t, 'dmonth', { v: '1' });
+    check(L0 && L0.quick && L0.end === 0 && t.api.S.sheet.back && t.api.S.sheet.back.type === 'person' && /class="endg" data-k="arrive">🛬<\/span>/.test(c0) && !/data-act="dsave"/.test(c0) &&
+      /data-v="2026-11-09" aria-label="11\/9[^"]*, ends cross" aria-disabled="true" data-why="1" data-lbl="Ends cross"/.test(c0) && /data-v="2026-10-16"[^>]*aria-disabled="true" data-why="1" data-lbl="Past"/.test(cOct) &&
+      /data-act="dday" data-v="2026-11-08"[^>]*>[\s\S]*?class="pinday"/.test(c0) && /class="plan prop[^"]*" data-k="planprop"/.test(c0) && /data-act="dfollow"/.test(c0) && L0.ym === '2026-11',
+      'PIA-151 AC2 her 🛬 day opens a month calendar for that end alone (🛬 beside her face, no Save to find): the plan outlined, 📌 11/8 on its day, ◀ ▶ paging (October\'s past days greyed: "Past"), days after her 🛫 greyed ("Ends cross"), Follow plan for an end of her own');
+    const p0 = nPosts(t), r1 = tap(t, c0, 'dday', { v: '2026-11-03' }), busy = sheet(t), r2 = tap(t, busy, 'dday', { v: '2026-11-02' });
+    await r1; await settleWrites(t, id);
+    const ps1 = posts(t).slice(p0), x1 = srv.read(id).responses['anjo-z5'];
+    check(ps1.length === 1 && ps1[0].path === '/idea/respond' && eq([ps1[0].body.available_from, ps1[0].body.available_to, ps1[0].body.note, ps1[0].body.status, ps1[0].body.origin], ['2026-11-03', '2026-11-08', 'Window seat', 'in', '']) &&
+      /aria-label="Saving" aria-busy="true"[^>]*>◷<\/button>/.test(busy) && x1.available_from === '2026-11-03' && t.api.S.sheet && t.api.S.sheet.type === 'person' && t.api.S.sheet.focus === 'ld-0' && /🗓✓/.test(toastTxt(t)),
+      'PIA-151 AC2/AC4 one tap on 11/3 saves it: ONE complete answer from a fresh read (her 🛫 11/8, her note, her In kept); a second tap while it is out says ◷ and sends nothing; then back to her flight section, its 🛬 day in focus, 🗓✓', { n: ps1.length, b: ps1[0] && ps1[0].body });
+    // the day it already is: back, nothing sent; Follow plan for her own 🛬: at once, blank (her 🛫 stays her own)
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' })); const p1 = nPosts(t);
+    await tap(t, sheet(t), 'dday', { v: '2026-11-03' }); await tick();
+    const backSame = t.api.S.sheet && t.api.S.sheet.type === 'person' && nPosts(t) === p1;
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' }));
+    await tap(t, sheet(t), 'dfollow'); await settleWrites(t, id);
+    const x2 = srv.read(id).responses['anjo-z5'], s2 = sheet(t);
+    check(backSame && nPosts(t) === p1 + 1 && x2.available_from === '' && x2.available_to === '2026-11-08' && /class="ld fol" data-act="dates"[^>]*aria-label="Arrive date 11\/6, follows plan"[^>]*>11\/6<span class="fm" data-k="follow" aria-hidden="true">🗓<\/span>/.test(s2) && /class="ld own"[^>]*data-end="1"/.test(s2),
+      'PIA-151 AC3 a tap on the day it already is goes back with nothing sent; Follow plan for her own 🛬 goes at once (blank: it follows the plan again, drawn 🗓 and dimmed), her 🛫 still her own');
+    // the plan's own day, unbooked, for an end of her own: it follows the plan (the current rule)
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '1' })); await tap(t, sheet(t), 'dday', { v: '2026-11-09' }); await settleWrites(t, id);
+    check(srv.read(id).responses['anjo-z5'].available_to === '' && TM.flightEnds(t.api.modelOf(id), 'anjo-z5')[1].follow,
+      'PIA-151 AC3 unbooked, her 🛫 picked on the plan\'s last day (11/9) keeps following the plan (stored blank), and her row says so');
+    t.api.closeSheet();
+  }
+  {
+    // AC3 / AC4 / AC5 booked: the time fields sit in her rows (in place of ±1); her first move asks ⚠ 🎫 once; a pick is her own day even
+    // on the plan's day; typed times and a day picked in one visit never erase each other; a failed save keeps the pick for ↻
+    const id = seedAs(DWX, (d) => { lock139(d); anjoIn({ booked: true, booked_at: '2026-10-16T00:00:00.000Z', note: 'Red-eye' })(d); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }), rec: ['#toast'] });
+    act(t, 'open', { id }); act(t, 'mytimes', { id });
+    const s0 = sheet(t), legA = legOf(s0, 0), legD = legOf(s0, 1);
+    check(t.api.S.sheet.focus === 'tm-arr' && /id="tm-arr"/.test(legA) && /data-end="0"/.test(legA) && /id="tm-dep"/.test(legD) && /data-end="1"/.test(legD) && !/data-act="legshift"/.test(s0) &&
+      /class="ld bk" data-act="dates"[^>]*aria-label="Arrive date 11\/6, booked day"/.test(s0) && /id="tm-half" data-sig="" hidden/.test(s0),
+      'PIA-151 AC1 booked: her booked bar opens her flight section at 🛬; each row holds its day (booked: never following the plan), its time field (🛬 in the arrive row, 🛫 in the leave row) in place of −1 / +1');
+    typed(t, 'tm-arr', '0905', 'anjo-z5');
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' }));
+    const p0 = nPosts(t);
+    await tap(t, sheet(t), 'dday', { v: '2026-11-05' }); await tick();
+    const asked = sheet(t), noPost = nPosts(t) === p0;
+    srv.failNext = 'network';
+    await tap(t, asked, 'dsave'); await tick(); await settleWrites(t, id);
+    const failed = sheet(t), stillPicked = dsh(t) && dsh(t).s === '2026-11-05';
+    await tap(t, failed, 'dsave'); await settleWrites(t, id);
+    const x1 = srv.read(id).responses['anjo-z5'], back1 = t.api.S.sheet && t.api.S.sheet.type === 'person' && t.api.S.sheet.focus === 'tm-arr', keptTyped = /id="tm-arr"[^>]*value="0905"/.test(sheet(t));
+    check(noPost && /data-act="dsave"[^>]*data-lbl="Confirm">⚠ 🎫 <span class="cw">Confirm<\/span>/.test(asked) && /data-act="dsave" aria-label="Retry">⚠ ↻<\/button>/.test(failed) && stillPicked &&
+      x1.available_from === '2026-11-05' && x1.available_to === '' && x1.booked === true && x1.note === 'Red-eye' && back1 && keptTyped,
+      'PIA-151 AC4 her first move after her 🎫 asks once (⚠ 🎫 Confirm, nothing sent); a save that fails keeps 11/5 picked with ⚠ ↻; ↻ saves it (her 🎫 and note kept) and she is back in her flight section at her 🛬 time, 0905 still typed there', { x1 });
+    // the plan's last day picked for her 🛫 (booked, still blank in the record): stored as hers (her flight is that day: one tap records
+    // it); then the plan's first day for her own 🛬: hers too; no Follow plan for a booked day, in the one-end calendar or in ↔
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '1' })); const p1 = nPosts(t);
+    await tap(t, sheet(t), 'dday', { v: '2026-11-09' }); await settleWrites(t, id);
+    const pinned = nPosts(t) === p1 + 1 && srv.read(id).responses['anjo-z5'].available_to === '2026-11-09' && t.api.S.sheet.type === 'person';
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' }));
+    const noFollow = !/data-act="dfollow"/.test(sheet(t));
+    act(t, 'dend', { v: 'both' }); const noFollowBoth = !/data-act="dfollow"/.test(sheet(t)) && /data-act="dsave"[^>]*data-lbl="No change"/.test(sheet(t)); act(t, 'dend', { v: '0' });
+    await tap(t, sheet(t), 'dday', { v: '2026-11-06' }); await settleWrites(t, id);
+    const x2 = srv.read(id).responses['anjo-z5'];
+    check(pinned && noFollow && noFollowBoth && x2.available_from === '2026-11-06' && x2.available_to === '2026-11-09' && nPosts(t) === p1 + 2,
+      'PIA-151 AC3 booked, her 🛫 tapped on the plan\'s 11/9 (the day it already reads, blank in the record) is stored as HER day, and her 🛬 moved onto the plan\'s 11/6 too (asked once a visit: no second confirm); no Follow plan is offered on a booked day, in the one-end calendar or in ↔ (both ends: No change)', { pinned, noFollow, noFollowBoth, x2 });
+    // the typed time goes as the sheet closes: one answer with her days, her times, her note, her 🎫 and LGA, none erasing the others
+    t.api.closeSheet(); await until(() => /🛬09:05/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    const x3 = srv.read(id).responses['anjo-z5'];
+    check(x3.note === '🛬09:05 Red-eye' && x3.available_from === '2026-11-06' && x3.available_to === '2026-11-09' && x3.booked === true && x3.origin === 'LGA' && x3.status === 'in',
+      'PIA-151 AC4 the time typed before the days were picked goes as her sheet closes: 🛬09:05 before her note, her own 11/6–11/9, her 🎫 and LGA all kept (one complete answer a save, rebuilt from a fresh read)', x3);
+    // the organizer moves the plan +1: her booked 11/6 stays (it is stored as hers)
+    const o = await boot136({ ls: org138(id) });
+    act(o, 'open', { id }); act(o, 'dates', { id }); act(o, 'dlock', {}); await act(o, 'dlock', {}); await settleWrites(o, id); o.api.closeSheet();
+    tap(o, screen(o), 'shift', { v: '1' }); await settleWrites(o, id);
+    const after = TM.flightEnds(o.api.modelOf(id), 'anjo-z5').map((e) => e.day);
+    check(eq(TM.docPlan(srv.read(id)), { s: '2026-11-07', e: '2026-11-10' }) && eq(after, ['2026-11-06', '2026-11-09']) && srv.read(id).responses['anjo-z5'].available_to === '2026-11-09',
+      'PIA-151 AC3 the organizer unlocks and moves the plan +1 (after the confirming tap): her booked 11/6–11/9, stored as hers, stay: no booked flight moves', { after, plan: TM.docPlan(srv.read(id)) });
+  }
+  {
+    // AC4 locked, closed, paid or past: her days say why on a tap, never a failing write
+    const paid = seedAs(DWX, (d) => { lock139(d); anjoIn({ booked: true })(d); d.decision.stage = 'booked'; d.decision.actual_total = 900; });
+    const past = seedAs(DWX, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-04'; d.idea.notes = ''; anjoIn()(d); });
+    const wait = seedAs(DWX);
+    const locked = seedAs(DWX, (d) => { lock139(d); anjoIn()(d); });
+    const why = [];
+    for (const id of [paid, past, wait, locked]) {
+      const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+      act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
+      const s = sheet(t), d = ctl(s, 'dates', { end: '0' }), n = nPosts(t);
+      if (d) t.api.ACTS.dates(el0(d, /aria-disabled="true"/.test((new RegExp('<button[^>]*data-act="dates"[^>]*data-end="0"[^>]*>').exec(s) || [''])[0])));
+      why.push({ lbl: (/data-act="dates"[^>]*data-end="0"[^>]*data-lbl="([^"]+)"/.exec(s) || [])[1], sheet: t.api.S.sheet && t.api.S.sheet.type, posts: nPosts(t) - n });
+      t.api.closeSheet();
+    }
+    check(why[0].lbl === 'Trip closed' && why[1].lbl === 'Trip over' && why[2].lbl === 'Answer first' && why.slice(0, 3).every((w) => w.sheet === 'person' && w.posts === 0) &&
+      why[3].lbl === 'Arrive, follows plan' && why[3].sheet === 'dates',
+      'PIA-151 AC4 her day on a paid trip says "Trip closed", on a trip that is over "Trip over", before she answers "Answer first" (each a tap that explains, nothing sent); on a 🔒 trip her own days stay hers to pick', why);
+  }
+  {
+    // AC7 / AC8 the board's final check: booked rows carry their landing time at the bar's start and leaving time at its end (––:–– when
+    // no landing time yet); the organizer's tap on any traveler's row opens their flight section; screen words unchanged
+    const id = seedAs(DWX, (d) => { lock139(d); d.responses['ashwin-p8'] = RESP('in', { member: 'ashwin-p8', origin: 'LAX', booked: true, note: '🛬09:05 🛫18:30' }); anjoIn({ booked: true })(d); });
+    const o = await boot136({ ls: org138(id) });
+    act(o, 'open', { id });
+    const h = screen(o), board = o.api.peopleBoard(o.api.modelOf(id));
+    const rowOf = (c) => (new RegExp('<div class="pb-row[^"]*"[^>]*><span class="who"><button class="facebtn" data-act="person" data-id="[^"]+" data-code="' + c + '"[\\s\\S]*?(?=<div class="pb-row|$)').exec(h) || [''])[0];
+    const ash = rowOf('ashwin-p8'), anj = rowOf('anjo-z5'), md = rowOf('momdad-k3');
+    const bc = {
+      ashBar: /class="track mybar" data-act="flight"[^>]*aria-label="My flight 11\/6–11\/9, booked, lands at 09:05, leaves at 18:30"/.test(ash),
+      ashLand: /<span class="btm a" style="left:[\d.]+%" role="img" aria-label="Lands at 09:05" data-lbl="Lands at"><span class="tn">09:05<\/span><span class="dp" data-k="tday"/.test(ash),
+      ashLeave: /<span class="btm d" style="right:[\d.]+%" role="img" aria-label="Leaves at 18:30"[^>]*><span class="tn">18:30<\/span>/.test(ash),
+      anjBar: /class="track fbar" data-act="flight"[^>]*data-code="anjo-z5" aria-label="Anjo, flight 11\/6–11\/9, booked, no landing time"/.test(anj),
+      anjMiss: /<span class="btm a miss"[^>]*aria-label="No landing time" data-lbl="No landing time" data-k="notime"><span class="tn">––:––<\/span>/.test(anj) && !/btm d/.test(anj),
+      md: /class="track fbar" data-act="flight"[^>]*data-code="momdad-k3"/.test(md) && !/btm/.test(md), same: h.indexOf(board) >= 0, words: shown(board.replace(/&amp;/g, '&')) };
+    check(bc.ashBar && bc.ashLand && bc.ashLeave && bc.anjBar && bc.anjMiss && bc.md && bc.same && eq(bc.words, ['Mom&Dad', 'Anjo']),
+      'PIA-151 AC7 the organizer\'s board: his bar reads 09:05☀ over its start and 18:30 under its end; Anjo (booked, no time yet) ––:–– in amber; Mom & Dad (not booked) no time; every traveler\'s bar is a button to their flight; no new words', { bc, ash: ash.slice(-900), anj: anj.slice(-700) });
+    act(o, 'flight', ctl(h, 'flight', { code: 'anjo-z5' }));
+    const os = sheet(o);
+    check(o.api.S.sheet && o.api.S.sheet.type === 'person' && o.api.S.sheet.p.code === 'anjo-z5' && o.api.S.sheet.focus === 'tm-arr' && /id="tm-arr" data-code="anjo-z5"/.test(os) && /data-act="answer"[^>]*data-proxy="1"/.test(os),
+      'PIA-151 AC7/AC8 a tap on Anjo\'s row opens her flight section on the organizer\'s phone with her 🛬 time field focused (the time is what is missing), his answers for her 📞');
+    o.api.closeSheet();
+    // a guest: only her own bar opens her flight; the others' bars still read their times; nobody's bar opens for a host or someone out
+    const g = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(g, 'open', { id });
+    const gh = screen(g);
+    check(/class="track mybar" data-act="flight"[^>]*data-code="anjo-z5"/.test(gh) && !/class="track fbar"/.test(gh) && /<span class="btm a"[^>]*aria-label="Lands at 09:05"/.test(gh),
+      'PIA-151 AC7 on Anjo\'s phone only her own bar opens a flight; Ashwin\'s still reads his 09:05');
+    const pd = seedAs(DWX, (d) => { atPeoria(d); anjoIn()(d); }), ph = await boot136({ ls: lsOf([pd], { pialax_idea_me_v1: { [pd]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([pd]) }) });
+    act(ph, 'open', { id: pd });
+    const hh = screen(ph);
+    check(!/data-act="flight"[^>]*data-code="momdad-k3"/.test(hh) && /data-act="flight"[^>]*data-code="anjo-z5"/.test(hh), 'PIA-151 AC8 never for a host: Mom & Dad host in Peoria, so their bar opens no flight; Anjo\'s does');
+    // before I answer, my bar asks for my answer first (as my days always did)
+    const nw = seedAs(DWX), ng = await boot136({ ls: lsOf([nw], { pialax_idea_me_v1: { [nw]: 'anjo-z5' } }), rec: ['#screen', '#toast'] });
+    act(ng, 'open', { id: nw }); const nd = ng.rec['#screen'].__rec.html, n0 = nd.length;
+    act(ng, 'flight', ctl(screen(ng), 'flight', { code: 'anjo-z5' }));
+    check(!ng.api.S.sheet && nd.slice(n0).some((x) => /class="answers nudge"/.test(x)) && /👋 In \/ Maybe \/ Out/.test(toastTxt(ng)) && nPosts(ng) === 0,
+      'PIA-151 before Anjo answers, her bar opens nothing: her answer row pulses and says "👋 In / Maybe / Out" (her answer first, as her days always asked)');
+  }
+  {
+    // AC6 different dates per person: Anjo on her own 11/5–11/8, Ashwin on the plan's 11/6–11/9. Her rows, Book link, the organizer's price
+    // search (real /search requests through the Worker, SerpAPI stubbed), Calendar presence and Map pickups all read her days; his his.
+    const SERP = fx('serp-flights.json'), offline = globalThis.fetch, serp = [];
+    srv.env.PROXY_TOKEN = TOKEN; srv.env.SERPAPI_KEY = 'serp-key';
+    globalThis.fetch = async (u) => {
+      const s = String(u);
+      if (/^https:\/\/serpapi\.com\/account\.json\?/.test(s)) return new Response(JSON.stringify({ plan_searches_left: 900, total_searches_left: 900, this_month_usage: 41, searches_per_month: 1000 }), { status: 200 });
+      if (/^https:\/\/serpapi\.com\/search\.json\?/.test(s)) { serp.push(s); return new Response(JSON.stringify(SERP), { status: 200 }); }
+      return offline(u);
+    };
+    try {
+      const id = seedAs(DWX, anjoIn({ available_from: '2026-11-05', available_to: '2026-11-08' }));
+      [...srv.map.keys()].filter((k) => /^fare:/.test(k)).forEach((k) => srv.map.delete(k));
+      const o = await boot136({ ls: lsOf([id], { pialax_idea_keys_v1: keyOf([id]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [id]: 'ashwin-p8' }, pialax_ui_v1: { sel: id, v1read: 1 } }) });
+      act(o, 'open', { id });
+      const rows = {}, book = {};
+      ['anjo-z5', 'ashwin-p8'].forEach((c) => {
+        act(o, 'person', { id, code: c }); const s = sheet(o); o.api.closeSheet();
+        rows[c] = [(/data-end="0"[^>]*>(\d+\/\d+)/.exec(s) || [])[1], (/data-end="1"[^>]*>(\d+\/\d+)/.exec(s) || [])[1]];
+        const href = (/<a class="btn pri(?: wide)?" href="([^"]+)"[^>]*data-k="gf">/.exec(s) || [])[1], d = href ? TM.gfDecode(href.replace(/&amp;/g, '&')) : null;
+        book[c] = d ? d.legs.map((L) => L.date) : null;
+      });
+      o.api.render(true);
+      await tap(o, o.api.SHEETS.total({ type: 'total', p: { id }, local: {} }), 'search'); await tick(20);
+      const q = o.fetches.filter((f) => f.url.indexOf(W + '/search?') === 0).map((f) => new URL(f.url).searchParams);
+      const dates = (from) => q.filter((p) => p.get('departure_id').split(',').indexOf(from) >= 0).map((p) => p.get('outbound_date') + '|' + p.get('return_date'));
+      act(o, 'tab', { v: 'cal' }); const cal = o.api.renderSelected('calendar', 'cal').html;
+      const nOn = (day) => +((new RegExp('data-v="' + day + '" data-n="(\\d+)"').exec(cal) || [])[1]);
+      act(o, 'calday', { id, v: '2026-11-05' }); const d5 = sheet(o); o.api.closeSheet();
+      act(o, 'tab', { v: 'map' }); const map = o.api.renderSelected('map', 'map').html;
+      const chip = (kind, day, code) => new RegExp('<button class="pk ' + kind + '" data-act="pickup" data-id="[^"]+" data-ap="RDU" data-v="' + day + '"' + (code ? ' data-code="' + code + '"' : '')).test(map);
+      check(eq(rows['anjo-z5'], ['11/5', '11/8']) && eq(rows['ashwin-p8'], ['11/6', '11/9']) && eq(book['anjo-z5'], ['2026-11-05', '2026-11-08']) && eq(book['ashwin-p8'], ['2026-11-06', '2026-11-09']) &&
+        eq(dates('LGA'), ['2026-11-05|2026-11-08']) && eq(dates('LAX'), ['2026-11-06|2026-11-09']) && serp.length === 3 &&
+        nOn('2026-11-05') === 1 && nOn('2026-11-06') === 4 && nOn('2026-11-08') === 4 && nOn('2026-11-09') === 3 && /dayf"[^>]*data-code="anjo-z5"/.test(d5) && /dayf dimf"[^>]*data-code="ashwin-p8"/.test(d5) &&
+        chip('arr', '2026-11-05', 'anjo-z5') && chip('dep', '2026-11-08', 'anjo-z5') && chip('arr', '2026-11-06') && chip('dep', '2026-11-09'),
+        'PIA-151 AC6 Anjo on her own days, Ashwin on the plan\'s, all five agree: her flight rows read 11/5–11/8 and his 11/6–11/9; their ✈↗ links search exactly those days; the organizer\'s 🔍 searched LGA for 11/5–11/8 and LAX for 11/6–11/9; Calendar counts her alone on 11/5 (P-day: her there, him not yet) and him without her on 11/9; the Map picks her up 11/5 and drops her 11/8, him 11/6 and 11/9',
+        { rows, book, lga: dates('LGA'), lax: dates('LAX'), n: [nOn('2026-11-05'), nOn('2026-11-06'), nOn('2026-11-09')] });
+    } finally { globalThis.fetch = offline; }
+  }
+  {
+    // AC5 on a trip still Asking (its dates not 🔒: a new trip's default), a flight bought early can be recorded: her flight section has
+    // [✈ Book ↗ | 🎫] for exactly the days in its rows; 🎫 → her 🛬 field invites the time → typed → saved as the sheet closes. The trip
+    // view keeps [📣 Share | ✈↗] until then; the board's 🎫 marks keep their rule (once anyone has booked)
+    const id = seedAs(DWX, anjoIn({ available_from: '2026-11-05' }));
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }), rec: ['#toast'] });
+    act(t, 'open', { id });
+    const h0 = screen(t);
+    act(t, 'flight', ctl(h0, 'flight', { code: 'anjo-z5' }));
+    const s0 = sheet(t), p0 = nPosts(t), gf = (/<a class="btn pri" href="([^"]+)"[^>]*data-k="gf">/.exec(s0) || [])[1], dec = gf ? TM.gfDecode(gf.replace(/&amp;/g, '&')) : null;
+    await tap(t, s0, 'mybook'); await settleWrites(t, id);
+    const s1 = sheet(t), x1 = srv.read(id).responses['anjo-z5'], pB = nPosts(t) - p0;
+    typed(t, 'tm-arr', '21:40', 'anjo-z5');
+    t.api.closeSheet(); await until(() => /🛬21:40/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    const x2 = srv.read(id).responses['anjo-z5'], h2 = screen(t);
+    check(t.api.modelOf(id).decision === 'proposed' && /data-act="tshare"/.test(h0) && !/data-act="mybook"/.test(h0) && !!dec && eq(dec.legs.map((L) => L.date), ['2026-11-05', '2026-11-09']) &&
+      /<div class="split"><a class="btn pri"[^>]*aria-label="Book on Google Flights"[\s\S]*?<\/a><button class="btn sq" data-act="mybook"/.test(s0) && pB === 1 && x1.booked === true &&
+      /<span class="fld tiny invite"><label for="tm-arr"/.test(s1) && legOf(s1, 0).indexOf('id="tm-arr"') >= 0 && x2.note === '🛬21:40' && x2.available_from === '2026-11-05' && x2.booked && /data-act="mytimes"/.test(h2),
+      'PIA-151 AC5 on a trip still Asking: her flight section offers [✈ Book ↗ | 🎫] for exactly her 11/5–11/9 (the trip view keeps [📣 Share | ✈↗]); 🎫 records her booked in one write, her 🛬 field in its row invites the time, and 21:40 goes as the sheet closes (her own 11/5 and 🎫 kept); then the trip view shows her booked bar', { pB, x2 });
+    // the organizer, before anyone has booked: no 🎫 on the board, one in Anjo's flight section (she has not answered: a confirming tap)
+    const id2 = seedAs(DWX), o = await boot136({ ls: org138(id2) });
+    act(o, 'open', { id: id2 });
+    const ob = screen(o);
+    act(o, 'flight', ctl(ob, 'flight', { code: 'anjo-z5' }));
+    const os = sheet(o), q0 = nPosts(o);
+    await tap(o, os, 'booked', { code: 'anjo-z5' }); const armedS = sheet(o), q1 = nPosts(o);
+    await tap(o, armedS, 'booked', { code: 'anjo-z5' }); await settleWrites(o, id2);
+    const an = srv.read(id2).responses['anjo-z5'], os2 = sheet(o);
+    check(!/data-act="booked"/.test(ob) && /data-act="booked" data-id="[^"]+" data-code="anjo-z5" aria-pressed="false"/.test(os) && q1 === q0 && /data-act="booked"[^>]*aria-label="Confirm booked, [^"]*Anjo"/.test(armedS) &&
+      an && an.status === 'in' && an.booked === true && /📞/.test(an.note) && /id="tm-arr" data-code="anjo-z5"/.test(os2) && /data-act="booked"/.test(screen(o)),
+      'PIA-151 AC5/AC8 the organizer on an Asking trip: no 🎫 on the board yet; in Anjo\'s flight section his 🎫 asks a confirming tap (she has not answered), then records her In (📞) and booked; her time field follows; the board\'s 🎫 marks appear now that someone has booked', { an });
+    o.api.closeSheet(); t.api.closeSheet();
+  }
+  {
+    // AC2 the one-end calendar opens on the month of the end being set, across a month (11/28–12/2) and a year (12/29–1/3)
+    const mk = (s, e) => seedAs(DWX, (d) => { d.idea.dates.departure = s; d.idea.dates.return = e; d.idea.notes = ''; anjoIn()(d); });
+    const nov = mk('2026-11-28', '2026-12-02'), ny = mk('2026-12-29', '2027-01-03');
+    const t = await boot136({ ls: lsOf([nov, ny], { pialax_idea_me_v1: { [nov]: 'anjo-z5', [ny]: 'anjo-z5' } }) });
+    const yms = {};
+    act(t, 'open', { id: nov }); act(t, 'person', { id: nov, code: 'anjo-z5' });
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '1' })); yms.novLeave = dsh(t).ym; const cn = sheet(t); act(t, 'sh-back');
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' })); yms.novArr = dsh(t).ym; t.api.closeSheet(); act(t, 'back');
+    act(t, 'open', { id: ny }); act(t, 'person', { id: ny, code: 'anjo-z5' });
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '1' })); yms.nyLeave = dsh(t).ym; const cal = sheet(t);
+    await tap(t, cal, 'dday', { v: '2027-01-04' }); await settleWrites(t, ny);
+    const x = srv.read(ny).responses['anjo-z5'];
+    check(eq(yms, { novLeave: '2026-12', novArr: '2026-11', nyLeave: '2027-01' }) && /data-act="dday" data-v="2026-12-02"/.test(cn) && /data-act="dday" data-v="2027-01-03"/.test(cal) &&
+      x.available_to === '2027-01-04' && x.available_from === '' && t.api.S.sheet && t.api.S.sheet.type === 'person',
+      'PIA-151 AC2 her 🛫 calendar opens on the month of that end: December for a 11/28–12/2 trip (12/2 picked on it; her 🛬, November), January 2027 for 12/29–1/3; one tap on 1/4, past the turn of the year (⚠ outside the plan, allowed), saves it as her own', { yms, x });
+    t.api.closeSheet();
+  }
+  {
+    // AC4 a one-end pick on a hub trip (Peoria: PIA | ORD) keeps her airports, times, note and 🎫 in the record
+    const id = seedAs(DWX, (d) => { atPeoria(d); anjoIn({ arrive_at: 'ORD', leave_from: 'ORD', booked: true, booked_at: '2026-10-16T00:00:00.000Z', note: '🛬09:05 🛫18:30 Red-eye' })(d); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
+    const s0 = sheet(t);
+    act(t, 'dates', ctl(s0, 'dates', { end: '0' }));
+    await tap(t, sheet(t), 'dday', { v: '2026-11-05' }); await tick();
+    await tap(t, sheet(t), 'dsave'); await settleWrites(t, id);
+    const x = srv.read(id).responses['anjo-z5'];
+    check(/aria-checked="true" data-act="legair"[^>]*data-end="0" data-v="ORD"/.test(s0) && /id="tm-arr"[^>]*value="09:05"/.test(s0) && x.available_from === '2026-11-05' && x.arrive_at === 'ORD' && x.leave_from === 'ORD' &&
+      x.note === '🛬09:05 🛫18:30 Red-eye' && x.booked === true && x.origin === 'LGA' && x.status === 'in',
+      'PIA-151 AC4 on a hub trip (PIA | ORD) her booked 🛬 moved to 11/5 on its calendar (after its ⚠ 🎫 confirm) keeps both her ORD ends, 09:05 / 18:30, her note, LGA and her 🎫 in the record', x);
+    t.api.closeSheet();
+  }
+  {
+    // AC3 / AC4 a plan this phone drew before it moved never decides the plan-day rule: her phone still draws the plan from 11/6; the
+    // organizer has moved it to 11/8–11/11 meanwhile; her tap on 11/6 (the plan's first day as her phone draws it) is HER 11/6
+    const id = seedAs(DWX, anjoIn({ available_from: '2026-11-05' }));
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' }));
+    const d = srv.read(id); d.idea.dates.departure = '2026-11-08'; d.idea.dates.return = '2026-11-11'; srv.write(d);   // (his phone, meanwhile)
+    const looked = t.api.modelOf(id).plan.s;
+    await tap(t, sheet(t), 'dday', { v: '2026-11-06' }); await settleWrites(t, id);
+    const x = srv.read(id).responses['anjo-z5'], fe = TM.flightEnds(t.api.modelOf(id), 'anjo-z5');
+    check(looked === '2026-11-06' && x.available_from === '2026-11-06' && x.available_to === '' && fe[0].day === '2026-11-06' && fe[0].own && fe[1].day === '2026-11-11' && fe[1].follow,
+      'PIA-151 her pick of 11/6, the plan\'s first day on her phone but no longer on the record (moved to 11/8–11/11), is stored as her own 11/6 (decided on the record it is sent against), never "follow the plan" to 11/8; her 🛫 still follows', { x, fe });
+    t.api.closeSheet();
+  }
+  {
+    // a plain ‹ back from her day's calendar never focuses her time field again; a time typed under the calendar that still needs its
+    // half (☀ / 🌃) holds a close once, back in her flight section, as it does there
+    const id = seedAs(DWX, (d) => { lock139(d); anjoIn({ booked: true, booked_at: '2026-10-16T00:00:00.000Z' })(d); });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }), rec: ['#toast'] });
+    act(t, 'open', { id }); act(t, 'mytimes', { id });
+    const f0 = t.api.S.sheet.focus;
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' })); act(t, 'sh-back');
+    const f1 = t.api.S.sheet && t.api.S.sheet.type === 'person' ? t.api.S.sheet.focus : 'x';
+    typed(t, 'tm-arr', '905', 'anjo-z5');
+    act(t, 'dates', ctl(sheet(t), 'dates', { end: '1' }));
+    const n0 = nPosts(t);
+    t.api.closeSheet(); await tick();
+    const held = t.api.S.sheet && t.api.S.sheet.type === 'person' && /🛬☀🌃\?/.test(toastTxt(t)) && nPosts(t) === n0 && /id="tm-half" data-sig="arr\|905"/.test(sheet(t));
+    await tap(t, sheet(t), 'tmhalf', { end: 'arr', v: 'pm' }); t.api.closeSheet(); await until(() => /🛬21:05/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    check(f0 === 'tm-arr' && f1 === null && held && !t.api.S.sheet && srv.read(id).responses['anjo-z5'].note === '🛬21:05',
+      'PIA-151 opened at her 🛬 time, a plain ‹ back from her day\'s calendar focuses nothing again (no keyboard on every back); "905" typed, then a close from the calendar on top goes back to her flight section and holds once (🛬☀🌃?, nothing sent); 🌃 21:05 picked, the close sends it', { f0, f1, held });
+  }
+  {
+    // AC7 the board's times stay on their track: a booked arrival on the last day of the range is anchored at its bar's end, a booked
+    // leave on the first day at its bar's start (never past the track's edge, never over the tail or the faces)
+    const id = seedAs(DWX, (d) => { lock139(d); anjoIn({ available_from: '2026-11-09', booked: true, note: '🛬09:05 🛫18:30' })(d); d.responses['ashwin-p8'] = RESP('in', { member: 'ashwin-p8', origin: 'LAX', available_to: '2026-11-06', booked: true, note: '🛬07:15 🛫19:40' }); });
+    const o = await boot136({ ls: org138(id) });
+    act(o, 'open', { id });
+    const h = screen(o), r = o.api.modelOf(id).range;
+    const rowOf = (c) => (new RegExp('<div class="pb-row[^"]*"[^>]*><span class="who"><button class="facebtn" data-act="person" data-id="[^"]+" data-code="' + c + '"[\\s\\S]*?(?=<div class="pb-row|$)').exec(h) || [''])[0];
+    const lab = (c, k) => (new RegExp('<span class="btm ' + k + '[^"]*" style="([^"]+)"').exec(rowOf(c)) || [])[1] || '';
+    const aA = lab('anjo-z5', 'a'), aD = lab('anjo-z5', 'd'), sA = lab('ashwin-p8', 'a'), sD = lab('ashwin-p8', 'd');
+    check(r && r.e >= '2026-11-09' && /^right:/.test(aA) && /^right:/.test(aD) && /^left:/.test(sA) && /^left:/.test(sD),
+      'PIA-151 AC7 the board\'s time labels never run past the track: Anjo landing on its last day (11/9) reads her 09:05 right-aligned to her bar\'s end; Ashwin leaving on its first day reads his 19:40 left-aligned to his bar\'s start', { aA, aD, sA, sD, r });
+  }
+
   // ═══ AC12 / AC14 ═══
   section('AC12 / AC14 preflight covers app.html; the playbook records the v2 decisions');
   const pf = fs.readFileSync(path.join(ROOT, 'scripts', 'preflight.sh'), 'utf8');
