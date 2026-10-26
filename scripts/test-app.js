@@ -986,7 +986,7 @@ function norm(doc) {
     const d = D(t);
     check(t.api.S.sheet.type === 'new' && t.api.popupName(t.api.S.sheet) === 'P-new-what' && d.step === 1 && d.name === '' && d.dest === '' && d.s === '' && d.e === '' && d.pin === '' && d.scene === '🌆' && !d.kept,
       'PIA-136 AC1 ＋ opens P-new-what empty: no name, no place, no dates, the city picture, even with a dated trip open behind it (nothing comes from hidden state)', { name: d.name, dest: d.dest, s: d.s });
-    check(d.preset === 'family' && eq(d.rows.map((r) => r.face + r.name + r.ap + r.n + (r.me ? '🙋' : '')), ['🌽Mom & DadPIA2', '🌴AshwinLAX1🙋', '🗽AnjoLGA1']) && d.rows.every((r) => r.preset),
+    check(d.preset === 'family' && eq(d.rows.map((r) => r.face + r.name + r.ap + r.n + (r.me ? '🙋' : '')), ['🌽Mom & DadPIA2', '💪AshwinLAX1🙋', '🗽AnjoLGA1']) && d.rows.every((r) => r.preset),
       'PIA-136 AC1/AC4 step 2 starts from a visible group: 👪 (this token phone\'s trip added last is the family\'s), Anjo at LGA (after 9/1), 🙋 Ashwin from this phone\'s identity', d.rows);
     act(t, 'nnext');
     check(d.step === 1, '▶ without a name stays on step 1 (the name field pulses)');
@@ -1002,12 +1002,12 @@ function norm(doc) {
     const keys = JSON.parse(t.ls.getItem('pialax_idea_keys_v1'));
     check(made && made.ok && cp && eq(cp.body.idea.dates, { departure: '2026-11-06', return: '2026-11-09', searchStart: '', searchEnd: '' }) && cp.body.idea.title === '🪔 Diwali in Raleigh' &&
       eq(cp.body.idea.destination, { city: 'Raleigh', airport: 'RDU' }) && cp.body.idea.notes === '📌2026-11-08' && cp.body.idea.recommendation === null &&
-      eq(cp.body.idea.members.map((x) => [x.label, x.airport, x.headcount]), [['🌽 Mom & Dad', 'PIA', 2], ['🌴 Ashwin', 'LAX', 1], ['🗽 Anjo', 'LGA', 1]]),
+      eq(cp.body.idea.members.map((x) => [x.label, x.airport, x.headcount]), [['🌽 Mom & Dad', 'PIA', 2], ['💪 Ashwin', 'LAX', 1], ['🗽 Anjo', 'LGA', 1]]),
       'PIA-136 AC1 Create: one POST /idea through createRequest (the title with its picture, the place and its city, the plan, 📌, a face on every label, no recommendation)', cp && cp.body.idea);
     check(keys[id] && /^[A-Za-z0-9_-]{32,64}$/.test(keys[id].edit_key) && keys[id].title === '🪔 Diwali in Raleigh' && eq(Object.keys(keys[id]), ['edit_key', 'title', 'created_at']) && keys[DW1].edit_key === KEY,
       'PIA-136 AC1 the edit key is kept on this phone in v1\'s format (and the keys already there are untouched)');
     const me = t.api.meFor(id), meMem = srv.read(id).idea.members.find((x) => x.code === me);
-    check(t.api.S.tab === 'trips' && t.api.S.trip === id && !t.api.S.sheet && t.api.listIds().indexOf(id) >= 0 && meMem && meMem.label === '🌴 Ashwin' && JSON.parse(t.ls.getItem('pialax_me_profile_v1')).label === '🌴 Ashwin' &&
+    check(t.api.S.tab === 'trips' && t.api.S.trip === id && !t.api.S.sheet && t.api.listIds().indexOf(id) >= 0 && meMem && meMem.label === '💪 Ashwin' && JSON.parse(t.ls.getItem('pialax_me_profile_v1')).label === '💪 Ashwin' &&
       t.api.modelOf(id).stage === 'idea' && t.api.modelOf(id).org && Object.keys(srv.read(id).responses).length === 0 && !('draft' in t.api.uiRead()),
       'PIA-136 AC1 then the trip opens (its organizer view, 💡 Idea, nobody has answered yet), listed, with 🙋 = Ashwin on this phone and as my profile; no draft is left', { trip: t.api.S.trip, me });
     const nv = t.api.renderTrip(id).html;
@@ -1342,6 +1342,22 @@ function norm(doc) {
     const doc = srv.read(E), faces = doc.idea.members.map((x) => TM.splitLabel(x.label).face), pr = doc.idea.members.find((x) => x.code === 'priya-q1'), sam = doc.idea.members.find((x) => / Sam$/.test(x.label));
     check(r && r.ok && pr && pr.label === samFace + ' Priya' && sam && TM.splitLabel(sam.label).face !== samFace && new Set(faces).size === faces.length && doc.idea.members.length === 5 && eq(doc.idea.members.slice(0, 3).map((x) => x.label), DWL),
       'PIA-136 AC3 a member added on another device meanwhile keeps their face (' + samFace + ' Priya) though this Save\'s new row (Sam) had taken it: Sam gets a free one; faces stay unique, kept labels verbatim', doc.idea.members.map((x) => x.label));
+  }
+  {
+    // PIA-150: a trip saved with 🌴 Ashwin keeps it (the record's faces are its own) until the organizer changes it in ✎: one tap on
+    // his face there gives 💪 (the face after 🌴, nobody else on the trip has it), and Save writes only that
+    const E = seedAs(fx('idea-diwali.json')), before = clone(srv.read(E)), t = await editPeople(E, 'ashwin-p8'), d = D(t);
+    const shown = t.api.modelOf(E).members.map((x) => x.face);
+    act(t, 'nedit', { v: '1' }); act(t, 'nface', { v: '1' });
+    const html = t.api.SHEETS.new(t.api.S.sheet), picked = d.rows[1].face;
+    act(t, 'nface', { v: '1' }); const wrapped = d.rows[1].face; act(t, 'nface', { v: '1' }); const again = d.rows[1].face;
+    for (let i = 0; i < 30 && d.rows[1].face !== '💪'; i++) act(t, 'nface', { v: '1' });
+    const n0 = t.fetches.length, r = await act(t, 'esave2'); await tick();
+    const ps = posts(t, n0), doc = srv.read(E);
+    check(eq(shown, ['🌽', '🌴', '🗽']) && picked === '💪' && /<button class="ib facepick" data-act="nface" data-v="1" aria-label="Change face">💪<\/button>/.test(html) && wrapped === '🦊' && again === '🐻' &&
+      r && r.ok && ps.length === 1 && ps[0].path === '/idea/update' && eq(doc.idea.members.map((x) => x.code + ' ' + x.label), ['momdad-k3 🌽 Mom & Dad', 'ashwin-p8 💪 Ashwin', 'anjo-z5 🗽 Anjo']) &&
+      eq(doc.responses, before.responses) && eq(t.api.modelOf(E).members.map((x) => x.face), ['🌽', '💪', '🗽']),
+      'PIA-150 Diwali (saved with 🌴 Ashwin) shows 🌴 until the organizer taps his face in ✎: 💪 comes next (then 🦊, 🐻 … around again), and Save is one update that relabels him 💪 Ashwin; codes, the others\' labels and every answer stay', { shown, picked, wrapped, again, labels: doc.idea.members.map((x) => x.label), paths: ps.map((p) => p.path) });
   }
   {
     // a 4-word name already on the trip (another client) never blocks an unrelated change; a typed one still cannot pass 3

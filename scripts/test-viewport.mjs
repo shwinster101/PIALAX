@@ -413,6 +413,14 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.click('#sheet [data-act="etitle"]'); await page.waitForTimeout(100); await measure('P-edit name and place');
         await page.click('#sheet [data-act="sh-back"]'); await page.waitForTimeout(80);
         await page.click('#sheet [data-act="epeople"]'); await page.waitForTimeout(100); await measure('P-edit people');
+        // PIA-150: a face is picked in ✎ by tapping it: Diwali's Ashwin (saved 🌴) steps to 💪, and 💪 fits inside its ≥44px tile
+        await page.click('#sheet [data-act="nedit"][data-v="1"]'); await page.click('#sheet [data-act="nface"][data-v="1"]'); await page.waitForTimeout(60);
+        const fp = await page.$eval('#sheet [data-act="nface"][data-v="1"]', (e) => {
+          const r = e.getBoundingClientRect(), g = document.createRange(); g.selectNodeContents(e); const t = g.getBoundingClientRect();
+          return { face: e.textContent.trim(), w: r.width, h: r.height, gw: t.width, fits: t.width > 0 && t.left >= r.left - 0.5 && t.right <= r.right + 0.5 && t.top >= r.top - 0.5 && t.bottom <= r.bottom + 0.5 };
+        });
+        if (fp.face !== '💪' || fp.w < 44 || fp.h < 44 || !fp.fits) fails.push('P-edit people: Ashwin\'s 🌴 should step to 💪, drawn inside its ≥44px tile; got ' + JSON.stringify(fp));
+        await measure('P-edit people (💪 picked)');
         await page.click('#sheet [data-act="nedit"] >> nth=0'); await page.click('#sheet [data-act="ndel"]'); await page.waitForTimeout(60); await measure('P-edit people (remove armed)');
         await page.click('#sheet [data-act="sh-back"]'); await page.waitForTimeout(80);
         await page.click('#sheet [data-act="ecap"]'); await page.waitForTimeout(100); await measure('P-note');

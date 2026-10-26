@@ -12,6 +12,11 @@ heading to the version + date and tag the merge commit (see `CLAUDE.md` → Vers
 
 ## [Unreleased]
 
+### Changed (PIA-150) — Family faces: Ashwin 💪, Anjo 🗽
+- The 👪 family preset now gives Ashwin 💪 (Mom & Dad stay 🌽, Anjo stays 🗽), so new family trips, the legacy-trip review's suggestions and the history import's family and solo drafts all show him as 💪.
+- Trips already saved keep the faces stored in them. The organizer can change a face in ✎, where 💪 is now pickable (one tap after 🌴) and fits its 44px tile.
+- 💪 is added at the end of the face list. Every face picked or derived before stays the same, including the faces a faceless legacy trip shows on screen. No Worker, storage or link format change.
+
 ### Changed (PIA-149) — Shorter Nebby notes
 - Condense the in-app travel guidance while retaining airline confirmation, carrier requirements, pet fees, vet advice and private security screening. No behavior or data changes.
 

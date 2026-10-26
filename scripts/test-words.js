@@ -1400,7 +1400,7 @@ async function main() {
     await tap('#screen [data-act="tshare"]'); await settle(page, 150);
     const st = await page.evaluate(() => ({ shared: window.__shared || [], keys: JSON.parse(localStorage.getItem('pialax_idea_keys_v1') || '{}') }));
     const ids = Object.keys(st.keys).filter((k) => k !== A);
-    check(taps + 2 === 13 && who.preset === '👪🌽🌴🗽' && JSON.stringify(who.me) === '["Ashwin"]' && wWho.join(' ') === 'Mom Dad PIA Ashwin LAX Anjo LGA' && month === 'Nov 2026' && ro === '11/6–11/9 · 3🌙 📌11/8' &&
+    check(taps + 2 === 13 && who.preset === '👪🌽💪🗽' && JSON.stringify(who.me) === '["Ashwin"]' && wWho.join(' ') === 'Mom Dad PIA Ashwin LAX Anjo LGA' && month === 'Nov 2026' && ro === '11/6–11/9 · 3🌙 📌11/8' &&
       wWhen.join(' ') === 'Nov Sun Sat Create' && scr === 'trip-organizer' && ids.length === 1 && st.shared.length === 1 && st.shared[0].url === W + '/i/' + ids[0],
       'PIA-136 AC9 "Diwali in Raleigh" takes the spec\'s 13 taps (＋ 🪔 📍 ▶ ▶ 11/6 11/9 📌 11/8 Create 📣, then the chat and Send): 👪 pre-applied with 🙋 Ashwin, November, the trip opens as its organizer, 📣 hands over the guest link',
       { taps, who, wWho, month, ro, wWhen, scr, shared: st.shared });

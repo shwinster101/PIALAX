@@ -505,7 +505,7 @@ function makeServer(worker) {
   check(undatedCreate.body.idea.members[2].airport === 'LGA' && movedCreate.body.idea.members[2].airport === 'JAX' && cr.status === 201 && cr.json.doc.idea.members[2].airport === 'JAX',
     'a preset picked while undated (LGA) re-resolves at Create when the date moves across 9/1 (2026-08-15 → JAX)');
   check(undatedCreate.body.idea.title === '🎄 Christmas' && undatedCreate.body.idea.destination.city === 'Peoria' && undatedCreate.body.idea.recommendation === null &&
-    eq(undatedCreate.body.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '🌴 Ashwin', '🗽 Anjo']) && undatedCreate.body.idea.members[0].headcount === 2,
+    eq(undatedCreate.body.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '💪 Ashwin', '🗽 Anjo']) && undatedCreate.body.idea.members[0].headcount === 2,
     'create: title and labels carry their faces, the city comes from the table, no recommendation');
   const typedOver = M.familyPreset('', TODAY).map((f) => (f.preset === 'anjo' ? Object.assign({}, f, { airport: 'EWR' }) : f.preset === 'ashwin' ? Object.assign({}, f, { airport: '' }) : f));
   const ewrCreate = M.createRequest(Object.assign({}, draft, { dates: { departure: '2026-08-15', return: '2026-08-20' }, members: typedOver }), { today: TODAY });
@@ -542,8 +542,8 @@ function makeServer(worker) {
     'P-migrate: one update, then one answer for the member whose window now equals the plan (sent blank = follows)');
   check(tg.idea.recommendation === null && tg.idea.destination.airport === 'PIA' && tg.idea.destination.city === 'Peoria' && eq(tg.idea.dates, { departure: '2026-11-20', return: '2026-11-29', searchStart: '', searchEnd: '' }),
     'the recommendation’s airport, city and the picked plan (the answers’ span 11/20–11/29) are copied into the idea before it is nulled');
-  check(eq(tg.idea.members.map((x) => x.code), ['PIA', 'LAX', 'LGA']) && eq(tg.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '🌴 Ashwin', '🗽 Anjo']) && mig.pin === '2026-11-26' && M.parseNotes(tg.idea.notes).pin === '2026-11-26' && /Peoria parade/.test(tg.idea.notes),
-    'codes never change, labels get faces (Me → 🌴 Ashwin), 📌 11/26 comes from v1 storage and the v1 notes are kept');
+  check(eq(tg.idea.members.map((x) => x.code), ['PIA', 'LAX', 'LGA']) && eq(tg.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '💪 Ashwin', '🗽 Anjo']) && mig.pin === '2026-11-26' && M.parseNotes(tg.idea.notes).pin === '2026-11-26' && /Peoria parade/.test(tg.idea.notes),
+    'codes never change, labels get faces (Me → 💪 Ashwin), 📌 11/26 comes from v1 storage and the v1 notes are kept');
   check(tg.decision.stage === 'chosen' && tg.decision.chosen.departure === '2026-11-20' && tg.decision.chosen.familyTotal === null && tg.decision.estimate_total === null && tg.responses.LGA.available_from === '2026-11-24',
     're-chosen on the new plan with no stored price; Anjo’s own window is untouched');
 
@@ -1911,6 +1911,61 @@ function makeServer(worker) {
     check(M.pickupPair(m, hostile, NOW, ap, day) === null, 'malformed times and invalid offer prices never form a pickup pair');
     const bought = M.tripModel(tweak(d, x => { x.responses[m.travelers[1].code].booked = true; x.responses[m.travelers[2].code].booked = true; }), cc);
     check(M.pickupPair(bought, fares, NOW, ap, day) === null, 'a bought flight is never replaced by an alternative cached offer');
+  }
+
+  section('PIA-150 family faces: Ashwin 💪 and Anjo 🗽 from the preset, the legacy review and the history import; every face chosen before stays put');
+  {
+    // FACES as it was before PIA-150: 💪 is appended after it, so none of these may move
+    const OLD = ['🦊', '🐻', '🐼', '🐨', '🦁', '🐯', '🐸', '🐙', '🦉', '🐝', '🌻', '🌽', '🍉', '🍕', '🎸', '🎨', '🚲', '🗽', '🐳', '🦄', '🍩', '🐢', '🦋', '🌴'];
+    const faces = (labels) => labels.map((l) => M.splitLabel(l).face + M.splitLabel(l).name);
+    const presets = [M.familyPreset('', TODAY), M.familyPreset('2026-08-15', TODAY), M.familyPreset('2026-12-20', TODAY)];
+    check(eq(M.FAMILY.map((f) => f.key + f.face), ['momdad🌽', 'ashwin💪', 'anjo🗽']) &&
+      presets.every((p) => eq(p.map((f) => f.face + f.name), ['🌽Mom & Dad', '💪Ashwin', '🗽Anjo']) && eq(p.map((f) => f.label), ['🌽 Mom & Dad', '💪 Ashwin', '🗽 Anjo'])) &&
+      eq(presets.map((p) => p[2].airport), ['LGA', 'JAX', 'LGA']) && eq(undatedCreate.body.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '💪 Ashwin', '🗽 Anjo']),
+      'the 👪 preset gives Mom & Dad 🌽, Ashwin 💪 and Anjo 🗽 on any date (Anjo still JAX before 9/1), and a new family trip is created with those labels');
+    const lgOpts = M.migrateOptions(lgOrg, v1);
+    check(eq(faces(lgOpts.labels.map((x) => x.label)), ['🌽Mom & Dad', '💪Ashwin', '🗽Anjo']) && eq(faces(tg.idea.members.map((x) => x.label)), ['🌽Mom & Dad', '💪Ashwin', '🗽Anjo']) &&
+      M.migrateLabel({ code: 'LAX', label: 'Me', airport: 'LAX' }) === '💪 Ashwin' && M.migrateLabel({ code: 'x', label: 'Ashwin', airport: 'LAX' }) === '💪 Ashwin' &&
+      M.migrateLabel({ code: 'y', label: 'Anjo', airport: 'JAX' }) === '🗽 Anjo' && M.migrateLabel({ code: 'z', label: '', airport: 'JFK' }) === '🗽 Anjo' &&
+      M.migrateLabel({ code: 'LAX', label: '🌴 Ashwin', airport: 'LAX' }) === '🌴 Ashwin',
+      'the legacy review (P-migrate) suggests 💪 Ashwin for the v1 "Me" at LAX and 🗽 Anjo at JAX / LGA / JFK; a label that already has a face keeps it (🌴 stays 🌴)');
+    const hist = M.historyItems(JSON.stringify(V1), TODAY), drafts = hist.map((it) => ({ key: it.key, family: it.source.mode === 'family', d: M.historyDraft(it, TODAY) }));
+    const fam = drafts.filter((x) => x.family), solo = drafts.filter((x) => !x.family);
+    check(fam.length >= 3 && fam.every((x) => eq(x.d.members.map((m) => m.face + m.name), ['🌽Mom & Dad', '💪Ashwin', '🗽Anjo'])) &&
+      solo.length >= 3 && solo.every((x) => x.d.members.length === 1 && x.d.members[0].face === '💪') && solo.filter((x) => x.d.members[0].name === 'Ashwin').length >= 3 &&
+      drafts.find((x) => x.key === 'london').d.members[2].airport === 'JAX' && !JSON.stringify(drafts.map((x) => x.d.members)).includes('🌴'),
+      'the history import gives Ashwin 💪 (the family trips and every solo trip) and Anjo 🗽 (London at her historical JAX); no 🌴 default is left', drafts.map((x) => x.key + ':' + x.d.members.map((m) => m.face).join('')));
+    check(eq(M.FACES.slice(0, OLD.length), OLD) && M.FACES.length === OLD.length + 1 && M.FACES[OLD.length] === '💪' && M.FACE_RING === OLD.length &&
+      new Set(M.FACES).size === M.FACES.length && M.FACES.every((f) => M.faceOf(f) === f),
+      'FACES keeps its 24 faces in their order and appends 💪 at the end (one emoji, a usable face, no duplicate); the hash ring stays those 24');
+    // freeFace walks FACES in order: every choice it made before is the same, and 💪 comes only after all 24
+    check(OLD.every((f, k) => M.freeFace(OLD.slice(0, k)) === f && M.freeFace([], OLD.slice(0, k)) === f) && M.freeFace(OLD) === '💪' && M.freeFace([], OLD.slice(0, 23)) === '🌴' &&
+      M.freeFace(['🦊'], OLD) === '💪' && M.freeFace(['🦊'], OLD.concat(['💪'])) === '🐻',
+      'freeFace makes the same choice as before while any older face is free, and offers 💪 only once the 24 older faces are taken (on the trip, or on this phone\'s other trips)');
+    // a face derived from a name (a faceless v1 label read by the model, a row written without a face) is the same as before
+    const oldAuto = (norm, used) => { const s = M.fnv1a(norm) % OLD.length; for (let i = 0; i < OLD.length; i++) { const f = OLD[(s + i) % OLD.length]; if (used.indexOf(f) < 0) return f; } return OLD[s]; };
+    const NAMES = ['Mom & Dad', 'Anjo', 'Ashwin', 'Priya', 'Maya', 'Leo', 'Sam Lee', 'Grandma Josephine', 'Bo', 'Ana', 'Guadalupe Hernández-Villanueva', 'Oluwaseun', 'Zed', 'Kim', 'Ravi', 'Lena'];
+    let hashMoved = 0, readMoved = 0, writeMoved = 0;
+    for (let i = 0; i < 4000; i++) { const n = 'person ' + i; if (M.hashedFace(n) !== OLD[M.fnv1a(n) % OLD.length]) hashMoved++; }
+    NAMES.forEach((n) => { if (M.hashedFace(M.normName(n)) !== OLD[M.fnv1a(M.normName(n)) % OLD.length]) hashMoved++; });
+    for (let t = 0; t < 300; t++) {
+      const k = 1 + (t % 8), names = [];
+      for (let j = 0; j < k; j++) names.push(NAMES[(t * 7 + j * 5) % NAMES.length] + (j && (t + j) % 3 === 0 ? ' ' + t : ''));
+      const uniqNames = [...new Set(names)];
+      const doc = tweak(LEG, (d) => { d.id = 'pia150FaceRing' + String(t).padStart(8, '0'); d.idea.members = uniqNames.map((n, j) => ({ code: 'c' + j, label: n, airport: 'DEN', headcount: 1 })); d.responses = {}; });
+      const shown = [], want = uniqNames.map((n) => { const f = oldAuto(M.normName(n), shown); shown.push(f); return f; });
+      if (!eq(model(doc).members.map((x) => x.face), want)) readMoved++;
+      const cr = M.createRequest({ emoji: '🎉', name: 't', dest: { airport: 'RDU' }, members: uniqNames.map((n) => ({ name: n, airport: 'DEN' })) }, { today: TODAY });
+      const used = [], wrote = uniqNames.map((n) => { const f = oldAuto(M.normName(n), used); used.push(f); return f; });
+      if (!cr || !eq(cr.body.idea.members.map((x) => M.splitLabel(x.label).face), wrote)) writeMoved++;
+    }
+    const lgFaces = model(LEG).members.map((x) => x.face);
+    check(hashMoved === 0 && readMoved === 0 && writeMoved === 0 && eq(lgFaces, [oldAuto('mom & dad', []), oldAuto('#LAX', [lgFaces[0]]), oldAuto('anjo', lgFaces.slice(0, 2))]) && lgFaces[2] === '🐻',
+      'a face derived from a name never moves: hashed faces (4,016 names), the faces a faceless v1 trip shows (300 trips, and the legacy Thanksgiving: Anjo still 🐻) and the faces written for faceless rows (300 creates) are what they were before 💪', { hashMoved, readMoved, writeMoved, lgFaces });
+    // a trip saved with 🌴 keeps it: the record's faces are its own
+    const keptDw = model(DW, { me: 'ashwin-p8' });
+    check(mem(keptDw, 'ashwin-p8').face === '🌴' && mem(keptDw, 'anjo-z5').face === '🗽' && mem(keptDw, 'momdad-k3').face === '🌽',
+      'a trip already saved keeps the faces stored in it (Diwali\'s Ashwin is still 🌴); the organizer changes a face in ✎');
   }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 

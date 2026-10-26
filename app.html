@@ -942,7 +942,10 @@ var FARE_STALE_MS = 24 * 36e5;
 var BOOK_BY_DAYS = 21;
 var FLEX_DAYS = 7;                                                       // a blank flex window = plan ± 7 days
 var DAY_MS = 864e5;
-var FACES = ['🦊', '🐻', '🐼', '🐨', '🦁', '🐯', '🐸', '🐙', '🦉', '🐝', '🌻', '🌽', '🍉', '🍕', '🎸', '🎨', '🚲', '🗽', '🐳', '🦄', '🍩', '🐢', '🦋', '🌴'];
+var FACES = ['🦊', '🐻', '🐼', '🐨', '🦁', '🐯', '🐸', '🐙', '🦉', '🐝', '🌻', '🌽', '🍉', '🍕', '🎸', '🎨', '🚲', '🗽', '🐳', '🦄', '🍩', '🐢', '🦋', '🌴', '💪'];
+/* a face derived from a name (hashedFace, autoFace) comes from the first FACE_RING faces only, so a face appended to
+   FACES (PIA-150: 💪) never moves a face already derived for a faceless v1 label or an auto-assigned row */
+var FACE_RING = 24;
 var SCENES = ['🦃', '🎄', '🪔', '🎉', '🎂', '💍', '🌊', '🗻', '🌆', '🌵', '🎿', '⚾', '⛺'];
 var PALETTE_SIZE = 8;
 var GF_SEARCH = 'https://www.google.com/travel/flights/search';
@@ -963,7 +966,7 @@ var METRO_CODES = ['NYC', 'CHI', 'WAS', 'DTT', 'YTO', 'YMQ', 'LON', 'PAR', 'MIL'
    through the NY set. Labels are v2 constants: v1 labelled LAX 'Me'. */
 var FAMILY = [
   { key: 'momdad', face: '🌽', name: 'Mom & Dad', airport: 'PIA', headcount: 2 },
-  { key: 'ashwin', face: '🌴', name: 'Ashwin', airport: 'LAX', headcount: 1 },
+  { key: 'ashwin', face: '💪', name: 'Ashwin', airport: 'LAX', headcount: 1 },
   { key: 'anjo', face: '🗽', name: 'Anjo', airport: 'JAX', headcount: 1, moveDate: '2026-09-01', moveAirport: 'LGA' }
 ];
 /* v1 docs carry no faces: P-migrate suggests them by home airport. */
@@ -1125,7 +1128,7 @@ function shortName(n) { // ≤ 2 words that contain letters
 }
 function oneWord(n) { var m = /^(\S+)\s*&\s*(\S+)/.exec(n || ''); return m ? m[1] + '&' + m[2] : ((n || '').split(/\s+/)[0] || ''); }
 function slugOf(name) { var s = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 29); return s || 'm'; }
-function hashedFace(norm) { return FACES[fnv1a(norm) % FACES.length]; }
+function hashedFace(norm) { return FACES[fnv1a(norm) % FACE_RING]; }
 function colorOf(norm) { return fnv1a(norm) % PALETTE_SIZE; }
 function memberLabel(face, name) { return clip((face ? face + ' ' : '') + String(name || '').trim(), TEXT_MAX.label); }
 function titleOf(emoji, name) { return clip((emoji ? emoji + ' ' : '') + String(name || '').trim(), TEXT_MAX.title); }
@@ -1971,10 +1974,11 @@ function memberCode(name, taken, rand) {
   for (i = 0; i < n * n; i++) { var d = slug + '-' + CODE_CHARS[Math.floor(i / n)] + CODE_CHARS[i % n]; if (!used[d]) return d; }
   return null;
 }
-/* faces auto-assigned from FACES, unique in the trip */
+/* faces auto-assigned from FACES, unique in the trip: around the FACE_RING from the name's hash, then any face after it */
 function autoFace(norm, usedFaces) {
-  var start = fnv1a(norm) % FACES.length;
-  for (var i = 0; i < FACES.length; i++) { var f = FACES[(start + i) % FACES.length]; if (usedFaces.indexOf(f) < 0) return f; }
+  var start = fnv1a(norm) % FACE_RING, i, f;
+  for (i = 0; i < FACE_RING; i++) { f = FACES[(start + i) % FACE_RING]; if (usedFaces.indexOf(f) < 0) return f; }
+  for (i = FACE_RING; i < FACES.length; i++) if (usedFaces.indexOf(FACES[i]) < 0) return FACES[i];
   return FACES[start];
 }
 function cleanDates(d, base) {
@@ -2543,7 +2547,7 @@ function historyDraft(item, today) {
     dates: { departure: isIso(t.dep) ? t.dep : '', return: isIso(t.ret) ? t.ret : '' }, pin: isIso(t.eventDate) ? t.eventDate : '',
     caption: firstWords(String(t.notes || ''), 12).text.slice(0, 480),
     members: family ? familyPreset(t.dep, today).map(function (m) { return { name: m.name, face: m.face, airport: m.airport, headcount: m.headcount }; }) :
-      [{ name: known ? 'Ashwin' : '', face: '🌴', airport: normIata(t.origin) || normIata(t.gf && t.gf.from), headcount: 1 }],
+      [{ name: known ? 'Ashwin' : '', face: '💪', airport: normIata(t.origin) || normIata(t.gf && t.gf.from), headcount: 1 }],
     stage: item.stage, archive: item.archive };
 }
 /* Booking marks record a reviewed historical booking, never an invented payment. Postponed imports close
