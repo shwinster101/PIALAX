@@ -96,7 +96,7 @@ Fresh reads reject a stale review before writing. Partial steps are journalled,
 and a lost update reply is recognized from its resulting record rather than
 blindly repeated. A changed record requires review again.
 
-Settings' explicit ⤒ import reconstructs v1's six real starter records with its
+Settings' explicit 📜 import reconstructs v1's six real starter records with its
 existing corrections, local overrides and added items. It also discovers live
 shared IDs/keys added since this phone first opened v2. Linked trips are reused;
 new records require review of dates, travelers and the shortened shared note.

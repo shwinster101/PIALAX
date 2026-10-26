@@ -663,6 +663,97 @@ console.log('▶ test-viewport: mobile layout regression suite');
       await ctx.close();
     }
   }
+  // PIA-153: housekeeping and old trips, on the organizer's phone (the v1 Thanksgiving it organizes, not updated yet, and Diwali with
+  // its own days off the plan) and on Anjo's (the same v1 trip, her own face): each card's stage button and ⤒, P-stage from a card
+  // (🗑, and greyed on the v1 trip), P-migrate's name and picture with Current/Travelers, the trip view's 👪 pill and ⚠ line, P-mine
+  // (Follow plan / Keep mine, and Make plan on Diwali), the organizer on Anjo's v1 sheet (⤒, greyed 🎫), P-dates' greyed toggle and
+  // Anjo's own flight section on the v1 trip, at 360/390/430, light and dark: no sideways scroll, every target ≥44px and named
+  {
+    const TGL = 'tgLegacyThanksgiving01', DWM = 'dwViewportMineDays0006';
+    const docs153 = { [TGL]: docs[TGL], [DWM]: (() => { const d = JSON.parse(JSON.stringify(docs[DW])); d.id = DWM;
+      d.responses['ashwin-p8'] = Object.assign({}, d.responses['ashwin-p8'], { available_from: '2026-11-06', available_to: '2026-11-10' }); return d; })() };
+    const k = { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' };
+    const phones = {
+      organizer: { pialax_watchlist_v2: [TGL, DWM], pialax_idea_keys_v1: { [TGL]: k, [DWM]: k }, pialax_idea_me_v1: { [TGL]: 'LAX', [DWM]: 'ashwin-p8' } },
+      anjo: { pialax_watchlist_v2: [TGL], pialax_idea_me_v1: { [TGL]: 'LGA' } }
+    };
+    for (const vp of VIEWPORTS) {
+      for (const scheme of ['light', 'dark']) {
+        const label = `app.html housekeeping and old trips @ ${vp.name} ${scheme}`;
+        const fails = [];
+        let states = 0;
+        for (const who of ['organizer', 'anjo']) {
+          const ph = phones[who];
+          const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
+          await ctx.route(/^https?:\/\//, (r) => process.env.PIALAX_TEST_APP_URL && r.request().url().startsWith(process.env.PIALAX_TEST_APP_URL) ? r.continue() : r.abort());
+          await ctx.route(W + '/**', (route) => {
+            const q = route.request(), id = new URL(q.url()).searchParams.get('id');
+            const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key', 'content-type': 'application/json' };
+            if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+            if (q.method() !== 'GET') { fails.push(who + ': nothing here should write, got ' + q.method() + ' ' + new URL(q.url()).pathname); return route.fulfill({ status: 400, headers: cors, body: '{"code":"bad_body"}' }); }
+            if (!docs153[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
+            return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs153[id], organizer: !!(ph.pialax_idea_keys_v1 && ph.pialax_idea_keys_v1[id]) && q.headers()['x-idea-key'] === KEY }) });
+          });
+          const page = await ctx.newPage();
+          try {
+            await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
+            await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href), { waitUntil: 'load' });
+            await page.evaluate((s) => {
+              localStorage.setItem('pialax_watchlist_v2', JSON.stringify(s.pialax_watchlist_v2.map((id) => ({ id, t: '', e: '', at: 1, pin: false, arch: false }))));
+              if (s.pialax_idea_keys_v1) localStorage.setItem('pialax_idea_keys_v1', JSON.stringify(s.pialax_idea_keys_v1));
+              localStorage.setItem('pialax_idea_me_v1', JSON.stringify(s.pialax_idea_me_v1)); localStorage.setItem('pialax_ui_v1', JSON.stringify({ v1read: 1 }));
+            }, ph);
+            await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
+            const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(140); };
+            const popup = async () => page.getAttribute('#sheet', 'data-popup').catch(() => null);
+            const measure = async (s) => {
+              states++;
+              const r = await page.evaluate(LAYOUT);
+              if (r.overflow > 0 || r.sheetOverflow > 0) fails.push(who + ' ' + s + ': horizontal scroll ' + r.overflow + '/' + r.sheetOverflow + 'px');
+              if (r.small.length) fails.push(who + ' ' + s + ': targets under 44px ' + r.small.slice(0, 4).join(', '));
+              if (r.unnamed.length) fails.push(who + ' ' + s + ': controls without a name ' + r.unnamed.slice(0, 4).join(', '));
+              const L = lum(r.bg);
+              if (scheme === 'dark' ? !(L >= 0 && L < 0.2) : !(L > 0.8)) fails.push(who + ' ' + s + ': body background ' + r.bg + ' is not the ' + scheme + ' token');
+            };
+            await measure('the list (stage buttons' + (who === 'organizer' ? ', ⤒ on the v1 card)' : ')'));
+            if (who === 'organizer') {
+              if (!(await page.$('#screen [data-trip="' + TGL + '"] [data-act="migcard"]'))) fails.push('the organizer\'s v1 card should carry ⤒');
+              await tapJs('#screen [data-trip="' + DWM + '"] [data-act="stage"]'); await measure('P-stage from a card (☆ 🗄 🗑)');
+              if ((await popup()) !== 'P-stage' || !(await page.$('#sheet [data-act="stagedrop"]:not(.dis)'))) fails.push('a card\'s stage button should open P-stage with 🗑');
+              await tapJs('#sheet [data-act="sh-close"]');
+              await tapJs('#screen [data-trip="' + TGL + '"] [data-act="stage"]'); await measure('P-stage from the v1 card (🗑 greyed)');
+              await tapJs('#sheet [data-act="stagedrop"]'); await measure('P-stage from the v1 card (🗑 says why)');
+              await tapJs('#sheet [data-act="sh-close"]');
+              await tapJs('#screen [data-trip="' + TGL + '"] [data-act="migcard"]'); await measure('P-migrate (name and picture, Current pressed)');
+              if ((await popup()) !== 'P-migrate' || !(await page.$('#sheet #mig-title'))) fails.push('⤒ on the card should open P-migrate with the trip\'s name');
+              await page.fill('#mig-title', 'Grandma Josephine ninetieth birthday weekend in Savannah with everyone'); await page.waitForTimeout(80); await measure('P-migrate (a long name typed)');
+              await tapJs('#sheet [data-act="migplan"][data-v="span"]'); await measure('P-migrate (Travelers pressed)');
+              await tapJs('#sheet [data-act="sh-close"]'); await measure('the v1 trip view (👪 pill, my ⚠ line)');
+              await tapJs('#screen [data-act="mine"]'); await measure('P-mine on the v1 trip (Follow plan, Keep mine)');
+              if ((await popup()) !== 'P-mine') fails.push('my ⚠ line should open P-mine');
+              await tapJs('#sheet [data-act="sh-close"]');
+              await tapJs('#screen .pb [data-act="person"][data-code="LGA"]'); await measure('P-person (the organizer on Anjo\'s v1 sheet: ⤒, greyed 🎫)');
+              await tapJs('#sheet [data-act="sh-close"]');
+              await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates on the v1 trip (the trip half greyed)');
+              await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+              await page.click('#screen [data-trip="' + DWM + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(200); await measure('a trip view with my own days (👪 pill, ⚠)');
+              await tapJs('#screen [data-act="mine"]'); await measure('P-mine (Follow plan, Keep mine, Make plan)');
+              if (!(await page.$('#sheet [data-act="mineplan"]'))) fails.push('the organizer\'s P-mine on a v2 trip should offer Make plan');
+              await tapJs('#sheet [data-act="sh-close"]');
+            } else {
+              await page.click('#screen [data-trip="' + TGL + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(200); await measure('Anjo on the v1 trip view');
+              await tapJs('#screen .me [data-act="person"]'); await measure('Anjo\'s own flight section on the v1 trip (✈ Book ↗, 🎫)');
+              if (!(await page.$('#sheet [data-act="mybook"]')) || !(await page.$('#sheet a[data-k="gf"][data-ret]'))) fails.push('Anjo\'s own sheet on the v1 trip should offer ✈ Book ↗ and 🎫');
+              await tapJs('#sheet [data-act="sh-close"]');
+            }
+          } catch (e) { fails.push(who + ' threw: ' + (e && e.message ? e.message.split('\n')[0] : String(e))); }
+          await ctx.close();
+        }
+        if (states === 16 && fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
+        else bad(`${label} — ${fails.slice(0, 4).join(' · ') || states + ' states'}`);
+      }
+    }
+  }
   // PIA-140 fix pass 2: P-person's name breaks only at its spaces, never inside a word (not at a hyphen either), however crowded its
   // header: opened from P-total (‹) on the organizer's token phone (ⓘ), as the traveler this phone is (⇄) and as everyone else, on
   // the Diwali trip (Ashwin, Mom & Dad, Anjo) and the 8-member long-name trip (this phone is Bartholomew Montgomery-Fitzgerald on it),

@@ -2891,6 +2891,89 @@ async function main() {
     await ctx.close();
   }
 
+  section('PIA-153 housekeeping in two taps, 👪 the plan vs my face my days, ⤒ Update trip from the card, the v1 trip\'s flight section, one pulse at a time (Chromium, words counted)');
+  for (const width of WIDTHS) {
+    // the organizer of the v1 Thanksgiving (its "Me" at LAX: own 11/20–11/29, the plan 11/25–11/29) and Diwali (not his to organize here)
+    const { ctx, page, net } = await phone('famv1', { width, worker: true });
+    const tag = (s) => 'famv1 @' + width + ' › ' + s, q = { width }, p0 = net.posts;
+    const cls = (sel) => page.$eval(sel, (e) => (e.classList.contains('pulse') ? 'pulse' : 'still') + '|' + (e.getAttribute('data-lbl') || e.getAttribute('aria-label'))).catch(() => 'none');
+    q.card = await cls('#screen [data-trip="' + TG + '"] [data-act="migcard"]'); q.key = await cls('#screen [data-act="key"]');
+    q.stageTG = await cls('#screen [data-trip="' + TG + '"] [data-act="stage"]'); q.stageA = await cls('#screen [data-trip="' + A + '"] [data-act="stage"]');
+    q.noMigA = !(await page.$('#screen [data-trip="' + A + '"] [data-act="migcard"]'));
+    q.box = await page.$$eval('#screen .card [data-act="stage"], #screen .card [data-act="migcard"]', (es) => es.every((e) => { const b = e.getBoundingClientRect(); return b.width >= 43.5 && b.height >= 43.5; }));
+    await measureScreen(page, tag('Trips (⤒ on the v1 card, the stage discs as buttons)'));
+    if (width === 360) { await keyCheck(page, tag('Trips')); await labelCheck(page, tag('Trips'), 'famv1-153@360'); }
+    // tap 1: Diwali's stage disc → P-stage (☆ 🗄, no 🗑: he does not organize it here); tap 2: 🗄 → the shelf; back with 🗄 again
+    await fingerTap(page, '#screen [data-trip="' + A + '"] [data-act="stage"]'); await settle(page, 120); q.stagePop = await popupId(page);
+    q.drop = !!(await page.$('#sheet [data-act="stagedrop"]'));
+    await measurePopup(page, tag('P-stage from the Diwali card'));
+    await fingerTap(page, '#sheet [data-act="hidehere"]'); await settle(page, 120); await closeSheet(page);
+    q.hidden = !(await page.$('#screen > .card[data-trip="' + A + '"]')) && !!(await page.$('#screen [data-act="shelf"]'));
+    await page.click('#screen [data-act="shelf"]'); await settle(page, 120);
+    await fingerTap(page, '#screen [data-trip="' + A + '"] [data-act="stage"]'); await settle(page, 120); await fingerTap(page, '#sheet [data-act="hidehere"]'); await settle(page, 120); await closeSheet(page);
+    q.back = !!(await page.$('#screen [data-trip="' + A + '"]:not(.dim)'));
+    // the v1 card's P-stage: 🗑 greyed, "⤒ Update trip first" on a tap
+    await fingerTap(page, '#screen [data-trip="' + TG + '"] [data-act="stage"]'); await settle(page, 120);
+    if (width === 360) await labelCheck(page, tag('P-stage (v1 trip)'), 'famv1-153-stage', 'sheet');
+    await fingerTap(page, '#sheet [data-act="stagedrop"]'); q.dropWhy = await lblNow(page);
+    if (q.dropWhy) await measurePopup(page, tag('P-stage 🗑 says why'), '#lbl');
+    await untilLabelGone(page); await measurePopup(page, tag('P-stage (v1 trip)')); await closeSheet(page);
+    // one tap on the card's ⤒: the trip, with ⤒ Update trip over it (its picture and name first, the longest name typed)
+    await fingerTap(page, '#screen [data-trip="' + TG + '"] [data-act="migcard"]'); await settle(page, 200);
+    q.mig = await popupId(page) + '|' + await screenId(page);
+    await measurePopup(page, tag('P-migrate (picture, name, plans)'));
+    await page.fill('#mig-title', ''); await page.type('#mig-title', 'Our very long family reunion trip name that keeps going on and on and on', { delay: 0 });
+    await page.click('#sheet [data-act="migplan"][data-v="span"]'); await settle(page, 80);
+    q.pressed = await page.$$eval('#sheet [data-act="migplan"]', (es) => es.map((e) => e.getAttribute('aria-pressed') + '|' + getComputedStyle(e).backgroundColor));
+    await measurePopup(page, tag('P-migrate (a 12-word name typed, Travelers chosen)'));
+    if (width === 360) await labelCheck(page, tag('P-migrate'), 'famv1-153-mig', 'sheet');
+    await closeSheet(page);
+    // the trip view: 👪 on the plan's pill, 💪 on his own days with ⚠; ⓘ explains them; one tap → P-mine (Follow plan, Keep mine)
+    q.pill = await page.$eval('#screen .daterow [data-act="dates"] [data-k="plan"]', (e) => e.textContent).catch(() => '');
+    q.line = await page.$eval('#screen [data-act="mine"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '');
+    await measureScreen(page, tag('the v1 Thanksgiving (👪 plan, 💪 my days ⚠)'));
+    if (width === 360) await keyCheck(page, tag('the v1 Thanksgiving'));
+    await fingerTap(page, '#screen [data-act="mine"]'); await settle(page, 120); q.minePop = await popupId(page);
+    q.mineActs = await page.$$eval('#sheet [data-act^="mine"]', (es) => es.map((e) => e.getAttribute('data-act')));
+    await measurePopup(page, tag('P-mine (v1 trip: Follow plan, Keep mine, Make plan greyed)'));
+    if (width === 360) await labelCheck(page, tag('P-mine'), 'famv1-153-mine', 'sheet');
+    // (fix pass) the greyed Make plan says why on a tap: "⤒ Update trip first"
+    await fingerTap(page, '#sheet [data-act="mineplan"]'); q.planWhy = await lblNow(page);
+    if (q.planWhy) await measurePopup(page, tag('P-mine Make plan says why'), '#lbl');
+    await untilLabelGone(page);
+    await fingerTap(page, '#sheet [data-act="minekeep"]'); await settle(page, 120);
+    q.kept = !(await popupId(page)) && !(await page.$('#screen [data-act="mine"] [data-k="notplan"]')) && !!(await page.$('#screen [data-act="mine"]'));
+    // Anjo's sheet on his phone: ⤒ in its header, his 🎫 for her greyed ("⤒ Update trip first": the header's ⤒ pulses)
+    const faceSel = '#screen .pb-row .facebtn[data-act="person"][data-code="LGA"]';
+    await page.$eval(faceSel, (e) => e.scrollIntoView({ block: 'center' })).catch(() => {});
+    await fingerTap(page, faceSel); await settle(page, 150);
+    q.hdr = !!(await page.$('#sheet .sh-hd [data-act="migrate"]'));
+    await fingerTap(page, '#sheet [data-act="booked"][data-code="LGA"]'); q.tkWhy = await lblNow(page);
+    q.hdrPulse = await page.$eval('#sheet .sh-hd [data-act="migrate"]', (e) => e.classList.contains('pulse')).catch(() => false);
+    await untilLabelGone(page); await measurePopup(page, tag('P-person Anjo (⤒ in the header, 🎫 greyed)')); await closeSheet(page);
+    q.posts = net.posts - p0;
+    check(q.card === 'pulse|Update trip' && q.key === 'still|Key' && q.stageTG === 'still|Asking' && q.stageA === 'still|Asking' && q.noMigA && q.box && q.stagePop === 'P-stage' && !q.drop && q.hidden && q.back &&
+      q.dropWhy === '⤒ Update trip first' && q.mig === 'P-migrate|trip-organizer' && q.pressed.length === 2 && q.pressed[1].startsWith('true') && q.pressed[0].startsWith('false') && q.pressed[0].split('|')[1] !== q.pressed[1].split('|')[1] &&
+      q.pill === '👪' && /^💪 ?11\/20–11\/29 ⚠$/.test(q.line) && q.minePop === 'P-mine' && eq(q.mineActs, ['minefollow', 'minekeep', 'mineplan']) && q.planWhy === '⤒ Update trip first' && q.kept && q.hdr && q.tkWhy === '⤒ Update trip first' && q.hdrPulse && q.posts === 0,
+      'PIA-153 @' + width + ' the organizer\'s list: the v1 card\'s ⤒ pulses alone (ⓘ waits), every stage disc is a 44px button; Diwali hidden and back in two taps each; the v1 trip\'s 🗑 says "⤒ Update trip first"; the card\'s ⤒ opens P-migrate over the trip (picture, name, Travelers filled); the trip view reads 👪 over 💪 11/20–11/29 ⚠, P-mine offers Follow plan / Keep mine and a greyed Make plan ("⤒ Update trip first") (kept: ⚠ quiet); on Anjo\'s sheet ⤒ sits in the header and his greyed 🎫 points to it; nothing sent', q);
+    await ctx.close();
+  }
+  {
+    // AC4a Anjo's own phone on the v1 Thanksgiving: [✈ Book ↗ | 🎫] in her flight section, and once booked her time fields (the real Worker)
+    const { ctx, page, net } = await phone('guest', { worker: true, url: '?idea=' + TG });
+    await settle(page, 200);
+    await jsClick(page, '#screen .me [data-act="person"]'); await settle(page, 150);
+    const r = { pop: await popupId(page), book: !!(await page.$('#sheet .split a[data-ret] + [data-act="mybook"]')) };
+    await measurePopup(page, 'guest › her flight section on the v1 Thanksgiving ([Book | 🎫])');
+    await fingerTap(page, '#sheet [data-act="mybook"]'); await page.waitForFunction(() => !!document.querySelector('#sheet #tm-arr'), null, { timeout: 15000 }).catch(() => {});
+    r.times = !!(await page.$('#sheet #tm-arr')) && !!(await page.$('#sheet #tm-dep'));
+    r.booked = JSON.parse(net.kv.map.get('idea:' + TG)).responses.LGA.booked === true;
+    await measurePopup(page, 'guest › booked on the v1 Thanksgiving (her time fields)');
+    await closeSheet(page);
+    check(r.pop === 'P-person' && r.book && r.times && r.booked, 'PIA-153 AC4a Anjo on the family\'s v1 Thanksgiving: her flight section is [✈ Book ↗ | 🎫] as on a v2 trip; her 🎫 lands on the v1 record (the real Worker) and her 🛬 / 🛫 time fields follow, within the word budget', r);
+    await ctx.close();
+  }
+
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');
   {
     const org = seenOn('organizer@360'), deep = NAMES.map((n) => n + '@360').filter((w) => pressLog[w]);

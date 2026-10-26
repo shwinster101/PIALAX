@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="152">
+<meta name="pialax-build" content="153">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -129,7 +129,12 @@ svg { display: block; }
 .card-open:focus-visible::after { outline: 3px solid var(--focus); outline-offset: 2px; }
 .card .z { position: relative; z-index: 1; }
 .card-b, .card-c { display: flex; align-items: center; gap: 6px; min-height: 40px; }
-.card-c { pointer-events: none; } /* faces, heads and the stage disc are information: a tap there opens the trip */
+.card-c { pointer-events: none; } /* faces and heads are information: a tap there opens the trip */
+.card-c .z { pointer-events: auto; } /* PIA-153: the stage disc (P-stage) and the organizer's ⤒ are controls of their own */
+.card-c .pipb { margin-left: auto; min-width: 44px; height: 44px; display: inline-grid; place-items: center; border-radius: 22px; flex: none; border: 1.5px solid var(--line); }   /* (a thin ring: a control, as ⤒ beside it) */
+.card-c .pipb .pips { margin-left: 0; }
+.card-c .migc { margin-left: auto; font-size: 19px; border: 1.5px solid var(--ink); border-radius: 14px; }
+.card-c .migc + .pipb { margin-left: 0; }
 .card-b { flex-wrap: wrap; }
 .slot { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 19px; border: 1.5px solid var(--ink); flex: none; position: relative; font-weight: 700; white-space: nowrap; }
 .slot.gf { background: var(--surface); color: var(--ink); font-size: 17px; } /* Keep ✈↗ inside the bordered 48px target with wider emoji fonts. */
@@ -248,8 +253,15 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .daterow button.pill { display: flex; }
 .track.mybar { height: 44px; display: block; width: 100%; border-radius: 10px; text-align: left; }
 .track.mybar .bar { top: 14px; } .track.mybar .tag { top: 11px; }
-.mine { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: -4px; }
-.mine i { display: inline-block; width: 28px; height: 3px; border-radius: 2px; background: var(--pc); }
+.mine { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: -4px; }
+.mine .mf { display: inline-grid; place-items: center; } /* PIA-153: my days carry my face (the plan above carries 👪) */
+.minebtn { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px 0 6px; border-radius: 22px; border: 1.5px solid var(--pc); font: inherit; color: inherit; }
+.mine .w.amb { color: var(--maybe); } /* my days inside the plan but not it: allowed, amber; outside it: red, as the card's ⚠🗓 */
+/* PIA-153: P-mine, the plan (👪) and my days (my face), one row each, then the choice */
+.mvp { display: grid; gap: 6px; padding: 4px 2px 6px; }
+.mvrow { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 19px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.mvg { width: 36px; display: inline-grid; place-items: center; font-size: 24px; flex: none; }
+.btn .mf { display: inline-grid; place-items: center; }
 .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
 .ans { min-height: 64px; border-radius: 16px; border: 2px solid var(--line); display: grid; place-items: center; align-content: center; gap: 2px; font-weight: 700; font-size: 16px; }
 .ans svg { width: 22px; height: 22px; }
@@ -329,6 +341,10 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .btn:disabled, .btn.dis { opacity: .4; cursor: not-allowed; }
 .btn.danger { border-color: var(--bad); color: var(--bad); }
 .btn.wide { width: 100%; }
+/* PIA-153: a choice among wide buttons (⤒ Update trip's plan, the history review's confirm) reads chosen: filled, the other outlined */
+.btn.wide:not(.pri)[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
+.btn.wide:not(.pri)[aria-pressed="false"] { background: var(--surface); }
+.btn .mpk { font-size: 17px; }
 .btn.arm { border-color: var(--bad); }
 .btn.glow { animation: pulse 1.2s ease-in-out 3; }
 
@@ -475,6 +491,7 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .sh-hd.pers { padding-top: 12px; padding-bottom: 6px; }
 .sh-hd .ttlg { font-size: 22px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-weight: 700; }
 .sh-hd .ttlg .bld { font-size: 14px; font-weight: 600; color: var(--ink2); letter-spacing: .02em; }   /* PIA-152: ⚙'s build number */
+.sh-hd .ttlg .sttl { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(48vw, 200px); }   /* PIA-153: P-stage from a card names its trip */
 .rowc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rowc.nw { flex-wrap: nowrap; }
 .hchip { min-height: 44px; padding: 0 10px; border-radius: 22px; border: 1.5px solid var(--line); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
@@ -482,6 +499,7 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .tg2 { display: inline-grid; grid-auto-flow: column; background: var(--sunk); border-radius: 12px; padding: 3px; }
 .tg2 button { min-width: 52px; min-height: 44px; border-radius: 9px; font-size: 19px; display: grid; place-items: center; }
 .tg2 button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px var(--shade); }
+.tg2 button.dis { opacity: .4; cursor: not-allowed; } /* PIA-153: the trip's half on a trip still to be updated */
 .readout { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 8px; align-items: center; min-height: 28px; }
 .readout .w { color: var(--bad); }
 .tool { min-width: 48px; min-height: 48px; border-radius: 14px; border: 1.5px solid var(--line); display: inline-grid; place-items: center; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 6px; }
@@ -799,7 +817,7 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .lockd { font-size: 18px; }
 .droppc { opacity: .5; }
 .split.two > * { flex: 1 1 0; min-width: 0; }
-.tiles6 .tool.bad { color: var(--bad); }
+.tiles6 .tool.bad, .stagetools .tool.bad { color: var(--bad); }
 .tiles6 .tool.done { border-color: var(--in); background: color-mix(in srgb, var(--in) 14%, var(--surface)); }
 .pet-notes { margin-top: 16px; overflow-wrap: anywhere; }
 .pet-notes summary { min-height: 44px; padding: 12px 4px; cursor: pointer; font-weight: 700; }
@@ -1151,7 +1169,7 @@ function shortName(n) { // ≤ 2 words that contain letters
   while (out.length && !/\p{L}/u.test(out[out.length - 1])) out.pop();
   return out.join(' ');
 }
-function oneWord(n) { var m = /^(\S+)\s*&\s*(\S+)/.exec(n || ''); return m ? m[1] + '&' + m[2] : ((n || '').split(/\s+/)[0] || ''); }
+function oneWord(n) { var m = /^(\S+)\s*&\s*(\S+)/.exec(n || ''); return m ? m[1] + ' & ' + m[2] : ((n || '').split(/\s+/)[0] || ''); }   // PIA-153: 'Mom & Dad' spelled as every sheet spells it
 function slugOf(name) { var s = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 29); return s || 'm'; }
 function hashedFace(norm) { return FACES[fnv1a(norm) % FACE_RING]; }
 function colorOf(norm) { return fnv1a(norm) % PALETTE_SIZE; }
@@ -2383,10 +2401,13 @@ function migrateOptions(doc, v1raw) {
 }
 /* P-migrate: one update that copies the recommendation's airport, city and the picked plan into the idea, adds 📌,
    puts faces on the labels (codes never change), nulls recommendation and re-chooses when the doc was chosen; then
-   one answer per member whose own window now equals the plan, sent blank (follows the plan). */
+   one answer per member whose own window now equals the plan, sent blank (follows the plan). PIA-153 choice.title: the
+   trip's picture and name as the review left them (P-edit's controls, '<picture> <name>'), in that same update; a title
+   with no name is refused, and one left as it was is not sent. */
 function migrateRequests(fresh, editKey, choice) {
   choice = choice || {};
   if (!fresh || !fresh.idea || (choice.plan ? !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s : !!docPlan(fresh))) return null;
+  if (hasOwn(choice, 'title') && (typeof choice.title !== 'string' || !splitLabel(clip(choice.title, TEXT_MAX.title)).name)) return null;
   var rec = fresh.idea.recommendation || {}, ap = normIata(rec.airport) || docDest(fresh);
   var city = airportInfo(ap).city || clip(rec.city || (fresh.idea.destination && fresh.idea.destination.city), TEXT_MAX.city);
   var labels = {}; migrateLabels(fresh.idea.members).concat(choice.labels || []).forEach(function (x) { if (x && x.code && x.label) labels[x.code] = x.label; });
@@ -2412,6 +2433,7 @@ function migrateRequests(fresh, editKey, choice) {
   var caption = hasOwn(choice, 'caption') ? choice.caption : parseNotes(fresh.idea.notes).caption;
   if (buildNotes(delta.pin, null, caption).length < ((delta.pin ? '📌' + delta.pin + (String(caption || '').trim() ? ' ' : '') : '') + String(caption || '').trim()).length) return null;
   if (hasOwn(choice, 'caption')) delta.caption = choice.caption;
+  if (hasOwn(choice, 'title') && clip(choice.title, TEXT_MAX.title) !== clip(fresh.idea.title, TEXT_MAX.title)) delta.title = choice.title;
   var up = updateRequest(fresh, editKey, delta, { migrate: true });
   if (!up) return null;
   var after = { id: fresh.id, idea: up.body.idea, responses: R, decision: fresh.decision }, out = before.concat([up]);
@@ -3001,11 +3023,13 @@ function bookToggle(model, code, early) {
 }
 /* PIA-151: a flight already bought can be recorded before the dates are 🔒: in a traveler's flight section (P-person) the 🎫
    sits beside Book once their days are known (their own, or the plan's) and still ahead, on a trip still open (the Worker's
-   /idea/booked takes a 🎫 at any stage but dropped). Not on a v1 doc still to be updated (P-migrate first, as before). The
-   trip view's primary keeps its own rule (primaryAction). */
+   /idea/booked takes a 🎫 at any stage but dropped). PIA-153: a v1 doc not updated yet too (the family's live trips are all v1
+   docs): /idea/booked and /idea/respond answer on any record, so a traveler's own 🎫 and then their times go on it exactly as
+   on a v2 trip; only the organizer's 🎫 for someone else waits for ⤒ Update trip (bookToggle). The trip view's primary keeps
+   its own rule (primaryAction). */
 function earlyBook(model, code, today) {
   var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
-  return !!x && x.traveler && !model.closed && !model.locked && !model.legacy && !model.past && !!x.d1 && !x.bad && x.d1 >= today;
+  return !!x && x.traveler && !model.closed && !model.locked && !model.past && !!x.d1 && !x.bad && x.d1 >= today;
 }
 
 /* ---- dates: the one picker (PIA-138) ----
@@ -3164,6 +3188,26 @@ function datesRole(model) {
   var me = model.me;
   if (!me || me.host || me.status === 'out') return 'look';
   return me.answered ? 'mine' : 'answer';
+}
+/* PIA-153: the trip page's two ranges told apart: 👪 the group's plan, and my own days under it with my face. → null when there
+   is nothing to set beside the plan (nobody here, a host, someone out or not answered, no day of my own, no plan, reversed days),
+   else {s, e (the plan), d1, d2 (my days), differ (an end is not the plan's: ⚠ on my line, one tap to choose), off (an end falls
+   outside the plan, the model's 'off'), booked, follow (Follow plan is offered: they differ, the trip is open and not over, and I
+   have not booked: a booked traveler's days stay theirs, as ownDays keeps them), patch (that answer: ownDays' blank pick, sent by
+   respondRequest), make ('' when the organizer can make my days the plan, through the plan move every P-dates Save makes (its
+   booked confirm applies), else why not: 'org' not his phone, 'legacy' (⤒ Update trip first), 'closed', 'past' (the trip is
+   over), 'locked' (🔓 first), 'same' (nothing differs), or planCheck's 'past' / 'pin' for my days), delta (that move: planDelta,
+   📌 kept)} */
+function mineVsPlan(model, today) {
+  var me = model.me, plan = model.plan;
+  if (!me || !me.traveler || !me.answered || !plan || !(me.own1 || me.own2) || !me.d1 || me.bad) return null;
+  var differ = me.d1 !== plan.s || me.d2 !== plan.e, open = !model.closed && !model.past;
+  var od = open && differ && !me.booked ? ownDays(model, me.code, '', '', null, today) : null;
+  var follow = !!od && !od.why && !od.same;
+  var make = !model.org ? 'org' : model.legacy ? 'legacy' : model.closed ? 'closed' : model.past ? 'past' : model.locked ? 'locked' : !differ ? 'same'
+    : planCheck(me.d1, me.d2, { today: today, pin: model.pin });
+  return { s: plan.s, e: plan.e, d1: me.d1, d2: me.d2, differ: differ, off: me.warn.indexOf('off') >= 0, booked: me.booked,
+    follow: follow, patch: follow ? od.patch : null, make: make, delta: make ? null : planDelta(me.d1, me.d2, model.pin) };
 }
 
 /* ---- booking (PIA-139): one booked control, flight times for pickups, and a trip that reaches Done by itself ----
@@ -3581,7 +3625,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 152;
+var BUILD = 153;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -3721,7 +3765,8 @@ function listSnap(id, doc) {
   if (x.t === t && x.e === e) return;
   x.t = t; x.e = e; listWrite(L);
 }
-/* pialax_ui_v1 {sel, keySeen, v1read, shelfOpen, joins, draft, famPast}: per-phone conveniences (v2 only: v1 never reads it) */
+/* pialax_ui_v1 {sel, keySeen, v1read, shelfOpen, joins, draft, famPast, kept}: per-phone conveniences (v2 only: v1 never reads it).
+   PIA-153 kept {trip id: 'plan s|plan e|my d1|my d2'}: Keep mine said for those days (mineKept) */
 function uiRead() { return readMap(ST.ui); }
 function uiSet(patch) { var u = uiRead(); Object.keys(patch).forEach(function (k) { if (patch[k] === undefined) delete u[k]; else u[k] = patch[k]; }); lsSet(ST.ui, JSON.stringify(u)); }
 function navRead() { try { var v = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null'); return plainObj(v) ? v : {}; } catch (e) { return {}; } }
@@ -4544,7 +4589,7 @@ var CALPLUS = '<svg class="calp" viewBox="0 0 24 24" aria-hidden="true"><rect x=
 var ALTPIN = '<span class="minipin alt" aria-hidden="true"><span></span></span>';
 /* the context key: every data-k on a screen has an entry here (P-key lists the ones shown; long-press names a control) */
 var LEGEND = {
-  import: ['⤒', 'Import history'], migrate: ['⤒', 'Update trip'], backup: ['⤓', 'History backup'],
+  import: ['📜', 'Import history'], migrate: ['⤒', 'Update trip'], backup: ['⤓', 'History backup'],   // PIA-153: one glyph, one meaning (⤒ is Update trip; 📜 the import)
   key: ['ⓘ', 'Key'], settings: ['⚙', 'Settings'], back: ['‹', 'Back'], close: ['⌄', 'Close'], newtrip: ['＋', 'New trip'],
   offline: ['📶⚠', 'Offline'], stale: ['◷', 'Not updated'],
   gf: ['✈↗', 'Google Flights'], flighty: ['✈⏱↗', 'Track flight'], explore: ['🧭↗', 'Explore'], fixdates: ['✈⚠', 'Fix dates'],
@@ -4593,7 +4638,9 @@ var LEGEND = {
   ownarr: ['<span class="tn">11/24</span>', 'Own arrival'], notinv: ['<span class="sh-none"></span>', 'Not invited'], hosted: ['🏠2', 'Hosted or hosting'], pastcols: ['🗄', 'Past trips'],
   candidate: ['＋📍', 'Another destination'], mapunavailable: ['🗺 ◷', 'Map unavailable'], pair: ['★', 'Cheapest pickup pair'], predicted: ['≈', 'Cached flight time'], calclash: ['⚠', 'Overlapping trips'],
   // PIA-151: the board's final check (a booked traveler with no landing time yet)
-  notime: ['<span class="btm miss kb">––:––</span>', 'No landing time']
+  notime: ['<span class="btm miss kb">––:––</span>', 'No landing time'],
+  // PIA-153: the trip page's two ranges (👪 the group's plan, my face my days, ⚠ where they differ)
+  plan: ['👪', 'Group plan'], mine: ['<span class="av s28" style="--pc:var(--p0)"><span class="f">🙂</span></span>', 'My days'], notplan: ['⚠', 'Not the plan']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -4735,15 +4782,18 @@ function cardWarn(m) {
   var me = m.me, g = [];
   if (me && me.clash.length) g.push(me.clash[0].emoji);
   if (me && me.warn.indexOf('pin') >= 0) g.push('📌');
-  if ((me && me.warn.indexOf('off') >= 0) || (m.plan && m.plan.s < RT.today)) g.push('🗓');
+  // (PIA-153: days I said Keep mine for, on this phone, no longer ask from the card)
+  if ((me && me.warn.indexOf('off') >= 0 && !mineKept(m, mineVsPlan(m, RT.today))) || (m.plan && m.plan.s < RT.today)) g.push('🗓');
   return g.length ? '⚠' + uniq(g).join('') : '';
 }
-function datesText(m, long) {
-  if (m.plan) return '<span class="dt"><span data-k="dates">' + G('🗓') + '</span>' + md(m.plan.s) + '–' + md(m.plan.e) + '</span>' + (long ? ' <span data-k="nights">' + m.nights + G('🌙') + '</span>' : '') +
+/* PIA-153 grp: the trip page's pill is the group's plan: 👪 (key 'plan') where the card and the sheets show 🗓 */
+function datesText(m, long, grp) {
+  var k = grp ? 'plan' : 'dates', g = G(grp ? '👪' : '🗓');
+  if (m.plan) return '<span class="dt"><span data-k="' + k + '">' + g + '</span>' + md(m.plan.s) + '–' + md(m.plan.e) + '</span>' + (long ? ' <span data-k="nights">' + m.nights + G('🌙') + '</span>' : '') +
     (m.pin && long ? ' <span data-k="pin">' + G('📌') + md(m.pin) + '</span>' : '');
-  if (m.departureOnly) return '<span data-k="dates">' + G('🗓') + md(m.departureOnly) + ' → —</span>';
-  if (m.win) return '<span data-k="dates">' + G('🗓') + '</span><span data-k="window">⟦' + md(m.win.s) + '–' + md(m.win.e) + '⟧</span>' + (m.nightsN ? ' <span data-k="nights">' + G('🌙') + m.nightsN + '</span>' : '');
-  return '<span data-k="dates">' + G('🗓') + '?</span>';
+  if (m.departureOnly) return '<span data-k="' + k + '">' + g + md(m.departureOnly) + ' → —</span>';
+  if (m.win) return '<span data-k="' + k + '">' + g + '</span><span data-k="window">⟦' + md(m.win.s) + '–' + md(m.win.e) + '⟧</span>' + (m.nightsN ? ' <span data-k="nights">' + G('🌙') + m.nightsN + '</span>' : '');
+  return '<span data-k="' + k + '">' + g + '?</span>';
 }
 function myOwn(m) { var me = m.me; return me && me.answered && (me.own1 || me.own2) && me.d1 && !me.bad ? me : null; }
 /* 📌 the event day: the day alone when the plan sits in that one month, else month/day */
@@ -4783,6 +4833,7 @@ function datesAria(m, o) {
     : m.win ? 'window ' + md(m.win.s) + '–' + md(m.win.e) + (m.nightsN ? ', ' + m.nightsN + ' nights' : '') : m.departureOnly ? md(m.departureOnly) + ', return not set' : 'not set');
   if (m.pin) t += ', event day ' + md(m.pin);
   if (m.locked) t += ', locked';
+  if (o.grp) t += ', group plan';   // PIA-153: the trip page's pill (👪)
   if (o.warn) t += ', check dates';
   if (o.tg && o.tg.days != null) t += ', ' + o.tg.days + ' days to go';
   return t;
@@ -4936,11 +4987,23 @@ function cardHTML(it, o) {
     (stale ? staleMark() : slotHTML(m)) + restore + '</div>' +
     '<div class="card-b">' + cardPill(m) + totalBtn(m) + '</div>' +   // PIA-140: the total opens P-total
     '<div class="card-c">' + faceStack(m, 4, freshCodes(m)) + '<span class="heads" data-k="heads">' + m.headsIn + '/' + m.heads + '</span>' +
-    pip1(m) +   // the stage reads the same on every phone (🗑 once dropped); only ↩ is the organizer's
+    migCardBtn(m) + stageBtn(m) +   // the stage reads the same on every phone (🗑 once dropped); only ↩ is the organizer's
     (x.pin ? '<span data-k="star" aria-hidden="true">⭐</span>' : '') + '</div></article>';
 }
+/* PIA-153: the card's stage disc is the way into P-stage (☆ / ⭐, 🗄 hide here, and the organizer's 🗑 drop), a 44px button above
+   the card's tap overlay named by its stage, so hiding or dropping a trip from the list is two taps, never a trip opened first */
+function stageBtn(m) { return '<button class="pipb z" data-act="stage" data-id="' + m.id + '" data-v="card" aria-label="' + esc(stageName(m)) + '">' + pip1(m) + '</button>'; }
+/* PIA-153: a trip that needs ⤒ Update trip (a v1 doc, or an update left half done) says so on its own card, on the organizer's phone:
+   ⤒ (the trip view's glyph and label, no word), one tap to the trip with P-migrate open over it. It pulses once a visit, from the
+   first time the list is drawn with no sheet over it (all such cards together, one pulse long), as the trip view's ⤒ does. */
+function needsUpdate(m) { var t = m && m.org ? transferRead().migrations[m.id] : null; return !!m && !!m.org && (m.legacy || !!(t && !t.done)); }
+function migCardBtn(m) {
+  if (!needsUpdate(m)) return '';
+  var pl = migCardPulse();
+  return '<button class="ib z migc' + (pl ? ' pulse' : '') + '" data-act="migcard" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate"' + (pl && pl.at > 0 ? ' style="animation-delay:-' + pl.at + 'ms"' : '') + '>⤒</button>';
+}
 function offBtn() { return anyFailed() ? '<button class="ib" data-act="offline" aria-label="Offline" data-k="offline">📶⚠</button>' : ''; }
-function keyBtn() { return '<button class="ib' + (S.keyPulse ? ' pulse' : '') + '" data-act="key" aria-label="Key" data-k="key">ⓘ</button>'; }
+function keyBtn() { return '<button class="ib' + (S.keyPulse && !hushed() ? ' pulse' : '') + '" data-act="key" aria-label="Key" data-k="key">ⓘ</button>'; }
 function setBtn() { return orgPhone() ? '<button class="ib" data-act="settings" aria-label="Settings" data-k="settings">⚙</button>' : ''; }
 /* the list-share control (Trips › Ideas only): hidden with nothing to share; +n and a pulse while trips in my list
    have not gone out in a list share yet. A screen reader hears the count in the name; a long press names the
@@ -4948,7 +5011,7 @@ function setBtn() { return orgPhone() ? '<button class="ib" data-act="settings" 
 function shareBtn() {
   if (!shareModels().length) return '';
   var n = unsharedIds().length;
-  return '<button class="ib share' + (n ? ' pulse' : '') + '" data-act="sharelist" aria-label="Share list' + (n ? ', ' + n + ' not shared' : '') + '" data-lbl="Share list" data-k="sharelist">' + LISTSHARE +
+  return '<button class="ib share' + (n && !hushed() ? ' pulse' : '') + '" data-act="sharelist" aria-label="Share list' + (n ? ', ' + n + ' not shared' : '') + '" data-lbl="Share list" data-k="sharelist">' + LISTSHARE +
     (n ? '<span class="badge" data-lbl="Not shared">+' + n + '</span>' : '') + '</button>';
 }
 function topRow(noNew, share) {
@@ -4964,7 +5027,10 @@ function ghostCard(scope) {
 }
 function renderIdeas() {
   var act = activeItems(), sh = shelfItems();
+  S.hush = false;
   if (!act.length && !sh.length) return { id: 'trips-empty', html: topRow(true) + ghostCard('trips') };
+  // PIA-153: one pulse at a time: while the cards' ⤒ invites its tap, ⓘ and the list share wait
+  S.hush = act.concat(uiRead().shelfOpen ? sh : []).some(function (it) { return !!it.m && needsUpdate(it.m); }) && !!migCardPulse();
   // [Ideas | Family] appears once the phone holds two trips (one trip has no family view to switch to)
   var h = topRow(false, true) + (act.length + sh.length >= 2 ? segRow('ideas') : '');
   h += act.map(function (it) { return cardHTML(it); }).join('');
@@ -5026,6 +5092,7 @@ function famPastBtn() { var on = !!uiRead().famPast; return '<button class="ib f
 function renderFamily() {
   var act = activeItems(), sh = shelfItems();
   if (act.length + sh.length < 2) { S.seg = 'ideas'; return renderIdeas(); }
+  S.hush = false;
   var B = famBoard(), past = famPast(), h = topRow(false, true) + segRow('family');
   if (!B.cols.length) {
     // trips still being read (or a read that failed) show ◷; with nothing upcoming, the ghost row (and 🗄 for the past)
@@ -5067,7 +5134,7 @@ function memberIn(m, code) { return m && code ? m.members.filter(function (x) { 
 /* PIA-136: the organizer's ✎ (P-edit) sits in the nav of a trip this phone holds the key to (never on a v1 doc, which
    P-migrate brings across first); 📝 opens the caption */
 function editBtn(m) {
-  if (m.org && (m.legacy || (transferRead().migrations[m.id] && !transferRead().migrations[m.id].done))) {
+  if (needsUpdate(m)) {
     var pl = migPulse(m);   // (drawn again mid-pulse, the new button carries on from where the pulse was: a negative delay)
     return '<button class="ib edit' + (pl ? ' pulse' : '') + '" data-act="migrate" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate"' + (pl && pl.at > 0 ? ' style="animation-delay:-' + pl.at + 'ms"' : '') + '>⤒</button>';
   }
@@ -5078,26 +5145,42 @@ function editBtn(m) {
    pulse (drawn again meanwhile, it carries on: {at: ms into the pulse}, else null). Its label stays "Update trip"; no word is
    added. A tap on ⤒ spends it (MIG_SPENT); a tap on a greyed "Update trip first" row points to it again (migPoint): it pulses
    the next time the trip view is in view. */
-var MIG_PULSE_MS = 4800, MIG_SPENT = 'spent';
+var MIG_PULSE_MS = 4800, MIG_SPENT = 'spent', MIG_LIST = '@list';
 function migPulse(m) {
   if (!S || !m || !m.id) return null;
+  return pulseFor(m.id, !S.sheet && S.tab === 'trips' && S.trip === m.id);
+}
+/* PIA-153: one invitation's pulse (a trip view's ⤒ by its trip's id; the list's ⤒ on cards: MIG_LIST): from the first time it is
+   drawn in view (now) for one pulse, {at} ms into it, else null; MIG_SPENT once a tap took it */
+function pulseFor(key, now) {
   var P = S.migPulse || (S.migPulse = {});
-  if (!hasOwn(P, m.id)) { if (S.sheet || S.tab !== 'trips' || S.trip !== m.id) return null; P[m.id] = nowMs(); }
-  var at = typeof P[m.id] === 'number' ? Math.max(0, Math.round(nowMs() - P[m.id])) : MIG_PULSE_MS;
+  if (!hasOwn(P, key)) { if (!now) return null; P[key] = nowMs(); }
+  var at = typeof P[key] === 'number' ? Math.max(0, Math.round(nowMs() - P[key])) : MIG_PULSE_MS;
   return at < MIG_PULSE_MS ? { at: at } : null;
 }
-function migPoint(id) { if (S && S.migPulse && id) delete S.migPulse[id]; }
+function migCardPulse() { return S ? pulseFor(MIG_LIST, !S.sheet && S.tab === 'trips' && !S.trip && S.seg !== 'family') : null; }
+/* "⤒ Update trip first" points to ⤒: it pulses again the next time it is in view (the trip view's, and the list's on the cards) */
+function migPoint(id) { if (S && S.migPulse && id) { delete S.migPulse[id]; delete S.migPulse[MIG_LIST]; } }
+/* PIA-153: …and the ⤒ in the sheet it was tapped in (P-person's header) pulses at once */
+function migNudge(id) { migPoint(id); pulseEl($('#sheet [data-act="migrate"]')); }
+/* PIA-153: one pulse at a time. While ⤒ invites its tap on a screen, nothing else there pulses (ⓘ's first-run pulse, 📣 Share, the
+   list share): the screen's renderer says so (S.hush), and keyBtn and the share controls read it */
+function hushed() { return !!(S && S.hush); }
 /* the organizer's 📣 asks for attention while anyone has not answered, and after the plan moved since his last 📣 */
 function sharePulse(m) { return !!m.org && m.decision !== 'dropped' && (m.waitingAny || readMap(ST.shared)[m.id] !== m.planHash); }
 /* the nav's 📣 (the guest link): hidden while the primary is Share, and on a dropped trip */
 function tripShareBtn(m, prim) {
   if (m.decision === 'dropped' || prim === 'share' || prim === 'share-only') return '';
-  return '<button class="ib' + (sharePulse(m) ? ' pulse' : '') + '" data-act="tshare" data-id="' + m.id + '" aria-label="Share" data-k="share">📣</button>';
+  return '<button class="ib' + (sharePulse(m) && !hushed() ? ' pulse' : '') + '" data-act="tshare" data-id="' + m.id + '" aria-label="Share" data-k="share">📣</button>';
 }
 /* me on this trip: my face (my sheet), my name, ⇄ (P-face); a phone that is nobody here has 👋 ? to pick itself */
 function meRow(m) {
   var me = m.me;
-  if (!me) return '<div class="me"><button class="ib whoami" data-act="face" data-id="' + m.id + '" aria-label="Pick yourself" data-k="whoami">👋 ?</button></div>';
+  if (!me) {
+    // PIA-153: a join request this phone sent and the trip does not show yet: 🙋＋⏳ where 👋 ? was (P-face, as before)
+    var ask = joinAsk(m.id), asked = !!ask && !m.closed && !m.members.some(function (x) { return x.norm && x.norm === normName(ask.name); });
+    return '<div class="me"><button class="ib whoami" data-act="face" data-id="' + m.id + '" aria-label="' + (asked ? 'Asked to join' : 'Pick yourself') + '" data-k="' + (asked ? 'asked' : 'whoami') + '">' + (asked ? '🙋＋⏳' : '👋 ?') + '</button></div>';
+  }
   // once I have answered, my own note is one tap away (📝＋, or 📝 when I have one): the hero's 📝 is the trip's caption
   var note = !m.closed && me.resp ? '<button class="ib mynote" data-act="pnote" data-id="' + m.id + '" data-code="' + esc(me.code) + '" aria-label="' + (me.noteText ? 'My note' : 'Add my note') + '" data-k="note">📝' + (me.noteText ? '' : '<span aria-hidden="true">＋</span>') + '</button>' : '';
   return '<div class="me" style="--pc:var(--p' + me.color + ')"><button class="facebtn' + (S.facePulse === m.id ? ' pulse' : '') + '" data-act="person" data-id="' + m.id + '" data-code="' + esc(me.code) + '" aria-label="' + esc(personAria(me)) + '" data-lbl="' + esc(faceLabel(me)) + '">' +
@@ -5118,15 +5201,27 @@ function dateRow(m) {
     if (no) return '<button class="step dis" ' + a + ' aria-disabled="true" data-why="1" aria-label="' + lbl + ', ' + no[1] + '" data-lbl="' + no[1] + '" data-k="' + no[2] + '">' + no[0] + '</button>';
     return '<button class="step' + (arm ? ' arm' : '') + '" ' + a + ' aria-label="' + (arm ? 'Confirm move' : lbl) + '"' + (arm ? ' data-lbl="Confirm move"' : '') + ' data-k="shift">' + (arm ? '⚠🎫' : k < 0 ? '−1' : '+1') + '</button>';
   };
-  var pill = '<button class="pill' + (m.locked ? ' set' : '') + (pend ? ' pulse' : '') + '" data-act="dates" data-id="' + m.id + '" aria-label="' + esc(datesAria(m)) + '" data-lbl="Dates"' + (pend ? ' aria-busy="true"' : '') + '><span class="inner">' +
-    datesText(m, true) + (m.locked ? ' <span data-k="lock">🔒</span>' : '') + '</span></button>';
+  var pill = '<button class="pill' + (m.locked ? ' set' : '') + (pend ? ' pulse' : '') + '" data-act="dates" data-id="' + m.id + '" aria-label="' + esc(datesAria(m, { grp: true })) + '" data-lbl="Dates"' + (pend ? ' aria-busy="true"' : '') + '><span class="inner">' +
+    datesText(m, true, true) + (m.locked ? ' <span data-k="lock">🔒</span>' : '') + '</span></button>';
   return '<div class="daterow">' + (can ? step(-1) : '') + pill + (can ? step(1) : '') + '</div>';
 }
-/* my own days under the plan, in my colour (a reversed pair is never drawn as a range: ⚠) */
+/* my own days under the plan, with my face (PIA-153: the group's plan above is 👪), a reversed pair never drawn as a range (⚠).
+   Days that differ from the plan carry ⚠ (red off the plan, amber inside it) and the line is one tap from P-mine, where Follow
+   plan, Keep mine and (the organizer's) Make plan settle it; Keep mine quiets the ⚠ on this phone while both stay as they are.
+   Days that are the plan's (booked on them) need no line: the pill says them. */
 function mineLine(m) {
   var me = m.me; if (!me || !me.answered || !(me.own1 || me.own2) || !me.d1) return '';
-  return '<div class="mine" style="--pc:var(--p' + me.color + ')"><i></i>' + (me.bad ? '<span class="w" data-k="warn">⚠</span>' : '<span class="tn">' + md(me.d1) + '–' + md(me.d2) + '</span>') + '</div>';
+  var face = '<span class="mf" aria-hidden="true">' + avatar(me, 28, { plain: true }) + '</span>';
+  if (me.bad) return '<div class="mine" style="--pc:var(--p' + me.color + ')">' + face + '<span class="w" data-k="warn">⚠</span></div>';
+  var c = mineVsPlan(m, RT.today), days = '<span class="tn">' + md(me.d1) + '–' + md(me.d2) + '</span>';
+  if (!c) return '<div class="mine" role="img" aria-label="' + esc('My days ' + md(me.d1) + '–' + md(me.d2)) + '" data-lbl="My days" data-k="mine" style="--pc:var(--p' + me.color + ')">' + face + days + '</div>';
+  if (!c.differ) return '';
+  var warn = mineKept(m, c) ? '' : ' <span class="w' + (c.off ? '' : ' amb') + '" data-k="notplan">⚠</span>';
+  return '<div class="mine"><button class="minebtn" data-act="mine" data-id="' + m.id + '" style="--pc:var(--p' + me.color + ')" aria-label="' + esc('My days ' + md(me.d1) + '–' + md(me.d2) + (warn ? ', not the plan' : '')) + '" data-lbl="My days" data-k="mine">' + face + days + warn + '</button></div>';
 }
+/* PIA-153: Keep mine, on this phone (pialax_ui_v1.kept: the plan and my days it was said for): the ⚠ waits for either to change */
+function mineSig(c) { return [c.s, c.e, c.d1, c.d2].join('|'); }
+function mineKept(m, c) { var k = uiRead().kept; return !!c && plainObj(k) && k[m.id] === mineSig(c); }
 /* In / Maybe / Out, labelled and equal: the answer there is filled, the others outlined. A host's In is drawn outlined
    with a dotted ring until they tap it (counted, not confirmed). Nothing is pre-pressed for anyone. A closed trip (paid
    or dropped) shows 🏁 or 🗑 instead of taps that would fail; a trip that is merely Done still takes answers.
@@ -5294,7 +5389,7 @@ function primaryHTML(m, k) {
     if (h.explore && h.why === 'nodest') return '<a class="btn ' + cls + '" ' + handoffAttrs(h.explore) + ' aria-label="Explore" data-k="explore">🧭↗</a>';
     return noFlightHTML(h.why, cls);
   };
-  var share = '<button class="btn pri' + (sharePulse(m) ? ' pulse' : '') + '" data-act="tshare" data-id="' + m.id + '"><span data-k="share">📣</span> Share</button>';
+  var share = '<button class="btn pri' + (sharePulse(m) && !hushed() ? ' pulse' : '') + '" data-act="tshare" data-id="' + m.id + '"><span data-k="share">📣</span> Share</button>';
   if (k === 'share-only') return wrap(share);
   if (k === 'share') return wrap(share + (h.gf ? '<a class="btn sq" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : fix('sq')));
   // PIA-139: ✈ Book ↗ and my 🎫 side by side; back from Google Flights after a Book tap, the 🎫 invites the tap once
@@ -5330,6 +5425,7 @@ function calBtn(m) { return handoffs(m, '', RT.hctx).calendar ? '<button class="
 function renderTrip(id) {
   var m = modelOf(id), x = listEntry(id) || { id: id, t: '', e: '' };
   var prim = m ? primaryAction(m, RT.today) : 'none';
+  S.hush = !!(m && needsUpdate(m) && migPulse(m));   // PIA-153: one pulse at a time: ⤒'s, then (on a later draw) ⓘ's and 📣's
   var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + calBtn(m) + tripShareBtn(m, prim) : '') + keyBtn() + setBtn() + '</div>';
   if (!m) return { id: 'trip-loading', html: nav + '<div class="hero">' + postcard(stubModel(x), 'lg') + '</div><h2 class="ttl" data-free>' + esc(x.t) + '</h2><div class="rowc">' + staleMark() + '</div>' };
   // the destination is one tap from the Map on every trip view (a host's too)
@@ -5358,7 +5454,7 @@ function miniCard(m) {
 /* Map and Calendar show the selected trip. With trips still loading (or a failed read) they show ◷; with every
    trip on the shelf, the empty picture and ＋ (nothing is out of date, there is just nothing upcoming) */
 function renderSelected(id, scope) {
-  S.shown = '';
+  S.shown = ''; S.hush = false;
   if (!items().length) return { id: id, html: tabTop('') + ghostCard(scope) };
   var act = activeModels();
   if (!act.length) {
@@ -5545,11 +5641,24 @@ function centerChips() {
     el.scrollLeft = Math.max(0, el.scrollLeft + pr.left - er.left - (er.width - pr.width) / 2);
   });
 }
-function shrinkNames(root) { $$('.fn[data-nm]', root).forEach(function (el) { for (var fs = 13; el.scrollWidth > el.clientWidth + 1 && fs >= 11; fs--) el.style.fontSize = fs + 'px'; }); }
+/* PIA-153: 'Mom & Dad' drawn as one word, 'Mom&Dad', where a word or the room for one is short (oneWord spells it as every sheet does) */
+function tightAmp(n) { return String(n || '').replace(/\s*&\s*/g, '&'); }
+function shrinkNames(root) {
+  $$('.fn[data-nm]', root).forEach(function (el) {
+    var fit = function () { for (var fs = 13; el.scrollWidth > el.clientWidth + 1 && fs >= 11; fs--) el.style.fontSize = fs + 'px'; };
+    fit();
+    // (PIA-153: a 'Mom & Dad' still cut at the smallest size, 'Mom & D…', is drawn 'Mom&Dad' instead)
+    var tx = el.textContent || '';
+    if (el.scrollWidth > el.clientWidth + 1 && /\s&\s/.test(tx)) { el.textContent = tightAmp(tx); el.style.fontSize = ''; fit(); }
+  });
+}
 function fitNames(root, count, max) {
   if (!root) return;
   var tags = $$('[data-nm]', root);
   tags.sort(function (a, b) { return (+b.getAttribute('data-nm')) - (+a.getAttribute('data-nm')); });
+  // PIA-153: 'Mom & Dad' is spelled as every sheet spells it; where a screen has no word to spare it is drawn 'Mom&Dad' (one word)
+  // before any name beside a face is dropped
+  for (var j = 0; j < tags.length && count() > max; j++) { var tx = tags[j].textContent || ''; if (/\s&\s/.test(tx)) tags[j].textContent = tightAmp(tx); }
   for (var i = 0; i < tags.length && count() > max; i++) tags[i].remove();
 }
 /* PIA-140 fix pass 2: P-person's name (≤2 words) breaks only at its spaces: each word is one unbreakable span (nameWords), not even
@@ -5598,7 +5707,7 @@ function screenWords() { return countWords($('#screen')) + countWords($('#tabbar
 var SHEETS = {};
 var SHEET_NAME = { migrate: 'Update trip', import: 'Import history', history: 'Review history', source: 'Original notes', mignote: 'Migration note', key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
   edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'Stage', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
-  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport' };   // each sheet's accessible name
+  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport', mine: 'My days' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
@@ -5700,6 +5809,8 @@ function transferRun(id, entry, save) {
 function transferSteps(reqs) { return reqs.map(function (q) { var x = clone(q); delete x.body.edit_key; return x; }); }
 function migrateSave(sh) {
   var L = sh.local, id = sh.p.id; if (L.busy || !editKeyFor(id) || KEYBAD[id]) return Promise.resolve(null);
+  // PIA-153: a picture and name changed here go with the update; a name cleared is asked for first (page 1, its field pulsing)
+  if (L.t && L.t.touched && !spaced(L.t.name)) { L.page = 0; renderSheet(false); pulseFld('mig-title'); return Promise.resolve(null); }
   L.busy = true; L.failed = ''; renderSheet(false);
   return withTransferLock(function () {
     var book = transferRead(), entry = book.migrations[id];
@@ -5709,10 +5820,12 @@ function migrateSave(sh) {
         if (!g.ok || !fresh) return { ok: false, code: g.code || 'network' };
         setDoc(id, fresh);
         if (g.json.organizer === false) { KEYBAD[id] = true; return { ok: false, code: 'forbidden' }; }
-        if (transferFacts(fresh) !== L.review) { L.base = clone(fresh); L.review = transferFacts(fresh); L.options = migrateOptions(fresh, lsGet(ST.v1list)); L.labels = clone(L.options.labels); L.caption = parseNotes(fresh.idea.notes).caption; L.plan = 'current'; return { ok: false, code: 'changed' }; }
+        if (transferFacts(fresh) !== L.review) { var pg = L.page, rw = L.row; migInit(L, fresh); L.page = pg; L.row = rw; return { ok: false, code: 'changed' }; }
         if (!docLegacy(fresh)) return { ok: true };
         if (!L.labels.every(function (x) { return !!keepName(splitLabel(x.label).name); })) return { ok: false, code: 'bad_body' };
-        var opts = L.options, reqs = migrateRequests(fresh, editKeyFor(id), { plan: opts[L.plan], pin: opts.pin, labels: L.labels, caption: L.caption });
+        var opts = L.options, choice = { plan: opts[L.plan], pin: opts.pin, labels: L.labels, caption: L.caption };
+        if (L.t && L.t.touched) choice.title = titleOf(L.t.scene, spaced(L.t.name));
+        var reqs = migrateRequests(fresh, editKeyFor(id), choice);
         if (!reqs) return { ok: false, code: 'bad_body' };
         entry = { original: clone(fresh), base: fresh, steps: transferSteps(reqs), at: 0, done: false }; book.migrations[id] = entry;
         if (!transferSave(book)) return { ok: false, code: 'storage' };
@@ -5722,8 +5835,19 @@ function migrateSave(sh) {
     return transferRun(id, entry, function () { return transferSave(book); });
   }).then(function (r) {
     L.busy = false; L.failed = r && !r.ok ? r.code : ''; L.saved = !!(r && r.ok);
-    if (S.sheet === sh) renderSheet(false); return r;
+    if (r && r.ok) { if (S.drafts.mig) delete S.drafts.mig[id]; migDone(sh); } else if (S.sheet === sh) renderSheet(false);
+    return r;
   });
+}
+/* PIA-153: an update that landed closes its sheet back to the trip (opened from a card, the trip comes forward under it) and the
+   toast says so: ✓, or 🔒 ✓ when the update chose v1's chosen dates again (the trip now reads 🔒 Dates set, on its pill and its
+   stage, each explained by ⓘ and a long press). A sheet opened over it meanwhile stays: the update's own sheet says ✓ once back. */
+function migDone(sh) {
+  var id = sh.p.id; if (S.sheet !== sh) return;
+  closeSheet();
+  if (!(S.tab === 'trips' && tripShowingAt(id))) openTrip(id);
+  MC = {}; var m = modelOf(id);
+  toast(m && m.locked ? '🔒 ✓' : '✓');
 }
 /* Web Locks serialize migration/import across same-origin tabs. No non-atomic localStorage lease and
    no timed-out lock that could create a second trip while the first POST is still committing. */
@@ -5807,19 +5931,27 @@ function transferError(code) {
 function transferPager(act, page, total) {
   return '<div class="rowc"><button class="ib" data-act="' + act + '" data-v="-1" aria-label="Previous page" data-k="page"' + (page ? '' : ' disabled') + '>◀</button><span>' + (page + 1) + '/' + total + '</span><button class="ib" data-act="' + act + '" data-v="1" aria-label="Next page" data-k="page"' + (page < total - 1 ? '' : ' disabled') + '>▶</button></div>';
 }
+/* the review's own state, read from the record it starts from: the plan choices, the names, the note, and (PIA-153) the trip's
+   picture and name as P-edit shows them ({scene, name, cuts, touched}: sent with the update only once changed here) */
+function migInit(L, doc) {
+  L.base = clone(doc); L.review = transferFacts(doc); L.options = migrateOptions(doc, lsGet(ST.v1list)); L.plan = 'current';
+  L.labels = clone(L.options.labels); L.caption = parseNotes(doc.idea.notes).caption; L.page = 0; L.row = 0;
+  var kept = S.drafts.mig && S.drafts.mig[doc.id];   // (what was changed here before the sheet was closed: keepDraft)
+  if (!L.t || !L.t.touched) { var t = splitLabel(doc.idea.title); L.t = kept && kept.touched ? clone(kept) : { scene: t.face || '', name: t.name, cuts: {}, touched: false }; }
+}
 SHEETS.migrate = function (sh) {
   var L = sh.local, doc = DOCS[sh.p.id], h = shHd('⤒ Update trip');
   if (!doc || !editKeyFor(sh.p.id) || KEYBAD[sh.p.id]) return h + transferError('forbidden');
-  if (!L.base) {
-    L.base = clone(doc); L.review = transferFacts(doc); L.options = migrateOptions(doc, lsGet(ST.v1list)); L.plan = 'current';
-    L.labels = clone(L.options.labels); L.caption = parseNotes(doc.idea.notes).caption; L.page = 0; L.row = 0;
-  }
+  if (!L.base) migInit(L, doc);
   var pending = transferRead().migrations[sh.p.id];
   if (L.saved || !docLegacy(doc) && (!pending || pending.done)) return h + '<p class="rowc">✓</p>';
   if (pending && !pending.done) return h + '<p class="rowc">Continue update</p>' + transferError(L.failed) + '<button class="btn pri wide" data-act="migsav"' + (L.busy ? ' disabled' : '') + '>↻</button>' + '<button class="btn wide" data-act="migreview">Review again</button>';
   h += transferPager('migpage', L.page, 3);
   if (L.page === 0) {
-    ['current', 'span'].forEach(function (key) { var p = L.options[key]; if (p) h += '<button class="btn wide" data-act="migplan" data-v="' + key + '" aria-pressed="' + (L.plan === key) + '">' + (key === 'current' ? 'Current' : 'Travelers') + ' ' + esc(p.s) + ' → ' + esc(p.e) + '</button>'; });
+    // PIA-153: the trip's picture and name first (P-edit's controls: "Chicago trip" → "🦃 Thanksgiving" in the same update), then
+    // the plan to save, the one chosen filled (aria-pressed), the other outlined
+    h += titleFields(L.t, 'migscene', 'mig-title', 'fld-mtitle');
+    ['current', 'span'].forEach(function (key) { var p = L.options[key]; if (p) h += '<button class="btn wide mplanb" data-act="migplan" data-v="' + key + '" aria-pressed="' + (L.plan === key) + '">' + (L.plan === key ? '<span class="mpk" aria-hidden="true">✓</span>' : '') + (key === 'current' ? 'Current' : 'Travelers') + ' <span class="tn">' + md(p.s) + '–' + md(p.e) + '</span></button>'; });
     h += '<p class="rowc">📌 ' + esc(L.options.pin || '—') + '</p>';
   } else if (L.page === 1) {
     L.row = Math.min(L.row, L.labels.length - 1); var lab = splitLabel(L.labels[L.row].label);
@@ -5831,20 +5963,20 @@ SHEETS.migrate = function (sh) {
   return h + transferError(L.failed);
 };
 SHEETS.import = function (sh) {
-  var L = sh.local, source = historySource(), h = shHd('⤒ Import');
+  var L = sh.local, source = historySource(), h = shHd('📜 Import');   // PIA-153: 📜, so ⤒ means Update trip alone
   if (!orgPhone()) return h + transferError('forbidden');
   if (transferRead().invalid) return h + transferError('storage');
   if (!source) return h + '<p class="warnline">Unreadable history</p><button class="btn wide" data-act="hbackup">⤓ Backup</button>';
   L.page = Math.max(0, Math.min(L.page || 0, Math.max(0, Math.ceil(source.length / 4) - 1)));
   var book = transferRead(); h += transferPager('hipage', L.page, Math.max(1, Math.ceil(source.length / 4)));
   source.slice(L.page * 4, L.page * 4 + 4).forEach(function (item) {
-    var entry = book.history[item.key], id = item.linked || entry && entry.id, mark = entry && entry.state === 'done' ? '✓' : entry && entry.state === 'uncertain' ? '⚠' : id ? '↗' : '⤒';
+    var entry = book.history[item.key], id = item.linked || entry && entry.id, mark = entry && entry.state === 'done' ? '✓' : entry && entry.state === 'uncertain' ? '⚠' : id ? '↗' : '📜';
     h += '<button class="btn wide" data-act="hitem" data-v="' + esc(item.key) + '" aria-label="Review ' + esc(item.source.title) + '"><span data-free>' + esc(item.source.title) + '</span> ' + mark + '</button>';
   });
   return h + '<button class="btn wide" data-act="hbackup" data-k="backup">⤓ Backup</button>';
 };
 SHEETS.history = function (sh) {
-  var L = sh.local, D = L.d, h = shHd('⤒') + '<p class="ttl" data-free>' + esc(D.title) + '</p>', entry = transferRead().history[L.item.key];
+  var L = sh.local, D = L.d, h = shHd('📜') + '<p class="ttl" data-free>' + esc(D.title) + '</p>', entry = transferRead().history[L.item.key];
   if (L.saved || entry && entry.state === 'done') return h + '<p class="rowc">✓</p><button class="btn pri wide" data-act="hopen" data-id="' + esc(L.id || entry.id) + '">Open</button>';
   if (entry && entry.state === 'uncertain') return h + transferError('uncertain');
   if (entry && entry.id) return h + '<p class="rowc">Continue import</p>' + transferError(L.failed) + '<button class="btn pri wide" data-act="hsave"' + (L.busy ? ' disabled' : '') + '>↻</button>' + (L.failed === 'changed' ? '<button class="btn wide" data-act="hkeep">Keep current trip</button>' : '');
@@ -5879,6 +6011,7 @@ SHEETS.source = function (sh) {
 function transferTyped(t) {
   var sh = S.sheet, L = sh.local, D = L.d, id = t.id, v = t.value;
   if (sh.type === 'mignote' && id === 'mig-caption') { L.text = firstWords(v, 12).text.slice(0, 480); t.value = L.text; return true; }
+  if (sh.type === 'migrate' && id === 'mig-title' && L.t) { L.t.name = takeTyped(t, L.t.name, TITLE_WORDS, L.t, function () { pulseFld('mig-title'); }); L.t.touched = true; L.failed = ''; return true; }   // PIA-153: P-edit's rule
   if (sh.type === 'migrate' && id === 'mig-name') { var old = splitLabel(L.labels[L.row].label); v = firstWords(v, NAME_WORDS).text.slice(0, NAME_CHARS); L.labels[L.row].label = memberLabel(old.face, v); t.value = v; L.failed = ''; return true; }
   if (sh.type !== 'history' || !/^hi-/.test(id) || !D) return false;
   if (id === 'hi-dest' || id === 'hi-airport') { v = v.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 3); t.value = v; if (id === 'hi-dest') D.dest.airport = v; else D.members[L.row].airport = v; }
@@ -5913,7 +6046,7 @@ SHEETS.organizer = function (sh) {
       (ml ? '<span class="tn capt" role="img" aria-label="' + esc(ml[1]) + '" data-lbl="' + esc(ml[0]) + '" data-k="cap">' + esc(lockText('month')) + '</span>' : '') + '</div>';
   }
   h += '<button class="btn pri wide" data-act="orgsave">Save</button>';
-  var tools = orgPhone() ? '<button class="tool" data-act="himport" aria-label="Import history" data-k="import">⤒</button>' : '';
+  var tools = orgPhone() ? '<button class="tool" data-act="himport" aria-label="Import history" data-k="import">📜</button>' : '';
   if (devicesLink()) tools += '<button class="tool" data-act="devlink" aria-label="Devices link">🔑📱</button>';
   if (S.sel && editKeyFor(S.sel)) tools += '<button class="tool" data-act="orglink" data-id="' + S.sel + '" aria-label="Organizer link">🔑' + esc((listEntry(S.sel) || {}).e || '💡') + '</button>';
   if (tools) h += '<div class="rowc">' + tools + '</div>';
@@ -6381,9 +6514,9 @@ function rowDelta(r) {
   return e;
 }
 /* P-new-who's word guard: the open row shows its full typed value; the other rows are chips whose names shorten (2
-   words, then 1, 'Mom&Dad' style, then their codes hide) so the sheet never passes 20 words; above 6 people a name is
-   1 word from the start */
-function chipName(r, mode) { return mode === 'short' ? shortName(r.name) : oneWord(r.name); }
+   words, then 1, 'Mom&Dad' style (oneWord's 'Mom & Dad' drawn tight: PIA-153), then their codes hide) so the sheet never
+   passes 20 words; above 6 people a name is 1 word from the start */
+function chipName(r, mode) { return mode === 'short' ? shortName(r.name) : tightAmp(oneWord(r.name)); }
 function whoWords(D, mode) {
   var n = 0;
   D.rows.forEach(function (r, i) {
@@ -6435,16 +6568,20 @@ function editorRow(D, r, i) {
     '<button class="ib cntb" data-act="ncount" data-v="' + i + '" aria-label="Headcount ' + r.n + '" data-lbl="Headcount" data-k="count">×' + r.n + '</button>' + meTog(D, i) + '<span class="sp"></span>' +
     '<button class="ib del' + (armed ? ' arm' : '') + '" data-act="ndel" data-v="' + i + '" aria-label="' + (armed ? 'Remove anyway' : 'Remove') + '">' + (armed ? '🗑⚠' : '🗑') + '</button></div></div>';
 }
+/* the trip's picture and name, one control set: P-new-what, P-edit's 🏷📍 and (PIA-153) ⤒ Update trip's review. D = {scene, name,
+   cuts}. The name being typed counts (≤12 words can be typed); an existing longer trip name is free, as trip names are */
+function titleFields(D, act, fid, wid) {
+  var free = wordsIn(D.name) > TITLE_WORDS;
+  return '<div class="pcrow">' + postcard({ emoji: D.scene || '💡', members: [], locked: false }, 'md') + '</div>' +
+    '<div class="scenes" role="group" aria-label="Picture">' + SCENES.map(function (e, i) { return '<button data-act="' + act + '" data-v="' + i + '" aria-pressed="' + (D.scene === e) + '" data-lbl="Picture">' + e + '</button>'; }).join('') + '</div>' +
+    '<div class="fld" id="' + wid + '"' + (free ? ' data-free' : '') + '><label for="' + fid + '" aria-hidden="true">🏷</label><input id="' + fid + '" aria-label="Trip name" placeholder="Trip name" maxlength="' + TITLE_CHARS + '" autocomplete="off" value="' + esc(D.name) + '">' + cutMark(D, fid) + '</div>';
+}
 /* step 1 (P-new-what; P-edit 🏷📍): the picture, the name, an optional destination (any 3 letters; one the app does
    not know is marked 📍⚠ and never blocks; locked while the dates are 🔒 or the trip is closed) and up to 3 recent places */
 function whatHTML(sh, D) {
   var m = D.edit ? modelOf(sh.p.id) : null, locked = !!(m && (m.locked || m.closed));   // 🔒 dates, or a closed trip (it takes no answers to resync)
   var h = D.edit ? shHd('<span aria-hidden="true">✎</span>') : shHd(stepDots(1), { right: keptBtn(D) });
-  h += '<div class="pcrow">' + postcard({ emoji: D.scene || '💡', members: [], locked: false }, 'md') + '</div>';
-  h += '<div class="scenes" role="group" aria-label="Picture">' + SCENES.map(function (e, i) { return '<button data-act="nscene" data-v="' + i + '" aria-pressed="' + (D.scene === e) + '" data-lbl="Picture">' + e + '</button>'; }).join('') + '</div>';
-  // the name being typed counts here (≤12 words can be typed); an existing longer trip name is free, as trip names are
-  var free = wordsIn(D.name) > TITLE_WORDS;
-  h += '<div class="fld" id="fld-title"' + (free ? ' data-free' : '') + '><label for="new-title" aria-hidden="true">🏷</label><input id="new-title" aria-label="Trip name" placeholder="Trip name" maxlength="' + TITLE_CHARS + '" autocomplete="off" value="' + esc(D.name) + '">' + cutMark(D, 'new-title') + '</div>';
+  h += titleFields(D, 'nscene', 'new-title', 'fld-title');
   var unknown = D.dest.length === 3 && !airportInfo(D.dest).known;
   var recent = locked ? [] : uniq(seenModels().map(function (x) { return x.dest; }).filter(Boolean)).filter(function (c) { return c !== D.dest; }).slice(0, 3);
   h += '<div class="rowc"><span class="fld code wide"><label for="new-dest" aria-hidden="true">📍</label><input id="new-dest" aria-label="Destination" placeholder="Airport" maxlength="3" autocomplete="off" autocapitalize="characters" spellcheck="false" value="' + esc(D.dest) + '"' + (locked ? ' disabled' : '') + '></span>' +
@@ -6633,7 +6770,7 @@ SHEETS.face = function (sh) {
     return '<button class="tile' + (mark === x.code ? ' hint' : '') + (hinted ? ' hinted' : '') + (x.name ? '' : ' legacy') + '"' + (mark === x.code ? ' id="pf-mark"' : '') + ' data-act="pickface" data-id="' + m.id + '" data-code="' + esc(x.code) +
       '" aria-label="' + esc(faceLabel(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' +
       (you === x.code ? '<span class="tw" data-k="you">👋</span>' : hinted ? '<span class="tw" data-k="fromlink">✉</span>' : '') + (x.host ? '<span class="tb" data-k="host">🏠</span>' : '') +
-      avatar(x, 48, { plain: true }) + (x.name ? '<span class="tn2">' + esc(many ? x.one : x.short) + '</span>' : '') + (x.headcount > 1 ? '<span class="x" data-k="count">×' + x.headcount + '</span>' : '') + '</button>';
+      avatar(x, 48, { plain: true }) + (x.name ? '<span class="tn2">' + esc(many ? tightAmp(x.one) : x.short) + '</span>' : '') + (x.headcount > 1 ? '<span class="x" data-k="count">×' + x.headcount + '</span>' : '') + '</button>';   // (one word each above six: 'Mom&Dad')
   }).join('') + (m.closed ? '' : '<button class="tile join' + (asked ? ' pend' : '') + '" data-act="joinopen" data-id="' + m.id + '" aria-expanded="' + !!L.join + '" aria-label="' + (asked ? 'Asked to join' : 'Ask to join') + '" data-k="' + (asked ? 'asked' : 'join') + '">🙋＋' +
     (asked ? '<span class="tw" aria-hidden="true">⏳</span>' + (L.join ? '' : '<span class="tn2 jn">' + esc(firstWords(asked.name, NAME_WORDS).text) + '</span>') : '') + '</button>') + '</div>';
   if (L.join && !m.closed) {
@@ -6671,7 +6808,9 @@ function legRows(m, x, edit, links, L) {
   var fe = flightEnds(m, x.code); if (!fe) return '';
   var hub = fe[0].aps.length === 2 ? fe[0].aps : null, cells = !!(hub && edit), ho = links ? handoffs(m, x.code, RT.hctx) : null, by = timesBy(m, x.code);
   var theirs = !!(m.me && m.me.code === x.code) || (m.org && !m.legacy);
-  var dayWhy = edit || !theirs || x.host ? '' : m.closed ? (m.decision === 'dropped' ? 'Dropped' : 'Trip closed') : m.past ? 'Trip over' : !x.answered ? 'Answer first' : '';
+  // PIA-153: the organizer on someone else's days on a trip still to be updated: the days say why on a tap and point to ⤒
+  var upd = !edit && !theirs && !x.host && m.org && m.legacy && !m.closed && !m.past ? '⤒ Update trip first' : '';
+  var dayWhy = upd || (edit || !theirs || x.host ? '' : m.closed ? (m.decision === 'dropped' ? 'Dropped' : 'Trip closed') : m.past ? 'Trip over' : !x.answered ? 'Answer first' : '');
   var h = '<div class="legs">' + (cells ? '<div class="leghd" aria-hidden="true"><span class="lh0"></span>' + hub.map(function (a) { return '<span>' + a + '</span>'; }).join('') + '</div>' : '');
   [[0, '🛬', 'arrive', 'Arrive', 'arr'], [1, '🛫', 'leave', 'Leave', 'dep']].forEach(function (r) {
     var e = fe[r[0]], ap = e.ap, one = ho && x.openJaw ? (r[0] ? ho.gfOut : ho.gfIn) : null, drive = m.alt && ap === m.alt ? '<span data-k="drive">🚗</span>' : '';
@@ -6752,6 +6891,8 @@ SHEETS.person = function (sh) {
     // PIA-140: with their fares shown, ⓘ reads this sheet's glyphs (a fare's age, level and stops, ★, $—, ⛔)
     (m.prices && x.traveler && m.dest && x.keys.length && !m.closed ? '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' : '') +
     (joinQ ? '<button class="ib pjoin" data-act="pjoin" data-id="' + m.id + '" aria-label="Ask to join" data-k="join">🙋＋</button>' : '') +
+    // PIA-153: on a trip still to be updated, the organizer's ⤒ is in the sheet whose rows it unlocks ("⤒ Update trip first" points here)
+    (!isMe && m.org && m.legacy && open ? '<button class="ib" data-act="migrate" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate">⤒</button>' : '') +
     '<button class="ib" data-act="sh-close" aria-label="Close" data-k="close">⌄</button></div>';
   if (m.range && x.status !== 'out') h += '<div class="pb-row solo" style="--pc:var(--p' + x.color + ')"><span class="track">' + barHTML(m, x, m.range) + '</span></div>';
   if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b></div>';
@@ -6827,7 +6968,11 @@ function bookRow(m, x, ho) {
     tk = '<button class="btn sq tkon' + (arm ? ' arm' : '') + '" data-act="unbook" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="true" aria-label="' + (arm ? 'Confirm not booked' : 'Booked, tap twice to take back') + '" data-lbl="' + (arm ? 'Confirm not booked' : 'Booked') + '" data-k="booked">🎫' +
       (arm ? '<span class="cfm" aria-hidden="true">↩</span>' : '') + '</button>';
   } else if (bs.tk === 'self') tk = myTk(m);
-  else if (bs.tk === 'org') {
+  else if (!bs.tk && bs.early && !x.booked && m.org && m.legacy && !(m.me && m.me.code === x.code)) {
+    // PIA-153: the organizer's 🎫 for someone else on a trip still to be updated: there, greyed, and a tap says "⤒ Update trip first"
+    // (their own 🎫 works on the v1 record; his for them waits for the update), pointing to ⤒
+    tk = '<button class="btn sq tkoff dis" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-disabled="true" data-why="1" aria-label="' + esc('Booked, ' + faceLabel(x) + ', Update trip first') + '" data-lbl="⤒ Update trip first"><span class="tkg">🎫</span></button>';
+  } else if (bs.tk === 'org') {
     var t = bookToggle(m, x.code, bs.early), ak = armed(armKey(m.id, x.code, 'tk')), lbl = ak ? (t.on ? 'Confirm not booked' : 'Confirm booked') : 'Booked';
     tk = '<button class="btn sq' + (t.on ? ' tkon' : ' tkoff') + (ak ? ' arm' : '') + (!t.on && invited(m.id, x.code) ? ' glow' : '') + '" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="' + t.on + '" aria-label="' + esc(lbl + ', ' + faceLabel(x)) + '" data-lbl="' + lbl + '" data-k="booked">' +
       '<span class="tkg">🎫</span>' + (ak ? '<span class="cfm" aria-hidden="true">' + (t.on ? '↩' : '✓') + '</span>' : '') + '</button>';
@@ -6836,6 +6981,7 @@ function bookRow(m, x, ho) {
   if (bs.slot === 'booked') return tk ? '<div class="split">' + flighty + tk + '</div>' : flighty;
   // no Google Flights link: the same reason the trip view's primary gives (past days, no dates, no home airport…)
   if (bs.slot === 'book') return '<div class="split">' + (ho.gf ? bookLink(m, ho.gf, 'btn pri', x.code) : noFlightHTML(ho.why, 'pri')) + tk + '</div>';
+  if (tk) return '<div class="split">' + (ho.gf ? '<a class="btn pri" ' + handoffAttrs(ho.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : noFlightHTML(ho.why, 'pri')) + tk + '</div>';   // (PIA-153: the greyed 🎫)
   return ho.gf ? '<a class="btn pri wide" ' + handoffAttrs(ho.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : '';
 }
 /* PIA-139: the times a booked traveler lands (🛬) and leaves (🛫), as HH:MM, for the pickups on everyone's map. Typed here
@@ -7008,17 +7154,54 @@ function bookResume() {
   return true;
 }
 function invited(id, code) { return !!(S && S.invite && S.invite.id === id && S.invite.code === String(code || '') && nowMs() - S.invite.at < INVITE_MS); }
-/* P-stage: the five stages by name (the trip's own one enlarged), ⭐ pin it in my list, 🗄 hide it on this phone */
+/* P-stage: the five stages by name (the trip's own one enlarged), ⭐ pin it in my list, 🗄 hide it on this phone. PIA-153: opened
+   from a card's stage disc too; on the organizer's phone 🗑 drops the trip for everyone through P-drop (its one confirm and ↩), ↩
+   once dropped; on a trip still to be updated 🗑 is greyed and says "⤒ Update trip first" (the Worker takes no other edit on a v1
+   record), pointing to ⤒ */
 SHEETS.stage = function (sh) {
-  var m = modelOf(sh.p.id), e = listEntry(sh.p.id) || {}, h = shHd(m ? pip1(m, true) : '');
+  // (PIA-153: opened from a card, the header names the trip it acts on, the card itself being under the sheet; a trip name is free)
+  var m = modelOf(sh.p.id), e = listEntry(sh.p.id) || {}, h = shHd(m ? pip1(m, true) + (sh.p.card && m.title ? '<span class="sttl" data-free>' + esc(m.title) + '</span>' : '') : '');
   if (!m) return h;
   var k = stageIdx(m.stage);
   h += '<div class="stepper' + (m.decision === 'dropped' ? ' droppc' : '') + '">' + STAGES.map(function (s, i) {
     var c = i === k ? 'now' : i < k ? 'past' : '';
     return '<div class="srow ' + c + '"><span class="pip ' + c + '" data-k="st-' + s[0] + '"><span>' + s[1] + '</span></span><span>' + s[2] + '</span></div>';
   }).join('') + '</div>';
+  var drop = !m.org ? '' : m.decision === 'dropped' ? '<button class="tool" data-act="restore" data-id="' + m.id + '" aria-label="Restore">↩</button>'
+    : needsUpdate(m) ? '<button class="tool bad dis" data-act="stagedrop" data-id="' + m.id + '" aria-disabled="true" data-why="1" aria-label="Drop, Update trip first" data-lbl="⤒ Update trip first">🗑</button>'
+    : '<button class="tool bad" data-act="stagedrop" data-id="' + m.id + '" aria-label="Drop">🗑</button>';
   return h + '<div class="rowc stagetools"><button class="tool" data-act="star" data-id="' + m.id + '" aria-pressed="' + !!e.pin + '" aria-label="Pin" data-k="star">' + (e.pin ? '⭐' : '☆') + '</button>' +
-    '<button class="tool" data-act="hidehere" data-id="' + m.id + '" aria-pressed="' + !!e.arch + '" aria-label="Hide here" data-k="hidehere">🗄</button></div>' + paidRow(m, sh.local);
+    '<button class="tool" data-act="hidehere" data-id="' + m.id + '" aria-pressed="' + !!e.arch + '" aria-label="Hide here" data-k="hidehere">🗄</button>' + drop + '</div>' + paidRow(m, sh.local);
+};
+/* PIA-153: P-mine, my days beside the group's plan (one tap from my line on the trip page): 👪 the plan, my face my days, then the
+   choice. Follow plan: my one complete answer with both ends blank (P-dates' follow-plan write: fresh read, respondRequest); never
+   for a booked traveler, whose days stay theirs. Keep mine: nothing is sent; the ⚠ rests on this phone until the plan or my days
+   change. Make plan (the organizer, not on a v1 trip): the plan becomes my days through the plan move every P-dates Save makes
+   (organizerWrite, 📌 kept, booked days pinned first), its ⚠🎫 confirm once anyone has booked and ↩ in the toast; greyed with why
+   while 🔒, when my days would leave 📌 out, or start before today. ≤20 words. */
+var MINE_WHY = { locked: 'Dates locked', pin: 'Event day outside', past: 'Before today', closed: 'Trip closed', same: 'Same days', order: 'Ends cross', legacy: '⤒ Update trip first' };
+SHEETS.mine = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local, c = m ? mineVsPlan(m, RT.today) : null, h = shHd('');
+  if (!m || !c || !c.differ) return h + (m ? '' : '<div class="rowc">' + staleMark() + '</div>');
+  var me = m.me, busy = L.busy, wait = busy ? ' aria-disabled="true" data-why="1" data-lbl="Saving"' : '';
+  h += '<div class="mvp"><div class="mvrow"><span class="mvg" data-k="plan">👪</span><span class="tn">' + md(c.s) + '–' + md(c.e) + '</span></div>' +
+    '<div class="mvrow"><span class="mvg" role="img" aria-label="' + esc('My days, ' + faceLabel(me)) + '" data-lbl="My days" data-k="mine">' + avatar(me, 28, { plain: true }) + '</span><span class="tn">' + md(c.d1) + '–' + md(c.d2) + '</span>' +
+    (c.booked ? '<span data-k="booked">🎫</span>' : '') + '</div></div>';
+  var b = function (act, inner, o) {
+    o = o || {};
+    if (o.key && busy === o.key) return '<button class="btn wide busy" data-act="' + act + '" data-id="' + m.id + '" aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷</button>';
+    if (L.failed === o.key && o.key) return '<button class="btn wide arm" data-act="' + act + '" data-id="' + m.id + '" aria-label="Retry">⚠ ↻</button>';
+    if (o.no) return '<button class="btn wide dis" data-act="' + act + '" data-id="' + m.id + '" aria-disabled="true" data-why="1" aria-label="' + esc(o.label + ', ' + o.no.replace(/^⤒\s*/, '')) + '" data-lbl="' + esc(o.no) + '">' + inner + '</button>';
+    return '<button class="btn wide' + (o.pri ? ' pri' : '') + (o.arm ? ' arm' : '') + '" data-act="' + act + '" data-id="' + m.id + '"' + (o.arm ? ' aria-label="Confirm, someone booked" data-lbl="Confirm"' : '') + wait + '>' + inner + '</button>';
+  };
+  if (c.follow) h += b('minefollow', '<span data-k="follow">🗓</span> Follow plan', { key: 'follow', pri: true });
+  h += b('minekeep', '<span class="mf" aria-hidden="true">' + avatar(me, 28, { plain: true }) + '</span> Keep mine', {});
+  // (PIA-153: on a v1 trip Make plan is there, greyed: a tap says "⤒ Update trip first" and points to ⤒, as the 🎫 and rows do)
+  if (m.org && c.make !== 'org') {
+    var arm = L.armed === 'plan' ? '⚠🎫×' + m.anyBooked + ' <span class="cw">Confirm</span>' : '';
+    h += b('mineplan', arm || '<span data-k="plan">👪</span> Make plan', { key: 'plan', no: c.make ? MINE_WHY[c.make] || 'Unavailable' : '', label: 'Make plan', arm: !!arm });
+  }
+  return h;
 };
 /* PIA-139: 💵 what the trip cost, on the organizer's token phone only (paidCheck). Recorded once every traveler has booked
    (🏁 Done): before that the 💵 is shown greyed with the faces still to book, and a tap says why. Paying closes the trip's
@@ -7432,8 +7615,11 @@ SHEETS.dates = function (sh) {
   var mine = m.me && m.me.answered && m.me.traveler ? m.me : null, fail = L.failed || {}, bz = busyAttrs(L), ro = st.ro, q = quickPick(L);
   // whose dates: the organizer who travels switches between the plan and his own days; else the trip's picture, or the face
   // (PIA-151: picking one end from a flight section, the face and which end: 🛬 or 🛫)
-  var tog = !q && m.org && !m.legacy && !m.closed && !m.past && mine && (!sh.p.who || sh.p.who === mine.code) ?
-    '<span class="tg2" role="group" aria-label="Whose dates"><button data-act="dtarget" data-v="trip" aria-pressed="' + trip + '" aria-label="Trip dates"' + bz + '>' + m.emoji + '</button>' +
+  // (PIA-153: on a trip still to be updated the trip half is there, greyed, saying "⤒ Update trip first": the pill opened his own
+  // days, and this says so, so he never believes he moved the trip)
+  var lgy = m.legacy ? ' class="dis" aria-disabled="true" data-why="1" data-lbl="⤒ Update trip first"' : '';
+  var tog = !q && m.org && !m.closed && !m.past && mine && (!sh.p.who || sh.p.who === mine.code) ?
+    '<span class="tg2" role="group" aria-label="Whose dates"><button data-act="dtarget" data-v="trip" aria-pressed="' + trip + '" aria-label="Trip dates' + (lgy ? ', Update trip first' : '') + '"' + (lgy || bz) + '>' + m.emoji + '</button>' +
     '<button data-act="dtarget" data-v="me" aria-pressed="' + me + '" aria-label="My dates"' + bz + '>' + mine.face + '</button></span>' : '';
   var head = tog || (x ? '<span role="img" aria-label="' + esc(faceLabel(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 40, { plain: true }) + '</span>' +
     (q ? '<span class="endg" data-k="' + (L.end ? 'leave' : 'arrive') + '">' + (L.end ? '🛫' : '🛬') + '</span>' : '') : '<span style="font-size:28px" aria-hidden="true">' + m.emoji + '</span>');
@@ -7881,6 +8067,8 @@ function refocus() {
 }
 /* what was typed into ⚙ and not saved is kept (in memory, never stored) for the next open */
 function keepDraft(sh) {
+  // PIA-153: a picture or name changed in ⤒ Update trip's review and not saved yet comes back when it is opened again (memory only)
+  if (sh && sh.type === 'migrate') { var t = sh.local.t; if (t && t.touched && !sh.local.saved) (S.drafts.mig || (S.drafts.mig = {}))[sh.p.id] = clone(t); return; }
   if (!sh || sh.type !== 'organizer' || !(sh.local.tokEdited || sh.local.urlEdited || sh.local.capEdited)) return;
   S.drafts.organizer = { tok: sh.local.tok, url: sh.local.url, tokEdited: !!sh.local.tokEdited, urlEdited: !!sh.local.urlEdited, cap: sh.local.cap, capEdited: !!sh.local.capEdited };
 }
@@ -8108,12 +8296,15 @@ function dropMapEntry(toTrip) {
 var ACTS = {
   migrate: function (el) {
     if (!editKeyFor(el.dataset.id) || KEYBAD[el.dataset.id]) return;
-    (S.migPulse || (S.migPulse = {}))[el.dataset.id] = MIG_SPENT;   // PIA-152: the invitation is taken: ⤒ pulses no more this visit
+    var P = S.migPulse || (S.migPulse = {}); P[el.dataset.id] = MIG_SPENT;   // PIA-152: the invitation is taken: ⤒ pulses no more this visit
+    P[MIG_LIST] = MIG_SPENT;   // (PIA-153: the cards' ⤒ too, as the card's own ⤒ spends both)
     openSheet('migrate', { id: el.dataset.id });
   },
   migpage: function (el) { var L = S.sheet.local; L.page = Math.max(0, Math.min(2, L.page + (+el.dataset.v))); renderSheet(false); },
   migrow: function (el) { var L = S.sheet.local; L.row = Math.max(0, Math.min(L.labels.length - 1, L.row + (+el.dataset.v))); renderSheet(false); },
   migplan: function (el) { S.sheet.local.plan = el.dataset.v; S.sheet.local.failed = ''; renderSheet(false); },
+  /* PIA-153: the trip's picture, as P-edit's (it goes with the update) */
+  migscene: function (el) { var L = S.sheet && S.sheet.type === 'migrate' ? S.sheet.local : null, e = SCENES[+el.dataset.v]; if (!L || !L.t || !e) return; L.t.scene = e; L.t.touched = true; L.failed = ''; renderSheet(false); },
   migsav: function () { return migrateSave(S.sheet); },
   migreview: function () { var sh = S.sheet; if (sh.local.busy) return; return withTransferLock(function () { var b = transferRead(); delete b.migrations[sh.p.id]; if (!transferSave(b)) return { ok: false, code: 'storage' }; sh.local = {}; if (S.sheet === sh) renderSheet(false); return { ok: true }; }); },
   migsource: function () { var sh = S.sheet; openSheet('mignote', {}, { back: true, local: { text: firstWords(sh.local.caption, 12).text, original: sh.local.caption } }); },
@@ -8640,7 +8831,7 @@ var ACTS = {
     if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') {   // PIA-142: "Trip over", "Update trip first"
       explain(el);
       // PIA-152: "⤒ Update trip first" points to ⤒: it pulses again the next time the trip view is in view (closing this sheet)
-      var lm = modelOf(el.dataset.id); if (lm && lm.org && lm.legacy && !lm.past && !lm.closed) migPoint(lm.id);
+      var lm = modelOf(el.dataset.id); if (lm && lm.org && lm.legacy && !lm.past && !lm.closed) migNudge(lm.id);
       return null;
     }
     var id = el.dataset.id, v = el.dataset.v, m = modelOf(id); if (!m || m.closed || m.past || !hasOwn(IDEA_STATUSES, v)) return null;
@@ -8660,6 +8851,8 @@ var ACTS = {
   /* the organizer's 🎫 on someone else's row (bookToggle): one tap for someone in or maybe; a confirming tap for someone
      waiting or out (recorded in first, 📞) and for taking a 🎫 away */
   booked: function (el) {
+    // PIA-153: the organizer's 🎫 for someone on a trip still to be updated says why and points to ⤒
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); migNudge(el.dataset.id); return null; }
     // (PIA-151: in a traveler's flight section the same 🎫 is there before the 🔒, once their days are known: earlyBook)
     var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), tk = m ? bookToggle(m, code, earlyBook(m, code, RT.today)) : null; if (!tk) return null;
     if (S.invite && S.invite.id === id && S.invite.code === code) S.invite = null;   // PIA-139: the invitation is spent
@@ -8747,7 +8940,72 @@ var ACTS = {
     var url = m.org ? ho.nudge : ho.share; if (!url) return;
     shareLink(url, function (how) { if (how !== 'link') toast('📣'); });
   },
-  stage: function (el) { if (modelOf(el.dataset.id)) openSheet('stage', { id: el.dataset.id }); },
+  // (PIA-153: from a card, P-stage names its trip, and 🗄 closes it on the trip's new place in the list)
+  stage: function (el) { if (modelOf(el.dataset.id)) openSheet('stage', { id: el.dataset.id, card: el.dataset.v === 'card' }); },
+  /* PIA-153: my line on the trip page (my days not the plan's): P-mine */
+  mine: function (el) { var m = modelOf(el.dataset.id), c = m && mineVsPlan(m, RT.today); if (c && c.differ) openSheet('mine', { id: m.id }); return null; },
+  /* Follow plan: my one complete answer, both ends blank, rebuilt from a fresh read (a 🎫 that landed meanwhile holds it: my days
+     then stay mine, 🎫⚠ says why) */
+  minefollow: function (el) {
+    var sh = S.sheet, id = el.dataset.id, m = modelOf(id), c = m && mineVsPlan(m, RT.today); if (!sh || sh.type !== 'mine' || !c) return null;
+    var L = sh.local; if (L.busy) { explain(el); return null; }
+    if (!c.follow) { renderSheet(false); return null; }
+    var who = m.me.code, was = { available_from: m.me.own1 || '', available_to: m.me.own2 || '' };   // (for ↩: my days as they are)
+    confirmHinted(id, who);
+    var build = function (doc) { var fm = freshModel(id, doc), fc = fm && fm.me && fm.me.code === who ? mineVsPlan(fm, todayLocal()) : null, q = fc && fc.follow ? respondRequest(doc, who, fc.patch, { by: 'self' }) : null; return q ? [q] : null; };
+    L.busy = 'follow'; L.failed = ''; renderSheet(false);
+    return freshWrite(id, build, { guard: ownGuard(id, who) }).then(function (r) {
+      L.busy = null;
+      if (r.ok) { if (S.sheet === sh) closeSheet(); toast('🗓✓', mineBack(id, who, was)); return r; }   // (PIA-153: ↩ puts my days back, as Make plan's does the plan)
+      if (r.held) toast(r.code === 'booked' ? '🎫⚠' : '🏁'); else L.failed = 'follow';
+      if (S.sheet === sh) renderSheet(false); else if (!r.held) showError(r.code || 'network', r.retry);
+      return r;
+    });
+  },
+  /* Keep mine: nothing is sent; the ⚠ on my line rests on this phone until the plan or my days change */
+  minekeep: function (el) {
+    var id = el.dataset.id, m = modelOf(id), c = m && mineVsPlan(m, RT.today); if (!c) { closeSheet(); return null; }
+    // (the others' stay while their trip is on this phone, read or not: a failed read never brings their ⚠ back)
+    var k = uiRead().kept, o = {}, ids = listIds(); if (plainObj(k)) Object.keys(k).forEach(function (t) { if (t !== id && ids.indexOf(t) >= 0 && typeof k[t] === 'string') o[t] = k[t]; });
+    o[id] = mineSig(c); uiSet({ kept: o });
+    closeSheet();
+    return null;
+  },
+  /* Make plan (the organizer): the plan becomes my days, the plan move P-dates' Save makes, its confirm once anyone has booked */
+  mineplan: function (el) {
+    var sh = S.sheet, id = el.dataset.id, m = modelOf(id), c = m && mineVsPlan(m, RT.today); if (!sh || sh.type !== 'mine' || !c || !m.org) return null;
+    var L = sh.local; if (L.busy || c.make || (el.getAttribute && el.getAttribute('aria-disabled') === 'true')) { explain(el); if (c.make === 'legacy' && !L.busy) migNudge(id); return null; }   // (PIA-153: "⤒ Update trip first" points to ⤒)
+    if (m.anyBooked && !acked(id) && L.armed !== 'plan') { L.armed = 'plan'; L.failed = ''; renderSheet(false); holdTaps(); return null; }
+    if (m.anyBooked) ackIt(id);
+    var undo = datesUndo(id, m), d1 = c.d1, d2 = c.d2;
+    L.busy = 'plan'; L.armed = null; L.failed = ''; renderSheet(false);
+    return organizerWrite(id, c.delta, { guard: bookedGuard(id, id) }).then(function (r) {
+      L.busy = null;
+      if (r.ok) { if (S.sheet === sh) closeSheet(); toast('👪 ' + md(d1) + '–' + md(d2), undo); return r; }
+      if (r.held && r.code === 'booked') L.armed = 'plan';
+      else if (r.held) toast(r.code === 'closed' ? '🏁' : '🔒');
+      else L.failed = 'plan';
+      if (S.sheet === sh) renderSheet(false); else if (!r.held) showError(r.code || 'network', r.retry);
+      return r;
+    });
+  },
+  /* PIA-153: P-stage's 🗑 (the organizer's): P-drop over it, the one confirm and ↩ as from ✎; on a trip still to be updated it says
+     why and points to ⤒ (it pulses again once the sheet closes) */
+  stagedrop: function (el) {
+    var id = el.dataset.id, m = modelOf(id); if (!m || !m.org) return null;
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); migPoint(id); return null; }
+    if (m.decision === 'dropped') return null;
+    openSheet('drop', { id: id }, { back: true });
+    return null;
+  },
+  /* PIA-153: the card's ⤒: the trip, with P-migrate open over it (one tap); its invitation is taken, here and on the list */
+  migcard: function (el) {
+    var id = el.dataset.id, m = modelOf(id); if (!m || !needsUpdate(m) || !editKeyFor(id) || KEYBAD[id]) return null;
+    var P = S.migPulse || (S.migPulse = {}); P[MIG_LIST] = MIG_SPENT; P[id] = MIG_SPENT;
+    openTrip(id);
+    openSheet('migrate', { id: id });
+    return null;
+  },
   /* PIA-139: 💵 greyed until every traveler has booked: a tap says why (its faces are who is still to book) */
   paidwhy: function (el) { explain(el); },
   /* 💵 Save: the amount in whole dollars, once every traveler has booked (re-checked on the fresh record: a 🎫 taken away
@@ -8851,7 +9109,13 @@ var ACTS = {
     openSheet('day', { id: m.id, date: el.dataset.v, ap: el.dataset.ap, mapmode: true });
   },
   star: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.pin = !x.pin; listWrite(L); render(true); },
-  hidehere: function (el) { var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.arch = !x.arch; listWrite(L); render(true); toast('🗄'); },
+  hidehere: function (el) {
+    var L = listRead(), x = L.filter(function (y) { return y.id === el.dataset.id; })[0]; if (!x) return; x.arch = !x.arch; listWrite(L);
+    // PIA-153: P-stage opened from a card closes on the trip's new place (the shelf's 🗄 n is the receipt), so a second tap never
+    // quietly undoes it; from the trip page it stays open, as before
+    if (S.sheet && S.sheet.type === 'stage' && S.sheet.p.card) { closeSheet(); toast(x.arch ? '🗄 ✓' : '✓'); return; }
+    render(true); toast('🗄');
+  },
   ring: function (el) {
     var b = document.getElementById('board-' + el.dataset.id); if (!b) return;
     try { b.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) { /* no scrolling here */ }
@@ -8860,7 +9124,10 @@ var ACTS = {
   /* PIA-138: dates. The pill (and my bar) open P-dates: the organizer's plan, else my own days once I have answered (before
      that, my answer row asks first), else the plan to read. A person's day in P-person opens their own days for that end. */
   dates: function (el) {
-    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return null; }   // PIA-151: a day of theirs that cannot be set here says why
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') {   // PIA-151: a day of theirs that cannot be set here says why
+      explain(el); if (/^⤒/.test(el.getAttribute('data-lbl') || '')) migNudge(el.dataset.id);   // (PIA-153: and points to ⤒)
+      return null;
+    }
     var id = el.dataset.id, m = modelOf(id); if (!m) return null;
     var code = el.dataset.code || '', end = el.dataset.end === '0' ? 0 : el.dataset.end === '1' ? 1 : null, back = !!(S.sheet && S.sheet.type === 'person');
     if (code) {
@@ -8880,6 +9147,7 @@ var ACTS = {
   dtarget: function (el) {
     var sh = datesSheet(), m = sh && modelOf(sh.p.id); if (!m || datesBusy(el)) return;
     var L = sh.local, mine = m.me && m.me.answered && m.me.traveler ? m.me.code : '';
+    if (el.dataset.v === 'trip' && m.org && m.legacy) { explain(el); migPoint(m.id); return; }   // PIA-153: "⤒ Update trip first"
     if (el.dataset.v === 'me' && mine) { L.target = 'me'; L.who = mine; } else if (el.dataset.v === 'trip' && m.org && !m.legacy) { L.target = 'trip'; L.who = ''; } else return;
     L.end = null; L.mode = m.undated && L.target === 'trip' ? 'window' : 'dates'; datesTouch(L); datesReset(sh, m); renderSheet(false);
   },
@@ -9084,6 +9352,20 @@ function datesUndo(id, m) {
     return organizerWrite(id, back, { guard: closedGuard }).then(function (r) {
       if (!r.ok) showError(r.code, r.retry);
       else { var sh = datesSheet(); if (sh && sh.p.id === id) { MC = {}; var mm = modelOf(id); sh.local.mode = mm && mm.undated ? 'window' : 'dates'; datesReset(sh, mm); renderSheet(false); } }
+      return r;
+    });
+  };
+}
+
+/* PIA-153: one person's own days rebuilt from a fresh read are held back (nothing sent, held: no ↻) once the trip closed or that
+   person booked meanwhile (a booked traveler's days stay theirs: 🎫⚠ says why) */
+function ownGuard(id, who) { return function (f) { if (docClosed(f)) return 'closed'; var fm = freshModel(id, f), x = fm && memberIn(fm, who); return x && x.booked ? 'booked' : ''; }; }
+/* PIA-153: ↩ for P-mine's Follow plan: my own days as they were before it (one complete answer from a fresh read, by me), never
+   over a 🎫 or a close made meanwhile */
+function mineBack(id, who, was) {
+  return function () {
+    return freshWrite(id, function (doc) { var q = respondRequest(doc, who, was, { by: 'self' }); return q ? [q] : null; }, { guard: ownGuard(id, who) }).then(function (r) {
+      if (r.held) toast(r.code === 'booked' ? '🎫⚠' : '🏁'); else if (!r.ok) showError(r.code || 'network', r.retry);
       return r;
     });
   };

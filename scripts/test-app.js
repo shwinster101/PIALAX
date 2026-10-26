@@ -75,7 +75,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-142
   'renderFamily', 'famBoard', 'FAM_PER',
   // PIA-152
-  'BUILD', 'MIG_PULSE_MS', 'MIG_SPENT', 'migPulse'];
+  'BUILD', 'MIG_PULSE_MS', 'MIG_SPENT', 'migPulse',
+  // PIA-153
+  'MIG_LIST', 'needsUpdate', 'mineVsPlan', 'transferRead'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -2214,8 +2216,8 @@ function norm(doc) {
     const h0 = screen(t), link0 = gfIn(h0), anjoLink0 = t.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').link.href, p0 = nPosts(t);
     const step = (v) => ctl(screen(t), 'shift', { v: String(v) });
     check(!!step(-1) && !!step(1) && /data-act="shift"[^>]*data-v="1" aria-label="Later" data-k="shift">\+1<\/button>/.test(h0) && eq(legDates(link0), ['2026-11-06', '2026-11-09']) &&
-      /data-act="dates" data-id="[^"]+" aria-label="Dates 11\/6–11\/9, 3 nights, event day 11\/8" data-lbl="Dates"><span class="inner">/.test(h0),
-      'PIA-138 AC1 the organizer\'s trip view has −1 and +1 either side of the plan pill (which opens P-dates, and is read out as what it shows: "Dates 11/6–11/9, 3 nights, event day 11/8"); his ✈↗ searches 11/6–11/9', legDates(link0));
+      /data-act="dates" data-id="[^"]+" aria-label="Dates 11\/6–11\/9, 3 nights, event day 11\/8, group plan" data-lbl="Dates"><span class="inner">/.test(h0),
+      'PIA-138 AC1 the organizer\'s trip view has −1 and +1 either side of the plan pill (which opens P-dates, and is read out as what it shows: "Dates 11/6–11/9, 3 nights, event day 11/8"; PIA-153: ", group plan", its 👪); his ✈↗ searches 11/6–11/9', legDates(link0));
     {
       const card = t.api.renderIdeas().html;
       check(/<button class="pill z" data-act="dates" data-id="[^"]+" aria-label="Dates 11\/6–11\/9, 3 nights, event day 11\/8(?:, [^"]*)?" data-lbl="Dates">/.test(card),
@@ -4248,7 +4250,7 @@ function norm(doc) {
       anjBar: /class="track fbar" data-act="flight"[^>]*data-code="anjo-z5" aria-label="Anjo, flight 11\/6–11\/9, booked, no landing time"/.test(anj),
       anjMiss: /<span class="btm a miss"[^>]*aria-label="No landing time" data-lbl="No landing time" data-k="notime"><span class="tn">––:––<\/span>/.test(anj) && !/btm d/.test(anj),
       md: /class="track fbar" data-act="flight"[^>]*data-code="momdad-k3"/.test(md) && !/btm/.test(md), same: h.indexOf(board) >= 0, words: shown(board.replace(/&amp;/g, '&')) };
-    check(bc.ashBar && bc.ashLand && bc.ashLeave && bc.anjBar && bc.anjMiss && bc.md && bc.same && eq(bc.words, ['Mom&Dad', 'Anjo']),
+    check(bc.ashBar && bc.ashLand && bc.ashLeave && bc.anjBar && bc.anjMiss && bc.md && bc.same && eq(bc.words, ['Mom', 'Dad', 'Anjo']),   // (PIA-153: "Mom & Dad", as every sheet spells it)
       'PIA-151 AC7 the organizer\'s board: his bar reads 09:05☀ over its start and 18:30 under its end; Anjo (booked, no time yet) ––:–– in amber; Mom & Dad (not booked) no time; every traveler\'s bar is a button to their flight; no new words', { bc, ash: ash.slice(-900), anj: anj.slice(-700) });
     act(o, 'flight', ctl(h, 'flight', { code: 'anjo-z5' }));
     const os = sheet(o);
@@ -4516,6 +4518,274 @@ function norm(doc) {
       'PIA-152 AC3 ⚙ shows the build as a number only (#' + newest + ', no word) from the one BUILD constant, which is the newest ticket\'s number (scripts/messages/PIA-' + newest + '.msg: the next ticket must bump it) and agrees with <meta name="pialax-build"> beside pialax-version', { BUILD: t.api.BUILD, newest, meta, decl, gear: gear.slice(0, 300) });
     const how = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8') + fs.readFileSync(path.join(ROOT, 'RELEASE_V2.md'), 'utf8');
     check((how.match(/⚙ #NNN/g) || []).length >= 2 && /pialax-build/.test(how), 'PIA-152 AC3 CLAUDE.md and RELEASE_V2.md say how to check a phone\'s build (⚙ #NNN) against main');
+  }
+
+  // ═══ PIA-153: housekeeping in two taps, plan vs my days at a glance, old trips first-class ═══
+  section('PIA-153 housekeeping in two taps (the card\'s stage disc → P-stage: ☆ 🗄 🗑), 👪 the plan vs my face my days (P-mine), ⤒ Update trip renames and closes back to the trip, a v1 trip\'s own flight section, one pulse at a time');
+  const LOCKS = { userAgent: 'test-app', clipboard: { writeText: () => Promise.resolve() }, locks: { request: (n, o, f) => Promise.resolve().then(() => f({ name: n })) } };   // Web Locks, as a browser has them (P-migrate)
+  {
+    const cardOf = (h, id) => (new RegExp('<article class="card[^"]*" data-trip="' + id + '">[\\s\\S]*?</article>').exec(h) || [''])[0];
+    const migc = (h) => { const m = /<button class="ib z migc( pulse)?" data-act="migcard" data-id="[^"]+" aria-label="Update trip" data-k="migrate"(?: style="animation-delay:-\d+ms")?>⤒<\/button>/.exec(h); return m ? (m[1] ? 'pulse' : 'still') : 'none'; };
+    const keyP = (h) => /<button class="ib pulse" data-act="key"/.test(h) ? 'pulse' : /<button class="ib" data-act="key"/.test(h) ? 'still' : 'none';
+    const TG = seedAs(TGX), DW = seedAs(DWX);
+    const orgLs = () => lsOf([TG, DW], { pialax_idea_keys_v1: keyOf([TG, DW]), pialax_idea_me_v1: { [TG]: 'LAX', [DW]: 'ashwin-p8' } });
+    // AC2 the card's stage disc → P-stage; 🗄 in the second tap
+    const t = await boot136({ ls: orgLs(), rec: ['#toast'] }), list0 = t.api.renderIdeas().html, p0 = posts(t).length, P = t.api.MIG_PULSE_MS;
+    const btnDW = /<button class="pipb z" data-act="stage" data-id="[^"]+" data-v="card" aria-label="Asking"><span class="pips one" aria-hidden="true">/.test(cardOf(list0, DW));
+    t.api.ACTS.stage({ dataset: ctl(cardOf(list0, DW), 'stage') });
+    const st0 = sheet(t), sType = t.api.S.sheet && t.api.S.sheet.type, hide = ctl(st0, 'hidehere', { id: DW }), named = ((/<span class="sttl" data-free>([^<]+)<\/span>/.exec(st0) || [])[1] || '').replace(/&amp;/g, '&') === t.api.modelOf(DW).title;
+    t.api.ACTS.hidehere({ dataset: hide });
+    const arch = (t.api.listRead().find((x) => x.id === DW) || {}).arch, closed1 = !t.api.S.sheet, toast1 = t.rec['#toast'].innerHTML;
+    t.api.closeSheet();
+    const active1 = t.api.activeItems().map((x) => x.id), list1 = t.api.renderIdeas().html;
+    check(btnDW && !!ctl(cardOf(list0, TG), 'stage') && sType === 'stage' && named && !!hide && arch === true && closed1 && /🗄 ✓/.test(toast1) && !/data-act="undo"/.test(toast1) && active1.indexOf(DW) < 0 && active1.indexOf(TG) >= 0 && /data-act="shelf"/.test(list1) && posts(t).length === p0 &&
+      /data-act="star"/.test(st0) && /<button class="tool bad" data-act="stagedrop" data-id="[^"]+" aria-label="Drop">🗑<\/button>/.test(st0) && shown(st0).length <= 20,
+      'PIA-153 AC2 every card\'s stage disc is a button named by its stage ("Asking") above the card\'s tap overlay; tap 1 opens P-stage (its header names the trip, free: the card is under the sheet; ☆, 🗄 Hide here, the organizer\'s 🗑), tap 2 (🗄) puts the trip on this phone\'s shelf and closes the sheet, 🗄 ✓ (a second tap never quietly undoes it); nothing is sent', { btnDW, sType, named, arch, closed1, toast1, active1 });
+    t.api.ACTS.stage({ dataset: { id: DW, v: 'card' } }); t.api.ACTS.hidehere({ dataset: { id: DW } });
+    const closed2 = !t.api.S.sheet, toast2 = t.rec['#toast'].innerHTML;
+    check(closed2 && /✓/.test(toast2) && t.api.activeItems().some((x) => x.id === DW) && !(t.api.listRead().find((x) => x.id === DW) || {}).arch, 'PIA-153 AC2 🗄 again (P-stage from the shelf card) brings the trip back, as the shelf always did, and closes the sheet (✓)', { closed2, toast2 });
+    // 🗑 from the list: P-drop over P-stage (its one confirm), the real Worker, ↩ in the toast
+    const td = await boot136({ ls: orgLs(), rec: ['#toast'] });
+    td.api.ACTS.stage({ dataset: { id: DW } });
+    td.api.ACTS.stagedrop(el0(ctl(sheet(td), 'stagedrop', { id: DW })));
+    const dropType = td.api.S.sheet && td.api.S.sheet.type, back = td.api.S.sheet && td.api.S.sheet.back && td.api.S.sheet.back.type;
+    const r = await td.api.ACTS.dropyes(), dd = srv.read(DW), toastUndo = /🗑/.test(td.rec['#toast'].innerHTML) && /data-act="undo"/.test(td.rec['#toast'].innerHTML);
+    const shelfNow = td.api.shelfItems().map((x) => x.id), u = await td.api.ACTS.undo(), du = srv.read(DW);
+    check(dropType === 'drop' && back === 'stage' && r && r.ok && dd.decision.stage === 'dropped' && !td.api.S.sheet && toastUndo && shelfNow.indexOf(DW) >= 0 && u && u.ok && du.decision.stage === 'proposed',
+      'PIA-153 AC2 the organizer\'s 🗑 in P-stage (from the card) opens P-drop over it (‹ to P-stage): 🗑 Drop drops the trip for everyone through the real Worker, both sheets close, the card is on the shelf, and ↩ in the toast puts it back', { dropType, back, stage: dd.decision.stage, after: du.decision.stage });
+    // on the v1 trip 🗑 is greyed and says "⤒ Update trip first", and points to ⤒: the card's ⤒ pulses again once the sheet closes
+    const tl = await boot136({ ls: orgLs() }), h0 = tl.api.renderIdeas().html;
+    CLOCK = NOW + P + 1; const h1 = tl.api.renderIdeas().html;
+    tl.api.ACTS.stage({ dataset: { id: TG } }); const sl = sheet(tl), dl = ctl(sl, 'stagedrop', { id: TG });
+    const rr = tl.api.ACTS.stagedrop(el0(dl, true)), still = tl.api.S.sheet && tl.api.S.sheet.type;
+    tl.api.closeSheet(); const h2 = tl.api.renderIdeas().html;
+    CLOCK = NOW;
+    check(migc(cardOf(h0, TG)) === 'pulse' && migc(cardOf(h0, DW)) === 'none' && migc(cardOf(h1, TG)) === 'still' && dl && dl.why === '1' && dl.lbl === '⤒ Update trip first' && rr === null && still === 'stage' &&
+      migc(cardOf(h2, TG)) === 'pulse' && posts(tl).length === 0,
+      'PIA-153 AC2/AC4b on the v1 trip P-stage\'s 🗑 is greyed: a tap says "⤒ Update trip first" (the Worker takes no other edit on a v1 record), nothing is sent, and its card\'s ⤒ pulses again once the sheet closes', { h0: migc(cardOf(h0, TG)), h1: migc(cardOf(h1, TG)), h2: migc(cardOf(h2, TG)), dl });
+    // one pulse at a time on the list: while the card's ⤒ pulses, ⓘ (first run) and the list share wait; after it, they pulse
+    check(keyP(h0) === 'still' && /class="ib share"/.test(h0) && !/class="ib share pulse"/.test(h0) && keyP(h1) === 'pulse' && /class="ib share pulse"/.test(h1),
+      'PIA-153 AC5 one pulse at a time: on the list ⓘ\'s first-run pulse and the list share wait while the cards\' ⤒ pulses, and pulse once it is over', { k0: keyP(h0), k1: keyP(h1) });
+    // a guest's P-stage has no 🗑; a dropped trip's has ↩ on the organizer's phone
+    const g = await boot136({ ls: lsOf([TG], { pialax_idea_me_v1: { [TG]: 'PIA' } }) }), gl = g.api.renderIdeas().html;
+    g.api.ACTS.stage({ dataset: { id: TG } }); const gs = sheet(g);
+    const DR = seedAs(DWX, (d) => { d.decision = { stage: 'dropped' }; });
+    const tr = await boot136({ ls: lsOf([DR], { pialax_idea_keys_v1: keyOf([DR]), pialax_idea_me_v1: { [DR]: 'ashwin-p8' } }) });
+    tr.api.ACTS.stage({ dataset: { id: DR } }); const rs = sheet(tr);
+    check(!/data-act="stagedrop"/.test(gs) && /data-act="hidehere"/.test(gs) && migc(gl) === 'none' && /<button class="tool" data-act="restore" data-id="[^"]+" aria-label="Restore">↩<\/button>/.test(rs) && !/data-act="stagedrop"/.test(rs),
+      'PIA-153 AC2 Mom\'s phone (no key): her card has no ⤒ and her P-stage ☆ 🗄 but no 🗑; on the organizer\'s phone a dropped trip\'s P-stage offers ↩');
+    // AC4b the card's ⤒: one tap to the trip with P-migrate open over it (its invitation taken, here and on the list)
+    const tm = await boot136({ ls: orgLs() }), hm = tm.api.renderIdeas().html;
+    tm.api.ACTS.migcard({ dataset: ctl(cardOf(hm, TG), 'migcard') });
+    check(tm.api.S.trip === TG && tm.api.S.tab === 'trips' && tm.api.S.sheet && tm.api.S.sheet.type === 'migrate' && tm.api.S.migPulse[TG] === tm.api.MIG_SPENT && tm.api.S.migPulse[tm.api.MIG_LIST] === tm.api.MIG_SPENT && posts(tm).length === 0,
+      'PIA-153 AC4b the organizer\'s v1 trip says so on its own card (⤒, labelled "Update trip", no word): one tap opens the trip with ⤒ Update trip over it');
+    // one pulse at a time on the trip view: while ⤒ pulses, ⓘ and 📣 Share wait
+    const tv = await boot136({ ls: orgLs() }); act(tv, 'open', { id: TG }); const v0 = screen(tv);
+    CLOCK = NOW + P + 1; const v1 = screen(tv); CLOCK = NOW;
+    check(/data-act="migrate"[^>]*>⤒/.test(v0) && /class="ib edit pulse" data-act="migrate"/.test(v0) && keyP(v0) === 'still' && !/class="btn pri pulse" data-act="tshare"/.test(v0) && /class="btn pri" data-act="tshare"/.test(v0) &&
+      keyP(v1) === 'pulse' && /class="btn pri pulse" data-act="tshare"/.test(v1) && !/class="ib edit pulse"/.test(v1),
+      'PIA-153 AC5 one pulse at a time on the v1 trip view: ⤒ pulses alone; ⓘ (first run) and 📣 Share pulse once its pulse is over');
+  }
+  {
+    // AC3 / AC4c / AC4d ⤒ Update trip renames in its one update, shows which plan it will save, and closes back to the trip: 🔒 ✓
+    const CH = seedAs(TGX, (d) => { d.idea.title = 'Chicago trip'; });
+    const tc = await boot136({ ls: lsOf([CH], { pialax_idea_keys_v1: keyOf([CH]), pialax_idea_me_v1: { [CH]: 'LAX' } }), navigator: LOCKS, rec: ['#toast'] });
+    act(tc, 'open', { id: CH }); act(tc, 'migrate', { id: CH });
+    const m0 = sheet(tc), plans = (h) => [...h.matchAll(/<button class="btn wide mplanb" data-act="migplan" data-v="(\w+)" aria-pressed="(\w+)">/g)].map((x) => x[1] + ':' + x[2]);
+    const pl0 = plans(m0), title0 = /<input id="mig-title" aria-label="Trip name" placeholder="Trip name" maxlength="\d+" autocomplete="off" value="Chicago trip">/.test(m0) && /data-act="migscene"/.test(m0);
+    act(tc, 'migplan', { v: 'span' }); act(tc, 'migscene', { v: '0' }); typed(tc, 'mig-title', 'Thanksgiving');
+    const m1 = sheet(tc), pl1 = plans(m1), mark = /aria-pressed="true"><span class="mpk" aria-hidden="true">✓<\/span>Travelers/.test(m1);
+    act(tc, 'migpage', { v: '1' }); act(tc, 'migpage', { v: '1' });
+    const q0 = posts(tc).length, rr = await tc.api.ACTS.migsav(); await tick();
+    const d = srv.read(CH), ups = posts(tc).slice(q0).filter((q) => q.path === '/idea/update'), v = screen(tc);
+    check(title0 && eq(pl0, ['current:true', 'span:false']) && eq(pl1, ['current:false', 'span:true']) && mark && rr && rr.ok && ups.length === 1 && ups[0].body.idea.title === '🦃 Thanksgiving' && d.idea.title === '🦃 Thanksgiving' &&
+      !TM.docLegacy(d) && d.decision.stage === 'chosen' && !tc.api.S.sheet && tc.api.S.trip === CH && /🔒 ✓/.test(tc.rec['#toast'].innerHTML) &&
+      /<h2 class="ttl" data-free>🦃 Thanksgiving<\/h2>/.test(v) && /class="pipbtn" data-act="stage" data-id="[^"]+" aria-label="Dates set"/.test(v) && /data-k="lock">🔒<\/span><\/span><\/button>/.test(v) && /data-act="edit"/.test(v) && !/data-act="migrate"/.test(v),
+      'PIA-153 AC3/AC4c/AC4d ⤒ Update trip shows the trip\'s picture and name (P-edit\'s controls): "Chicago trip" → 🦃 "Thanksgiving" goes in the one /idea/update (the real Worker); Current / Travelers read which plan is chosen (aria-pressed, the chosen one ✓ and filled); once it lands the sheet closes back to the trip, the toast says 🔒 ✓, and the trip reads 🔒 Dates set (its pill\'s 🔒 and its stage) with ✎', { pl0, pl1, title: d.idea.title, toast: tc.rec['#toast'].innerHTML });
+    // a name cleared is asked for (page 1, its field), nothing is sent
+    const C2 = seedAs(TGX, (d2) => { d2.idea.title = 'Chicago trip'; });
+    const tx = await boot136({ ls: lsOf([C2], { pialax_idea_keys_v1: keyOf([C2]), pialax_idea_me_v1: { [C2]: 'LAX' } }), navigator: LOCKS });
+    act(tx, 'open', { id: C2 }); act(tx, 'migrate', { id: C2 }); typed(tx, 'mig-title', ''); act(tx, 'migpage', { v: '1' }); act(tx, 'migpage', { v: '1' });
+    const qx = posts(tx).length; await tx.api.ACTS.migsav(); await tick();
+    check(posts(tx).length === qx && tx.api.S.sheet && tx.api.S.sheet.type === 'migrate' && tx.api.S.sheet.local.page === 0 && TM.docLegacy(srv.read(C2)) && srv.read(C2).idea.title === 'Chicago trip',
+      'PIA-153 AC3 a name cleared in the review is asked for first (back on page 1, its field): nothing is sent');
+  }
+  {
+    // AC4a a v1 trip, Anjo's own phone: the v2 flight section ([✈ Book ↗ | 🎫], then her times) through the existing write path
+    const TA = seedAs(TGX);
+    const ta = await boot136({ ls: lsOf([TA], { pialax_idea_me_v1: { [TA]: 'LGA' } }), rec: ['#toast'] });
+    act(ta, 'open', { id: TA }); act(ta, 'person', { id: TA, code: 'LGA' });
+    const pa = sheet(ta), hasBook = /aria-label="Book on Google Flights"/.test(pa) && /data-act="mybook"/.test(pa), q0 = posts(ta).length;
+    const rb = await ta.api.ACTS.mybook({ dataset: ctl(pa, 'mybook') }), pb = sheet(ta), r1 = srv.read(TA).responses.LGA;
+    typed(ta, 'tm-arr', '09:05', 'LGA'); typed(ta, 'tm-dep', '18:30', 'LGA');
+    ta.api.closeSheet(); await until(() => !(ta.api.PEND[TA] > 0)); await tick();
+    const r2 = srv.read(TA).responses.LGA, pq = posts(ta).slice(q0).map((q) => q.path);
+    check(hasBook && rb && rb.ok && r1.booked && /id="tm-arr" data-code="LGA"/.test(pb) && r2.booked && r2.note === '🛬09:05 🛫18:30 Arriving late, PTO approved' && TM.docLegacy(srv.read(TA)) && eq(pq, ['/idea/booked', '/idea/respond']) &&
+      ta.api.modelOf(TA).stage === 'booking',
+      'PIA-153 AC4a the family\'s v1 trip on Anjo\'s phone: her flight section is the v2 one, [✈ Book ↗ | 🎫]; her 🎫 (/idea/booked) and then her 🛬 09:05 / 🛫 18:30 (one complete /idea/respond) go through the existing write path onto the v1 record, which stays v1 until ⤒ Update trip', { pq, note: r2.note });
+    // the organizer on the same kind of trip: his own [Book | 🎫]; on Anjo's sheet ⤒ in its header, his 🎫 for her and her days greyed with
+    // "⤒ Update trip first" (nothing sent); in P-dates his own days, the trip's half greyed with the same words
+    const TB = seedAs(TGX);
+    const to = await boot136({ ls: lsOf([TB], { pialax_idea_keys_v1: keyOf([TB]), pialax_idea_me_v1: { [TB]: 'LAX' } }) });
+    act(to, 'open', { id: TB }); act(to, 'person', { id: TB, code: 'LAX' }); const pm = sheet(to); to.api.closeSheet();
+    act(to, 'person', { id: TB, code: 'LGA' }); const po = sheet(to), tk = ctl(po, 'booked', { code: 'LGA' }), day = ctl(po, 'dates', { code: 'LGA', end: '0' });
+    const q1 = posts(to).length, rk = to.api.ACTS.booked(el0(tk, true)), rd = to.api.ACTS.dates(el0(day, true)), stillP = to.api.S.sheet && to.api.S.sheet.type;
+    to.api.closeSheet(); act(to, 'dates', { id: TB }); const pd = sheet(to), tg0 = to.api.S.sheet.local.target, trp = ctl(pd, 'dtarget', { v: 'trip' });
+    (to.api.S.migPulse || (to.api.S.migPulse = {}))[TB] = to.api.MIG_SPENT;   // (⤒'s invitation taken: the greyed half points to it again)
+    to.api.ACTS.dtarget(el0(trp, true)); const tg1 = to.api.S.sheet.local.target, pointed = !(TB in to.api.S.migPulse); to.api.closeSheet();
+    check(/data-act="mybook"/.test(pm) && /aria-label="Update trip" data-k="migrate">⤒<\/button><button class="ib" data-act="sh-close"/.test(po) && tk && tk.why === '1' && tk.lbl === '⤒ Update trip first' && rk === null &&
+      day && day.lbl === '⤒ Update trip first' && rd === null && stillP === 'person' && /data-act="answer"[^>]*data-lbl="⤒ Update trip first"/.test(po) && posts(to).length === q1 &&
+      tg0 === 'me' && trp && trp.lbl === '⤒ Update trip first' && tg1 === 'me' && pointed,
+      'PIA-153 AC4a/AC5 the organizer on the v1 trip: his own flight section has [✈ Book ↗ | 🎫]; on Anjo\'s, ⤒ sits in the sheet\'s header and his 🎫 for her, her days and the answer row are greyed, each saying "⤒ Update trip first"; the pill opens his own days, its 🦃 half greyed with the same words, a tap pointing to ⤒ (it pulses again) (he never believes he moved the trip); nothing is sent', { tk, day, trp, tg0, tg1, pointed });
+  }
+  {
+    // AC1 👪 the group's plan on the trip page's pill; my own days with my face; ⚠ when they differ; one tap: P-mine
+    const both = (d) => { d.responses['ashwin-p8'] = RESP('in', { member: 'ashwin-p8', origin: 'LAX', available_from: '2026-11-06', available_to: '2026-11-10' }); d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', available_from: '2026-11-05', available_to: '2026-11-08' }); };
+    const DM = seedAs(DWX, both);
+    const tj = await boot136({ ls: lsOf([DM], { pialax_idea_me_v1: { [DM]: 'anjo-z5' } }), rec: ['#toast'] });
+    act(tj, 'open', { id: DM }); const vj = screen(tj);
+    const pill = /data-lbl="Dates"><span class="inner"><span class="dt"><span data-k="plan"><span class="g">👪<\/span><\/span>11\/6–11\/9<\/span>/.test(vj);
+    const line = /<div class="mine"><button class="minebtn" data-act="mine" data-id="[^"]+" style="--pc:var\(--p\d\)" aria-label="My days 11\/5–11\/8, not the plan" data-lbl="My days" data-k="mine"><span class="mf" aria-hidden="true"><span class="av s28/.test(vj) && /<span class="tn">11\/5–11\/8<\/span> <span class="w" data-k="notplan">⚠<\/span><\/button><\/div>/.test(vj);
+    act(tj, 'mine', ctl(vj, 'mine')); const sm = sheet(tj), smType = tj.api.S.sheet && tj.api.S.sheet.type;
+    const rows = /<span class="mvg" data-k="plan">👪<\/span><span class="tn">11\/6–11\/9<\/span>/.test(sm) && /data-k="mine"><span class="av s28[^"]*"[^>]*><span class="f">🗽<\/span><\/span><\/span><span class="tn">11\/5–11\/8<\/span>/.test(sm);
+    const L = tj.api.LEGEND;
+    check(pill && line && smType === 'mine' && rows && /data-act="minefollow"[^>]*><span data-k="follow">🗓<\/span> Follow plan/.test(sm) && /data-act="minekeep"/.test(sm) && !/data-act="mineplan"/.test(sm) && shown(sm).length <= 20 &&
+      L.plan[0] === '👪' && L.plan[1] === 'Group plan' && L.mine[1] === 'My days' && L.notplan[1] === 'Not the plan' && posts(tj).length === 0,
+      'PIA-153 AC1 Anjo\'s trip page: the pill is 👪 the group\'s plan (11/6–11/9), her own 11/5–11/8 carry her face (🗽, not a bare colour line) and ⚠ (off the plan); one tap opens P-mine (≤20 words): 👪 11/6–11/9 and 🗽 11/5–11/8, Follow plan and Keep mine (no Make plan: not her trip to move); the key (LEGEND, what ⓘ lists for the trip page: test-words\' keyCheck) carries 👪 "Group plan", the face line "My days" and ⚠ "Not the plan"', { pill, line, rows, words: shown(sm) });
+    const fr = await tj.api.ACTS.minefollow({ dataset: ctl(sm, 'minefollow') }); await tick();
+    const ra = srv.read(DM).responses['anjo-z5'], vj2 = screen(tj), tf = tj.rec['#toast'].innerHTML;
+    check(fr && fr.ok && !tj.api.S.sheet && ra.available_from === '' && ra.available_to === '' && ra.status === 'in' && !/data-act="mine"/.test(vj2) && /🗓✓/.test(tf) && /data-act="undo"/.test(tf) && eq(posts(tj).map((q) => q.path), ['/idea/respond']),
+      'PIA-153 AC1 Follow plan is the existing follow-plan write: one complete answer (In kept, both ends blank) through the real Worker; she follows the plan and her line is gone (🗓✓, with ↩)');
+    // (fix pass) ↩ in Follow plan's toast puts her own days back: one complete answer, her 11/5–11/8 and her ⚠ line again
+    const ru = await tj.api.ACTS.undo(); await tick();
+    const rb = srv.read(DM).responses['anjo-z5'], vj3 = screen(tj);
+    check(ru && ru.ok && rb.available_from === '2026-11-05' && rb.available_to === '2026-11-08' && rb.status === 'in' && /aria-label="My days 11\/5–11\/8, not the plan"/.test(vj3) && eq(posts(tj).map((q) => q.path), ['/idea/respond', '/idea/respond']),
+      'PIA-153 AC1 ↩ after Follow plan puts her own days back (one complete answer through the real Worker, as Make plan\'s ↩ puts the plan back): a mis-tap never silently discards them', { ru: ru && ru.code, rb });
+    // …and ↩ never overrides a 🎫 that landed meanwhile: held, 🎫⚠, nothing sent
+    act(tj, 'mine', { id: DM }); const f2 = await tj.api.ACTS.minefollow({ dataset: ctl(sheet(tj), 'minefollow') }); await tick();
+    const bk = clone(srv.read(DM)); bk.responses['anjo-z5'].booked = true; bk.responses['anjo-z5'].booked_at = '2026-10-16T00:00:00.000Z'; srv.write(bk);
+    const qh = posts(tj).length, rh = await tj.api.ACTS.undo(); await tick();
+    check(f2 && f2.ok && rh && rh.held && rh.code === 'booked' && posts(tj).length === qh && /🎫⚠/.test(tj.rec['#toast'].innerHTML) && srv.read(DM).responses['anjo-z5'].available_from === '',
+      'PIA-153 AC1 ↩ after Follow plan reads the trip first: once she has booked (another phone) it is held, says 🎫⚠ and sends nothing (a booked traveler\'s days stay as booked)', rh);
+    // Keep mine: nothing sent; the ⚠ rests on this phone while the plan and her days stay as they are
+    const DK = seedAs(DWX, both), tk = await boot136({ ls: lsOf([DK], { pialax_idea_me_v1: { [DK]: 'anjo-z5' } }) });
+    const cardDK = () => (new RegExp('<article class="card[^"]*" data-trip="' + DK + '">[\\s\\S]*?</article>').exec(tk.api.renderIdeas().html) || [''])[0];
+    const card0 = cardDK();
+    act(tk, 'open', { id: DK }); act(tk, 'mine', { id: DK }); tk.api.ACTS.minekeep({ dataset: { id: DK } });
+    const vk = screen(tk), kept = tk.api.uiRead().kept, card1 = cardDK();
+    check(!tk.api.S.sheet && posts(tk).length === 0 && /data-act="mine"/.test(vk) && !/data-k="notplan"/.test(vk) && kept && kept[DK] === '2026-11-06|2026-11-09|2026-11-05|2026-11-08' &&
+      /⚠🗓/.test(card0) && !/⚠🗓/.test(card1),
+      'PIA-153 AC1 Keep mine sends nothing: her line stays one tap from P-mine, its ⚠ quiet on this phone (and the card\'s ⚠🗓 with it)', { card0: /⚠🗓/.test(card0), card1: /⚠🗓/.test(card1) });
+    // (fix pass) …only while both stay as they are: her own start moved on another phone (11/5 → 11/4): ⚠ is back; her days back
+    // to the ones kept: quiet again; the plan moved (11/6 → 11/7): ⚠ is back, on the line and the card
+    const other = async (f) => { const d = clone(srv.read(DK)); f(d); srv.write(d); await tk.api.refresh(DK); await tk.api.refresh(DK); await tick(); return screen(tk); };
+    const k1 = await other((d) => { d.responses['anjo-z5'].available_from = '2026-11-04'; });
+    const k2 = await other((d) => { d.responses['anjo-z5'].available_from = '2026-11-05'; });
+    const k3 = await other((d) => { d.idea.dates.departure = '2026-11-07'; });
+    const card3 = cardDK();
+    check(/data-k="notplan">⚠/.test(k1) && /aria-label="My days 11\/4–11\/8, not the plan"/.test(k1) && !/data-k="notplan"/.test(k2) && /data-act="mine"/.test(k2) && /data-k="notplan">⚠/.test(k3) && /⚠🗓/.test(card3) && posts(tk).length === 0,
+      'PIA-153 AC1 Keep mine quiets ⚠ only for the days it was said for: her own start moved elsewhere → ⚠ again; back to the kept days → quiet; the plan moved → ⚠ again (the line and the card)', { k1: /notplan/.test(k1), k2: /notplan/.test(k2), k3: /notplan/.test(k3) });
+    // the organizer: Make plan (his own days become the plan, the plan move P-dates makes; ↩ in the toast)
+    const DO = seedAs(DWX, both), torg = await boot136({ ls: lsOf([DO], { pialax_idea_keys_v1: keyOf([DO]), pialax_idea_me_v1: { [DO]: 'ashwin-p8' } }), rec: ['#toast'] });
+    act(torg, 'open', { id: DO }); act(torg, 'mine', { id: DO }); const so = sheet(torg);
+    const mp = await torg.api.ACTS.mineplan(el0(ctl(so, 'mineplan'))), dO = srv.read(DO);
+    check(/data-act="mineplan"[^>]*><span data-k="plan">👪<\/span> Make plan/.test(so) && /data-act="minefollow"/.test(so) && shown(so).length <= 20 && mp && mp.ok && eq(TM.docPlan(dO), { s: '2026-11-06', e: '2026-11-10' }) && TM.parseNotes(dO.idea.notes).pin === '2026-11-08' &&
+      dO.responses['anjo-z5'].available_from === '2026-11-05' && !torg.api.S.sheet && /👪 11\/6–11\/10/.test(torg.rec['#toast'].innerHTML) && /data-act="undo"/.test(torg.rec['#toast'].innerHTML) && !/data-act="mine"/.test(screen(torg)),
+      'PIA-153 AC1 the organizer\'s P-mine adds Make plan: his own 11/6–11/10 become the plan in one organizer write (📌 11/8 kept, Anjo\'s own days untouched), ↩ in the toast; his line is gone (his days are the plan)', { plan: TM.docPlan(dO) });
+    // …with someone booked, its ⚠🎫 confirm first (and the booked traveler pinned before the move); 🔒: greyed, "Dates locked"
+    const DB = seedAs(DWX, (d) => { both(d); d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', booked: true, booked_at: '2026-10-16T00:00:00.000Z' }); });
+    const tb = await boot136({ ls: lsOf([DB], { pialax_idea_keys_v1: keyOf([DB]), pialax_idea_me_v1: { [DB]: 'ashwin-p8' } }) });
+    act(tb, 'open', { id: DB }); act(tb, 'mine', { id: DB });
+    const a1 = await tb.api.ACTS.mineplan(el0(ctl(sheet(tb), 'mineplan'))), armedH = sheet(tb), qa = posts(tb).length;
+    const a2 = await tb.api.ACTS.mineplan(el0(ctl(armedH, 'mineplan'))), dB = srv.read(DB), pb = posts(tb).slice(qa).map((q) => q.path);
+    const DL = seedAs(DWX, (d) => { both(d); chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); });
+    const tlk = await boot136({ ls: lsOf([DL], { pialax_idea_keys_v1: keyOf([DL]), pialax_idea_me_v1: { [DL]: 'ashwin-p8' } }) });
+    act(tlk, 'open', { id: DL }); act(tlk, 'mine', { id: DL }); const sk = sheet(tlk), lk = ctl(sk, 'mineplan'), ql = posts(tlk).length, lr = await tlk.api.ACTS.mineplan(el0(lk, true));
+    check(a1 === null && qa === 0 && /data-act="mineplan"[^>]*aria-label="Confirm, someone booked" data-lbl="Confirm">⚠🎫×1 <span class="cw">Confirm<\/span>/.test(armedH) && a2 && a2.ok && eq(pb, ['/idea/respond', '/idea/update']) &&
+      dB.responses['anjo-z5'].available_from === '2026-11-06' && dB.responses['anjo-z5'].available_to === '2026-11-09' && eq(TM.docPlan(dB), { s: '2026-11-06', e: '2026-11-10' }) &&
+      lk && lk.lbl === 'Dates locked' && lk.why === '1' && lr === null && posts(tlk).length === ql,
+      'PIA-153 AC1 Make plan keeps the plan move\'s guards: with Anjo booked the first tap asks ⚠🎫×1 Confirm and sends nothing, the second moves the plan with her booked days pinned first (her 11/6–11/9 kept); while 🔒 it is greyed and says "Dates locked"', { pb, anjo: dB.responses['anjo-z5'] });
+    // (fix pass) a booking that lands on another phone after the sheet was drawn: Follow plan (Anjo booked meanwhile) is held, 🎫⚠ says
+    // why, nothing is sent and her days stay hers (no ⚠ ↻ that could never go); Make plan (nobody booked when drawn, Anjo meanwhile) is
+    // held too and asks its ⚠🎫 confirm first
+    const late = (id) => { const d = clone(srv.read(id)); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].booked_at = '2026-10-16T00:00:00.000Z'; srv.write(d); };
+    const DF = seedAs(DWX, both), tfo = await boot136({ ls: lsOf([DF], { pialax_idea_me_v1: { [DF]: 'anjo-z5' } }), rec: ['#toast'] });
+    act(tfo, 'open', { id: DF }); act(tfo, 'mine', { id: DF }); const sfo = sheet(tfo); late(DF);
+    const qf = posts(tfo).length, rfo = await tfo.api.ACTS.minefollow({ dataset: ctl(sfo, 'minefollow') }); await tick();
+    const Lf = tfo.api.S.sheet && tfo.api.S.sheet.local, af = srv.read(DF).responses['anjo-z5'];
+    const DP = seedAs(DWX, both), tpo = await boot136({ ls: lsOf([DP], { pialax_idea_keys_v1: keyOf([DP]), pialax_idea_me_v1: { [DP]: 'ashwin-p8' } }) });
+    act(tpo, 'open', { id: DP }); act(tpo, 'mine', { id: DP }); const spo = sheet(tpo); late(DP);
+    const qp = posts(tpo).length, rpo = await tpo.api.ACTS.mineplan(el0(ctl(spo, 'mineplan'))); await tick();
+    const Lp = tpo.api.S.sheet && tpo.api.S.sheet.local;
+    check(rfo && rfo.held && rfo.code === 'booked' && posts(tfo).length === qf && /🎫⚠/.test(tfo.rec['#toast'].innerHTML) && Lf && Lf.failed !== 'follow' && af.available_from === '2026-11-05' && af.available_to === '2026-11-08' &&
+      /data-act="mineplan"/.test(spo) && !/⚠🎫/.test(spo) && rpo && rpo.held && rpo.code === 'booked' && posts(tpo).length === qp && Lp && Lp.armed === 'plan' && /⚠🎫×1/.test(sheet(tpo)) && eq(TM.docPlan(srv.read(DP)), { s: '2026-11-06', e: '2026-11-09' }),
+      'PIA-153 AC1 a 🎫 that lands after P-mine was drawn holds its write: Follow plan says 🎫⚠ and sends nothing (her days stay hers, no dead ↻); Make plan sends nothing and asks ⚠🎫×1 Confirm first', { rfo, rpo, armed: Lp && Lp.armed });
+    // booked, my days stay mine: no Follow plan; the organizer of a v1 trip: Follow plan, no Make plan
+    const DBk = seedAs(DWX, (d) => { both(d); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].booked_at = '2026-10-16T00:00:00.000Z'; });
+    const tbk = await boot136({ ls: lsOf([DBk], { pialax_idea_me_v1: { [DBk]: 'anjo-z5' } }) }); act(tbk, 'open', { id: DBk }); act(tbk, 'mine', { id: DBk }); const sbk = sheet(tbk);
+    const TV = seedAs(TGX), tvv = await boot136({ ls: lsOf([TV], { pialax_idea_keys_v1: keyOf([TV]), pialax_idea_me_v1: { [TV]: 'LAX' } }) });
+    act(tvv, 'open', { id: TV }); const vv = screen(tvv); act(tvv, 'mine', { id: TV }); const svv = sheet(tvv);
+    // (fix pass: Make plan is there on the v1 trip, greyed: a tap says "⤒ Update trip first" and points to ⤒, as the 🎫 and rows do)
+    const mpv = ctl(svv, 'mineplan'), Pm = tvv.api.S.migPulse || (tvv.api.S.migPulse = {}); Pm[TV] = tvv.api.MIG_SPENT; Pm[tvv.api.MIG_LIST] = tvv.api.MIG_SPENT;
+    const qv = posts(tvv).length, rv = tvv.api.ACTS.mineplan(el0(mpv, true));
+    check(!/data-act="minefollow"/.test(sbk) && /data-act="minekeep"/.test(sbk) && /data-k="booked">🎫/.test(sbk) &&
+      /data-lbl="Dates"><span class="inner"><span class="dt"><span data-k="plan"><span class="g">👪<\/span><\/span>11\/25–11\/29/.test(vv) && /aria-label="My days 11\/20–11\/29, not the plan"/.test(vv) && /data-act="minefollow"/.test(svv) &&
+      /<button class="btn wide dis" data-act="mineplan" data-id="[^"]+" aria-disabled="true" data-why="1" aria-label="Make plan, Update trip first" data-lbl="⤒ Update trip first"><span data-k="plan">👪<\/span> Make plan<\/button>/.test(svv) &&
+      rv === null && posts(tvv).length === qv && tvv.api.S.sheet && tvv.api.S.sheet.type === 'mine' && !(TV in tvv.api.S.migPulse) && !(tvv.api.MIG_LIST in tvv.api.S.migPulse) && shown(svv).length <= 20,
+      'PIA-153 AC1 booked, Anjo\'s days stay hers (P-mine: 🎫, Keep mine, no Follow plan); the owner\'s v1 Thanksgiving reads 👪 11/25–11/29 over 💪 11/20–11/29 ⚠, and his P-mine offers Follow plan, with Make plan greyed: a tap says "⤒ Update trip first", sends nothing and points to ⤒ (it pulses again on the trip and the cards)', { mpv, rv });
+  }
+  {
+    // AC5 queued fixes: Import history is 📜 (⤒ is Update trip alone); a join request pending on this phone shows 🙋＋⏳ where 👋 ? was
+    const DW = seedAs(DWX), ti = await boot136({ ls: lsOf([DW], { pialax_idea_keys_v1: keyOf([DW]), pialax_idea_me_v1: { [DW]: 'ashwin-p8' } }) });
+    act(ti, 'settings'); const gs = sheet(ti); ti.api.closeSheet();
+    const L = ti.api.LEGEND, upArrow = Object.keys(L).filter((k) => L[k][0] === '⤒');
+    const tq = await boot136({ ls: lsOf([DW], { pialax_ui_v1: { v1read: 1, joins: { [DW]: { name: 'Priya', ap: 'DEN' } } } }) }); act(tq, 'open', { id: DW }); const vq = screen(tq);
+    const tn = await boot136({ ls: lsOf([DW]) }); act(tn, 'open', { id: DW }); const vn = screen(tn);
+    check(/data-act="himport" aria-label="Import history" data-k="import">📜<\/button>/.test(gs) && L.import[0] === '📜' && eq(upArrow, ['migrate']) &&
+      /<button class="ib whoami" data-act="face" data-id="[^"]+" aria-label="Asked to join" data-k="asked">🙋＋⏳<\/button>/.test(vq) && /aria-label="Pick yourself" data-k="whoami">👋 \?<\/button>/.test(vn) && eq(shown(vq), shown(vn)),
+      'PIA-153 AC5 one glyph, one meaning: Import history is 📜 (⚙ and its key), ⤒ is Update trip alone; a join request sent from this phone shows 🙋＋⏳ where 👋 ? was (no word added)', upArrow);
+  }
+
+  {
+    // (fix pass) ⤒ Update trip's review keeps what was typed: closed and opened again, the new name and picture are still there; a
+    // record that changed meanwhile (Anjo booked on the v1 trip) is reviewed again with the name, picture and page kept, and the next
+    // Update sends one /idea/update carrying it
+    const CH = seedAs(TGX, (d) => { d.idea.title = 'Chicago trip'; });
+    const tc = await boot136({ ls: lsOf([CH], { pialax_idea_keys_v1: keyOf([CH]), pialax_idea_me_v1: { [CH]: 'LAX' } }), navigator: LOCKS, rec: ['#toast'] });
+    act(tc, 'open', { id: CH }); act(tc, 'migrate', { id: CH }); act(tc, 'migscene', { v: '0' }); typed(tc, 'mig-title', 'Thanksgiving');
+    tc.api.closeSheet(); act(tc, 'migrate', { id: CH });
+    const m1 = sheet(tc), reopened = /<input id="mig-title"[^>]*value="Thanksgiving">/.test(m1) && /data-act="migscene" data-v="0" aria-pressed="true"/.test(m1);
+    tc.api.S.drafts.mig = {};   // (the re-review below keeps the sheet's own name, not this kept draft)
+    act(tc, 'migpage', { v: '1' }); act(tc, 'migpage', { v: '1' });
+    const lt = clone(srv.read(CH)); lt.responses.LGA.booked = true; lt.responses.LGA.booked_at = '2026-10-16T00:00:00.000Z'; srv.write(lt);
+    const q0 = posts(tc).length, r1 = await tc.api.ACTS.migsav(); await tick();
+    const L1 = tc.api.S.sheet && tc.api.S.sheet.local, t1 = L1 && L1.t ? [L1.t.scene, L1.t.name, L1.t.touched] : null, pg1 = L1 && L1.page;
+    const r2 = await tc.api.ACTS.migsav(); await tick();
+    const ups = posts(tc).slice(q0).filter((q) => q.path === '/idea/update'), d = srv.read(CH);
+    check(reopened && r1 && r1.code === 'changed' && eq(t1, ['🦃', 'Thanksgiving', true]) && pg1 === 2 && r2 && r2.ok && ups.length === 1 && ups[0].body.idea.title === '🦃 Thanksgiving' && d.idea.title === '🦃 Thanksgiving' && d.responses.LGA.booked === true &&
+      !tc.api.S.sheet && !(tc.api.S.drafts.mig && tc.api.S.drafts.mig[CH]),
+      'PIA-153 AC3 ⤒ Update trip keeps the typed name and picture when its sheet is closed and opened again (memory only); a record that changed meanwhile is reviewed again with them and the page kept, and the next Update sends one /idea/update with "🦃 Thanksgiving" (Anjo\'s 🎫 kept)', { reopened, r1: r1 && r1.code, t1, pg1, n: ups.length });
+  }
+  {
+    // (fix pass) one pulse at a time is the list's alone: hushed while the cards' ⤒ pulses, Family and Map / Calendar draw ⓘ's first-run
+    // pulse again; ⤒ tapped inside the trip spends the cards' pulse too (once a visit, the same as the card's ⤒)
+    const TG = seedAs(TGX), DW = seedAs(DWX);
+    const keyP = (h) => /<button class="ib pulse" data-act="key"/.test(h) ? 'pulse' : /<button class="ib" data-act="key"/.test(h) ? 'still' : 'none';
+    const th = await boot136({ ls: lsOf([TG, DW], { pialax_idea_keys_v1: keyOf([TG, DW]), pialax_idea_me_v1: { [TG]: 'LAX', [DW]: 'ashwin-p8' } }), navigator: LOCKS });
+    const hl = th.api.renderIdeas().html, hush0 = th.api.S.hush;
+    th.api.S.seg = 'family'; const hf = th.api.renderFamily().html, hush1 = th.api.S.hush; th.api.S.seg = 'ideas';
+    th.api.renderIdeas(); const hm = th.api.renderSelected('map', 'map').html, hush2 = th.api.S.hush;
+    act(th, 'open', { id: TG }); act(th, 'migrate', { id: TG }); const P = th.api.S.migPulse; th.api.closeSheet();
+    check(keyP(hl) === 'still' && hush0 === true && keyP(hf) === 'pulse' && hush1 === false && keyP(hm) === 'pulse' && hush2 === false && P[TG] === th.api.MIG_SPENT && P[th.api.MIG_LIST] === th.api.MIG_SPENT,
+      'PIA-153 AC5 ⓘ waits only while the cards\' ⤒ pulses on the list: Family and Map / Calendar draw its first-run pulse again; ⤒ tapped in the trip spends the cards\' pulse as well (once a visit)', { k: [keyP(hl), keyP(hf), keyP(hm)], hush: [hush0, hush1, hush2], P });
+    // Keep mine records stay for every trip still on this phone, read or not (a failed read never brings its ⚠ back); a trip gone goes
+    const kd = (d) => { d.responses['anjo-z5'] = RESP('in', { member: 'anjo-z5', origin: 'LGA', available_from: '2026-11-05', available_to: '2026-11-08' }); };
+    const KA = seedAs(DWX, kd), tkp = await boot136({ ls: lsOf([TG, KA], { pialax_idea_me_v1: { [KA]: 'anjo-z5' }, pialax_ui_v1: { v1read: 1, kept: { [TG]: 'a|b|c|d', gone0000000000000000xx: 'a|b|c|d' } } }) });
+    delete tkp.api.DOCS[TG];   // (its read failed this visit)
+    act(tkp, 'open', { id: KA }); act(tkp, 'mine', { id: KA }); tkp.api.ACTS.minekeep({ dataset: { id: KA } });
+    const kept = tkp.api.uiRead().kept;
+    check(kept[TG] === 'a|b|c|d' && !('gone0000000000000000xx' in kept) && kept[KA] === '2026-11-06|2026-11-09|2026-11-05|2026-11-08',
+      'PIA-153 AC1 Keep mine prunes only trips no longer on this phone: another trip\'s record stays though its read failed this visit', kept);
   }
 
   // ═══ AC12 / AC14 ═══

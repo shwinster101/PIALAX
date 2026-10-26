@@ -2130,6 +2130,64 @@ function makeServer(worker) {
       new Set(mxAfter.idea.members.map((x) => M.splitLabel(x.label).face)).size === 8,
       'AC1 after ⤒ Update trip (the real Worker) every face is what it was: the Thanksgiving writes 🌽 Mom & Dad, 💪 Ashwin, 🗽 Anjo; on the trip with friends P-migrate suggests the faces shown and writes them (🐢 Sam, 🐳 nina, 🍉 Frank, the "Me" at BOS named by its code; no jump, no face twice), with or without the review\'s labels', { labels: mxAfter.idea.members.map((x) => x.label) });
   }
+
+  section('PIA-153 housekeeping in two taps, plan vs my days: a v1 trip\'s own flight section, the update that renames, my days beside the plan');
+  {
+    // AC4a on the unmigrated v1 Thanksgiving a traveler who picked her own face (Anjo) has the v2 flight section: [✈ Book ↗ | 🎫] in
+    // her sheet (earlyBook: no 🔒 on a v1 doc), the organizer's own too; only his 🎫 for someone else still waits for ⤒ Update trip
+    const lgA = model(lgGuest, { me: 'LGA' }), lgO = model(lgOrg, { me: 'LAX', hasEditKey: true }), sl = (m, c) => { const s = M.bookSlot(m, c, TODAY); return [s.slot, s.tk, s.early]; };
+    check(lgA.legacy && eq(sl(lgA, 'LGA'), ['book', 'self', true]) && eq(sl(lgO, 'LAX'), ['book', 'self', true]) && eq(sl(lgO, 'LGA'), ['gf', '', true]) &&
+      M.bookToggle(lgO, 'LGA', true) === null && M.primaryAction(lgA, TODAY) === 'share' && M.earlyBook(lgA, 'LGA', TODAY) &&
+      !M.earlyBook(model(tweak(lgGuest, (d) => { d.decision = { stage: 'dropped' }; }), { me: 'LGA' }), 'LGA', TODAY),
+      'AC4a a v1 trip (not updated): Anjo\'s own flight section is [✈ Book ↗ | 🎫] (early, as on a v2 trip still Asking), the organizer\'s own too; his 🎫 for Anjo waits for ⤒ Update trip (no bookToggle); the trip view\'s primary keeps [📣 Share | ✈↗]; none on a dropped trip');
+    // through the real Worker: her 🎫 on the v1 record, then her landing and leaving times; the record stays a v1 doc until the update,
+    // which keeps her 🎫, days and times
+    const vId = srv.seed(LEG), v0 = await srv.get(vId), bk = await srv.send(M.bookedRequests(v0, 'LGA', true, { by: 'self' })), v1d = await srv.get(vId);
+    const tq = M.timesRequest(v1d, 'LGA', '09:05', '18:30', M.timesBy(model(v1d, { me: 'LGA' }), 'LGA')), tr = await srv.send(tq), v2d = await srv.get(vId), mA = model(v2d, { me: 'LGA' });
+    const vOrg = await srv.get(vId, KEY), mo3 = M.migrateOptions(vOrg, null), mr3 = await srv.send(M.migrateRequests(vOrg, KEY, { plan: mo3.current, pin: mo3.pin, labels: mo3.labels })), v3 = await srv.get(vId), x3 = v3.responses.LGA;
+    check(srv.allOk(bk) && srv.allOk(tr) && M.docLegacy(v2d) && v2d.responses.LGA.booked && v2d.responses.LGA.note === '🛬09:05 🛫18:30 Arriving late, PTO approved' &&
+      v2d.responses.LGA.available_from === '2026-11-24' && v2d.responses.LGA.leave_from === 'ORD' && mA.stage === 'booking' && M.timesBy(mA, 'LGA') === 'self' &&
+      eq(M.flightEnds(mA, 'LGA').map((e) => e.time), ['09:05', '18:30']) && eq(M.bookSlot(mA, 'LGA', TODAY).slot, 'booked') && JSON.stringify(v2d.idea) === JSON.stringify(v0.idea) &&
+      srv.allOk(mr3) && !M.docLegacy(v3) && x3.booked && x3.note === v2d.responses.LGA.note && x3.available_from === '2026-11-24' && x3.leave_from === 'ORD',
+      'AC4a through the real Worker on the v1 record: Anjo\'s 🎫 (her own answer kept), then 🛬 09:05 / 🛫 18:30 in her note\'s prefix (her own write drops v1\'s "(entered by …)" mark, as every own answer does); the trip reads 🎫 Booking with her times on both rows; the record\'s idea is untouched (still v1); ⤒ Update trip later keeps her 🎫, days, airports and times', { note: v2d.responses.LGA.note, after: x3 });
+    // AC3 the update renames in the same write: P-edit's picture and name ("Chicago trip" → "🦃 Thanksgiving"); one left as it was is
+    // not sent, and a title with no name is refused
+    const ch = tweak(LEG, (d) => { d.idea.title = 'Chicago trip'; }), cId = srv.seed(ch), cOrg = await srv.get(cId, KEY), co = M.migrateOptions(cOrg, null);
+    const base = { plan: co.current, pin: co.pin, labels: co.labels }, withT = M.migrateRequests(cOrg, KEY, Object.assign({ title: '🦃 Thanksgiving' }, base));
+    const ups = withT.filter((q) => /\/idea\/update/.test(q.path)), same = M.migrateRequests(cOrg, KEY, Object.assign({ title: 'Chicago trip' }, base)), plain = M.migrateRequests(cOrg, KEY, base);
+    const cr = await srv.send(withT), cAfter = await srv.get(cId, KEY);
+    check(ups.length === 1 && ups[0].body.idea.title === '🦃 Thanksgiving' && eq(same.map((q) => q.body), plain.map((q) => q.body)) && plain.find((q) => /\/idea\/update/.test(q.path)).body.idea.title === 'Chicago trip' &&
+      M.migrateRequests(cOrg, KEY, Object.assign({ title: '🦃' }, base)) === null && M.migrateRequests(cOrg, KEY, Object.assign({ title: '   ' }, base)) === null && M.migrateRequests(cOrg, KEY, Object.assign({ title: 7 }, base)) === null &&
+      srv.allOk(cr) && cAfter.idea.title === '🦃 Thanksgiving' && !M.docLegacy(cAfter) && model(cAfter).emoji === '🦃' && model(cAfter).name === 'Thanksgiving' && eq(cAfter.idea.members.map((x) => x.label), ['🌽 Mom & Dad', '💪 Ashwin', '🗽 Anjo']),
+      'AC3 ⤒ Update trip renames in its one update: "Chicago trip" → "🦃 Thanksgiving" (picture and name, through the real Worker, faces and plan as reviewed); the name as it was sends exactly what the update sent before; a picture with no name (or none at all) is refused', { title: cAfter.idea.title });
+    // AC1 my days beside the plan (mineVsPlan): Diwali's plan 11/6–11/9 (📌 11/8)
+    const mv = (doc, me, over) => M.mineVsPlan(model(doc, Object.assign({ me }, over || {})), TODAY);
+    const ANJ3 = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-08'); });
+    const INS = tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-07', ''); });
+    const BKD = tweak(ANJ3, (d) => { d.responses['anjo-z5'].booked = true; });
+    const ASH = tweak(DW, (d) => { d.responses['ashwin-p8'] = R('in', 'LAX', '2026-11-06', '2026-11-10'); }), ORG3 = { hasEditKey: true };
+    const a = mv(ANJ3, 'anjo-z5'), ins = mv(INS, 'anjo-z5'), b = mv(BKD, 'anjo-z5'), o = mv(ASH, 'ashwin-p8', ORG3);
+    check(a && a.differ && a.off && a.follow && eq(a.patch, { available_from: '', available_to: '' }) && a.make === 'org' && a.s === '2026-11-06' && a.e === '2026-11-09' && a.d1 === '2026-11-05' && a.d2 === '2026-11-08' &&
+      ins && ins.differ && !ins.off && ins.follow && ins.d1 === '2026-11-07' && ins.d2 === '2026-11-09' &&
+      b && b.differ && b.booked && !b.follow && b.patch === null &&
+      o && o.make === '' && eq(o.delta, { dates: { departure: '2026-11-06', return: '2026-11-10' }, pin: '2026-11-08', nights: null }) && o.follow &&
+      mv(DW, 'anjo-z5') === null && mv(DW, 'momdad-k3') === null && mv(CY, 'anjo-c4') === null && mv(ANJ3, '') === null &&
+      mv(tweak(ASH, (d) => { d.decision = clone(CHOSEN); }), 'ashwin-p8', ORG3).make === 'locked' && mv(tweak(ASH, (d) => { d.responses['ashwin-p8'].available_from = '2026-11-09'; }), 'ashwin-p8', ORG3).make === 'pin' &&
+      mv(tweak(ASH, (d) => { d.decision = { stage: 'dropped' }; }), 'ashwin-p8', ORG3).follow === false && mv(lgOrg, 'LAX', ORG3).make === 'legacy' && mv(lgOrg, 'LAX', ORG3).follow,
+      'AC1 mineVsPlan: Anjo\'s own 11/5–11/8 beside the plan 11/6–11/9 differs (off the plan: ⚠), Follow plan blanks both ends; arriving 11/7 (inside) differs too; booked, her days stay hers (no Follow plan); the organizer\'s 11/6–11/10 can become the plan (planDelta, 📌 11/8 kept), never while 🔒, nor leaving 📌 out, nor on a v1 trip (⤒ first); nothing to compare with no day of her own, as a host, on an undated idea or for nobody', { a, b, o });
+    // through the real Worker: Follow plan (her one complete answer) and Make plan (the organizer's plan move); after either, nothing differs
+    const fId = srv.seed(ANJ3), f0 = await srv.get(fId), fr = await srv.send(M.respondRequest(f0, 'anjo-z5', mv(f0, 'anjo-z5').patch, { by: 'self' })), f1 = await srv.get(fId);
+    const pId = srv.seed(ASH), p0 = await srv.get(pId, KEY), pr = await srv.send(M.organizerEdit(p0, KEY, mv(p0, 'ashwin-p8', ORG3).delta)), p1 = await srv.get(pId, KEY), after = mv(p1, 'ashwin-p8', ORG3);
+    check(srv.allOk(fr) && f1.responses['anjo-z5'].available_from === '' && f1.responses['anjo-z5'].available_to === '' && f1.responses['anjo-z5'].status === 'in' && mv(f1, 'anjo-z5') === null &&
+      M.flightEnds(model(f1), 'anjo-z5').every((e) => e.follow) &&
+      srv.allOk(pr) && eq(M.docPlan(p1), { s: '2026-11-06', e: '2026-11-10' }) && M.parseNotes(p1.idea.notes).pin === '2026-11-08' && after && !after.differ && after.make === 'same' && !after.follow &&
+      mem(model(p1), 'anjo-z5').d2 === '2026-11-10',
+      'AC1 through the real Worker: Follow plan sends Anjo\'s one complete answer with both ends blank (In kept): she follows the plan again; Make plan moves the plan to the organizer\'s 11/6–11/10 (📌 kept) and everyone following moves with it; then nothing differs');
+    // AC5 'Mom & Dad' is spelled as every sheet spells it, the board's one-word name too
+    const md = mem(model(DW), 'momdad-k3');
+    check(M.oneWord('Mom & Dad') === 'Mom & Dad' && M.oneWord('Mom&Dad') === 'Mom & Dad' && M.oneWord('Bartholomew Montgomery') === 'Bartholomew' && md.one === 'Mom & Dad' && md.short === 'Mom & Dad',
+      'AC5 one spelling: "Mom & Dad" on the board (its one-word name) as in every sheet; other names keep their first word');
+  }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 
   console.log('');

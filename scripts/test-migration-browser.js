@@ -101,13 +101,26 @@ async function main() {
     check(family.members.length === 3 && family.members[0].headcount === 2 && family.members[2].airport === 'JAX', 'historical family defaults use the trip date and four people');
     async function migratePhone(o = {}) {
       const t = await phone([o.doc || legacy()], Object.assign({ v1: storage, me: 'LAX' }, o));
-      await tap(t.page, '#screen [data-act="open"]'); await tap(t.page, '#screen [data-act="migrate"]'); return t;
+      // PIA-153: the card's own ⤒ opens the trip with P-migrate over it in one tap (o.card); else the trip view's ⤒, as before
+      if (o.card) await tap(t.page, '#screen .card [data-act="migcard"]');
+      else { await tap(t.page, '#screen [data-act="open"]'); await tap(t.page, '#screen [data-act="migrate"]'); }
+      return t;
     }
     async function migFinal(p) { await tap(p, '#sheet [data-act="migpage"][data-v="1"]'); await tap(p, '#sheet [data-act="migpage"][data-v="1"]'); }
+    // PIA-153: the update that landed closes its sheet back to the trip, the toast saying 🔒 ✓ (v1's chosen dates are 🔒 again)
+    async function migClosed(p) { await p.waitForFunction(() => document.querySelector('#sheet').hidden && !document.querySelector('#toast').hidden); return p.evaluate(() => ({ toast: document.querySelector('#toast').textContent.trim(), screen: document.querySelector('#screen').getAttribute('data-screen'), lock: !!document.querySelector('#screen .daterow [data-k="lock"]'), stage: (document.querySelector('#screen .pipbtn') || {}).getAttribute ? document.querySelector('#screen .pipbtn').getAttribute('aria-label') : '' })); }
     for (const width of [360, 390, 430]) for (const dark of [false, true]) {
-      const t = await migratePhone({ width, dark }), p = t.page, original = JSON.stringify(storage);
+      const t = await migratePhone({ width, dark, card: width === 390 }), p = t.page, original = JSON.stringify(storage);
+      check(await p.getAttribute('#sheet', 'data-popup') === 'P-migrate' && await p.getAttribute('#screen', 'data-screen') === 'trip-organizer', 'PIA-153 ⤒ Update trip opens over the trip ' + (width === 390 ? '(one tap on the card\'s ⤒)' : '(the trip view\'s ⤒)'));
+      check(await p.inputValue('#mig-title') === 'Thanksgiving at home — Peoria' && await p.getAttribute('#sheet [data-act="migscene"][aria-pressed="true"]', 'data-v') === '0', 'PIA-153 the review shows the trip\'s picture (🦃 pressed) and name, P-edit\'s controls');
       await measure(p, 'Migration dates ' + width + '/' + dark);
-      await tap(p, '#sheet [data-act="migplan"][data-v="span"]'); await tap(p, '#sheet [data-act="migpage"][data-v="1"]');
+      // PIA-153: the organizer renames the v1 trip in the same review ("🦃 Thanksgiving"); the plan he picks reads chosen (filled)
+      await p.fill('#mig-title', 'Thanksgiving'); await measure(p, 'Migration renamed ' + width + '/' + dark);
+      await tap(p, '#sheet [data-act="migplan"][data-v="span"]');
+      const sel = await p.evaluate(() => [...document.querySelectorAll('#sheet [data-act="migplan"]')].map((b) => [b.dataset.v, b.getAttribute('aria-pressed'), getComputedStyle(b).backgroundColor, getComputedStyle(b).color]));
+      const on = sel.find((x) => x[1] === 'true'), off = sel.find((x) => x[1] === 'false');
+      check(sel.length === 2 && on && on[0] === 'span' && off && on[2] !== off[2] && on[3] !== off[3], 'PIA-153 the plan chosen is filled, the other outlined (aria-pressed styled: background and ink differ)', sel);
+      await tap(p, '#sheet [data-act="migpage"][data-v="1"]');
       check(await p.inputValue('#mig-name') === 'Mom & Dad', 'first suggested identity is Mom & Dad'); await measure(p, 'Migration name');
       await tap(p, '#sheet [data-act="migrow"][data-v="1"]'); check(await p.inputValue('#mig-name') === 'Ashwin', 'Me at LAX is suggested as Ashwin');
       await tap(p, '#sheet [data-act="migpage"][data-v="1"]'); await measure(p, 'Migration confirmation');
@@ -117,9 +130,13 @@ async function main() {
       const d = t.db.read(t.id), model = M.tripModel(d, { today: TODAY, now: NOW });
       check(!model.legacy && model.plan.s === '2026-11-20' && model.pin === '2026-11-26' && d.decision.stage === 'chosen' && d.decision.estimate_total === null && d.decision.chosen.familyTotal === null, 'migration keeps the dinner pin, picks reviewed dates and removes estimates');
       check(d.idea.members.map(m => m.code).join(',') === 'PIA,LAX,LGA' && d.responses.LGA.available_from === '2026-11-24' && d.responses.LGA.leave_from === 'ORD' && d.responses.LGA.note.includes('PTO approved'), 'IDs, individual dates, open-jaw airports and notes survive');
+      check(d.idea.title === '🦃 Thanksgiving' && t.requests.filter(r => r.path === '/idea/update' && r.method === 'POST').length === 1, 'PIA-153 the new name goes in the update itself (one /idea/update): "🦃 Thanksgiving"', d.idea.title);
       check(await p.evaluate(() => localStorage.getItem('pialax_watchlist_v1')) === original, 'migration never changes v1 storage');
       check(!t.requests.some(r => /^\/(search|account)$/.test(r.path)), 'migration makes no paid requests');
-      await close(p); check(await p.locator('#screen [data-act="edit"]').count() === 1 && !await p.locator('#screen [data-act="migrate"]').count(), 'successful update unlocks the existing v2 editor');
+      const done = await migClosed(p);
+      check(done.toast === '🔒 ✓' && done.screen === 'trip-organizer' && done.lock && done.stage === 'Dates set', 'PIA-153 the update closes its sheet back to the trip; the toast says 🔒 ✓ and the trip reads 🔒 Dates set (its pill\'s 🔒, its stage)', done);
+      check(await p.locator('#screen [data-act="edit"]').count() === 1 && !await p.locator('#screen [data-act="migrate"]').count(), 'successful update unlocks the existing v2 editor');
+      check(await p.evaluate(() => (document.querySelector('#screen .ttl') || {}).textContent) === '🦃 Thanksgiving', 'PIA-153 the trip view shows its new name');
       check(t.errors.length === 0, 'migration has no browser exceptions', t.errors); await t.ctx.close();
     }
     const stale = await migratePhone(); await tap(stale.page, '#sheet [data-act="migplan"][data-v="span"]');

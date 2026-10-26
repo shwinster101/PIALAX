@@ -227,7 +227,7 @@ function shortName(n) { // ≤ 2 words that contain letters
   while (out.length && !/\p{L}/u.test(out[out.length - 1])) out.pop();
   return out.join(' ');
 }
-function oneWord(n) { var m = /^(\S+)\s*&\s*(\S+)/.exec(n || ''); return m ? m[1] + '&' + m[2] : ((n || '').split(/\s+/)[0] || ''); }
+function oneWord(n) { var m = /^(\S+)\s*&\s*(\S+)/.exec(n || ''); return m ? m[1] + ' & ' + m[2] : ((n || '').split(/\s+/)[0] || ''); }   // PIA-153: 'Mom & Dad' spelled as every sheet spells it
 function slugOf(name) { var s = String(name || '').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 29); return s || 'm'; }
 function hashedFace(norm) { return FACES[fnv1a(norm) % FACE_RING]; }
 function colorOf(norm) { return fnv1a(norm) % PALETTE_SIZE; }
@@ -1459,10 +1459,13 @@ function migrateOptions(doc, v1raw) {
 }
 /* P-migrate: one update that copies the recommendation's airport, city and the picked plan into the idea, adds 📌,
    puts faces on the labels (codes never change), nulls recommendation and re-chooses when the doc was chosen; then
-   one answer per member whose own window now equals the plan, sent blank (follows the plan). */
+   one answer per member whose own window now equals the plan, sent blank (follows the plan). PIA-153 choice.title: the
+   trip's picture and name as the review left them (P-edit's controls, '<picture> <name>'), in that same update; a title
+   with no name is refused, and one left as it was is not sent. */
 function migrateRequests(fresh, editKey, choice) {
   choice = choice || {};
   if (!fresh || !fresh.idea || (choice.plan ? !isIso(choice.plan.s) || !isIso(choice.plan.e) || choice.plan.e < choice.plan.s : !!docPlan(fresh))) return null;
+  if (hasOwn(choice, 'title') && (typeof choice.title !== 'string' || !splitLabel(clip(choice.title, TEXT_MAX.title)).name)) return null;
   var rec = fresh.idea.recommendation || {}, ap = normIata(rec.airport) || docDest(fresh);
   var city = airportInfo(ap).city || clip(rec.city || (fresh.idea.destination && fresh.idea.destination.city), TEXT_MAX.city);
   var labels = {}; migrateLabels(fresh.idea.members).concat(choice.labels || []).forEach(function (x) { if (x && x.code && x.label) labels[x.code] = x.label; });
@@ -1488,6 +1491,7 @@ function migrateRequests(fresh, editKey, choice) {
   var caption = hasOwn(choice, 'caption') ? choice.caption : parseNotes(fresh.idea.notes).caption;
   if (buildNotes(delta.pin, null, caption).length < ((delta.pin ? '📌' + delta.pin + (String(caption || '').trim() ? ' ' : '') : '') + String(caption || '').trim()).length) return null;
   if (hasOwn(choice, 'caption')) delta.caption = choice.caption;
+  if (hasOwn(choice, 'title') && clip(choice.title, TEXT_MAX.title) !== clip(fresh.idea.title, TEXT_MAX.title)) delta.title = choice.title;
   var up = updateRequest(fresh, editKey, delta, { migrate: true });
   if (!up) return null;
   var after = { id: fresh.id, idea: up.body.idea, responses: R, decision: fresh.decision }, out = before.concat([up]);
@@ -2077,11 +2081,13 @@ function bookToggle(model, code, early) {
 }
 /* PIA-151: a flight already bought can be recorded before the dates are 🔒: in a traveler's flight section (P-person) the 🎫
    sits beside Book once their days are known (their own, or the plan's) and still ahead, on a trip still open (the Worker's
-   /idea/booked takes a 🎫 at any stage but dropped). Not on a v1 doc still to be updated (P-migrate first, as before). The
-   trip view's primary keeps its own rule (primaryAction). */
+   /idea/booked takes a 🎫 at any stage but dropped). PIA-153: a v1 doc not updated yet too (the family's live trips are all v1
+   docs): /idea/booked and /idea/respond answer on any record, so a traveler's own 🎫 and then their times go on it exactly as
+   on a v2 trip; only the organizer's 🎫 for someone else waits for ⤒ Update trip (bookToggle). The trip view's primary keeps
+   its own rule (primaryAction). */
 function earlyBook(model, code, today) {
   var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
-  return !!x && x.traveler && !model.closed && !model.locked && !model.legacy && !model.past && !!x.d1 && !x.bad && x.d1 >= today;
+  return !!x && x.traveler && !model.closed && !model.locked && !model.past && !!x.d1 && !x.bad && x.d1 >= today;
 }
 
 /* ---- dates: the one picker (PIA-138) ----
@@ -2240,6 +2246,26 @@ function datesRole(model) {
   var me = model.me;
   if (!me || me.host || me.status === 'out') return 'look';
   return me.answered ? 'mine' : 'answer';
+}
+/* PIA-153: the trip page's two ranges told apart: 👪 the group's plan, and my own days under it with my face. → null when there
+   is nothing to set beside the plan (nobody here, a host, someone out or not answered, no day of my own, no plan, reversed days),
+   else {s, e (the plan), d1, d2 (my days), differ (an end is not the plan's: ⚠ on my line, one tap to choose), off (an end falls
+   outside the plan, the model's 'off'), booked, follow (Follow plan is offered: they differ, the trip is open and not over, and I
+   have not booked: a booked traveler's days stay theirs, as ownDays keeps them), patch (that answer: ownDays' blank pick, sent by
+   respondRequest), make ('' when the organizer can make my days the plan, through the plan move every P-dates Save makes (its
+   booked confirm applies), else why not: 'org' not his phone, 'legacy' (⤒ Update trip first), 'closed', 'past' (the trip is
+   over), 'locked' (🔓 first), 'same' (nothing differs), or planCheck's 'past' / 'pin' for my days), delta (that move: planDelta,
+   📌 kept)} */
+function mineVsPlan(model, today) {
+  var me = model.me, plan = model.plan;
+  if (!me || !me.traveler || !me.answered || !plan || !(me.own1 || me.own2) || !me.d1 || me.bad) return null;
+  var differ = me.d1 !== plan.s || me.d2 !== plan.e, open = !model.closed && !model.past;
+  var od = open && differ && !me.booked ? ownDays(model, me.code, '', '', null, today) : null;
+  var follow = !!od && !od.why && !od.same;
+  var make = !model.org ? 'org' : model.legacy ? 'legacy' : model.closed ? 'closed' : model.past ? 'past' : model.locked ? 'locked' : !differ ? 'same'
+    : planCheck(me.d1, me.d2, { today: today, pin: model.pin });
+  return { s: plan.s, e: plan.e, d1: me.d1, d2: me.d2, differ: differ, off: me.warn.indexOf('off') >= 0, booked: me.booked,
+    follow: follow, patch: follow ? od.patch : null, make: make, delta: make ? null : planDelta(me.d1, me.d2, model.pin) };
 }
 
 /* ---- booking (PIA-139): one booked control, flight times for pickups, and a trip that reaches Done by itself ----
@@ -2651,7 +2677,7 @@ if (typeof module !== 'undefined' && module.exports) {
     fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
     whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle,
     SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
-    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, flightEnds: flightEnds, dayPeople: dayPeople, calendarDay: calendarDay, datesRole: datesRole, datesHeld: datesHeld,
+    windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, flightEnds: flightEnds, dayPeople: dayPeople, calendarDay: calendarDay, datesRole: datesRole, datesHeld: datesHeld, mineVsPlan: mineVsPlan,
     bookSlot: bookSlot, earlyBook: earlyBook, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
     timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime,
     SPEND_PER_TAP: SPEND_PER_TAP, SPEND_PER_SESSION: SPEND_PER_SESSION, QUOTA_LOCK_AT: QUOTA_LOCK_AT, QUOTA_BUDGET: QUOTA_BUDGET, PLAN_LEFT_MIN: PLAN_LEFT_MIN,
