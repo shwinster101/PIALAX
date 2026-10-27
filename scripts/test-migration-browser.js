@@ -108,7 +108,7 @@ async function main() {
     }
     async function migFinal(p) { await tap(p, '#sheet [data-act="migpage"][data-v="1"]'); await tap(p, '#sheet [data-act="migpage"][data-v="1"]'); }
     // PIA-153: the update that landed closes its sheet back to the trip, the toast saying 🔒 ✓ (v1's chosen dates are 🔒 again)
-    async function migClosed(p) { await p.waitForFunction(() => document.querySelector('#sheet').hidden && !document.querySelector('#toast').hidden); return p.evaluate(() => ({ toast: document.querySelector('#toast').textContent.trim(), screen: document.querySelector('#screen').getAttribute('data-screen'), lock: !!document.querySelector('#screen .daterow [data-k="lock"]'), stage: (document.querySelector('#screen .pipbtn') || {}).getAttribute ? document.querySelector('#screen .pipbtn').getAttribute('aria-label') : '' })); }
+    async function migClosed(p) { await p.waitForFunction(() => document.querySelector('#sheet').hidden && !document.querySelector('#toast').hidden); return p.evaluate(() => ({ toast: document.querySelector('#toast').textContent.trim(), screen: document.querySelector('#screen').getAttribute('data-screen'), lock: !!document.querySelector('#screen .daterow [data-k="lock"]'), stage: '' })); }
     for (const width of [360, 390, 430]) for (const dark of [false, true]) {
       const t = await migratePhone({ width, dark, card: width === 390 }), p = t.page, original = JSON.stringify(storage);
       check(await p.getAttribute('#sheet', 'data-popup') === 'P-migrate' && await p.getAttribute('#screen', 'data-screen') === 'trip-organizer', 'PIA-153 ⤒ Update trip opens over the trip ' + (width === 390 ? '(one tap on the card\'s ⤒)' : '(the trip view\'s ⤒)'));
@@ -134,9 +134,14 @@ async function main() {
       check(await p.evaluate(() => localStorage.getItem('pialax_watchlist_v1')) === original, 'migration never changes v1 storage');
       check(!t.requests.some(r => /^\/(search|account)$/.test(r.path)), 'migration makes no paid requests');
       const done = await migClosed(p);
-      check(done.toast === '🔒 ✓' && done.screen === 'trip-organizer' && done.lock && done.stage === 'Dates set', 'PIA-153 the update closes its sheet back to the trip; the toast says 🔒 ✓ and the trip reads 🔒 Dates set (its pill\'s 🔒, its stage)', done);
-      check(await p.locator('#screen [data-act="edit"]').count() === 1 && !await p.locator('#screen [data-act="migrate"]').count(), 'successful update unlocks the existing v2 editor');
-      check(await p.evaluate(() => (document.querySelector('#screen .ttl') || {}).textContent) === '🦃 Thanksgiving', 'PIA-153 the trip view shows its new name');
+      // (PIA-154: the stage is read in ⋯ More's stepper; ✎ Edit is a row there)
+      await tap(p, '#screen .nav [data-act="stage"]');
+      done.stage = await p.getAttribute('#sheet .stepper', 'aria-label').catch(() => '');
+      const edit = await p.locator('#sheet [data-act="edit"]').count();
+      await tap(p, '#sheet [data-act="sh-close"]');
+      check(done.toast === '🔒 ✓' && done.screen === 'trip-organizer' && done.lock && done.stage === 'Stage: Dates set', 'PIA-153 the update closes its sheet back to the trip; the toast says 🔒 ✓ and the trip reads 🔒 Dates set (its pill\'s 🔒, ⋯ More\'s stage)', done);
+      check(edit === 1 && !await p.locator('#screen [data-act="migrate"]').count(), 'successful update unlocks the existing v2 editor (⋯ More › ✎ Edit)');
+      check(await p.evaluate(() => (document.querySelector('#screen .ttl [data-free]') || {}).textContent) === '🦃 Thanksgiving', 'PIA-153 the trip view shows its new name');
       check(t.errors.length === 0, 'migration has no browser exceptions', t.errors); await t.ctx.close();
     }
     const stale = await migratePhone(); await tap(stale.page, '#sheet [data-act="migplan"][data-v="span"]');

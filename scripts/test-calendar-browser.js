@@ -69,22 +69,25 @@ async function main() {
     async function measure(page, label) {
       const r = await page.evaluate(() => {
         const visible = e => !!e && !!e.getClientRects().length && !e.closest('[hidden],.vh') && getComputedStyle(e).visibility !== 'hidden';
-        const sheet = document.querySelector('#sheet'), open = visible(sheet), roots = open ? [sheet] : [document.querySelector('#screen'), document.querySelector('#tabbar')], words = [], small = [];
+        const sheet = document.querySelector('#sheet'), open = visible(sheet), roots = open ? [sheet] : [document.querySelector('#screen'), document.querySelector('#tabbar')], words = [], small = [], marked = [];
+        // (PIA-154: a screen's marked label words, data-lbl3 — Tue / Wed / Thu here — count apart: ≤10 ordinary + ≤3 marked; a popup marks none)
         for (const root of roots) for (const e of [root, ...root.querySelectorAll('*')]) if (visible(e)) {
           if (!e.closest('[data-free]')) {
-            for (const n of e.childNodes) if (n.nodeType === 3) words.push(...n.textContent.split(/\s+/).filter(t => /\p{L}/u.test(t)));
+            for (const n of e.childNodes) if (n.nodeType === 3) (e.closest('[data-lbl3]') ? marked : words).push(...n.textContent.split(/\s+/).filter(t => /\p{L}/u.test(t)));
             if (e.tagName === 'INPUT' && e.type !== 'password') words.push(...(e.value || e.placeholder || '').split(/\s+/).filter(t => /\p{L}/u.test(t)));
           }
           if (e.matches('button,a')) { const r = e.getBoundingClientRect(); if (r.width < 43.5 || r.height < 43.5 || !(e.getAttribute('aria-label') || e.textContent.trim())) small.push(e.outerHTML.slice(0, 120)); }
         }
-        return { words, small, max: open ? 20 : 10, overflow: document.documentElement.scrollWidth > innerWidth + 1 || open && sheet.scrollWidth > sheet.clientWidth + 1 };
+        return { words, marked, small, max: open ? 20 : 10, overflow: document.documentElement.scrollWidth > innerWidth + 1 || open && sheet.scrollWidth > sheet.clientWidth + 1 };
       });
-      check(r.words.length <= r.max && !r.small.length && !r.overflow, label + ': word budget, named 44px targets, no overflow', r);
+      check(r.words.length <= r.max && r.marked.length <= (r.max === 10 ? 3 : 0) && !r.small.length && !r.overflow, label + ': word budget (≤10 + 3 marked), named 44px targets, no overflow', r);
     }
     async function agreement(t, docs) {
       const current = docs.map(d => t.db.read(d.id)), m = M.tripModel(current[0], { today: TODAY, now: NOW, otherTrips: current.slice(1) });
       const drawn = await t.page.$$eval('#screen [data-act="calday"]', es => es.map(e => ({ day: e.dataset.v, n: +e.dataset.n, drawn: +(e.querySelector('.pc-n')?.textContent || 0), warn: !!e.querySelector('[data-k="calclash"]') })));
-      check(drawn.length >= 28 && drawn.every(d => { const p = M.calendarDay(m, d.day); return d.n === p.n && d.drawn === p.n && d.warn === !!p.clashes.length && d.n <= m.headsIn; }), 'every Calendar day agrees with the shared record and heads ring', drawn.filter(d => d.n > 0));
+      // (PIA-154: the numeral is drawn only while someone who travels is there: no 0, and a day with only the hosts stays blank)
+      const travels = (day) => m.members.some(x => !x.host && x.status === 'in' && !!x.d1 && !x.bad && day >= x.d1 && day <= x.d2);
+      check(drawn.length >= 28 && drawn.every(d => { const p = M.calendarDay(m, d.day); return d.n === p.n && d.drawn === (travels(d.day) ? p.n : 0) && d.warn === !!p.clashes.length && d.n <= m.headsIn; }), 'every Calendar day agrees with the shared record and the heads in (its numeral only where someone travels, never a 0)', drawn.filter(d => d.n > 0));
     }
     for (const width of [360, 390, 430]) for (const dark of [false, true]) {
       const docs = fixture(), t = await phone(docs, { width, dark }), p = t.page;
@@ -120,8 +123,9 @@ async function main() {
     await tap(b.page, '#sheet [data-act="answer"][data-v="out"]'); await replied;
     await a.page.reload(); await a.page.waitForSelector('[data-act="calday"]'); await agreement(a, docs);
     check(await a.page.locator('[data-act="calday"][data-v="2026-11-09"]').getAttribute('data-n') === '2' && await a.page.locator('[data-v="2026-11-09"] [data-k="calclash"]').count() === 0, 'another phone’s Out updates presence and clears its overlap');
-    await tap(a.page, '#screen .mini');
-    check((await a.page.locator('#screen .ring text').textContent()) === '2/4', 'after reconciliation the trip ring agrees with Calendar presence and the shared answer');
+    // (PIA-154: the selected trip's title opens it, where the mini card was; the heads in are the board's n/N, where the ring was)
+    await tap(a.page, '#screen #sel-title');
+    check((await a.page.locator('#screen .pb-head .hin').textContent()) === '2/4', 'after reconciliation the trip\'s heads in (n/N) agree with Calendar presence and the shared answer');
     await tap(a.page, '#screen [data-act="back"]'); await tap(a.page, '#tabbar [data-v="trips"]');
     await tap(a.page, '#screen [data-act="seg"][data-v="family"]');
     check((await a.page.locator('#fam-board .ft').allTextContents())[0] === '2/4', 'Family shows the same reconciled headcount');

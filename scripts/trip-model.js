@@ -2051,22 +2051,35 @@ function whoAmI(doc, o) {
   if (hint && (!hits.length || hits.some(function (m) { return m.code === hint; }))) return { me: hint, from: 'hint', ask: false, hint: hint, pre: '' };
   return { me: '', from: '', ask: true, hint: hint, pre: pre };
 }
-/* The one primary action of a trip view, the same rule for every role (hosts have none):
-   • before the dates are set: share and look: 'share' [📣 Share | ✈↗ my search] for a traveler who answered in or
-     maybe (and for the organizer even before he answers), 'share-only' for an organizer who does not travel;
-   • once set (🔒), with my days still ahead: 'book' [✈ Book ↗ | 🎫 I booked];
-   • after my own 🎫: 'booked' [🎫 | ✈⏱↗ Flighty] (kept on a paid trip: a booked flight is still real);
-   • 'none': a host, someone who is out, a guest who has not answered (the answer row is the call) or has no face
-     here, a set plan whose days have begun, and a closed trip (paid or dropped). */
+/* PIA-154: a booked traveler's travel days: from the day before their first day to their last (inclusive), when Track is the
+   one thing worth a tap. false for someone not booked, not travelling, or with no days. */
+function travelWindow(model, code, today) {
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  return !!x && x.traveler && x.booked && !!x.d1 && !!x.d2 && !x.bad && isIso(today) && today >= addD(x.d1, -1) && today <= x.d2;
+}
+/* PIA-154: the organizer can lock the dates now: his phone, an updated (v2) trip still open, not over and not locked yet, with a
+   plan and a destination (the Worker's chosen needs both) that has not begun */
+function lockable(model, today) {
+  return !!model.org && !model.legacy && !model.closed && !model.past && !model.locked && !!model.plan && !!model.dest && isIso(today) && model.plan.s >= today;
+}
+/* The one primary action of a trip view (and the card's slot), the same rule for every role, checked in this order (PIA-154):
+   1. dropped or closed (paid): 'track' in my travel window (travelWindow), else 'none';
+   2. the organizer, dates not locked: 'share' while anyone who is not a host is still waiting; else 'lock' (lockable); else
+      'share'. A v1 trip not updated yet gives 'share' while someone waits, else 'none' (the nav's ⤒ carries its next step);
+   3. me, booked: 'track' in my travel window; else 'times' while my landing time is mine to record and missing; else 'none';
+   4. me travelling, answered, the dates locked, not booked, my days ahead: 'book';
+   5. else 'none': a host, a guest before 🔒, a guest who has not answered (the answer row is the call), someone out, nobody. */
 function primaryAction(model, today) {
   var me = model.me;
-  if (model.decision === 'dropped' || (me && me.host)) return 'none';
-  if (me && me.traveler && me.booked) return 'booked';
-  if (model.closed) return 'none';
-  if (!me || !me.traveler) return model.org && !model.locked ? 'share-only' : 'none';
-  if (!model.org && !me.answered) return 'none';
-  if (model.locked) return me.d1 && me.d1 >= today ? 'book' : 'none';
-  return 'share';
+  if (model.decision === 'dropped' || model.closed) return me && travelWindow(model, me.code, today) ? 'track' : 'none';
+  if (model.org && !model.locked) {
+    var waiting = model.members.some(function (x) { return !x.host && x.status === 'waiting'; });
+    if (model.legacy) return waiting ? 'share' : 'none';
+    return waiting ? 'share' : lockable(model, today) ? 'lock' : 'share';
+  }
+  if (me && me.traveler && me.booked) return travelWindow(model, me.code, today) ? 'track' : timesBy(model, me.code) === 'self' && !me.arrTime ? 'times' : 'none';
+  if (me && me.traveler && me.answered && model.locked && !me.booked && !!me.d1 && me.d1 >= today) return 'book';
+  return 'none';
 }
 /* The organizer's 🎫 on someone else's row of the people board, shown once the dates are set or anyone has booked:
    never on a host, never on his own row (his is the primary's), never on a closed trip or an unmigrated v1 doc.
@@ -2272,17 +2285,19 @@ function mineVsPlan(model, today) {
    The stage is derived in tripModel from the booked flags (🎫 Booking once any traveler has booked, 🏁 Done once every one
    has), so every phone reads the same stage from the same record. A 🎫 never closes the answers: only 💵 paid (the Worker's
    booked decision) or 🗑 does. */
-/* one traveler's hand-off slot in P-person, by the trip view's own rule (primaryAction, bookToggle): their Google Flights
-   search before the dates are set; [✈ Book ↗ | 🎫] side by side once they are; [✈⏱↗ Flighty | 🎫] after their 🎫. tk is
-   whose 🎫 sits there: 'self' (my own: one tap, taking it back asks first), 'org' (the organizer marking someone else:
-   bookToggle, a confirming tap for someone waiting or out), '' none. PIA-151: their flight section also offers
-   [✈ Book ↗ | 🎫] before the 🔒 once their days are known and ahead (earlyBook; early: true), mine where the trip view's
-   primary is [📣 Share | ✈↗] (an answer in or maybe, or the organizer's own). → {slot: 'gf' | 'book' | 'booked' | '', tk, early} */
+/* one traveler's hand-off slot in P-person (bookToggle for someone else's): their Google Flights search before the dates are
+   set; [✈ Book ↗ | 🎫] side by side once they are; [✈⏱↗ Flighty | 🎫] after their 🎫. tk is whose 🎫 sits there: 'self' (my
+   own: one tap, taking it back asks first), 'org' (the organizer marking someone else: bookToggle, a confirming tap for someone
+   waiting or out), '' none. Mine once set (🔒): my answer in or maybe (or the organizer's own) and my days ahead. PIA-151: their
+   flight section also offers [✈ Book ↗ | 🎫] before the 🔒 once their days are known and ahead (earlyBook; early: true), mine
+   once I have answered in or maybe (or am the organizer). PIA-154: decided here, never from the trip view's primary (whose rule
+   changed): the same 🎫 outcomes as before. → {slot: 'gf' | 'book' | 'booked' | '', tk, early} */
 function bookSlot(model, code, today) {
   var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
   if (!x || !x.traveler) return { slot: '', tk: '', early: false };
-  var mine = !!model.me && model.me.code === code, early = earlyBook(model, code, today), pa = mine ? primaryAction(model, today) : '';
-  var tk = model.closed ? '' : mine ? (x.booked || pa === 'book' || (early && pa === 'share') ? 'self' : '') : bookToggle(model, code, early) ? 'org' : '';
+  var mine = !!model.me && model.me.code === code, early = earlyBook(model, code, today), mayBook = model.org || x.answered;
+  var setBook = model.locked && mayBook && !!x.d1 && x.d1 >= today;
+  var tk = model.closed ? '' : mine ? (x.booked || setBook || (early && !model.locked && mayBook) ? 'self' : '') : bookToggle(model, code, early) ? 'org' : '';
   return { slot: x.booked ? 'booked' : tk ? 'book' : 'gf', tk: tk, early: early };
 }
 /* a typed time → 'HH:MM' (24h); blank → ''; anything else → null. '15:10', '1510', '0905', '0:30' are times, and so
@@ -2675,7 +2690,7 @@ if (typeof module !== 'undefined' && module.exports) {
     wordsIn: wordsIn, capTyped: capTyped, firstWords: firstWords, cleanName: cleanName, joinLink: joinLink, parseJoin: parseJoin,
     legacyDraft: legacyDraft, groupPresets: groupPresets, freeFace: freeFace, FAMILY_KEY: FAMILY_KEY,
     fitTyped: fitTyped, keepName: keepName, CAPTION_CHARS: CAPTION_CHARS, owedSync: owedSync,
-    whoAmI: whoAmI, primaryAction: primaryAction, bookToggle: bookToggle,
+    whoAmI: whoAmI, primaryAction: primaryAction, travelWindow: travelWindow, lockable: lockable, bookToggle: bookToggle,
     SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
     windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, flightEnds: flightEnds, dayPeople: dayPeople, calendarDay: calendarDay, datesRole: datesRole, datesHeld: datesHeld, mineVsPlan: mineVsPlan,
     bookSlot: bookSlot, earlyBook: earlyBook, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,

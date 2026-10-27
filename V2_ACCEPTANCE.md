@@ -32,6 +32,21 @@ share sheet. Group-link RSVP remains three steps. Calendar adds one tap from a
 trip/list to Calendar, one from a day to P-day, one from its face to P-person,
 and one from P-day ＋ to the normal create flow with the selected date.
 
+PIA-154 re-measured both: Diwali and Tahoe stay 13/19 (the new trip's Share is
+its primary, one tap, as 📣 was). Paths it moved, each counted by `test-words`
+with real clicks: the phone calendar is 3 taps (⋯ More, 📅 Calendar, 📅 Phone),
+Edit and the caption 2 (⋯, the row); sharing a trip is 1 for the organizer (the
+Share primary while someone waits, else the nav's share symbol) and 2 for a guest
+(⋯, Share); nudging one waiting person 2 (their face, Share); locking the dates 1
+once everyone answered ("🔒 Lock dates", ↩ in its toast), else 2 from P-dates;
+changing my answer 2 (my answer chip, the new answer); the organizer's 🎫 for
+someone 2 (their face, "🎫 Booked"); flights before 🔒 2 (my bar, ✈↗); the build
+check stays 2 (ⓘ, ⚙). Group-link RSVP stays three steps; a nudge link two.
+Two jobs got longer on purpose: moving the plan a day is 3 taps (the pill, −1 or
++1 in P-dates, Save) where the trip page's ±1 was 1, since a set plan rarely
+moves; and 🧭↗ Explore for an idea with no place is the organizer's card alone
+(guests cannot change the destination, and the trip page's primary is Share).
+
 The suites compare dates, event-day constraints, answers, stages, bookings,
 headcounts, airport choices and totals with the same shared record/model.
 Writing jobs use the real in-process Worker. Paid upstreams are fixtures; no

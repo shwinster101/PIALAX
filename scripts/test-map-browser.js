@@ -78,19 +78,21 @@ async function main() {
     async function measure(page, label) {
       const report = await page.evaluate(() => {
         const visible = e => !!(e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden],.vh'));
+        // (PIA-154: a screen's marked label words, data-lbl3 — the pickups table's Lands / Leaves here — count apart: ≤10 + ≤3 marked)
+        const marked = [];
         function words(roots) {
           const out = [];
           for (const root of roots) if (visible(root)) for (const e of [root, ...root.querySelectorAll('*')]) if (visible(e) && !e.closest('[data-free]')) {
-            for (const n of e.childNodes) if (n.nodeType === 3) out.push(...n.textContent.split(/\s+/).filter(t => /\p{L}/u.test(t)));
+            for (const n of e.childNodes) if (n.nodeType === 3) (e.closest('[data-lbl3]') ? marked : out).push(...n.textContent.split(/\s+/).filter(t => /\p{L}/u.test(t)));
             if (e.tagName === 'INPUT' && e.type !== 'password') out.push(...(e.value || e.placeholder || '').split(/\s+/).filter(t => /\p{L}/u.test(t)));
           }
           return out;
         }
         const sheet = document.querySelector('#sheet'), open = visible(sheet), root = open ? sheet : document.querySelector('#screen');
         const small = [...root.querySelectorAll('button,a')].filter(visible).filter(e => { const r = e.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5 || !(e.getAttribute('aria-label') || e.textContent.trim()); }).map(e => e.outerHTML.slice(0, 160));
-        return { words: words(open ? [sheet] : [root, document.querySelector('#tabbar')]), max: open ? 20 : 10, small, overflow: document.documentElement.scrollWidth > innerWidth + 1 || sheet.scrollWidth > sheet.clientWidth + 1 && open };
+        return { words: words(open ? [sheet] : [root, document.querySelector('#tabbar')]), marked, max: open ? 20 : 10, small, overflow: document.documentElement.scrollWidth > innerWidth + 1 || sheet.scrollWidth > sheet.clientWidth + 1 && open };
       });
-      check(report.words.length <= report.max && !report.small.length && !report.overflow, label + ': words, 44px named controls, no overflow ' + JSON.stringify(report));
+      check(report.words.length <= report.max && report.marked.length <= (report.max === 10 ? 3 : 0) && !report.small.length && !report.overflow, label + ': words (≤10 + 3 marked), 44px named controls, no overflow ' + JSON.stringify(report));
     }
     for (const width of [360, 390, 430]) for (const dark of [false, true]) {
       const t = await phone({ width, dark });
@@ -99,7 +101,8 @@ async function main() {
       await measure(t.page, 'Map');
       if (width === 360) await t.page.screenshot({ path: '/tmp/pialax143-map-' + (dark ? 'dark' : 'light') + '.png', fullPage: true });
       check(!t.requests.some(r => assets[r.url] && r.headers['x-pialax-token']), 'asset requests never carry the organizer token');
-      await t.page.click('.map-places [data-act="mapairport"]'); await measure(t.page, 'Airport sheet');
+      // (PIA-154: the airports are the pickups table's row heads, "📍RDU", where the map-places chips were)
+      await t.page.click('.lanes .lh[data-act="mapairport"]'); await measure(t.page, 'Airport sheet');
       await t.page.click('#sheet [data-act="sh-close"]');
       await t.page.click('[data-act="candidate"]'); await t.page.fill('#candidate-ap', 'DEN'); await t.page.click('[data-act="candpreview"]');
       await measure(t.page, 'Destination preview');
@@ -108,7 +111,7 @@ async function main() {
       check(t.paid.length === 3 && t.paid.every(u => new URL(u).searchParams.get('arrival_id') === 'DEN') && t.read().idea.destination.airport === 'RDU', 'one explicit tap prices only the preview; the shared destination is unchanged');
       await measure(t.page, 'Priced preview');
       await t.page.click('#sheet [data-act="canduse"]'); await t.page.waitForSelector('#sheet[hidden]', { state: 'attached' });
-      check(t.read().idea.destination.airport === 'DEN' && await t.page.locator('.map-places').innerText().then(s => s.includes('DEN')), 'Use writes the destination through the real Worker and redraws Map from that record');
+      check(t.read().idea.destination.airport === 'DEN' && await t.page.locator('.lanes .lh[data-act="mapairport"]').first().innerText().then(s => s.includes('DEN')), 'Use writes the destination through the real Worker and redraws Map from that record (its pickups row reads 📍DEN)');
       check(t.errors.length === 0, 'no browser exceptions');
       await t.ctx.close();
     }
@@ -116,7 +119,7 @@ async function main() {
       const doc = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/idea-diwali.json')));
       for (const x of doc.idea.members) doc.responses[x.code] = { status: 'in', origin: x.airport, note: '🛬15:00 🛫18:00', booked: true };
       const t = await phone({ fail, doc, guest: true });
-      check(await t.page.locator('[data-map="ready"]').count() === 0 && await t.page.locator('.map-faces [data-act="person"]').count() === 3 && await t.page.locator('.lane .pk').count() > 0, fail + ': faces and pickups survive; no unverified map is drawn');
+      check(await t.page.locator('[data-map="ready"]').count() === 0 && await t.page.locator('.map-faces [data-act="person"]').count() === 3 && await t.page.locator('.lanes .pk').count() > 0, fail + ': faces and pickups survive; no unverified map is drawn');
       await measure(t.page, fail + ' fallback');
       await t.page.click('.pk.arr'); await t.page.waitForSelector('#sheet[data-popup="P-day"]');
       check((await t.page.locator('#sheet .mapday').innerText()).includes('15:00'), fail + ': pickup opens the real names and recorded times');
@@ -127,7 +130,7 @@ async function main() {
     const ny = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/idea-diwali.json'))); ny.idea.destination.airport = 'PIA';
     for (const x of ny.idea.members) ny.responses[x.code] = { status: 'in', origin: x.airport, note: '' };
     const alt = await phone({ doc: ny });
-    await alt.page.click('.map-places [data-v="ORD"]'); await alt.page.click('#sheet [data-act="mapwho"][data-code="ashwin-p8"]');
+    await alt.page.click('.lanes .lh[data-v="ORD"]'); await alt.page.click('#sheet [data-act="mapwho"][data-code="ashwin-p8"]');
     const responded = alt.page.waitForResponse(r => r.url().includes('/idea/respond') && r.request().method() === 'POST');
     await alt.page.click('#sheet [data-act="legair"][data-end="0"][data-v="ORD"]');
     check((await responded).ok(), 'alternate airport change is accepted by the real Worker');
@@ -182,7 +185,9 @@ async function main() {
       const d = clone(ny); d.idea.destination.airport = airport;
       if (airport === 'ZZQ') d.idea.members.forEach(x => { x.airport = 'QQQ'; d.responses[x.code].origin = 'QQQ'; });
       const t = await phone({ doc: d, guest: true }); await measure(t.page, airport + ' map');
-      check(await t.page.locator('.map-faces [data-act="person"]').count() === d.idea.members.length && t.paid.length === 0, airport + ': all faces remain reachable without searches');
+      // (PIA-154: the roster holds only the faces the map could not place; every face is on the map or in the roster)
+      const reach = await t.page.$$eval('#screen .map [data-act="person"], #screen .map-faces [data-act="person"]', (es) => [...new Set(es.map((e) => e.getAttribute('data-code')))].length);
+      check(reach === d.idea.members.length && t.paid.length === 0, airport + ': all faces remain reachable without searches (on the map or in the roster under it)');
       await t.ctx.close();
     }
     process.stdout.write('all ' + checks + ' map browser checks passing\n');

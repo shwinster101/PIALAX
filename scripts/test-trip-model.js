@@ -1011,21 +1011,68 @@ function makeServer(worker) {
       'two "Sam Lee"s: a hint for one of them greets; a hint for someone else asks with nobody preselected (the hint marked); the name a phone asked to join with counts too', [twoHint, twoOther, asked]);
   }
   {
-    // the one primary action: share and look before the dates are set, book and mark booked once set, Flighty after
+    // PIA-154: the one primary action, checked in order: closed → Track in my travel days; the organizer before 🔒 → Share while
+    // anyone waits, then Lock dates; me booked → Track in my travel days, else Landing time while it is missing; me answered, 🔒 → Book
     const P = (doc, o, today) => M.primaryAction(model(doc, o), today || TODAY);
+    const ORG = { me: 'ashwin-p8', hasEditKey: true };
     const locked = tweak(DW, (x) => { x.decision = { stage: 'chosen', chosen: { airport: 'RDU', city: 'Raleigh', departure: '2026-11-06', return: '2026-11-09' } }; });
     const bookedAnjo = tweak(locked, (x) => { x.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
+    const timedAnjo = tweak(bookedAnjo, (x) => { x.responses['anjo-z5'].note = '🛬15:10'; });
     const paid = tweak(bookedAnjo, (x) => { x.decision.stage = 'booked'; x.decision.actual_total = 900; });
     const dropped = tweak(bookedAnjo, (x) => { x.decision.stage = 'dropped'; });
     const outAnjo = tweak(DW, (x) => { x.responses['anjo-z5'] = R('out', 'LGA'); }), inAnjo = tweak(DW, (x) => { x.responses['anjo-z5'] = R('in', 'LGA'); });
-    check(P(DW, { me: 'ashwin-p8', hasEditKey: true }) === 'share' && P(DW, { me: 'anjo-z5', hasEditKey: true }) === 'share' && P(DW, { hasEditKey: true }) === 'share-only' &&
-      P(inAnjo, { me: 'anjo-z5' }) === 'share' && P(DW, { me: 'anjo-z5' }) === 'none' && P(outAnjo, { me: 'anjo-z5' }) === 'none' && P(DW, {}) === 'none',
-      'before the dates are set: [📣 Share | ✈↗] for the organizer and for a guest who answered; a guest who has not answered (the answer row is the call), who is out, or who has no face here has none');
-    check(P(tg, { me: 'PIA' }) === 'none' && P(tg, { me: 'PIA', hasEditKey: true }) === 'none', 'hosts have none, as guests and as the organizer');
-    check(P(locked, { me: 'anjo-z5', hasEditKey: true }) === 'book' && P(locked, { me: 'ashwin-p8' }) === 'book' && P(locked, { hasEditKey: true }) === 'none' && P(locked, { me: 'ashwin-p8' }, '2026-11-07') === 'none',
-      'once set (🔒): [✈ Book ↗ | 🎫] while my days are ahead; an organizer who does not travel has none once set, and nobody books days that have begun');
-    check(P(bookedAnjo, { me: 'anjo-z5' }) === 'booked' && P(paid, { me: 'anjo-z5' }) === 'booked' && P(paid, { me: 'ashwin-p8' }) === 'none' && P(dropped, { me: 'anjo-z5' }) === 'none',
-      'after my 🎫: [🎫 | ✈⏱↗ Flighty], kept on a paid trip; a paid trip offers nothing else, a dropped one nothing at all');
+    const lockedIn = tweak(locked, (x) => { x.responses['anjo-z5'] = R('in', 'LGA'); });
+    const orgBooked = tweak(DW, (x) => { x.responses['ashwin-p8'].booked = true; });
+    const legWait = tweak(LEG, (x) => { delete x.responses.LGA; });
+    check(P(DW, ORG) === 'share' && P(DW, { hasEditKey: true }) === 'share' && P(CY, { me: 'ashwin-c3', hasEditKey: true }) === 'share' && P(orgBooked, ORG) === 'share',
+      'PIA-154 the organizer before 🔒, while anyone who is not a host still waits: Share (on the trip or not, dated or not, booked early or not)');
+    const tgOpen = tweak(tg, (x) => { x.decision.stage = 'proposed'; });   // (P-migrate keeps the v1 🔒; unlocked, the host still owes his answer)
+    check(P(inAnjo, ORG) === 'lock' && P(inAnjo, { hasEditKey: true }) === 'lock' && P(outAnjo, ORG) === 'lock' && P(tgOpen, { me: 'PIA', hasEditKey: true }) === 'lock' && P(tg, { me: 'PIA', hasEditKey: true }) === 'none',
+      'PIA-154 …once nobody waits (out is an answer; a host\'s default In is not waiting): 🔒 Lock dates, for an organizer who hosts too');
+    check(P(inAnjo, ORG, '2026-11-07') === 'share' && P(tweak(inAnjo, (x) => { x.idea.destination.airport = ''; }), ORG) === 'share' &&
+      P(tweak(CY, (x) => { x.responses['momdad-c1'] = R('in', 'PIA'); }), { me: 'ashwin-c3', hasEditKey: true }) === 'share',
+      'PIA-154 …but never Lock for a plan that has begun, a trip with no destination or no dates yet: Share stays');
+    check(P(LEG, { me: 'LAX', hasEditKey: true }) === 'none' && P(legWait, { me: 'LAX', hasEditKey: true }) === 'share',
+      'PIA-154 a v1 trip not updated yet: Share while someone waits, else nothing (the nav\'s ⤒ carries its next step)');
+    check(P(inAnjo, { me: 'anjo-z5' }) === 'none' && P(inAnjo, { me: 'ashwin-p8' }) === 'none' && P(DW, { me: 'anjo-z5' }) === 'none' && P(outAnjo, { me: 'anjo-z5' }) === 'none' && P(DW, {}) === 'none' && P(tg, { me: 'PIA' }) === 'none',
+      'PIA-154 guests before 🔒 have no primary (answered or not, out, nobody here, a host): the answer row is the call');
+    check(P(lockedIn, { me: 'anjo-z5' }) === 'book' && P(locked, { me: 'ashwin-p8' }) === 'book' && P(locked, ORG) === 'book' && P(locked, { me: 'anjo-z5' }) === 'none' && P(locked, { me: 'anjo-z5', hasEditKey: true }) === 'none' &&
+      P(locked, { hasEditKey: true }) === 'none' && P(locked, { me: 'ashwin-p8' }, '2026-11-07') === 'none' && P(tweak(lockedIn, (x) => { x.responses['anjo-z5'].status = 'out'; }), { me: 'anjo-z5' }) === 'none',
+      'PIA-154 once 🔒: Book for a traveler who answered (the organizer too) while their days are ahead; none unanswered, out, begun, or not travelling');
+    check(P(bookedAnjo, { me: 'anjo-z5' }) === 'times' && P(bookedAnjo, { me: 'anjo-z5' }, '2026-11-04') === 'times' && P(timedAnjo, { me: 'anjo-z5' }) === 'none',
+      'PIA-154 booked: Landing time while it is missing (mine to record), nothing once it is there');
+    check(P(bookedAnjo, { me: 'anjo-z5' }, '2026-11-05') === 'track' && P(bookedAnjo, { me: 'anjo-z5' }, '2026-11-09') === 'track' && P(timedAnjo, { me: 'anjo-z5' }, '2026-11-06') === 'track' &&
+      P(tweak(bookedAnjo, (x) => { x.responses['ashwin-p8'].booked = true; }), ORG, '2026-11-05') === 'track',
+      'PIA-154 booked, from the day before my first day to my last: Track (the organizer too, once locked)');
+    check(P(paid, { me: 'anjo-z5' }) === 'none' && P(paid, { me: 'anjo-z5' }, '2026-11-06') === 'track' && P(paid, ORG) === 'none' && P(dropped, { me: 'anjo-z5' }) === 'none' && P(dropped, { me: 'anjo-z5' }, '2026-11-08') === 'track',
+      'PIA-154 closed (paid or dropped): Track in my travel days, else nothing');
+    const TW = (doc, code, day) => M.travelWindow(model(doc, { me: code }), code, day);
+    check(TW(bookedAnjo, 'anjo-z5', '2026-11-05') && TW(bookedAnjo, 'anjo-z5', '2026-11-09') && !TW(bookedAnjo, 'anjo-z5', '2026-11-04') && !TW(bookedAnjo, 'anjo-z5', '2026-11-10') &&
+      !TW(locked, 'ashwin-p8', '2026-11-06') && !TW(bookedAnjo, 'nobody-00', '2026-11-06') && !M.travelWindow(model(bookedAnjo, {}), 'anjo-z5', '') &&
+      TW(tweak(bookedAnjo, (x) => { x.responses['anjo-z5'].available_from = '2026-11-08'; }), 'anjo-z5', '2026-11-07') && !TW(tweak(bookedAnjo, (x) => { x.responses['anjo-z5'].available_from = '2026-11-08'; }), 'anjo-z5', '2026-11-06'),
+      'PIA-154 travelWindow: booked, from the day before their own first day to their last, inclusive; never unbooked, unknown or undated');
+    const LK = (doc, o, day) => M.lockable(model(doc, o), day || TODAY);
+    check(LK(inAnjo, ORG) && LK(DW, ORG) && LK(inAnjo, { hasEditKey: true }) && !LK(inAnjo, { me: 'ashwin-p8' }) && !LK(locked, ORG) && !LK(paid, ORG) && !LK(dropped, ORG) && !LK(LEG, { me: 'LAX', hasEditKey: true }) &&
+      !LK(CY, { me: 'ashwin-c3', hasEditKey: true }) && !LK(tweak(DW, (x) => { x.idea.destination.airport = ''; }), ORG) && LK(DW, ORG, '2026-11-06') && !LK(DW, ORG, '2026-11-07') && !LK(DW, ORG, '2026-11-12'),
+      'PIA-154 lockable: the organizer\'s phone, a v2 trip open and not locked, with a plan and a destination that has not begun');
+    // bookSlot keeps every 🎫 outcome it had: the old rule (the old primary's 'book' / 'share', written out here) over a matrix
+    const OLD = (m, code, today) => {
+      const me = m.me, x = m.members.find((y) => y.code === code) || null;
+      if (!x || !x.traveler) return { slot: '', tk: '', early: false };
+      const pa = !me || me.code !== code ? '' : (m.decision === 'dropped' || me.host) ? 'none' : (me.traveler && me.booked) ? 'booked' : m.closed ? 'none' :
+        !me.traveler ? (m.org && !m.locked ? 'share-only' : 'none') : (!m.org && !me.answered) ? 'none' : m.locked ? (me.d1 && me.d1 >= today ? 'book' : 'none') : 'share';
+      const early = M.earlyBook(m, code, today), mine = !!me && me.code === code;
+      const tk = m.closed ? '' : mine ? (x.booked || pa === 'book' || (early && pa === 'share') ? 'self' : '') : M.bookToggle(m, code, early) ? 'org' : '';
+      return { slot: x.booked ? 'booked' : tk ? 'book' : 'gf', tk, early };
+    };
+    const docs = [DW, inAnjo, outAnjo, locked, lockedIn, bookedAnjo, timedAnjo, paid, dropped, orgBooked, LEG, legWait, tg, CY, M8, TH];
+    const days = [TODAY, '2026-11-05', '2026-11-07', '2026-11-26', '2026-12-30'], diffs = [];
+    let cases = 0;
+    docs.forEach((d, di) => [true, false].forEach((org) => [''].concat(d.idea.members.map((x) => x.code)).forEach((me) => days.forEach((day) => {
+      const m = M.tripModel(d, ctx({ me: me || null, hasEditKey: org, today: day }));
+      m.members.forEach((x) => { cases++; const a = M.bookSlot(m, x.code, day), b = OLD(m, x.code, day); if (!eq(a, b)) diffs.push({ di, org, me, day, code: x.code, a, b }); });
+    }))));
+    check(!diffs.length && cases > 400, 'PIA-154 bookSlot keeps every 🎫 outcome it had (' + cases + ' cases: 16 trips × organizer or not × each face × 5 days), decided without the trip view\'s primary', diffs.slice(0, 5));
     // the organizer's 🎫 on other rows
     const T = (doc, me, code, org) => M.bookToggle(model(doc, { me, hasEditKey: org !== false }), code);
     const lockedOut = tweak(locked, (x) => { x.responses['anjo-z5'] = R('out', 'LGA'); });
@@ -1338,8 +1385,8 @@ function makeServer(worker) {
       eq(slot(tweak(lk, (d) => { d.idea.dates.departure = '2026-10-10'; d.idea.dates.return = '2026-10-20'; d.decision.chosen.departure = '2026-10-10'; d.decision.chosen.return = '2026-10-20'; }), 'anjo-z5', 'anjo-z5'), { slot: 'gf', tk: '' }),
       'PIA-139 AC1 one slot rule: before 🔒 their ✈↗ alone; once 🔒 [✈ Book ↗ | 🎫] (mine, or the organizer\'s for someone); after the 🎫 [✈⏱↗ | 🎫]; a host has none; a paid trip keeps Flighty with no 🎫 to take away; days already begun book nothing');
     const lkH = M.handoffs(model(lkB, { me: 'anjo-z5' }), 'anjo-z5', ctx()), lkH0 = M.handoffs(model(lk, { me: 'anjo-z5' }), 'anjo-z5', ctx());
-    check(lkH.flighty && lkH.flighty.href === M.FLIGHTY_URL && lkH.flighty.target === '_blank' && !lkH0.flighty && !!lkH0.gf && M.primaryAction(model(lkB, { me: 'anjo-z5' }), TODAY) === 'booked',
-      'PIA-139 AC1 after her 🎫 the slot hands off to Flighty (a new tab); before it, Google Flights');
+    check(lkH.flighty && lkH.flighty.href === M.FLIGHTY_URL && lkH.flighty.target === '_blank' && !lkH0.flighty && !!lkH0.gf && M.primaryAction(model(lkB, { me: 'anjo-z5' }), TODAY) === 'times',
+      'PIA-139 AC1 after her 🎫 the slot hands off to Flighty (a new tab); before it, Google Flights (PIA-154: the trip view\'s primary is 🛬 Landing time until she records it)');
 
     // AC2 booked times: typed, recorded by her or by the organizer for her, kept in the note's prefix without erasing it
     check(eq(['15:10', '1510', '0905', ' 07:45 ', '0:30', '', '24:00', '15:60', '15:1', 'abc', '12345', '15', '13:00pm'].map((s) => M.typedTime(s)), ['15:10', '15:10', '09:05', '07:45', '00:30', '', null, null, null, null, null, null, null]),
@@ -2048,9 +2095,9 @@ function makeServer(worker) {
     const pastT = tweak(ub0, (d) => { d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-04'; d.idea.notes = ''; });
     const b5 = [slot5(ub0, { me: 'anjo-z5' }, 'anjo-z5'), slot5(ub0, ORG5, 'anjo-z5'), slot5(DW, ORG5, 'anjo-z5'), slot5(ub0, ORG5, 'ashwin-p8'), slot5(und, { me: 'anjo-z5' }, 'anjo-z5'), slot5(pastT, { me: 'anjo-z5' }, 'anjo-z5'), slot5(DW, { me: 'anjo-z5' }, 'anjo-z5')];
     check(eq(b5.map((s) => [s.slot, s.tk, s.early]), [['book', 'self', true], ['book', 'org', true], ['book', 'org', true], ['book', 'self', true], ['gf', '', false], ['gf', '', false], ['gf', '', true]]) &&
-      M.bookToggle(model(ub0, ORG5), 'anjo-z5') === null && eq(M.bookToggle(model(DW, ORG5), 'anjo-z5', true), { on: false, confirm: true }) && M.primaryAction(model(ub0, { me: 'anjo-z5' }), TODAY) === 'share' &&
+      M.bookToggle(model(ub0, ORG5), 'anjo-z5') === null && eq(M.bookToggle(model(DW, ORG5), 'anjo-z5', true), { on: false, confirm: true }) && M.primaryAction(model(ub0, { me: 'anjo-z5' }), TODAY) === 'none' &&
       M.earlyBook(model(tweak(ub0, (d) => { d.decision = clone(CHOSEN); })), 'anjo-z5', TODAY) === false && M.earlyBook(model(tweak(ub0, (d) => { d.decision.stage = 'dropped'; })), 'anjo-z5', TODAY) === false,
-      'PIA-151 AC5 before the 🔒: her flight section has [✈ Book ↗ | 🎫] (hers once she answered; the organizer\'s for her, a confirming tap while she is waiting; his own), the board\'s 🎫 and the trip view\'s [📣 Share | ✈↗] keep their rule; no 🎫 with no days, on a trip that is over, or before she answers', b5);
+      'PIA-151 AC5 before the 🔒: her flight section has [✈ Book ↗ | 🎫] (hers once she answered; the organizer\'s for her, a confirming tap while she is waiting; his own), the board\'s 🎫 keeps its rule (PIA-154: a guest\'s trip view has no primary before 🔒); no 🎫 with no days, on a trip that is over, or before she answers', b5);
     // through the real Worker: her booked 11/6 is stored; the organizer moves the plan +1: her booked flight stays, Ashwin follows,
     // and all five places agree on both of them again
     const id = srv.seed(tweak(DW, (d) => { d.responses['anjo-z5'] = R('in', 'LGA', '2026-11-05', '2026-11-08', { booked: true, note: '🛬09:05 🛫18:30' }); }));
@@ -2137,9 +2184,9 @@ function makeServer(worker) {
     // her sheet (earlyBook: no 🔒 on a v1 doc), the organizer's own too; only his 🎫 for someone else still waits for ⤒ Update trip
     const lgA = model(lgGuest, { me: 'LGA' }), lgO = model(lgOrg, { me: 'LAX', hasEditKey: true }), sl = (m, c) => { const s = M.bookSlot(m, c, TODAY); return [s.slot, s.tk, s.early]; };
     check(lgA.legacy && eq(sl(lgA, 'LGA'), ['book', 'self', true]) && eq(sl(lgO, 'LAX'), ['book', 'self', true]) && eq(sl(lgO, 'LGA'), ['gf', '', true]) &&
-      M.bookToggle(lgO, 'LGA', true) === null && M.primaryAction(lgA, TODAY) === 'share' && M.earlyBook(lgA, 'LGA', TODAY) &&
+      M.bookToggle(lgO, 'LGA', true) === null && M.primaryAction(lgA, TODAY) === 'none' && M.earlyBook(lgA, 'LGA', TODAY) &&
       !M.earlyBook(model(tweak(lgGuest, (d) => { d.decision = { stage: 'dropped' }; }), { me: 'LGA' }), 'LGA', TODAY),
-      'AC4a a v1 trip (not updated): Anjo\'s own flight section is [✈ Book ↗ | 🎫] (early, as on a v2 trip still Asking), the organizer\'s own too; his 🎫 for Anjo waits for ⤒ Update trip (no bookToggle); the trip view\'s primary keeps [📣 Share | ✈↗]; none on a dropped trip');
+      'AC4a a v1 trip (not updated): Anjo\'s own flight section is [✈ Book ↗ | 🎫] (early, as on a v2 trip still Asking), the organizer\'s own too; his 🎫 for Anjo waits for ⤒ Update trip (no bookToggle); the trip view has no primary for her before 🔒 (PIA-154); none on a dropped trip');
     // through the real Worker: her 🎫 on the v1 record, then her landing and leaving times; the record stays a v1 doc until the update,
     // which keeps her 🎫, days and times
     const vId = srv.seed(LEG), v0 = await srv.get(vId), bk = await srv.send(M.bookedRequests(v0, 'LGA', true, { by: 'self' })), v1d = await srv.get(vId);

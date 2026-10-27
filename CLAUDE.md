@@ -66,7 +66,10 @@ migration and on-device checks are recorded separately from fixture evidence.
 
 ## UI and security
 
-Screens have at most 10 visible words; popups at most 20. Count visible
+Screens have at most 10 ordinary visible words plus at most 3 marked label
+words (`data-lbl3`) from the PIA-154 allowlist (Coming?, Hosting?, Lock dates,
+I booked, Landing time, Track, Lands, Leaves; Tue, Wed, Thu on Calendar only);
+popups at most 20 and mark none. Count visible
 whitespace-separated tokens with a Unicode letter, including names, airport
 codes, labels, placeholders and typed values. Trip names and the expandable Nebby travel-reference notes marked `data-free`,
 numerals, prices, dates, emoji and glyphs are exempt. Use named 44px targets,

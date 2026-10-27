@@ -338,3 +338,34 @@ for later shared IDs; it never silently creates history on boot.
 actual migration, human/device checks and rollback. Fixture tests do not complete
 these launch checks. Public cutover and family-link sharing wait for recorded
 release readiness and verified deployed bytes.
+
+### PIA-154 amendment: one glyph, one meaning; three label words (2026-10-27)
+
+**The word rule, amended.** A screen keeps at most 10 ordinary words, and may add
+at most 3 *marked* label words, each inside `[data-lbl3]` and each from one list:
+Coming?, Hosting?, Lock dates, I booked, Landing time, Track, Lands, Leaves, and
+Tue / Wed / Thu in Calendar's weekday header. A popup (sheet, long-press label,
+toast) keeps 20 and marks nothing. The app's own `screenWords()` counts ordinary
+words only, so a label never pushes a name off the screen. `test-words` counts
+the two apart and fails on an 11th ordinary word, a 4th marked one, a marked word
+off the list, or any mark inside a popup.
+
+**One next step.** `primaryAction` (the marked model region) picks the trip page's
+one filled button and the card's slot by the same rule: share while someone
+waits, then 🔒 Lock dates (one tap, ↩ in its toast) on the organizer's phone;
+✈ Book ↗ with 🎫 I booked once the dates are locked; 🛬 Landing time once booked;
+✈ Track ↗ in the travel window; otherwise nothing. Rare actions (Pin, Archive,
+Share, Calendar, Note, Edit, Drop) live in ⋯ More.
+
+**One glyph, one meaning.** One share symbol (an inline SVG) replaces 📣
+everywhere; 🎫 only means booked; 🔒 only belongs to the date pill, P-dates and
+Lock dates; ☀ / 🌃 only appear while a time is typed; 📌 only where the event
+day is set (P-dates, and the create and edit steps), never on a pill or card.
+No placeholders stand in for missing data (no $— chips, 0 days or ––:––): where
+something can be priced, the action that fills it is shown instead. A saved plan
+that cannot be locked yet (no destination, already begun) shows 🔒 Lock dates
+greyed in P-dates, saying why on a tap. 🧭↗ Explore stays on the organizer's card
+for an idea with no place; guests and the trip page no longer show it (a guest
+cannot change the destination).
+
+No storage, link-format or Worker change; every write uses the existing paths.

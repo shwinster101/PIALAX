@@ -204,7 +204,8 @@ console.log('▶ test-viewport: mobile layout regression suite');
       if (!t || !(t === el || el.contains(t))) out.covered.push((el.getAttribute('data-act') || el.className) + '@' + Math.round(cy) + ' under ' + (t ? t.getAttribute('data-act') || t.className || t.tagName : 'nothing'));
     });
     const lock = sh.querySelector('[data-act="dlock"]');
-    if (lock) { const r = lock.getBoundingClientRect(), cy = r.top + r.height / 2; out.lock = cy > (hr ? hr.bottom : R.top) && cy < (sv ? sv.top - 6 : R.bottom); }
+    // (PIA-154: with nothing left to save, 🔒 Lock dates is the sheet's main button itself: whole and in view)
+    if (lock) { const r = lock.getBoundingClientRect(), cy = r.top + r.height / 2; out.lock = lock === save ? r.top >= R.top - 0.5 && r.bottom <= Math.min(innerHeight, R.bottom) + 0.5 : cy > (hr ? hr.bottom : R.top) && cy < (sv ? sv.top - 6 : R.bottom); }
     return out;
   };
   for (const vp of VIEWPORTS) {
@@ -294,23 +295,36 @@ console.log('▶ test-viewport: mobile layout regression suite');
         // PIA-137: the trip view's sheets (tapped as the app sees a tap: the sticky primary may sit over a board row)
         const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
         await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        // PIA-154: the header (a small postcard, the title, 📍 under it) and the date row (the pill and my answer chip on one line), inside
+        // the screen at every width, in both themes; the chip and 📍 are 44px targets
+        const hdr = await page.evaluate(() => {
+          const th = document.querySelector('#screen .thead'), pc = th && th.querySelector('.pc, .postcard, [class*="pc"]'), dest = document.querySelector('#screen .thead [data-act="tomap"]');
+          const row = document.querySelector('#screen .daterow'), pill = row && row.querySelector('[data-act="dates"]'), chip = row && row.querySelector('[data-act="achip"], .whoami, .achip');
+          const R = (e) => e ? e.getBoundingClientRect() : null, rp = R(pill), rc = R(chip), rr = R(row), rd = R(dest), rt = R(th);
+          return { head: !!th && rt.right <= innerWidth + 0.5 && rt.left >= -0.5, dest: !!rd && rd.height >= 43.5, row: !!rr && rr.right <= innerWidth + 0.5, chip: !!rc && rc.height >= 43.5 && rc.width >= 43.5, oneLine: !!rp && !!rc && Math.abs((rp.top + rp.height / 2) - (rc.top + rc.height / 2)) < 12 && rp.right <= rc.left + 0.5 };
+        });
+        if (!hdr.head || !hdr.dest || !hdr.row || !hdr.chip || !hdr.oneLine) fails.push('the trip header and the date row (pill + answer chip on one line, 44px) should fit the screen: ' + JSON.stringify(hdr));
         await tapJs('#screen .pb [data-act="person"][data-code="anjo-z5"]'); await measure('P-person (the organizer on Anjo)'); await tapJs('#sheet [data-act="sh-close"]');
-        await tapJs('#screen .me [data-act="person"]'); await measure('P-person (me)'); await tapJs('#sheet [data-act="sh-close"]');
-        await tapJs('#screen [data-act="stage"]'); await measure('P-stage'); await tapJs('#sheet [data-act="sh-close"]');
-        await tapJs('#screen .me [data-act="face"]'); await measure('P-face');
+        // (PIA-154: no me line: my own row's face opens my sheet, whose header has ⇄; ⋯ More is P-stage)
+        await tapJs('#screen .pb-row.own [data-act="person"]'); await measure('P-person (me)');
+        await tapJs('#sheet [data-act="face"]'); await measure('P-face');
         await tapJs('#sheet [data-act="joinopen"]'); await page.type('#join-name', 'Bartholomew Montgomery Fitzgerald'); await page.type('#join-ap', 'bos'); await measure('P-face (join row typed)');
         await page.fill('#join-ap', ''); await page.type('#join-ap', 'San Francisco'); await measure('P-face (join row, a city cut to SAN ⚠)');
         if (await page.$eval('#warn-join-ap', (e) => e.hidden)) fails.push('a city typed in the join airport field should show ⚠');
-        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen .nav [data-act="stage"]'); await measure('P-stage (⋯ More)'); await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
         await tapJs('#screen .pb [data-act="person"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await measure('P-person (8 long names)');
         await tapJs('#sheet [data-act="pnote"]'); await measure('P-note (a person\'s note, read first)');
         await tapJs('#sheet [data-act="noteedit"]'); await measure('P-note (a person\'s note, ✎ editing, ✓)'); await tapJs('#sheet [data-act="sh-close"]');
         await tapJs('#screen [data-act="back"]');
-        await page.click('#screen [data-trip="' + LKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip with its dates set (🎫 marks, Book)');
-        if (!(await page.$('#screen .pb [data-act="booked"]')) || !(await page.$('#screen .split.prim [data-act="mybook"]'))) fails.push('the set trip should show the organizer\'s 🎫 marks and [Book | 🎫]');
-        await tapJs('#screen .pb [data-act="booked"][data-code="anjo-z5"]'); await measure('trip with a 🎫 waiting for its confirming tap');
-        await tapJs('#screen .me [data-act="person"]'); await measure('P-person (me, PIA | ORD cells)');
+        await page.click('#screen [data-trip="' + LKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip with its dates set (Book | 🎫 I booked)');
+        // (PIA-154: the organizer's 🎫 for someone is in their sheet, "🎫 Booked"; the board has no 🎫 column)
+        if ((await page.$('#screen .pb [data-act="booked"]')) || !(await page.$('#screen .split.prim [data-act="mybook"]'))) fails.push('the set trip should show [Book | 🎫 I booked] and no 🎫 on the board');
+        await tapJs('#screen .pb [data-act="person"][data-code="anjo-z5"]'); await tapJs('#sheet [data-act="booked"][data-code="anjo-z5"]'); await measure('Anjo\'s sheet with her 🎫 waiting for its confirming tap');
+        await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen .pb-row.own [data-act="person"]'); await measure('P-person (me, PIA | ORD cells)');
         if ((await page.$$('#sheet [data-act="legair"]')).length !== 4) fails.push('my sheet on a Peoria trip should have the PIA | ORD cells for each end');
         // PIA-139: my sheet once the dates are set: [✈ Book ↗ | 🎫] side by side
         if (!(await page.$('#sheet .split a[data-ret] + [data-act="mybook"]'))) fails.push('my sheet on a set trip should have [Book | 🎫] side by side');
@@ -320,12 +334,12 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.evaluate(() => { for (const st of ['hidden', 'visible']) { Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => st }); document.dispatchEvent(new Event('visibilitychange')); } });
         await page.waitForTimeout(120); await measure('trip with the 🎫 glowing after Google Flights');
         if (!(await page.$('#screen .split.prim [data-act="mybook"].glow'))) fails.push('back from a Book tap, the 🎫 beside Book should glow');
-        await tapJs('#screen .nav [data-act="caladd"]'); await measure('P-calendar-add (dates set)');
+        await tapJs('#screen .nav [data-act="stage"]'); await tapJs('#sheet [data-act="caladd"]'); await measure('P-calendar-add (dates set)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         // PIA-139: the Done 8-member trip: a booked traveler's sheet (times, [Flighty | 🎫]), P-stage with 💵 asking first, the Map's pickups
         await page.click('#screen [data-trip="' + BKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the Done 8-member trip');
         await tapJs('#screen .pb [data-act="person"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await measure('P-person (booked: times, Flighty | 🎫)');
-        if (!(await page.$('#sheet #tm-arr')) || !(await page.$('#sheet .split a[data-k="flighty"]'))) fails.push('a booked traveler\'s sheet should have the time fields and [Flighty | 🎫]');
+        if (!(await page.$('#sheet #tm-arr')) || !(await page.$('#sheet .split a [data-k="flighty"]'))) fails.push('a booked traveler\'s sheet should have the time fields and [✈ Track ↗ | 🎫 Booked]');
         await page.fill('#sheet #tm-arr', '23:59'); await measure('P-person (a time typed)');
         // PIA-139 fix pass: "310" left in the field asks [☀ 15:10 | 🌃 03:10]; "25:99" left is marked ⚠
         await page.fill('#sheet #tm-arr', '310'); await page.fill('#sheet #tm-dep', '25:99'); await page.$eval('#sheet #tm-arr', (e) => e.focus()); await page.waitForTimeout(60);
@@ -348,49 +362,56 @@ console.log('▶ test-viewport: mobile layout regression suite');
         const fin = await page.evaluate(() => ({ times: document.querySelectorAll('#screen .pb .btm').length, miss: document.querySelectorAll('#screen .pb .btm.miss').length, bars: [...document.querySelectorAll('#screen .pb button.track')].map((e) => Math.round(e.getBoundingClientRect().height)),
           out: [...document.querySelectorAll('#screen .pb .btm')].filter((b) => { const t = b.closest('.track').getBoundingClientRect(), r = b.getBoundingClientRect(); return r.left < t.left - 1 || r.right > t.right + 1; }).map((b) => b.getAttribute('aria-label')),
           over: document.documentElement.scrollWidth - innerWidth }));
-        if (fin.times !== 7 || fin.miss !== 2 || !fin.bars.length || fin.bars.some((h) => h < 44) || fin.out.length || fin.over > 0) fails.push('the Done trip\'s board should show its 7 booked times (2 ––:––) on 44px bars, each inside its track, with no sideways scroll: ' + JSON.stringify(fin));
+        if (fin.times !== 7 || fin.miss !== 2 || !fin.bars.length || fin.bars.some((h) => h < 44) || fin.out.length || fin.over > 0) fails.push('the Done trip\'s board should show its 7 booked times (2 a muted 🛬?) on 44px bars, each inside its track, with no sideways scroll: ' + JSON.stringify(fin));
         await tapJs('#screen .pb [data-act="flight"][data-code="samlee-sb"]'); await measure('P-person from a traveler\'s bar (the organizer, no landing time yet)');
         if ((await page.evaluate(() => (document.activeElement || {}).id)) !== 'tm-arr') fails.push('a booked traveler\'s bar with no landing time should open their flight at the 🛬 field');
         await tapJs('#sheet [data-act="sh-close"]');
-        if (!(await page.$('#screen [data-act="paidopen"]'))) fails.push('at 🏁 the organizer\'s trip view should have 💵 ＋');
+        if (!(await page.$('#screen [data-act="paidopen"]'))) fails.push('at 🏁 the organizer\'s trip view should have 💵 Paid');
         await tapJs('#screen [data-act="paidopen"]'); await page.type('#sheet #paid-amt', '$123,456'); await measure('P-stage (💵 typed)');
         await tapJs('#sheet [data-act="paidsave"]'); await measure('P-stage (💵 Save asks first)');
         if (!(await page.$('#sheet .paidb.arm')) || !(await page.$('#sheet .paidask .paidw'))) fails.push('💵 Save should ask first (⚠ … 🔒 above the field)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
-        // PIA-139 fix pass: my booked bar on the Done trip [🎫 🛬 15:10 ☀ | ✈⏱↗], and a paid trip's 💵 entered again (✎)
-        await page.click('#screen [data-trip="' + BKM + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip with my booked bar (🎫 🛬 | ✈⏱↗)');
-        if (!(await page.$('#screen .split.prim [data-act="mytimes"] + a[data-k="flighty"]'))) fails.push('a booked traveler\'s bar should be [🎫 🛬 | ✈⏱↗]');
-        await tapJs('#screen .split.prim [data-act="mytimes"]'); await measure('P-person from my booked bar');
+        // PIA-139 fix pass: my booked bar on the Done trip, and a paid trip's 💵 entered again (✎). (PIA-154: booked with my landing time
+        // recorded and my travel days not here yet, there is no primary: my bar opens my sheet)
+        await page.click('#screen [data-trip="' + BKM + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip with my booked bar (no primary)');
+        if (await page.$('#screen .split.prim')) fails.push('booked, my landing time recorded, outside my travel days: no primary');
+        await tapJs('#screen .pb [data-act="flight"].mybar'); await measure('P-person from my booked bar');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-trip="' + BKP + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('a paid trip (🏁, times 🔒)');
-        await tapJs('#screen [data-act="stage"]'); await measure('P-stage (💵 paid, ✎)');
+        await tapJs('#screen .nav [data-act="stage"]'); await measure('P-stage (💵 paid, ✎)');
         await tapJs('#sheet [data-act="paidedit"]'); await measure('P-stage (💵 entered again)');
         if (!(await page.$('#sheet #paid-amt'))) fails.push('✎ on a paid trip should give the 💵 field again');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
-        await tapJs('#screen .nav [data-act="caladd"]'); await measure('P-calendar-add (tentative ?)');
-        if (!(await page.$('#sheet .tq'))) fails.push('P-calendar-add before the dates are set should carry the ? corner');
-        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="stage"]'); await measure('P-stage (💵 greyed: not everyone booked)');
+        await tapJs('#screen .nav [data-act="stage"]'); await measure('P-stage (💵 greyed: not everyone booked)');
+        await tapJs('#sheet [data-act="caladd"]'); await measure('P-calendar-add (tentative ?)');
+        if (await page.$('#sheet .tq')) fails.push('P-calendar-add carries no ? corner (PIA-154: the event\'s title says "? " itself)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         await page.click('#tabbar [data-v="map"]'); await page.waitForTimeout(120);
         if (await page.$('#screen [data-act="pick"][data-id="' + BKV + '"]')) { await page.click('#screen [data-act="pick"][data-id="' + BKV + '"]'); await page.waitForTimeout(120); }
         await measure('Map (the Done trip\'s pickups, a ⏱ run)');
         if (!(await page.$('#screen .lanes .grp .pk'))) fails.push('the Map should show the Done trip\'s pickup chips with a ⏱ run');
-        if (!(await page.$('#screen .lanes .pk .bk'))) fails.push('a booked traveler\'s pickup chip should carry its 🎫 corner');
-        await tapJs('#screen .lanes .pk[data-code]'); await measure('P-person from a pickup chip');
+        if (!(await page.$('#screen .lanes .pk.bk')) || (await page.$('#screen .lanes .pk .bk'))) fails.push('a booked traveler\'s pickup chip should be drawn solid (no 🎫 corner)');
+        if (!(await page.$('#screen .lanes .lhd [data-lbl3]'))) fails.push('the pickups table should carry its 🛬 Lands | 🛫 Leaves column heads');
+        await tapJs('#screen .lanes .pk[data-code]'); await measure('P-day from a pickup chip');
         await tapJs('#sheet [data-act="sh-close"]');
         await page.click('#tabbar [data-v="trips"]'); await page.waitForTimeout(100);
         // PIA-138: P-dates in each state (the plan, a holiday picked, a start picked, my own days on one end), P-day, the undated
         // idea's ⟦window⟧ with ⬚ the best window, and a locked plan to read with 🔓
         await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
-        await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates (the plan)');
-        await tapJs('#sheet [data-act="dhol"]'); await measure('P-dates (a holiday picked)');
+        // (PIA-154: no holiday chips once there is a plan, no 👥 and no one-end segment in P-dates; P-day is Calendar › a day)
+        await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates (the plan, 🔒 Lock dates)');
+        await tapJs('#sheet [data-act="dshift"][data-v="7"]'); await measure('P-dates (+7)');
         await tapJs('#sheet [data-act="dday"][data-v="2026-11-13"]'); await measure('P-dates (a start picked, 📌⚠)');
         await tapJs('#sheet [data-act="dtarget"][data-v="me"]'); await measure('P-dates (my own days)');
-        await tapJs('#sheet [data-act="dend"][data-v="0"]'); await tapJs('#sheet [data-act="dday"][data-v="2026-11-05"]'); await measure('P-dates (my arrival only, ⚠ off the plan)');
-        await tapJs('#sheet [data-act="dtarget"][data-v="trip"]'); await tapJs('#sheet [data-act="dlook"]'); await tapJs('#sheet [data-act="dday"][data-v="2026-11-07"]'); await measure('P-day');
-        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-day') fails.push('👥 then a day should open P-day');
+        await tapJs('#sheet [data-act="dday"][data-v="2026-11-05"]'); await measure('P-dates (my arrival picked, ⚠ off the plan)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
+        await page.click('#tabbar [data-v="cal"]'); await page.waitForTimeout(120);
+        if (await page.$('#screen [data-act="pick"][data-id="' + DW + '"]')) { await page.click('#screen [data-act="pick"][data-id="' + DW + '"]'); await page.waitForTimeout(120); }
+        await tapJs('#screen [data-act="calday"][data-v="2026-11-07"]'); await measure('P-day (Calendar › a day)');
+        if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-day') fails.push('Calendar › a day should open P-day');
+        await tapJs('#sheet [data-act="sh-close"]');
+        await page.click('#tabbar [data-v="trips"]'); await page.waitForTimeout(100);
         await page.click('#screen [data-trip="' + CYV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
         await tapJs('#screen .daterow [data-act="dates"]'); await measure('P-dates (an undated idea: ⟦window⟧, ⬚ best)');
         if (!(await page.$('#sheet [data-act="dbest"]'))) fails.push('the undated idea should offer ⬚ its best window');
@@ -434,7 +455,8 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.click('#sheet [data-act="nmode"][data-v="window"]'); await page.waitForTimeout(60); await measure('P-new-when (window)');
         await page.click('#sheet [data-act="sh-close"]'); await page.waitForTimeout(100);
         await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
-        await page.click('#screen [data-act="edit"]'); await page.waitForTimeout(100); await measure('P-edit');
+        await page.click('#screen .nav [data-act="stage"]'); await page.waitForTimeout(100);
+        await page.click('#sheet [data-act="edit"]'); await page.waitForTimeout(100); await measure('P-edit');
         await page.click('#sheet [data-act="etitle"]'); await page.waitForTimeout(100); await measure('P-edit name and place');
         await page.click('#sheet [data-act="sh-back"]'); await page.waitForTimeout(80);
         await page.click('#sheet [data-act="epeople"]'); await page.waitForTimeout(100); await measure('P-edit people');
@@ -463,12 +485,12 @@ console.log('▶ test-viewport: mobile layout regression suite');
         if (net.search) fails.push('opening P-total searched ' + net.search + ' times; nothing searches until 🔍 is tapped');
         await tapJs('#sheet [data-act="sh-close"]');
         await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the 8-member trip with its total block ($—)');
-        await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (8 long names, all $—, 🔍4)');
+        await tapJs('#screen .pricerow[data-act="total"]'); await measure('P-total (8 long names, all $—, 🔍4)');
         const s4 = await page.$eval('#sheet [data-act="search"][data-v="total"]', (e) => e.textContent.replace(/\s+/g, '')).catch(() => null);
         if (s4 !== '🔍4/5' || net.search) fails.push('P-total on the 8-member trip should offer 🔍4/5 before any search, got ' + JSON.stringify(s4) + ' after ' + net.search);
-        // PIA-140 fix pass: P-total draws a leg as P-person does: a never-searched $— is dashed (the sheet's own rules, not a row's)
-        const hollowCss = await page.$eval('#sheet .trows .lgp.hollow', (e) => getComputedStyle(e).borderTopStyle).catch(() => null);
-        if (hollowCss !== 'dashed') fails.push('P-total\'s $— should be dashed (as in P-person), got ' + JSON.stringify(hollowCss));
+        // PIA-140 fix pass, PIA-154: P-total draws a never-searched leg as P-person does: a plain muted — (no dashed $— chip)
+        const missLeg = await page.$eval('#sheet .trows .lgp.miss', (e) => [e.textContent.trim().slice(-1), getComputedStyle(e).borderTopStyle]).catch(() => null);
+        if (!missLeg || missLeg[0] !== '—' || missLeg[1] === 'dashed') fails.push('P-total\'s never-searched legs should read a plain — (no dashed $—), got ' + JSON.stringify(missLeg));
         await tapJs('#sheet [data-act="skey"]'); await measure('P-total › its ⓘ (all $—)');
         await tapJs('#sheet [data-act="sh-back"]');
         await tapJs('#sheet [data-act="search"][data-v="total"]'); await settle(4);
@@ -495,7 +517,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         // the day cap, with one leg forgotten on this phone so P-total has a spend control to lock
         await page.evaluate((k) => { localStorage.setItem('pialax_daily_cap_v1', '2026-10-17'); const f = JSON.parse(localStorage.getItem('pialax_fares_v2') || '{}'); delete f[k]; localStorage.setItem('pialax_fares_v2', JSON.stringify(f)); },
           TM.tripModel(docs[M8], { today: '2026-10-17', now: NOWMS, me: 'grandmajosephine-nf', hasEditKey: true, hasToken: true, multiAirport: true }).travelers.find((x) => x.code === 'samlee-sb').keys[0].key);
-        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (⛔ the Worker\'s day cap)');
+        await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen .pricerow[data-act="total"]'); await measure('P-total (⛔ the Worker\'s day cap)');
         const lockTxt = await page.$eval('#sheet [data-act="search"][data-k="cap"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => null);
         if (lockTxt !== '⛔ 17:00') fails.push('the day cap should show ⛔ with the local reset time (17:00 in Los Angeles), got ' + JSON.stringify(lockTxt));
         await tapJs('#sheet .trow [data-act="person"][data-code="anastasiakonstantinopoulou-x1"]'); await measure('P-person (⛔ beside the day chips)');
@@ -513,7 +535,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await tapJs('#sheet [data-act="sh-close"]');
         await page.evaluate(() => { localStorage.removeItem('pialax_daily_cap_v1'); sessionStorage.setItem('pialax_spent_v2', '8'); });
         await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the 8-member trip, the visit\'s 8 spent (⛔ on its total block)');
-        await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (⛔ ↻, the visit\'s 8 spent)');
+        await tapJs('#screen .pricerow[data-act="total"]'); await measure('P-total (⛔ ↻, the visit\'s 8 spent)');
         if (!(await page.$('#sheet [data-act="newvisit"]'))) fails.push('P-total with the visit\'s 8 spent should offer ⛔ ↻');
         else { await tapJs('#sheet [data-act="newvisit"]'); await measure('P-total (↻8? a new visit asked)'); }
         await tapJs('#sheet .trow [data-act="person"][data-code="anastasiakonstantinopoulou-x1"]'); await measure('P-person (⛔ ↻ in the square)');
@@ -522,7 +544,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.evaluate(() => window.scrollTo(0, 0));
         await tapJs('#screen [data-act="back"]'); await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
         await measure('the 8-member trip, the month locked (⛔ 11/1 on its total block)');
-        await tapJs('#screen .totalblk[data-act="total"]'); await measure('P-total (⛔ 11/1, SerpAPI refused)');
+        await tapJs('#screen .pricerow[data-act="total"]'); await measure('P-total (⛔ 11/1, SerpAPI refused)');
         await tapJs('#sheet .trow [data-act="person"][data-code="anastasiakonstantinopoulou-x1"]'); await measure('P-person (⛔ alone in the square)');
         const sqLk = await page.$eval('#sheet .dayp [data-act="search"][data-k="cap"]', (e) => e.textContent.trim()).catch(() => null);
         if (sqLk !== null && sqLk !== '⛔') fails.push('a locked square ±1 button should show ⛔ alone (its time in its label), got ' + JSON.stringify(sqLk));
@@ -579,12 +601,11 @@ console.log('▶ test-viewport: mobile layout regression suite');
         }
         await page.setViewportSize({ width: vp.width, height: vp.height }); await page.waitForTimeout(100);
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
-        // the board's price column holds $10,987, $10,987+ and $1,387+ without pushing the page sideways or clipping a digit
-        await page.click('#screen [data-trip="' + DWJ + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the board with $10,987, $10,987+ and $1,387+');
-        const cells = await page.$$eval('#screen .pb .pb-row .pr', (els) => els.map((e) => [e.textContent, e.scrollWidth - e.clientWidth]));
-        const want = ['$10,987', '$10,987+', '$1,387+'];
-        if (!want.every((w) => cells.some((c) => c[0] === w))) fails.push('the board should show ' + want.join(', ') + ', got ' + JSON.stringify(cells.map((c) => c[0])));
-        if (cells.some((c) => c[1] > 0)) fails.push('a price cell is clipped: ' + JSON.stringify(cells.filter((c) => c[1] > 0)));
+        // (PIA-154: no price column on the board) the open-jaw sums sit in the one price row: its 5-digit total and 🔍 fit, nothing clipped
+        await page.click('#screen [data-trip="' + DWJ + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the price row with a 5-digit total');
+        const cells = await page.$$eval('#screen .pb .pb-row .pr', (els) => els.length);
+        const prow = await page.$eval('#screen .pricerow', (e) => ({ t: e.textContent.replace(/\s+/g, ' ').trim(), clip: [...e.querySelectorAll('*')].some((c) => c.scrollWidth > c.clientWidth + 1 && getComputedStyle(c).overflow !== 'visible'), h: Math.round(e.getBoundingClientRect().height), out: e.getBoundingClientRect().right > innerWidth + 0.5 })).catch(() => null);
+        if (cells || !prow || !/\$\d{1,3},\d{3}/.test(prow.t) || prow.clip || prow.h < 44 || prow.out) fails.push('the board should have no price column and the price row should show the total whole, ≥44px, on screen; got ' + JSON.stringify({ cells, prow }));
         await tapJs('#screen [data-act="back"]');
         // PIA-136: a join request on the full 8-member trip (the joiner open, ⚠ 9/8), and a v1 idea link with a long note (📝⚠, then its P-note)
         await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?idea=' + M8 + '&add=' + encodeURIComponent('Nina Okafor.BOS'), { waitUntil: 'load' }); await page.waitForTimeout(300);
@@ -647,12 +668,13 @@ console.log('▶ test-viewport: mobile layout regression suite');
         };
         const open = async (id) => { await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await tapJs('#screen .daterow [data-act="dates"]'); };
         const leave = async () => { await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]'); };
-        await open(DW); await measure('the plan');
-        await tapJs('#sheet [data-act="dhol"]'); await measure('a holiday picked');
+        // (PIA-154: 🔒 Lock dates is the main button while nothing is picked; −7 −1 +1 +7 move the pick; no holidays once there is a plan)
+        await open(DW); await measure('the plan (🔒 Lock dates)');
+        await tapJs('#sheet [data-act="dshift"][data-v="-7"]'); await measure('−7 (Save)');
         await tapJs('#sheet [data-act="dday"][data-v="2026-11-13"]'); await measure('a start picked (📌⚠)');
         await tapJs('#sheet [data-act="dtarget"][data-v="me"]'); await measure('my own days');
-        await tapJs('#sheet [data-act="dend"][data-v="0"]'); await tapJs('#sheet [data-act="dday"][data-v="2026-11-05"]'); await measure('my arrival only (⚠🗓)');
-        await tapJs('#sheet [data-act="dtarget"][data-v="trip"]'); await tapJs('#sheet [data-act="dlook"]'); await measure('👥 then a day');
+        await tapJs('#sheet [data-act="dday"][data-v="2026-11-05"]'); await measure('my arrival picked (⚠🗓)');
+        await tapJs('#sheet [data-act="dtarget"][data-v="trip"]'); await measure('back to the plan');
         await leave();
         await open(M8); await measure('the 8-member plan'); await leave();
         await open(CYV); await measure('an undated idea (⟦window⟧, ⬚)'); await leave();
@@ -742,7 +764,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
               await tapJs('#sheet [data-act="sh-close"]');
             } else {
               await page.click('#screen [data-trip="' + TGL + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(200); await measure('Anjo on the v1 trip view');
-              await tapJs('#screen .me [data-act="person"]'); await measure('Anjo\'s own flight section on the v1 trip (✈ Book ↗, 🎫)');
+              await tapJs('#screen .pb-row.own [data-act="person"]'); await measure('Anjo\'s own flight section on the v1 trip (✈↗, 🎫 I booked)');
               if (!(await page.$('#sheet [data-act="mybook"]')) || !(await page.$('#sheet a[data-k="gf"][data-ret]'))) fails.push('Anjo\'s own sheet on the v1 trip should offer ✈ Book ↗ and 🎫');
               await tapJs('#sheet [data-act="sh-close"]');
             }
@@ -822,7 +844,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         };
         for (const [id, opener] of [[DW, '#screen .card [data-act="total"][data-id="' + DW + '"]'], [M8, null]]) {
           if (opener) await tapJs(opener);
-          else { await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await tapJs('#screen .totalblk[data-act="total"]'); }
+          else { await page.click('#screen [data-trip="' + id + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await tapJs('#screen .pricerow[data-act="total"]'); }
           if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-total') { fails.push(id + ': P-total did not open'); continue; }
           const codes = await page.$$eval('#sheet .trow [data-act="person"]', (els) => els.map((e) => e.getAttribute('data-code')));
           for (const c of codes) {
