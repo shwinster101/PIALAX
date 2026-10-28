@@ -134,12 +134,12 @@ async function main() {
       check(await p.evaluate(() => localStorage.getItem('pialax_watchlist_v1')) === original, 'migration never changes v1 storage');
       check(!t.requests.some(r => /^\/(search|account)$/.test(r.path)), 'migration makes no paid requests');
       const done = await migClosed(p);
-      // (PIA-154: the stage is read in ⋯ More's stepper; ✎ Edit is a row there)
+      // (PIA-154: the stage is read in ⋯ More; ✎ Edit is a row there. PIA-155: its one stage line)
       await tap(p, '#screen .nav [data-act="stage"]');
-      done.stage = await p.getAttribute('#sheet .stepper', 'aria-label').catch(() => '');
+      done.stage = await p.getAttribute('#sheet .sline', 'aria-label').catch(() => '');
       const edit = await p.locator('#sheet [data-act="edit"]').count();
       await tap(p, '#sheet [data-act="sh-close"]');
-      check(done.toast === '🔒 ✓' && done.screen === 'trip-organizer' && done.lock && done.stage === 'Stage: Dates set', 'PIA-153 the update closes its sheet back to the trip; the toast says 🔒 ✓ and the trip reads 🔒 Dates set (its pill\'s 🔒, ⋯ More\'s stage)', done);
+      check(done.toast === '🔒 ✓' && done.screen === 'trip-organizer' && done.lock && done.stage === 'Stage 3 of 5, Dates set', 'PIA-153 the update closes its sheet back to the trip; the toast says 🔒 ✓ and the trip reads 🔒 Dates set (its pill\'s 🔒, ⋯ More\'s stage)', done);
       check(edit === 1 && !await p.locator('#screen [data-act="migrate"]').count(), 'successful update unlocks the existing v2 editor (⋯ More › ✎ Edit)');
       check(await p.evaluate(() => (document.querySelector('#screen .ttl [data-free]') || {}).textContent) === '🦃 Thanksgiving', 'PIA-153 the trip view shows its new name');
       check(t.errors.length === 0, 'migration has no browser exceptions', t.errors); await t.ctx.close();

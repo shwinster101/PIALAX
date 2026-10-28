@@ -185,6 +185,23 @@ console.log('▶ test-viewport: mobile layout regression suite');
     return out;
   };
   const lum = (rgb) => { const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb || ''); return m ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 : -1; };
+  // PIA-155: ⋯ More's stage line (run in the page): one line inside the sheet, five small dots on its track with the ring the largest,
+  // its word on the same row, and nothing that reads as a control (no border, no fill, the default pointer, inside no button or link);
+  // each dot's ring differs from the sheet behind it (light and dark) → '' or what is wrong
+  const STAGELINE = () => {
+    const l = document.querySelector('#sheet .sline'); if (!l) return 'missing';
+    const r = l.getBoundingClientRect(), sh = document.querySelector('#sheet').getBoundingClientRect(), cs = getComputedStyle(l);
+    const dots = [...l.querySelectorAll('.strk i')], w = l.querySelector('.sword'), wr = w ? w.getBoundingClientRect() : null;
+    const bg = (el) => { for (let e = el; e; e = e.parentElement) { const c = getComputedStyle(e).backgroundColor; if (c && !/rgba\(0, 0, 0, 0\)|transparent/.test(c)) return c; } return ''; };
+    if (r.left < sh.left - 0.5 || r.right > sh.right + 0.5 || r.width <= 0) return 'outside the sheet ' + JSON.stringify([r.left, r.right, sh.left, sh.right]);
+    if (dots.length !== 5 || dots.some((d) => { const b = d.getBoundingClientRect(); return b.width < 6 || b.width > 16 || Math.abs((b.top + b.bottom) / 2 - (r.top + r.bottom) / 2) > 8; })) return 'five small dots on one row expected';
+    const now = l.querySelector('.strk i.now'); if (now && dots.some((d) => d !== now && d.getBoundingClientRect().width >= now.getBoundingClientRect().width)) return 'the ring now should be the largest dot';
+    if (!wr || wr.width <= 0 || Math.abs((wr.top + wr.bottom) / 2 - (r.top + r.bottom) / 2) > 8) return 'its word should sit on the dots\' row';
+    if (cs.cursor !== 'default' || parseFloat(cs.borderTopWidth) > 0 || parseFloat(cs.borderBottomWidth) > 0 || !/rgba\(0, 0, 0, 0\)|transparent/.test(cs.backgroundColor) || l.closest('button, a')) return 'it reads as a control';
+    const sheetBg = bg(l), ring = dots.map((d) => getComputedStyle(d).borderTopColor);
+    if (ring.some((c) => c === sheetBg)) return 'a dot\'s ring is the sheet\'s own colour';
+    return '';
+  };
   // PIA-138: P-dates' occlusion gate (run in the page)
   const OCCLUSION = () => {
     const sh = document.querySelector('#sheet'), R = sh.getBoundingClientRect(), save = sh.querySelector('.btn.stick'), hd = sh.querySelector('.sh-hd');
@@ -484,7 +501,11 @@ console.log('▶ test-viewport: mobile layout regression suite');
         if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-total') fails.push('a card\'s total should open P-total');
         if (net.search) fails.push('opening P-total searched ' + net.search + ' times; nothing searches until 🔍 is tapped');
         await tapJs('#sheet [data-act="sh-close"]');
-        await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the 8-member trip with its total block ($—)');
+        await page.click('#screen [data-trip="' + M8 + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the 8-member trip with its price row (🔍 Price and the faces)');
+        // PIA-155: the row says whose fare by their faces ("🔍 Price 🦊🐻🐼+2"): whole, on screen, ≥44px, nothing clipped, never a bare count
+        const frow = await page.$eval('#screen .pricerow', (e) => ({ t: e.textContent.replace(/\s+/g, ' ').trim(), h: Math.round(e.getBoundingClientRect().height), out: e.getBoundingClientRect().right > innerWidth + 0.5 || e.getBoundingClientRect().left < -0.5,
+          clip: [...e.querySelectorAll('*')].some((c) => c.scrollWidth > c.clientWidth + 1 && getComputedStyle(c).overflow !== 'visible'), uf: !!e.querySelector('.uf[data-k="unpriced"]') })).catch(() => null);
+        if (!frow || frow.t !== '🔍 Price 🦊🐻🐼+2' || !frow.uf || frow.h < 44 || frow.out || frow.clip) fails.push('the 8-member trip\'s price row should read "🔍 Price 🦊🐻🐼+2", whole and ≥44px, got ' + JSON.stringify(frow));
         await tapJs('#screen .pricerow[data-act="total"]'); await measure('P-total (8 long names, all $—, 🔍4)');
         const s4 = await page.$eval('#sheet [data-act="search"][data-v="total"]', (e) => e.textContent.replace(/\s+/g, '')).catch(() => null);
         if (s4 !== '🔍4/5' || net.search) fails.push('P-total on the 8-member trip should offer 🔍4/5 before any search, got ' + JSON.stringify(s4) + ' after ' + net.search);
@@ -743,8 +764,13 @@ console.log('▶ test-viewport: mobile layout regression suite');
               await tapJs('#screen [data-trip="' + DWM + '"] [data-act="stage"]'); await measure('P-stage from a card (☆ 🗄 🗑)');
               if ((await popup()) !== 'P-stage' || !(await page.$('#sheet [data-act="stagedrop"]:not(.dis)'))) fails.push('a card\'s stage button should open P-stage with 🗑');
               await tapJs('#sheet [data-act="sh-close"]');
-              await tapJs('#screen [data-trip="' + TGL + '"] [data-act="stage"]'); await measure('P-stage from the v1 card (🗑 greyed)');
-              await tapJs('#sheet [data-act="stagedrop"]'); await measure('P-stage from the v1 card (🗑 says why)');
+              // PIA-155: the v1 card's ⋯ More: the stage as one quiet line (whole in the sheet, nothing about it a control), 🗑 Remove for
+              // everyone live, opening P-drop (🗑 Remove | Keep); nothing is sent here (Keep's sheet is closed)
+              await tapJs('#screen [data-trip="' + TGL + '"] [data-act="stage"]'); await measure('P-stage from the v1 card (the stage line, 🗑 Remove for everyone)');
+              const sl = await page.evaluate(STAGELINE); if (sl) fails.push('P-stage\'s stage line: ' + sl);
+              if (!(await page.$('#sheet [data-act="stagedrop"]:not(.dis)'))) fails.push('the v1 trip\'s 🗑 Remove for everyone should be live');
+              await tapJs('#sheet [data-act="stagedrop"]'); await measure('P-drop on the v1 trip (🗑 Remove | Keep)');
+              if ((await popup()) !== 'P-drop') fails.push('the v1 trip\'s 🗑 should open P-drop');
               await tapJs('#sheet [data-act="sh-close"]');
               await tapJs('#screen [data-trip="' + TGL + '"] [data-act="migcard"]'); await measure('P-migrate (name and picture, Current pressed)');
               if ((await popup()) !== 'P-migrate' || !(await page.$('#sheet #mig-title'))) fails.push('⤒ on the card should open P-migrate with the trip\'s name');

@@ -79,7 +79,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-153
   'MIG_LIST', 'needsUpdate', 'mineVsPlan', 'transferRead',
   // PIA-154 fix pass
-  'whoChip', 'personKeys', 'tapKeys'];
+  'whoChip', 'personKeys', 'tapKeys',
+  // PIA-155
+  'primaryAction', 'removeHeld', 'migInvite', 'priceShown', 'unpricedOf', 'priceWho'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -1264,8 +1266,9 @@ function norm(doc) {
     await t.api.organizerWrite(E5, { decision: { stage: 'chosen' } }); await tick(); t.api.render();
     act(t, 'open', { id: E5 }); act(t, 'edit', { id: E5 }); act(t, 'edrop', { id: E5 });
     const html = t.api.SHEETS.drop(t.api.S.sheet);
-    check(t.api.S.sheet.type === 'drop' && /<button class="btn danger" data-act="dropyes">🗑 Drop<\/button><button class="btn pri" data-act="dropkeep">Keep<\/button>/.test(html) && srv.read(E5).decision.stage === 'chosen',
-      'PIA-136 AC7 P-drop: the trip, a red-outlined 🗑 Drop and the primary Keep (nothing is sent yet)');
+    const eTile = /<button class="tool bad" data-act="edrop" data-id="[^"]+" aria-label="Remove">🗑<\/button>/.test(t.api.SHEETS.edit(t.api.S.sheet.back));
+    check(t.api.S.sheet.type === 'drop' && /<button class="btn danger" data-act="dropyes">🗑 Remove<\/button><button class="btn pri" data-act="dropkeep">Keep<\/button>/.test(html) && srv.read(E5).decision.stage === 'chosen' && eTile,
+      'PIA-136 AC7 P-drop: the trip, a red-outlined 🗑 Remove (PIA-155: it removes the trip for everyone; P-edit\'s tile reads "Remove" too) and the primary Keep (nothing is sent yet)');
     act(t, 'dropkeep');
     check(t.api.S.sheet && t.api.S.sheet.type === 'edit' && srv.read(E5).decision.stage === 'chosen', 'Keep goes back to P-edit, the trip untouched');
     act(t, 'edrop', { id: E5 });
@@ -1765,9 +1768,9 @@ function norm(doc) {
     act(priced, 'open', { id }); const ph = screen(priced);
     act(guest, 'person', { id, code: 'samlee-sb' }); const gs = sheet(guest), ownGf = (gs.match(/href="https:\/\/www\.google\.com\/travel[^"]*"/g) || []); guest.api.closeSheet();
     check(gh.indexOf('$') < 0 && !/class="pricerow|class="tot|class="pr/.test(gh) && gfs.length === 0 && ownGf.length === 1 && ownGf[0] === 'href="' + mineGf.replace(/&/g, '&amp;') + '"' && gs.indexOf('$') < 0 &&
-      !/class="pr"|class="pr /.test(oh) && /<button class="pricerow" data-act="total" data-id="[^"]+" aria-label="Price, group total, not searched, \d+ to search" data-lbl="Group total"><span class="chipq w"><span aria-hidden="true" data-k="search">🔍<\/span> Price <span class="tn">4\/5<\/span><\/span><\/button>/.test(oh) &&
+      !/class="pr"|class="pr /.test(oh) && /<button class="pricerow" data-act="total" data-id="[^"]+" aria-label="Price Bartholomew Montgomery-Fitzgerald’s, Anastasia Konstantinopoulou’s, Maximilian Oyelaran-Whitfield’s and 2 more flights" data-lbl="Price Bartholomew Montgomery-Fitzgerald’s, Anastasia Konstantinopoulou’s, Maximilian Oyelaran-Whitfield’s and 2 more flights"><span class="chipq w"><span aria-hidden="true" data-k="search">🔍<\/span> Price <span class="uf" data-k="unpriced">🦊🐻🐼\+2<\/span><\/span><\/button>/.test(oh) &&
       !/\$\d|\$—/.test(oh) && /<button class="pricerow"[\s\S]*?<span class="tot[^"]*" data-k="total">\$\d[\s\S]*?<span class="stack"/.test(ph),
-      'PIA-137 AC4 a guest (even one holding the token) sees no price anywhere, and (PIA-154: no ✈↗ before 🔒) no flight link on the trip page, their own in their sheet; the organizer\'s token phone shows no $ until a leg has a cached fare (then its total over the stack of who is priced), and before that the price row is 🔍 Price 4/5 (the way into P-total; 4 a tap, of the 5 legs to search), no $— anywhere', { gfs: gfs.length, own: ownGf.length, blk: (/<button class="pricerow[\s\S]*?<\/button>/.exec(oh) || [])[0] });
+      'PIA-137 AC4 a guest (even one holding the token) sees no price anywhere, and (PIA-154: no ✈↗ before 🔒) no flight link on the trip page, their own in their sheet; the organizer\'s token phone shows no $ until a leg has a cached fare (then its total over the stack of who is priced), and before that (PIA-155) the price row says whose flights are not searched yet, "🔍 Price 🦊🐻🐼+2", named in its label (the way into P-total, whose 🔍N shows the cost), no $— anywhere', { gfs: gfs.length, own: ownGf.length, blk: (/<button class="pricerow[\s\S]*?<\/button>/.exec(oh) || [])[0] });
     act(guest, 'person', { id, code: 'bartholomewmontgomeryfitzgera-dj' });
     const s1 = sheet(guest), acts1 = (s1.match(/data-act="[a-z-]+"/g) || []).map((x) => x.slice(10, -1));
     guest.api.closeSheet(); act(guest, 'person', { id, code: 'anastasiakonstantinopoulou-x1' });
@@ -2012,7 +2015,7 @@ function norm(doc) {
       'PIA-137 AC11 a paid trip shows 🏁 closed (PIA-154: at the date row\'s end) instead of the answer row: no answer, 🎫, airport cell or note to add (a tap there sends nothing); a booked traveler keeps Flighty in their sheet (the primary is ✈ Track only in their travel days)');
     act(t, 'back'); act(t, 'open', { id: drop });
     const dh = screen(t);
-    check(/aria-label="Dropped" data-lbl="Dropped" data-k="dropped">🗑<\/span>/.test(dh) && !/data-act="answer"|split prim|data-act="tshare"/.test(dh), 'PIA-137 AC11 a dropped trip shows 🗑: no answer row, no primary, no share');
+    check(/aria-label="Removed" data-lbl="Removed" data-k="dropped">🗑<\/span>/.test(dh) && !/data-act="answer"|split prim|data-act="tshare"/.test(dh), 'PIA-137 AC11 a dropped trip shows 🗑 (PIA-155: named "Removed"): no answer row, no primary, no share');
     act(t, 'back'); act(t, 'open', { id: done });
     const m = t.api.modelOf(done), oh = screen(t);
     await tap(t, oh, 'achip'); const oh2 = screen(t);
@@ -2021,18 +2024,21 @@ function norm(doc) {
       'PIA-137 AC11 a trip that is merely Done (every traveler booked, nothing paid) still takes an answer (PIA-154: her chip opens the row), and her 🎫 stays');
   }
   {
-    // P-stage: the five stages by name; ⭐ pins the trip in my list; 🗄 hides it on this phone
+    // P-stage: the stage; ⭐ pins the trip in my list; 🗄 hides it on this phone
     const id = seedAs(DWX);
     const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
     act(t, 'open', { id }); tap(t, screen(t), 'stage');
     const s = sheet(t);
     tap(t, s, 'star'); tap(t, sheet(t), 'hidehere');
-    const e = t.api.listEntry(id);
+    const e = t.api.listEntry(id), s2 = sheet(t);
     const acts = (s.match(/data-act="[a-z-]+"/g) || []).map((x) => x.slice(10, -1));
-    check(t.api.S.sheet.type === 'stage' && eq(shown(s.slice(s.indexOf('<div class="stepper'), s.indexOf('<div class="morerows'))), ['Idea', 'Asking', 'Dates', 'set', 'Booking', 'Done']) &&
-      /class="srow now" role="listitem"><span class="sdot now" data-k="snow"><\/span><span>Asking<\/span>/.test(s) && /class="srow past" role="listitem"><span class="sdot done" data-k="sdone"><\/span><span>Idea<\/span>/.test(s) &&
+    const line = (/<div class="sline[^"]*"[\s\S]*?<\/div>/.exec(s) || [''])[0];
+    check(t.api.S.sheet.type === 'stage' && eq(shown(line), ['Asking']) &&
+      line === '<div class="sline" role="img" aria-label="Stage 2 of 5, Asking" data-lbl="Stage 2 of 5, Asking"><span class="strk" aria-hidden="true"><i class="done"></i><i class="now"></i><i class=""></i><i class=""></i><i class=""></i></span><span class="sword">Asking</span></div>' &&
+      !/class="stepper|class="srow|role="list/.test(s) && !/<(button|a)\b[^>]*>[^<]*<span class="strk/.test(s) &&
+      /data-act="hidehere"[^>]*><span class="mg" aria-hidden="true" data-k="hidehere">🗄<\/span>Hide on my phone<\/button>/.test(s) && /data-act="hidehere"[^>]*><span class="mg" aria-hidden="true" data-k="hidehere">🗄<\/span>Show on my phone<\/button>/.test(s2) && !/data-act="hidehere"[^>]*aria-pressed/.test(s + s2) &&
       acts.indexOf('star') >= 0 && acts.indexOf('hidehere') >= 0 && acts.indexOf('tshare') >= 0 && acts.indexOf('edit') < 0 && acts.indexOf('stagedrop') < 0 && e.pin && e.arch && t.api.modelOf(id).shelf && nPosts(t) === 0,
-      'P-stage (PIA-154: ⋯ More) names the five stages as a stepper (this trip at Asking: Idea done, a ring now); ☆ Pin pins it and 🗄 Archive hides it on this phone only (nothing written to the trip); a guest also has Share there, never Edit or Drop', { e, acts });
+      'P-stage (PIA-154: ⋯ More; PIA-155: the stage is one picture, five dots and the word it is at, "Stage 2 of 5, Asking", nothing in it a control); ☆ Pin pins it and "🗄 Hide on my phone" hides it on this phone only (nothing written to the trip), then reads "🗄 Show on my phone"; a guest also has Share there, never Edit or Remove', { e, acts, line });
   }
 
   // ═══ PIA-137 fix pass ═══
@@ -2940,9 +2946,9 @@ function norm(doc) {
       const out = [];
       for (const [me, key] of [['ashwin-p8', true], ['anjo-z5', false], ['momdad-k3', false]]) {
         const t = await boot136({ ls: ls(me, key) });
-        // (PIA-154: the stage is P-stage's stepper, ⋯ More from the card and from the trip page; the card says 🔒, no pip)
+        // (PIA-154: the stage is in ⋯ More, from the card and from the trip page; the card says 🔒, no pip. PIA-155: More's stage line)
         const card = t.api.renderIdeas().html, i = card.indexOf('data-trip="' + id + '"'), c = card.slice(i, card.indexOf('</article>', i));
-        const now = (h) => (/class="srow now" role="listitem"><span class="sdot now" data-k="snow"><\/span><span>([^<]+)<\/span>/.exec(h) || [])[1];
+        const now = (h) => { const x = /<div class="sline" role="img" aria-label="Stage (\d) of 5, ([^"]+)"[^>]*>[\s\S]*?<span class="sword">([^<]+)<\/span><\/div>/.exec(h); return x && x[2] === x[3] && +x[1] - 1 === ['Idea', 'Asking', 'Dates set', 'Booking', 'Done'].indexOf(x[3]) ? x[3] : undefined; };
         t.api.ACTS.stage({ dataset: { id, v: 'card' } }); const sc = now(sheet(t)); t.api.closeSheet();
         act(t, 'open', { id }); if (t.api.S.sheet) t.api.closeSheet();
         tap(t, screen(t), 'stage'); const st = now(sheet(t)); t.api.closeSheet();
@@ -3227,9 +3233,10 @@ function norm(doc) {
     act(q0, 'open', { id: DQ }); await q0.api.poll(); CLOCK += 6000; await q0.api.onFocus(); CLOCK = NOW; q0.api.render();
     act(q0, 'person', { id: DQ, code: 'ashwin-p8' }); await tick(); const pq = sheet(q0); q0.api.closeSheet();
     q0.api.render(true); const tq = screen(q0), cq = q0.api.cardHTML({ id: DQ, x: q0.api.listEntry(DQ), m: q0.api.modelOf(DQ) });
-    check(searches(q0).length === 0 && /<span class="tot stale" data-k="total">\$900 <span data-k="search">🔍<\/span><\/span>/.test(cq) && /<button class="pricerow"[\s\S]*?<span class="chipq"><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">3<\/span><\/span><\/button>/.test(tq) &&
+    const tqRow = (/<button class="pricerow[\s\S]*?<\/button>/.exec(tq) || [''])[0];
+    check(searches(q0).length === 0 && /<span class="tot stale" data-k="total">\$900 <span data-k="search">🔍<\/span><\/span>/.test(cq) && /<button class="pricerow"[^>]*aria-label="Group total \$900, not complete, some fares a day old"[\s\S]*?<span class="tot stale" data-k="total">\$900 <span data-k="search">🔍<\/span><\/span>/.test(tqRow) && !/data-k="unpriced"|class="chipq/.test(tqRow) &&
       /class="lgp stale"[^>]*data-lbl="Old fare"/.test(pq) && /data-act="search"[^>]*data-v="person" data-code="ashwin-p8" data-n="1"/.test(pq) && /data-act="search"[^>]*data-code="ashwin-p8" data-end="0"/.test(pq),
-      'PIA-140 AC4 nothing is fetched by itself: opening, a redraw, the 60s poll and a focus with three day-old fares make 0 /search; the fares turn grey with 🔍 (the card), the trip\'s price row offers 🔍3, a person\'s legs read "Old fare" with their own 🔍1, and 🔍 for their ±1 days', { searches: searches(q0).length, cq: (/<span class="tot[\s\S]*?<\/button>/.exec(cq) || [])[0], tq: (/<button class="pricerow[\s\S]*?<\/button>/.exec(tq) || [])[0] });
+      'PIA-140 AC4 nothing is fetched by itself: opening, a redraw, the 60s poll and a focus with three day-old fares make 0 /search; the fares turn grey with 🔍 (the card, and the trip\'s price row: PIA-155 no faces, every flight was searched; P-total offers the refresh with its cost), a person\'s legs read "Old fare" with their own 🔍1, and 🔍 for their ±1 days', { searches: searches(q0).length, cq: (/<span class="tot[\s\S]*?<\/button>/.exec(cq) || [])[0], tq: tqRow });
 
     // AC1 / AC3 the organizer's P-total: every leg $— until searched; the cost on 🔍 before it is tapped; one tap prices them all
     const DA = seedAs(DWX);
@@ -3243,7 +3250,7 @@ function norm(doc) {
     const q1 = quotaOf(a), m1 = a.api.modelOf(DA);   // before the /account sync that follows the run (SerpAPI's own count then replaces it)
     await tick(20);
     const s1 = searches(a, 0).slice(pre);
-    check(/aria-label="Price, group total, not searched, 3 to search"/.test(blk0) && s1.length === 3 && s1.every((f, i) => f.headers['X-Pialax-Token'] === TOKEN && f.url === W + '/search?' + TM.searchQuery(want1[i]) && f.url.indexOf(',') < 0 && f.url.indexOf(TOKEN) < 0) &&
+    check(/aria-label="Price Mom &amp; Dad’s, Ashwin’s and Anjo’s flights"[^>]*>[\s\S]*?<span class="uf" data-k="unpriced">🌽🌴🗽<\/span>/.test(blk0) && s1.length === 3 && s1.every((f, i) => f.headers['X-Pialax-Token'] === TOKEN && f.url === W + '/search?' + TM.searchQuery(want1[i]) && f.url.indexOf(',') < 0 && f.url.indexOf(TOKEN) < 0) &&
       q1 && q1.used === 3 && a.api.spentRead() === 3 && m1.price.complete && serpLog.length === 3,
       'PIA-140 AC3 one tap on 🔍3: three GET /search (one per round trip, the model\'s own queries; one airport each until /account says nearby airports are taken), the token in its header only; v1\'s month counter and this session\'s count move by 3', { urls: s1.map((f) => f.url), q1 });
     await until(() => !!a.api.S.acct); await tick();
@@ -3255,7 +3262,7 @@ function norm(doc) {
     await tap(a, pt0, 'search'); await tick(20);
     const m3 = a.api.modelOf(DA), pt1 = ptotal(a, DA), s2 = searches(a).slice(-3);
     const legPrices = (h) => [...h.matchAll(/<span class="lgp[^"]*" role="img" aria-label="([^"]*)"/g)].map((x) => x[1]);
-    check(/<button class="btn pri wide" data-act="search" data-id="[^"]+" data-v="total" data-n="3" aria-label="Search 3 fares, 3 searches" data-lbl="Search fares"><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">3<\/span><\/button>/.test(pt0) &&
+    check(/<button class="btn pri wide" data-act="search" data-id="[^"]+" data-v="total" data-n="3" aria-label="Search 3 fares, 3 searches" data-lbl="Search 3 fares"><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">3<\/span><\/button>/.test(pt0) &&
       legPrices(pt0).every((x) => /not searched$/.test(x)) && legPrices(pt0).length === 3 && s2.every((f) => /departure_id=[A-Z,]*,[A-Z]/.test(f.url)) && m3.price.complete && !/data-act="search"/.test(pt1),
       'PIA-140 AC3 P-total shows the cost before spending (🔍3, "Search 3 fares, 3 searches"), every leg $— until then; its tap searches the nearby sets, and then nothing is left to search (no 🔍)', { pt0: legPrices(pt0) });
     // AC1 one pricing function: P-total's rows and sum, the trip's block, the card, the board and P-person's legs agree
@@ -3665,7 +3672,7 @@ function norm(doc) {
         'PIA-141 AC2 / AC3 / AC4 5 weeks carry ⚠🗽 (Anjo\'s own 11/24–11/29 would fall outside), every other week is hollow with its cost on top (🔍≤2: Ashwin\'s two one-ways; Anjo\'s legs stay hers, cached), the current week is outlined and filled ($955: Ashwin $505, Anjo $450 underlined as her own days), no ★ with one week priced, and no button on the plan\'s own week');
       act(t, 'cbar', { v: '2026-11-22' });
       const c2 = sheet(t), btn = ctl(c2, 'search', { v: 'week' });
-      check(btn && btn.day === '2026-11-22' && btn.n === '2' && /aria-label="Search 2 fares, 2 searches" data-lbl="Search fares"><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">2<\/span><\/button>/.test(c2) && searches(t).length === sp0,
+      check(btn && btn.day === '2026-11-22' && btn.n === '2' && /aria-label="Search 2 fares, 2 searches" data-lbl="Search 2 fares"><span aria-hidden="true" data-k="search">🔍<\/span><span class="tn">2<\/span><\/button>/.test(c2) && searches(t).length === sp0,
         'PIA-141 AC4 the cost is shown before the spend: selecting 11/22 draws its one 56px button 🔍2 ("Search 2 fares, 2 searches"), and nothing has gone yet', btn);
       await tap(t, c2, 'search', { v: 'week' }); await until(() => !t.api.S.spendBusy); await tick(20);
       const s2 = searches(t).slice(sp0), c3 = sheet(t), q3 = quotaOf(t);
@@ -4602,8 +4609,8 @@ function norm(doc) {
     t.api.closeSheet();
     const active1 = t.api.activeItems().map((x) => x.id), list1 = t.api.renderIdeas().html;
     check(btnDW && !!ctl(cardOf(list0, TG), 'stage') && sType === 'stage' && named && !!hide && arch === true && closed1 && /🗄 ✓/.test(toast1) && !/data-act="undo"/.test(toast1) && active1.indexOf(DW) < 0 && active1.indexOf(TG) >= 0 && /data-act="shelf"/.test(list1) && posts(t).length === p0 &&
-      /data-act="star"/.test(st0) && /<button class="mrowb bad" data-act="stagedrop" data-id="[^"]+"><span class="mg" aria-hidden="true">🗑<\/span>Drop<\/button>/.test(st0) && shown(st0).length <= 20,
-      'PIA-153 AC2 / PIA-154 every card\'s ⋯ More is a button above the card\'s tap overlay (no stage disc); tap 1 opens P-stage (its header names the trip, free: the card is under the sheet; ☆ Pin, 🗄 Archive, the organizer\'s 🗑 Drop), tap 2 (🗄) puts the trip on this phone\'s shelf and closes the sheet, 🗄 ✓ (a second tap never quietly undoes it); nothing is sent', { btnDW, sType, named, arch, closed1, toast1, active1 });
+      /data-act="star"/.test(st0) && /<button class="mrowb bad" data-act="stagedrop" data-id="[^"]+"><span class="mg" aria-hidden="true">🗑<\/span>Remove for everyone<\/button>/.test(st0) && shown(st0).length <= 20,
+      'PIA-153 AC2 / PIA-154 every card\'s ⋯ More is a button above the card\'s tap overlay (no stage disc); tap 1 opens P-stage (its header names the trip, free: the card is under the sheet; ☆ Pin, 🗄 Hide on my phone, the organizer\'s 🗑 Remove for everyone: PIA-155), tap 2 (🗄) puts the trip on this phone\'s shelf and closes the sheet, 🗄 ✓ (a second tap never quietly undoes it); nothing is sent', { btnDW, sType, named, arch, closed1, toast1, active1 });
     t.api.ACTS.stage({ dataset: { id: DW, v: 'card' } }); t.api.ACTS.hidehere({ dataset: { id: DW } });
     const closed2 = !t.api.S.sheet, toast2 = t.rec['#toast'].innerHTML;
     check(closed2 && /✓/.test(toast2) && t.api.activeItems().some((x) => x.id === DW) && !(t.api.listRead().find((x) => x.id === DW) || {}).arch, 'PIA-153 AC2 🗄 again (P-stage from the shelf card) brings the trip back, as the shelf always did, and closes the sheet (✓)', { closed2, toast2 });
@@ -4616,16 +4623,24 @@ function norm(doc) {
     const shelfNow = td.api.shelfItems().map((x) => x.id), u = await td.api.ACTS.undo(), du = srv.read(DW);
     check(dropType === 'drop' && back === 'stage' && r && r.ok && dd.decision.stage === 'dropped' && !td.api.S.sheet && toastUndo && shelfNow.indexOf(DW) >= 0 && u && u.ok && du.decision.stage === 'proposed',
       'PIA-153 AC2 the organizer\'s 🗑 in P-stage (from the card) opens P-drop over it (‹ to P-stage): 🗑 Drop drops the trip for everyone through the real Worker, both sheets close, the card is on the shelf, and ↩ in the toast puts it back', { dropType, back, stage: dd.decision.stage, after: du.decision.stage });
-    // on the v1 trip 🗑 is greyed and says "⤒ Update trip first", and points to ⤒: the card's ⤒ pulses again once the sheet closes
+    // PIA-155: on the v1 trip 🗑 is live (a decision alone goes on any record: the PIA-155 section removes it through the real Worker);
+    // it waits, saying "⤒ Update trip first" and pointing to ⤒ (the card's ⤒ pulses again once the sheet closes), only while a ⤒
+    // update of that trip is half done on this phone (its journal resumes it)
     const tl = await boot136({ ls: orgLs() }), h0 = tl.api.renderIdeas().html;
     CLOCK = NOW + P + 1; const h1 = tl.api.renderIdeas().html;
+    tl.api.ACTS.stage({ dataset: { id: TG } }); const sl0 = sheet(tl), dl0 = ctl(sl0, 'stagedrop', { id: TG });
+    tl.api.ACTS.stagedrop(el0(dl0)); const live = tl.api.S.sheet && tl.api.S.sheet.type; tl.api.closeSheet();
+    const half = { v: 1, history: {}, migrations: { [TG]: { original: srv.read(TG), base: srv.read(TG), steps: [], at: 0, done: false } } };
+    tl.ls.setItem('pialax_transfer_v1', JSON.stringify(half));
     tl.api.ACTS.stage({ dataset: { id: TG } }); const sl = sheet(tl), dl = ctl(sl, 'stagedrop', { id: TG });
     const rr = tl.api.ACTS.stagedrop(el0(dl, true)), still = tl.api.S.sheet && tl.api.S.sheet.type;
     tl.api.closeSheet(); const h2 = tl.api.renderIdeas().html;
     CLOCK = NOW;
-    check(migc(cardOf(h0, TG)) === 'pulse' && migc(cardOf(h0, DW)) === 'none' && migc(cardOf(h1, TG)) === 'still' && dl && dl.why === '1' && dl.lbl === '⤒ Update trip first' && rr === null && still === 'stage' &&
+    check(migc(cardOf(h0, TG)) === 'pulse' && migc(cardOf(h0, DW)) === 'none' && migc(cardOf(h1, TG)) === 'still' &&
+      dl0 && !dl0.why && /<button class="mrowb bad" data-act="stagedrop" data-id="[^"]+"><span class="mg" aria-hidden="true">🗑<\/span>Remove for everyone<\/button>/.test(sl0) && live === 'drop' &&
+      dl && dl.why === '1' && dl.lbl === '⤒ Update trip first' && /aria-label="Remove for everyone, Update trip first"/.test(sl) && rr === null && still === 'stage' &&
       migc(cardOf(h2, TG)) === 'pulse' && posts(tl).length === 0,
-      'PIA-153 AC2/AC4b on the v1 trip P-stage\'s 🗑 is greyed: a tap says "⤒ Update trip first" (the Worker takes no other edit on a v1 record), nothing is sent, and its card\'s ⤒ pulses again once the sheet closes', { h0: migc(cardOf(h0, TG)), h1: migc(cardOf(h1, TG)), h2: migc(cardOf(h2, TG)), dl });
+      'PIA-153 AC2/AC4b + PIA-155 on the v1 trip P-stage\'s 🗑 Remove for everyone is live (one tap opens P-drop); while a ⤒ update of it is half done on this phone it is greyed: a tap says "⤒ Update trip first", nothing is sent, and its card\'s ⤒ pulses again once the sheet closes', { h0: migc(cardOf(h0, TG)), h1: migc(cardOf(h1, TG)), h2: migc(cardOf(h2, TG)), dl, live });
     // one pulse at a time on the list: while the card's ⤒ pulses, ⓘ (first run) and the list share wait; after it, they pulse
     check(keyP(h0) === 'still' && /class="ib share"/.test(h0) && !/class="ib share dot"/.test(h0) && keyP(h1) === 'pulse' && /class="ib share dot"/.test(h1),
       'PIA-153 AC5 one pulse at a time: on the list ⓘ\'s first-run pulse and the list share wait while the cards\' ⤒ pulses, and pulse once it is over', { k0: keyP(h0), k1: keyP(h1) });
@@ -4664,7 +4679,7 @@ function norm(doc) {
     act(tc, 'stage', { id: CH }); const mst = sheet(tc); tc.api.closeSheet();
     check(title0 && eq(pl0, ['current:true', 'span:false']) && eq(pl1, ['current:false', 'span:true']) && mark && rr && rr.ok && ups.length === 1 && ups[0].body.idea.title === '🦃 Thanksgiving' && d.idea.title === '🦃 Thanksgiving' &&
       !TM.docLegacy(d) && d.decision.stage === 'chosen' && tc.api.S.trip === CH && /🔒 ✓/.test(toastM) &&
-      /<h2 class="ttl"><span data-free>🦃 Thanksgiving<\/span>/.test(v) && /<span class="sdot now" data-k="snow"><\/span><span>Dates set<\/span>/.test(mst) && /data-k="lock">🔒<\/span><\/span><\/button>/.test(v) && /data-act="edit"/.test(mst) && !/data-act="migrate"/.test(v),
+      /<h2 class="ttl"><span data-free>🦃 Thanksgiving<\/span>/.test(v) && /<div class="sline" role="img" aria-label="Stage 3 of 5, Dates set"[\s\S]*?<span class="sword">Dates set<\/span><\/div>/.test(mst) && /data-k="lock">🔒<\/span><\/span><\/button>/.test(v) && /data-act="edit"/.test(mst) && !/data-act="migrate"/.test(v),
       'PIA-153 AC3/AC4c/AC4d ⤒ Update trip shows the trip\'s picture and name (P-edit\'s controls): "Chicago trip" → 🦃 "Thanksgiving" goes in the one /idea/update (the real Worker); Current / Travelers read which plan is chosen (aria-pressed, the chosen one ✓ and filled); once it lands the sheet closes back to the trip, the toast says 🔒 ✓, and the trip reads 🔒 Dates set (its pill\'s 🔒 and its stage) with ✎', { pl0, pl1, title: d.idea.title, toast: tc.rec['#toast'].innerHTML });
     // a name cleared is asked for (page 1, its field), nothing is sent
     const C2 = seedAs(TGX, (d2) => { d2.idea.title = 'Chicago trip'; });
@@ -4935,8 +4950,8 @@ function norm(doc) {
     act(o, 'open', { id: DN }); act(o, 'paidopen', { id: DN });
     const sp = sheet(o), nm = o.api.sheetName(o.api.S.sheet), pid = o.api.popupName(o.api.S.sheet); o.api.closeSheet();
     act(o, 'stage', { id: DN }); const sm = sheet(o); o.api.closeSheet();
-    check(/id="paid-amt"/.test(sp) && !/class="stepper/.test(sp) && !/class="mrowb/.test(sp) && nm === 'Paid' && pid === 'P-stage' && /class="stepper/.test(sm) && /data-act="stagedrop"/.test(sm) && /id="paid-amt"/.test(sm),
-      'PIA-154 💵 Paid opens P-stage with the amount alone (named "Paid"; its field and Save stay in view over the keyboard), while ⋯ More keeps the stepper, its rows and the same 💵 field', { nm, pid });
+    check(/id="paid-amt"/.test(sp) && !/class="sline/.test(sp) && !/class="mrowb/.test(sp) && nm === 'Paid' && pid === 'P-stage' && /class="sline"/.test(sm) && /data-act="stagedrop"/.test(sm) && /id="paid-amt"/.test(sm),
+      'PIA-154 💵 Paid opens P-stage with the amount alone (named "Paid"; its field and Save stay in view over the keyboard), while ⋯ More keeps the stage line (PIA-155), its rows and the same 💵 field', { nm, pid });
   }
   {
     // Calendar: no window brackets (P-dates\' own), my days underlined only where they leave the plan, a day's spoken count as drawn
@@ -4979,6 +4994,160 @@ function norm(doc) {
     m.travelers.forEach((x) => o.api.personKeys(m, x.code).forEach((k) => { if (per.indexOf(k) < 0) per.push(k); }));
     check(!o.api.ACTS.dlook && !o.api.ACTS.dend && !('facePulse' in o.api.S) && all.length > 0 && eq(per.slice().sort(), all.slice().sort()) && o.api.personKeys(m, 'momdad-k3').length >= 0,
       'PIA-154 no dead path is left (👥\'s dlook, the [🛬|↔|🛫] segment\'s dend, the me row\'s facePulse); each traveler\'s 🔍N in their sheet searches their part of P-total\'s legs (one rule: the model\'s tapKeys)', { all: all.length, per: per.length });
+  }
+
+  // ═══ PIA-155 ═══
+  section('PIA-155 remove an old (v1) trip for everyone without ⤒ Update trip; ⋯ More says what each row does; the price row says whose fare; one 🛬 ask');
+  {
+    const cardOf = (h, id) => (new RegExp('<article class="card[^"]*" data-trip="' + id + '">[\\s\\S]*?</article>').exec(h) || [''])[0];
+    const orgLs = (ids) => lsOf(ids, { pialax_idea_keys_v1: keyOf(ids), pialax_idea_me_v1: Object.fromEntries(ids.map((i) => [i, 'LAX'])) });
+    // A1 from the card's ⋯: 3 taps (⋯, 🗑 Remove for everyone, 🗑 Remove), one decision-only update through the real Worker
+    const TG = seedAs(TGX), idea0 = JSON.stringify(srv.read(TG).idea), dec0 = clone(srv.read(TG).decision);
+    const t = await boot136({ ls: orgLs([TG]), rec: ['#toast'] }), list0 = t.api.renderIdeas().html, f0 = t.fetches.length;
+    t.api.ACTS.stage({ dataset: ctl(cardOf(list0, TG), 'stage') });                       // tap 1: ⋯
+    const st = sheet(t), rm = ctl(st, 'stagedrop', { id: TG });
+    t.api.ACTS.stagedrop(el0(rm));                                                         // tap 2: 🗑 Remove for everyone
+    const pdType = t.api.S.sheet && t.api.S.sheet.type, pd = sheet(t), sent0 = posts(t, f0).length;
+    const r = await act(t, 'dropyes'); await tick();                                       // tap 3: 🗑 Remove
+    const a1 = srv.read(TG), ups = posts(t, f0), toastA = t.rec['#toast'].innerHTML, shelfA = t.api.shelfItems().map((x) => x.id);
+    check(t.api.modelOf(TG) && rm && !rm.why && pdType === 'drop' && /<button class="btn danger" data-act="dropyes">🗑 Remove<\/button><button class="btn pri" data-act="dropkeep">Keep<\/button>/.test(pd) && sent0 === 0 &&
+      r && r.ok && a1.decision.stage === 'dropped' && JSON.stringify(a1.idea) === idea0 && eq(a1.decision.chosen, dec0.chosen) &&
+      ups.length === 1 && ups[0].path === '/idea/update' && eq(Object.keys(ups[0].body).sort(), ['decision', 'edit_key']) && eq(ups[0].body.decision, { stage: 'dropped' }) &&
+      !t.api.S.sheet && shelfA.indexOf(TG) >= 0 && /🗑/.test(toastA) && /data-act="undo"/.test(toastA) && t.api.modelOf(TG).legacy,
+      'PIA-155 A the organizer removes the duplicate v1 Thanksgiving from its card in 3 taps (⋯, 🗑 Remove for everyone, 🗑 Remove; no ⤒ Update first): one /idea/update with {edit_key, decision: dropped} and no idea, the record dropped with its idea JSON byte-identical (still v1), the card on the shelf, ↩ in the toast', { pdType, r, ups: ups.map((q) => q.body.decision), stage: a1.decision.stage });
+    // A2 ↩ in the toast: back as it stood (chosen again with its own stored choice and estimate; its idea untouched; still v1)
+    const f1 = t.fetches.length, u = await act(t, 'undo'); await tick();
+    const a2 = srv.read(TG), ups2 = posts(t, f1);
+    check(u && u.ok && a2.decision.stage === 'chosen' && JSON.stringify(a2.idea) === idea0 && eq(a2.decision.chosen, dec0.chosen) && a2.decision.estimate_total === 704 && a2.decision.estimate_total === dec0.estimate_total &&
+      ups2.length === 1 && eq(Object.keys(ups2[0].body).sort(), ['decision', 'edit_key']) && eq(ups2[0].body.decision, { stage: 'chosen', chosen: dec0.chosen }) &&
+      t.api.activeItems().some((x) => x.id === TG) && t.api.modelOf(TG).legacy && t.api.modelOf(TG).legacyLock && t.api.modelOf(TG).stage === 'asking',
+      'PIA-155 A ↩ (the model\'s restoreDelta) puts the v1 trip back as it stood: {decision: {stage: chosen, chosen: <its own stored choice>}}, no idea; the record chosen again with the same choice and estimate (PIA 11/25–11/29, $704; only chosen_at re-stamped) and its idea byte-identical; the card back in the list, still Asking, still v1', ups2.map((q) => q.body));
+    // A3 from the trip page's ⋯ (3 taps too); Mom's phone then sees it removed on her shelf; the shelf card's ↩ restores it
+    const T2 = seedAs(TGX), i2 = JSON.stringify(srv.read(T2).idea);
+    const o = await boot136({ ls: orgLs([T2]), rec: ['#toast'] });
+    act(o, 'open', { id: T2 }); const v0 = screen(o);
+    tap(o, v0, 'stage'); const ost = sheet(o);                                             // tap 1: the nav's ⋯
+    o.api.ACTS.stagedrop(el0(ctl(ost, 'stagedrop', { id: T2 })));                          // tap 2
+    const ro = await act(o, 'dropyes'); await tick();                                      // tap 3
+    const b1 = srv.read(T2), leftTrip = o.api.S.trip === null && !o.api.S.sheet;
+    const mom = await boot136({ ls: lsOf([T2], { pialax_idea_me_v1: { [T2]: 'PIA' } }) });
+    const momShelf = mom.api.shelfItems().map((x) => x.id), momAct = mom.api.activeItems().map((x) => x.id), mm = mom.api.modelOf(T2);
+    mom.ls.setItem('pialax_ui_v1', JSON.stringify({ v1read: 1, shelfOpen: true })); const momList = mom.api.renderIdeas().html;
+    mom.api.ACTS.stage({ dataset: { id: T2, v: 'card' } }); const momMore = sheet(mom); mom.api.closeSheet();
+    o.ls.setItem('pialax_ui_v1', JSON.stringify(Object.assign(JSON.parse(o.ls.getItem('pialax_ui_v1') || '{}'), { shelfOpen: true })));
+    const oList = o.api.renderIdeas().html, oCard = cardOf(oList, T2);
+    o.api.ACTS.stage({ dataset: { id: T2, v: 'card' } }); const oMore = sheet(o); o.api.closeSheet();
+    act(o, 'open', { id: T2 }); const oView = screen(o); act(o, 'back');
+    const rr = await o.api.ACTS.restore({ dataset: ctl(oCard, 'restore') }); await tick();
+    const b2 = srv.read(T2);
+    check(/<div class="sline" role="img" aria-label="Stage 2 of 5, Asking"/.test(ost) && ro && ro.ok && leftTrip && b1.decision.stage === 'dropped' && JSON.stringify(b1.idea) === i2 &&
+      momShelf.indexOf(T2) >= 0 && momAct.indexOf(T2) < 0 && mm.stage === 'dropped' && mm.closed && !/data-act="restore"/.test(cardOf(momList, T2)) && /🗄<\/span> Archive <span class="tn">1<\/span>/.test(momList) &&
+      /<div class="sline off" role="img" aria-label="Removed for everyone" data-lbl="Removed for everyone">[\s\S]*?<span class="sword">Removed<\/span><\/div>/.test(momMore) && !/data-act="(tshare|stagedrop|restore)"/.test(momMore) &&
+      /data-act="restore"/.test(oCard) && !/data-act="migcard"/.test(oCard) && !/data-act="stagedrop"/.test(oMore) && /data-act="restore"/.test(oMore) && !/data-act="migrate"/.test(oView) &&
+      rr && rr.ok && b2.decision.stage === 'chosen' && JSON.stringify(b2.idea) === i2,
+      'PIA-155 A from the trip page\'s ⋯ too (3 taps; the trip view leaves for the list); Mom\'s phone (no key) sees it removed, on her 🗄 Archive shelf like any removed trip (her ⋯ More reads "Removed", no Share, no 🗑 or ↩); on his phone the removed card offers ↩ and no ⤒ (nor the trip\'s nav: a removed trip\'s next step is ↩), and the shelf\'s ↩ restores it, its idea untouched', { momShelf, stage: b2.decision.stage });
+    // A4 a v1 record with no decision object: its 🗑 is not offered as live (greyed, "⤒ Update trip first"), and a tap sends nothing
+    const ND = seedAs(TGX, (d) => { delete d.decision; });
+    const n = await boot136({ ls: orgLs([ND]) }), nf = n.fetches.length;
+    n.api.ACTS.stage({ dataset: { id: ND } }); const ns = sheet(n), nd = ctl(ns, 'stagedrop', { id: ND });
+    const nr = n.api.ACTS.stagedrop(el0(nd, true));
+    check(!n.api.modelOf(ND).hasDecision && nd && nd.why === '1' && nd.lbl === '⤒ Update trip first' && nr === null && n.api.S.sheet.type === 'stage' && posts(n, nf).length === 0,
+      'PIA-155 A a v1 record without a decision object (no Worker-created one lacks it) keeps 🗑 greyed: the Worker\'s decision would fail on it; nothing is sent');
+    // (an updated record with no decision object, never drawn by the Worker: no 🗑 at all, nothing to point to)
+    const NV = seedAs(DWX, (d) => { delete d.decision; });
+    const nv = await boot136({ ls: lsOf([NV], { pialax_idea_keys_v1: keyOf([NV]), pialax_idea_me_v1: { [NV]: 'ashwin-p8' } }) });
+    nv.api.ACTS.stage({ dataset: { id: NV } }); const nvs = sheet(nv);
+    check(!nv.api.modelOf(NV).legacy && !nv.api.modelOf(NV).hasDecision && nv.api.removeHeld(nv.api.modelOf(NV)) && !/data-act="stagedrop"|Update trip first/.test(nvs) && /data-act="hidehere"/.test(nvs),
+      'PIA-155 A an updated record with no decision object offers no 🗑 (no dead "⤒ Update trip first": there is no ⤒ to point to)');
+    // A5 two organizer phones: another removed (or restored) the v1 trip first. Ours finds the record already there: nothing is sent,
+    // and it settles as the same tap on an updated trip does (no ⚠ ↻ forever); any other v1 edit is still refused
+    const RC = seedAs(TGX), rcIdea = JSON.stringify(srv.read(RC).idea);
+    const other = async (id, delta) => { const fr = srv.read(id), q = TM.updateRequest(fr, KEY, typeof delta === 'function' ? delta(fr) : delta); const r = await srv.fetch(W + q.path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(q.body) }); return r.status; };
+    const a = await boot136({ ls: orgLs([RC]), rec: ['#toast'] });
+    a.api.ACTS.stage({ dataset: { id: RC } }); a.api.ACTS.stagedrop(el0(ctl(sheet(a), 'stagedrop', { id: RC })));
+    const pdOpen = a.api.S.sheet && a.api.S.sheet.type === 'drop', dropNm = a.api.sheetName(a.api.S.sheet);
+    const st1 = await other(RC, { decision: { stage: 'dropped' } }), fa = a.fetches.length;          // the other phone removes it
+    const ra = await act(a, 'dropyes'); await tick();
+    const raPosts = posts(a, fa), after1 = srv.read(RC), toastR = a.rec['#toast'].innerHTML, shelved = a.api.shelfItems().some((x) => x.id === RC);
+    const st2 = await other(RC, (fr) => TM.restoreDelta(fr)), fb = a.fetches.length;                // the other phone restores it
+    const ub = await act(a, 'undo'); await tick();
+    const ubPosts = posts(a, fb), after2 = srv.read(RC), errOpen = a.api.S.sheet && a.api.S.sheet.type;
+    const fc = a.fetches.length, lk = await a.api.organizerWrite(RC, { decision: { stage: 'chosen' } }); await tick();
+    check(pdOpen && dropNm === 'Remove trip' && st1 === 200 && ra && ra.ok && raPosts.length === 0 && after1.decision.stage === 'dropped' && !a.api.S.sheet && /data-act="undo"/.test(toastR) && shelved &&
+      st2 === 200 && ub && ub.ok && ubPosts.length === 0 && after2.decision.stage === 'chosen' && !errOpen && JSON.stringify(after2.idea) === rcIdea && a.api.activeItems().some((x) => x.id === RC) &&
+      lk && !lk.ok && lk.code === 'bad_body' && posts(a, fc).length === 0 && srv.read(RC).decision.chosen_at === after2.decision.chosen_at,
+      'PIA-155 A two organizer phones on the v1 trip: P-drop (named "Remove trip") open here while the other phone removes it: our 🗑 Remove settles with nothing sent (the trip on the shelf, ↩ in the toast), not a ⚠ ↻ that never clears; the other phone restores it, and our toast ↩ settles too (no P-error); a lock on the v1 record is still refused (bad_body, nothing sent)', { ra, ub, lk, raPosts: raPosts.length, ubPosts: ubPosts.length, shelved, errOpen });
+  }
+  {
+    // B ⋯ More in every state: ≤20 words, no marked label word (sheet() collects any into SHEET_L3), the stage one quiet line
+    const TG = seedAs(TGX), DW = seedAs(DWX), DR = seedAs(DWX, (d) => { d.decision.stage = 'dropped'; });
+    const PAIDX = seedAs(DWX, (d) => { chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); d.responses['momdad-k3'].booked = true; d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA', booked: true }); });
+    const ids = [TG, DW, DR, PAIDX], org = await boot136({ ls: lsOf(ids, { pialax_idea_keys_v1: keyOf(ids), pialax_idea_me_v1: { [TG]: 'LAX', [DW]: 'ashwin-p8', [DR]: 'ashwin-p8', [PAIDX]: 'ashwin-p8' }, pialax_proxy_token: TOKEN }) });
+    const guest = await boot136({ ls: lsOf([TG, DW], { pialax_idea_me_v1: { [TG]: 'LGA', [DW]: 'anjo-z5' } }) });
+    const more = (t, id) => { t.api.ACTS.stage({ dataset: { id } }); const h = sheet(t); t.api.closeSheet(); return h; };
+    const states = { 'organizer v1': more(org, TG), 'organizer v2': more(org, DW), 'organizer removed': more(org, DR), 'organizer token, paid row': more(org, PAIDX), 'guest v1': more(guest, TG), 'guest v2': more(guest, DW) };
+    org.api.ACTS.hidehere({ dataset: { id: DW } }); states['organizer hidden'] = more(org, DW);
+    const words = Object.keys(states).map((k) => k + ':' + shown(states[k]).length), over = Object.keys(states).filter((k) => shown(states[k]).length > 20);
+    const lines = Object.keys(states).map((k) => (/<div class="sline[^"]*" role="img" aria-label="([^"]+)"/.exec(states[k]) || [])[1]);
+    check(over.length === 0 && Object.keys(states).every((k) => !/data-lbl3/.test(states[k]) && !/class="stepper|class="srow/.test(states[k])) &&
+      eq(lines, ['Stage 2 of 5, Asking', 'Stage 2 of 5, Asking', 'Removed for everyone', 'Stage 5 of 5, Done', 'Stage 2 of 5, Asking', 'Stage 2 of 5, Asking', 'Stage 2 of 5, Asking']) &&
+      /Hide on my phone/.test(states['organizer v2']) && /Show on my phone/.test(states['organizer hidden']) && /Remove for everyone/.test(states['organizer v1']) && /Remove for everyone/.test(states['organizer v2']) &&
+      /data-act="restore"[^>]*>[\s\S]*?Restore<\/button>/.test(states['organizer removed']) && /data-act="paidsave"|data-act="paidwhy"|class="paidv"/.test(states['organizer token, paid row']) && !/Remove/.test(states['guest v1'] + states['guest v2']) &&
+      org.api.LEGEND.hidehere[1] === 'Hide on my phone' && org.api.LEGEND.dropped[1] === 'Removed' && !org.api.LEGEND.snow && !org.api.LEGEND.sdone && !org.api.LEGEND.snext,
+      'PIA-155 B ⋯ More says what each row does in every state (organizer v1 / v2 / removed / hidden / token phone with 💵, guest v1 / v2), ≤20 words and nothing marked: the stage one picture with its word ("Stage 2 of 5, Asking", "Removed for everyone"), "🗄 Hide on my phone" / "Show on my phone", the organizer\'s "🗑 Remove for everyone" (a removed trip "↩ Restore"); ⓘ\'s key says 🗄 Hide on my phone and 🗑 Removed', { words, lines });
+    // a trip the shelf holds anyway (removed, or over) offers no 🗄: Hide or Show would change nothing there; a hidden trip restored
+    // after a removal can be shown again
+    const PAST = seedAs(DWX, (d) => { d.idea.dates.departure = '2026-09-04'; d.idea.dates.return = '2026-09-07'; });
+    const pst = await boot136({ ls: lsOf([PAST, DR], { pialax_idea_me_v1: { [PAST]: 'anjo-z5', [DR]: 'anjo-z5' } }) });
+    const pastMore = more(pst, PAST), drGuest = more(pst, DR);
+    const css = fs.readFileSync(APP, 'utf8');
+    check(pst.api.modelOf(PAST).past && pst.api.modelOf(PAST).shelf && !/data-act="hidehere"/.test(pastMore) && /data-act="star"/.test(pastMore) && !/data-act="hidehere"/.test(states['organizer removed']) && !/data-act="hidehere"/.test(drGuest) &&
+      /data-act="hidehere"/.test(states['organizer hidden']) && /\.sline\.off \.strk \{ opacity: \.55; \}/.test(css) && !/\.sline\.off \{[^}]*opacity/.test(css),
+      'PIA-155 B no "🗄 Hide on my phone" on a trip the 🗄 Archive shelf holds anyway (removed, for the organizer and a guest, or over): it would change nothing; a removed trip\'s line dims its dots only, its word "Removed" at full ink (AA contrast)');
+  }
+  {
+    // C the price row says whose fare, and shows where a price helps decide; D my own bar does not ask for 🛬 twice
+    // ("P town": Mom & Dad host at PIA, Ashwin booked from LAX, Anjo in from LGA and not booked)
+    const town = (d) => { atPeoria(d); d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); };
+    const OPEN = seedAs(DWX, town), LOCK = seedAs(DWX, (d) => { town(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); });
+    const tok = (ids, extra) => lsOf(ids, Object.assign({ pialax_idea_keys_v1: keyOf(ids), pialax_idea_me_v1: Object.fromEntries(ids.map((i) => [i, 'ashwin-p8'])), pialax_proxy_token: TOKEN, pialax_multi_airport_v1: '1' }, extra || {}));
+    const rowOf = (h) => (/<button class="pricerow[\s\S]*?<\/button>/.exec(h) || [''])[0];
+    const cardMoney = (t, id) => (/<button class="totb z"[\s\S]*?<\/button>/.exec(t.api.cardHTML({ id, x: t.api.listEntry(id), m: t.api.modelOf(id) })) || [''])[0];
+    const p1 = await boot136({ ls: tok([OPEN, LOCK]) });
+    act(p1, 'open', { id: OPEN }); const ho = screen(p1); act(p1, 'back');
+    act(p1, 'open', { id: LOCK }); const hl = screen(p1);
+    p1.api.openSheet('person', { id: LOCK, code: 'anjo-z5' }); const aj = sheet(p1); p1.api.closeSheet();   // (her face's sheet, drawn without its /account read)
+    const ro = rowOf(ho), rl = rowOf(hl), co = cardMoney(p1, OPEN), cl = cardMoney(p1, LOCK);
+    check(ro === '<button class="pricerow" data-act="total" data-id="' + OPEN + '" aria-label="Price Anjo’s flight" data-lbl="Price Anjo’s flight"><span class="chipq w"><span aria-hidden="true" data-k="search">🔍</span> Price <span class="uf" data-k="unpriced">🗽</span></span></button>' &&
+      /data-k="search">🔍<\/span><span class="tn">1<\/span>/.test(co) && rl === '' && cl === '' && !/data-k="search"/.test(cardMoney(p1, LOCK)) &&
+      /data-act="search" data-id="[^"]+" data-v="person" data-code="anjo-z5" data-n="1" aria-label="Search 1 fare, 1 search" data-lbl="Search 1 fare">/.test(aj) && !/Price 1|<span class="tn">1<\/span><\/span><\/button>/.test(ro),
+      'PIA-155 C before 🔒 the price row says whose fare: "🔍 Price 🗽" (Anjo\'s round trip; Ashwin booked, Mom & Dad host), named "Price Anjo’s flight", never a bare "Price 1"; the card keeps its 🔍1. After 🔒 with nothing cached: no row and no card chip, and Anjo\'s own sheet (her face on the board: 2 taps) keeps its 🔍1 for her flight, which says what its number is on a long press ("Search 1 fare")', { ro, rl, co, cl });
+    const pw = p1.api.priceWho, me = { me: { code: 'lax' } }, X = (code, short) => ({ code, short, one: short });
+    check(pw(me, [X('lax', '')]) === 'Price my flight' && pw(me, [X('lax', ''), X('anjo-z5', 'Anjo')]) === 'Price my and Anjo’s flights' && pw({ me: null }, [X('lax', '')]) === 'Price Person’s flight' &&
+      pw(me, [X('a', 'Ann'), X('b', 'Bo'), X('c', 'Cy'), X('d', 'Di')]) === 'Price Ann’s, Bo’s, Cy’s and 1 more flight' && pw(me, [X('a', 'Ann'), X('b', 'Bo'), X('c', 'Cy'), X('d', 'Di'), X('e', 'Ed')]) === 'Price Ann’s, Bo’s, Cy’s and 2 more flights' &&
+      pw(me, [X('lax', 'Ashwin')]) === 'Price Ashwin’s flight',
+      'PIA-155 C the row\'s name in plain words: my own nameless v1 "Me" reads "my" ("Price my and Anjo’s flights", never "Person’s"), "and 1 more flight", "and 2 more flights"; a named me keeps my name');
+    // a cached fare brings the row back after 🔒 (a real total); with one traveler still unsearched it says "$X 🔍🗽"
+    const m0 = TM.tripModel(srv.read(LOCK), { today: '2026-10-17', now: NOW, me: 'ashwin-p8', hasEditKey: true, hasToken: true, multiAirport: true }), anj = m0.travelers.find((x) => x.code === 'anjo-z5');
+    const fares = {}; anj.keys.forEach((k) => { fares[k.key] = { p: 321, f: NOW - 36e5 }; });
+    const p2 = await boot136({ ls: tok([LOCK], { pialax_fares_v2: fares }) });
+    act(p2, 'open', { id: LOCK }); const r2 = rowOf(screen(p2)), c2 = cardMoney(p2, LOCK);
+    const TWO = seedAs(DWX, (d) => { town(d); d.responses['ashwin-p8'].booked = false; chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); });
+    const p3 = await boot136({ ls: tok([TWO], { pialax_fares_v2: fares }) });   // (Anjo's fare cached, Ashwin's not)
+    act(p3, 'open', { id: TWO }); const r3 = rowOf(screen(p3));
+    // (Ashwin's flight is bought: never searched, so the sum stays outlined, "not complete", with no face to price)
+    check(/<span class="tot part" data-k="total">\$321<\/span>/.test(r2) && !/data-k="unpriced"|chipq/.test(r2) && /aria-label="Group total \$321, not complete"/.test(r2) && /\$321/.test(c2) &&
+      /<span class="tot part" data-k="total">\$321<\/span>[\s\S]*?<span class="chipq" data-lbl="Price Ashwin’s flight"><span aria-hidden="true" data-k="search">🔍<\/span><span class="uf" data-k="unpriced">🌴<\/span><\/span><\/button>$/.test(r3) && /aria-label="Group total \$321, not complete, price Ashwin’s flight" data-lbl="Group total"/.test(r3),
+      'PIA-155 C after 🔒 a cached fare brings the row (and the card\'s $) back with the real total; with one traveler still unsearched it reads "$321 🔍🌴", the faces naming themselves ("Price Ashwin’s flight"), the row "Group total $321, not complete, price Ashwin’s flight"; the cost is P-total\'s 🔍N', { r2, r3 });
+    // D: my own booked bar carries no 🛬? while my primary is 🛬 Landing time; another booked traveler's keeps it on the organizer's phone
+    const BOTH = seedAs(DWX, (d) => { town(d); d.responses['anjo-z5'].booked = true; chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); });
+    const p4 = await boot136({ ls: tok([BOTH]) }), g4 = await boot136({ ls: lsOf([BOTH], { pialax_idea_me_v1: { [BOTH]: 'anjo-z5' } }) });
+    act(p4, 'open', { id: BOTH }); const h4 = screen(p4); act(g4, 'open', { id: BOTH }); const hg = screen(g4);
+    const barOf = (h, code) => { const i = h.indexOf('data-act="flight" data-id="' + BOTH + '" data-code="' + code + '"'); return i < 0 ? '' : h.slice(i, h.indexOf('</button>', i)); };
+    const myBar = barOf(h4, 'ashwin-p8'), herBar = barOf(h4, 'anjo-z5');
+    check(p4.api.primaryAction(p4.api.modelOf(BOTH), '2026-10-17') === 'times' && /data-act="mytimes"[^>]*aria-label="Landing time"/.test(h4) && !!myBar && !/data-k="notime"/.test(myBar) && /data-k="notime">🛬\?<\/span>/.test(herBar) &&
+      !/data-k="notime"/.test(hg) && (h4.match(/data-k="notime"/g) || []).length === 1,
+      'PIA-155 D the organizer\'s own booked bar shows no muted 🛬? while his primary already is "🛬 Landing time" (the same ask once); Anjo\'s booked bar keeps it on his phone; a guest\'s phone shows none', { my: myBar.slice(0, 120), her: herBar.slice(0, 120) });
   }
 
   // ═══ AC12 / AC14 ═══

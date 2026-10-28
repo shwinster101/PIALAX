@@ -610,6 +610,8 @@ function tripModel(doc, ctx) {
     plan: plan, departureOnly: departureOnly, nights: nights, win: win, explicitWin: explicitWin, span: span, undated: !plan,
     pin: N.pin, nightsN: N.nights, caption: N.caption.trim(),
     stage: stage, decision: decision, locked: (decision === 'chosen' && !legacy) || decision === 'booked',
+    // PIA-155: the record holds a decision object (every Worker-created one does): a v1 trip is removed and restored through it
+    hasDecision: !!doc.decision && typeof doc.decision === 'object' && !Array.isArray(doc.decision),
     closed: decision === 'booked' || decision === 'dropped',
     paid: decision === 'booked' && typeof D.actual_total === 'number' ? D.actual_total : null, // what the organizer recorded as paid (💵)
     past: !!(plan && plan.e < today),
@@ -1322,6 +1324,12 @@ function decisionBody(fresh, idea, raw) {
   var st = raw && raw.stage;
   if (!hasOwn(IDEA_STAGES, st)) return null;
   if (st === 'chosen') {
+    // PIA-155: the ↩ of a removed v1 record (no idea sent) chooses the record's own stored choice again, as it stood (its place,
+    // days and estimate: the Worker re-reads it through validateIdea and re-stamps chosen_at); never data from the caller
+    var D0 = fresh && fresh.decision;
+    if (idea === (fresh && fresh.idea) && docLegacy(fresh) && D0 && D0.stage === 'dropped' && D0.chosen && typeof D0.chosen === 'object' && !Array.isArray(D0.chosen)) {
+      return { stage: 'chosen', chosen: Object.assign({}, D0.chosen) };
+    }
     var shown = { idea: idea }, plan = docPlan(shown), ap = docDest(shown);
     if (!plan || !ap) return null;
     var city = clip((idea.destination && idea.destination.city) || airportInfo(ap).city, TEXT_MAX.city);
@@ -1335,13 +1343,40 @@ function decisionBody(fresh, idea, raw) {
   }
   return { stage: st };
 }
+/* ↩ puts a dropped trip back where it stood. Dropping keeps the decision's choice and paid amount, but the Worker's
+   'proposed' clears the whole decision, so: booked again (💵, the amount paid) or 🔒 chosen again (from the plan,
+   as every lock is) while the record still holds that choice, else proposed. PIA-155: here (it was app.html's), so
+   updateRequest can tell the one ↩ a v1 record takes. On a v1 record whatever choice it holds comes back: decisionBody
+   sends {stage: chosen, chosen: <the record's own stored choice>}, so its place, days and estimate stand as they were
+   (only chosen_at is re-stamped). A paid one ({stage: booked, actual_total}) keeps its choice untouched (the Worker's
+   booked changes only the stage and the amount, and re-stamps booked_at). */
+function restoreDelta(doc) {
+  var D = (doc && doc.decision) || {};
+  if (D.chosen && typeof D.actual_total === 'number' && D.actual_total >= 1) return { decision: { stage: 'booked', actual_total: D.actual_total } };
+  if (D.chosen && (docLegacy(doc) || (docPlan(doc) && docDest(doc)))) return { decision: { stage: 'chosen' } };
+  return { decision: { stage: 'proposed' } };
+}
+/* PIA-155: the only edits a v1 record (docLegacy) takes before ⤒ Update trip: removing it for everyone (a decision to 'dropped')
+   and the ↩ that undoes it (restoreDelta of that dropped record, nothing else), each a decision alone. No idea is ever sent with
+   them, so the v1 idea stays byte-identical (the Worker's /idea/update without an idea touches doc.decision alone) and the trip
+   still reads as v1. A record without a decision object takes neither: the Worker's applyDecision would throw on it (every
+   Worker-created record has one). */
+function legacyDecision(fresh, delta) {
+  var D = fresh && fresh.decision, d = delta && delta.decision;
+  if (!D || typeof D !== 'object' || Array.isArray(D) || !d || typeof d !== 'object') return false;
+  if (Object.keys(delta).some(function (k) { return k !== 'decision'; })) return false;
+  if (D.stage !== 'dropped') return d.stage === 'dropped';
+  var back = restoreDelta(fresh).decision;
+  return d.stage === back.stage && (back.stage !== 'booked' || d.actual_total === back.actual_total);
+}
 /* POST /idea/update from a FRESH record (GET /idea with X-Idea-Key right before): id in the query, edit key in the
-   body. A legacy doc refuses every edit but P-migrate (opts.migrate), the only write that nulls recommendation;
-   and no update ever writes an idea that would read as legacy. */
+   body. A legacy doc refuses every edit but P-migrate (opts.migrate), the only write that nulls recommendation, and
+   (PIA-155) its removal and the ↩ that undoes it (legacyDecision: a decision alone); no update ever writes an idea
+   that would read as legacy. */
 function updateRequest(fresh, editKey, delta, opts) {
   opts = opts || {}; delta = delta || {};
   if (!fresh || !IDEA_ID_RE.test(String(fresh.id || '')) || !fresh.idea || !IDEA_KEY_RE.test(String(editKey || ''))) return null;
-  if (docLegacy(fresh) && !opts.migrate) return null;
+  if (docLegacy(fresh) && !opts.migrate && !legacyDecision(fresh, delta)) return null;
   var body = { edit_key: editKey };
   if (IDEA_DELTA_KEYS.some(function (k) { return hasOwn(delta, k); })) {
     body.idea = nextIdea(fresh, delta, opts.rand);
@@ -2681,7 +2716,7 @@ if (typeof module !== 'undefined' && module.exports) {
     familyOf: familyOf, memberFaces: memberFaces, nameFaces: nameFaces, migrateLabels: migrateLabels, autoFace: autoFace,
     typedNote: typedNote, noteRoom: noteRoom, faceOf: faceOf, decisionBody: decisionBody,
     memberCode: memberCode, createRequest: createRequest, respondRequest: respondRequest, bookedRequests: bookedRequests,
-    updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit,
+    updateRequest: updateRequest, airportSyncRequests: airportSyncRequests, organizerEdit: organizerEdit, restoreDelta: restoreDelta, legacyDecision: legacyDecision,
     migrateOptions: migrateOptions, migrateRequests: migrateRequests,
     historyItems: historyItems, historyDraft: historyDraft, historyFinishRequests: historyFinishRequests,
     LIST_LINK_MAX: LIST_LINK_MAX, answerTimes: answerTimes, newestAnswerAt: newestAnswerAt, newAnswers: newAnswers, awaitsMe: awaitsMe, bookByCue: bookByCue, togoCue: togoCue,

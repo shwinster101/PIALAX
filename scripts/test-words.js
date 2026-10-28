@@ -291,6 +291,8 @@ const LBL3_MAX = 3;
 const LBL3_OK = ['Coming?', 'Hosting?', 'Lock dates', 'I booked', 'Landing time', 'Track', 'Lands', 'Leaves', 'Tue', 'Wed', 'Thu'];
 const LBL3_DAYS = ['Tue', 'Wed', 'Thu'];   // (Calendar's weekday header only)
 const SKIP_KEY = ['back', 'key', 'settings', 'close'];
+// the build ⚙ shows (app.html's one BUILD constant; test-app checks it is the newest ticket's number)
+const BUILD_NO = +((/\bvar BUILD = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8')) || [])[1] || 0);
 // the app's declared icon vocabulary: key → its 1–3 word label (read from app.html's LEGEND, the one place it is written)
 const LEGEND_LABEL = (() => {
   const src = fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8'), b = src.indexOf('var LEGEND = {'), e = src.indexOf('};', b);
@@ -1468,9 +1470,9 @@ async function main() {
       off.slice(0, 2));
     const eight = editLog.filter((x) => /^eight /.test(x.who)), org = editLog.filter((x) => /^organizer /.test(x.who));
     const good = (x) => JSON.stringify(x.tiles) === '["etitle","epeople","ecap","ekey","edrop"]' && x.linkPop === 'P-link' && /#k=pialax-test-edit-key/.test(x.linkTxt) && x.warned &&
-      JSON.stringify(x.drop) === '["🗑 Drop","Keep"]' && x.back === 'P-edit';
+      JSON.stringify(x.drop) === '["🗑 Remove","Keep"]' && x.back === 'P-edit';
     check(eight.length === 3 && org.length === 3 && eight.concat(org).every(good) && eight.every((x) => x.people && x.people.armed && x.people.rows === 8),
-      'PIA-136 AC5/AC7/AC9 P-edit on the organizer\'s trips (and the 8-member trip with long names) at every width: 🏷📍 👥 📝 🔑 🗑; removing someone who answered shows ⚠ first; 🔑 gives the organizer link (P-link when the clipboard refuses) and "Your devices only"; P-drop is 🗑 Drop / Keep, and Keep goes back',
+      'PIA-136 AC5/AC7/AC9 P-edit on the organizer\'s trips (and the 8-member trip with long names) at every width: 🏷📍 👥 📝 🔑 🗑; removing someone who answered shows ⚠ first; 🔑 gives the organizer link (P-link when the clipboard refuses) and "Your devices only"; P-drop is 🗑 Remove / Keep (PIA-155), and Keep goes back',
       eight.concat(org).filter((x) => !good(x)).slice(0, 2));
   }
   {
@@ -1806,10 +1808,12 @@ async function main() {
     check(codes.length === 8 && proxy === 7 && links >= 4 && nw === 20 && net.posts - p0 === 1 && r.note === '📞 ' + typed.trim() && r.available_from === '2026-12-10' && r.origin === 'ORD',
       'PIA-137 AC7 / AC8 the organizer opens all 8 sheets (an answer row, 📞, on each but his own; each traveler\'s link), and a note typed for Bartholomew stops at 20 words and saves marked 📞 with his days and origin kept', { proxy, links, nw, note: r.note.slice(0, 40) });
     await jsClick(page, '#screen [data-act="stage"]'); await settle(page, 80);
-    const names = await page.evaluate(() => [...document.querySelectorAll('#sheet .srow')].map((e) => e.lastElementChild.textContent.trim()));
+    // (PIA-155: the stage is one quiet line: five dots, the stage it is at by name, one picture; no list that reads like choices)
+    const names = await page.evaluate(() => { const l = document.querySelector('#sheet .sline'); return l ? { lbl: l.getAttribute('aria-label'), role: l.getAttribute('role'), word: l.textContent.trim(), dots: l.querySelectorAll('.strk i').length, now: l.querySelectorAll('.strk i.now').length, done: l.querySelectorAll('.strk i.done').length, cursor: getComputedStyle(l).cursor, rows: document.querySelectorAll('#sheet .srow, #sheet [role="list"]').length, inCtl: !!l.closest('button, a') } : null; });
     await measurePopup(page, '8 long names › P-stage');
     await closeSheet(page);
-    check(names.join('|') === 'Idea|Asking|Dates set|Booking|Done', 'P-stage names the five stages', names);
+    check(!!names && names.lbl === 'Stage 2 of 5, Asking' && names.role === 'img' && names.word === 'Asking' && names.dots === 5 && names.now === 1 && names.done === 1 && names.cursor === 'default' && names.rows === 0 && !names.inCtl,
+      'P-stage shows the stage as one line: five dots (one done, a ring now) and "Asking" alone, a picture named "Stage 2 of 5, Asking", no pointer and inside no control (PIA-155)', names);
     await ctx.close();
   }
   {
@@ -2437,9 +2441,9 @@ async function main() {
     await page.click('#sheet [data-act="search"]'); await settle(page, 500);
     const after2 = await page.evaluate(() => ({ btn: !!document.querySelector('#sheet [data-act="search"]'), sum: (document.querySelector('#sheet .sum') || {}).textContent || '' }));
     await measurePopup(page, 'prices › P-total, all priced');
-    check(/^Price, group total, not searched, 5 to search$/.test(blk) && pt0 && pt0[0] === '🔍4/5' && pt0[1] === 'Search 4 of 5 fares, 4 searches' && s1.length === 4 && s1.every((x) => x.token === TOKEN && x.url.indexOf(TOKEN) < 0) &&
+    check(blk === 'Price Bartholomew Montgomery-Fitzgerald’s, Anastasia Konstantinopoulou’s, Maximilian Oyelaran-Whitfield’s and 2 more flights' && pt0 && pt0[0] === '🔍4/5' && pt0[1] === 'Search 4 of 5 fares, 4 searches' && s1.length === 4 && s1.every((x) => x.token === TOKEN && x.url.indexOf(TOKEN) < 0) &&
       after1.legs.filter((x) => /fetched/.test(x)).length === 4 && after1.btn.trim() === '🔍1' && after1.q && after1.q.used >= 4 && after1.fares === 4 && serp.length === 5 && !after2.btn && /^\$[\d,]+$/.test(after2.sum.trim()),
-      'PIA-140 with real clicks: the trip\'s total block opens P-total (5 legs $—, 🔍4/5: its cost, and that the caps cut it short); the tap prices 4 through the real Worker (the token in its header only), 🔍1 then the last one; the sum then stands alone', { blk, pt0, after1, after2, serp: serp.length });
+      'PIA-140 with real clicks: the trip\'s price row (PIA-155: whose flights, by name) opens P-total (5 legs $—, 🔍4/5: its cost, and that the caps cut it short); the tap prices 4 through the real Worker (the token in its header only), 🔍1 then the last one; the sum then stands alone', { blk, pt0, after1, after2, serp: serp.length });
     check(['age', 'level', 'stops', 'unsearched', 'visit', 'search'].every((k) => k1.has(k)) && subLbl.length >= 12 && subLbl.some((l) => l === 'Fetched just now') && subLbl.some((l) => /^Price (low|typical|high)$/.test(l)) && subLbl.some((l) => /^(Nonstop|\d stops?)$/.test(l)),
       'PIA-140 the organizer can tell each fare\'s age, price level and stops from P-total: its ⓘ explains the age ring, the level gauge, the stops line, $—, the visit\'s dots and 🔍 (every glyph in the sheet is keyed), and each part names itself on a long press ("Fetched just now", "Price low", "1 stop")', { keys: [...k1], subLbl: subLbl.slice(0, 6) });
     // a person's ±1 days from P-total's face (‹ back to P-total): 🔍2, then three days with ★
@@ -3055,12 +3059,14 @@ async function main() {
     await page.click('#screen [data-act="shelf"]'); await settle(page, 120);
     await fingerTap(page, '#screen [data-trip="' + A + '"] [data-act="stage"]'); await settle(page, 120); await fingerTap(page, '#sheet [data-act="hidehere"]'); await settle(page, 120); await closeSheet(page);
     q.back = !!(await page.$('#screen [data-trip="' + A + '"]:not(.dim)'));
-    // the v1 card's P-stage: 🗑 greyed, "⤒ Update trip first" on a tap
+    // the v1 card's P-stage: (PIA-155) 🗑 Remove for everyone is live: it opens P-drop (Keep goes back, nothing sent)
     await fingerTap(page, '#screen [data-trip="' + TG + '"] [data-act="stage"]'); await settle(page, 120);
     if (width === 360) await labelCheck(page, tag('P-stage (v1 trip)'), 'famv1-153-stage', 'sheet');
-    await fingerTap(page, '#sheet [data-act="stagedrop"]'); q.dropWhy = await lblNow(page);
-    if (q.dropWhy) await measurePopup(page, tag('P-stage 🗑 says why'), '#lbl');
-    await untilLabelGone(page); await measurePopup(page, tag('P-stage (v1 trip)')); await closeSheet(page);
+    await measurePopup(page, tag('P-stage (v1 trip)'));
+    await fingerTap(page, '#sheet [data-act="stagedrop"]'); await settle(page, 120); q.dropWhy = await popupId(page);
+    if (q.dropWhy === 'P-drop') await measurePopup(page, tag('P-drop (v1 trip)'));
+    await fingerTap(page, '#sheet [data-act="dropkeep"]'); await settle(page, 120); q.keep = await popupId(page);
+    await closeSheet(page);
     // one tap on the card's ⤒: the trip, with ⤒ Update trip over it (its picture and name first, the longest name typed)
     await fingerTap(page, '#screen [data-trip="' + TG + '"] [data-act="migcard"]'); await settle(page, 200);
     q.mig = await popupId(page) + '|' + await screenId(page);
@@ -3097,9 +3103,9 @@ async function main() {
     await untilLabelGone(page); await measurePopup(page, tag('P-person Anjo (⤒ in the header, 🎫 greyed)')); await closeSheet(page);
     q.posts = net.posts - p0;
     check(q.card === 'pulse|Update trip' && q.key === 'still|Key' && q.stageTG === 'still|More' && q.stageA === 'still|More' && q.noMigA && q.box && q.stagePop === 'P-stage' && !q.drop && q.hidden && q.back &&
-      q.dropWhy === '⤒ Update trip first' && q.mig === 'P-migrate|trip-organizer' && q.pressed.length === 2 && q.pressed[1].startsWith('true') && q.pressed[0].startsWith('false') && q.pressed[0].split('|')[1] !== q.pressed[1].split('|')[1] &&
+      q.dropWhy === 'P-drop' && q.keep === 'P-stage' && q.mig === 'P-migrate|trip-organizer' && q.pressed.length === 2 && q.pressed[1].startsWith('true') && q.pressed[0].startsWith('false') && q.pressed[0].split('|')[1] !== q.pressed[1].split('|')[1] &&
       q.pill === '👪' && /^💪 ?11\/20–11\/29 ⚠$/.test(q.line) && q.minePop === 'P-mine' && eq(q.mineActs, ['minefollow', 'minekeep', 'mineplan']) && q.planWhy === '⤒ Update trip first' && q.kept && q.hdr && q.tkWhy === '⤒ Update trip first' && q.hdrPulse && q.posts === 0,
-      'PIA-153 + PIA-154 @' + width + ' the organizer\'s list: the v1 card\'s ⤒ pulses alone (ⓘ waits), every card\'s ⋯ More is a 44px button; Diwali hidden and back in two taps each; the v1 trip\'s 🗑 says "⤒ Update trip first"; the card\'s ⤒ opens P-migrate over the trip (picture, name, Travelers filled); the trip view reads 👪 over 💪 11/20–11/29 ⚠, P-mine offers Follow plan / Keep mine and a greyed Make plan ("⤒ Update trip first") (kept: the line goes); on Anjo\'s sheet ⤒ sits in the header and his greyed 🎫 points to it; nothing sent', q);
+      'PIA-153 + PIA-154 @' + width + ' the organizer\'s list: the v1 card\'s ⤒ pulses alone (ⓘ waits), every card\'s ⋯ More is a 44px button; Diwali hidden and back in two taps each; the v1 trip\'s 🗑 Remove for everyone opens P-drop (PIA-155; Keep goes back, nothing sent); the card\'s ⤒ opens P-migrate over the trip (picture, name, Travelers filled); the trip view reads 👪 over 💪 11/20–11/29 ⚠, P-mine offers Follow plan / Keep mine and a greyed Make plan ("⤒ Update trip first") (kept: the line goes); on Anjo\'s sheet ⤒ sits in the header and his greyed 🎫 points to it; nothing sent', q);
     await ctx.close();
   }
   {
@@ -3171,8 +3177,8 @@ async function main() {
     check(/^Share$/.test(r.p0 || '') && r.nav0 === 0 && r.m0.length === 0 && r.first === 'nudge' && r.nudge.taps === 2 && r.nudge.shared.length === 1 && /\/i\/dwDiwaliRaleigh2026a01#m=anjo-z5$/.test(r.nudge.shared[0]) &&
       r.p1 === '🔒 Lock dates' && r.lock.taps === 1 && r.lock.stage === 'chosen' && /🔒/.test(r.lock.toast) && r.lock.undo && /✈ Book ↗/.test(r.p2 || '') && /🎫 I booked/.test(r.p2 || '') && eq(r.m2, ['I booked']) &&
       r.unlocked.stage === 'proposed' && r.unlocked.prim === '🔒 Lock dates' && r.edit.taps === 2 && r.edit.p === 'P-edit' && r.note.taps === 2 && r.note.p === 'P-note' &&
-      r.cal.taps === 3 && r.cal.p === 'P-calendar-add' && r.cal.phone && /^data:text\/calendar/.test(r.cal.ics || '') && r.cal.toast === '📅✓' && r.build.taps === 2 && r.build.p === 'P-organizer' && r.build.n === '#154',
-      'PIA-154 section C, the organizer: Share is the one primary while Anjo waits (no second share in the nav); nudging her is 2 taps (her face, Share first in her sheet: her own #m= link); once nobody waits "🔒 Lock dates" locks in 1 tap (↩ in its toast puts it back), and the primary becomes [✈ Book ↗ | 🎫 I booked] (its one marked label "I booked"); ✎ Edit and 📝 Note are 2 taps (⋯, the row), the phone calendar 3 (⋯, 📅 Calendar, 📅 Phone); the build ⓘ → ⚙ #154', r);
+      r.cal.taps === 3 && r.cal.p === 'P-calendar-add' && r.cal.phone && /^data:text\/calendar/.test(r.cal.ics || '') && r.cal.toast === '📅✓' && r.build.taps === 2 && r.build.p === 'P-organizer' && r.build.n === '#' + BUILD_NO,
+      'PIA-154 section C, the organizer: Share is the one primary while Anjo waits (no second share in the nav); nudging her is 2 taps (her face, Share first in her sheet: her own #m= link); once nobody waits "🔒 Lock dates" locks in 1 tap (↩ in its toast puts it back), and the primary becomes [✈ Book ↗ | 🎫 I booked] (its one marked label "I booked"); ✎ Edit and 📝 Note are 2 taps (⋯, the row), the phone calendar 3 (⋯, 📅 Calendar, 📅 Phone); the build ⓘ → ⚙ #' + BUILD_NO, r);
     await ctx.close();
   }
   {
@@ -3219,6 +3225,122 @@ async function main() {
     await measureScreen(page, 'PIA-154 › a host (Hosting?)');
     check(eq(m, ['Hosting?']), 'PIA-154 a host is asked "Hosting?" over In / Maybe / Out (the screen\'s one marked label)', m);
     await ctx.close();
+  }
+
+  section('PIA-155 remove an old trip for everyone (no ⤒ first) and hide one on my phone, with real taps through the real Worker; ⋯ More in every state; price a traveler after 🔒');
+  {
+    // the organizer of the v1 Thanksgiving: remove it from its card in 3 taps (⋯, 🗑 Remove for everyone, 🗑 Remove), ↩ from the
+    // removed card's ⋯; then from the trip page in 3 taps, ↩ from the toast; hide Diwali on this phone in 2 (⋯, Hide), show it again
+    const { ctx, page, net } = await phone('famv1', { width: 390, worker: true });
+    const kv = (id) => JSON.parse(net.kv.map.get('idea:' + id));
+    const until = async (f) => { for (let i = 0; i < 200 && !f(); i++) await page.waitForTimeout(50); return f(); };
+    const toastNow = () => page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent.trim() : ''; });
+    const q = {}, idea0 = JSON.stringify(kv(TG).idea), p0 = net.posts;
+    let taps = 0; const tap = async (sel, ms) => { const ok = await fingerTap(page, sel); if (ok) taps++; await settle(page, ms || 150); return ok; };
+    // A1 from the card
+    await tap('#screen [data-trip="' + TG + '"] [data-act="stage"]');
+    q.more = await page.evaluate(() => { const l = document.querySelector('#sheet .sline'); return { line: l ? l.getAttribute('aria-label') : '', rows: [...document.querySelectorAll('#sheet .mrowb')].map((b) => b.textContent.trim()), dis: [...document.querySelectorAll('#sheet .mrowb[aria-disabled="true"]')].length }; });
+    await measurePopup(page, 'PIA-155 › P-stage, the organizer\'s v1 trip');
+    await labelCheck(page, 'PIA-155 › P-stage, the organizer\'s v1 trip', 'pia155-stage', 'sheet');
+    await tap('#sheet [data-act="stagedrop"]'); q.drop = await popupId(page);
+    await measurePopup(page, 'PIA-155 › P-drop on the v1 trip (🗑 Remove | Keep)');
+    q.dropBtns = await page.$$eval('#sheet .split.two .btn', (es) => es.map((e) => e.textContent.trim()));
+    await tap('#sheet [data-act="dropyes"]', 300);
+    await until(() => kv(TG).decision.stage === 'dropped'); await settle(page, 200);
+    q.card = { taps, stage: kv(TG).decision.stage, same: JSON.stringify(kv(TG).idea) === idea0, posts: net.posts - p0, toast: await toastNow(), pop: await popupId(page), shelf: await page.$eval('#screen [data-act="shelf"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '') };
+    if (q.card.toast) await measurePopup(page, 'PIA-155 › the toast after 🗑 Remove (↩)', '#toast');
+    await measureScreen(page, 'PIA-155 › the list after removing the v1 trip (🗄 Archive 1)');
+    // A2 the removed card on the shelf: ⋯ reads Removed and offers ↩ Restore; the card has no ⤒
+    await page.click('#screen [data-act="shelf"]'); await settle(page, 150);
+    q.shelfCard = await page.evaluate((id) => { const c = document.querySelector('#screen [data-trip="' + id + '"]'); return c ? { mig: !!c.querySelector('[data-act="migcard"]'), restore: !!c.querySelector('[data-act="restore"]') } : null; }, TG);
+    await measureScreen(page, 'PIA-155 › the shelf open (the removed v1 trip: ↩, no ⤒)');
+    await fingerTap(page, '#screen [data-trip="' + TG + '"] [data-act="stage"]'); await settle(page, 150);
+    q.removed = await page.evaluate(() => { const l = document.querySelector('#sheet .sline'); return { line: l ? l.getAttribute('aria-label') : '', word: l ? l.textContent.trim() : '', rows: [...document.querySelectorAll('#sheet .mrowb')].map((b) => b.textContent.trim()) }; });
+    await measurePopup(page, 'PIA-155 › P-stage, the removed v1 trip (↩ Restore)');
+    await fingerTap(page, '#sheet [data-act="restore"]'); await until(() => kv(TG).decision.stage === 'chosen'); await settle(page, 300);
+    q.restored = { stage: kv(TG).decision.stage, same: JSON.stringify(kv(TG).idea) === idea0, chosen: kv(TG).decision.chosen.departure + '|' + kv(TG).decision.chosen.airport };
+    await closeSheet(page);
+    // A3 from the trip page: ⋯ in the nav, 🗑 Remove for everyone, 🗑 Remove; ↩ in the toast
+    await openCard(page, TG); await settle(page, 200);
+    await measureScreen(page, 'PIA-155 › the v1 trip page (organizer)');
+    taps = 0;
+    await tap('#screen .nav [data-act="stage"]'); await tap('#sheet [data-act="stagedrop"]'); await tap('#sheet [data-act="dropyes"]', 300);
+    await until(() => kv(TG).decision.stage === 'dropped'); await settle(page, 200);
+    q.page = { taps, stage: kv(TG).decision.stage, same: JSON.stringify(kv(TG).idea) === idea0, scr: await screenId(page), toast: await toastNow() };
+    await jsClick(page, '#toast [data-act="undo"]'); await until(() => kv(TG).decision.stage === 'chosen'); await settle(page, 300);
+    q.page.back = kv(TG).decision.stage;
+    // B hide Diwali on this phone: 2 taps from its card; its ⋯ on the shelf then reads "Show on my phone"; nothing is sent
+    const pHide = net.posts; taps = 0;
+    await tap('#screen [data-trip="' + A + '"] [data-act="stage"]');
+    q.hideRow = await page.$eval('#sheet [data-act="hidehere"]', (e) => e.textContent.trim()).catch(() => '');
+    await measurePopup(page, 'PIA-155 › P-stage on Diwali (a guest here: Hide on my phone)');
+    await tap('#sheet [data-act="hidehere"]');
+    q.hide = { taps, pop: await popupId(page), active: !!(await page.$('#screen > .card[data-trip="' + A + '"]:not(.dim)')), posts: net.posts - pHide };
+    if (!(await page.$('#screen [data-trip="' + A + '"]'))) { await page.click('#screen [data-act="shelf"]'); await settle(page, 150); }
+    await fingerTap(page, '#screen [data-trip="' + A + '"] [data-act="stage"]'); await settle(page, 150);
+    q.showRow = await page.$eval('#sheet [data-act="hidehere"]', (e) => e.textContent.trim()).catch(() => '');
+    await measurePopup(page, 'PIA-155 › P-stage on hidden Diwali (Show on my phone)');
+    await fingerTap(page, '#sheet [data-act="hidehere"]'); await settle(page, 150);
+    q.shown = !!(await page.$('#screen > .card[data-trip="' + A + '"]:not(.dim)'));
+    check(q.more.line === 'Stage 2 of 5, Asking' && q.more.dis === 0 && q.more.rows.indexOf('🗑Remove for everyone') >= 0 && q.more.rows.indexOf('🗄Hide on my phone') >= 0 && q.drop === 'P-drop' && eq(q.dropBtns, ['🗑 Remove', 'Keep']) &&
+      q.card.taps === 3 && q.card.stage === 'dropped' && q.card.same && q.card.posts === 1 && /🗑/.test(q.card.toast) && q.card.pop === null && /^🗄 Archive 1/.test(q.card.shelf) &&
+      q.shelfCard && !q.shelfCard.mig && q.shelfCard.restore && q.removed.line === 'Removed for everyone' && q.removed.word === 'Removed' && q.removed.rows.some((r) => /Restore$/.test(r)) && !q.removed.rows.some((r) => /Remove for everyone|Share/.test(r)) &&
+      q.restored.stage === 'chosen' && q.restored.same && q.restored.chosen === '2026-11-25|PIA' &&
+      q.page.taps === 3 && q.page.stage === 'dropped' && q.page.same && q.page.scr === 'trips-ideas' && /🗑/.test(q.page.toast) && q.page.back === 'chosen' &&
+      q.hideRow === '🗄Hide on my phone' && q.hide.taps === 2 && q.hide.pop === null && !q.hide.active && q.hide.posts === 0 && q.showRow === '🗄Show on my phone' && q.shown,
+      'PIA-155 with real taps through the real Worker: the duplicate v1 Thanksgiving is removed for everyone in 3 taps from its card (⋯, 🗑 Remove for everyone, 🗑 Remove: one write, its idea byte-identical; 🗄 Archive 1; the removed card offers ↩, no ⤒; its ⋯ reads Removed with ↩ Restore, which puts it back chosen on 11/25 at PIA) and in 3 from the trip page (↩ in the toast); hiding Diwali on this phone is 2 taps (⋯, 🗄 Hide on my phone; nothing sent), its ⋯ then reads "Show on my phone"', q);
+    await ctx.close();
+  }
+  {
+    // ⋯ More in the other states: a guest on the v1 trip and on Diwali, the host, the organizer's token phone on a 🔒 trip (its 💵 row)
+    const out = {};
+    for (const [who, id] of [['guest', TG], ['guest', A], ['host', TG], ['lockorg', LK]]) {
+      const { ctx, page } = await phone(who, { url: '?idea=' + id });
+      await settle(page, 200);
+      await jsClick(page, '#screen .nav [data-act="stage"]'); await settle(page, 120);
+      out[who + ' ' + id] = await page.evaluate(() => ({ line: (document.querySelector('#sheet .sline') || { getAttribute: () => '' }).getAttribute('aria-label'), rows: [...document.querySelectorAll('#sheet .mrowb')].map((b) => b.textContent.trim()), paid: !!document.querySelector('#sheet [data-act="paidwhy"], #sheet #paid-amt') }));
+      await measurePopup(page, 'PIA-155 › P-stage, ' + who + ' on ' + id);
+      await ctx.close();
+    }
+    const g1 = out['guest ' + TG], g2 = out['guest ' + A], h = out['host ' + TG], lk = out['lockorg ' + LK];
+    check([g1, g2, h, lk].every((x) => x && /^Stage \d of 5, /.test(x.line)) && ![g1, g2, h].some((x) => x.rows.some((r) => /Remove|Restore/.test(r))) && [g1, g2, h, lk].every((x) => x.rows.indexOf('🗄Hide on my phone') >= 0) &&
+      lk.line === 'Stage 3 of 5, Dates set' && lk.rows.indexOf('🗑Remove for everyone') >= 0 && lk.paid,
+      'PIA-155 ⋯ More for a guest (v1 and v2) and the host: the stage line, Pin, 🗄 Hide on my phone, Share…, never Remove; on the organizer\'s token phone on a 🔒 trip "Stage 3 of 5, Dates set", 🗑 Remove for everyone and its 💵 row; each ≤20 words, nothing marked', out);
+  }
+  {
+    // C after 🔒 with nothing cached there is no price row (nor a card chip): a traveler is priced from their own sheet in 2 taps (their
+    // face, 🔍), its cost on the 🔍 before the tap; the row comes back with the real total once a fare is cached
+    const SERP = fx('serp-flights.json'), serp = [], offline = globalThis.fetch;
+    globalThis.fetch = async (u) => {
+      const sU = String(u);
+      if (/^https:\/\/serpapi\.com\/account\.json\?/.test(sU)) return new Response(JSON.stringify({ plan_searches_left: 900, total_searches_left: 900, this_month_usage: 41, searches_per_month: 1000 }), { status: 200 });
+      if (/^https:\/\/serpapi\.com\/search\.json\?/.test(sU)) { serp.push(sU); const j = JSON.parse(JSON.stringify(SERP)); j.best_flights[0].price = 404; return new Response(JSON.stringify(j), { status: 200 }); }
+      throw new Error('test-words: no network for ' + sU);
+    };
+    try {
+      const { ctx, page, net } = await phone('lockorg', { worker: true, paid: true, url: '?idea=' + LK });
+      await settle(page, 250);
+      const q = { row0: !!(await page.$('#screen .pricerow')), tok0: !!(await page.$('#screen [data-act="tokdoor"]')) };
+      await measureScreen(page, 'PIA-155 › a 🔒 trip, nothing priced (no price row)');
+      let taps = 0; const tap = async (sel, ms) => { const ok = await fingerTap(page, sel); if (ok) taps++; await settle(page, ms || 200); return ok; };
+      const face = '#screen .pb [data-act="person"][data-code="leo-k3"]';
+      await page.$eval(face, (e) => e.scrollIntoView({ block: 'center' })).catch(() => {});
+      await tap(face);
+      for (let i = 0; i < 40 && (await page.$('#sheet [data-act="search"][data-v="person"][aria-busy="true"]')); i++) await settle(page, 50);   // (◷ while /account answers)
+      q.btn = await page.$eval('#sheet [data-act="search"][data-v="person"]', (e) => ({ n: e.getAttribute('data-n'), t: e.textContent.trim(), lbl: e.getAttribute('aria-label') })).catch(() => null);
+      await measurePopup(page, 'PIA-155 › Leo\'s sheet after 🔒 (🔍1, its cost)');
+      const s0 = net.paid.filter((x) => x.path === '/search').length;
+      await tap('#sheet [data-act="search"][data-v="person"]', 600);
+      q.spent = net.paid.filter((x) => x.path === '/search').length - s0; q.taps = taps;
+      q.leg = await page.$$eval('#sheet .lgp', (es) => es.map((e) => e.getAttribute('aria-label')).filter((l) => /\$/.test(l))).catch(() => []);
+      await measurePopup(page, 'PIA-155 › Leo\'s sheet, his flight priced');
+      await closeSheet(page);
+      q.row1 = await page.$eval('#screen .pricerow', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '');
+      await measureScreen(page, 'PIA-155 › the 🔒 trip once a fare is cached (the real total)');
+      check(!q.row0 && !q.tok0 && q.btn && +q.btn.n >= 1 && q.btn.t === '🔍' + q.btn.n && /search/.test(q.btn.lbl) && q.taps === 2 && q.spent === +q.btn.n && q.leg.length >= 1 && /^\$\d/.test(q.row1),
+        'PIA-155 after 🔒 with nothing cached the trip page has no price row; pricing Leo is 2 taps (his face, 🔍1: its cost on it before the tap), spending exactly what it showed through the real Worker (SerpAPI stubbed); then the row is back with the real total', q);
+      await ctx.close();
+    } finally { globalThis.fetch = offline; }
   }
 
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');

@@ -420,7 +420,7 @@ function makeServer(worker) {
   const capEdit = M.updateRequest(eDoc, KEY, { caption: 'Puja at 6' });
   check(capEdit.body.idea.notes === '📌2026-11-08 Puja at 6' && M.updateRequest(eDoc, 'short', { title: 'x' }) === null, 'a caption edit keeps the 📌 prefix; a malformed edit key builds nothing');
   check(M.updateRequest(lgOrg, KEY, { title: 'x' }) === null && M.organizerEdit(lgOrg, KEY, { dates: { departure: '2026-11-20', return: '2026-11-29' } }) === null,
-    'a legacy doc refuses every organizer edit until P-migrate (nulling recommendation would lose its plan)');
+    'a legacy doc refuses every idea edit until P-migrate (nulling recommendation would lose its plan; PIA-155: only its removal and the ↩ that undoes it go, a decision alone)');
   // member codes
   const same8 = M.createRequest({ title: '🎉 Eight Sams', members: Array.from({ length: 8 }, () => ({ name: 'Sam', airport: 'SEA' })) }, { today: TODAY, rand: () => 0 });
   const codes8 = same8.body.idea.members.map((x) => x.code);
@@ -2234,6 +2234,77 @@ function makeServer(worker) {
     const md = mem(model(DW), 'momdad-k3');
     check(M.oneWord('Mom & Dad') === 'Mom & Dad' && M.oneWord('Mom&Dad') === 'Mom & Dad' && M.oneWord('Bartholomew Montgomery') === 'Bartholomew' && md.one === 'Mom & Dad' && md.short === 'Mom & Dad',
       'AC5 one spelling: "Mom & Dad" on the board (its one-word name) as in every sheet; other names keep their first word');
+  }
+
+  // ═══ PIA-155 ═══
+  section('PIA-155 a v1 trip is removed for everyone without ⤒ Update trip (a decision alone: its idea untouched), and ↩ puts it back as it stood');
+  {
+    const DROPD = { decision: { stage: 'dropped' } };
+    const vId = srv.seed(LEG), v0 = await srv.get(vId, KEY), idea0 = JSON.stringify(v0.idea), dec0 = clone(v0.decision);
+    const drop = M.updateRequest(v0, KEY, DROPD), viaEdit = M.organizerEdit(v0, KEY, DROPD);
+    check(M.docLegacy(v0) && model(v0).hasDecision && !!drop && eq(Object.keys(drop.body).sort(), ['decision', 'edit_key']) && !('idea' in drop.body) && eq(drop.body.decision, { stage: 'dropped' }) &&
+      drop.method === 'POST' && drop.path === '/idea/update?id=' + vId && Array.isArray(viaEdit) && viaEdit.length === 1 && eq(viaEdit[0], drop),
+      'AC1 removing the v1 Thanksgiving (no ⤒ first) is one /idea/update whose body is {edit_key, decision: {stage: dropped}}: no idea in it (organizerEdit builds the same one request)', drop && drop.body);
+    const dRes = await srv.send(viaEdit), v1 = await srv.get(vId, KEY), g1 = await srv.get(vId);
+    const mom = model(g1, { me: 'PIA' }), org1 = model(v1, { me: 'LAX', hasEditKey: true });
+    check(srv.allOk(dRes) && v1.decision.stage === 'dropped' && JSON.stringify(v1.idea) === idea0 && eq(v1.decision.chosen, dec0.chosen) && v1.decision.estimate_total === dec0.estimate_total && eq(v1.responses, v0.responses) &&
+      M.docLegacy(v1) && org1.legacy && org1.closed && org1.stage === 'dropped' && mom.stage === 'dropped' && mom.shelf && mom.closed,
+      'AC1 through the real Worker: the record\'s decision.stage is dropped, its idea JSON byte-identical (still a v1 record), its choice and answers as they were; another phone (Mom\'s guest read) sees it removed, on its 🗄 shelf', { stage: v1.decision.stage });
+    // ↩ (restoreDelta, the model's): the v1 trip was chosen in v1, so it is chosen again with the record's own stored choice
+    const back = M.restoreDelta(v1), rq = M.updateRequest(v1, KEY, back), viaBack = M.organizerEdit(v1, KEY, back);
+    check(eq(back, { decision: { stage: 'chosen' } }) && !!rq && !('idea' in rq.body) && eq(Object.keys(rq.body).sort(), ['decision', 'edit_key']) && eq(rq.body.decision, { stage: 'chosen', chosen: dec0.chosen }) &&
+      rq.body.decision.chosen !== v1.decision.chosen && Array.isArray(viaBack) && viaBack.length === 1 && eq(viaBack[0], rq),
+      'AC2 ↩ on the removed v1 trip sends exactly {edit_key, decision: {stage: chosen, chosen: <the record\'s own stored choice>}} (PIA, 11/25–11/29, familyTotal 704, a copy): no idea', rq && rq.body.decision);
+    const rRes = await srv.send(viaBack), v2 = await srv.get(vId, KEY), m0 = model(v0, { me: 'LAX', hasEditKey: true }), m2 = model(v2, { me: 'LAX', hasEditKey: true });
+    const asStood = (a, b) => eq(Object.assign({}, a, { chosen_at: 'T' }), Object.assign({}, b, { chosen_at: 'T' }));
+    check(srv.allOk(rRes) && v2.decision.stage === 'chosen' && JSON.stringify(v2.idea) === idea0 && eq(v2.decision.chosen, dec0.chosen) && asStood(v2.decision, dec0) &&
+      v2.decision.estimate_total === 704 && v2.decision.chosen.familyTotal === 704 && typeof v2.decision.chosen_at === 'string' && eq(v2.responses, v0.responses) &&
+      M.docLegacy(v2) && m2.legacyLock && !m2.closed && m2.stage === m0.stage && eq(m2.plan, m0.plan) && m2.dest === m0.dest,
+      'AC2 through the real Worker: the trip is back as it stood: its decision equal to the one before the drop field for field (the stored choice, estimate_total 704, chosen.familyTotal 704; only chosen_at re-stamped), the same stage, plan and answers, the idea byte-identical, still v1', v2.decision);
+    // a v1 choice that differs from its recommendation (Chicago / ORD 11/24–11/30 against PIA 11/25–11/29) comes back as it was chosen
+    const oId = srv.seed(tweak(LEG, (d) => { Object.assign(d.decision.chosen, { city: 'Chicago', airport: 'ORD', departure: '2026-11-24', return: '2026-11-30', familyTotal: 650 }); d.decision.estimate_total = 650; })), o0 = await srv.get(oId, KEY);
+    await srv.send(M.organizerEdit(o0, KEY, DROPD)); const o1 = await srv.get(oId, KEY);
+    const oRes = await srv.send(M.organizerEdit(o1, KEY, M.restoreDelta(o1))), o2 = await srv.get(oId, KEY);
+    check(o1.decision.stage === 'dropped' && srv.allOk(oRes) && o2.decision.stage === 'chosen' && eq(o2.decision.chosen, o0.decision.chosen) && asStood(o2.decision, o0.decision) &&
+      o2.decision.chosen.airport === 'ORD' && o2.decision.chosen.departure === '2026-11-24' && o2.decision.estimate_total === 650 && JSON.stringify(o2.idea) === JSON.stringify(o0.idea),
+      'AC2 a v1 choice unlike its recommendation (Chicago / ORD 11/24–11/30, $650) is restored as it was chosen, not re-chosen from the recommendation', o2.decision);
+    // the ↩ never passes caller data through: a v2 trip's chosen ↩ is still built from its plan; a migrate's chosen from the new idea
+    const dwChosenDrop = tweak(DW, (d) => { d.id = 'dwDiwaliRaleigh2026a01'; d.decision = Object.assign(clone(CHOSEN), { stage: 'dropped' }); d.decision.chosen = Object.assign({}, d.decision.chosen, { airport: 'ORD', departure: '2026-01-01' }); });
+    const dq = M.updateRequest(dwChosenDrop, KEY, { decision: { stage: 'chosen' } });
+    check(!!dq && dq.body.decision.chosen.airport === M.docDest(dwChosenDrop) && dq.body.decision.chosen.departure === M.docPlan(dwChosenDrop).s && !('familyTotal' in dq.body.decision.chosen),
+      'AC2 an updated (v2) trip\'s ↩ is unchanged: chosen again from its plan and place ({airport, city, departure, return}), never its stored choice', dq && dq.body.decision);
+    // ⤒ Update trip still works on the restored record, and re-chooses as it always did
+    const vv1 = tweak(V1, (s) => { s.overrides.thanksgiving.sharedIdeaId = vId; }), mo = M.migrateOptions(v2, vv1);
+    const mRes = await srv.send(M.migrateRequests(v2, KEY, { plan: mo.span, pin: mo.pin, labels: mo.labels })), v3 = await srv.get(vId, KEY);
+    check(srv.allOk(mRes) && !M.docLegacy(v3) && v3.decision.stage === 'chosen' && v3.decision.chosen.departure === '2026-11-20' && model(v3).stage === 'set',
+      'AC2 ⤒ Update trip on the restored trip goes through as before (re-chosen on the updated idea: 🔒 Dates set)');
+    // every other v1 edit still builds nothing
+    const noDec = tweak(v0, (d) => { delete d.decision; }), nullDec = tweak(v0, (d) => { d.decision = null; }), arrDec = tweak(v0, (d) => { d.decision = []; });
+    const others = [
+      M.updateRequest(v0, KEY, { decision: { stage: 'chosen' } }), M.updateRequest(v0, KEY, { decision: { stage: 'proposed' } }), M.updateRequest(v0, KEY, { decision: { stage: 'booked', actual_total: 900 } }),
+      M.updateRequest(v0, KEY, { title: 'x', decision: { stage: 'dropped' } }), M.updateRequest(v0, KEY, { caption: 'x' }), M.updateRequest(v0, KEY, { dates: { departure: '2026-11-20', return: '2026-11-29' }, decision: { stage: 'dropped' } }),
+      M.organizerEdit(v0, KEY, { destination: { airport: 'ORD' }, decision: { stage: 'dropped' } }),
+      M.updateRequest(v1, KEY, { decision: { stage: 'proposed' } }), M.updateRequest(v1, KEY, { decision: { stage: 'booked', actual_total: 900 } }), M.updateRequest(v1, KEY, { decision: { stage: 'dropped' } }),
+      M.updateRequest(v1, KEY, { decision: { stage: 'chosen' }, members: v1.idea.members }),
+      M.updateRequest(noDec, KEY, DROPD), M.updateRequest(nullDec, KEY, DROPD), M.updateRequest(arrDec, KEY, DROPD), M.organizerEdit(noDec, KEY, DROPD)];
+    check(others.every((q) => q === null) && !model(noDec).hasDecision && !model(nullDec).hasDecision && !model(arrDec).hasDecision && model(v1).hasDecision && M.legacyDecision(v0, DROPD) && !M.legacyDecision(noDec, DROPD),
+      'AC1 every other v1 edit still builds nothing: a lock or unlock, 💵, a drop with any idea field, a caption, a ↩ other than restoreDelta\'s (or a second drop), and a drop of a record with no decision object (the Worker\'s applyDecision would fail on it: not offered)', others.map((q) => !!q));
+    // a paid v1 trip comes back paid (its choice untouched), and one never chosen comes back proposed
+    const pId = srv.seed(tweak(LEG, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 1490; d.decision.booked_at = '2026-10-08T00:00:00.000Z'; })), p0 = await srv.get(pId, KEY);
+    await srv.send(M.organizerEdit(p0, KEY, DROPD)); const p1 = await srv.get(pId, KEY), pb = M.restoreDelta(p1);
+    const prr = await srv.send(M.organizerEdit(p1, KEY, pb)), p2 = await srv.get(pId, KEY);
+    const nId = srv.seed(tweak(LEG, (d) => { d.decision = { stage: 'proposed', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null }; })), n0 = await srv.get(nId, KEY);
+    await srv.send(M.organizerEdit(n0, KEY, DROPD)); const n1 = await srv.get(nId, KEY), nb = M.restoreDelta(n1);
+    const nrr = await srv.send(M.organizerEdit(n1, KEY, nb)), n2 = await srv.get(nId, KEY);
+    check(p1.decision.stage === 'dropped' && eq(pb, { decision: { stage: 'booked', actual_total: 1490 } }) && srv.allOk(prr) && p2.decision.stage === 'booked' && p2.decision.actual_total === 1490 && eq(p2.decision.chosen, p0.decision.chosen) &&
+      JSON.stringify(p2.idea) === JSON.stringify(p0.idea) && model(p2, { hasEditKey: true }).paid === 1490 &&
+      n1.decision.stage === 'dropped' && eq(nb, { decision: { stage: 'proposed' } }) && srv.allOk(nrr) && n2.decision.stage === 'proposed' && JSON.stringify(n2.idea) === JSON.stringify(n0.idea),
+      'AC2 a paid v1 trip removed and restored is paid again with its amount ($1,490, its choice untouched); one never chosen comes back proposed; each idea byte-identical', { paid: p2.decision, plain: n2.decision.stage });
+    // v2 trips: the same ↩ as before (restoreDelta moved into the model, unchanged)
+    const dwC = tweak(DW, (d) => { d.decision = Object.assign(clone(CHOSEN), { stage: 'dropped' }); }), dwP = tweak(dwC, (d) => { d.decision.actual_total = 1490; });
+    check(eq(M.restoreDelta(tweak(DW, (d) => { d.decision.stage = 'dropped'; })), { decision: { stage: 'proposed' } }) && eq(M.restoreDelta(dwC), { decision: { stage: 'chosen' } }) && eq(M.restoreDelta(dwP), { decision: { stage: 'booked', actual_total: 1490 } }) &&
+      !!M.updateRequest(Object.assign({ id: 'dwDiwaliRaleigh2026a01' }, DW), KEY, DROPD),
+      'AC2 a v2 trip\'s ↩ is unchanged: proposed, 🔒 chosen again, or 💵 paid again with its amount');
   }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 

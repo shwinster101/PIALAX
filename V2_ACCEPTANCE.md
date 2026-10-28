@@ -47,6 +47,18 @@ Two jobs got longer on purpose: moving the plan a day is 3 taps (the pill, −1 
 moves; and 🧭↗ Explore for an idea with no place is the organizer's card alone
 (guests cannot change the destination, and the trip page's primary is Share).
 
+PIA-155 adds three, each counted by `test-words` with real taps through the real
+Worker: removing a trip for everyone is 3 taps (⋯ More, 🗑 Remove for everyone,
+🗑 Remove) from its card or its trip page, a v1 trip too, as it is (before, it was
+impossible without ⤒ Update trip first); ↩ in the toast, or on the removed card on
+the 🗄 Archive shelf, puts it back as it stood (paid with its amount, or chosen
+with its own stored choice and estimate), and other phones see it there like any
+removed trip; a removal or ↩ another organizer phone made first settles with
+nothing sent. Hiding a trip on this phone is 2 taps (⋯ More, 🗄 Hide on my
+phone; "Show on my phone" once hidden; nothing is sent). Pricing one unbooked
+traveler after 🔒 is 2 taps (their face, 🔍N with its cost), since the trip page
+shows no price row after 🔒 until a fare is cached.
+
 The suites compare dates, event-day constraints, answers, stages, bookings,
 headcounts, airport choices and totals with the same shared record/model.
 Writing jobs use the real in-process Worker. Paid upstreams are fixtures; no
@@ -61,7 +73,7 @@ Retirements below are explicit design choices under D1/D4, not claims of parity.
 
 | v1 purpose / controls | Disposition in v2 |
 |---|---|
-| Find, create and revisit trips; watchlist stages and quick-add | Covered by Ideas, the create flow, stage controls, shelf and shared trip links |
+| Find, create and revisit trips; watchlist stages and quick-add | Covered by Ideas, the create flow, stage controls, shelf and shared trip links; PIA-155: ⋯ More's 🗄 Hide on my phone (this phone) and 🗑 Remove for everyone (a v1 trip too, before ⤒ Update trip), both undone from the shelf |
 | Keep each trip's decisions coherent across surfaces | Covered by the shared `/idea` record and derived trip model; no second local trip-facts store |
 | Coordinate arbitrary people, family defaults and party sizes | Covered by create/edit presets and members; date-aware JAX/LGA transition, Mom & Dad ×2 retained |
 | Solo travel versus family meetups | Covered by the same one-person/multi-person trip model; separate app modes retired |

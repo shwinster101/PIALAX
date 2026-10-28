@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="154">
+<meta name="pialax-build" content="155">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -643,11 +643,6 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .followplan { display: inline-flex; align-items: center; gap: 2px; padding: 4px 10px; border-radius: 18px; border: 1.5px solid var(--ink2); }
 .followb { border-color: var(--ink2); }
 .followb[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
-.stepper { display: grid; gap: 0; position: relative; }
-.stepper::before { content: ""; position: absolute; left: 16px; top: 22px; bottom: 22px; width: 2px; background: var(--line); }
-.srow { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: 16px; font-weight: 600; color: var(--ink2); position: relative; }
-.srow.past, .srow.now { color: var(--ink); }
-.srow.now { font-size: 18px; font-weight: 750; }
 .legend { display: grid; gap: 4px; }
 .legend .li { display: flex; align-items: center; gap: 12px; min-height: 36px; font-size: 16px; }
 .legend .gl { width: 54px; display: grid; place-items: center; font-size: 18px; flex: none; }
@@ -811,8 +806,6 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .ans.in.def { color: var(--ink2); border-color: var(--line); outline: 2px dotted var(--ink3); outline-offset: -8px; animation: none; }   /* a host's In until they tap it: a question, not an answer */
 .mk.k-hostdef { color: var(--ink3); box-shadow: 0 0 0 2px var(--ink3); }   /* hollow and grey until the host confirms */
 .pav { display: inline-grid; place-items: center; flex: none; }
-.srow { cursor: default; }
-.srow:not(.now):not(.past) { opacity: .55; }   /* the ladder is a picture of where the trip is, not a menu */
 .tk, .stagetools .tool { background: var(--chip); }
 .tk .tkg { opacity: var(--tkdim); }
 @media (prefers-reduced-motion: reduce) { .tk.arm, .ans.arm, .tool.arm, .answers[aria-busy="true"] .ans[aria-pressed="true"] { animation: none; } }
@@ -932,6 +925,7 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .pricerow .stack { flex: 1 1 auto; min-width: 24px; height: 10px; }
 .pricerow .chipq { margin-left: auto; font-size: 15px; font-weight: 700; padding: 4px 10px; border-radius: 14px; border: 1.5px solid var(--ink); white-space: nowrap; }
 .pricerow .chipq.w { margin-left: 0; border-color: transparent; padding-left: 0; font-size: 16px; }
+.pricerow .chipq .uf { margin-left: 2px; letter-spacing: 1px; }   /* PIA-155: whose flights are not searched yet, by their faces */
 .totb .tot.q, .totb > .tot { gap: 2px; }
 .btn.tkb { position: relative; flex: 0 0 auto; padding: 0 14px; font-size: 17px; gap: 6px; }
 .btn.tkb.tkon { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
@@ -961,17 +955,23 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 /* the grid: past days dimmed, nothing hatched (days outside the window are plain) */
 .dc.past, .dc.outw { background-image: none; }
 .dc.past > * { opacity: .5; }
-/* More: one 44px row each (a glyph and one word), the stage as a stepper of dots */
+/* More: one 44px row each (a glyph and what it does) */
 .morerows { display: grid; gap: 2px; }
 .mrowb { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 10px; border-radius: 12px; font-size: 17px; font-weight: 600; width: 100%; text-align: left; }
 .mrowb .mg { width: 28px; display: inline-grid; place-items: center; font-size: 20px; flex: none; }
 .mrowb .mg .shr { width: 22px; height: 22px; }
 .mrowb[aria-pressed="true"] { background: var(--sunk); }
 .mrowb.bad { color: var(--bad); } .mrowb.dis { opacity: .4; cursor: not-allowed; }
-.sdot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--ink3); background: var(--surface); flex: none; margin-left: 10px; position: relative; z-index: 1; box-sizing: border-box; }
-.sdot.done { background: var(--ink2); border-color: var(--ink2); }
-.sdot.now { width: 20px; height: 20px; margin-left: 7px; border: 3.5px solid var(--ink); }
-.legend .gl .sdot { margin-left: 0; }
+/* PIA-155: the stage as one quiet line: small dots on a hairline track (filled done, a ring now, hollow later) and the stage's word,
+   in the secondary ink, no border, no fill, no pointer: a picture of where the trip is, never a choice */
+.sline { display: flex; align-items: center; gap: 10px; min-height: 28px; padding: 2px 10px 8px; color: var(--ink2); font-size: 15px; font-weight: 600; cursor: default; user-select: none; -webkit-user-select: none; }
+.sline .strk { position: relative; display: inline-flex; align-items: center; gap: 9px; flex: none; }
+.sline .strk::before { content: ""; position: absolute; left: 4px; right: 4px; top: 50%; height: 2px; margin-top: -1px; background: var(--line); }
+.sline .strk i { position: relative; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--ink3); background: var(--surface); box-sizing: border-box; }
+.sline .strk i.done { background: var(--ink2); border-color: var(--ink2); }
+.sline .strk i.now { width: 13px; height: 13px; border: 3px solid var(--ink); }
+.sline .sword { color: var(--ink); }
+.sline.off .strk { opacity: .55; }   /* a removed trip: its dots dimmed, its word "Removed" at full ink (AA contrast) */
 /* P-dates: [👪 Plan | Mine], the labelled tools, the outlined 🔓 Unlock */
 .tg2.wordy button { padding: 0 12px; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
 .sh-hd .endg { font-size: 18px; font-weight: 700; }
@@ -1588,6 +1588,8 @@ function tripModel(doc, ctx) {
     plan: plan, departureOnly: departureOnly, nights: nights, win: win, explicitWin: explicitWin, span: span, undated: !plan,
     pin: N.pin, nightsN: N.nights, caption: N.caption.trim(),
     stage: stage, decision: decision, locked: (decision === 'chosen' && !legacy) || decision === 'booked',
+    // PIA-155: the record holds a decision object (every Worker-created one does): a v1 trip is removed and restored through it
+    hasDecision: !!doc.decision && typeof doc.decision === 'object' && !Array.isArray(doc.decision),
     closed: decision === 'booked' || decision === 'dropped',
     paid: decision === 'booked' && typeof D.actual_total === 'number' ? D.actual_total : null, // what the organizer recorded as paid (💵)
     past: !!(plan && plan.e < today),
@@ -2300,6 +2302,12 @@ function decisionBody(fresh, idea, raw) {
   var st = raw && raw.stage;
   if (!hasOwn(IDEA_STAGES, st)) return null;
   if (st === 'chosen') {
+    // PIA-155: the ↩ of a removed v1 record (no idea sent) chooses the record's own stored choice again, as it stood (its place,
+    // days and estimate: the Worker re-reads it through validateIdea and re-stamps chosen_at); never data from the caller
+    var D0 = fresh && fresh.decision;
+    if (idea === (fresh && fresh.idea) && docLegacy(fresh) && D0 && D0.stage === 'dropped' && D0.chosen && typeof D0.chosen === 'object' && !Array.isArray(D0.chosen)) {
+      return { stage: 'chosen', chosen: Object.assign({}, D0.chosen) };
+    }
     var shown = { idea: idea }, plan = docPlan(shown), ap = docDest(shown);
     if (!plan || !ap) return null;
     var city = clip((idea.destination && idea.destination.city) || airportInfo(ap).city, TEXT_MAX.city);
@@ -2313,13 +2321,40 @@ function decisionBody(fresh, idea, raw) {
   }
   return { stage: st };
 }
+/* ↩ puts a dropped trip back where it stood. Dropping keeps the decision's choice and paid amount, but the Worker's
+   'proposed' clears the whole decision, so: booked again (💵, the amount paid) or 🔒 chosen again (from the plan,
+   as every lock is) while the record still holds that choice, else proposed. PIA-155: here (it was app.html's), so
+   updateRequest can tell the one ↩ a v1 record takes. On a v1 record whatever choice it holds comes back: decisionBody
+   sends {stage: chosen, chosen: <the record's own stored choice>}, so its place, days and estimate stand as they were
+   (only chosen_at is re-stamped). A paid one ({stage: booked, actual_total}) keeps its choice untouched (the Worker's
+   booked changes only the stage and the amount, and re-stamps booked_at). */
+function restoreDelta(doc) {
+  var D = (doc && doc.decision) || {};
+  if (D.chosen && typeof D.actual_total === 'number' && D.actual_total >= 1) return { decision: { stage: 'booked', actual_total: D.actual_total } };
+  if (D.chosen && (docLegacy(doc) || (docPlan(doc) && docDest(doc)))) return { decision: { stage: 'chosen' } };
+  return { decision: { stage: 'proposed' } };
+}
+/* PIA-155: the only edits a v1 record (docLegacy) takes before ⤒ Update trip: removing it for everyone (a decision to 'dropped')
+   and the ↩ that undoes it (restoreDelta of that dropped record, nothing else), each a decision alone. No idea is ever sent with
+   them, so the v1 idea stays byte-identical (the Worker's /idea/update without an idea touches doc.decision alone) and the trip
+   still reads as v1. A record without a decision object takes neither: the Worker's applyDecision would throw on it (every
+   Worker-created record has one). */
+function legacyDecision(fresh, delta) {
+  var D = fresh && fresh.decision, d = delta && delta.decision;
+  if (!D || typeof D !== 'object' || Array.isArray(D) || !d || typeof d !== 'object') return false;
+  if (Object.keys(delta).some(function (k) { return k !== 'decision'; })) return false;
+  if (D.stage !== 'dropped') return d.stage === 'dropped';
+  var back = restoreDelta(fresh).decision;
+  return d.stage === back.stage && (back.stage !== 'booked' || d.actual_total === back.actual_total);
+}
 /* POST /idea/update from a FRESH record (GET /idea with X-Idea-Key right before): id in the query, edit key in the
-   body. A legacy doc refuses every edit but P-migrate (opts.migrate), the only write that nulls recommendation;
-   and no update ever writes an idea that would read as legacy. */
+   body. A legacy doc refuses every edit but P-migrate (opts.migrate), the only write that nulls recommendation, and
+   (PIA-155) its removal and the ↩ that undoes it (legacyDecision: a decision alone); no update ever writes an idea
+   that would read as legacy. */
 function updateRequest(fresh, editKey, delta, opts) {
   opts = opts || {}; delta = delta || {};
   if (!fresh || !IDEA_ID_RE.test(String(fresh.id || '')) || !fresh.idea || !IDEA_KEY_RE.test(String(editKey || ''))) return null;
-  if (docLegacy(fresh) && !opts.migrate) return null;
+  if (docLegacy(fresh) && !opts.migrate && !legacyDecision(fresh, delta)) return null;
   var body = { edit_key: editKey };
   if (IDEA_DELTA_KEYS.some(function (k) { return hasOwn(delta, k); })) {
     body.idea = nextIdea(fresh, delta, opts.rand);
@@ -3676,7 +3711,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 154;
+var BUILD = 155;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -4319,6 +4354,11 @@ function organizerWrite(id, delta, opts) {
       if (!reqs) {
         // only owed answers, and none can go (the trip closed meanwhile, or nobody owed still has an answer): settled
         if (owedOnly && ow) { if (OWED[id] === ow) delete OWED[id]; return writeDone(id, w, { ok: true, json: { doc: fresh } }, fresh); }
+        // PIA-155: a removal, or its ↩, that the record already shows (another phone removed or restored the trip first, or the
+        // reply to ours was lost before ⚠ ↻): nothing to send, settled. Only a v1 record gets here (legacyDecision takes no
+        // repeat of either); an updated trip simply sends the idempotent repeat
+        var Df = fresh.decision || {}, dd = d.decision;
+        if (!idea(d) && dd && (dd.stage === 'dropped' ? Df.stage === 'dropped' : delta === restoreDelta && Df.stage !== 'dropped')) return writeDone(id, w, { ok: true, json: { doc: fresh } }, fresh);
         return writeDone(id, w, { ok: false, code: 'bad_body' }, fresh);
       }
       w.build = function (doc) { return doc === fresh ? reqs : organizerEdit(doc, key, dl(doc), op); };
@@ -4629,7 +4669,7 @@ var MK = {
 var SHARE = '<svg class="shr" viewBox="0 0 24 24" aria-hidden="true"><path d="M8.6 9.4H7.2a2.2 2.2 0 0 0-2.2 2.2v7.2A2.2 2.2 0 0 0 7.2 21h9.6a2.2 2.2 0 0 0 2.2-2.2v-7.2a2.2 2.2 0 0 0-2.2-2.2h-1.4" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"/>' +
   '<path d="M12 14.6V2.8M8.1 6.4 12 2.6l3.9 3.8" style="fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"/></svg>';
 var CHECK = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.4 8.6l3 3 6.2-7.2" style="fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"/></svg>';
-/* PIA-154: the stages by name (More's stepper reads them with dots: filled done, a ring now, hollow later; no glyph pips) */
+/* PIA-154: the stages by name (PIA-155: More's stage line shows five dots, filled done, a ring now, hollow later, and the one it is at) */
 var STAGES = [['idea', 'Idea'], ['asking', 'Asking'], ['set', 'Dates set'], ['booking', 'Booking'], ['done', 'Done']];
 /* PIA-139: calendar-plus (add the trip to my calendar) and the hub's other airport as a small hollow pin */
 var CALPLUS = '<svg class="calp" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" style="fill:none;stroke:currentColor;stroke-width:1.8"/><path d="M3.5 9.5h17M8 3v4M16 3v4M12 12v6M9 15h6" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"/></svg>';
@@ -4646,7 +4686,7 @@ var LEGEND = {
   out: ['<span class="shape sh-out">' + MK.out + '</span>', 'Out'], wait: ['<span class="shape sh-wait"></span>', 'Waiting'],
   hostdef: ['<span class="shape sh-hostdef">' + MK.in + '</span>', 'Host, unconfirmed'],
   host: ['🏠', 'Host'], booked: ['🎫', 'Booked'], called: ['📞', 'Called'], note: ['📝', 'Note'], you: ['👋', 'You'],
-  'st-done': ['🏁', 'Done'], dropped: ['🗑', 'Dropped'],   // PIA-154: a closed trip's mark (the stage pips are retired: More's stepper reads the stage)
+  'st-done': ['🏁', 'Done'], dropped: ['🗑', 'Removed'],   // PIA-154: a closed trip's mark (the stage pips are retired: More's stage line reads the stage; PIA-155: 🗑 is Remove)
   trips: ['🧳', 'Trips'], map: ['🗺', 'Map'], cal: ['🗓', 'Calendar'], all: ['▦', 'All trips'],
   sharelist: [SHARE, 'Share list'], share: [SHARE, 'Share'], save: ['⤓', 'Save list'], new: ['<span class="ndot"></span>', 'New answer'], askme: ['<span class="ndot"></span>', 'Your answer'],
   look: ['<span class="kbadge">1</span>', 'Needs a look'], total: ['$', 'Group total'], paid: ['💵', 'Paid'], unpriced: ['+🙂', 'Not priced'], search: ['🔍', 'Search fares'],
@@ -4654,7 +4694,7 @@ var LEGEND = {
   // PIA-136
   edit: ['✎', 'Edit'], me: ['🙋', 'Me'], unknown: ['📍⚠', 'Unknown airport'], noairport: ['📍?', 'No airport'],
   // PIA-137
-  switch: ['⇄', 'Switch person'], whoami: ['👋 ?', 'Pick yourself'], join: ['🙋＋', 'Ask to join'], hidehere: ['🗄', 'Archive'],
+  switch: ['⇄', 'Switch person'], whoami: ['👋 ?', 'Pick yourself'], join: ['🙋＋', 'Ask to join'], hidehere: ['🗄', 'Hide on my phone'],   // (PIA-155: what More's 🗄 does)
   arrive: ['🛬', 'Arrive'], leave: ['🛫', 'Leave'], drive: ['🚗', 'Drive'], today: ['▾', 'Today'],
   fromlink: ['✉', 'From the link'], asked: ['🙋＋⏳', 'Asked to join'], nolink: ['✈⚠', 'No flight link'], ok: ['✓', 'Save'],
   // PIA-138
@@ -4670,9 +4710,9 @@ var LEGEND = {
   // PIA-139 fix pass: the 🎫 I tap, a time's half of the day (at time entry only, PIA-154), how long a pickup run waits, what 💵 closes
   mybook: ['🎫', 'I booked'], tday: ['☀', 'Daytime'], tnight: ['🌃', 'Night'], runwait: ['0:35', 'Pickup wait'],
   closes: ['⚠🔒', 'Closes answers'],
-  // PIA-154: More (the trip's rare actions), a booked traveler with no landing time yet (the organizer's board), More's stepper dots
+  // PIA-154: More (the trip's rare actions), a booked traveler with no landing time yet (the organizer's board). PIA-155: More's
+  // stage is one picture with its own name (no stepper dots to key)
   more: ['⋯', 'More'], notime: ['🛬?', 'No landing time'],
-  sdone: ['<span class="sdot done"></span>', 'Step done'], snow: ['<span class="sdot now"></span>', 'Step now'], snext: ['<span class="sdot"></span>', 'Step next'],
   // PIA-140: prices
   down: ['▼', 'Cheaper'], up: ['▲', 'Pricier'], cap: ['⛔', 'Limit reached'], month: ['📆', 'This month'], cheapest: ['★', 'Cheapest'],
   // PIA-140 fix pass: every part of a fare explained (P-total's and P-person's ⓘ), the visit, the token
@@ -4694,8 +4734,9 @@ var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 
 var KEY_FIRST = ['drive', 'count', 'nights'];
 function G(e) { return '<span class="g">' + e + '</span>'; }
 function stageIdx(st) { for (var i = 0; i < STAGES.length; i++) if (STAGES[i][0] === st) return i; return -1; }
-/* PIA-137: the stage by its name (More's stepper, a screen reader; PIA-154: no stage glyph on a card or the trip page) */
-function stageName(m) { return m.stage === 'dropped' ? 'Dropped' : STAGES[Math.max(0, stageIdx(m.stage))][1]; }
+/* PIA-137: the stage by its name (More's stage line, a screen reader; PIA-154: no stage glyph on a card or the trip page; PIA-155:
+   a dropped trip reads Removed, the word its 🗑 says) */
+function stageName(m) { return m.stage === 'dropped' ? 'Removed' : STAGES[Math.max(0, stageIdx(m.stage))][1]; }
 /* PIA-154: ⋯ More, the trip's rare actions (P-stage: pin, archive, share, calendar, note, edit, drop), on a card and in the trip's nav */
 function moreBtn(m, card) {
   return '<button class="ib more' + (card ? ' z' : '') + '" data-act="stage" data-id="' + m.id + '"' + (card ? ' data-v="card"' : '') + ' aria-label="More" data-k="more">⋯</button>';
@@ -4880,24 +4921,27 @@ function totalAria(m) {
   return 'Group total ' + money(p.total) + (p.complete ? '' : ', not complete') + (p.stale ? ', some fares a day old' : '') + (d ? (d < 0 ? ', down ' : ', up ') + money(Math.abs(d)) : '');
 }
 /* PIA-154: the card's money on the organizer's token phone: 💵$ once paid; $1,234 once a fare is cached (outlined while part is
-   missing); 🔍N (what P-total's tap would search) before any fare is; nothing once everyone has booked and nothing is paid, or
-   with nothing to search. It opens P-total (it spends nothing itself). */
+   missing); 🔍N (what P-total's tap would search) before any fare is (PIA-155: and before 🔒); nothing once everyone has booked and
+   nothing is paid, or with nothing to search. It opens P-total (it spends nothing itself). */
 function totalBtn(m) {
   if (!m.prices) return '';
   var p = m.price, allBooked = m.travelers.length > 0 && m.travelers.every(function (x) { return x.booked; });
   if (m.paid == null && allBooked) return '';
+  // PIA-155: the trip page's price-row rule (priceShown): no 🔍N once the dates are 🔒 with nothing cached
+  if (!priceShown(m)) return '';
   var inner = m.paid == null && (!p || p.total == null) ? searchChip(m, 'tot') : totalHTML(m);
   return inner ? '<button class="totb z" data-act="total" data-id="' + m.id + '" aria-label="' + esc(totalAria(m)) + '" data-lbl="Group total">' + inner + '</button>' : '';
 }
-/* PIA-154: the searches P-total's 🔍 would make now, as the price controls show them (never a 🔍0): 🔍N (N/M when the caps cut it
-   short), the lock that stops it (⛔ 17:00 / ⛔ 11/1 / ⛔), or '' with nothing to search. o.word: "🔍 Price N" */
+/* PIA-154: the searches P-total's 🔍 would make now, as the card's money chip shows them (never a 🔍0): 🔍N (N/M when the caps cut
+   it short), the lock that stops it (⛔ 17:00 / ⛔ 11/1 / ⛔), or '' with nothing to search (PIA-155: the trip page's row shows whose
+   flights instead, priceAsk) */
 function searchNeed(m) { return m.prices && !m.closed ? spendKeys(tapKeys(m), readFares(), RT.now, RT.today).length : 0; }
-function searchChip(m, cls, word) {
+function searchChip(m, cls) {
   var need = searchNeed(m); if (!need) return '';
   var lk = lockNow(), nn = spendCount(need, spentRead());
   if (lk) return '<span class="' + cls + ' lk" data-k="cap">' + esc(lockText(lk)) + '</span>';
   if (!nn) return '';
-  return '<span class="' + cls + '"><span aria-hidden="true" data-k="search">🔍</span>' + (word ? ' Price ' : '') + '<span class="tn">' + nn + (nn < need ? '/' + need : '') + '</span></span>';
+  return '<span class="' + cls + '"><span aria-hidden="true" data-k="search">🔍</span><span class="tn">' + nn + (nn < need ? '/' + need : '') + '</span></span>';
 }
 /* ▼$40 / ▲$40: only between two real fetches of the identical searches (priceDelta, fareFacts) */
 function deltaTag(d) { return d ? '<span class="dl ' + (d < 0 ? 'dn' : 'up') + '" data-k="' + (d < 0 ? 'down' : 'up') + '">' + (d < 0 ? '▼' : '▲') + money(Math.abs(d)) + '</span>' : ''; }
@@ -4961,8 +5005,9 @@ function spendBtn(m, keys, o) {
     return '<button class="' + cls + ' dis" ' + a + ' aria-disabled="true" data-why="1" aria-label="' + esc(ll[1]) + '" data-lbl="' + esc(lk === 'day' && sq ? ll[0] + ' ' + nextUtcMidnightLocal() : lk === 'month' && sq ? ll[0] + ' ' + nextMonthMd() : ll[0]) + '" data-k="cap">' + esc(sq ? '⛔' : lockText(lk)) + '</button>';
   }
   // a tap the caps cut short says so: 🔍1/3 (1 search now, of the 3 legs that need one)
-  var part = n < todo.length;
-  return '<button class="' + cls + '" ' + a + ' aria-label="Search ' + n + (part ? ' of ' + todo.length : '') + (n === 1 && !part ? ' fare' : ' fares') + ', ' + n + (n === 1 ? ' search' : ' searches') + '" data-lbl="Search fares"><span aria-hidden="true" data-k="search">🔍</span><span class="tn">' + n + (part ? '/' + todo.length : '') + '</span></button>';
+  // (PIA-155: a long press says what the number is, "Search 1 fare", as its spoken name does: never a bare count)
+  var part = n < todo.length, what = 'Search ' + n + (part ? ' of ' + todo.length : '') + (n === 1 && !part ? ' fare' : ' fares');
+  return '<button class="' + cls + '" ' + a + ' aria-label="' + what + ', ' + n + (n === 1 ? ' search' : ' searches') + '" data-lbl="' + what + '"><span aria-hidden="true" data-k="search">🔍</span><span class="tn">' + n + (part ? '/' + todo.length : '') + '</span></button>';
 }
 /* the visit's 8 are spent: ⛔ ↻ starts a new visit on a second tap (it spends nothing; the next 🔍N is its own tap) */
 function visitBtn(cls) {
@@ -5053,9 +5098,18 @@ function cardHTML(it, o) {
 /* PIA-153: a trip that needs ⤒ Update trip (a v1 doc, or an update left half done) says so on its own card, on the organizer's phone:
    ⤒ (the trip view's glyph and label, no word), one tap to the trip with P-migrate open over it. It pulses once a visit, from the
    first time the list is drawn with no sheet over it (all such cards together, one pulse long), as the trip view's ⤒ does. */
-function needsUpdate(m) { var t = m && m.org ? transferRead().migrations[m.id] : null; return !!m && !!m.org && (m.legacy || !!(t && !t.done)); }
+function needsUpdate(m) { return !!m && !!m.org && (m.legacy || midUpdate(m)); }
+/* PIA-155: a ⤒ update of this trip left half done on this phone (its journal resumes it) */
+function midUpdate(m) { var t = m && m.org ? transferRead().migrations[m.id] : null; return !!(t && !t.done); }
+/* PIA-155: ⤒ invites its tap (the card's, the nav's, their pulse) on a trip still to be updated, not on one removed for everyone:
+   a removed trip's next step is ↩ (then ⤒ is back) */
+function migInvite(m) { return needsUpdate(m) && m.decision !== 'dropped'; }
+/* PIA-155: the organizer's 🗑 Remove for everyone waits ("⤒ Update trip first") only while a ⤒ update of the trip is half done on
+   this phone (a removal meanwhile could fight its resume), or on a record with no decision object (the Worker's decision would
+   fail on it); a v1 trip is removed as it is (the model's legacyDecision: a decision alone, its idea untouched) */
+function removeHeld(m) { return !!m && (midUpdate(m) || !m.hasDecision); }
 function migCardBtn(m) {
-  if (!needsUpdate(m)) return '';
+  if (!migInvite(m)) return '';
   var pl = migCardPulse();
   return '<button class="ib z migc' + (pl ? ' pulse' : '') + '" data-act="migcard" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate"' + (pl && pl.at > 0 ? ' style="animation-delay:-' + pl.at + 'ms"' : '') + '>⤒</button>';
 }
@@ -5088,7 +5142,7 @@ function renderIdeas() {
   S.hush = false;
   if (!act.length && !sh.length) return { id: 'trips-empty', html: topRow(true) + ghostCard('trips') };
   // PIA-153: one pulse at a time: while the cards' ⤒ invites its tap, ⓘ and the list share wait
-  S.hush = act.concat(uiRead().shelfOpen ? sh : []).some(function (it) { return !!it.m && needsUpdate(it.m); }) && !!migCardPulse();
+  S.hush = act.concat(uiRead().shelfOpen ? sh : []).some(function (it) { return !!it.m && migInvite(it.m); }) && !!migCardPulse();
   // [Ideas | Family] appears once the phone holds two trips (one trip has no family view to switch to)
   var h = topRow(false, true) + (act.length + sh.length >= 2 ? segRow('ideas') : '');
   h += act.map(function (it) { return cardHTML(it); }).join('');
@@ -5199,7 +5253,7 @@ function memberIn(m, code) { return m && code ? m.members.filter(function (x) { 
    first). PIA-154: ✎ is More's Edit row (canEdit); the nav keeps ⤒ Update trip while the trip needs it */
 function canEdit(m) { return !!m && m.org && !m.legacy && !needsUpdate(m); }
 function editBtn(m) {
-  if (!needsUpdate(m)) return '';
+  if (!migInvite(m)) return '';
   var pl = migPulse(m);   // (drawn again mid-pulse, the new button carries on from where the pulse was: a negative delay)
   return '<button class="ib edit' + (pl ? ' pulse' : '') + '" data-act="migrate" data-id="' + m.id + '" aria-label="Update trip" data-k="migrate"' + (pl && pl.at > 0 ? ' style="animation-delay:-' + pl.at + 'ms"' : '') + '>⤒</button>';
 }
@@ -5251,7 +5305,7 @@ function tripShareBtn(m, prim) {
 var ANS_WORD = { in: 'In', maybe: 'Maybe', out: 'Out' };
 function whoChip(m) {
   var me = m.me, dr = m.decision === 'dropped';
-  var shut = m.closed ? '<span class="achip closed" role="img" aria-label="' + (dr ? 'Dropped' : 'Trip closed') + '" data-lbl="' + (dr ? 'Dropped' : 'Trip closed') + '" data-k="' + (dr ? 'dropped' : 'st-done') + '">' + (dr ? '🗑' : '🏁') + '</span>' : '';
+  var shut = m.closed ? '<span class="achip closed" role="img" aria-label="' + (dr ? 'Removed' : 'Trip closed') + '" data-lbl="' + (dr ? 'Removed' : 'Trip closed') + '" data-k="' + (dr ? 'dropped' : 'st-done') + '">' + (dr ? '🗑' : '🏁') + '</span>' : '';
   if (!me) {
     // PIA-153: a join request this phone sent and the trip does not show yet: 🙋＋⏳ where 👋 ? was (P-face, as before; a closed trip
     // takes no join request, so there it is 👋 ? alone)
@@ -5303,7 +5357,7 @@ function answerRow(m, x, o) {
   o = o || {};
   if (m.closed) {
     var dr = m.decision === 'dropped';
-    return '<div class="closed" role="img" aria-label="' + (dr ? 'Dropped' : 'Trip closed') + '" data-k="' + (dr ? 'dropped' : 'st-done') + '">' + (dr ? '🗑' : '🏁') + '</div>';
+    return '<div class="closed" role="img" aria-label="' + (dr ? 'Removed' : 'Trip closed') + '" data-k="' + (dr ? 'dropped' : 'st-done') + '">' + (dr ? '🗑' : '🏁') + '</div>';
   }
   var wk = m.past ? 'past' : o.why, st = x ? x.status : '', code = x ? x.code : '', busy = !!(PEND[m.id] && x && x.resp), why = ANS_WHY[wk] || '', wlbl = why ? (ANS_GLYPH[wk] || '') + why : '';
   var b = function (v, word) {
@@ -5348,7 +5402,8 @@ function barHTML(m, x, r, o) {
 }
 /* PIA-151: the final check at a glance on the people board: a booked traveler's bar carries the time they land over its start and
    the time they leave under its end (PIA-154: plain HH:MM; ☀ / 🌃 belong to the time field). Booked with no landing time yet, the
-   organizer's phone shows a muted 🛬? over its start (a guest's shows nothing there). Each is named (a long press, a screen reader). */
+   organizer's phone shows a muted 🛬? over its start (a guest's shows nothing there; PIA-155: nor his own bar while his primary is
+   🛬 Landing time). Each is named (a long press, a screen reader). */
 function barTimes(m, x, r, a, b) {
   var n = r.n, t = x.arrTime, d = x.depTime, h = '';
   // each label stays on the track: anchored at the bar's start (landing) or end (leaving), or, where the bar starts in the last
@@ -5356,7 +5411,8 @@ function barTimes(m, x, r, a, b) {
   var L0 = diffD(r.s, a) / n * 100, R0 = (n - diffD(r.s, b) - 1) / n * 100;
   var at = function (start) { return start ? (L0 > 50 ? 'right:' + R0.toFixed(2) + '%' : 'left:' + L0.toFixed(2) + '%') : (R0 > 50 ? 'left:' + L0.toFixed(2) + '%' : 'right:' + R0.toFixed(2) + '%'); };
   if (t) h += '<span class="btm a" style="' + at(true) + '" role="img" aria-label="Lands at ' + t + '" data-lbl="Lands at"><span class="tn">' + esc(t) + '</span></span>';
-  else if (m.org) h += '<span class="btm a miss" style="' + at(true) + '" role="img" aria-label="No landing time" data-lbl="No landing time" data-k="notime">🛬?</span>';
+  // PIA-155: not on my own bar while my primary is already "🛬 Landing time" (the same ask twice); other booked travelers keep it
+  else if (m.org && !(m.me && m.me.code === x.code && primaryAction(m, RT.today) === 'times')) h += '<span class="btm a miss" style="' + at(true) + '" role="img" aria-label="No landing time" data-lbl="No landing time" data-k="notime">🛬?</span>';
   if (d) h += '<span class="btm d" style="' + at(false) + '" role="img" aria-label="Leaves at ' + d + '" data-lbl="Leaves at"><span class="tn">' + esc(d) + '</span></span>';
   return h;
 }
@@ -5408,28 +5464,65 @@ function flightAria(m, x, isMe) {
     (x.booked ? ', booked' + (x.arrTime ? ', lands at ' + x.arrTime : ', no landing time') + (x.depTime ? ', leaves at ' + x.depTime : '') : '');
 }
 /* PIA-154: the price row, one tertiary 44px row on the organizer's token phone, the way into P-total (it spends nothing itself):
-   "🔍 Price N" before any fare is cached; "$1,234" with a stacked bar of the travelers priced so far, and 🔍N while legs still
-   need a search, once one is; "💵 $X" once paid. Shown while anyone travelling is unbooked, or once paid; ▼ / ▲ only between two
-   real fetches of the same searches. Without the token, the organizer's 🔑🔍 (tokenDoor), unchanged. */
+   "$1,234" with a stacked bar of the travelers priced so far once a fare is cached; "💵 $X" once paid. Shown while anyone travelling
+   is unbooked, or once paid; ▼ / ▲ only between two real fetches of the same searches. Without the token, the organizer's 🔑🔍
+   (tokenDoor), unchanged.
+   PIA-155: it says whose fare, never a bare count: "🔍 Price 🗽" with no fare cached yet, "$1,234 🔍🗽" while some are, the faces
+   (up to 3, then +N) of the travelers whose flight is not searched yet (unpricedOf), named in its spoken name and on a long press
+   ("Price Anjo's flight"); how many searches that is, and so its cost, is P-total's 🔍N before anything is spent (D4). It shows
+   where a price helps decide (priceShown): before 🔒 (prices help pick the week), once a fare is cached, once paid; after 🔒 with
+   nothing cached there is no row: each unbooked traveler's own sheet keeps its 🔍 for their flight, and ✈ Book ↗ opens Google
+   Flights with its live prices at no cost. */
+function priceShown(m) { return m.paid != null || !m.locked || !!(m.price && m.price.total != null); }
+/* the unbooked travelers with a leg never searched that P-total's tap would search (spendKeys of tapKeys: not a past day); a day-old
+   fare is in the total already, grey with its 🔍 */
+function unpricedOf(m) {
+  var p = m.price; if (!p) return [];
+  var todo = spendKeys(tapKeys(m), readFares(), RT.now, RT.today);
+  return m.travelers.filter(function (x) {
+    var q = !x.booked && p.per[x.code];
+    return !!q && q.legs.some(function (l) { return l.st === 'missing' && todo.indexOf(l.key) >= 0; });
+  });
+}
+/* "Price Anjo's flight", "Price Anjo's and Sam's flights", "Price Anjo's, Sam's, Leo's and 2 more flights" ("and 1 more flight");
+   my own member with no name yet (a v1 'Me') is "my" ("Price my and Anjo's flights"), never "Person's" */
+function priceWho(m, un) {
+  var whose = function (x) { return m && m.me && m.me.code === x.code && !(x.short || x.one) ? 'my' : faceLabel(x) + '’s'; };
+  var n = un.slice(0, 3).map(whose), more = un.length - n.length;
+  if (more) n.push(more + ' more');
+  return 'Price ' + (n.length > 1 ? n.slice(0, -1).join(', ') + ' and ' + n[n.length - 1] : n[0]) + (un.length > 1 && more !== 1 ? ' flights' : ' flight');
+}
+/* the row's ask: 🔍 with those faces (o.word: "🔍 Price" with them, before any fare is cached), or the lock that stops a search
+   (⛔ 17:00 / ⛔ 11/1 / ⛔); '' with nothing to search, or only day-old fares (the total's own 🔍 says so) */
+function priceAsk(m, cls, word) {
+  var need = searchNeed(m); if (!need) return '';
+  var lk = lockNow();
+  if (lk) return '<span class="' + cls + ' lk" data-k="cap">' + esc(lockText(lk)) + '</span>';
+  var un = spendCount(need, spentRead()) ? unpricedOf(m) : []; if (!un.length) return '';
+  var faces = '<span class="uf" data-k="unpriced">' + un.slice(0, 3).map(function (x) { return x.face; }).join('') + (un.length > 3 ? '+' + (un.length - 3) : '') + '</span>';
+  // (beside a total the faces name themselves on a long press, the row being the total's; alone, the row's own name says it)
+  return '<span class="' + cls + '"' + (word ? '' : ' data-lbl="' + esc(priceWho(m, un)) + '"') + '><span aria-hidden="true" data-k="search">🔍</span>' + (word ? ' Price ' : '') + faces + '</span>';
+}
 function totalRow(m) {
   if (!m.prices) return tokenDoor(m);
   var p = m.price, paid = m.paid != null, open = !m.closed && m.travelers.some(function (x) { return !x.booked; });
   if (!paid && !open) return '';
-  var need = searchNeed(m), inner, said = '';
+  if (!priceShown(m)) return '';
+  var inner, aria = totalAria(m), lbl = 'Group total', un = paid ? [] : unpricedOf(m);
   if (paid) inner = totalHTML(m);
   else if (!p || p.total == null) {
-    inner = searchChip(m, 'chipq w', true); if (!inner) return '';
-    // (its spoken name starts with the word it shows, "Price" (WCAG 2.5.3), where the chip is the 🔍 Price N it reads; a lock's ⛔ is not)
-    if (/ Price /.test(inner)) said = 'Price, ';
+    inner = priceAsk(m, 'chipq w', true); if (!inner) return '';
+    // (its spoken name starts with the word it shows, "Price" (WCAG 2.5.3), and names whose flights; a lock's ⛔ keeps the total's)
+    if (/ Price /.test(inner)) aria = lbl = priceWho(m, un);
   }
   else {
-    var priced = p.segs.filter(function (s) { return !!s.p; }), tot = 0; priced.forEach(function (s) { tot += s.p; });
+    var priced = p.segs.filter(function (s) { return !!s.p; }), tot = 0, ask = priceAsk(m, 'chipq'); priced.forEach(function (s) { tot += s.p; });
     inner = totalHTML(m) + deltaTag(priceDelta(p)) + (priced.length ? '<span class="stack" aria-hidden="true">' + priced.map(function (s) {
       return '<i class="' + (s.stale ? 'stale' : '') + '" style="--pc:var(--p' + s.color + ');flex:1 1 ' + (tot ? s.p / tot * 100 : 0).toFixed(1) + '%"></i>';
-    }).join('') + '</span>' : '') + searchChip(m, 'chipq');
+    }).join('') + '</span>' : '') + ask;
+    if (/data-k="unpriced"/.test(ask)) aria += ', p' + priceWho(m, un).slice(1);
   }
-  var ta = totalAria(m);
-  return '<button class="pricerow" data-act="total" data-id="' + m.id + '" aria-label="' + esc((said ? said + ta.charAt(0).toLowerCase() + ta.slice(1) : ta) + (need && p && p.total != null ? ', ' + need + ' to search' : '')) + '" data-lbl="Group total">' + inner + '</button>';
+  return '<button class="pricerow" data-act="total" data-id="' + m.id + '" aria-label="' + esc(aria) + '" data-lbl="' + esc(lbl) + '">' + inner + '</button>';
 }
 /* why a traveler has no Google Flights link (handoffs.why), as [glyph, label, key]: the trip view's primary and a person's
    [Book | 🎫] slot say the same thing */
@@ -5490,7 +5583,7 @@ function renderTrip(id) {
   var prim = m ? primaryAction(m, RT.today) : 'none';
   // PIA-153: one pulse at a time: ⤒'s, then (on a later draw) ⓘ's and the share's. PIA-154: ⓘ's first-run pulse also waits while my
   // answer is awaited (the answer row is the call); the share's dot does not (it is no pulse)
-  S.hush = !!(m && needsUpdate(m) && migPulse(m));
+  S.hush = !!(m && migInvite(m) && migPulse(m));
   // PIA-154: the nav: ‹, 📶⚠, ⤒ while needed, the organizer's share, ⓘ and ⋯ More (✎, 📅 and ⚙ live in More and ⓘ)
   var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + tripShareBtn(m, prim) : '') + keyBtn(!!m && awaitsMe(m)) + (m ? moreBtn(m) : '') + '</div>';
   if (!m) return { id: 'trip-loading', html: nav + '<div class="thead">' + postcard(stubModel(x), 'th') + '<div class="thd"><h2 class="ttl" data-free>' + esc(x.t) + '</h2></div></div><div class="rowc">' + staleMark() + '</div>' };
@@ -5800,7 +5893,7 @@ function screenWords() { return countWords($('#screen'), { lbl3: true }) + count
    back on the control that opened it. ---- */
 var SHEETS = {};
 var SHEET_NAME = { migrate: 'Update trip', import: 'Import history', history: 'Review history', source: 'Original notes', mignote: 'Migration note', key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
-  edit: 'Edit trip', drop: 'Drop trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'More', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
+  edit: 'Edit trip', drop: 'Remove trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'More', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
   caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport', mine: 'My days' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
@@ -6767,16 +6860,17 @@ SHEETS.edit = function (sh) {
   if (!m) return h + '<div class="rowc">' + staleMark() + '</div>';
   var t = function (act, glyph, label, cls) { return '<button class="tool' + (cls ? ' ' + cls : '') + '" data-act="' + act + '" data-id="' + m.id + '" aria-label="' + label + '">' + glyph + '</button>'; };
   h += '<div class="tiles6">' + t('etitle', '🏷📍', 'Name and place') + (m.closed ? '' : t('epeople', '👥', 'People')) + t('ecap', '📝', 'Note') +
-    t('ekey', '🔑', 'Organizer link', L.copied ? 'done' : '') + (m.decision === 'dropped' ? t('restore', '↩', 'Restore') : t('edrop', '🗑', 'Drop', 'bad')) + '</div>';
+    t('ekey', '🔑', 'Organizer link', L.copied ? 'done' : '') + (m.decision === 'dropped' ? t('restore', '↩', 'Restore') : t('edrop', '🗑', 'Remove', 'bad')) + '</div>';   // (PIA-155: 🗑 is Remove everywhere)
   if (L.copied) h += '<p class="warnline">🔑⚠ Your devices only</p>';
   return h;
 };
-/* P-drop: asked once, with buttons named by what they do; ↩ (the toast, or the shelf card) undoes it */
+/* P-drop: asked once, with buttons named by what they do (PIA-155: 🗑 Remove beside Keep; a v1 trip too, as it is); ↩ (the toast,
+   or the shelf card) undoes it */
 SHEETS.drop = function (sh) {
   var m = modelOf(sh.p.id), L = sh.local, h = shHd('<span data-k="dropped">🗑</span>');
   if (!m) return h;
   var drop = L.busy ? '<button class="btn danger busy" data-act="dropyes" aria-label="Saving" disabled>◷</button>'
-    : L.failed ? '<button class="btn danger" data-act="dropyes" aria-label="Retry">⚠ ↻</button>' : '<button class="btn danger" data-act="dropyes">🗑 Drop</button>';
+    : L.failed ? '<button class="btn danger" data-act="dropyes" aria-label="Retry">⚠ ↻</button>' : '<button class="btn danger" data-act="dropyes">🗑 Remove</button>';   // (PIA-155: it removes the trip for everyone)
   return h + '<div class="droppc">' + postcard(m, 'lg') + '</div><p class="mtitle" data-free>' + esc(m.title) + '</p><div class="split two">' + drop + '<button class="btn pri" data-act="dropkeep">Keep</button></div>';
 };
 /* P-note, the trip's caption: ≤20 words (typing stops there), saved when the sheet closes. Everyone else reads it
@@ -6924,7 +7018,7 @@ function legRows(m, x, edit, links, L) {
   var theirs = !!(m.me && m.me.code === x.code) || (m.org && !m.legacy);
   // PIA-153: the organizer on someone else's days on a trip still to be updated: the days say why on a tap and point to ⤒
   var upd = !edit && !theirs && !x.host && m.org && m.legacy && !m.closed && !m.past ? '⤒ Update trip first' : '';
-  var dayWhy = upd || (edit || !theirs || x.host ? '' : m.closed ? (m.decision === 'dropped' ? 'Dropped' : 'Trip closed') : m.past ? 'Trip over' : !x.answered ? 'Answer first' : '');
+  var dayWhy = upd || (edit || !theirs || x.host ? '' : m.closed ? (m.decision === 'dropped' ? 'Removed' : 'Trip closed') : m.past ? 'Trip over' : !x.answered ? 'Answer first' : '');
   var h = '<div class="legs">' + (cells ? '<div class="leghd" aria-hidden="true"><span class="lh0"></span>' + hub.map(function (a) { return '<span>' + a + '</span>'; }).join('') + '</div>' : '');
   [[0, '🛬', 'arrive', 'Arrive', 'arr'], [1, '🛫', 'leave', 'Leave', 'dep']].forEach(function (r) {
     // (PIA-154: an open-jaw traveler's one-way search for each end, only until they book)
@@ -7293,15 +7387,18 @@ function bookResume() {
   return true;
 }
 function invited(id, code) { return !!(S && S.invite && S.invite.id === id && S.invite.code === String(code || '') && nowMs() - S.invite.at < INVITE_MS); }
-/* P-stage: the five stages by name (the trip's own one enlarged), ⭐ pin it in my list, 🗄 hide it on this phone. PIA-153: opened
-   from a card too (PIA-154: its ⋯); on the organizer's phone 🗑 drops the trip for everyone through P-drop (its one confirm and ↩), ↩
-   once dropped; on a trip still to be updated 🗑 is greyed and says "⤒ Update trip first" (the Worker takes no other edit on a v1
-   record), pointing to ⤒ */
-/* PIA-154: P-stage is ⋯ More, the trip's rare actions, from the card or the trip's nav: the trip's picture and title, the stage as a
-   stepper (filled dots done, a ring now, hollow later; words, no glyph pips), then one 44px row each: ☆ / ⭐ Pin, 🗄 Archive (this
-   phone), Share (not on a dropped trip), 📅 Calendar (whenever the calendar event exists), 📝 Note (the organizer: add or edit the
-   caption; anyone else: read it, when there is one), ✎ Edit (the organizer, an updated trip), 🗑 Drop / ↩ Restore (the organizer;
-   greyed "⤒ Update trip first" on a v1 trip), and 💵 (paidRow) on the organizer's token phone */
+/* P-stage: the stage, ⭐ pin it in my list, 🗄 hide it on this phone. PIA-153: opened from a card too (PIA-154: its ⋯); on the
+   organizer's phone 🗑 drops the trip for everyone through P-drop (its one confirm and ↩), ↩ once dropped. PIA-155: a v1 trip is
+   removed as it is (the Worker takes a decision alone on any record); 🗑 waits ("⤒ Update trip first", pointing to ⤒) only while a
+   ⤒ update of it is half done on this phone */
+/* PIA-154: P-stage is ⋯ More, the trip's rare actions, from the card or the trip's nav: the trip's picture and title, the stage,
+   then one 44px row each: ☆ / ⭐ Pin, 🗄 (this phone), Share (not on a removed trip), 📅 Calendar (whenever the calendar event
+   exists), 📝 Note (the organizer: add or edit the caption; anyone else: read it, when there is one), ✎ Edit (the organizer, an
+   updated trip), 🗑 / ↩ Restore (the organizer), and 💵 (paidRow) on the organizer's token phone.
+   PIA-155: each row says what it does and whom it touches: "🗄 Hide on my phone" ("🗄 Show on my phone" once hidden: this phone's
+   list only, nothing is sent) and "🗑 Remove for everyone" (P-drop, its one confirm and ↩; a v1 trip too, as it is: greyed "⤒ Update
+   trip first" only while a ⤒ update of it is half done on this phone, removeHeld). The stage is one quiet line (stageLine), not a
+   list that reads like choices. ≤20 words in every state. */
 SHEETS.stage = function (sh) {
   // (the trip's picture, unless its title already starts with it, then the title across the header's whole row)
   var m = modelOf(sh.p.id), e = listEntry(sh.p.id) || {}, t = m ? String(m.title || '') : '', pic = m && !(t && m.emoji && t.indexOf(m.emoji) === 0);
@@ -7309,26 +7406,37 @@ SHEETS.stage = function (sh) {
   if (!m) return h;
   // (opened from the trip page's 💵 Paid: the amount alone, so the field and its Save stay in view over the keyboard)
   if (sh.p.paid) return h + paidRow(m, sh.local);
-  var k = stageIdx(m.stage), dr = m.decision === 'dropped';
-  h += '<div class="stepper' + (dr ? ' droppc' : '') + '" role="list" aria-label="' + esc('Stage: ' + stageName(m)) + '">' + STAGES.map(function (s, i) {
-    var c = i === k ? 'now' : i < k ? 'past' : '';
-    return '<div class="srow ' + c + '" role="listitem"><span class="sdot' + (c === 'now' ? ' now' : c ? ' done' : '') + '" data-k="' + (c === 'now' ? 'snow' : c ? 'sdone' : 'snext') + '"></span><span>' + s[1] + '</span></div>';
-  }).join('') + '</div>';
+  var dr = m.decision === 'dropped';
+  h += stageLine(m);
   var row = function (act, glyph, word, o) {
     o = o || {};
     return '<button class="mrowb' + (o.cls ? ' ' + o.cls : '') + '" data-act="' + act + '" data-id="' + m.id + '"' + (o.attrs || '') + '><span class="mg" aria-hidden="true"' + (o.k ? ' data-k="' + o.k + '"' : '') + '>' + glyph + '</span>' + word + '</button>';
   };
+  // (🗄's words say what a tap does now: Hide, or Show once hidden; a toggle whose name changes carries no aria-pressed. Not on a
+  // trip the shelf holds anyway, removed or over: there Hide or Show would change nothing)
+  var away = dr || m.past || !!(m.departureOnly && m.departureOnly < RT.today);
   var cal = handoffs(m, '', RT.hctx).calendar, rows = row('star', e.pin ? '⭐' : '☆', 'Pin', { k: 'star', attrs: ' aria-pressed="' + !!e.pin + '"' }) +
-    row('hidehere', '🗄', 'Archive', { k: 'hidehere', attrs: ' aria-pressed="' + !!e.arch + '"' });
+    (away ? '' : row('hidehere', '🗄', e.arch ? 'Show on my phone' : 'Hide on my phone', { k: 'hidehere' }));
   if (!dr) rows += row('tshare', SHARE, 'Share', { k: 'share' });
   if (cal) rows += row('caladd', '📅', 'Calendar', { k: 'ics' });
   if ((m.org && !m.legacy) || m.caption) rows += row('ecap', '📝', 'Note', { k: 'note' });
   if (canEdit(m)) rows += row('edit', '✎', 'Edit', { k: 'edit' });
   if (m.org) rows += dr ? row('restore', '↩', 'Restore', { k: 'restore' })
-    : needsUpdate(m) ? row('stagedrop', '🗑', 'Drop', { cls: 'bad dis', attrs: ' aria-disabled="true" data-why="1" aria-label="Drop, Update trip first" data-lbl="⤒ Update trip first"' })
-    : row('stagedrop', '🗑', 'Drop', { cls: 'bad' });
+    // (held on a record ⤒ would update: it says so and points there; on an updated record with no decision object, never drawn by
+    // the Worker, there is nothing to point to, so no row)
+    : removeHeld(m) ? (needsUpdate(m) ? row('stagedrop', '🗑', 'Remove for everyone', { cls: 'bad dis', attrs: ' aria-disabled="true" data-why="1" aria-label="Remove for everyone, Update trip first" data-lbl="⤒ Update trip first"' }) : '')
+    : row('stagedrop', '🗑', 'Remove for everyone', { cls: 'bad' });
   return h + '<div class="morerows">' + rows + '</div>' + paidRow(m, sh.local);
 };
+/* PIA-155: the stage as one quiet line, never a list of choices: five small dots on a track (filled done, a ring now, hollow later)
+   and only the stage it is at, by name; a removed trip's dots are all hollow, "Removed". One picture (role img), named "Stage 2 of
+   5, Asking" (a long press says it too); nothing in it is a control or looks like one */
+function stageLine(m) {
+  var k = Math.max(0, stageIdx(m.stage)), dr = m.decision === 'dropped', name = stageName(m);
+  var said = dr ? 'Removed for everyone' : 'Stage ' + (k + 1) + ' of ' + STAGES.length + ', ' + name;
+  return '<div class="sline' + (dr ? ' off' : '') + '" role="img" aria-label="' + said + '" data-lbl="' + said + '"><span class="strk" aria-hidden="true">' +
+    STAGES.map(function (s, i) { return '<i class="' + (dr ? '' : i < k ? 'done' : i === k ? 'now' : '') + '"></i>'; }).join('') + '</span><span class="sword">' + name + '</span></div>';
+}
 /* PIA-153: P-mine, my days beside the group's plan (one tap from my line on the trip page): 👪 the plan, my face my days, then the
    choice. Follow plan: my one complete answer with both ends blank (P-dates' follow-plan write: fresh read, respondRequest); never
    for a booked traveler, whose days stay theirs. Keep mine: nothing is sent; the ⚠ rests on this phone until the plan or my days
@@ -8464,15 +8572,7 @@ function popTrip() {
 function leaveTrip() { popTrip(); disarm(); S.dateAck = {}; S.ansOpen = null; S.trip = null; S.tab = S.tripFrom || 'trips'; S.tripFrom = ''; }   // PIA-138: a confirm asked on this visit is asked again next visit
 
 /* ---- actions ---- */
-/* ↩ puts a dropped trip back where it stood. Dropping keeps the decision's choice and paid amount, but the Worker's
-   'proposed' clears the whole decision, so: booked again (💵, the amount paid) or 🔒 chosen again (from the plan,
-   as every lock is) while the record still holds that choice, else proposed. */
-function restoreDelta(doc) {
-  var D = (doc && doc.decision) || {};
-  if (D.chosen && typeof D.actual_total === 'number' && D.actual_total >= 1) return { decision: { stage: 'booked', actual_total: D.actual_total } };
-  if (D.chosen && docPlan(doc) && docDest(doc)) return { decision: { stage: 'chosen' } };
-  return { decision: { stage: 'proposed' } };
-}
+/* (↩'s delta, restoreDelta, is the model's: PIA-155) */
 function openTrip(id) {
   var from = S.tab;
   if (S.sheet) {   // the sheet's history entry becomes the trip's
@@ -8746,7 +8846,8 @@ var ACTS = {
   ekey: function (el) { var u = organizerLink(el.dataset.id); if (!u) return; S.sheet.local.copied = true; renderSheet(false); copyLink(u, '🔑 ⧉'); },
   edrop: function (el) { openSheet('drop', { id: el.dataset.id }, { back: true }); },
   dropkeep: function () { sheetBack(); },
-  /* 🗑 Drop: one organizer edit; the trip goes to the shelf and ↩ (the toast, or the shelf card) brings it back as it stood */
+  /* 🗑 Remove (P-drop): one organizer edit, {decision: dropped}; the trip goes to every phone's shelf and ↩ (the toast, or the shelf
+     card) brings it back as it stood (the model's restoreDelta). PIA-155: a v1 trip the same way, a decision alone (legacyDecision) */
   dropyes: function () {
     var sh = S.sheet, L = sh.local, id = sh.p.id; if (L.busy) return null;
     L.busy = true; L.failed = ''; renderSheet(false);
@@ -9198,8 +9299,8 @@ var ACTS = {
       return r;
     });
   },
-  /* PIA-153: P-stage's 🗑 (the organizer's): P-drop over it, the one confirm and ↩ as from ✎; on a trip still to be updated it says
-     why and points to ⤒ (it pulses again once the sheet closes) */
+  /* PIA-153: P-stage's 🗑 (the organizer's): P-drop over it, the one confirm and ↩ as from ✎. PIA-155: "🗑 Remove for everyone", a
+     v1 trip too; greyed only while a ⤒ update of it is half done here (removeHeld): then it says why and points to ⤒ */
   stagedrop: function (el) {
     var id = el.dataset.id, m = modelOf(id); if (!m || !m.org) return null;
     if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); migPoint(id); return null; }

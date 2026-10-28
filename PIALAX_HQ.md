@@ -354,8 +354,8 @@ off the list, or any mark inside a popup.
 one filled button and the card's slot by the same rule: share while someone
 waits, then 🔒 Lock dates (one tap, ↩ in its toast) on the organizer's phone;
 ✈ Book ↗ with 🎫 I booked once the dates are locked; 🛬 Landing time once booked;
-✈ Track ↗ in the travel window; otherwise nothing. Rare actions (Pin, Archive,
-Share, Calendar, Note, Edit, Drop) live in ⋯ More.
+✈ Track ↗ in the travel window; otherwise nothing. Rare actions (Pin, Hide on my
+phone, Share, Calendar, Note, Edit, Remove for everyone; PIA-155) live in ⋯ More.
 
 **One glyph, one meaning.** One share symbol (an inline SVG) replaces 📣
 everywhere; 🎫 only means booked; 🔒 only belongs to the date pill, P-dates and
@@ -369,3 +369,29 @@ for an idea with no place; guests and the trip page no longer show it (a guest
 cannot change the destination).
 
 No storage, link-format or Worker change; every write uses the existing paths.
+
+### PIA-155 amendment: remove an old trip as it is; More says what it does; whose fare (2026-10-28)
+
+**A v1 trip takes two edits before ⤒ Update trip.** The Worker's `/idea/update`
+takes a decision alone on any record, so the organizer can remove a v1 trip for
+everyone (`{decision: dropped}`) and ↩ it (`restoreDelta`: 💵 paid again with its
+amount, 🔒 chosen again with the record's own stored choice, its place, days and
+estimate, else proposed), each sent with no idea: the v1 idea stays byte-identical
+and the trip still reads as v1. On a v1 record, a removal or ↩ another phone already
+made settles with nothing sent (an updated trip simply sends the idempotent repeat). Every other edit of a v1 record still waits for ⤒ (`legacyDecision`, the
+model's one gate). 🗑 waits only while a ⤒ update of that trip is half done on
+this phone (its journal resumes it), or on a record with no decision object.
+
+**⋯ More says what each row does and whom it touches.** The stage is one quiet
+line (five dots, the stage it is at by name: a picture, never a list of choices);
+"🗄 Hide on my phone" / "Show on my phone" (this phone's list only; not on a trip
+the shelf holds anyway) and "🗑 Remove
+for everyone" (P-drop's "🗑 Remove" beside Keep, its ↩). The list's shelf row stays
+"🗄 Archive n" (past, removed and hidden trips).
+
+**The price row says whose fare, where a price helps decide.** "🔍 Price 🗽" (the
+faces of the travelers not searched yet), "$1,234 🔍🗽" once some are; how many
+searches and their cost stay on P-total's 🔍N before anything is spent (D4). It
+shows before 🔒, once a fare is cached, or once paid; after 🔒 with nothing cached
+there is no row (each traveler's own sheet keeps its 🔍, and ✈ Book ↗ shows
+Google's live price), nor a 🔍N on the card.
