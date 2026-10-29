@@ -128,10 +128,20 @@ console.log('▶ test-viewport: mobile layout regression suite');
     return d;
   })();
   // PIA-142: a past trip (last September's Tahoe) for the Family board's 🗄 columns, and a dropped one (never a column)
+  // PIA-156: the 8-member trip at a place none of them lives, 🔒, two booked: the key's ✈ Booked row and a ⏳ Waiting row of six
+  // (+N where the row is full, Remind at its end) on the organizer's phone (opened by its link near the end, so no list changes)
+  const E8V = 'e8ViewportKeyWaiting09';
+  docs[E8V] = (() => {
+    const d = JSON.parse(JSON.stringify(docs.m8GrandmaNinetieth0c03)); d.id = E8V; d.idea.destination = { city: 'New Orleans', airport: 'MSY' };
+    Object.keys(d.responses).forEach((c) => { d.responses[c].status = 'in'; d.responses[c].booked = false; });
+    d.responses['bartholomewmontgomeryfitzgera-dj'].booked = true; d.responses['anastasiakonstantinopoulou-x1'].booked = true;
+    d.decision = { stage: 'chosen', chosen: { airport: 'MSY', city: 'New Orleans', departure: d.idea.dates.departure, return: d.idea.dates.return }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+    return d;
+  })();
   const PSV = 'psViewportPastTahoe007', DRV = 'drViewportDroppedTr008';
   docs[PSV] = (() => { const d = JSON.parse(JSON.stringify(docs.thTahoeSkiWeekend26b02)); d.id = PSV; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; return d; })();
   docs[DRV] = (() => { const d = JSON.parse(JSON.stringify(docs.lxBeachWeekendLAX00d05)); d.id = DRV; d.decision.stage = 'dropped'; return d; })();
-  const ids = Object.keys(docs), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
+  const ids = Object.keys(docs).filter((id) => id !== E8V), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
   // PIA-140: the phone has v1's multi-airport flag (the Worker's /account says features.multi_airport), so the keys are the nearby sets
@@ -161,9 +171,9 @@ console.log('▶ test-viewport: mobile layout regression suite');
     pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [CYV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [BKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
-      [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-141: the cheapest-week trip   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
+      [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [E8V]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-141: the cheapest-week trip (PIA-156: + the key's 8)   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
-      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8' }),
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 }), pialax_multi_airport_v1: '1'
   };
   const LAYOUT = () => {
@@ -201,6 +211,46 @@ console.log('▶ test-viewport: mobile layout regression suite');
     const sheetBg = bg(l), ring = dots.map((d) => getComputedStyle(d).borderTopColor);
     if (ring.some((c) => c === sheetBg)) return 'a dot\'s ring is the sheet\'s own colour';
     return '';
+  };
+  // PIA-156: the key under the board (run in the page): a hairline above it, every row ≥44px tall, its word in the board's name
+  // column in secondary ink and whole, every face and Remind a ≥44px target inside the screen, the 28px faces never overlapping,
+  // Remind at the row's end, the booked badge (✈) on a light chip in either scheme → {rows, ...} or {bad: what is wrong}
+  const KEYCHK = () => {
+    const k = document.querySelector('#screen .wk'); if (!k) return { bad: 'no key' };
+    const cs = getComputedStyle(k), body = getComputedStyle(document.body).color, W = innerWidth;
+    if (!(parseFloat(cs.borderTopWidth) >= 1 && cs.borderTopStyle === 'solid')) return { bad: 'no hairline above the key' };
+    const b = document.querySelector('#screen .pb'); if (!b || !(b.compareDocumentPosition(k) & Node.DOCUMENT_POSITION_FOLLOWING)) return { bad: 'the key is not under the board' };
+    const rows = [...k.querySelectorAll('.wkr')].map((r) => {
+      const R = r.getBoundingClientRect(), l = r.querySelector('.wkl'), L = l.getBoundingClientRect(), g = document.createRange(); g.selectNodeContents(l); const T = g.getBoundingClientRect();
+      const btns = [...r.querySelectorAll('button')].map((e) => e.getBoundingClientRect()), avs = [...r.querySelectorAll('.wkf .av')].map((e) => e.getBoundingClientRect());
+      const rem = r.querySelector('.wkrem'), RR = rem ? rem.getBoundingClientRect() : null, last = avs[avs.length - 1];
+      return { word: (l.querySelector('[data-lbl3]') || { textContent: '' }).textContent, h: R.height, faces: avs.length, more: (r.querySelector('.wkn') || { textContent: '' }).textContent, rem: rem ? rem.getAttribute('data-act') : '',
+        ink: getComputedStyle(l).color !== body, whole: T.right <= Math.max(L.right, T.right) && T.width <= L.width + 0.5 && L.left >= 0,
+        targets: btns.every((x) => x.width >= 43.5 && x.height >= 43.5 && x.left >= -0.5 && x.right <= W + 0.5), apart: avs.every((a, i) => !i || a.left >= avs[i - 1].right - 0.5), sz: avs.every((a) => a.width >= 24 && a.width <= 32),
+        remEnd: !RR || !last || RR.left >= last.right - 0.5 };
+    });
+    const lum = (rgb) => { const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb || ''); return m ? (0.2126 * m[1] + 0.7152 * m[2] + 0.0722 * m[3]) / 255 : -1; };
+    const badges = [...document.querySelectorAll('#screen .pb .av .bd [data-k="booked"]')].map((e) => { const c = getComputedStyle(e.closest('.bd')); return { t: e.textContent, bg: lum(c.backgroundColor), fg: lum(c.color) }; });
+    return { rows, badges, over: document.documentElement.scrollWidth - W };
+  };
+  // PIA-156: on a short phone (678px tall, the owner's iPhone with Safari's bars) with the sticky primary: is the price row, and the
+  // key's first row with its Remind, wholly above the primary (or the tab bar) before any scrolling? (run in the page, scrolled to top)
+  const SHORTCHK = () => {
+    const p = document.querySelector('#screen .split.prim'), t = document.querySelector('#tabbar');
+    const floor = Math.min(t ? t.getBoundingClientRect().top : innerHeight, p ? p.getBoundingClientRect().top : 1e9);
+    const whole = (e) => { const b = e.getBoundingClientRect(); return b.top >= -0.5 && b.bottom <= floor + 0.5; };
+    const r0 = document.querySelector('#screen .wk .wkr'), rem = r0 && r0.querySelector('.wkrem'), price = document.querySelector('#screen .pricerow');
+    let remHit = null; if (rem) { const R = rem.getBoundingClientRect(), x = document.elementFromPoint(R.left + R.width / 2, R.top + R.height / 2); remHit = !!x && !!x.closest('.wkrem'); }
+    return { first: r0 ? whole(r0) : null, firstWord: r0 ? r0.querySelector('.wkl').textContent.replace(/\s+/g, ' ').trim() : '', rem: remHit, price: price ? whole(price) : null, prim: !!p, floor: Math.round(floor) };
+  };
+  const keyFails = (s, kc, want) => {
+    if (kc.bad) return [s + ': ' + kc.bad];
+    const out = [], got = kc.rows.map((r) => r.word + ':' + r.faces + r.more + (r.rem ? ':' + r.rem : ''));
+    if (want && JSON.stringify(got) !== JSON.stringify(want)) out.push(s + ': the key reads ' + JSON.stringify(got) + ', not ' + JSON.stringify(want));
+    kc.rows.forEach((r, i) => { if (r.h < 43.5 || !r.ink || !r.whole || !r.targets || !r.apart || !r.sz || !r.remEnd) out.push(s + ': key row ' + (i + 1) + ' ' + JSON.stringify(r)); });
+    if (kc.badges.some((x) => x.t !== '✈' || !(x.bg > 0.6) || !(x.fg >= 0 && x.fg < 0.3))) out.push(s + ': a booked badge is not a legible ✈ on a light chip ' + JSON.stringify(kc.badges));
+    if (kc.over > 0) out.push(s + ': horizontal scroll ' + kc.over + 'px');
+    return out;
   };
   // PIA-138: P-dates' occlusion gate (run in the page)
   const OCCLUSION = () => {
@@ -243,7 +293,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
           return route.fulfill({ status: 200, headers: Object.assign({ 'x-proxy-cache': 'MISS', 'x-fetched-at': '2026-10-17T19:00:00.000Z' }, cors), body: JSON.stringify(serpFor(u)) });
         }
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ || id === CHV) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ || id === CHV || id === E8V) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -311,7 +361,17 @@ console.log('▶ test-viewport: mobile layout regression suite');
         }
         // PIA-137: the trip view's sheets (tapped as the app sees a tap: the sticky primary may sit over a board row)
         const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        // PIA-156: the page as a 678px-tall phone shows it before any scrolling (then back to this viewport)
+        const shortView = async () => {
+          await page.setViewportSize({ width: vp.width, height: 678 }); await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(150);
+          const r = await page.evaluate(SHORTCHK);
+          await page.setViewportSize({ width: vp.width, height: vp.height }); await page.waitForTimeout(100);
+          return r;
+        };
         await page.click('#screen [data-trip="' + DW + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150);
+        // (before 🔒 on the organizer's token phone: the price row keeps its place right under the board; the key comes after it)
+        const shDW = await shortView();
+        if (!(shDW.prim && shDW.price === true)) fails.push('at 678px tall the price row should stay wholly above the sticky primary (the key goes after it) ' + JSON.stringify(shDW));
         // PIA-154: the header (a small postcard, the title, 📍 under it) and the date row (the pill and my answer chip on one line), inside
         // the screen at every width, in both themes; the chip and 📍 are 44px targets
         const hdr = await page.evaluate(() => {
@@ -338,7 +398,12 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-trip="' + LKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('trip with its dates set (Book | 🎫 I booked)');
         // (PIA-154: the organizer's 🎫 for someone is in their sheet, "🎫 Booked"; the board has no 🎫 column)
-        if ((await page.$('#screen .pb [data-act="booked"]')) || !(await page.$('#screen .split.prim [data-act="mybook"]'))) fails.push('the set trip should show [Book | 🎫 I booked] and no 🎫 on the board');
+        if ((await page.$('#screen .pb [data-act="booked"]')) || !(await page.$('#screen .split.prim [data-act="mybook"]'))) fails.push('the set trip should show [Book | ☐ I booked] and no booking toggle on the board');
+        // PIA-156: the key under its board: ⏳ Waiting (me and Anjo, Remind: her own link) and 🏠 Hosting (Mom & Dad), quiet and whole
+        fails.push(...keyFails('the set trip\'s key', await page.evaluate(KEYCHK), ['Waiting:2:nudge', 'Hosting:1']));
+        // (on a 678px-tall phone the key's first row, ⏳ Waiting with Remind, is wholly above [Book | ☐ I booked], Remind takes its tap)
+        const shLK = await shortView();
+        if (!(shLK.prim && shLK.first === true && /^⏳ Waiting$/.test(shLK.firstWord) && shLK.rem === true)) fails.push('at 678px tall the key\'s ⏳ Waiting row and its Remind should be wholly above the sticky primary ' + JSON.stringify(shLK));
         await tapJs('#screen .pb [data-act="person"][data-code="anjo-z5"]'); await tapJs('#sheet [data-act="booked"][data-code="anjo-z5"]'); await measure('Anjo\'s sheet with her 🎫 waiting for its confirming tap');
         await tapJs('#sheet [data-act="sh-close"]');
         await tapJs('#screen .pb-row.own [data-act="person"]'); await measure('P-person (me, PIA | ORD cells)');
@@ -649,6 +714,22 @@ console.log('▶ test-viewport: mobile layout regression suite');
         if (!(await page.$('#screen [data-ghost="family"] .gface')) || !(await page.$('#screen [data-ghost="family"] [data-act="fampast"]'))) fails.push('an empty board should show its ghost row with ＋ and 🗄');
         await page.$eval('#screen [data-act="fampast"]', (e) => e.click()); await page.waitForTimeout(120); await measure('family 🗄 (only the past trip)');
         if (!(await page.$('#screen #fam-board .hd.past'))) fails.push('🗄 on the empty board should bring the past trip in');
+        // PIA-156: the 8-member trip (🔒, two booked, six to book) on the organizer's phone: ⏳ Waiting first, holding what fits (4 and +2
+        // at 360 and 390, all 6 at 430) with Remind (the trip's guest share) at its end, then ✈ Booked with two faces; ✈ legible on the board
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?idea=' + E8V, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+        await measure('the key on the 8-member trip (Booked, Waiting +N, Remind)');
+        fails.push(...keyFails('the 8-member trip\'s key', await page.evaluate(KEYCHK), vp.width >= 430 ? ['Waiting:6:tshare', 'Booked:2'] : ['Waiting:4+2:tshare', 'Booked:2']));
+        await page.$eval('#screen .wk', (e) => e.scrollIntoView({ block: 'center' }));
+        // (the faces are 44px targets at a 36px pitch: only their outer padding overlaps, so each 28px face takes its own tap)
+        const reach = await page.evaluate(() => {
+          const r = document.querySelector('#screen .wk .wkrem').getBoundingClientRect(), t = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          const faces = [...document.querySelectorAll('#screen .wk .wkf .facebtn')];
+          const own = faces.every((f) => { const a = f.querySelector('.av').getBoundingClientRect(), x = document.elementFromPoint(a.left + a.width / 2, a.top + a.height / 2); return !!x && x.closest('.facebtn') === f; });
+          return { rem: !!t && !!t.closest('.wkrem'), faces: faces.length, own };
+        });
+        if (!reach.rem) fails.push('the key\'s Remind should take a tap where it is drawn (nothing over it once scrolled into view)');
+        if (!(reach.faces >= 6 && reach.own)) fails.push('each face in the key should take its own tap at its centre ' + JSON.stringify(reach));
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }

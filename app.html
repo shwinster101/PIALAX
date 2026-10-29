@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="155">
+<meta name="pialax-build" content="156">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -933,6 +933,21 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .btn.tkb.glow { border-color: var(--in); box-shadow: 0 0 0 4px color-mix(in srgb, var(--in) 45%, transparent); }
 .btn.tkb.arm { animation: confirm 1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .btn.tkb.arm { animation: none; } }
+/* PIA-156: a booking toggle is a checkbox (☐ / ☑ beside the same words): the box at full ink, on or off */
+.btn.tkb .tkg[data-k="tkoff"], .btn.tkb .tkg[data-k="tkon"] { filter: none; opacity: 1; font-size: 20px; line-height: 1; }
+/* PIA-156: who is set, the quiet key under the board (after the price row and 💵 Paid): up to three 44px rows under a hairline, a
+   glyph and one word in the board's name column (secondary ink), then 28px faces (44px high targets at a 36px pitch), +N, and the
+   organizer's Remind at the row's end */
+.wk { display: grid; gap: 0; border-top: 1px solid var(--line); padding-top: 4px; margin-top: -4px; }
+.wkr { display: flex; align-items: center; gap: 8px; min-height: 44px; }
+.wkl { min-width: 76px; flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 13.5px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+.wkl .wg { width: 19px; flex: none; text-align: center; font-size: 15px; line-height: 1; }
+.wkf { flex: 1; min-width: 0; display: flex; align-items: center; }
+.wkf .facebtn { width: 44px; height: 44px; flex: none; }
+.wkf .facebtn + .facebtn { margin-left: -8px; }
+.wkn { margin-left: 6px; font-size: 14px; font-weight: 700; color: var(--ink2); }
+.ib.wkrem { flex: none; color: var(--ink2); }
+.ib.wkrem .shr { width: 22px; height: 22px; }
 /* Map and Calendar: the trip's title is the way back to it */
 .selttl { min-height: 44px; display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; text-align: left; margin-top: -8px; overflow-wrap: anywhere; }
 .chev.r { display: inline-block; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); flex: none; }
@@ -1538,7 +1553,7 @@ function tripModel(doc, ctx) {
       if (!why) {
         link = flightLink(O, A, H, d1, d2, hc, originCode);
         keys = legKeys(from, A, H, d1, d2, hc);
-        if (!link) why = 'nolink';     // the encoder failed and q= refused the codes (e.g. a metro code): ✈ ⚠, still priced
+        if (!link) why = 'nolink';     // the encoder failed and q= refused the codes (e.g. a metro code): ↗⚠, still priced
       }
     }
     var clash = [];
@@ -1977,6 +1992,10 @@ function calendarAdd(model, ctx) {
    • calendar: calendarAdd, on this phone's own face only (or on a phone with no face).
    • share: the guest /i/<id> link; nudge: the same with #m=<code>, only for someone else who is ◌ waiting or
      ? maybe (P-person's 📣 rule): never a host, never someone who is in or out.
+   • remind (PIA-156): the same personal link for someone else the trip still waits on (waitsOn: the key's ⏳ Waiting
+     row, a traveler not booked yet once the dates are 🔒), for the organizer's Remind beside that row. Wider than nudge
+     on purpose (a traveler In but not booked has a remind and no nudge): P-person keeps nudge's Share rule and its word
+     budget; both are guestLink's one link, and the app's one 'nudge' act sends either.
    A dropped trip (🗑) offers no Google Flights link, Explore, calendar event or nudge, only share (and Flighty for
    a booked traveler). null for a code that is not on the trip. */
 function handoffs(model, code, ctx) {
@@ -1995,7 +2014,8 @@ function handoffs(model, code, ctx) {
     flighty: x && x.traveler && x.booked ? handoff('flighty', FLIGHTY_URL) : null,
     calendar: mine ? calendarAdd(model, ctx) : null,
     share: guestLink(model.id, '', worker),
-    nudge: ask ? guestLink(model.id, x.code, worker) : ''
+    nudge: ask ? guestLink(model.id, x.code, worker) : '',
+    remind: !!x && !mine && !dropped && waitsOn(model, x) ? guestLink(model.id, x.code, worker) : ''
   };
 }
 
@@ -3115,6 +3135,33 @@ function earlyBook(model, code, today) {
   var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
   return !!x && x.traveler && !model.closed && !model.locked && !model.past && !!x.d1 && !x.bad && x.d1 >= today;
 }
+/* PIA-156: whom an open trip still waits on (the trip page's key, its ⏳ Waiting row). While the dates are not 🔒 and nobody
+   has booked: a member who has not answered (never a host: a host's unconfirmed default is Hosting). Once the dates are 🔒 or
+   anyone has booked: a traveler not booked yet (in, maybe, or not answered yet: still to answer and to book). Someone out, a
+   host and a booked traveler never wait; nobody waits on a paid or removed trip. */
+function waitsOn(model, x) {
+  if (!x || model.closed) return false;
+  return model.locked || model.anyBooked ? x.traveler && !x.booked : !x.host && x.status === 'waiting';
+}
+/* PIA-156: who is set, read from the record as every screen is: the trip page's quiet key under the board, which is the board's
+   legend in words. booking: the dates are 🔒 or anyone has booked. rows, in this order and each only with someone in it:
+   'waiting' (waitsOn; me too: first, as what is still to do, so it is the row a short phone shows above its primary),
+   'booked' (the travelers who booked; booking only), 'hosting' (the hosts, a host's unconfirmed default too; never one who is
+   out). Someone out is in no row. Only an open trip has a key: none on a paid or removed trip, or one that is over (its last
+   day, or its one dated day, before today).
+   → {booking, rows: [{k: 'waiting' | 'booked' | 'hosting', codes: [member codes, in the trip's order]}]} (rows [] for no key) */
+function whoSet(model, today) {
+  var booking = !!(model.locked || model.anyBooked);
+  var over = model.past || (!!model.departureOnly && isIso(today) && model.departureOnly < today);
+  if (model.closed || over) return { booking: booking, rows: [] };
+  var pick = function (f) { return model.members.filter(f).map(function (x) { return x.code; }); };
+  var rows = [
+    { k: 'waiting', codes: pick(function (x) { return waitsOn(model, x); }) },
+    { k: 'booked', codes: booking ? pick(function (x) { return x.traveler && x.booked; }) : [] },
+    { k: 'hosting', codes: pick(function (x) { return x.host && x.status !== 'out'; }) }
+  ];
+  return { booking: booking, rows: rows.filter(function (r) { return r.codes.length > 0; }) };
+}
 
 /* ---- dates: the one picker (PIA-138) ----
    The plan is the organizer's; a person's own ends are theirs. Moving the plan carries every end that follows it (a
@@ -3711,7 +3758,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 155;
+var BUILD = 156;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -4674,18 +4721,21 @@ var STAGES = [['idea', 'Idea'], ['asking', 'Asking'], ['set', 'Dates set'], ['bo
 /* PIA-139: calendar-plus (add the trip to my calendar) and the hub's other airport as a small hollow pin */
 var CALPLUS = '<svg class="calp" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15" rx="2.5" style="fill:none;stroke:currentColor;stroke-width:1.8"/><path d="M3.5 9.5h17M8 3v4M16 3v4M12 12v6M9 15h6" style="fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round"/></svg>';
 var ALTPIN = '<span class="minipin alt" aria-hidden="true"><span></span></span>';
+var TK_ON = '☑' + String.fromCharCode(0xFE0E);   // PIA-156: a booking toggle's ☑ in text presentation (U+FE0E), drawn like its ☐, not as a colour emoji
 /* the context key: every data-k on a screen has an entry here (P-key lists the ones shown; long-press names a control) */
 var LEGEND = {
   import: ['📜', 'Import history'], migrate: ['⤒', 'Update trip'], backup: ['⤓', 'History backup'],   // PIA-153: one glyph, one meaning (⤒ is Update trip; 📜 the import)
   key: ['ⓘ', 'Key'], settings: ['⚙', 'Settings'], back: ['‹', 'Back'], close: ['⌄', 'Close'], newtrip: ['＋', 'New trip'],
   offline: ['📶⚠', 'Offline'], stale: ['◷', 'Not updated'],
-  gf: ['✈↗', 'Google Flights'], flighty: ['✈⏱↗', 'Track flight'], explore: ['🧭↗', 'Explore'], fixdates: ['✈⚠', 'Fix dates'],
+  // (PIA-156: ✈ is booked, so a flight that cannot be linked or priced says what is wrong: 🗓⚠ its dates, ↗⚠ the link)
+  gf: ['✈↗', 'Google Flights'], flighty: ['✈⏱↗', 'Track flight'], explore: ['🧭↗', 'Explore'], fixdates: ['🗓⚠', 'Fix dates'],
   dates: ['🗓', 'Dates'], nights: ['🌙', 'Nights'], window: ['⟦ ⟧', 'Flex window'], pin: ['📌', 'Event day'], togo: ['⏳', 'Days left'], warn: ['⚠', 'Problem'],
   lock: ['🔒', 'Locked'], dest: ['📍', 'Destination'], heads: ['3/4', 'Heads in'], count: ['×2', 'Headcount'], star: ['⭐', 'Pinned'], shelf: ['🗄', 'Archive'],
   in: ['<span class="shape sh-in">' + MK.in + '</span>', 'In'], maybe: ['<span class="shape sh-maybe">' + MK.maybe + '</span>', 'Maybe'],
   out: ['<span class="shape sh-out">' + MK.out + '</span>', 'Out'], wait: ['<span class="shape sh-wait"></span>', 'Waiting'],
   hostdef: ['<span class="shape sh-hostdef">' + MK.in + '</span>', 'Host, unconfirmed'],
-  host: ['🏠', 'Host'], booked: ['🎫', 'Booked'], called: ['📞', 'Called'], note: ['📝', 'Note'], you: ['👋', 'You'],
+  // PIA-156: ✈ alone means booked (a face's badge, the key's Booked row; 🎫 read as a concert ticket on iPhone)
+  host: ['🏠', 'Host'], booked: ['✈', 'Booked'], called: ['📞', 'Called'], note: ['📝', 'Note'], you: ['👋', 'You'],
   'st-done': ['🏁', 'Done'], dropped: ['🗑', 'Removed'],   // PIA-154: a closed trip's mark (the stage pips are retired: More's stage line reads the stage; PIA-155: 🗑 is Remove)
   trips: ['🧳', 'Trips'], map: ['🗺', 'Map'], cal: ['🗓', 'Calendar'], all: ['▦', 'All trips'],
   sharelist: [SHARE, 'Share list'], share: [SHARE, 'Share'], save: ['⤓', 'Save list'], new: ['<span class="ndot"></span>', 'New answer'], askme: ['<span class="ndot"></span>', 'Your answer'],
@@ -4696,7 +4746,7 @@ var LEGEND = {
   // PIA-137
   switch: ['⇄', 'Switch person'], whoami: ['👋 ?', 'Pick yourself'], join: ['🙋＋', 'Ask to join'], hidehere: ['🗄', 'Hide on my phone'],   // (PIA-155: what More's 🗄 does)
   arrive: ['🛬', 'Arrive'], leave: ['🛫', 'Leave'], drive: ['🚗', 'Drive'], today: ['▾', 'Today'],
-  fromlink: ['✉', 'From the link'], asked: ['🙋＋⏳', 'Asked to join'], nolink: ['✈⚠', 'No flight link'], ok: ['✓', 'Save'],
+  fromlink: ['✉', 'From the link'], asked: ['🙋＋⏳', 'Asked to join'], nolink: ['↗⚠', 'No flight link'], ok: ['✓', 'Save'],
   // PIA-138
   shift: ['±1', 'Move a day'], past: ['⏳⚠', 'Before today'], pinout: ['📌⚠', 'Event day outside'], unlock: ['🔓', 'Unlock'], clear: ['🗓⊘', 'Clear dates'],
   best: ['⬚', 'Best window'], present: ['👥', 'Who is there'], follow: ['👪', 'Follow plan'], cross: ['⚠', 'Ends cross'],
@@ -4707,8 +4757,11 @@ var LEGEND = {
   // PIA-139: booking, flight times, the calendar and the pickups
   calplus: [CALPLUS, 'Add calendar'], ics: ['📅', 'Calendar file'], gcal: ['↗', 'Google Calendar'],
   pickup: ['⏱', 'Pickup run'], altpin: [ALTPIN, 'Other airport'],
-  // PIA-139 fix pass: the 🎫 I tap, a time's half of the day (at time entry only, PIA-154), how long a pickup run waits, what 💵 closes
-  mybook: ['🎫', 'I booked'], tday: ['☀', 'Daytime'], tnight: ['🌃', 'Night'], runwait: ['0:35', 'Pickup wait'],
+  // PIA-139 fix pass: a time's half of the day (at time entry only, PIA-154), how long a pickup run waits, what 💵 closes. PIA-156: a
+  // booking toggle is a checkbox, ☐ until it is booked, ☑ once it is ("☐ I booked", "☑ Booked"; ☑ with U+FE0E, drawn as text like
+  // ☐); the key's ⏳ Waiting row, as its long press says it (no answer yet before 🔒, not booked yet after), and its Remind
+  tkoff: ['☐', 'Not booked'], tkon: [TK_ON, 'Booked'], waitans: ['⏳', 'No answer yet'], waitbook: ['⏳', 'Not booked yet'], remind: [SHARE, 'Remind'],
+  tday: ['☀', 'Daytime'], tnight: ['🌃', 'Night'], runwait: ['0:35', 'Pickup wait'],
   closes: ['⚠🔒', 'Closes answers'],
   // PIA-154: More (the trip's rare actions), a booked traveler with no landing time yet (the organizer's board). PIA-155: More's
   // stage is one picture with its own name (no stepper dots to key)
@@ -4717,7 +4770,7 @@ var LEGEND = {
   down: ['▼', 'Cheaper'], up: ['▲', 'Pricier'], cap: ['⛔', 'Limit reached'], month: ['📆', 'This month'], cheapest: ['★', 'Cheapest'],
   // PIA-140 fix pass: every part of a fare explained (P-total's and P-person's ⓘ), the visit, the token
   age: [ageRing(6 * 36e5, true), 'Fare age'], level: [lvlBars(1, true), 'Price level'], stops: [stopsLine(1, true), 'Stops'],
-  unsearched: ['—', 'Not searched'], nofare: ['$∅', 'No fares'], rt: ['✈', 'Round trip fare'],
+  unsearched: ['—', 'Not searched'], nofare: ['$∅', 'No fares'], rt: ['↔', 'Round trip fare'],   // (PIA-156: ↔, as ✈ is booked)
   sday: ['🔍 26/30', 'Searches left'], visit: ['<span class="sdots"><i class="on"></i><i></i></span>', 'This visit'], newvisit: ['↻', 'New visit'],
   tokbad: ['🔑⚠', 'Token refused'], tokdoor: ['🔑🔍', 'Add token'], won: ['→', 'Cheapest airport'], busy: ['◷', 'Searching'],
   // PIA-141: the cheapest week on demand (P-dates' 📉, P-cheapest's bars, paging and wider window)
@@ -4754,7 +4807,7 @@ function avatar(m, size, o) {
     else {
       var b = [];   // one badge on a screen, the most urgent first
       if (m.warn && m.warn.length) b.push(['⚠', 'warn']);
-      if (m.booked) b.push(['🎫', 'booked']);
+      if (m.booked) b.push(['✈', 'booked']);
       if (m.host) b.push(['🏠', 'host']);
       if (m.noteText) b.push(['📝', 'note']);
       if (m.called) b.push(['📞', 'called']);
@@ -4772,7 +4825,7 @@ function avatar(m, size, o) {
 function markSets(x, one) {
   var a = [], b = [];
   if (x.warn && x.warn.length) a.push(['⚠', 'warn']);
-  if (x.booked) a.push(['🎫', 'booked']); else if (x.host) a.push(['🏠', 'host']);
+  if (x.booked) a.push(['✈', 'booked']); else if (x.host) a.push(['🏠', 'host']);   // (PIA-156: ✈ booked)
   if (x.called && !one) b.push(['📞', 'called']);
   if (x.noteText) b.push(['📝', 'note']);
   return { a: one ? a.slice(0, 1) : a, b: b };
@@ -4967,7 +5020,7 @@ function ageShort(ms) { var h = Math.round((ms || 0) / 36e5); return 'Fetched ' 
 /* one leg's price (P-total, P-person): $ with its age ◷, Google's level ▂▄▆ and its stops, the airport that won when it is not
    their own, ▼ / ▲; grey once a day old; $— hollow when never searched; $∅ when the search found no fares. Its spoken name says it
    all (free under the word rule); a long press names it in two words. o.code: show the winning airport (P-total) */
-var LEG_GLYPH = { rt: ['✈', 'Round trip', 'rt'], in: ['🛬', 'Arrive', 'arrive'], out: ['🛫', 'Leave', 'leave'] };
+var LEG_GLYPH = { rt: ['↔', 'Round trip', 'rt'], in: ['🛬', 'Arrive', 'arrive'], out: ['🛫', 'Leave', 'leave'] };   // (PIA-156: ↔, as ✈ is booked)
 function legPrice(l, x, o) {
   o = o || {};
   var g = LEG_GLYPH[l.kind] || LEG_GLYPH.rt, head = o.glyph === false ? '' : '<span class="lgk" aria-hidden="true" data-k="' + g[2] + '">' + g[0] + '</span>';
@@ -5062,7 +5115,7 @@ function slotHTML(m) {
   if (me && me.host) return '<span class="slot plain z" role="img" aria-label="Host" data-lbl="Host" data-k="host">🏠</span>';
   if (m.org && !m.dest) return h.explore ? '<a class="slot gf z" ' + handoffAttrs(h.explore) + ' aria-label="Explore" data-k="explore">🧭↗</a>' : '';
   var pa = primaryAction(m, RT.today);
-  if (pa === 'book') return h.gf ? '<a class="slot gf z" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : '<span class="slot off z" role="img" aria-label="Fix dates" data-lbl="Fix dates" data-k="fixdates">✈⚠</span>';
+  if (pa === 'book') return h.gf ? '<a class="slot gf z" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : '<span class="slot off z" role="img" aria-label="Fix dates" data-lbl="Fix dates" data-k="fixdates">🗓⚠</span>';
   if (pa === 'times') return '<button class="slot z" data-act="mytimes" data-id="' + m.id + '" data-v="card" aria-label="Landing time" data-lbl="Landing time" data-k="arrive">🛬</button>';
   if (pa === 'track') return h.flighty ? '<a class="slot wide z" ' + handoffAttrs(h.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight" data-k="flighty">✈⏱↗</a>' : '';
   if (pa === 'share' && m.org) return '<button class="slot share z" data-act="tshare" data-id="' + m.id + '" aria-label="Share" data-k="share">' + SHARE + '</button>';
@@ -5363,9 +5416,9 @@ function answerRow(m, x, o) {
   var b = function (v, word) {
     // (PIA-154: a host's default In is an ordinary unpressed In: their face keeps the dotted ring that says it is not confirmed)
     var arm = !why && v === 'out' && !!x && armed(armKey(m.id, code, 'out'));
-    // Out on someone booked waits for its confirming tap (it takes the 🎫 away): it pulses with 🎫↩
+    // Out on someone booked waits for its confirming tap (it takes the booking away): it pulses with ✈↩ (PIA-156: ✈ is booked)
     return '<button class="ans ' + v + (arm ? ' arm' : '') + (why ? ' ro' : '') + '" data-act="answer" data-v="' + v + '" data-id="' + m.id + '" data-code="' + esc(code) + '"' + (o.proxy ? ' data-proxy="1"' : '') +
-      ' aria-pressed="' + (st === v) + '"' + (why ? ' aria-disabled="true" data-why="1" aria-label="' + word + ', ' + why + '" data-lbl="' + wlbl + '"' : arm ? ' aria-label="Confirm Out"' : '') + ' data-k="' + v + '">' + MK[v] + word + (arm ? '<span class="cfm" aria-hidden="true">🎫↩</span>' : '') + '</button>';
+      ' aria-pressed="' + (st === v) + '"' + (why ? ' aria-disabled="true" data-why="1" aria-label="' + word + ', ' + why + '" data-lbl="' + wlbl + '"' : arm ? ' aria-label="Confirm Out"' : '') + ' data-k="' + v + '">' + MK[v] + word + (arm ? '<span class="cfm" aria-hidden="true">✈↩</span>' : '') + '</button>';
   };
   // PIA-154 o.ask (the trip page, while my answer is awaited): the question names the group on its own line, one of the screen's
   // marked label words: "Coming?", or "Hosting?" for a host
@@ -5458,6 +5511,51 @@ function peopleBoard(m) {
   });
   return h + '</div>';
 }
+/* PIA-156: who is set, a quiet key under the board (the model's whoSet, the board's legend in words): at most three 44px rows,
+   ⏳ Waiting, ✈ Booked and 🏠 Hosting, each a glyph and one marked word in the board's name column, then the faces of that group
+   (28px; each opens their sheet, the board's own 'person' act; as many as the row holds, at most 6, then +N), secondary ink under a
+   hairline, no card. renderTrip draws it after the rows already under the board (the price row, 💵 Paid) and above the primary, so
+   on a short phone nothing that was on the first screen moves, and ⏳ Waiting (with Remind) is its first row. Each row is a group
+   named in a full sentence ("Not booked yet: Anjo"); a long press on its word says what it means. On the organizer's phone the
+   Waiting row ends in the share symbol, Remind: one person waiting besides me → their own link (the 'nudge' act; handoffs'
+   remind; named "Remind Anjo"), more → the trip's guest link ('tshare'), except while the primary already is that Share. Guests
+   get none, and no link ever carries a key. budget: the marked label words the screen has left for it (5, less the ask's and the
+   primary's): a row past it keeps its glyph and drops its word (its name and long press still say it). */
+var WHO_ROW = {
+  booked: { g: '✈', k: 'booked', w: 'Booked' },
+  waiting: { g: '⏳', k: 'waitans', w: 'Waiting' },   // (once booking: waitbook; ⓘ says which: "No answer yet" / "Not booked yet")
+  hosting: { g: '🏠', k: 'host', w: 'Hosting' }
+};
+function whoSaid(k, booking) { return k === 'booked' ? 'Booked' : k === 'hosting' ? 'Hosting' : booking ? 'Not booked yet' : 'No answer yet'; }
+function andList(a) { return a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join(''); }
+function whoKey(m, prim, budget) {
+  var ws = whoSet(m, RT.today); if (!ws.rows.length) return '';
+  var cw = +(document.documentElement && document.documentElement.clientWidth), W0 = Math.min(cw > 0 ? cw : 360, 430);
+  var h = '<div class="wk" id="wk-' + m.id + '">';
+  ws.rows.forEach(function (row, i) {
+    var R = WHO_ROW[row.k], said = whoSaid(row.k, ws.booking);
+    var people = row.codes.map(function (c) { return memberIn(m, c); }).filter(Boolean);
+    var rem = '';
+    if (row.k === 'waiting' && m.org) {
+      var others = people.filter(function (x) { return !(m.me && x.code === m.me.code); }), rn = others.length === 1 ? esc('Remind ' + faceLabel(others[0])) : 'Remind';
+      if (others.length === 1) rem = '<button class="ib wkrem" data-act="nudge" data-v="remind" data-id="' + m.id + '" data-code="' + esc(others[0].code) + '" aria-label="' + rn + '" data-lbl="' + rn + '"><span data-k="remind">' + SHARE + '</span></button>';
+      else if (others.length > 1 && prim !== 'share') rem = '<button class="ib wkrem" data-act="tshare" data-v="remind" data-id="' + m.id + '" aria-label="Remind" data-lbl="Remind"><span data-k="remind">' + SHARE + '</span></button>';
+    }
+    // the faces the row holds beside its word column (76px, its gap and a little slack for a wider font) and Remind: 44px targets 36px
+    // apart (the 28px faces never overlap; only their outer padding does), at most 6, and +N for the rest
+    var room = W0 - 32 - 88 - (rem ? 52 : 0), fits = function (more) { return Math.max(1, Math.min(6, Math.floor((room - 8 - (more ? 34 : 0)) / 36))); };
+    var n = people.length <= fits(false) ? people.length : fits(true), more = people.length - n;
+    // (data-v key: a redraw gives the focus back to this face, not to the same person's face on the board)
+    var faces = people.slice(0, n).map(function (x) {
+      return '<button class="facebtn" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-v="key" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 28) + '</button>';
+    }).join('') + (more ? '<span class="wkn tn" aria-hidden="true">+' + more + '</span>' : '');
+    var word = i < budget ? ' <span data-lbl3>' + R.w + '</span>' : '';
+    h += '<div class="wkr" role="group" aria-label="' + esc(said + ': ' + andList(people.map(faceLabel))) + '">' +
+      '<span class="wkl" aria-hidden="true" data-lbl="' + said + '"><span class="wg" data-k="' + (row.k === 'waiting' && ws.booking ? 'waitbook' : R.k) + '">' + R.g + '</span>' + word + '</span>' +
+      '<span class="wkf">' + faces + '</span>' + rem + '</div>';
+  });
+  return h + '</div>';
+}
 /* PIA-151: what a screen reader hears for a traveler's bar: whose flight, its days, and once booked when they land and leave */
 function flightAria(m, x, isMe) {
   return (isMe ? 'My flight' : faceLabel(x) + ', flight') + (x.d1 && !x.bad ? ' ' + md(x.d1) + '–' + md(x.d2) : '') + (x.warn.indexOf('off') >= 0 ? ', outside plan' : '') +
@@ -5527,7 +5625,7 @@ function totalRow(m) {
 /* why a traveler has no Google Flights link (handoffs.why), as [glyph, label, key]: the trip view's primary and a person's
    [Book | 🎫] slot say the same thing */
 function noFlight(why) {
-  return { nodest: ['📍?', 'No destination', 'noairport'], noairport: ['📍?', 'No home airport', 'noairport'], local: ['🚗', 'No flight needed', 'drive'], nolink: ['✈⚠', 'No flight link', 'nolink'] }[why] || ['✈⚠', 'Fix dates', 'fixdates'];
+  return { nodest: ['📍?', 'No destination', 'noairport'], noairport: ['📍?', 'No home airport', 'noairport'], local: ['🚗', 'No flight needed', 'drive'], nolink: ['↗⚠', 'No flight link', 'nolink'] }[why] || ['🗓⚠', 'Fix dates', 'fixdates'];
 }
 function noFlightHTML(why, cls) { var w = noFlight(why); return '<span class="btn ' + cls + ' dis" role="img" aria-label="' + w[1] + '" data-lbl="' + w[1] + '" data-k="' + w[2] + '">' + w[0] + '</span>'; }
 /* PIA-139: the half of the day a time falls in (☀ 06:00–17:59, 🌃 otherwise). PIA-154: only where a time is typed (the field's
@@ -5565,11 +5663,14 @@ function bookLink(m, gf, cls, code) {
   return '<a class="' + cls + '" ' + handoffAttrs(gf) + ' data-ret="' + m.id + '" data-code="' + esc(code || '') + '" aria-label="Book on Google Flights" data-lbl="Google Flights" data-k="gf"><span aria-hidden="true">✈</span> Book <span aria-hidden="true">↗</span></a>';
 }
 /* my own 🎫 beside Book: one tap marks me booked (it glows once on my return from Google Flights). PIA-154: labelled, "🎫 I booked"
-   (its words are the screen's marked label on the trip page; o.plain in a sheet, where nothing is marked) */
+   (its words are the screen's marked label on the trip page; o.plain in a sheet, where nothing is marked). PIA-156: it reads as a
+   checkbox, "☐ I booked" (aria-pressed false); once booked, my sheet's toggle is "☑ I booked" (unbook): the same words both ways */
+/* PIA-156: a booking toggle's box: ☐ until booked, ☑ once booked (the words beside it stay the same; aria-pressed says which) */
+function tkBox(on) { return '<span class="tkg" data-k="' + (on ? 'tkon' : 'tkoff') + '" aria-hidden="true">' + (on ? TK_ON : '☐') + '</span>'; }
 function myTk(m, o) {
   var inv = invited(m.id, m.me && m.me.code);
-  return '<button class="btn tkb' + (inv ? ' glow' : '') + '" data-act="mybook" data-id="' + m.id + '" aria-pressed="false" aria-label="' + (inv ? 'I booked, tap to mark' : 'I booked') + '" data-lbl="I booked">' +
-    '<span data-k="mybook" aria-hidden="true">🎫</span> ' + (o && o.plain ? 'I booked' : '<span data-lbl3>I booked</span>') + '</button>';
+  return '<button class="btn tkb tkoff' + (inv ? ' glow' : '') + '" data-act="mybook" data-id="' + m.id + '" aria-pressed="false" aria-label="' + (inv ? 'I booked, tap to mark' : 'I booked') + '" data-lbl="I booked">' +
+    tkBox(false) + ' ' + (o && o.plain ? 'I booked' : '<span data-lbl3>I booked</span>') + '</button>';
 }
 /* PIA-154: the trip page's header: a small postcard (its scene and the hosts in the house, nothing over it), the title, 📝 right after
    it only when the trip has a caption, and under the title 📍 the destination (one tap to the Map) */
@@ -5587,7 +5688,11 @@ function renderTrip(id) {
   // PIA-154: the nav: ‹, 📶⚠, ⤒ while needed, the organizer's share, ⓘ and ⋯ More (✎, 📅 and ⚙ live in More and ⓘ)
   var nav = '<div class="nav"><button class="ib" data-act="back" aria-label="Back" data-k="back">‹</button>' + offBtn() + '<span class="sp"></span>' + (m ? editBtn(m) + tripShareBtn(m, prim) : '') + keyBtn(!!m && awaitsMe(m)) + (m ? moreBtn(m) : '') + '</div>';
   if (!m) return { id: 'trip-loading', html: nav + '<div class="thead">' + postcard(stubModel(x), 'th') + '<div class="thd"><h2 class="ttl" data-free>' + esc(x.t) + '</h2></div></div><div class="rowc">' + staleMark() + '</div>' };
-  var html = nav + tripHead(m) + dateRow(m) + mineLine(m) + (ansOpen(m) ? answerRow(m, m.me, { ask: awaitsMe(m) }) : '') + peopleBoard(m) + totalRow(m) + paidDoor(m) + primaryHTML(m, prim);
+  // PIA-156: the key under the board, after the rows already there (the price row, 💵 Paid: on a short phone with a sticky primary
+  // they keep their place on the first screen) and above the primary, with the marked label words the screen has left (5, less
+  // "Coming?" / "Hosting?" over the answer row and the primary's own: Lock dates, I booked, Landing time, Track)
+  var ask = ansOpen(m) && awaitsMe(m), budget = 5 - (ask ? 1 : 0) - ({ lock: 2, book: 2, times: 2, track: 1 }[prim] || 0);
+  var html = nav + tripHead(m) + dateRow(m) + mineLine(m) + (ansOpen(m) ? answerRow(m, m.me, { ask: ask }) : '') + peopleBoard(m) + totalRow(m) + paidDoor(m) + whoKey(m, prim, budget) + primaryHTML(m, prim);
   return { id: m.org ? 'trip-organizer' : m.iHost ? 'trip-portal-host' : 'trip-portal', html: html };
 }
 /* Map and Calendar (PIA-143 / PIA-144) show the selected trip, the one Trips opened last */
@@ -5868,8 +5973,8 @@ function isShown(el) {
   if (el.checkVisibility) return el.checkVisibility({ visibilityProperty: true });
   var cs = getComputedStyle(el); return cs.display !== 'none' && cs.visibility !== 'hidden';
 }
-/* PIA-154 o.lbl3: count only the ordinary words, leaving out the screen's marked label words (inside [data-lbl3]: at most 3 a
-   screen, from the allowlist in CLAUDE.md), so a label never pushes a name off the screen */
+/* PIA-154 o.lbl3: count only the ordinary words, leaving out the screen's marked label words (inside [data-lbl3]: at most 5 a
+   screen since PIA-156, from the allowlist in CLAUDE.md), so a label never pushes a name off the screen */
 function countWords(root, o) {
   if (!root || !isShown(root)) return 0;
   var n = 0, skip = !!(o && o.lbl3), tok = function (s) { return String(s).split(/\s+/).filter(function (w) { return /\p{L}/u.test(w); }).length; };
@@ -6335,11 +6440,11 @@ function errInfo(code) {
     network: ['📶⚠', '', true], not_found: ['⚠', 'Trip not found', false], closed: ['🏁', 'Trip closed', false],
     forbidden: ['🔑⚠', 'Organizer link needed', false], no_token: ['🔑', 'Token needed', false], daily_cap: ['⛔', nextUtcMidnightLocal(), false],
     no_kv: ['⚠', 'Sharing unavailable', true], bad_body: ['⚠', 'Not saved', true], bad_id: ['⚠', 'Link broken', false],
-    answer_first: ['🎫⚠', 'Answer first', false], bad_decision: ['⚠', 'Not saved', false], too_large: ['⚠', 'Too long', false],
+    answer_first: ['✈⚠', 'Answer first', false], bad_decision: ['⚠', 'Not saved', false], too_large: ['⚠', 'Too long', false],
     // PIA-138: a date move held back on the fresh record (another phone locked the dates, or someone booked meanwhile)
-    locked: ['🔒', 'Dates locked', false], booked: ['⚠🎫', 'Someone booked', false],
+    locked: ['🔒', 'Dates locked', false], booked: ['⚠✈', 'Someone booked', false],
     // PIA-139: 💵 held back on the fresh record (a 🎫 was taken away meanwhile)
-    unbooked: ['🎫⚠', 'Not everyone booked', false]
+    unbooked: ['✈⚠', 'Not everyone booked', false]
   })[code] || ['⚠', 'Not saved', true];
 }
 /* ---- PIA-140: P-total, trust the one number ----
@@ -6407,7 +6512,7 @@ function cheapBar(m, c, mx, sel) {
     v = '<span class="tn v' + (amt.length >= 7 ? ' sm' : '') + '">' + amt + '</span>';
     col = '<span class="col' + (c.stale ? ' stale' : '') + '" data-k="' + (c.current ? 'weekcur' : c.stale ? 'weekold' : 'weekfull') + '" style="height:' + Math.max(20, Math.round(96 * c.sum / mx)) + 'px">' + (c.star ? '<span class="st" data-k="cheapest">★</span>' : '') + '</span>';
   } else if (c.none) { v = '<span class="tn v" data-k="nofare">$∅</span>'; col = '<span class="col none"' + (c.current ? ' data-k="weekcur"' : '') + '></span>'; }
-  else if (c.blocked.length) { v = '<span class="v" data-k="fixdates">✈⚠</span>'; col = '<span class="col none"' + (c.current ? ' data-k="weekcur"' : '') + '></span>'; }
+  else if (c.blocked.length) { v = '<span class="v" data-k="fixdates">🗓⚠</span>'; col = '<span class="col none"' + (c.current ? ' data-k="weekcur"' : '') + '></span>'; }
   else { v = c.need.length ? '<span class="tn v" data-k="wcost">🔍≤' + c.need.length + '</span>' : '<span class="v"></span>'; col = '<span class="col hollow" data-k="' + (c.current ? 'weekcur' : 'weekhollow') + '"></span>'; }
   var wf = c.warn.length ? '<span class="wf" data-k="leaves">⚠' + (c.warn.length <= 2 ? c.warn.join('') : c.warn[0] + '+' + (c.warn.length - 1)) + '</span>' : '<span class="wf"></span>';
   return '<button class="cbar' + (c.current ? ' cur' : '') + '" data-act="cbar" data-id="' + m.id + '" data-v="' + c.s + '" aria-pressed="' + (sel === c.s) + '" aria-label="' + esc(weekSaid(m, c)) + '" data-lbl="' + weekLbl(c) + '">' +
@@ -6421,7 +6526,7 @@ function cheapChips(m, c) {
     var off = c.warnCodes.indexOf(p.code) >= 0, val, said;
     if (p.booked) {
       var bp = p.sum != null ? money(p.sum) : '';
-      val = '<span data-k="booked">🎫</span>' + (bp ? '<span class="cbk">' + bp + '</span>' : ''); said = 'booked' + (bp ? ', ' + bp : '') + ', stays on their days';
+      val = '<span data-k="booked">✈</span>' + (bp ? '<span class="cbk">' + bp + '</span>' : ''); said = 'booked' + (bp ? ', ' + bp : '') + ', stays on their days';
     }
     else if (p.sum != null && !p.hollow) { val = '<span class="' + (p.stale ? 'stl' : '') + '">' + money(p.sum) + '</span>'; said = money(p.sum) + (p.stale ? ', a day old' : ''); }
     else if (p.none) { val = '<span data-k="nofare">$∅</span>'; said = 'no fares found'; }
@@ -6439,7 +6544,7 @@ function cheapAct(m, c, L) {
   if (c.need.length) return spendBtn(m, c.need, { week: c.s, cls: 'pri wide stick' });
   if (!c.filled || c.current) return '';
   // a confirm asked for is drawn first (a retry that has to ask again asks here, at once)
-  var bk = m.anyBooked && !acked(m.id), ak = armed(armKey(m.id, c.s, 'cmove')), ask = c.warn.join('') + (bk ? '🎫×' + m.anyBooked : '');
+  var bk = m.anyBooked && !acked(m.id), ak = armed(armKey(m.id, c.s, 'cmove')), ask = c.warn.join('') + (bk ? '✈×' + m.anyBooked : '');
   if (ak) return '<button class="btn pri wide stick arm" ' + a + ' aria-label="' + esc('Confirm, move to ' + weekRange(c) + (c.warn.length ? ', it leaves someone\'s days out' : '') + (bk ? ', someone booked' : '')) + '" data-lbl="Confirm">⚠' + esc(ask) + ' <span class="cw">Confirm</span></button>';
   if (L.failed === c.s) return '<button class="btn pri wide stick" ' + a + ' aria-label="Retry">⚠ ↻</button>';
   return '<button class="btn pri wide stick" ' + a + ' aria-label="' + esc('Move to ' + weekRange(c)) + '">Move</button>';
@@ -7154,9 +7259,9 @@ function fareRows(m, x, edit) {
     var word = end ? 'Leave' : 'Arrive';
     h += '<div class="rowc nw dayp"><span class="lgk" data-k="' + (end ? 'leave' : 'arrive') + '">' + (end ? '🛫' : '🛬') + '</span>' + ep.rows.map(function (r) {
       var nf = r.p == null && !!(r.f && r.f.none);   // searched, no fares (a day ago too: then grey, and offered again)
-      // a round trip's own day is the ✈ fare above (one fare for both ends): ✈ there, not its $ a second and third time
+      // a round trip's own day is the ↔ fare above (one fare for both ends): ↔ there, not its $ a second and third time
       var same = r.kind === 'rt' && !r.k && r.p != null;
-      var cost = same ? '✈' : r.p != null ? money(r.p) : nf ? '$∅' : '—', star = r.star ? '<span class="st" data-k="cheapest">★</span>' : '';
+      var cost = same ? '↔' : r.p != null ? money(r.p) : nf ? '$∅' : '—', star = r.star ? '<span class="st" data-k="cheapest">★</span>' : '';
       var said = word + ' ' + md(r.day) + ', ' + (r.p != null ? money(r.p) + (r.kind === 'rt' ? ' round trip' : '') : nf ? 'no fares found' : 'not searched') + (r.st === 'stale' && (r.p != null || nf) ? ', a day old' : '') +
         (r.star ? ', cheapest' : '') + (r.k ? '' : ', their day');
       var inner = '<span class="tn dd">' + md(r.day) + '</span><b class="tn"' + (same ? ' data-k="rt"' : '') + '>' + cost + '</b>' + star;
@@ -7192,22 +7297,23 @@ function visitDots() {
 function orgTkBtn(m, x, early) {
   var t = bookToggle(m, x.code, early); if (!t) return '';
   var ak = armed(armKey(m.id, x.code, 'tk')), lbl = ak ? (t.on ? 'Confirm not booked' : 'Confirm booked') : 'Booked';
+  // (PIA-156: a checkbox, "☐ Booked" / "☑ Booked", the same words both ways)
   return '<button class="btn tkb' + (t.on ? ' tkon' : ' tkoff') + (ak ? ' arm' : '') + (!t.on && invited(m.id, x.code) ? ' glow' : '') + '" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="' + t.on + '" aria-label="' + esc(lbl + ', ' + faceLabel(x)) + '" data-lbl="' + lbl + '">' +
-    '<span class="tkg" data-k="booked" aria-hidden="true">🎫</span> Booked' + (ak ? '<span class="cfm" aria-hidden="true">' + (t.on ? '↩' : '✓') + '</span>' : '') + '</button>';
+    tkBox(t.on) + ' Booked' + (ak ? '<span class="cfm" aria-hidden="true">' + (t.on ? '↩' : '✓') + '</span>' : '') + '</button>';
 }
 function bookRow(m, x, ho) {
   var bs = bookSlot(m, x.code, RT.today), tk = '', mine = !!(m.me && m.me.code === x.code);
-  var tkLbl = function (inner) { return '<span class="tkg" data-k="booked" aria-hidden="true">🎫</span> ' + inner; };
   if (bs.tk === 'self' && x.booked) {
-    // taking my 🎫 back asks for a second tap, which waits until another control is tapped or the sheet closes (🎫↩? says so)
+    // taking my booking back asks for a second tap, which waits until another control is tapped or the sheet closes (✈↩? says so).
+    // PIA-156: my own toggle keeps its words once on: "☑ I booked" (aria-pressed true)
     var arm = armed(armKey(m.id, x.code, 'un'));
-    tk = '<button class="btn tkb tkon' + (arm ? ' arm' : '') + '" data-act="unbook" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="true" aria-label="' + (arm ? 'Confirm not booked' : 'Booked, tap twice to take back') + '" data-lbl="' + (arm ? 'Confirm not booked' : 'Booked') + '">' + tkLbl('Booked') +
+    tk = '<button class="btn tkb tkon' + (arm ? ' arm' : '') + '" data-act="unbook" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="true" aria-label="' + (arm ? 'Confirm not booked' : 'I booked, tap twice to take back') + '" data-lbl="' + (arm ? 'Confirm not booked' : 'I booked') + '">' + tkBox(true) + ' I booked' +
       (arm ? '<span class="cfm" aria-hidden="true">↩</span>' : '') + '</button>';
   } else if (bs.tk === 'self') tk = myTk(m, { plain: true });
   else if (!bs.tk && bs.early && !x.booked && m.org && m.legacy && !mine) {
     // PIA-153: the organizer's 🎫 for someone else on a trip still to be updated: there, greyed, and a tap says "⤒ Update trip first"
     // (their own 🎫 works on the v1 record; his for them waits for the update), pointing to ⤒
-    tk = '<button class="btn tkb tkoff dis" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-disabled="true" data-why="1" aria-label="' + esc('Booked, ' + faceLabel(x) + ', Update trip first') + '" data-lbl="⤒ Update trip first">' + tkLbl('Booked') + '</button>';
+    tk = '<button class="btn tkb tkoff dis" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-disabled="true" data-why="1" aria-label="' + esc('Booked, ' + faceLabel(x) + ', Update trip first') + '" data-lbl="⤒ Update trip first">' + tkBox(false) + ' Booked</button>';
   } else if (bs.tk === 'org') tk = orgTkBtn(m, x, bs.early);
   var flighty = ho.flighty ? '<a class="btn pri' + (tk ? '' : ' wide') + '" ' + handoffAttrs(ho.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈</span> Track <span aria-hidden="true">↗</span></a>' : '';
   if (bs.slot === 'booked') return tk ? '<div class="split">' + flighty + tk + '</div>' : flighty;
@@ -7312,7 +7418,7 @@ function saveTimes(sh, o) {
   L.times = o.flush && bad ? { code: code, arr: badA ? T.arr : null, dep: badD ? T.dep : null, ok: T.ok } : null;
   if (!o.flush) { L.timesHeld = null; L.timesAsk = null; }
   // the traveler is no longer booked here (their 🎫 taken back on another phone meanwhile, or 💵 recorded): nothing can go
-  if (!by) { if (!o.flush && ((arr && arr !== cur.arr) || (dep && dep !== cur.dep) || bad)) toast('🎫⚠'); return null; }
+  if (!by) { if (!o.flush && ((arr && arr !== cur.arr) || (dep && dep !== cur.dep) || bad)) toast('✈⚠'); return null; }
   if (badA) arr = undefined;
   if (badD) dep = undefined;
   if (bad && !o.flush) toast((badA ? '🛬' : '🛫') + '⚠');
@@ -7325,7 +7431,7 @@ function saveTimes(sh, o) {
   return freshWrite(id, function (doc) { var q = timesRequest(doc, code, arr, dep, by); return q ? [q] : null; }, { guard: function (f) {
     var fm = freshModel(id, f); return fm && !docClosed(f) && !timesBy(fm, code) ? 'unbooked' : '';
   } }).then(function (r) {
-    if (r.held && r.code === 'unbooked') { if (!o.flush) toast('🎫⚠'); }
+    if (r.held && r.code === 'unbooked') { if (!o.flush) toast('✈⚠'); }
     else if (!r.ok) showError(r.code, r.retry); else if (!bad && !o.flush) toast((arr ? '🛬' : '') + (dep ? '🛫' : '') + '✓');
     return r;
   });
@@ -7450,7 +7556,7 @@ SHEETS.mine = function (sh) {
   var me = m.me, busy = L.busy, wait = busy ? ' aria-disabled="true" data-why="1" data-lbl="Saving"' : '';
   h += '<div class="mvp"><div class="mvrow"><span class="mvg" data-k="plan">👪</span><span class="tn">' + md(c.s) + '–' + md(c.e) + '</span></div>' +
     '<div class="mvrow"><span class="mvg" role="img" aria-label="' + esc('My days, ' + faceLabel(me)) + '" data-lbl="My days" data-k="mine">' + avatar(me, 28, { plain: true }) + '</span><span class="tn">' + md(c.d1) + '–' + md(c.d2) + '</span>' +
-    (c.booked ? '<span data-k="booked">🎫</span>' : '') + '</div></div>';
+    (c.booked ? '<span data-k="booked">✈</span>' : '') + '</div></div>';
   var b = function (act, inner, o) {
     o = o || {};
     if (o.key && busy === o.key) return '<button class="btn wide busy" data-act="' + act + '" data-id="' + m.id + '" aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷</button>';
@@ -7462,7 +7568,7 @@ SHEETS.mine = function (sh) {
   h += b('minekeep', '<span class="mf" aria-hidden="true">' + avatar(me, 28, { plain: true }) + '</span> Keep mine', {});
   // (PIA-153: on a v1 trip Make plan is there, greyed: a tap says "⤒ Update trip first" and points to ⤒, as the 🎫 and rows do)
   if (m.org && c.make !== 'org') {
-    var arm = L.armed === 'plan' ? '⚠🎫×' + m.anyBooked + ' <span class="cw">Confirm</span>' : '';
+    var arm = L.armed === 'plan' ? '⚠✈×' + m.anyBooked + ' <span class="cw">Confirm</span>' : '';
     h += b('mineplan', arm || '<span data-k="plan">👪</span> Make plan', { key: 'plan', no: c.make ? MINE_WHY[c.make] || 'Unavailable' : '', label: 'Make plan', arm: !!arm });
   }
   return h;
@@ -7796,11 +7902,11 @@ function datesState(sh, m) {
     out.own = od; out.patch = od.patch;
     out.dirty = !od.same;
     out.why = L.end === null && !L.follow && L.stage === 1 ? 'partial' : od.why || '';
-    out.ack = x.booked && !acked(m.id + '|' + x.code) ? '🎫' : '';
+    out.ack = x.booked && !acked(m.id + '|' + x.code) ? '✈' : '';
     out.ro = m.closed;
     return out;
   }
-  out.ack = m.anyBooked && !acked(m.id) ? '🎫×' + m.anyBooked : '';   // a move (or 🔓) once anyone has booked
+  out.ack = m.anyBooked && !acked(m.id) ? '✈×' + m.anyBooked : '';   // a move (or 🔓) once anyone has booked
   if (out.ro) return out;
   if (L.mode === 'window') {
     var w = m.explicitWin ? m.win : null, nights = L.nightsSet ? L.nights : null;
@@ -7974,7 +8080,7 @@ SHEETS.dates = function (sh) {
     var ua = L.armed === 'unlock', ub = L.busy === 'unlock' || L.busy === 'lock';
     if (ub) return h + '<button class="btn wide stick busy" data-act="dlock" aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷</button>';
     if (fail.act === 'unlock') return h + '<button class="btn wide stick" data-act="dlock" aria-label="Retry">⚠ ↻</button>';
-    if (ua) return h + '<button class="btn wide stick arm" data-act="dlock" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ ' + esc(st.ack || '🎫') + ' <span class="cw">Confirm</span></button>';
+    if (ua) return h + '<button class="btn wide stick arm" data-act="dlock" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ ' + esc(st.ack || '✈') + ' <span class="cw">Confirm</span></button>';
     return h + '<button class="btn wide stick unl" data-act="dlock" aria-label="Unlock"><span data-k="unlock" aria-hidden="true">🔓</span> Unlock</button>';
   }
   if (L.target === 'look' || ro) return h;
@@ -8006,7 +8112,7 @@ SHEETS.dates = function (sh) {
   else if (lockNext && !L.busy) h += '<button class="btn pri wide stick" data-act="dlock" aria-label="Lock dates"><span data-k="lock" aria-hidden="true">🔒</span> Lock dates</button>';
   else if (L.busy === 'save') h += '<button class="btn pri wide stick busy" data-act="dsave" aria-label="Saving" aria-busy="true" aria-disabled="true" data-why="1" data-lbl="Saving">◷</button>';
   else if (fail.act === 'save') h += '<button class="btn pri wide stick" data-act="dsave" aria-label="Retry">⚠ ↻</button>';
-  else if (L.armed === 'save') h += '<button class="btn pri wide stick arm" data-act="dsave" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ ' + esc(st.ack || '🎫') + ' <span class="cw">Confirm</span></button>';
+  else if (L.armed === 'save') h += '<button class="btn pri wide stick arm" data-act="dsave" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ ' + esc(st.ack || '✈') + ' <span class="cw">Confirm</span></button>';
   else if (saveNo === 'Saved') h += '<button class="btn pri wide stick dis" data-act="dsave" aria-label="Saved" aria-disabled="true" data-why="1" data-lbl="Saved">✓</button>';
   else if (lockNo && !L.busy) h += '<button class="btn pri wide stick dis" data-act="dlock" aria-disabled="true" data-why="1" aria-label="' + esc('Lock dates, ' + lockNo) + '" data-lbl="' + esc(lockNo) + '"><span data-k="lock" aria-hidden="true">🔒</span> Lock dates</button>';
   else h += '<button class="btn pri wide stick' + (saveNo ? ' dis' : '') + '" data-act="dsave"' + (saveNo ? ' aria-disabled="true" data-why="1" data-lbl="' + saveNo + '"' : '') + '>Save</button>';
@@ -8128,7 +8234,7 @@ function lockDates(id) { return organizerWrite(id, { decision: { stage: 'chosen'
 function unlockUndo(id) {
   return function () {
     return organizerWrite(id, { decision: { stage: 'proposed' } }, { guard: bookedGuard(id, id) }).then(function (r) {
-      if (r.held) toast(r.code === 'booked' ? '🎫⚠' : '🏁'); else if (!r.ok) showError(r.code || 'network', r.retry);
+      if (r.held) toast(r.code === 'booked' ? '✈⚠' : '🏁'); else if (!r.ok) showError(r.code || 'network', r.retry);
       else { var sh = datesSheet(); if (sh && sh.p.id === id) { MC = {}; datesReset(sh); renderSheet(false); } }
       return r;
     });
@@ -9188,7 +9294,7 @@ var ACTS = {
     return setBooked(id, code, true, { by: 'self' }).then(function (r) {
       if (!r.ok) { S.timesPulse = null; showError(r.code, r.retry); return r; }
       var n = modelOf(id), done = !!(n && n.stage === 'done' && was !== 'done');
-      toast(done ? '🎫 🏁' : '🎫', function () {
+      toast(done ? '✈ 🏁' : '✈', function () {
         S.timesPulse = null;
         return setBooked(id, code, false, { by: 'self' }).then(function (x) { if (!x.ok) showError(x.code, x.retry); return x; });
       });
@@ -9200,7 +9306,7 @@ var ACTS = {
     var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), x = memberIn(m, code);
     if (!x || !m.me || m.me.code !== code || !x.booked || m.closed) return null;
     var k = armKey(id, code, 'un');
-    if (!armed(k)) { arm(k, { sticky: true }); toast('🎫↩?'); return null; }
+    if (!armed(k)) { arm(k, { sticky: true }); toast('✈↩?'); return null; }
     disarm(); hideToast();
     // PIA-139: the times that went with the 🎫 are cleared in the same write (bookedRequests)
     return setBooked(id, code, false, { by: 'self' }).then(function (r) { if (!r.ok) showError(r.code, r.retry); return r; });
@@ -9244,10 +9350,13 @@ var ACTS = {
   notesave: function () { if (S.sheet && S.sheet.back) sheetBack(); else closeSheet(); },
   /* Share for one person (nudge): on the organizer's phone their own link (the guest link with #m=<code>); on anyone else's the group
      link, so a guest never hands out someone else's personal link */
+  /* PIA-156: the key's Remind (data-v remind, the organizer's phone) reaches the one person the trip still waits on, a traveler not
+     booked yet too (handoffs' remind: the same personal link) */
   nudge: function (el) {
     var m = modelOf(el.dataset.id); if (!m || m.closed || m.past) return;
-    var ho = handoffs(m, el.dataset.code, RT.hctx); if (!ho || !ho.nudge) return;
-    var url = m.org ? ho.nudge : ho.share; if (!url) return;
+    var ho = handoffs(m, el.dataset.code, RT.hctx); if (!ho) return;
+    var own = ho.nudge || (m.org && el.dataset.v === 'remind' ? ho.remind : ''); if (!own) return;
+    var url = m.org ? own : ho.share; if (!url) return;
     shareLink(url, function (how) { if (how !== 'link') toast(SHARED); });
   },
   // (PIA-153: from a card, P-stage names its trip, and 🗄 closes it on the trip's new place in the list)
@@ -9267,7 +9376,7 @@ var ACTS = {
     return freshWrite(id, build, { guard: ownGuard(id, who) }).then(function (r) {
       L.busy = null;
       if (r.ok) { if (S.sheet === sh) closeSheet(); toast('🗓✓', mineBack(id, who, was)); return r; }   // (PIA-153: ↩ puts my days back, as Make plan's does the plan)
-      if (r.held) toast(r.code === 'booked' ? '🎫⚠' : '🏁'); else L.failed = 'follow';
+      if (r.held) toast(r.code === 'booked' ? '✈⚠' : '🏁'); else L.failed = 'follow';
       if (S.sheet === sh) renderSheet(false); else if (!r.held) showError(r.code || 'network', r.retry);
       return r;
     });
@@ -9336,7 +9445,7 @@ var ACTS = {
     return organizerWrite(id, { decision: { stage: 'booked', actual_total: v } }, { guard: again ? function (f) { return paidHeld(f, true); } : paidHeld }).then(function (r) {
       L.paidBusy = false;
       if (r.ok) { L.amt = ''; L.paidEdit = false; toast('💵 ' + money(v)); }
-      else if (r.held) toast(r.code === 'closed' ? '🏁' : '🎫⚠');
+      else if (r.held) toast(r.code === 'closed' ? '🏁' : '✈⚠');
       else L.paidFailed = true;
       if (S.sheet === sh) renderSheet(false);
       else if (!r.ok && !r.held) showError(r.code || 'network', r.retry);
@@ -9674,7 +9783,7 @@ function ownGuard(id, who) { return function (f) { if (docClosed(f)) return 'clo
 function mineBack(id, who, was) {
   return function () {
     return freshWrite(id, function (doc) { var q = respondRequest(doc, who, was, { by: 'self' }); return q ? [q] : null; }, { guard: ownGuard(id, who) }).then(function (r) {
-      if (r.held) toast(r.code === 'booked' ? '🎫⚠' : '🏁'); else if (!r.ok) showError(r.code || 'network', r.retry);
+      if (r.held) toast(r.code === 'booked' ? '✈⚠' : '🏁'); else if (!r.ok) showError(r.code || 'network', r.retry);
       return r;
     });
   };

@@ -2306,6 +2306,59 @@ function makeServer(worker) {
       !!M.updateRequest(Object.assign({ id: 'dwDiwaliRaleigh2026a01' }, DW), KEY, DROPD),
       'AC2 a v2 trip\'s ↩ is unchanged: proposed, 🔒 chosen again, or 💵 paid again with its amount');
   }
+
+  section('PIA-156 who is set: the trip page\'s key (whoSet / waitsOn) read from records the real Worker wrote, and the Remind link (handoffs\' remind)');
+  {
+    const rows = (m, today) => M.whoSet(m, today || TODAY).rows.map((r) => r.k + ':' + r.codes.join(','));
+    // "P town": Diwali moved to Peoria (Mom & Dad host there, not answered yet), Anjo in through the Worker, then the plan locked
+    const pId = srv.seed(tweak(DW, (d) => { d.idea.destination = { city: 'Peoria', airport: 'PIA' }; delete d.responses['momdad-k3']; }));
+    await srv.send(M.respondRequest(await srv.get(pId), 'anjo-z5', { status: 'in', origin: 'LGA' }, { by: 'self' }));
+    const p0 = await srv.get(pId, KEY), a0 = model(p0, { me: 'ashwin-p8', hasEditKey: true });
+    // (answers stage: everyone non-host answered, so no Waiting row; the unconfirmed host is Hosting, never Waiting)
+    const anjoOut = model(tweak(p0, (d) => { d.responses['anjo-z5'].status = 'out'; }));
+    const anjoWait = model(tweak(p0, (d) => { delete d.responses['anjo-z5']; }));
+    check(eq(rows(a0), ['hosting:momdad-k3']) && !M.whoSet(a0, TODAY).booking && mem(a0, 'momdad-k3').status === 'host-default' && !M.waitsOn(a0, mem(a0, 'momdad-k3')) &&
+      eq(rows(anjoWait), ['waiting:anjo-z5', 'hosting:momdad-k3']) && eq(rows(anjoOut), ['hosting:momdad-k3']),
+      'AC1 before 🔒 and before anyone books: ⏳ Waiting is who has not answered (Anjo before her In), never a host (Mom & Dad\'s unconfirmed default is 🏠 Hosting); someone Out is in no row', { a0: rows(a0), anjoWait: rows(anjoWait) });
+    // the booking stage: the plan 🔒 (organizerEdit's lock), then Ashwin books through the Worker
+    await srv.send(M.organizerEdit(p0, KEY, { decision: { stage: 'chosen' } }));
+    const l0 = await srv.get(pId, KEY), b0 = model(l0, { me: 'ashwin-p8', hasEditKey: true });
+    await srv.send(M.bookedRequests(l0, 'ashwin-p8', true, { by: 'self' }));
+    const l1 = await srv.get(pId, KEY), b1 = model(l1, { me: 'ashwin-p8', hasEditKey: true }), g1 = model(l1, { me: 'anjo-z5' });
+    check(l0.decision.stage === 'chosen' && b0.locked && eq(rows(b0), ['waiting:ashwin-p8,anjo-z5', 'hosting:momdad-k3']) && M.whoSet(b0, TODAY).booking &&
+      l1.responses['ashwin-p8'].booked === true && eq(rows(b1), ['waiting:anjo-z5', 'booked:ashwin-p8', 'hosting:momdad-k3']) && eq(rows(g1), rows(b1)),
+      'AC2 once 🔒: ⏳ Waiting is every traveler not booked yet, me included (Ashwin and Anjo, both In); after Ashwin\'s booking (the Worker\'s /idea/booked) the rows read ⏳ Waiting Anjo (first: what is still to do), ✈ Booked Ashwin, 🏠 Hosting Mom & Dad, the same on her phone', { b0: rows(b0), b1: rows(b1) });
+    // a maybe and an unanswered traveler wait too once 🔒; a booking before 🔒 starts the booking stage; everyone booked is the all-set
+    const mixed = model(tweak(l1, (d) => { d.responses['anjo-z5'].status = 'maybe'; }));
+    const unans = model(tweak(l1, (d) => { delete d.responses['anjo-z5']; }));
+    const early = model(tweak(l1, (d) => { d.decision.stage = 'proposed'; }));
+    const allSet = model(tweak(l1, (d) => { d.responses['anjo-z5'].booked = true; }));
+    const hostOut = model(tweak(l1, (d) => { d.responses['momdad-k3'] = R('out', 'PIA'); }));
+    check(eq(rows(mixed), ['waiting:anjo-z5', 'booked:ashwin-p8', 'hosting:momdad-k3']) && eq(rows(unans), ['waiting:anjo-z5', 'booked:ashwin-p8', 'hosting:momdad-k3']) &&
+      !early.locked && eq(rows(early), ['waiting:anjo-z5', 'booked:ashwin-p8', 'hosting:momdad-k3']) && allSet.stage === 'done' && eq(rows(allSet), ['booked:ashwin-p8,anjo-z5', 'hosting:momdad-k3']) &&
+      eq(rows(hostOut), ['waiting:anjo-z5', 'booked:ashwin-p8']),
+      'AC2 a Maybe and a traveler who has not answered still wait to book; a booking made before 🔒 starts the booking stage; everyone travelling booked is ✈ Booked (+ 🏠 Hosting), the all-set; a host who said Out is not Hosting');
+    // no key on a paid, removed or past trip; a v1 trip reads its own record (its v1 choice is not a 🔒: the answers stage)
+    const paid = model(tweak(l1, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 900; }));
+    const removed = model(tweak(l1, (d) => { d.decision.stage = 'dropped'; }));
+    const v1 = model(LEG, { me: 'LAX', hasEditKey: true }), v1b = model(tweak(LEG, (d) => { d.responses.LGA.booked = true; }), { me: 'LAX', hasEditKey: true });
+    check(M.whoSet(paid, TODAY).rows.length === 0 && M.whoSet(removed, TODAY).rows.length === 0 && M.whoSet(model(l1, { today: '2026-11-12', me: 'ashwin-p8' }), '2026-11-12').rows.length === 0 &&
+      M.whoSet(model(tweak(l1, (d) => { d.idea.dates.return = ''; }), { today: '2026-11-12' }), '2026-11-12').rows.length === 0 && M.whoSet(model(tweak(l1, (d) => { d.idea.dates.return = ''; })), TODAY).rows.length > 0 &&
+      v1.legacy && !v1.locked && eq(rows(v1), ['hosting:PIA']) && eq(rows(v1b), ['waiting:LAX', 'booked:LGA', 'hosting:PIA']),
+      'AC3 no key on a paid or removed trip, or once the trip is over; the family\'s v1 Thanksgiving (its v1 choice reads as proposed) shows 🏠 Hosting Mom & Dad, and once Anjo books ⏳ Waiting / ✈ Booked / 🏠 Hosting', { v1: rows(v1), v1b: rows(v1b) });
+    // Remind: handoffs' remind is the personal guest link of someone else the trip waits on (an In traveler not booked yet, where the
+    // P-person nudge rule offers none); never my own, a booked traveler, a host, someone out, a removed trip; never a key in it
+    const ctxW = { today: TODAY, now: NOW, worker: 'https://pialax-proxy.ashwinyedavalli.workers.dev' };
+    const hA = M.handoffs(b1, 'anjo-z5', ctxW), hMe = M.handoffs(b1, 'ashwin-p8', ctxW), hHost = M.handoffs(b1, 'momdad-k3', ctxW), hDr = M.handoffs(removed, 'anjo-z5', ctxW);
+    check(hA.nudge === '' && /\/i\/[A-Za-z0-9_-]{22}#m=anjo-z5$/.test(hA.remind) && hA.remind.indexOf(KEY) < 0 && !/#k=|t=/.test(hA.remind) && hMe.remind === '' && hHost.remind === '' && hDr.remind === '' &&
+      M.handoffs(anjoWait, 'anjo-z5', ctxW).remind === M.handoffs(anjoWait, 'anjo-z5', ctxW).nudge && M.handoffs(model(l1, { me: 'anjo-z5' }), 'ashwin-p8', ctxW).remind === '',
+      'AC4 Remind\'s link: Anjo (In, not booked, after 🔒) gets her own /i/<id>#m= link (P-person\'s nudge rule offers her none), no key or token in it; never my own, a host, a booked traveler or a removed trip; before 🔒 it is the nudge link itself', { remind: hA.remind });
+    // the 8-member trip: no host at a new destination, 🔒, nobody booked: all 8 wait, in the trip's order (the key shows 6 at most, then +N)
+    const m8 = model(tweak(M8, (d) => { d.idea.destination = { city: 'New Orleans', airport: 'MSY' }; Object.keys(d.responses).forEach((c) => { d.responses[c].status = 'in'; d.responses[c].booked = false; }); d.decision = clone(CHOSEN); d.decision.chosen.airport = 'MSY'; }), { me: 'grandmajosephine-nf', hasEditKey: true });
+    const w8 = M.whoSet(m8, TODAY).rows;
+    check(m8.members.length === 8 && w8.length === 1 && w8[0].k === 'waiting' && eq(w8[0].codes, m8.members.filter((x) => x.traveler).map((x) => x.code)) && w8[0].codes.length === m8.travelers.length,
+      'AC5 the 8-member trip at a place none of them lives (🔒, nobody booked): one ⏳ Waiting row with every traveler, in the trip\'s order', w8.map((r) => r.k + ':' + r.codes.length));
+  }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 
   console.log('');

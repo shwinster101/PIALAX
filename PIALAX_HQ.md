@@ -353,12 +353,13 @@ off the list, or any mark inside a popup.
 **One next step.** `primaryAction` (the marked model region) picks the trip page's
 one filled button and the card's slot by the same rule: share while someone
 waits, then 🔒 Lock dates (one tap, ↩ in its toast) on the organizer's phone;
-✈ Book ↗ with 🎫 I booked once the dates are locked; 🛬 Landing time once booked;
+✈ Book ↗ with 🎫 I booked once the dates are locked (☐ I booked since PIA-156); 🛬 Landing time once booked;
 ✈ Track ↗ in the travel window; otherwise nothing. Rare actions (Pin, Hide on my
 phone, Share, Calendar, Note, Edit, Remove for everyone; PIA-155) live in ⋯ More.
 
 **One glyph, one meaning.** One share symbol (an inline SVG) replaces 📣
-everywhere; 🎫 only means booked; 🔒 only belongs to the date pill, P-dates and
+everywhere; 🎫 only means booked (superseded by the PIA-156 amendment: ✈ alone
+means booked, 🎫 is gone); 🔒 only belongs to the date pill, P-dates and
 Lock dates; ☀ / 🌃 only appear while a time is typed; 📌 only where the event
 day is set (P-dates, and the create and edit steps), never on a pill or card.
 No placeholders stand in for missing data (no $— chips, 0 days or ––:––): where
@@ -395,3 +396,38 @@ searches and their cost stay on P-total's 🔍N before anything is spent (D4). I
 shows before 🔒, once a fare is cached, or once paid; after 🔒 with nothing cached
 there is no row (each traveler's own sheet keeps its 🔍, and ✈ Book ↗ shows
 Google's live price), nor a 🔍N on the card.
+
+### PIA-156 amendment: who's set; ✈ means booked; five label words (2026-10-29)
+
+**The word rule, amended again (the owner's "a word or 2").** A screen keeps at
+most 10 ordinary words and may add at most **5** marked label words
+(`[data-lbl3]`), each from the list: Coming?, Hosting?, Lock dates, I booked,
+Landing time, Track, Lands, Leaves, Tue / Wed / Thu (Calendar's header only) and
+Booked, Waiting, Hosting (the trip page's key rows only). A popup keeps 20 and marks
+nothing. `test-words` fails a 6th marked word and passes 5; where "Hosting?", a
+two-word primary and three key rows would make 6, the key's third row keeps its
+glyph and faces and drops its word.
+
+**Who's set.** Under the trip page's board, after the rows already there (the price
+row, 💵 Paid) and above the primary, a quiet key of at most three 44px rows answers
+"who is still to book, who has booked, who is hosting" (the model's `whoSet`, read
+from the record): before 🔒 and while nobody has booked, ⏳ Waiting (no answer yet;
+never a host) and 🏠 Hosting; once 🔒 or anyone booked, ⏳ Waiting (every traveler
+not booked yet, me too), ✈ Booked and 🏠 Hosting. ⏳ Waiting comes first, and the
+key only takes the space under the rows that were there before it: on a short phone
+(678px tall) with a sticky primary those rows keep their first-screen place, and on a
+family trip's three-row board with nothing else under it the ⏳ Waiting row and its
+Remind are in view without a scroll (with the organizer's price row there, the key is
+a short scroll down). Someone Out is in no
+row; a paid, removed or past trip has no key. Its faces open their sheets; the
+organizer's Remind ends the Waiting row (one person besides him → their own guest
+link, the nudge, named "Remind <name>"; several → the trip's guest share, unless the
+primary already is that Share). No link ever carries a key.
+
+**✈ means booked.** The booked face badge and every booking mark in the app is ✈
+(🎫 read as a concert ticket on iPhone); ✈ otherwise only leads the arrowed hand-offs
+(✈ Book ↗, ✈ Track ↗, ✈↗, ✈⏱↗). A round-trip fare is ↔, a flight with no link ↗⚠
+and one whose dates cannot be flown 🗓⚠. The booking toggles read as checkboxes with
+the same words both ways ("☐ I booked" / "☑ I booked", the organizer's "☐ Booked" /
+"☑ Booked"; ☑ in text presentation, U+FE0E). The same writes as before; no Worker,
+storage or link-format change.

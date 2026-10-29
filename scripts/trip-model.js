@@ -560,7 +560,7 @@ function tripModel(doc, ctx) {
       if (!why) {
         link = flightLink(O, A, H, d1, d2, hc, originCode);
         keys = legKeys(from, A, H, d1, d2, hc);
-        if (!link) why = 'nolink';     // the encoder failed and q= refused the codes (e.g. a metro code): ✈ ⚠, still priced
+        if (!link) why = 'nolink';     // the encoder failed and q= refused the codes (e.g. a metro code): ↗⚠, still priced
       }
     }
     var clash = [];
@@ -999,6 +999,10 @@ function calendarAdd(model, ctx) {
    • calendar: calendarAdd, on this phone's own face only (or on a phone with no face).
    • share: the guest /i/<id> link; nudge: the same with #m=<code>, only for someone else who is ◌ waiting or
      ? maybe (P-person's 📣 rule): never a host, never someone who is in or out.
+   • remind (PIA-156): the same personal link for someone else the trip still waits on (waitsOn: the key's ⏳ Waiting
+     row, a traveler not booked yet once the dates are 🔒), for the organizer's Remind beside that row. Wider than nudge
+     on purpose (a traveler In but not booked has a remind and no nudge): P-person keeps nudge's Share rule and its word
+     budget; both are guestLink's one link, and the app's one 'nudge' act sends either.
    A dropped trip (🗑) offers no Google Flights link, Explore, calendar event or nudge, only share (and Flighty for
    a booked traveler). null for a code that is not on the trip. */
 function handoffs(model, code, ctx) {
@@ -1017,7 +1021,8 @@ function handoffs(model, code, ctx) {
     flighty: x && x.traveler && x.booked ? handoff('flighty', FLIGHTY_URL) : null,
     calendar: mine ? calendarAdd(model, ctx) : null,
     share: guestLink(model.id, '', worker),
-    nudge: ask ? guestLink(model.id, x.code, worker) : ''
+    nudge: ask ? guestLink(model.id, x.code, worker) : '',
+    remind: !!x && !mine && !dropped && waitsOn(model, x) ? guestLink(model.id, x.code, worker) : ''
   };
 }
 
@@ -2137,6 +2142,33 @@ function earlyBook(model, code, today) {
   var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
   return !!x && x.traveler && !model.closed && !model.locked && !model.past && !!x.d1 && !x.bad && x.d1 >= today;
 }
+/* PIA-156: whom an open trip still waits on (the trip page's key, its ⏳ Waiting row). While the dates are not 🔒 and nobody
+   has booked: a member who has not answered (never a host: a host's unconfirmed default is Hosting). Once the dates are 🔒 or
+   anyone has booked: a traveler not booked yet (in, maybe, or not answered yet: still to answer and to book). Someone out, a
+   host and a booked traveler never wait; nobody waits on a paid or removed trip. */
+function waitsOn(model, x) {
+  if (!x || model.closed) return false;
+  return model.locked || model.anyBooked ? x.traveler && !x.booked : !x.host && x.status === 'waiting';
+}
+/* PIA-156: who is set, read from the record as every screen is: the trip page's quiet key under the board, which is the board's
+   legend in words. booking: the dates are 🔒 or anyone has booked. rows, in this order and each only with someone in it:
+   'waiting' (waitsOn; me too: first, as what is still to do, so it is the row a short phone shows above its primary),
+   'booked' (the travelers who booked; booking only), 'hosting' (the hosts, a host's unconfirmed default too; never one who is
+   out). Someone out is in no row. Only an open trip has a key: none on a paid or removed trip, or one that is over (its last
+   day, or its one dated day, before today).
+   → {booking, rows: [{k: 'waiting' | 'booked' | 'hosting', codes: [member codes, in the trip's order]}]} (rows [] for no key) */
+function whoSet(model, today) {
+  var booking = !!(model.locked || model.anyBooked);
+  var over = model.past || (!!model.departureOnly && isIso(today) && model.departureOnly < today);
+  if (model.closed || over) return { booking: booking, rows: [] };
+  var pick = function (f) { return model.members.filter(f).map(function (x) { return x.code; }); };
+  var rows = [
+    { k: 'waiting', codes: pick(function (x) { return waitsOn(model, x); }) },
+    { k: 'booked', codes: booking ? pick(function (x) { return x.traveler && x.booked; }) : [] },
+    { k: 'hosting', codes: pick(function (x) { return x.host && x.status !== 'out'; }) }
+  ];
+  return { booking: booking, rows: rows.filter(function (r) { return r.codes.length > 0; }) };
+}
 
 /* ---- dates: the one picker (PIA-138) ----
    The plan is the organizer's; a person's own ends are theirs. Moving the plan carries every end that follows it (a
@@ -2728,7 +2760,7 @@ if (typeof module !== 'undefined' && module.exports) {
     whoAmI: whoAmI, primaryAction: primaryAction, travelWindow: travelWindow, lockable: lockable, bookToggle: bookToggle,
     SHIFT_STEPS: SHIFT_STEPS, moveRange: moveRange, planShift: planShift, holidayPick: holidayPick, planCheck: planCheck, planDelta: planDelta,
     windowDelta: windowDelta, clearDelta: clearDelta, ownDays: ownDays, legShift: legShift, flightEnds: flightEnds, dayPeople: dayPeople, calendarDay: calendarDay, datesRole: datesRole, datesHeld: datesHeld, mineVsPlan: mineVsPlan,
-    bookSlot: bookSlot, earlyBook: earlyBook, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
+    bookSlot: bookSlot, earlyBook: earlyBook, waitsOn: waitsOn, whoSet: whoSet, typedTime: typedTime, timesBy: timesBy, timesRequest: timesRequest, paidCheck: paidCheck, paidHeld: paidHeld, typedPaid: typedPaid,
     timeHalves: timeHalves, dayPart: dayPart, cachedTime: cachedTime,
     SPEND_PER_TAP: SPEND_PER_TAP, SPEND_PER_SESSION: SPEND_PER_SESSION, QUOTA_LOCK_AT: QUOTA_LOCK_AT, QUOTA_BUDGET: QUOTA_BUDGET, PLAN_LEFT_MIN: PLAN_LEFT_MIN,
     FARE_OFFERS: FARE_OFFERS, FARES_KEEP: FARES_KEEP, codeSet: codeSet, parseFareKey: parseFareKey, searchQuery: searchQuery, serpTime: serpTime,

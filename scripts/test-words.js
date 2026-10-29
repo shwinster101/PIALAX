@@ -4,8 +4,8 @@
 //
 // THE RULE (CLAUDE.md, PIALAX_HQ.md): a word is a visible whitespace-separated token that contains a Unicode
 // letter. Tab labels, codes, month names, names, buttons, placeholders and typed values all count. Trip names
-// ([data-free]), numerals, emoji, glyphs and shapes are free. Every screen ≤10 ordinary words plus ≤3 marked label
-// words (inside [data-lbl3], each on the PIA-154 allowlist; Tue / Wed / Thu on Calendar only), and every popup (sheet,
+// ([data-free]), numerals, emoji, glyphs and shapes are free. Every screen ≤10 ordinary words plus ≤5 marked label
+// words (PIA-156; inside [data-lbl3], each on the allowlist; Tue / Wed / Thu on Calendar only), and every popup (sheet,
 // long-press label, toast) ≤20 with nothing marked, in every state.
 //
 // This suite counts the RENDERED DOM in headless Chromium with its own counter (it does not trust the app's),
@@ -185,6 +185,23 @@ const FARES = (() => {
   return out;
 })();
 
+// PIA-156: "P town" as on the owner's phone (📍ORD, 🔒 11/20–11/30, Mom & Dad hosting, Ashwin booked with his times, Anjo In and not
+// booked); the busiest marked state (the organizer is Mom & Dad, an unconfirmed host, Ashwin booked before 🔒, Lock dates his primary);
+// and the 8-member trip at a place none of them lives, 🔒, nobody booked (the key's Waiting row holds them all: faces, +N, Remind)
+const PT = 'ptPTownThanksgiving001', BZ = 'bzBusiestMarkedState01', E8 = 'e8EightWaitingToBook01';
+DOC[PT] = mkDoc(PT, '🦃 P town thanksgiving', 'ORD', { departure: '2026-11-20', return: '2026-11-30' }, '',
+  [['momdad-t1', '🌽 Mom & Dad', 'PIA', 2], ['ashwin-t2', '💪 Ashwin', 'LAX'], ['anjo-t3', '🗽 Anjo', 'LGA']],
+  { 'momdad-t1': { origin: 'PIA' }, 'ashwin-t2': { origin: 'LAX', booked: true, note: '🛬14:35 🛫15:30' }, 'anjo-t3': { origin: 'LGA' } }, 'chosen');
+DOC[PT].decision.chosen = { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' };
+DOC[BZ] = mkDoc(BZ, '🌽 Busy at home', 'PIA', { departure: '2026-11-13', return: '2026-11-16' }, '',
+  [['momdad-z1', '🌽 Mom & Dad', 'PIA', 2], ['ashwin-z2', '💪 Ashwin', 'LAX'], ['anjo-z3', '🗽 Anjo', 'LGA']], { 'ashwin-z2': { origin: 'LAX', booked: true }, 'anjo-z3': { origin: 'LGA' } });
+DOC[E8] = (() => {
+  const d = JSON.parse(JSON.stringify(DOC[M8])); d.id = E8; d.idea.destination = { city: 'New Orleans', airport: 'MSY' };
+  Object.keys(d.responses).forEach((c) => { d.responses[c].status = 'in'; d.responses[c].booked = false; });
+  d.decision = { stage: 'chosen', chosen: { airport: 'MSY', city: 'New Orleans', departure: d.idea.dates.departure, return: d.idea.dates.return }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+  return d;
+})();
+
 // ---- phones ----
 const keyRec = (ids) => { const o = {}; ids.forEach((id) => { o[id] = { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }; }); return o; };
 const listRec = (ids, pin) => ids.map((id) => ({ id, t: '', e: '', at: 1, pin: (pin || []).indexOf(id) >= 0, arch: false }));
@@ -200,7 +217,7 @@ const PHONES = {
   widest: { ls: { pialax_watchlist_v2: listRec([WC1, WC2, OJ]), pialax_idea_keys_v1: keyRec([WC1, OJ]), pialax_proxy_token: TOKEN, pialax_fares_v2: FARES,   // PIA-135: the widest card, and a half-priced open-jaw traveler
     pialax_idea_me_v1: { [WC1]: 'ashwin-w1', [WC2]: 'ashwin-w9', [OJ]: 'ashwin-o1' }, pialax_ui_v1: { v1read: 1 } } }
 };
-const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY, [WC1]: KEY, [OJ]: KEY, [M8]: KEY, [LC]: KEY, [LK]: KEY };
+const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY, [WC1]: KEY, [OJ]: KEY, [M8]: KEY, [LC]: KEY, [LK]: KEY, [PT]: KEY, [BZ]: KEY, [E8]: KEY };   // (PIA-156: + P town, the busiest, the 8 waiting)
 // PIA-137 phones: the organizer of the set Christmas trip (his 🎫 marks on the board), and a guest on it and on the paid trip
 PHONES.lockorg = { ls: { pialax_watchlist_v2: listRec([LK]), pialax_idea_keys_v1: keyRec([LK]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [LK]: 'ashwin-k1' }, pialax_ui_v1: { v1read: 1 } } };
 PHONES.portal = { ls: { pialax_watchlist_v2: listRec([LK, PD]), pialax_idea_me_v1: { [LK]: 'leo-k3', [PD]: 'leo-q3' }, pialax_ui_v1: { v1read: 1 } } };
@@ -269,7 +286,7 @@ function workerKV() {
 }
 
 // ---- the strict counter, evaluated in the page (independent of the app's own countWords) ----
-// PIA-154: words inside [data-lbl3] are a screen's marked label words (≤3, from LBL3_OK), counted apart from its ≤10; the
+// PIA-154: words inside [data-lbl3] are a screen's marked label words (≤5 since PIA-156, from LBL3_OK), counted apart from its ≤10; the
 // counter returns {w: the ordinary words, m: the marked ones} (a popup has no marked words at all: any is a failure)
 const COUNT = (sels) => {
   const out = [], marked = [];
@@ -286,10 +303,12 @@ const COUNT = (sels) => {
   }
   return { w: out, m: marked };
 };
-// PIA-154: the only label words a screen may mark (data-lbl3), at most 3 a screen; never in a popup
-const LBL3_MAX = 3;
-const LBL3_OK = ['Coming?', 'Hosting?', 'Lock dates', 'I booked', 'Landing time', 'Track', 'Lands', 'Leaves', 'Tue', 'Wed', 'Thu'];
+// PIA-154: the only label words a screen may mark (data-lbl3); never in a popup. PIA-156 (the owner's "a word or 2"): at most 5 a
+// screen, and the trip page's key adds Booked, Waiting and Hosting
+const LBL3_MAX = 5;
+const LBL3_OK = ['Coming?', 'Hosting?', 'Lock dates', 'I booked', 'Landing time', 'Track', 'Lands', 'Leaves', 'Tue', 'Wed', 'Thu', 'Booked', 'Waiting', 'Hosting'];
 const LBL3_DAYS = ['Tue', 'Wed', 'Thu'];   // (Calendar's weekday header only)
+const LBL3_KEY = ['Booked', 'Waiting', 'Hosting'];   // (PIA-156: the trip page's key rows only, inside #screen .wk .wkl)
 const SKIP_KEY = ['back', 'key', 'settings', 'close'];
 // the build ⚙ shows (app.html's one BUILD constant; test-app checks it is the newest ticket's number)
 const BUILD_NO = +((/\bvar BUILD = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8')) || [])[1] || 0);
@@ -318,14 +337,15 @@ async function main() {
   check(!!(WORKER && typeof WORKER.fetch === 'function'), 'PIA-136 worker.js loads in-process (the phones that create and edit write to the real /idea handlers)');
   check(await buildS1(), 'PIA-141 Thanksgiving S1 built as the app meets it: the legacy doc migrated through the real Worker (📌 11/26 from v1\'s card), then 🔓; and the same with no 📌');
   {
-    // PIA-154 the counter itself: ordinary and marked words apart; the gate's limits (10 + 3 on a screen, a popup marks none)
+    // PIA-154 the counter itself: ordinary and marked words apart; the gate's limits (10 + 5 on a screen since PIA-156, a popup marks none)
     const ctx = await browser.newContext(), page = await ctx.newPage(), ws = (n, p) => Array.from({ length: n }, (_, i) => p + i).join(' ');
     const at = async (html) => { await page.setContent('<div id="screen">' + html + '</div><div id="tabbar"></div><div id="sheet"><p>' + ws(3, 's') + ' <span data-lbl3>Track</span></p></div>'); return page.evaluate(COUNT, ['#screen', '#tabbar']); };
-    const ok3 = await at('<p>' + ws(10, 'w') + '</p><b data-lbl3>Lock dates</b><i data-lbl3>Tue</i><span data-free>Long trip name here</span> 🔒 12');
-    const plain11 = await at('<p>' + ws(11, 'w') + '</p>'), marked4 = await at('<p>' + ws(2, 'w') + '</p><b data-lbl3>Lock dates</b><i data-lbl3>Tue</i><i data-lbl3>Wed</i>');
+    const ok5 = await at('<p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b><i data-lbl3>Booked</i><i data-lbl3>Waiting</i><i data-lbl3>Hosting</i><span data-free>Long trip name here</span> 🔒 12');
+    const plain11 = await at('<p>' + ws(11, 'w') + '</p>'), marked6 = await at('<p>' + ws(2, 'w') + '</p><b data-lbl3>Lock dates</b><i data-lbl3>Booked</i><i data-lbl3>Waiting</i><i data-lbl3>Hosting</i><i data-lbl3>Coming?</i>');
     const pop = await page.evaluate(COUNT, ['#sheet']);
-    check(ok3.w.length === 10 && ok3.m.length === 3 && plain11.w.length > SCREEN_MAX && marked4.m.length > LBL3_MAX && marked4.w.length === 2 && pop.w.length === 3 && pop.m.length === 1 && LBL3_OK.indexOf('Lock dates') >= 0 && LBL3_OK.indexOf('Book') < 0,
-      'PIA-154 the counter keeps a screen\'s marked label words (data-lbl3) apart: 10 ordinary + 3 marked passes; an 11th ordinary or a 4th marked word is over its limit; a popup\'s marked word is caught (popups mark none)', { ok3, plain11: plain11.w.length, marked4, pop });
+    check(LBL3_MAX === 5 && ok5.w.length === 10 && ok5.m.length === 5 && plain11.w.length > SCREEN_MAX && marked6.m.length === 6 && marked6.m.length > LBL3_MAX && marked6.w.length === 2 && pop.w.length === 3 && pop.m.length === 1 &&
+      LBL3_OK.indexOf('Lock dates') >= 0 && ['Booked', 'Waiting', 'Hosting'].every((w) => LBL3_OK.indexOf(w) >= 0) && LBL3_OK.indexOf('Book') < 0,
+      'PIA-154 + PIA-156 the counter keeps a screen\'s marked label words (data-lbl3) apart: 10 ordinary + 5 marked passes ("I booked" and the key\'s Booked / Waiting / Hosting); an 11th ordinary or a 6th marked word is over its limit; a popup\'s marked word is caught (popups mark none)', { ok5, plain11: plain11.w.length, marked6, pop });
     await ctx.close();
   }
 
@@ -410,6 +430,13 @@ async function main() {
     const sid = (await page.getAttribute('#screen', 'data-screen').catch(() => '')) || '';
     const days = marks.filter((t) => LBL3_DAYS.indexOf(t) >= 0);
     if (days.length && !/^calendar/.test(sid)) bad('Tue / Wed / Thu marked off the Calendar screen: ' + label + ' (' + (sid || 'no screen id') + ')', days);
+    // PIA-156: Booked / Waiting / Hosting are the trip page key's row words alone (a row's word column, #screen .wk .wkl)
+    const offKey = marks.some((t) => LBL3_KEY.indexOf(t) >= 0) ? await page.evaluate((kw) => {
+      const vis = (el) => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { if (e.hasAttribute('hidden')) return false; const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
+      return [...document.querySelectorAll('#screen [data-lbl3], #tabbar [data-lbl3]')].filter(vis).map((e) => [e, (e.textContent || '').trim().replace(/\s+/g, ' ')])
+        .filter(([e, t]) => kw.indexOf(t) >= 0 && !e.closest('#screen .wk .wkl')).map(([, t]) => t);
+    }, LBL3_KEY) : [];
+    if (offKey.length) bad('Booked / Waiting / Hosting marked outside the trip page\'s key rows: ' + label, offKey);
     if (r.m.length) markedScreens++;
     return w;
   }
@@ -440,15 +467,21 @@ async function main() {
     console.log = () => {};
     try {
       const run = async (k, html, how) => { const n = failCount; await page.setContent(html); await how(); caught[k] = failCount - n; };
-      await run('over', '<main id="screen" data-screen="trip-organizer"><p>' + ws(11, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Book</i> <i data-lbl3>Tue</i></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: over'));
-      await run('atLimit', '<main id="screen" data-screen="calendar"><p>' + ws(10, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Tue</i><span data-free>A long trip name</span></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: at the limit'));
+      // (PIA-156: 6 marked words, one of them off the list and Tue off Calendar; 5 on the list at the limit. The key's words sit in
+      // its rows' word column, as the app draws them; a marked "Waiting" anywhere else is a misplaced mark)
+      const key = (...w) => '<div class="wk">' + w.map((x) => '<div class="wkr"><span class="wkl"><span class="wg">⏳</span> <span data-lbl3>' + x + '</span></span></div>').join('') + '</div>';
+      await run('over', '<main id="screen" data-screen="trip-organizer"><p>' + ws(11, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Book</i> <i data-lbl3>Tue</i>' + key('Waiting', 'Hosting') + '</main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: over'));
+      await run('atLimit', '<main id="screen" data-screen="calendar"><p>' + ws(10, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Tue</i>' + key('Booked', 'Waiting') + '<span data-free>A long trip name</span></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: at the limit'));
+      await run('sixth', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '<i data-lbl3>Track</i></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: a 6th marked word'));
+      await run('fifth', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '</main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: 5 marked words'));
+      await run('offKey', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>Waiting</b></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Waiting marked off the key'));
       await run('popup', '<main id="screen"></main><div id="sheet"><p>' + ws(21, 's') + ' <span data-lbl3>Track</span></p></div>', () => measurePopup(page, 'self-test: popup'));
       await run('popupOk', '<main id="screen"></main><div id="sheet"><p>' + ws(20, 's') + '</p></div>', () => measurePopup(page, 'self-test: popup at 20'));
     } finally { console.log = log0; }
     failCount = f0; Object.assign(worst, JSON.parse(keep)); [screensCounted, popupsCounted, markedScreens] = c0;
     await ctx.close();
-    check(caught.over === 4 && caught.atLimit === 0 && caught.popup === 2 && caught.popupOk === 0,
-      'PIA-154 the gate itself fails what it must: measureScreen on 11 ordinary + 4 marked words (one off the list, Tue off Calendar) fails 4 ways, 10 + 3 on Calendar passes; measurePopup on 21 words with a mark fails twice, 20 plain passes', caught);
+    check(caught.over === 4 && caught.atLimit === 0 && caught.sixth === 1 && caught.fifth === 0 && caught.offKey === 1 && caught.popup === 2 && caught.popupOk === 0,
+      'PIA-154 + PIA-156 the gate itself fails what it must: measureScreen on 11 ordinary + 6 marked words (one off the list, Tue off Calendar) fails 4 ways, 10 + 5 on Calendar passes; a trip page with a 6th marked word from the list fails, 10 + 5 ("I booked" and the key\'s three) passes; a marked "Waiting" outside the key\'s rows fails; measurePopup on 21 words with a mark fails twice, 20 plain passes', caught);
   }
 
   // ⓘ on this screen: every page counted, every glyph on screen explained, ⚙ at the foot. "Every glyph" is read
@@ -551,7 +584,10 @@ async function main() {
       const before = await state();
       await page.mouse.move(x, y); await page.mouse.down();
       await page.waitForTimeout(650);
-      const shown = await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
+      // (PIA-156: a loaded machine can be late with the bubble: still holding, look again for up to 600ms more before calling it missing)
+      const read = () => page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
+      let shown = await read();
+      for (let n = 0; shown === null && n < 6; n++) { await page.waitForTimeout(100); shown = await read(); }
       if (shown) await measurePopup(page, label + ' › P-label "' + shown + '"', '#lbl');
       await page.mouse.up(); await settle(page, 120);
       const after = await state();
@@ -1836,7 +1872,7 @@ async function main() {
     const armed = await page.$eval('#sheet [data-act="booked"][data-code="anjo-k4"]', (e) => e.className + '|' + e.getAttribute('aria-label') + '|' + e.textContent.replace(/\s+/g, ' ').trim());
     await measurePopup(page, 'set trip › Anjo\'s P-person, her 🎫 waiting for its confirming tap');
     await closeSheet(page);
-    check(o.board === 0 && JSON.stringify(o.tk) === JSON.stringify(['leo-k3', 'anjo-k4', 'sam-k5']) && o.book && o.mine && o.drive && /arm/.test(armed) && /Confirm booked/.test(armed) && /🎫 Booked/.test(armed),
+    check(o.board === 0 && JSON.stringify(o.tk) === JSON.stringify(['leo-k3', 'anjo-k4', 'sam-k5']) && o.book && o.mine && o.drive && /arm/.test(armed) && /Confirm booked/.test(armed) && /☐ Booked/.test(armed),
       'PIA-137 AC6 / AC7 + PIA-154 once the dates are set the organizer\'s primary is [✈ Book ↗ | 🎫 I booked], and his "🎫 Booked" for each other traveler is in their sheet (not the host, not his own; none on the board); Anjo, who has not answered, needs a confirming tap', { o, armed });
     await ctx.close();
     const g = await phone('portal', { url: '?idea=' + PD });
@@ -2096,7 +2132,7 @@ async function main() {
     await measurePopup(page, '8 long names › P-dates once saved (🔒 Lock dates next)');
     const doc = JSON.parse(net.kv.map.get('idea:' + M8));
     check(r.pop === 'P-dates' && r.days === 'Sun Mon Tue Wed Thu Fri Sat' && r.key.pop === 'P-key' && r.key.items.some((t) => /People there/.test(t)) && r.key.items.some((t) => /Move a day/.test(t)) && r.back === 'P-dates' &&
-      r.main0 === 'dlock 🔒 Lock dates' && /^⚠ 🎫×1 Confirm$/.test(r.armSave) && r.lost === '🗑↩' && r.undo.pop === 'P-dates' && r.undo.save !== 'No change' &&
+      r.main0 === 'dlock 🔒 Lock dates' && /^⚠ ✈×1 Confirm$/.test(r.armSave) && r.lost === '🗑↩' && r.undo.pop === 'P-dates' && r.undo.save !== 'No change' &&
       r.busy.save === '◷' && r.busy.busy === 'true' && r.busy.focus === 'dsave' && r.busy.native === 0 && r.busy.saying >= 10 && r.saved.posts >= 1 && r.saved.main === 'dlock 🔒 Lock dates' && /^(dsave|dlock)$/.test(r.saved.focus || '') &&
       doc.responses['bartholomewmontgomeryfitzgera-dj'].available_from === '2026-12-10' && doc.responses['bartholomewmontgomeryfitzgera-dj'].booked === true,
       'PIA-138 + PIA-154 on the 8-member trip: all seven weekdays named; ⓘ explains the grid (P-key over P-dates, ‹ back); nothing picked, the main button is 🔒 Lock dates; with a 🎫 Save asks in a word (⚠🎫×1 Confirm); a pick closed unsaved toasts 🗑 and ↩ restores it; while Save is out it is ◷ (focus kept, no native disabled, the rest say Saving); once saved 🔒 Lock dates is next (focus on the main button)', r);
@@ -2170,7 +2206,8 @@ async function main() {
     await page.click('#sheet [data-act="sh-close"]'); await settle(page, 500);
     r.unbookSent = net.posts - u0 - 1;   // the close sends his times (one write); the 🎫 stays
     r.note = rec()['leo-k3'].note; r.stillBooked = rec()['leo-k3'].booked === true;
-    check(eq(r.split, ['gf:ret', ':mybook']) && !r.glow0 && eq(r.mk0, ['I booked']) && eq(r.mk1, ['Landing time']) && r.glow === 'true|I booked, tap to mark' && r.posts === 1 && r.booked && r.after === 'mytimes:button:🛬 Landing time' && r.pulse && r.focus === 'tm-arr' && r.fields &&
+    // (PIA-156: the key under the board marks its rows' words too: ⏳ Waiting and 🏠 Hosting, then ✈ Booked (after Waiting) once he books: 5 at most)
+    check(eq(r.split, ['gf:ret', ':mybook']) && !r.glow0 && eq(r.mk0, ['Waiting', 'Hosting', 'I booked']) && eq(r.mk1, ['Waiting', 'Booked', 'Hosting', 'Landing time']) && r.glow === 'true|I booked, tap to mark' && r.posts === 1 && r.booked && r.after === 'mytimes:button:🛬 Landing time' && r.pulse && r.focus === 'tm-arr' && r.fields &&
       r.sticky === 'Confirm not booked' && r.unbookSent === 0 && r.stillBooked &&
       r.note === '🛬09:05 🛫17:20 Red-eye Monday night then a train down from Chicago with the kids and the dog',
       'PIA-139 AC1/AC2 + PIA-154 Leo\'s [✈ Book ↗ | 🎫 I booked]: back from Google Flights the 🎫 glows ("I booked, tap to mark"), a real tap marks him booked (one write) and the primary becomes 🛬 Landing time, pulsing; it opens his sheet at 🛬, where 0905 ↵ 1720 and ⌄ save 🛬09:05 🛫17:20 before his whole note; taking the 🎫 back still asks after 6s, and ⌄ sends nothing of it', r);
@@ -2217,9 +2254,9 @@ async function main() {
     if (await page.$('#screen .pk:not([data-code])')) { await page.click('#screen .pk:not([data-code])'); await settle(page, 120); multi = await popupId(page); await measurePopup(page, 'Map › a chip of several › P-day'); await closeSheet(page); }
     check(bk.note === '🛬16:10 🛫18:05 Driving down from Chicago if flights are bad' && bk.booked && lanes.length === 1 && /^SAV: /.test(lanes[0]),
       'PIA-139 AC2 Bartholomew changes his 🛬 to 16:10 (his 🛫 18:05 and note kept); the Map\'s SAV row shows everyone\'s chips with their times', { note: bk.note, lanes });
-    check(lanes.length === 1 && ['16:10', '15:05', '15:40', '18:05', '20:00'].every((x) => lanes[0].indexOf(x) >= 0) && / ⏱0:35$/.test(lanes[0]) && lanes[0].indexOf('☀') < 0 && lanes[0].indexOf('🌃') < 0 && lanes[0].indexOf('🎫') < 0 && corners >= 5 &&
+    check(lanes.length === 1 && ['16:10', '15:05', '15:40', '18:05', '20:00'].every((x) => lanes[0].indexOf(x) >= 0) && / ⏱0:35$/.test(lanes[0]) && lanes[0].indexOf('☀') < 0 && lanes[0].indexOf('🌃') < 0 && lanes[0].indexOf('✈') < 0 && corners >= 5 &&
       eq(heads, ['🛬 Lands', '🛫 Leaves']) && day === 'P-day' && /Bartholomew/.test(dayWho) && /16:10/.test(dayWho) && (multi === '' || multi === 'P-day'),
-      'PIA-139 AC2 + PIA-154 the pickups table (🛬 Lands | 🛫 Leaves) reads 16:10 on 12/10, then 15:05 and 15:40 on 12/11 (one ⏱ pickup run of 0:35), 18:05 and 20:00 on the way home (no ☀ / 🌃, no 🎫: a booked chip is solid); every chip opens P-day map mode with the travelers and their times', { lanes, heads, corners, day, dayWho, multi });
+      'PIA-139 AC2 + PIA-154 the pickups table (🛬 Lands | 🛫 Leaves) reads 16:10 on 12/10, then 15:05 and 15:40 on 12/11 (one ⏱ pickup run of 0:35), 18:05 and 20:00 on the way home (no ☀ / 🌃, no booked mark, ✈ since PIA-156 (🎫 before): a booked chip is solid); every chip opens P-day map mode with the travelers and their times', { lanes, heads, corners, day, dayWho, multi });
     await ctx.close();
   }
   {
@@ -2297,7 +2334,7 @@ async function main() {
     await page.keyboard.type('0905'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter'); await recUntil((x) => /🛬09:05/.test(x.note)); await settle(page, 150);
     r.jobB = { taps, posts: net.posts - p0, booked: rec().booked === true, note: rec().note };
     await measurePopup(page, 'my flight › booked: each row its day, its time field and its airports');
-    check(r.open.pop === 'P-person' && r.open.taps === 1 && eq(r.open.rows, ['12/22', '12/27']) && r.open.cells === 4 && r.open.tk && r.open.tkWords === '🎫 I booked' && eq(r.open.legs, ['2026-12-22:SEA>PIA', '2026-12-27:PIA>SEA']) &&
+    check(r.open.pop === 'P-person' && r.open.taps === 1 && eq(r.open.rows, ['12/22', '12/27']) && r.open.cells === 4 && r.open.tk && r.open.tkWords === '☐ I booked' && eq(r.open.legs, ['2026-12-22:SEA>PIA', '2026-12-27:PIA>SEA']) &&
       r.invite && r.noShift && r.jobB.taps === 2 && r.jobB.posts === 2 && r.jobB.booked && /^🛬09:05 Red-eye/.test(r.jobB.note),
       'PIA-151 AC1/AC5/AC9 + PIA-154 one tap on Leo\'s bar opens his flight section: 🛬 12/22 and 🛫 12/27 (both following the plan, dimmed, no 🗓 corner), PIA | ORD for each end, ✈ Book ↗ for exactly SEA→PIA 12/22 and PIA→SEA 12/27 with "🎫 I booked" beside it; then 🎫 → landing time in 2 taps: 🎫, the 🛬 field (in its own row, inviting), 0905 ↵ ↵ saved', r);
     await page.click('#sheet [data-act="sh-close"]'); await settle(page, 300);
@@ -2323,7 +2360,7 @@ async function main() {
     r.jobA = { taps, posts: net.posts - p1, from: rec().available_from, to: rec().available_to, note: rec().note, booked: rec().booked === true };
     r.board = await page.$eval('#screen .pb [data-act="flight"][data-code="leo-k3"] .btm.a', (e) => e.textContent).catch(() => '');
     await measureScreen(page, 'set trip › my bar with my landing time (the final check)');
-    check(r.prim === null && r.f1 !== 'tm-arr' && r.cal.pop === 'P-dates' && r.cal.endg === '🛬 Arrive' && !r.cal.save && r.cal.cross === 'Ends cross' && r.cal.pin && r.ask === '⚠ 🎫 Confirm' && r.askPosts === 0 &&
+    check(r.prim === null && r.f1 !== 'tm-arr' && r.cal.pop === 'P-dates' && r.cal.endg === '🛬 Arrive' && !r.cal.save && r.cal.cross === 'Ends cross' && r.cal.pin && r.ask === '⚠ ✈ Confirm' && r.askPosts === 0 &&
       r.back.pop === 'P-person' && r.back.focus === 'tm-arr' && r.back.day === '12/21⚠' && r.jobA.taps === 5 && r.jobA.posts === 2 && r.jobA.from === '2026-12-21' && r.jobA.to === '' && r.jobA.booked &&
       /^🛬15:10 Red-eye/.test(r.jobA.note) && r.board === '15:10',
       'PIA-151 AC2/AC9 + PIA-154 from the trip page Leo (booked, his landing time recorded: no primary) records his booked arrive day and time in 5 taps: his bar, his 🛬 day (a month calendar for that end, "🛬 Arrive": 📌 on its day, days past his 🛫 greyed "Ends cross", no Save to find), 12/21, ⚠ 🎫 Confirm (once a visit, nothing sent before it), back at his 🛬 field, 1510, ⌄: two writes (the day, then the time), his 🎫 kept, and his bar reads 15:10', r);
@@ -3174,8 +3211,9 @@ async function main() {
     taps = 0; await tap('#screen [data-act="key"]'); await tap('#sheet [data-act="settings"]');
     r.build = { taps, p: await popupId(page), n: await page.$eval('#sheet .bld', (e) => e.textContent).catch(() => '') };
     await closeSheet(page);
-    check(/^Share$/.test(r.p0 || '') && r.nav0 === 0 && r.m0.length === 0 && r.first === 'nudge' && r.nudge.taps === 2 && r.nudge.shared.length === 1 && /\/i\/dwDiwaliRaleigh2026a01#m=anjo-z5$/.test(r.nudge.shared[0]) &&
-      r.p1 === '🔒 Lock dates' && r.lock.taps === 1 && r.lock.stage === 'chosen' && /🔒/.test(r.lock.toast) && r.lock.undo && /✈ Book ↗/.test(r.p2 || '') && /🎫 I booked/.test(r.p2 || '') && eq(r.m2, ['I booked']) &&
+    // (PIA-156: the key's ⏳ Waiting row is the screen's one marked word while Anjo waits; after 🔒 it sits over "I booked")
+    check(/^Share$/.test(r.p0 || '') && r.nav0 === 0 && eq(r.m0, ['Waiting']) && r.first === 'nudge' && r.nudge.taps === 2 && r.nudge.shared.length === 1 && /\/i\/dwDiwaliRaleigh2026a01#m=anjo-z5$/.test(r.nudge.shared[0]) &&
+      r.p1 === '🔒 Lock dates' && r.lock.taps === 1 && r.lock.stage === 'chosen' && /🔒/.test(r.lock.toast) && r.lock.undo && /✈ Book ↗/.test(r.p2 || '') && /☐ I booked/.test(r.p2 || '') && eq(r.m2, ['Waiting', 'I booked']) &&
       r.unlocked.stage === 'proposed' && r.unlocked.prim === '🔒 Lock dates' && r.edit.taps === 2 && r.edit.p === 'P-edit' && r.note.taps === 2 && r.note.p === 'P-note' &&
       r.cal.taps === 3 && r.cal.p === 'P-calendar-add' && r.cal.phone && /^data:text\/calendar/.test(r.cal.ics || '') && r.cal.toast === '📅✓' && r.build.taps === 2 && r.build.p === 'P-organizer' && r.build.n === '#' + BUILD_NO,
       'PIA-154 section C, the organizer: Share is the one primary while Anjo waits (no second share in the nav); nudging her is 2 taps (her face, Share first in her sheet: her own #m= link); once nobody waits "🔒 Lock dates" locks in 1 tap (↩ in its toast puts it back), and the primary becomes [✈ Book ↗ | 🎫 I booked] (its one marked label "I booked"); ✎ Edit and 📝 Note are 2 taps (⋯, the row), the phone calendar 3 (⋯, 📅 Calendar, 📅 Phone); the build ⓘ → ⚙ #' + BUILD_NO, r);
@@ -3212,7 +3250,7 @@ async function main() {
     await page.click('#tabbar [data-act="tab"][data-v="cal"]'); await settle(page, 150);
     r.cal = await markedOf(page, ['#screen']);
     await measureScreen(page, 'PIA-154 › Calendar (Tue / Wed / Thu marked)');
-    check(eq(r.m0, ['Coming?']) && !r.p0 && r.chip === 'In' && r.change.taps === 2 && r.change.status === 'maybe' && /Maybe$/.test(r.change.chip) &&
+    check(eq(r.m0, ['Coming?', 'Waiting']) && !r.p0 && r.chip === 'In' && r.change.taps === 2 && r.change.status === 'maybe' && /Maybe$/.test(r.change.chip) &&
       r.share.taps === 2 && r.share.shared.length === 1 && /\/i\/dwDiwaliRaleigh2026a01$/.test(r.share.shared[0]) && r.look.taps === 2 && r.look.p === 'P-person' && r.look.gf && !r.look.book && eq(r.cal, ['Tue', 'Wed', 'Thu']),
       'PIA-154 section C, a guest: "Coming?" over In / Maybe / Out (its one marked label; no primary while the answer is the call); after In her answer is a chip (✓ In); changing it is 2 taps (the chip, Maybe); sharing the trip 2 (⋯, Share: the guest link); flights before 🔒 2 (her bar, ✈↗: no Book yet); Calendar marks Tue / Wed / Thu', r);
     await ctx.close();
@@ -3223,7 +3261,7 @@ async function main() {
     await settle(page, 200);
     const m = await markedOf(page, ['#screen']);
     await measureScreen(page, 'PIA-154 › a host (Hosting?)');
-    check(eq(m, ['Hosting?']), 'PIA-154 a host is asked "Hosting?" over In / Maybe / Out (the screen\'s one marked label)', m);
+    check(eq(m, ['Hosting?', 'Hosting']), 'PIA-154 a host is asked "Hosting?" over In / Maybe / Out (PIA-156: and the key under the board reads 🏠 Hosting)', m);
     await ctx.close();
   }
 
@@ -3341,6 +3379,83 @@ async function main() {
         'PIA-155 after 🔒 with nothing cached the trip page has no price row; pricing Leo is 2 taps (his face, 🔍1: its cost on it before the tap), spending exactly what it showed through the real Worker (SerpAPI stubbed); then the row is back with the real total', q);
       await ctx.close();
     } finally { globalThis.fetch = offline; }
+  }
+
+  section('PIA-156 who is set: the quiet key under the board with real taps through the real Worker; Remind the one unbooked traveler in 1 tap; ≤10 + 5 in every state');
+  {
+    // the owner's "P town" on his phone: the key reads ⏳ Waiting 🗽 [Remind] / ✈ Booked 💪 / 🏠 Hosting 🌽 (after his 🔑🔍 row, above
+    // any primary); Remind is 1 tap (before: her face, then Share, and her sheet offers none once she is In); ⓘ explains ⏳ ✈ 🏠 and
+    // Remind; the word's long press says what it means
+    const q = {};
+    {
+      const { ctx, page, net } = await phone('ptorg', { worker: true, share: true, url: '?idea=' + PT, ls: { pialax_watchlist_v2: listRec([PT]), pialax_idea_keys_v1: keyRec([PT]), pialax_idea_me_v1: { [PT]: 'ashwin-t2' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      const keyNow = () => page.evaluate(() => [...document.querySelectorAll('#screen .wk .wkr')].map((r) => ({ name: r.getAttribute('aria-label'), text: r.querySelector('.wkl').textContent.replace(/\s+/g, ' ').trim(),
+        faces: r.querySelectorAll('.wkf [data-act="person"]').length, rem: (r.querySelector('.wkrem') || { getAttribute: () => '' }).getAttribute('data-act'), h: Math.round(r.getBoundingClientRect().height) })));
+      q.key = await keyNow(); q.marked = await markedOf(page, ['#screen']);
+      // (the board, then the rows already under it (his 🔑🔍 here), then the key, then any primary)
+      q.order = await page.evaluate(() => { const b = document.querySelector('#screen .pb'), k = document.querySelector('#screen .wk'), t = document.querySelector('#screen [data-act="tokdoor"]'), p = document.querySelector('#screen .split.prim');
+        const before = (x, y) => !!(x && y && (x.compareDocumentPosition(y) & Node.DOCUMENT_POSITION_FOLLOWING));
+        return before(b, k) && before(t, k) && (!p || before(k, p)); });
+      await measureScreen(page, 'PIA-156 › P town, the organizer (Booked / Waiting + Remind / Hosting)');
+      await keyCheck(page, 'PIA-156 › P town, the organizer');
+      // the Waiting word's long press: "Not booked yet" (a popup of its own, counted), and Remind's: "Remind Anjo"; neither does anything
+      const press = async (sel) => { const h = await page.$(sel); await h.scrollIntoViewIfNeeded().catch(() => {}); const b = await h.boundingBox(); await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(650);
+        const read = () => page.evaluate(() => { const l = document.querySelector('#lbl'); return l && !l.hidden ? l.textContent : ''; });
+        let t = await read(); for (let n = 0; !t && n < 6; n++) { await page.waitForTimeout(100); t = await read(); }
+        if (t) await measurePopup(page, 'PIA-156 › P-label "' + t + '"', '#lbl'); await page.mouse.up(); await settle(page, 120); await untilLabelGone(page); return t; };
+      q.pressWord = await press('#screen .wk .wkr:nth-child(1) .wkl'); q.pressRem = await press('#screen .wk .wkrem');
+      q.afterPress = { pop: await popupId(page), shared: await page.evaluate(() => (window.__shared || []).length) };
+      const p0 = net.posts; let taps = 0;
+      if (await fingerTap(page, '#screen .wk [data-act="nudge"]')) taps++;
+      await settle(page, 250);
+      q.remind = { taps, shared: await page.evaluate(() => (window.__shared || []).map((x) => x.url)), posts: net.posts - p0, pop: await popupId(page) };
+      // a face in the key opens their sheet (1 tap)
+      await fingerTap(page, '#screen .wk [data-act="person"][data-code="anjo-t3"]'); await settle(page, 150);
+      q.face = { pop: await popupId(page), who: await page.$eval('#sheet .pnm', (e) => e.textContent.trim()).catch(() => '') };
+      await closeSheet(page);
+      await ctx.close();
+    }
+    {
+      // Anjo's phone on P town: the same rows, no Remind; "☐ I booked" + the key's three: 5 marked words, the new cap exactly
+      const { ctx, page } = await phone('ptguest', { worker: true, url: '?idea=' + PT, ls: { pialax_watchlist_v2: listRec([PT]), pialax_idea_me_v1: { [PT]: 'anjo-t3' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      q.guest = { marked: await markedOf(page, ['#screen']), rem: await page.$$eval('#screen .wkrem', (es) => es.length), rows: await page.$$eval('#screen .wk .wkr', (es) => es.map((e) => e.getAttribute('aria-label'))),
+        tk: await page.$eval('#screen .split.prim [data-act="mybook"]', (e) => e.textContent.replace(/\s+/g, ' ').trim() + '|' + e.getAttribute('aria-pressed')).catch(() => '') };
+      q.guest.w = await measureScreen(page, 'PIA-156 › P town, Anjo (☐ I booked + the key: 5 marked words)');
+      await ctx.close();
+    }
+    {
+      // the busiest marked state: Mom & Dad organize, not confirmed as hosts yet ("Hosting?"), Ashwin booked before 🔒, Lock dates the
+      // primary: Hosting? + Lock dates + Booked + Waiting = 5; the key's third row keeps 🏠 and its faces, its word left out
+      const { ctx, page } = await phone('bzorg', { worker: true, url: '?idea=' + BZ, ls: { pialax_watchlist_v2: listRec([BZ]), pialax_idea_keys_v1: keyRec([BZ]), pialax_idea_me_v1: { [BZ]: 'momdad-z1' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      q.busy = { marked: await markedOf(page, ['#screen']), rows: await page.$$eval('#screen .wk .wkr', (es) => es.map((e) => e.querySelector('.wkl').textContent.replace(/\s+/g, ' ').trim() + '|' + e.getAttribute('aria-label'))) };
+      q.busy.w = await measureScreen(page, 'PIA-156 › the busiest marked state (Hosting? + Lock dates + Booked + Waiting)');
+      await ctx.close();
+    }
+    {
+      // the 8-member trip, 🔒, nobody booked, at 360: the Waiting row holds what fits (+N), Remind at its end (the trip's guest share)
+      const { ctx, page } = await phone('e8org', { worker: true, share: true, url: '?idea=' + E8, ls: { pialax_watchlist_v2: listRec([E8]), pialax_idea_keys_v1: keyRec([E8]), pialax_idea_me_v1: { [E8]: 'grandmajosephine-nf' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      q.e8 = await page.evaluate(() => { const r = document.querySelector('#screen .wk .wkr'); if (!r) return null; const R = r.getBoundingClientRect();
+        return { faces: r.querySelectorAll('.wkf [data-act="person"]').length, more: (r.querySelector('.wkn') || {}).textContent || '', rem: (r.querySelector('.wkrem') || { getAttribute: () => '' }).getAttribute('data-act'),
+          inside: R.right <= innerWidth + 0.5 && [...r.querySelectorAll('button')].every((b) => { const x = b.getBoundingClientRect(); return x.right <= innerWidth + 0.5 && x.width >= 43.5 && x.height >= 43.5; }), over: document.documentElement.scrollWidth - innerWidth }; });
+      q.e8.w = await measureScreen(page, 'PIA-156 › 8 waiting to book (+N, Remind)');
+      let taps = 0; if (await fingerTap(page, '#screen .wk [data-act="tshare"]')) taps++; await settle(page, 250);
+      q.e8.share = { taps, shared: await page.evaluate(() => (window.__shared || []).map((x) => x.url)) };
+      await ctx.close();
+    }
+    const okRows = eq(q.key.map((r) => r.text), ['⏳ Waiting', '✈ Booked', '🏠 Hosting']) && eq(q.key.map((r) => r.name), ['Not booked yet: Anjo', 'Booked: Ashwin', 'Hosting: Mom & Dad']) && eq(q.key.map((r) => r.faces), [1, 1, 1]) && eq(q.key.map((r) => r.rem), ['nudge', '', '']) && q.key.every((r) => r.h >= 44);
+    check(okRows && q.order && eq(q.marked, ['Waiting', 'Booked', 'Hosting']) && q.pressWord === 'Not booked yet' && q.pressRem === 'Remind Anjo' && q.afterPress.pop === null && q.afterPress.shared === 0 &&
+      q.remind.taps === 1 && q.remind.shared.length === 1 && new RegExp('/i/' + PT + '#m=anjo-t3$').test(q.remind.shared[0]) && q.remind.shared[0].indexOf(KEY) < 0 && q.remind.posts === 0 && q.remind.pop === null &&
+      q.face.pop === 'P-person' && q.face.who === 'Anjo',
+      'PIA-156 the owner\'s "P town" on his phone, real taps through the real Worker: under the board, after his 🔑🔍 row, three 44px rows, "⏳ Waiting" 🗽 with Remind, "✈ Booked" 💪, "🏠 Hosting" 🌽 (named "Not booked yet: Anjo", "Booked: Ashwin", "Hosting: Mom & Dad"; ⓘ explains ⏳ ✈ 🏠 and Remind); a long press on Waiting says "Not booked yet", on Remind "Remind Anjo", and does nothing; reminding Anjo, the one unbooked traveler, is 1 tap (before: 2, her face then Share; none once she was In): her own link, no key, nothing written; her face in the key opens her sheet', q);
+    check(eq(q.guest.marked, ['Waiting', 'Booked', 'Hosting', 'I booked']) && q.guest.rem === 0 && eq(q.guest.rows, ['Not booked yet: Anjo', 'Booked: Ashwin', 'Hosting: Mom & Dad']) && q.guest.tk === '☐ I booked|false' && q.guest.w.length <= SCREEN_MAX &&
+      eq(q.busy.marked, ['Hosting?', 'Waiting', 'Booked', 'Lock dates']) && q.busy.rows.length === 3 && /^🏠\|Hosting: Mom & Dad$/.test(q.busy.rows[2]) && q.busy.w.length <= SCREEN_MAX,
+      'PIA-156 ≤10 + 5: Anjo\'s phone marks exactly 5 ("☐ I booked" and the key\'s three; no Remind for a guest); the busiest state (Hosting? + Waiting + Booked + Lock dates) is 5, the Hosting row keeping 🏠 and its faces without its word', { guest: q.guest, busy: q.busy });
+    check(q.e8 && q.e8.faces === 4 && q.e8.more === '+4' && q.e8.rem === 'tshare' && q.e8.inside && q.e8.over <= 0 && q.e8.w.length <= SCREEN_MAX && q.e8.share.taps === 1 && q.e8.share.shared.length === 1 && new RegExp('/i/' + E8 + '$').test(q.e8.share.shared[0]),
+      'PIA-156 the 8-member trip at 360px (🔒, all 8 to book): the Waiting row holds 4 faces, +4 and Remind, every button ≥44px and on screen (no sideways scroll); Remind for several is the trip\'s guest share in 1 tap', q.e8);
   }
 
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');

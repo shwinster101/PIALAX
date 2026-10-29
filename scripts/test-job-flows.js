@@ -30,7 +30,8 @@ async function main() {
       const started = Date.now(), log = [];
       const result = await new Promise((resolve, reject) => {
         const child = spawn(process.execPath, [path.join(ROOT, 'scripts', script), ROOT], { env, stdio: ['ignore', 'pipe', 'pipe'] });
-        const timeout = setTimeout(() => { child.kill('SIGTERM'); reject(new Error(script + ' exceeded its 20-minute budget')); }, 20 * 60 * 1000);
+        // (PIA-156: 30 minutes, was 20: test-words alone measured 16m33s at #155 and 16m41s to 17m00s with PIA-156; a timeout still fails)
+        const timeout = setTimeout(() => { child.kill('SIGTERM'); reject(new Error(script + ' exceeded its 30-minute budget')); }, 30 * 60 * 1000);
         child.stdout.on('data', b => { log.push(b.toString()); process.stdout.write(b); });
         child.stderr.on('data', b => { log.push(b.toString()); process.stderr.write(b); });
         child.on('error', e => { clearTimeout(timeout); reject(e); });

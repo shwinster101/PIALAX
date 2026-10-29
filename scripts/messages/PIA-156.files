@@ -1,0 +1,15 @@
+CHANGELOG.md
+CLAUDE.md
+PIALAX_HQ.md
+V2_ACCEPTANCE.md
+app.html
+scripts/messages/PIA-156.files
+scripts/messages/PIA-156.msg
+scripts/test-app.js
+scripts/test-calendar-browser.js
+scripts/test-job-flows.js
+scripts/test-map-browser.js
+scripts/test-trip-model.js
+scripts/test-viewport.mjs
+scripts/test-words.js
+scripts/trip-model.js

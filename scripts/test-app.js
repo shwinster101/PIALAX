@@ -81,7 +81,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-154 fix pass
   'whoChip', 'personKeys', 'tapKeys',
   // PIA-155
-  'primaryAction', 'removeHeld', 'migInvite', 'priceShown', 'unpricedOf', 'priceWho'];
+  'primaryAction', 'removeHeld', 'migInvite', 'priceShown', 'unpricedOf', 'priceWho',
+  // PIA-156
+  'LEG_GLYPH', 'TK_ON'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -1818,7 +1820,7 @@ function norm(doc) {
     check(g0.prim === '' && !g0.navShare && hst.prim === '' && !hst.navShare && /data-act="answer"/.test(g0.h) && /Coming\?/.test(g0.h) && /Hosting\?/.test(hst.h),
       'PIA-137 AC6 a guest who has not answered has no primary (the answer row is the call: "Coming?"); a host has none ("Hosting?"); PIA-154: a guest\'s share is in ⋯ More, not the nav');
     const lk = await view(locked, 'anjo-z5', false, async () => { const d = srv.read(locked); d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); srv.write(d); });
-    check(/^<a class="btn pri" href="https:\/\/www\.google\.com\/travel[^"]*" target="_blank" rel="noopener noreferrer" data-ret="[A-Za-z0-9_-]{22}"[^>]*data-k="gf"><span aria-hidden="true">✈<\/span> Book <span aria-hidden="true">↗<\/span><\/a><button class="btn tkb" data-act="mybook" data-id="[^"]+" aria-pressed="false" aria-label="I booked" data-lbl="I booked"><span data-k="mybook" aria-hidden="true">🎫<\/span> <span data-lbl3>I booked<\/span><\/button>$/.test(lk.prim),
+    check(/^<a class="btn pri" href="https:\/\/www\.google\.com\/travel[^"]*" target="_blank" rel="noopener noreferrer" data-ret="[A-Za-z0-9_-]{22}"[^>]*data-k="gf"><span aria-hidden="true">✈<\/span> Book <span aria-hidden="true">↗<\/span><\/a><button class="btn tkb tkoff" data-act="mybook" data-id="[^"]+" aria-pressed="false" aria-label="I booked" data-lbl="I booked"><span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> <span data-lbl3>I booked<\/span><\/button>$/.test(lk.prim),
       'PIA-137 AC6 once the dates are set (🔒): [✈ Book ↗ | 🎫 I booked] (PIA-154: the 🎫 says what it records)');
     const p0 = nPosts(lk.t);
     await tap(lk.t, lk.h, 'mybook'); await tick();
@@ -1893,12 +1895,12 @@ function norm(doc) {
     const onBoard = /data-act="booked"/.test(screen(t));
     check(!onBoard && tk('anjo-z5') && !tk('momdad-k3') && !tk('ashwin-p8'), 'PIA-137 AC7 the organizer\'s 🎫 for someone is in their sheet (PIA-154: not on the board), on Anjo\'s only: none for a host (Mom & Dad live in Peoria), none in his own (his is 🎫 I booked)');
     const s0 = psh(id, 'anjo-z5'), p0 = nPosts(t);
-    check(/<button class="btn tkb tkoff" data-act="booked" data-id="[^"]+" data-code="anjo-z5" aria-pressed="false" aria-label="Booked, Anjo" data-lbl="Booked"><span class="tkg" data-k="booked" aria-hidden="true">🎫<\/span> Booked<\/button>/.test(s0), 'PIA-154 it says what it records: "🎫 Booked", outlined until it is on');
+    check(/<button class="btn tkb tkoff" data-act="booked" data-id="[^"]+" data-code="anjo-z5" aria-pressed="false" aria-label="Booked, Anjo" data-lbl="Booked"><span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> Booked<\/button>/.test(s0), 'PIA-154 it says what it records: "Booked", outlined until it is on (PIA-156: a checkbox, "☐ Booked")');
     tap(t, s0, 'booked', { code: 'anjo-z5' }); await tick();
     const armed = sheet(t);
     await tap(t, armed, 'booked', { code: 'anjo-z5' }); await tick();
     const ps = posts(t).slice(p0), r = srv.read(id).responses['anjo-z5'];
-    check(/class="btn tkb tkoff arm"[^>]*aria-label="Confirm booked, Anjo" data-lbl="Confirm booked"><span class="tkg" data-k="booked" aria-hidden="true">🎫<\/span> Booked<span class="cfm" aria-hidden="true">✓<\/span>/.test(armed) && ps.length === 2 && ps[0].path === '/idea/respond' && ps[0].body.status === 'in' && ps[0].body.note === '📞' && ps[1].path === '/idea/booked' &&
+    check(/class="btn tkb tkoff arm"[^>]*aria-label="Confirm booked, Anjo" data-lbl="Confirm booked"><span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> Booked<span class="cfm" aria-hidden="true">✓<\/span>/.test(armed) && ps.length === 2 && ps[0].path === '/idea/respond' && ps[0].body.status === 'in' && ps[0].body.note === '📞' && ps[1].path === '/idea/booked' &&
       r.status === 'in' && r.booked === true && r.note === '📞',
       'PIA-137 AC7 marking Anjo (who has not answered) booked takes a confirming tap (the 🎫 pulses with ✓ first, nothing sent), then records her in (📞) and booked', ps.map((x) => x.path));
     const p1 = nPosts(t), s1 = psh(id, 'anjo-z5');
@@ -2228,7 +2230,7 @@ function norm(doc) {
     const one = nPosts(t) - p0;
     await answerTap(t, 'out'); await until(() => !(t.api.PEND[id] > 0)); await tick();   // (the write landed, however slow its hash)
     const r = srv.read(id).responses['anjo-z5'];
-    check(first === null && /class="ans out arm"[^>]*aria-label="Confirm Out"[^>]*>[\s\S]*?<span class="cfm" aria-hidden="true">🎫↩<\/span><\/button>/.test(armedH) && afterLeave === null && lapsed && afterSheet === null && one === 0 && r.status === 'out' && !r.booked && nPosts(t) - p0 === 1,
+    check(first === null && /class="ans out arm"[^>]*aria-label="Confirm Out"[^>]*>[\s\S]*?<span class="cfm" aria-hidden="true">✈↩<\/span><\/button>/.test(armedH) && afterLeave === null && lapsed && afterSheet === null && one === 0 && r.status === 'out' && !r.booked && nPosts(t) - p0 === 1,
       'PIA-137 Out for someone booked: the first tap sends nothing and pulses Out with 🎫↩; leaving the trip, a sheet closing or 6s put it back; the confirming tap sends Out (the 🎫 goes)', { afterLeave, lapsed, afterSheet, one });
     // the organizer's armed 🎫 is put back the same way
     const lk = seedAs(DWX, (d) => chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'));
@@ -2530,7 +2532,7 @@ function norm(doc) {
     const armed = { sheet: sheet(t), n: nPosts(t) };
     tap(t, sheet(t), 'dlock'); await settleWrites(t, id);
     const doc = srv.read(id), u = posts(t, 0).filter((p) => p.path === '/idea/update');
-    check(/data-act="dlock" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ 🎫×1 <span class="cw">Confirm<\/span><\/button>/.test(armed.sheet) && armed.n === 0 && u.length === 1 && eq(u[0].body.decision, { stage: 'proposed' }) && doc.decision.stage === 'proposed' &&
+    check(/data-act="dlock" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ ✈×1 <span class="cw">Confirm<\/span><\/button>/.test(armed.sheet) && armed.n === 0 && u.length === 1 && eq(u[0].body.decision, { stage: 'proposed' }) && doc.decision.stage === 'proposed' &&
       t.api.S.sheet && t.api.S.sheet.type === 'dates' && /data-act="dlock" aria-label="Lock dates"><span data-k="lock" aria-hidden="true">🔒<\/span> Lock dates<\/button>/.test(sheet(t)) && /data-act="dshift"/.test(sheet(t)),
       'PIA-138 AC3 🔓 after someone booked asks once (⚠ 🎫×1 Confirm: the confirming tap says what it is), then unlocks in one write; the sheet stays open, now with the picker, its shifts and (PIA-154: nothing to save yet) "🔒 Lock dates"', { u: u.map((p) => p.body), armed: (/data-act="dlock"[^>]*>[^<]*/.exec(armed.sheet) || [])[0], n: armed.n, stage: doc.decision.stage, sheet: t.api.S.sheet && t.api.S.sheet.type, now: (/data-act="dlock"[^>]*>[^<]*/.exec(sheet(t)) || [])[0] });
     // their own days stay editable while the plan is locked (PIA-154: one end from her flight section, 🛬 Arrive's day)
@@ -2542,7 +2544,7 @@ function norm(doc) {
     const arm = { h: sheet(g2), n: nPosts(g2) };
     await tap(g2, sheet(g2), 'dsave'); await tick();
     const r = srv.read(gid).responses['anjo-z5'];
-    check(GL && GL.target === 'me' && GL.end === 0 && /data-act="dsave" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ 🎫 <span class="cw">Confirm<\/span><\/button>/.test(arm.h) && arm.n === 0 && r.available_from === '2026-11-07' && r.available_to === '' && r.booked === true && !!g2.api.S.sheet,
+    check(GL && GL.target === 'me' && GL.end === 0 && /data-act="dsave" aria-label="Confirm, someone booked" data-lbl="Confirm">⚠ ✈ <span class="cw">Confirm<\/span><\/button>/.test(arm.h) && arm.n === 0 && r.available_from === '2026-11-07' && r.available_to === '' && r.booked === true && !!g2.api.S.sheet,
       'PIA-138 AC4 on the locked trip Anjo still sets her own arrival (🛬 alone, 11/7): after her 🎫 the pick asks once (⚠ 🎫), then one answer keeps her leave end following and her 🎫', r);
   }
   {
@@ -2796,7 +2798,7 @@ function norm(doc) {
     act(t, 'person', { id, code: 'anjo-z5' }); const mySheet = sheet(t); t.api.closeSheet();
     const again = t.api.bookBack();   // a second "return" with no new Book tap invites nothing more
     check(TM.isQuery(href[1].replace(/&amp;/g, '&')) === false && href[2] === id && /data-ret="[^"]+" data-code="anjo-z5"/.test(p0) && /data-act="mybook"/.test(p0) && !/glow/.test(p0) && !noTap && !stayed &&
-      back && /class="btn tkb glow" data-act="mybook"[^>]*aria-label="I booked, tap to mark"/.test(p1) && /class="btn tkb glow" data-act="mybook"/.test(mySheet) && /data-ret="[^"]+"[^>]*data-k="gf"><span aria-hidden="true">✈<\/span> Book/.test(mySheet) && !again,
+      back && /class="btn tkb tkoff glow" data-act="mybook"[^>]*aria-label="I booked, tap to mark"/.test(p1) && /class="btn tkb tkoff glow" data-act="mybook"/.test(mySheet) && /data-ret="[^"]+"[^>]*data-k="gf"><span aria-hidden="true">✈<\/span> Book/.test(mySheet) && !again,
       'PIA-139 AC1 once 🔒, [✈ Book ↗ | 🎫 I booked] on her trip view and in her own sheet; after a Book tap and the app hidden then shown again, the 🎫 glows ("I booked, tap to mark") in both, once: no glow without a Book tap, without leaving, or on the next return', { back, noTap, stayed, again });
     CLOCK += t.api.INVITE_MS + 1;
     const faded = !t.api.invited(id) && !/glow/.test(prim139(screen(t)));
@@ -2812,7 +2814,7 @@ function norm(doc) {
     CLOCK += t.api.TIMES_PULSE_MS + 1; const pulseGone = !/pulse/.test(prim139(screen(t))); CLOCK = NOW;
     act(t, 'mytimes', { id });
     const s2 = sheet(t), focusArr = t.api.S.sheet && t.api.S.sheet.focus === 'tm-arr' && t.api.S.sheet.type === 'person' && t.api.S.sheet.p.code === 'anjo-z5';
-    check(pulseGone && focusArr && /<div class="split"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈<\/span> Track <span aria-hidden="true">↗<\/span><\/a><button class="btn tkb tkon" data-act="unbook"[^>]*><span class="tkg" data-k="booked" aria-hidden="true">🎫<\/span> Booked<\/button>/.test(s2) &&
+    check(pulseGone && focusArr && /<div class="split"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈<\/span> Track <span aria-hidden="true">↗<\/span><\/a><button class="btn tkb tkon" data-act="unbook"[^>]*aria-pressed="true"[^>]*data-lbl="I booked"><span class="tkg" data-k="tkon" aria-hidden="true">☑︎<\/span> I booked<\/button>/.test(s2) &&
       /<span class="fld tiny invite"><label for="tm-arr"/.test(s2) && /id="tm-dep"/.test(s2) && !/placeholder=/.test(s2),
       'PIA-139 AC1/AC2 the times button opens her own sheet with 🛬 focused: [✈ Track ↗ | 🎫 Booked] and the 🛬 / 🛫 time fields (no ––:–– placeholder), 🛬 inviting the time once (the pulse ends by itself)');
     t.api.closeSheet();
@@ -2831,7 +2833,7 @@ function norm(doc) {
     // he taps their Book and comes back: HIS 🎫 for them glows (in their sheet and on their row), not his own 🎫 beside his Book
     o.api.bookOut(id, 'momdad-k3'); o.api.bookAway(); const oBack = o.api.bookBack();
     const os = sheet(o), ov = screen(o);
-    check(oBack && /class="btn tkb tkoff glow" data-act="booked"[^>]*data-code="momdad-k3"/.test(os) && !/data-act="booked"/.test(ov) && !/class="btn tkb glow" data-act="mybook"/.test(ov),
+    check(oBack && /class="btn tkb tkoff glow" data-act="booked"[^>]*data-code="momdad-k3"/.test(os) && !/data-act="booked"/.test(ov) && !/class="btn tkb tkoff glow" data-act="mybook"/.test(ov),
       'PIA-139 AC1 the organizer back from the Book he tapped for Mom & Dad: his 🎫 Booked for them glows in their sheet (PIA-154: the board has no 🎫), never his own 🎫');
     const p3 = nPosts(o);
     await tap(o, os, 'booked', { code: 'momdad-k3' }); await tick();
@@ -2861,8 +2863,8 @@ function norm(doc) {
     const chipRe = /<button class="pk arr bk" data-act="pickup" data-id="[^"]+" data-ap="PIA" data-v="2026-11-05" data-code="anjo-z5" aria-label="Lands PIA 11\/5 at 15:10, booked, Anjo" data-lbl="Arrive"><span class="pk1"><span class="tn">11\/5<\/span><span class="t tn">15:10<\/span><\/span><span class="pf" data-pic>🗽<\/span><\/button>/;
     const depRe = /<button class="pk dep bk" data-act="pickup" data-id="[^"]+" data-ap="ORD" data-v="2026-11-09" data-code="anjo-z5" aria-label="Leaves ORD 11\/9 at 18:05, booked, Anjo" data-lbl="Leave"><span class="pk1"><span class="tn">11\/9<\/span><span class="t tn">18:05<\/span><\/span>/;
     const laneOf = (h, ap) => (new RegExp('<div class="lrow" role="row"><span role="rowheader"><button class="lh" data-act="mapairport"[^>]*data-v="' + ap + '"[\\s\\S]*?</div></div>').exec(h) || [''])[0];
-    check(chipRe.test(laneOf(mh, 'PIA')) && depRe.test(laneOf(mh, 'ORD')) && chipRe.test(mg) && depRe.test(mg) && /<b class="lc">PIA<\/b>/.test(mh) && /<b class="lc">ORD<\/b>/.test(mh) && mh.indexOf('$') < 0 && !/☀|🌃|🎫/.test(laneOf(mh, 'PIA') + laneOf(mh, 'ORD')),
-      'PIA-139 AC2 her times reach everyone\'s Map: the host\'s and a guest\'s pickups read 11/5 15:10 🗽 in PIA\'s row and 11/9 18:05 🗽 in ORD\'s (PIA-154: a lanes table, two lines a chip, solid while booked; no ☀ / 🌃 or 🎫 on it; no price anywhere)');
+    check(chipRe.test(laneOf(mh, 'PIA')) && depRe.test(laneOf(mh, 'ORD')) && chipRe.test(mg) && depRe.test(mg) && /<b class="lc">PIA<\/b>/.test(mh) && /<b class="lc">ORD<\/b>/.test(mh) && mh.indexOf('$') < 0 && !/☀|🌃|✈/.test(laneOf(mh, 'PIA') + laneOf(mh, 'ORD')),
+      'PIA-139 AC2 her times reach everyone\'s Map: the host\'s and a guest\'s pickups read 11/5 15:10 🗽 in PIA\'s row and 11/9 18:05 🗽 in ORD\'s (PIA-154: a lanes table, two lines a chip, solid while booked; no ☀ / 🌃 or booked mark, ✈ since PIA-156, on it; no price anywhere)');
     act(host, 'pickup', { id, v: '2026-11-05', code: 'anjo-z5' });
     const pkPerson = host.api.S.sheet && host.api.S.sheet.type === 'day' && host.api.S.sheet.p.mapmode === true;
     host.api.closeSheet();
@@ -3091,7 +3093,7 @@ function norm(doc) {
     const p2 = prim139(screen(t2)), gone = ss.getItem(t2.api.RET_KEY) === null;
     const t3 = await boot136({ ls: ls(), ss });
     act(t3, 'open', { id });
-    check(kept && kept.id === id && kept.code === 'anjo-z5' && !('away' in kept) && /class="btn tkb glow" data-act="mybook"[^>]*aria-label="I booked, tap to mark"/.test(p2) && gone && !/glow/.test(prim139(screen(t3))),
+    check(kept && kept.id === id && kept.code === 'anjo-z5' && !('away' in kept) && /class="btn tkb tkoff glow" data-act="mybook"[^>]*aria-label="I booked, tap to mark"/.test(p2) && gone && !/glow/.test(prim139(screen(t3))),
       'PIA-139 a Book tap away in Google Flights is kept in the tab ({id, code, at}); a page the phone discarded and loads again makes the 🎫 glow once ("I booked, tap to mark"), and only once', kept);
     ss.setItem(t.api.RET_KEY, JSON.stringify({ id, code: 'anjo-z5', at: NOW - 4 * 36e5 }));
     const t4 = await boot136({ ls: ls(), ss }); act(t4, 'open', { id });
@@ -3148,8 +3150,8 @@ function norm(doc) {
       if (knows) { await o.api.refresh(idx); await o.api.refresh(idx); }
       const an = o.api.modelOf(idx).members.find((x) => x.code === 'anjo-z5'), sawBooked = !!an && !!an.booked;
       const q0 = nPosts(o), g0 = o.fetches.length; o.api.closeSheet();
-      await until(() => /🎫⚠/.test(o.rec['#toast'].innerHTML) && !(o.api.PEND[idx] > 0)); await tick();
-      return { sawBooked, toast: /🎫⚠/.test(o.rec['#toast'].innerHTML), posts: posts(o).slice(q0).map((q) => q.path), reads: o.fetches.slice(g0).filter((f) => f.method === 'GET').length,
+      await until(() => /✈⚠/.test(o.rec['#toast'].innerHTML) && !(o.api.PEND[idx] > 0)); await tick();
+      return { sawBooked, toast: /✈⚠/.test(o.rec['#toast'].innerHTML), posts: posts(o).slice(q0).map((q) => q.path), reads: o.fetches.slice(g0).filter((f) => f.method === 'GET').length,
         sheet: o.api.S.sheet ? o.api.S.sheet.type : null, note: srv.read(idx).responses['anjo-z5'].note || '' };
     };
     const kn = await unbookedMeanwhile(true), st = await unbookedMeanwhile(false);
@@ -3170,10 +3172,14 @@ function norm(doc) {
     const g = await boot136({ ls: lsOf([done], { pialax_idea_me_v1: { [done]: 'anjo-z5' } }) }); act(g, 'open', { id: done });
     act(o, 'open', { id: noAp }); act(o, 'person', { id: noAp, code: 'anjo-z5' });
     const ns = sheet(o); o.api.closeSheet();
-    const kl = o.api.keyLabel({ k: 'mybook', keys: ['mybook', 'booked'] });
+    // (PIA-156: ✈ alone is booked: ⓘ groups LEGEND entries by their glyph, so ✈ must be the glyph of one entry only (a round-trip
+    // fare is ↔; a missing link ↗⚠ and bad dates 🗓⚠); ✈ otherwise only leads the arrowed hand-offs ✈↗ and ✈⏱↗)
+    const LG = o.api.LEGEND, byG = {}; Object.keys(LG).forEach((k) => { (byG[LG[k][0]] = byG[LG[k][0]] || []).push(k); });
+    const kl = o.api.keyLabel({ k: 'booked', keys: byG['✈'] }), withPlane = Object.keys(LG).filter((k) => LG[k][0].indexOf('✈') >= 0).sort();
     check(door && opened && !/paidopen/.test(screen(g)) && /<span class="btn pri dis" role="img" aria-label="No home airport" data-lbl="No home airport" data-k="noairport">📍\?<\/span><button class="btn tkb tkoff" data-act="booked"/.test(ns) &&
-      kl === 'I booked · Booked' && o.api.keyPages([{ k: 'mybook', keys: ['mybook', 'booked'] }]).length === 1,
-      'PIA-139 at Done the organizer\'s trip view has "💵 Paid" opening P-stage at the 💵 field (not on a guest\'s); a person\'s [Book | 🎫 Booked] without a link says why (📍? No home airport), as the trip view does; the key reads a two-meaning 🎫 as "I booked · Booked" (PIA-154: 🎫 is never a stage)', { kl });
+      kl === 'Booked' && eq(byG['✈'], ['booked']) && eq(withPlane, ['booked', 'flighty', 'gf']) && eq(byG['↔'], ['rt']) && LG.nolink[0] === '↗⚠' && LG.fixdates[0] === '🗓⚠' &&
+      o.api.LEG_GLYPH.rt[0] === '↔' && !o.api.LEGEND.mybook,
+      'PIA-139 at Done the organizer\'s trip view has "💵 Paid" opening P-stage at the 💵 field (not on a guest\'s); a person\'s [Book | 🎫 Booked] without a link says why (📍? No home airport), as the trip view does; PIA-156: in ⓘ\'s key ✈ alone has one meaning, Booked (a round-trip fare is ↔, no flight link ↗⚠, bad dates 🗓⚠; ✈ otherwise only leads ✈↗ and ✈⏱↗)', { kl, plane: withPlane, rt: byG['↔'] });
   }
 
   // ═══ PIA-140: prices ═══
@@ -3723,7 +3729,7 @@ function norm(doc) {
         const bp = posts(b).length; await tap(b, sheet(b), 'cmove', { v: '2026-11-22' }); const ba = sheet(b), bs1 = posts(b).length - bp;
         await tap(b, ba, 'cmove', { v: '2026-11-22' }); await until(() => !(b.api.PEND[S3.id] > 0)); await tick();
         const bs2 = posts(b).slice(bp);
-        check(/aria-label="Anjo, booked, \$450, stays on their days, own days"/.test(bh) && /<span data-k="booked">🎫<\/span><span class="cbk">\$450<\/span>/.test(bh) && /aria-label="Search 2 fares, 2 searches"/.test(bh) && bs1 === 0 && /⚠🎫×1 <span class="cw">Confirm<\/span>/.test(ba) && bs2.length === 1 && srv.read(S3.id).idea.dates.departure === '2026-11-22' &&
+        check(/aria-label="Anjo, booked, \$450, stays on their days, own days"/.test(bh) && /<span data-k="booked">✈<\/span><span class="cbk">\$450<\/span>/.test(bh) && /aria-label="Search 2 fares, 2 searches"/.test(bh) && bs1 === 0 && /⚠✈×1 <span class="cw">Confirm<\/span>/.test(ba) && bs2.length === 1 && srv.read(S3.id).idea.dates.departure === '2026-11-22' &&
           !searches(b).some((f) => /LGA/.test(f.url)),
           'PIA-141 AC6 once anyone has booked, Move asks for one confirming tap (⚠🎫×1 Confirm), then writes once; Anjo\'s booked flight is shown (🎫) but never searched');
       }
@@ -3889,7 +3895,7 @@ function norm(doc) {
         const askH = sheet(u), sentA = posts(u).length - pk, recA = srv.read(SK.id);
         await tap(u, askH, 'cmove', { v: '2026-11-22' }); await until(() => !(u.api.PEND[SK.id] > 0)); await tick();
         const sentB = posts(u).slice(pk), recB = srv.read(SK.id);
-        check(bookedHere === 0 && sentA === 0 && recA.idea.dates.departure === '2026-11-20' && /⚠🎫×1 <span class="cw">Confirm<\/span>/.test(askH) && /aria-label="Anjo, booked, \$450, stays on their days, own days"/.test(askH) &&
+        check(bookedHere === 0 && sentA === 0 && recA.idea.dates.departure === '2026-11-20' && /⚠✈×1 <span class="cw">Confirm<\/span>/.test(askH) && /aria-label="Anjo, booked, \$450, stays on their days, own days"/.test(askH) &&
           /aria-label="11\/22–12\/1, \$890, cheapest"/.test(askH) && sentB.length === 1 && sentB[0].path === '/idea/update' && recB.idea.dates.departure === '2026-11-22' && recB.idea.dates.return === '2026-12-01' &&
           recB.responses.LGA.booked === true && recB.responses.LGA.available_from === '2026-11-24' && recB.responses.LGA.available_to === '2026-11-29',
           'PIA-141 a booking made on another phone after the tap holds Move back on the fresh record (nothing sent) and asks here (⚠🎫×1 Confirm; her $450 now in every week, 11/22 still $890 ★); its confirm moves the plan in one update, Anjo keeping her booked days', { sentA, sent: sentB.length });
@@ -3930,7 +3936,9 @@ function norm(doc) {
     const fam = (u) => (u || t).api.renderFamily();
     // the same person's face on that trip's own view (its people board): its answer shape and marks
     const facesOf = (u, id) => {
-      const h = u.api.renderTrip(id).html, out = {}, re = /<button class="facebtn" data-act="person" data-id="([^"]+)" data-code="([^"]+)"[^>]*>([\s\S]*?)<\/button>/g; re.lastIndex = h.indexOf('id="board-'); let mm;
+      // (the board's own faces: PIA-156's key under it draws the same people again, small and without marks)
+      const h0 = u.api.renderTrip(id).html, h = h0.indexOf('<div class="wk"') >= 0 ? h0.slice(0, h0.indexOf('<div class="wk"')) : h0;
+      const out = {}, re = /<button class="facebtn" data-act="person" data-id="([^"]+)" data-code="([^"]+)"[^>]*>([\s\S]*?)<\/button>/g; re.lastIndex = h.indexOf('id="board-'); let mm;
       while ((mm = re.exec(h))) out[mm[1] + '|' + mm[2]] = { st: (/class="av s44[^"]*"[^>]*data-k="([a-z]+)"/.exec(mm[3]) || [])[1], marks: (mm[3].match(/<span data-k="[a-z]+">/g) || []).map((s) => s.slice(14, -2)).sort().join() };
       return out;
     };
@@ -4200,7 +4208,7 @@ function norm(doc) {
       /class="ld own" data-act="dates"[^>]*data-end="0" aria-label="Arrive date 11\/5, own day, outside plan" data-lbl="Arrive, own day"[^>]*>11\/5<span class="fm off" data-k="offplan" aria-hidden="true">⚠<\/span><\/button>/.test(s0) &&
       /class="ld own" data-act="dates"[^>]*data-end="1" aria-label="Leave date 11\/8, own day" data-lbl="Leave, own day"[^>]*>11\/8<\/button>/.test(s0) &&
       !/data-act="legshift"/.test(s0) && !/id="tm-arr"/.test(s0) && !!dec && eq(dec.legs.map((L) => L.date), ['2026-11-05', '2026-11-08']) && dec.legs[0].to.join() === 'RDU' &&
-      /<div class="split"><a class="btn pri" href="[^"]+"[^>]*data-ret="[^"]+" data-code="anjo-z5" aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb" data-act="mybook"[^>]*><span data-k="mybook" aria-hidden="true">🎫<\/span> I booked<\/button>/.test(s0),
+      /<div class="split"><a class="btn pri" href="[^"]+"[^>]*data-ret="[^"]+" data-code="anjo-z5" aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb tkoff" data-act="mybook"[^>]*><span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> I booked<\/button>/.test(s0),
       'PIA-151 AC1/AC5 one tap on her own bar opens her flight section: 🛬 11/5 (⚠: outside the plan, allowed) and 🛫 11/8, each her own (underlined, and a long press says so; PIA-154: no −1 / +1 beside them), and [✈↗ | 🎫 I booked] for exactly those days to RDU while the dates are not 🔒 yet (✈ Book ↗ once they are)');
     act(t, 'dates', ctl(s0, 'dates', { end: '0' }));
     const L0 = dsh(t), c0 = sheet(t);
@@ -4250,7 +4258,7 @@ function norm(doc) {
     const failed = sheet(t), stillPicked = dsh(t) && dsh(t).s === '2026-11-05';
     await tap(t, failed, 'dsave'); await settleWrites(t, id);
     const x1 = srv.read(id).responses['anjo-z5'], back1 = t.api.S.sheet && t.api.S.sheet.type === 'person' && t.api.S.sheet.focus === 'tm-arr', keptTyped = /id="tm-arr"[^>]*value="0905"/.test(sheet(t));
-    check(noPost && /data-act="dsave"[^>]*data-lbl="Confirm">⚠ 🎫 <span class="cw">Confirm<\/span>/.test(asked) && /data-act="dsave" aria-label="Retry">⚠ ↻<\/button>/.test(failed) && stillPicked &&
+    check(noPost && /data-act="dsave"[^>]*data-lbl="Confirm">⚠ ✈ <span class="cw">Confirm<\/span>/.test(asked) && /data-act="dsave" aria-label="Retry">⚠ ↻<\/button>/.test(failed) && stillPicked &&
       x1.available_from === '2026-11-05' && x1.available_to === '' && x1.booked === true && x1.note === 'Red-eye' && back1 && keptTyped,
       'PIA-151 AC4 her first move after her 🎫 asks once (⚠ 🎫 Confirm, nothing sent); a save that fails keeps 11/5 picked with ⚠ ↻; ↻ saves it (her 🎫 and note kept) and she is back in her flight section at her 🛬 time, 0905 still typed there', { x1 });
     // the plan's last day picked for her 🛫 (booked, still blank in the record): stored as hers (her flight is that day: one tap records
@@ -4398,7 +4406,7 @@ function norm(doc) {
     t.api.closeSheet(); await until(() => /🛬21:40/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
     const x2 = srv.read(id).responses['anjo-z5'], h2 = screen(t);
     check(t.api.modelOf(id).decision === 'proposed' && !/split prim/.test(h0) && !/data-act="mybook"|google\.com\/travel/.test(h0) && !!dec && eq(dec.legs.map((L) => L.date), ['2026-11-05', '2026-11-09']) &&
-      /<div class="split"><a class="btn pri"[^>]*aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb" data-act="mybook"/.test(s0) && pB === 1 && x1.booked === true &&
+      /<div class="split"><a class="btn pri"[^>]*aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb tkoff" data-act="mybook"/.test(s0) && pB === 1 && x1.booked === true &&
       /<span class="fld tiny invite"><label for="tm-arr"/.test(s1) && legOf(s1, 0).indexOf('id="tm-arr"') >= 0 && x2.note === '🛬21:40' && x2.available_from === '2026-11-05' && x2.booked &&
       /class="track mybar" data-act="flight"[^>]*aria-label="My flight 11\/5–11\/9, outside plan, booked, lands at 21:40"/.test(h2),
       'PIA-151 AC5 on a trip still Asking: her flight section offers [✈ Book ↗ | 🎫 I booked] for exactly her 11/5–11/9 (PIA-154: the trip view has no primary and no ✈↗ before 🔒); 🎫 records her booked in one write, her 🛬 field in its row invites the time, and 21:40 goes as the sheet closes (her own 11/5 and 🎫 kept); then the trip view shows her booked bar with 21:40', { pB, x2 });
@@ -4412,7 +4420,7 @@ function norm(doc) {
     await tap(o, armedS, 'booked', { code: 'anjo-z5' }); await settleWrites(o, id2);
     const an = srv.read(id2).responses['anjo-z5'], os2 = sheet(o);
     check(!/data-act="booked"/.test(ob) && /data-act="booked" data-id="[^"]+" data-code="anjo-z5" aria-pressed="false"/.test(os) && q1 === q0 && /data-act="booked"[^>]*aria-label="Confirm booked, [^"]*Anjo"/.test(armedS) &&
-      an && an.status === 'in' && an.booked === true && /📞/.test(an.note) && /id="tm-arr" data-code="anjo-z5"/.test(os2) && /data-k="booked">🎫/.test(screen(o)) && !/data-act="booked"/.test(screen(o)),
+      an && an.status === 'in' && an.booked === true && /📞/.test(an.note) && /id="tm-arr" data-code="anjo-z5"/.test(os2) && /data-k="booked">✈/.test(screen(o)) && !/data-act="booked"/.test(screen(o)),
       'PIA-151 AC5/AC8 the organizer on an Asking trip: no 🎫 on the board yet; in Anjo\'s flight section his 🎫 asks a confirming tap (she has not answered), then records her In (📞) and booked; her time field follows; the board\'s 🎫 marks appear now that someone has booked', { an });
     o.api.closeSheet(); t.api.closeSheet();
   }
@@ -4744,7 +4752,7 @@ function norm(doc) {
     act(tj, 'mine', { id: DM }); const f2 = await tj.api.ACTS.minefollow({ dataset: ctl(sheet(tj), 'minefollow') }); await tick();
     const bk = clone(srv.read(DM)); bk.responses['anjo-z5'].booked = true; bk.responses['anjo-z5'].booked_at = '2026-10-16T00:00:00.000Z'; srv.write(bk);
     const qh = posts(tj).length, rh = await tj.api.ACTS.undo(); await tick();
-    check(f2 && f2.ok && rh && rh.held && rh.code === 'booked' && posts(tj).length === qh && /🎫⚠/.test(tj.rec['#toast'].innerHTML) && srv.read(DM).responses['anjo-z5'].available_from === '',
+    check(f2 && f2.ok && rh && rh.held && rh.code === 'booked' && posts(tj).length === qh && /✈⚠/.test(tj.rec['#toast'].innerHTML) && srv.read(DM).responses['anjo-z5'].available_from === '',
       'PIA-153 AC1 ↩ after Follow plan reads the trip first: once she has booked (another phone) it is held, says 🎫⚠ and sends nothing (a booked traveler\'s days stay as booked)', rh);
     // Keep mine: nothing sent; the ⚠ rests on this phone while the plan and her days stay as they are
     const DK = seedAs(DWX, both), tk = await boot136({ ls: lsOf([DK], { pialax_idea_me_v1: { [DK]: 'anjo-z5' } }) });
@@ -4781,7 +4789,7 @@ function norm(doc) {
     const DL = seedAs(DWX, (d) => { both(d); chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); });
     const tlk = await boot136({ ls: lsOf([DL], { pialax_idea_keys_v1: keyOf([DL]), pialax_idea_me_v1: { [DL]: 'ashwin-p8' } }) });
     act(tlk, 'open', { id: DL }); act(tlk, 'mine', { id: DL }); const sk = sheet(tlk), lk = ctl(sk, 'mineplan'), ql = posts(tlk).length, lr = await tlk.api.ACTS.mineplan(el0(lk, true));
-    check(a1 === null && qa === 0 && /data-act="mineplan"[^>]*aria-label="Confirm, someone booked" data-lbl="Confirm">⚠🎫×1 <span class="cw">Confirm<\/span>/.test(armedH) && a2 && a2.ok && eq(pb, ['/idea/respond', '/idea/update']) &&
+    check(a1 === null && qa === 0 && /data-act="mineplan"[^>]*aria-label="Confirm, someone booked" data-lbl="Confirm">⚠✈×1 <span class="cw">Confirm<\/span>/.test(armedH) && a2 && a2.ok && eq(pb, ['/idea/respond', '/idea/update']) &&
       dB.responses['anjo-z5'].available_from === '2026-11-06' && dB.responses['anjo-z5'].available_to === '2026-11-09' && eq(TM.docPlan(dB), { s: '2026-11-06', e: '2026-11-10' }) &&
       lk && lk.lbl === 'Dates locked' && lk.why === '1' && lr === null && posts(tlk).length === ql,
       'PIA-153 AC1 Make plan keeps the plan move\'s guards: with Anjo booked the first tap asks ⚠🎫×1 Confirm and sends nothing, the second moves the plan with her booked days pinned first (her 11/6–11/9 kept); while 🔒 it is greyed and says "Dates locked"', { pb, anjo: dB.responses['anjo-z5'] });
@@ -4797,8 +4805,8 @@ function norm(doc) {
     act(tpo, 'open', { id: DP }); act(tpo, 'mine', { id: DP }); const spo = sheet(tpo); late(DP);
     const qp = posts(tpo).length, rpo = await tpo.api.ACTS.mineplan(el0(ctl(spo, 'mineplan'))); await tick();
     const Lp = tpo.api.S.sheet && tpo.api.S.sheet.local;
-    check(rfo && rfo.held && rfo.code === 'booked' && posts(tfo).length === qf && /🎫⚠/.test(tfo.rec['#toast'].innerHTML) && Lf && Lf.failed !== 'follow' && af.available_from === '2026-11-05' && af.available_to === '2026-11-08' &&
-      /data-act="mineplan"/.test(spo) && !/⚠🎫/.test(spo) && rpo && rpo.held && rpo.code === 'booked' && posts(tpo).length === qp && Lp && Lp.armed === 'plan' && /⚠🎫×1/.test(sheet(tpo)) && eq(TM.docPlan(srv.read(DP)), { s: '2026-11-06', e: '2026-11-09' }),
+    check(rfo && rfo.held && rfo.code === 'booked' && posts(tfo).length === qf && /✈⚠/.test(tfo.rec['#toast'].innerHTML) && Lf && Lf.failed !== 'follow' && af.available_from === '2026-11-05' && af.available_to === '2026-11-08' &&
+      /data-act="mineplan"/.test(spo) && !/⚠✈/.test(spo) && rpo && rpo.held && rpo.code === 'booked' && posts(tpo).length === qp && Lp && Lp.armed === 'plan' && /⚠✈×1/.test(sheet(tpo)) && eq(TM.docPlan(srv.read(DP)), { s: '2026-11-06', e: '2026-11-09' }),
       'PIA-153 AC1 a 🎫 that lands after P-mine was drawn holds its write: Follow plan says 🎫⚠ and sends nothing (her days stay hers, no dead ↻); Make plan sends nothing and asks ⚠🎫×1 Confirm first', { rfo, rpo, armed: Lp && Lp.armed });
     // booked, my days stay mine: no Follow plan; the organizer of a v1 trip: Follow plan, no Make plan
     const DBk = seedAs(DWX, (d) => { both(d); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].booked_at = '2026-10-16T00:00:00.000Z'; });
@@ -4808,7 +4816,7 @@ function norm(doc) {
     // (fix pass: Make plan is there on the v1 trip, greyed: a tap says "⤒ Update trip first" and points to ⤒, as the 🎫 and rows do)
     const mpv = ctl(svv, 'mineplan'), Pm = tvv.api.S.migPulse || (tvv.api.S.migPulse = {}); Pm[TV] = tvv.api.MIG_SPENT; Pm[tvv.api.MIG_LIST] = tvv.api.MIG_SPENT;
     const qv = posts(tvv).length, rv = tvv.api.ACTS.mineplan(el0(mpv, true));
-    check(!/data-act="minefollow"/.test(sbk) && /data-act="minekeep"/.test(sbk) && /data-k="booked">🎫/.test(sbk) &&
+    check(!/data-act="minefollow"/.test(sbk) && /data-act="minekeep"/.test(sbk) && /data-k="booked">✈/.test(sbk) &&
       /data-lbl="Dates"><span class="inner"><span class="dt"><span data-k="plan"><span class="g">👪<\/span><\/span>11\/25–11\/29/.test(vv) && /aria-label="My days 11\/20–11\/29, not the plan"/.test(vv) && /data-act="minefollow"/.test(svv) &&
       /<button class="btn wide dis" data-act="mineplan" data-id="[^"]+" aria-disabled="true" data-why="1" aria-label="Make plan, Update trip first" data-lbl="⤒ Update trip first"><span data-k="plan">👪<\/span> Make plan<\/button>/.test(svv) &&
       rv === null && posts(tvv).length === qv && tvv.api.S.sheet && tvv.api.S.sheet.type === 'mine' && !(TV in tvv.api.S.migPulse) && !(tvv.api.MIG_LIST in tvv.api.S.migPulse) && shown(svv).length <= 20,
@@ -5150,6 +5158,160 @@ function norm(doc) {
       'PIA-155 D the organizer\'s own booked bar shows no muted 🛬? while his primary already is "🛬 Landing time" (the same ask once); Anjo\'s booked bar keeps it on his phone; a guest\'s phone shows none', { my: myBar.slice(0, 120), her: herBar.slice(0, 120) });
   }
 
+  // ═══ PIA-156 ═══
+  section('PIA-156 who is set: a quiet key under the board (✈ Booked, ⏳ Waiting, 🏠 Hosting), its faces and the organizer\'s Remind; ✈ means booked; the booking toggles read as checkboxes');
+  // the key's rows as drawn: the group's name, the word's long press, its glyph and key, its marked word, its faces, +N and Remind
+  const keyRows = (h) => {
+    const i = h.indexOf('<div class="wk"'); if (i < 0) return null;
+    const k = h.slice(i, h.indexOf('</div></div>', i) + 12), un = (s) => (s || '').replace(/&amp;/g, '&');
+    return k.split('<div class="wkr"').slice(1).map((r) => ({
+      name: un((/ aria-label="([^"]*)"/.exec(r) || [])[1]), lbl: (/class="wkl" aria-hidden="true" data-lbl="([^"]*)"/.exec(r) || [])[1],
+      k: (/class="wg" data-k="([a-z]+)">/.exec(r) || [])[1], g: (/class="wg" data-k="[a-z]+">([^<]*)</.exec(r) || [])[1], word: (/<span data-lbl3>([^<]*)<\/span>/.exec(r) || [])[1] || '',
+      faces: (r.match(/data-act="person" data-id="[^"]+" data-code="[^"]+"/g) || []).map((s) => /data-code="([^"]+)"/.exec(s)[1]),
+      more: (/<span class="wkn tn" aria-hidden="true">\+(\d+)<\/span>/.exec(r) || [])[1] || '',
+      rem: (/<button class="ib wkrem" data-act="([a-z]+)"(?: data-v="remind")? data-id="[^"]+"(?: data-code="([^"]+)")? aria-label="Remind[^"]*" data-lbl="Remind[^"]*"><span data-k="remind">/.exec(r) || []).slice(1).filter(Boolean).join(':'),
+      remName: un((/<button class="ib wkrem"[^>]* aria-label="([^"]*)" data-lbl="([^"]*)">/.exec(r) || []).slice(1).join('|'))
+    }));
+  };
+  const short = (rs) => (rs || []).map((r) => r.word + '|' + r.faces.join(',') + (r.more ? '+' + r.more : '') + (r.rem ? '|' + r.rem : ''));
+  const marked = (h) => { const out = []; String(h).replace(/<[a-z]+\b[^>]*\sdata-lbl3\b[^>]*>([^<]*)</g, (_, w) => { out.push(w.trim()); return ''; }); return out; };
+  const words3 = (h) => marked(h).join(' ').split(/\s+/).filter(Boolean).length;
+  {
+    const momIn = (d) => { d.responses['momdad-k3'] = Object.assign(RESP('in'), { member: 'momdad-k3', origin: 'PIA' }); };
+    // "P town" as on the owner's phone: Peoria, 🔒, Mom & Dad hosting (confirmed), Ashwin booked with his times, Anjo In and not booked
+    const town = (d) => { atPeoria(d); momIn(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); d.responses['ashwin-p8'].booked = true; d.responses['ashwin-p8'].note = '🛬14:35 🛫15:30';
+      d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); };
+    // (a second trip in December: the phone has its Family board, and nobody's days clash)
+    const PT = seedAs(DWX, town), D2 = seedAs(DWX, (d) => { d.idea.dates.departure = '2026-12-04'; d.idea.dates.return = '2026-12-07'; d.idea.notes = ''; }), rs = recShare();
+    const org = await boot136({ ls: lsOf([PT, D2], { pialax_idea_keys_v1: keyOf([PT]), pialax_idea_me_v1: { [PT]: 'ashwin-p8', [D2]: 'ashwin-p8' } }), navigator: rs.nav });
+    act(org, 'open', { id: PT }); const ho = screen(org), ro = keyRows(ho);
+    const at = (s) => ho.indexOf(s);
+    check(eq(short(ro), ['Waiting|anjo-z5|nudge:anjo-z5', 'Booked|ashwin-p8', 'Hosting|momdad-k3']) && eq(ro.map((r) => r.name), ['Not booked yet: Anjo', 'Booked: Ashwin', 'Hosting: Mom & Dad']) &&
+      eq(ro.map((r) => r.lbl), ['Not booked yet', 'Booked', 'Hosting']) && eq(ro.map((r) => r.g + r.k), ['⏳waitbook', '✈booked', '🏠host']) && ro[0].remName === 'Remind Anjo|Remind Anjo' &&
+      at('id="board-') < at('data-act="tokdoor"') && at('data-act="tokdoor"') < at('<div class="wk"') && !/class="pricerow|data-act="paidopen"|data-act="tokdoor"/.test(ho.slice(at('<div class="wk"'))) &&
+      org.api.primaryAction(org.api.modelOf(PT), '2026-10-17') === 'none' && eq(marked(ho), ['Waiting', 'Booked', 'Hosting']) && !/🎫/.test(ho),
+      'PIA-156 A the owner\'s "P town" on his phone: under the board, after the rows already there (here his 🔑🔍), the key reads ⏳ Waiting 🗽 with Remind (named "Remind Anjo") first, then ✈ Booked 💪 and 🏠 Hosting 🌽; each row a group named "Not booked yet: Anjo", "Booked: Ashwin", "Hosting: Mom & Dad", its word\'s long press saying the same; three marked words and no 🎫 on the page', { ro, marked: marked(ho) });
+    // Remind is one tap: Anjo's own link (she is In, so her sheet offers no Share); no key in it; nothing written
+    const p0 = nPosts(org), remD = ctl(keyRows(ho) ? ho.slice(at('<div class="wk"')) : '', 'nudge', { v: 'remind' });
+    await org.api.ACTS.nudge({ dataset: remD }); await tick();
+    act(org, 'person', { id: PT, code: 'anjo-z5' }); const ajSheet = sheet(org); org.api.closeSheet();
+    check(rs.shared.length === 1 && new RegExp('/i/' + PT + '#m=anjo-z5$').test(rs.shared[0].url) && rs.shared[0].url.indexOf(KEY) < 0 && !/#k=|[?&]t=/.test(rs.shared[0].url) && nPosts(org) === p0 && !/data-act="nudge"/.test(ajSheet),
+      'PIA-156 A Remind (the organizer\'s phone): one tap shares Anjo\'s own guest link (…/i/<id>#m=anjo-z5, never a key), though she is In and her sheet has no Share; nothing is written', rs.shared);
+    // a face in the key opens that person's sheet (the board's own 'person' act)
+    const kf = ctl(ho.slice(at('<div class="wk"')), 'person', { code: 'anjo-z5' }); org.api.ACTS.person({ dataset: kf });
+    const opened = org.api.S.sheet && org.api.S.sheet.type === 'person' && org.api.S.sheet.p.code === 'anjo-z5'; org.api.closeSheet();
+    // the guest (Anjo) and the host (Mom & Dad): the same rows, no Remind; Anjo's screen marks 5 words (I booked + the key's three)
+    const g = await boot136({ ls: lsOf([PT], { pialax_idea_me_v1: { [PT]: 'anjo-z5' } }) }); act(g, 'open', { id: PT }); const hg = screen(g);
+    const mom = await boot136({ ls: lsOf([PT], { pialax_idea_me_v1: { [PT]: 'momdad-k3' } }) }); act(mom, 'open', { id: PT }); const hm = screen(mom);
+    check(opened && eq(short(keyRows(hg)), ['Waiting|anjo-z5', 'Booked|ashwin-p8', 'Hosting|momdad-k3']) && eq(short(keyRows(hm)), short(keyRows(hg))) && !/wkrem/.test(hg + hm) &&
+      eq(marked(hg), ['Waiting', 'Booked', 'Hosting', 'I booked']) && words3(hg) === 5 && /<span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> <span data-lbl3>I booked<\/span>/.test(hg),
+      'PIA-156 A a face in the key opens their sheet; Anjo\'s and Mom & Dad\'s phones show the same rows with no Remind (guests share nothing from the key); Anjo\'s trip page marks 5 words, "☐ I booked" and the key\'s three (the new cap)', { g: short(keyRows(hg)), m: marked(hg) });
+    // ✈ is booked wherever a face carries the mark: the board, the Family board, his sheet's 72px face; no 🎫 left on any of them
+    const fh = org.api.renderFamily().html; act(org, 'person', { id: PT, code: 'ashwin-p8' }); const ash = sheet(org); org.api.closeSheet();
+    const boardFace = (ho.slice(at('id="board-'), at('<div class="wk"')).match(/data-code="ashwin-p8"[^>]*>[\s\S]*?<\/button>/) || [''])[0];
+    check(/<span class="bd"><span data-k="booked">✈<\/span><\/span>/.test(boardFace) && /data-k="booked">✈</.test(fh) && /data-k="booked">✈</.test(ash) && !/🎫/.test(fh + ash + hg + hm) &&
+      org.api.LEGEND.booked[0] === '✈' && org.api.LEGEND.booked[1] === 'Booked' && org.api.LEGEND.waitans[0] === '⏳' && org.api.LEGEND.waitans[1] === 'No answer yet' &&
+      org.api.LEGEND.waitbook[0] === '⏳' && org.api.LEGEND.waitbook[1] === 'Not booked yet' && org.api.LEGEND.remind[1] === 'Remind' && org.api.LEGEND.host[0] === '🏠' &&
+      org.api.LEGEND.tkoff[0] === '☐' && org.api.LEGEND.tkon[0] === '☑' + String.fromCharCode(0xFE0E) && !org.api.LEGEND.mybook && !org.api.LEGEND.waiton,
+      'PIA-156 B ✈ is the booked badge in the same place on the board, the Family board and his sheet; ⓘ\'s key says ✈ Booked, ⏳ No answer yet / Not booked yet (by stage), the Remind, 🏠 Host, ☐ Not booked, ☑ Booked (☑ in text presentation, U+FE0E); no 🎫 anywhere drawn',
+      { boardFace: boardFace.slice(0, 400), fam: (/[^>]{0,80}data-k="booked">[^<]*</.exec(fh) || [''])[0], ash: (/[^>]{0,80}data-k="booked">[^<]*</.exec(ash) || [''])[0] });
+  }
+  {
+    // the answers stage (no 🔒, nobody booked): ⏳ Waiting is who has not answered (never a host), 🏠 Hosting the hosts; Remind is the
+    // nudge for one; with several waiting while the primary is the trip's Share already, no second share in the key
+    const ASK = seedAs(DWX, (d) => { atPeoria(d); }), rs = recShare();
+    const SEV = seedAs(DWX, (d) => { delete d.responses['momdad-k3']; });
+    // (his token phone: the price row is there before 🔒, and keeps its place right under the board, the key after it)
+    const o = await boot136({ ls: lsOf([ASK, SEV], { pialax_idea_keys_v1: keyOf([ASK, SEV]), pialax_idea_me_v1: { [ASK]: 'ashwin-p8', [SEV]: 'ashwin-p8' }, pialax_proxy_token: TOKEN }), navigator: rs.nav });
+    act(o, 'open', { id: ASK }); const ha = screen(o), ra = keyRows(ha), ia = (s) => ha.indexOf(s);
+    await o.api.ACTS.nudge({ dataset: ctl(ha.slice(ha.indexOf('<div class="wk"')), 'nudge', { v: 'remind' }) || {} }); await tick();
+    act(o, 'back'); act(o, 'open', { id: SEV }); const hs = screen(o), rsv = keyRows(hs);
+    check(o.api.primaryAction(o.api.modelOf(ASK), '2026-10-17') === 'share' && eq(short(ra), ['Waiting|anjo-z5|nudge:anjo-z5', 'Hosting|momdad-k3']) && eq(ra.map((r) => r.name), ['No answer yet: Anjo', 'Hosting: Mom & Dad']) && ra[0].lbl === 'No answer yet' &&
+      ra[0].k === 'waitans' && ra[0].remName === 'Remind Anjo|Remind Anjo' &&
+      ia('id="board-') < ia('class="pricerow"') && ia('class="pricerow"') < ia('<div class="wk"') && ia('<div class="wk"') < ia('class="split prim"') &&
+      o.api.modelOf(ASK).members.find((x) => x.code === 'momdad-k3').status === 'host-default' && rs.shared.length === 1 && new RegExp('/i/' + ASK + '#m=anjo-z5$').test(rs.shared[0].url) &&
+      eq(short(rsv), ['Waiting|momdad-k3,anjo-z5']) && /class="btn pri share/.test(hs) && marked(ha).length === 2,
+      'PIA-156 A before 🔒: ⏳ Waiting is who has not answered ("No answer yet: Anjo"), Mom & Dad\'s unconfirmed default is 🏠 Hosting; the organizer\'s price row keeps its place under the board, the key after it and above the primary; Remind ("Remind Anjo") beside one waiting is her nudge (her own link); with two waiting, the primary already is the trip\'s Share, so the key adds no second one', { ra: short(ra), rsv: short(rsv), shared: rs.shared, order: [ia('id="board-'), ia('class="pricerow"'), ia('<div class="wk"'), ia('class="split prim"')] });
+  }
+  {
+    // several waiting to book once 🔒: Remind is the trip's guest share (tshare), one tap, no #m=; Maybe waits too; Out is in no row
+    const L3 = seedAs(DWX, (d) => { chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); });
+    const MX = seedAs(DWX, (d) => { chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); d.responses['momdad-k3'].status = 'out'; d.responses['anjo-z5'] = Object.assign(RESP('maybe'), { member: 'anjo-z5', origin: 'LGA' }); });
+    const rs = recShare(), o = await boot136({ ls: lsOf([L3, MX], { pialax_idea_keys_v1: keyOf([L3, MX]), pialax_idea_me_v1: { [L3]: 'ashwin-p8', [MX]: 'ashwin-p8' } }), navigator: rs.nav });
+    act(o, 'open', { id: L3 }); const h3 = screen(o), r3 = keyRows(h3), p0 = nPosts(o);
+    await o.api.ACTS.tshare({ dataset: ctl(h3.slice(h3.indexOf('<div class="wk"')), 'tshare') || {} }); await tick();
+    act(o, 'back'); act(o, 'open', { id: MX }); const hx = screen(o), rx = keyRows(hx);
+    check(o.api.primaryAction(o.api.modelOf(L3), '2026-10-17') === 'book' && eq(short(r3), ['Waiting|momdad-k3,ashwin-p8,anjo-z5|tshare']) && r3[0].name === 'Not booked yet: Mom & Dad, Ashwin and Anjo' &&
+      rs.shared.length === 1 && new RegExp('/i/' + L3 + '$').test(rs.shared[0].url) && nPosts(o) === p0 && eq(marked(h3), ['Waiting', 'I booked']) &&
+      eq(short(rx), ['Waiting|ashwin-p8,anjo-z5|nudge:anjo-z5']) && !/momdad-k3/.test(hx.slice(hx.indexOf('<div class="wk"'), hx.indexOf('</div></div>', hx.indexOf('<div class="wk"')))),
+      'PIA-156 A once 🔒 with three to book (me among them): Remind is the trip\'s guest share in one tap (no #m=, nothing written); a Maybe waits to book too, someone Out is in no row (Remind is then Anjo\'s own link: she is the one besides me)', { r3: short(r3), rx: short(rx), shared: rs.shared });
+  }
+  {
+    // the 8-member trip at a place none of them lives, 🔒, nobody booked: as many faces as the row holds at 360px, then +N
+    const E8 = seedAs(M8X, (d) => { d.idea.destination = { city: 'New Orleans', airport: 'MSY' }; Object.keys(d.responses).forEach((c) => { d.responses[c].status = 'in'; d.responses[c].booked = false; }); chosenAt(d, '2026-12-11', '2026-12-14', 'MSY'); });
+    const o = await boot136({ ls: lsOf([E8], { pialax_idea_keys_v1: keyOf([E8]), pialax_idea_me_v1: { [E8]: 'grandmajosephine-nf' } }) });
+    const g = await boot136({ ls: lsOf([E8], { pialax_idea_me_v1: { [E8]: 'bartholomewmontgomeryfitzgera-dj' } }) });
+    act(o, 'open', { id: E8 }); act(g, 'open', { id: E8 });
+    const ho = screen(o), hg = screen(g), ro = keyRows(ho), rg = keyRows(hg), m = o.api.modelOf(E8);
+    check(m.members.length === 8 && ro.length === 1 && ro[0].faces.length === 4 && ro[0].more === '4' && ro[0].rem === 'tshare' && rg[0].faces.length === 5 && rg[0].more === '3' && !rg[0].rem &&
+      ro[0].name === 'Not booked yet: ' + m.members.slice(0, 7).map((x) => x.short || x.one).join(', ') + ' and ' + (m.members[7].short || m.members[7].one) && eq(ro[0].faces, m.members.slice(0, 4).map((x) => x.code)),
+      'PIA-156 A the 8-member trip (🔒, nobody booked, no host): the organizer\'s Waiting row holds 4 faces, +4 and Remind at 360px (5 and +3 on a guest\'s phone, with no Remind); the row\'s name says all eight', { ro: short(ro), rg: short(rg), name: ro[0].name });
+  }
+  {
+    // no key on a paid, removed or past trip; the family's v1 Thanksgiving shows 🏠 Hosting; a host who has not confirmed stays Hosting
+    const PD = seedAs(DWX, (d) => { chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); d.decision.stage = 'booked'; d.decision.actual_total = 905; });
+    const DR = seedAs(DWX, (d) => { d.decision.stage = 'dropped'; }), PS = seedAs(DWX, (d) => { d.idea.dates.departure = '2026-09-04'; d.idea.dates.return = '2026-09-07'; });
+    const TG = seedAs(TGX), ids = [PD, DR, PS, TG];
+    const o = await boot136({ ls: lsOf(ids, { pialax_idea_keys_v1: keyOf(ids), pialax_idea_me_v1: { [PD]: 'ashwin-p8', [DR]: 'ashwin-p8', [PS]: 'ashwin-p8', [TG]: 'LAX' } }) });
+    // (each trip page drew: its board is there, and no key under it)
+    const none = [PD, DR, PS].map((id) => { act(o, 'open', { id }); if (o.api.S.sheet) o.api.closeSheet(); const h = screen(o); act(o, 'back'); return h.indexOf('id="board-' + id + '"') >= 0 && h.indexOf('class="wk"') < 0; });
+    const mom = await boot136({ ls: lsOf([TG], { pialax_idea_me_v1: { [TG]: 'PIA' } }) }); act(mom, 'open', { id: TG }); const hm = screen(mom);
+    act(o, 'open', { id: TG }); const hv = screen(o);
+    check(none.every(Boolean) && eq(short(keyRows(hv)), ['Hosting|PIA']) && eq(short(keyRows(hm)), ['Hosting|PIA']) && keyRows(hm)[0].name === 'Hosting: Mom & Dad' && o.api.modelOf(TG).legacy &&
+      eq(marked(hm), ['Hosting?', 'Hosting']),
+      'PIA-156 A no key on a paid, removed or past trip; the family\'s v1 Thanksgiving (both travelers answered, its v1 choice not a 🔒) reads 🏠 Hosting Mom & Dad on his phone and on Mom\'s, under "Hosting?" there', { none, v1: short(keyRows(hv)), mom: marked(hm) });
+  }
+  {
+    // the busiest marked state: the organizer is a host who has not confirmed ("Hosting?"), the dates are not 🔒 but someone booked
+    // early, and Lock dates is his primary: the key keeps 2 words (Booked, Waiting), and 🏠 alone (named, long-pressed) — 5 in all
+    const BZ = seedAs(DWX, (d) => { atPeoria(d); d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); });
+    const o = await boot136({ ls: lsOf([BZ], { pialax_idea_keys_v1: keyOf([BZ]), pialax_idea_me_v1: { [BZ]: 'momdad-k3' } }) });
+    act(o, 'open', { id: BZ }); const h = screen(o), r = keyRows(h);
+    check(o.api.primaryAction(o.api.modelOf(BZ), '2026-10-17') === 'lock' && eq(r.map((x) => x.word), ['Waiting', 'Booked', '']) && r[2].name === 'Hosting: Mom & Dad' && r[2].lbl === 'Hosting' && r[2].g === '🏠' &&
+      eq(marked(h), ['Hosting?', 'Waiting', 'Booked', 'Lock dates']) && words3(h) === 5 && r[0].rem === 'nudge:anjo-z5',
+      'PIA-156 C the most a trip page marks: "Hosting?" (his own unconfirmed host answer), "Lock dates" and the key\'s Waiting and Booked are 5; the third row keeps 🏠 with its faces, named "Hosting: Mom & Dad" (its word left out: never over 5)', { words: marked(h), rows: short(r) });
+  }
+  {
+    // the booking toggles as checkboxes, through the real Worker: the same writes as before (mybook / unbook / the organizer's booked)
+    const TB = seedAs(DWX, (d) => { chosenAt(d, '2026-11-06', '2026-11-09', 'RDU'); d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); });
+    const g = await boot136({ ls: lsOf([TB], { pialax_idea_me_v1: { [TB]: 'anjo-z5' } }) });
+    act(g, 'open', { id: TB }); const pr = screen(g), q0 = g.fetches.length;
+    await tap(g, pr, 'mybook'); await tick();
+    const b1 = posts(g, q0), after = srv.read(TB).responses['anjo-z5'];
+    act(g, 'person', { id: TB, code: 'anjo-z5' }); const mine = sheet(g);
+    const q1 = g.fetches.length; await tap(g, mine, 'unbook'); const armedS = sheet(g); await tap(g, armedS, 'unbook'); await tick(); g.api.closeSheet();
+    const b2 = posts(g, q1), undone = srv.read(TB).responses['anjo-z5'].booked === false;
+    const o = await boot136({ ls: lsOf([TB], { pialax_idea_keys_v1: keyOf([TB]), pialax_idea_me_v1: { [TB]: 'ashwin-p8' } }) });
+    act(o, 'open', { id: TB }); act(o, 'person', { id: TB, code: 'anjo-z5' }); const os0 = sheet(o), q2 = o.fetches.length;
+    await tap(o, os0, 'booked', { code: 'anjo-z5' }); await tick(); const os1 = sheet(o); o.api.closeSheet();
+    const b3 = posts(o, q2);
+    check(/data-act="mybook"[^>]*aria-pressed="false"[^>]*>(<span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span>) <span data-lbl3>I booked<\/span>/.test(pr) &&
+      b1.length === 1 && b1[0].path === '/idea/booked' && b1[0].body.booked === true && b1[0].body.member === 'anjo-z5' && after.booked === true &&
+      /data-act="unbook"[^>]*aria-pressed="true"[^>]*data-lbl="I booked"><span class="tkg" data-k="tkon" aria-hidden="true">☑︎<\/span> I booked<\/button>/.test(mine) && /class="btn tkb tkon arm"[^>]*aria-label="Confirm not booked"/.test(armedS) &&
+      b2.length === 1 && b2[0].path === '/idea/booked' && b2[0].body.booked === false && undone && srv.read(TB).responses['anjo-z5'].booked === true &&
+      /data-act="booked"[^>]*data-code="anjo-z5" aria-pressed="false"[^>]*><span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> Booked<\/button>/.test(os0) && b3.length === 1 && b3[0].path === '/idea/booked' && b3[0].body.booked === true &&
+      /data-act="booked"[^>]*data-code="anjo-z5" aria-pressed="true"[^>]*><span class="tkg" data-k="tkon" aria-hidden="true">☑︎<\/span> Booked<\/button>/.test(os1),
+      'PIA-156 B the toggles read as checkboxes with the same words both ways: "☐ I booked" (aria-pressed false) beside Book is one /idea/booked (booked); in her sheet "☑ I booked" (pressed) takes two taps to undo, one /idea/booked (not booked); the organizer\'s "☐ Booked" for Anjo becomes "☑ Booked" after one /idea/booked: the same writes as before',
+      { b1, b2, b3, pr: (/<button[^>]*data-act="mybook"[\s\S]*?<\/button>/.exec(pr) || [''])[0], mine: (/<button[^>]*data-act="unbook"[\s\S]*?<\/button>/.exec(mine) || [''])[0], armed: (/<button[^>]*data-act="unbook"[^>]*>/.exec(armedS) || [''])[0],
+        os0: (/<button[^>]*data-act="booked"[\s\S]*?<\/button>/.exec(os0) || [''])[0], os1: (/<button[^>]*data-act="booked"[\s\S]*?<\/button>/.exec(os1) || [''])[0] });
+  }
+  {
+    // ✈ is the one glyph for booked: no 🎫 left in app.html outside comments (toasts, confirms, LEGEND, aria and long-press text)
+    const code = html.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:\\'"])\/\/[^\n]*/g, '$1');
+    check(code.indexOf('🎫') < 0 && /'⚠✈', 'Someone booked'/.test(html) && /toast\('✈↩\?'\)/.test(html),
+      'PIA-156 B no 🎫 is drawn anywhere: the confirms read ⚠✈ ("Someone booked"), taking a booking back ✈↩?, the toasts ✈ / ✈⚠ (code comments may keep it)');
+  }
+
   // ═══ AC12 / AC14 ═══
   section('AC12 / AC14 preflight covers app.html; the playbook records the v2 decisions');
   const pf = fs.readFileSync(path.join(ROOT, 'scripts', 'preflight.sh'), 'utf8');
@@ -5197,7 +5359,7 @@ function norm(doc) {
     const OK3 = JSON.parse(((/const LBL3_OK = (\[[^\]]*\]);/.exec(twSrc) || [])[1] || '[]').replace(/'/g, '"'));
     const claude = fs.readFileSync(path.join(ROOT, 'CLAUDE.md'), 'utf8').replace(/\s+/g, ' ');
     const odd3 = [...SEEN_L3].filter((w) => OK3.indexOf(w) < 0), undoc = OK3.filter((w) => claude.indexOf(w) < 0);
-    check(SEEN_K.size >= 60 && unkeyed.length === 0 && SEEN_L3.size >= 4 && OK3.length === 11 && odd3.length === 0 && undoc.length === 0 && SHEET_L3.size === 0,
+    check(SEEN_K.size >= 60 && unkeyed.length === 0 && SEEN_L3.size >= 4 && OK3.length === 14 && odd3.length === 0 && undoc.length === 0 && SHEET_L3.size === 0,
       'PIA-154 every glyph key in app.html (' + lit.size + ' literal) and drawn by these checks (' + SEEN_K.size + ') has its LEGEND entry; the marked label words drawn (' + [...SEEN_L3].join(', ') + ') are all on the one list (test-words\' LBL3_OK, each word named in CLAUDE.md); no sheet marks one', { unkeyed, odd3, undoc, sheet: [...SHEET_L3] });
   }
   check(strayNet.length === 0, 'offline: nothing reached the network outside the in-process Worker', strayNet);

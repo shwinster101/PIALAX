@@ -39,8 +39,8 @@ Edit and the caption 2 (⋯, the row); sharing a trip is 1 for the organizer (th
 Share primary while someone waits, else the nav's share symbol) and 2 for a guest
 (⋯, Share); nudging one waiting person 2 (their face, Share); locking the dates 1
 once everyone answered ("🔒 Lock dates", ↩ in its toast), else 2 from P-dates;
-changing my answer 2 (my answer chip, the new answer); the organizer's 🎫 for
-someone 2 (their face, "🎫 Booked"); flights before 🔒 2 (my bar, ✈↗); the build
+changing my answer 2 (my answer chip, the new answer); the organizer's booking
+mark for someone 2 (their face, "☐ Booked", 🎫 until PIA-156); flights before 🔒 2 (my bar, ✈↗); the build
 check stays 2 (ⓘ, ⚙). Group-link RSVP stays three steps; a nudge link two.
 Two jobs got longer on purpose: moving the plan a day is 3 taps (the pill, −1 or
 +1 in P-dates, Save) where the trip page's ±1 was 1, since a set plan rarely
@@ -58,6 +58,22 @@ nothing sent. Hiding a trip on this phone is 2 taps (⋯ More, 🗄 Hide on my
 phone; "Show on my phone" once hidden; nothing is sent). Pricing one unbooked
 traveler after 🔒 is 2 taps (their face, 🔍N with its cost), since the trip page
 shows no price row after 🔒 until a fare is cached.
+
+PIA-156 adds one and keeps the rest, counted by `test-words` with real taps:
+reminding the one traveler still to book is 1 tap on the organizer's phone (the
+key's Remind, "Remind Anjo", ending its first row, ⏳ Waiting: their own guest
+link; before, her face then Share, and her sheet offered no Share once she had
+answered In); several waiting is 1 tap too (the key's Remind, the trip's guest
+share, or the Share primary when that is already the primary, and the key then
+adds none). Nudging someone who has not answered stays 2 from their sheet (or 1
+from the key when they are the only one waiting besides the organizer). The
+booking toggles keep their taps ("☐ I booked" 1; "☑ I booked" 2 to undo; the
+organizer's "☐ Booked" 2 from the face). The word rule allows 5 marked label
+words a screen (Booked, Waiting, Hosting join the list, for the key's rows only;
+a row past the 5 keeps its glyph and faces and drops its word). On a short phone
+(678px tall) the key takes only the space under the rows that were already there
+(the price row, 💵 Paid), so they keep their first-screen place, and its ⏳ Waiting
+row with Remind comes first.
 
 The suites compare dates, event-day constraints, answers, stages, bookings,
 headcounts, airport choices and totals with the same shared record/model.
@@ -90,7 +106,7 @@ Retirements below are explicit design choices under D1/D4, not claims of parity.
 | Know price age, quality, source and movement | Covered by age, stops, Google price level, real previous-fetch delta and unsearched/no-fare states |
 | Synthetic price charts and long-term sample-price history | Deliberately retired; no estimated history masquerades as a real offer |
 | Trigger live pricing while controlling spend | Covered by the single explicit runSearch path, shown cost, cache, visit/day/month caps and token gate |
-| Remember a traveler booked and record flight times | Covered by booking marks, flight-time entry, return invitation and recorded pickup times |
+| Remember a traveler booked and record flight times | Covered by booking marks (✈, PIA-156; the trip page's key says who booked, who is still to book and who hosts), flight-time entry, return invitation and recorded pickup times |
 | Track an actual flight on travel day | Covered by Flighty handoff; live flight tracking remains outside PIALAX |
 | Coordinate rides, arrival gaps and alternate airports | Covered by Map, shared pickup lanes, P-day map mode and cheapest cached pickup pair |
 | See geographic routes at home or abroad | Covered by pinned world map, origin faces, routes, destination/alternate pins and fallback roster |

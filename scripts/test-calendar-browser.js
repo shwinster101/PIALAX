@@ -70,7 +70,7 @@ async function main() {
       const r = await page.evaluate(() => {
         const visible = e => !!e && !!e.getClientRects().length && !e.closest('[hidden],.vh') && getComputedStyle(e).visibility !== 'hidden';
         const sheet = document.querySelector('#sheet'), open = visible(sheet), roots = open ? [sheet] : [document.querySelector('#screen'), document.querySelector('#tabbar')], words = [], small = [], marked = [];
-        // (PIA-154: a screen's marked label words, data-lbl3 — Tue / Wed / Thu here — count apart: ≤10 ordinary + ≤3 marked; a popup marks none)
+        // (PIA-154: a screen's marked label words, data-lbl3 — Tue / Wed / Thu here — count apart: ≤10 ordinary + ≤5 marked (PIA-156); a popup marks none)
         for (const root of roots) for (const e of [root, ...root.querySelectorAll('*')]) if (visible(e)) {
           if (!e.closest('[data-free]')) {
             for (const n of e.childNodes) if (n.nodeType === 3) (e.closest('[data-lbl3]') ? marked : words).push(...n.textContent.split(/\s+/).filter(t => /\p{L}/u.test(t)));
@@ -80,7 +80,7 @@ async function main() {
         }
         return { words, marked, small, max: open ? 20 : 10, overflow: document.documentElement.scrollWidth > innerWidth + 1 || open && sheet.scrollWidth > sheet.clientWidth + 1 };
       });
-      check(r.words.length <= r.max && r.marked.length <= (r.max === 10 ? 3 : 0) && !r.small.length && !r.overflow, label + ': word budget (≤10 + 3 marked), named 44px targets, no overflow', r);
+      check(r.words.length <= r.max && r.marked.length <= (r.max === 10 ? 5 : 0) && !r.small.length && !r.overflow, label + ': word budget (≤10 + 5 marked), named 44px targets, no overflow', r);
     }
     async function agreement(t, docs) {
       const current = docs.map(d => t.db.read(d.id)), m = M.tripModel(current[0], { today: TODAY, now: NOW, otherTrips: current.slice(1) });

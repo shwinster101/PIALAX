@@ -78,7 +78,7 @@ async function main() {
     async function measure(page, label) {
       const report = await page.evaluate(() => {
         const visible = e => !!(e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden],.vh'));
-        // (PIA-154: a screen's marked label words, data-lbl3 — the pickups table's Lands / Leaves here — count apart: ≤10 + ≤3 marked)
+        // (PIA-154: a screen's marked label words, data-lbl3 — the pickups table's Lands / Leaves here — count apart: ≤10 + ≤5 marked, PIA-156)
         const marked = [];
         function words(roots) {
           const out = [];
@@ -92,7 +92,7 @@ async function main() {
         const small = [...root.querySelectorAll('button,a')].filter(visible).filter(e => { const r = e.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5 || !(e.getAttribute('aria-label') || e.textContent.trim()); }).map(e => e.outerHTML.slice(0, 160));
         return { words: words(open ? [sheet] : [root, document.querySelector('#tabbar')]), marked, max: open ? 20 : 10, small, overflow: document.documentElement.scrollWidth > innerWidth + 1 || sheet.scrollWidth > sheet.clientWidth + 1 && open };
       });
-      check(report.words.length <= report.max && report.marked.length <= (report.max === 10 ? 3 : 0) && !report.small.length && !report.overflow, label + ': words (≤10 + 3 marked), 44px named controls, no overflow ' + JSON.stringify(report));
+      check(report.words.length <= report.max && report.marked.length <= (report.max === 10 ? 5 : 0) && !report.small.length && !report.overflow, label + ': words (≤10 + 5 marked), 44px named controls, no overflow ' + JSON.stringify(report));
     }
     for (const width of [360, 390, 430]) for (const dark of [false, true]) {
       const t = await phone({ width, dark });
