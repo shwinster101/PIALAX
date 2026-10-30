@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="156">
+<meta name="pialax-build" content="157">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -948,6 +948,48 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .wkn { margin-left: 6px; font-size: 14px; font-weight: 700; color: var(--ink2); }
 .ib.wkrem { flex: none; color: var(--ink2); }
 .ib.wkrem .shr { width: 22px; height: 22px; }
+/* PIA-157: rides. The key's 🚗 Rides row (its head a 44px button into P-rides, in the word column), its run chips (dashed amber while
+   no one drives: the end's glyph, the day, the travelers' faces), the drivers' faces once covered; the card slot, the primary's ⏰, the
+   P-rides sheet, the 18px badge on a Map chip and the ride glyph in P-person */
+button.wkl { min-height: 44px; border-radius: 10px; text-align: left; }
+.wkf .rk { flex: none; }
+.rk { min-height: 44px; display: inline-flex; align-items: center; gap: 3px; padding: 0 7px; margin-right: 6px; border-radius: 12px; border: 1.5px dashed var(--maybe);
+  background: color-mix(in srgb, var(--maybe) 8%, transparent); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.rk .rkg { font-size: 15px; line-height: 1; } .rk .rkf { font-size: 15px; letter-spacing: -2px; line-height: 1; } .rk .w { color: var(--maybe); }
+.rk.mv { border-style: solid; border-color: var(--maybe); }
+.rk.sf { border: 1.5px solid var(--line); background: none; }
+.rq { display: inline-flex; align-items: center; padding: 0 3px; border: 1.5px dashed var(--maybe); border-radius: 8px; line-height: 1.2; }
+.slot.ride { border-style: dashed; border-color: var(--maybe); font-size: 16px; }
+.btn.pri .drvf { display: inline-flex; } .btn.pri .drvf .av { box-shadow: 0 0 0 1.5px var(--ink); }
+.btn.pri .drvf .av + .av { margin-left: -6px; }
+.rsec { display: grid; gap: 2px; margin-top: 6px; }
+.rsh { display: flex; align-items: center; gap: 4px; min-height: 32px; font-size: 16px; font-weight: 800; color: var(--ink2); }
+.rrun { display: grid; gap: 0; padding: 4px 8px; border-radius: 14px; border: 1.5px solid var(--line); margin-bottom: 6px; }
+.rrun.open { border-color: var(--maybe); border-style: dashed; }
+.rrun.on { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent); }
+.rrh, .rleg { display: flex; align-items: center; gap: 6px; min-height: 44px; flex-wrap: wrap; }
+.rrh { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rrh .sp { min-width: 4px; }
+.rrh .rlv { display: inline-flex; align-items: center; gap: 1px; }
+.rleg { padding-left: 4px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rleg .facebtn, .rleg > .rf { width: 44px; height: 44px; display: inline-grid; place-items: center; flex: none; }
+.rleg .rst { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; font-size: 16px; }
+.rleg .rst .rw { opacity: .45; }
+.rdrv { min-height: 44px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; font-size: 16px; }
+.rdrv[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
+.facebtn.rcand { border-radius: 50%; }
+.facebtn.rcand[aria-pressed="true"] .av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--in); }
+.facebtn.rcand[aria-pressed="false"] .av { opacity: .55; }
+.rgr { min-width: 44px; min-height: 44px; font-size: 18px; padding: 0 4px; }
+.rq2 { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; min-height: 44px; font-size: 15px; font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.rq2 .rql { min-height: 44px; display: inline-flex; align-items: center; gap: 3px; padding: 0 4px; border-radius: 10px; }
+.rcal { position: relative; margin-top: 8px; }
+.rcal .ndot { position: absolute; top: 8px; right: 10px; }
+.pk .rbd { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--markbg); color: var(--markink); display: grid; place-items: center;
+  font-size: 11px; line-height: 1; box-shadow: 0 0 0 1px var(--line); padding: 0 1px; }
+.pk .rbd.q { border: 1.5px dashed var(--maybe); box-shadow: none; font-weight: 800; color: var(--maybe); background: var(--surface); }
+.leg .rgl, .pline .rgl { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 1px; border-radius: 12px; font-size: 17px; }
+.toast .tshr { display: inline-grid; place-items: center; } .toast .tshr .shr { width: 22px; height: 22px; }
 /* Map and Calendar: the trip's title is the way back to it */
 .selttl { min-height: 44px; display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; text-align: left; margin-top: -8px; overflow-wrap: anywhere; }
 .chev.r { display: inline-block; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); flex: none; }
@@ -1022,6 +1064,12 @@ var IDEA_HUBS = [['PIA', 'ORD'], ['LGA', 'JFK']];                        // = wo
 var NEARBY_GROUPS = [['LAX', 'BUR', 'LGB', 'SNA', 'ONT'], ['LGA', 'JFK', 'EWR']]; // = v1 TRIP_NEARBY_GROUPS
 var DRIVE_PIVOT = { PIA: ['PIA', 'ORD'] };                               // Peoria travelers can drive to and from O'Hare
 var DRIVE = { 'PIA|ORD': '2:30', 'LGA|JFK': '0:45' };                    // drive time between a hub pair
+var HOME_DRIVE = { PIA: '0:20' };                                        // PIA-157: from home to its own airport
+var RIDE_LEAD = 120;                                                     // PIA-157: minutes at the airport before a flight leaves
+var RUN_GAP = 120;                                                       // PIA-157: legs this close (minutes) make one ⏱ run
+/* PIA-157 (PIA-158 writes it): what someone brings, 🧺 in their answer note: single emoji-presentation code points, none in FACES,
+   SCENES or the holiday glyphs, none twice */
+var DISH_PALETTE = ['🍗', '🥧', '🍰', '🧁', '🍪', '🥗', '🥔', '🍠', '🍞', '🧀', '🍲', '🍷', '🍺', '🥂', '🧃', '🎲', '🎶', '💐'];
 var IDEA_MAX_MEMBERS = 8;                                                // = worker.js IDEA_MAX_MEMBERS
 var IDEA_STATUSES = { in: 1, maybe: 1, out: 1 };
 var IDEA_STAGES = { proposed: 1, chosen: 1, booked: 1, dropped: 1 };
@@ -1247,8 +1295,35 @@ function originSet(code, dest) {
 
 /* ---- conventions inside free-text fields ----
    idea.notes  = ['📌YYYY-MM-DD'] ['🌙N'] caption   (any other text is kept as the caption)
-   answer note = ['📞'] ['🛬HH:MM'] ['🛫HH:MM'] text  (a legacy trailing '(entered by X)' reads as 📞)
-   The Worker trims both fields, so a prefix may end the string. */
+   answer note = ['📞'] ['🛬HH:MM'] ['🛫HH:MM'] ['🚗'CLAIMS] ['🚌'LEGS] ['🚙'LEGS] ['🐈'LEGS] ['🧺'DISHES] text
+                 (a legacy trailing '(entered by X)' reads as 📞)
+   The Worker trims both fields, so a prefix may end the string.
+   PIA-157: the answer note's markers come after 📞 / 🛬 / 🛫 in that fixed order, each followed by a space or the note's end, and a
+   new kind is only ever appended at the end of the order. CLAIM = <member code>.<a|d><IATA><MMDD>: the note's owner drives that
+   traveler's arrival (a) or departure (d) at that airport on that day; CLAIMS are comma-joined. LEGS = a, d or ad (🚌 a coach, 🚙 a
+   rental car for the traveler's own leg; 🐈 their pet flies on it). DISHES = 1–3 of DISH_PALETTE. Read in any order (a new kind
+   once): the first token that is none of them, malformed, or a new kind seen again begins the text. So an older build, which
+   knows fewer kinds, reads the rest as text and writes it back byte for byte. */
+var CLAIM_RE = /^([A-Za-z0-9_-]{1,32})\.([ad])([A-Z]{3})(\d\d)(\d\d)$/;
+/* a day as a claim names it, 'MMDD' ('' for no day) */
+function mdKey(day) { return isIso(day) ? day.slice(5, 7) + day.slice(8, 10) : /^\d{4}$/.test(String(day || '')) && isIso('2000-' + day.slice(0, 2) + '-' + day.slice(2)) ? String(day) : ''; }
+/* one claim token → {code, kind 'a' | 'd', ap, day 'MMDD'}, or null (the month and day must be a real one) */
+function claimOf(s) { var m = CLAIM_RE.exec(String(s || '')); return m && isIso('2000-' + m[4] + '-' + m[5]) ? { code: m[1], kind: m[2], ap: m[3], day: m[4] + m[5] } : null; }
+function claimTok(c) { var d = c ? mdKey(c.day) : ''; return c && MEMBER_CODE_RE.test(String(c.code)) && (c.kind === 'a' || c.kind === 'd') && isIata(c.ap) && d ? c.code + '.' + c.kind + c.ap + d : ''; }
+function legsOf(v) { return v === 'a' || v === 'd' || v === 'ad' ? v : v === 'da' ? 'ad' : ''; }
+function dishesOf(v) { var out = []; (Array.isArray(v) ? v : []).forEach(function (g) { if (DISH_PALETTE.indexOf(g) >= 0 && out.indexOf(g) < 0 && out.length < 3) out.push(g); }); return out; }
+/* the marker that begins s: {k (called arr dep claims bus rent pet dish), v, n (its length with the space after it)}, or null */
+function noteMark(s) {
+  var sp = s.indexOf(' '), tok = sp < 0 ? s : s.slice(0, sp), n = sp < 0 ? s.length : sp + 1, cps = Array.from(tok), g = cps[0] || '', rest = cps.slice(1).join('');
+  if (!tok) return null;
+  if (tok === '📞') return { k: 'called', v: true, n: n };
+  if ((g === '🛬' || g === '🛫') && HHMM_RE.test(rest)) return { k: g === '🛬' ? 'arr' : 'dep', v: rest, n: n };
+  if (g === '🚗' && rest) { var cl = rest.split(',').map(claimOf); return cl.every(Boolean) ? { k: 'claims', v: cl, n: n } : null; }
+  var lk = { '🚌': 'bus', '🚙': 'rent', '🐈': 'pet' }[g];
+  if (lk && (rest === 'a' || rest === 'd' || rest === 'ad')) return { k: lk, v: rest, n: n };
+  if (g === '🧺') { var ds = cps.slice(1); return ds.length >= 1 && ds.length <= 3 && dishesOf(ds).length === ds.length ? { k: 'dish', v: ds, n: n } : null; }
+  return null;
+}
 function parseNotes(notes) {
   var s = typeof notes === 'string' ? notes : '', pin = '', nights = null, m;
   for (;;) {
@@ -1266,25 +1341,35 @@ function buildNotes(pin, nights, caption) {
   return clip(parts.join(' '), TEXT_MAX.notes);
 }
 var LEGACY_PROXY_RE = /\s*\(entered by [^()]*\)\s*$/;
+/* → {called, arr, dep, claims [{code, kind, ap, day 'MMDD'}], bus, rent, pet ('' | 'a' | 'd' | 'ad'), dish [], text} */
 function parseRespNote(note) {
-  var s = typeof note === 'string' ? note : '', called = false, arr = '', dep = '', m;
+  var s = typeof note === 'string' ? note : '', o = { called: false, arr: '', dep: '', claims: [], bus: '', rent: '', pet: '', dish: [] }, seen = {}, m;
   for (;;) {
-    if ((m = /^📞(?: |$)/u.exec(s))) { called = true; s = s.slice(m[0].length); continue; }
-    if ((m = /^🛬(\d\d:\d\d)(?: |$)/u.exec(s)) && HHMM_RE.test(m[1])) { arr = m[1]; s = s.slice(m[0].length); continue; }
-    if ((m = /^🛫(\d\d:\d\d)(?: |$)/u.exec(s)) && HHMM_RE.test(m[1])) { dep = m[1]; s = s.slice(m[0].length); continue; }
-    break;
+    m = noteMark(s);
+    // (📞 / 🛬 / 🛫 read as they always have, a repeat too; each later kind once)
+    if (!m || (seen[m.k] && m.k !== 'called' && m.k !== 'arr' && m.k !== 'dep')) break;
+    seen[m.k] = 1; o[m.k] = m.v; s = s.slice(m.n);
   }
-  if (LEGACY_PROXY_RE.test(s)) { called = true; s = s.replace(LEGACY_PROXY_RE, ''); }
-  return { called: called, arr: arr, dep: dep, text: s.trim() };
+  if (LEGACY_PROXY_RE.test(s)) { o.called = true; s = s.replace(LEGACY_PROXY_RE, ''); }
+  o.text = s.trim();
+  return o;
 }
-function buildRespNote(called, arr, dep, text) {
-  var parts = [];
+/* the note, its markers in the fixed order; mk = {claims, bus, rent, pet, dish} (optional). PIA-157: null when the markers and times
+   alone pass the Worker's 280 (a marker is never clipped); typed text after them is clipped as before */
+function buildRespNote(called, arr, dep, text, mk) {
+  var parts = [], k = mk || {}, cl = uniq((Array.isArray(k.claims) ? k.claims : []).map(claimTok).filter(Boolean)), ds = dishesOf(k.dish);
   if (called) parts.push('📞');
   if (arr && HHMM_RE.test(arr)) parts.push('🛬' + arr);
   if (dep && HHMM_RE.test(dep)) parts.push('🛫' + dep);
+  if (cl.length) parts.push('🚗' + cl.join(','));
+  [['🚌', k.bus], ['🚙', k.rent], ['🐈', k.pet]].forEach(function (p) { var v = legsOf(p[1]); if (v) parts.push(p[0] + v); });
+  if (ds.length) parts.push('🧺' + ds.join(''));
+  if (parts.join(' ').length > TEXT_MAX.note) return null;
   if (text && String(text).trim()) parts.push(String(text).trim());
   return clip(parts.join(' '), TEXT_MAX.note);
 }
+/* the markers a parsed note carries, as buildRespNote takes them */
+function noteMarks(n) { return { claims: n.claims, bus: n.bus, rent: n.rent, pet: n.pet, dish: n.dish }; }
 
 /* ---- Google Flights tfs encoder (scratchpad gf-tfs.js, live-verified 2026-10-17) ----
    Schema: fast-flights / krisukox protobuf with Google's envelope. o = {legs:[{date, from:[], to:[]}], adults, trip:1 RT|2 OW|3 multi}.
@@ -1576,6 +1661,11 @@ function tripModel(doc, ctx) {
       own1: own1, own2: own2, d1: hasDates ? d1 : '', d2: hasDates ? d2 : '', bad: bad, warn: warn, clash: clash,
       A: A, H: H, openJaw: A !== H, override: override, origin: originCode, O: O, from: from,
       traveler: traveler, booked: booked, called: note.called, arrTime: note.arr, depTime: note.dep, noteText: note.text,
+      // PIA-157: the note's markers (noteText holds none, so a note of markers alone shows no 📝): how this traveler gets between home
+      // and each airport by themselves (🚌 the coach, 🚙 a rental car; else the family drives), the rides they drive (claims, in
+      // their own note), their pet's legs (🐈; PIA-158) and what they bring (🧺; PIA-158)
+      ground: { a: note.bus.indexOf('a') >= 0 ? 'bus' : note.rent.indexOf('a') >= 0 ? 'rent' : '', d: note.bus.indexOf('d') >= 0 ? 'bus' : note.rent.indexOf('d') >= 0 ? 'rent' : '' },
+      claims: note.claims, pet: note.pet, dish: note.dish, marks: noteMarks(note),
       link: link, why: why, keys: keys, at: (r && r.updated_at) || '', ansAt: (r && times[m.code]) || ''
     };
   });
@@ -1887,26 +1977,285 @@ function pickups(model, fares, now, showPredicted) {
     if (predicted && /^\d{4}-\d{2}-\d{2}[ T]/.test(rawArrival) && rawArrival.slice(0, 10) !== m.d1) predicted = '';
     // PIA-139: a recorded time is a firm pickup only while its traveler is booked (a 🎫 taken back leaves none behind)
     var arrT = (m.booked && m.arrTime) || predicted, depT = m.booked ? m.depTime : '';
-    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
-    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: depT, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    // (PIA-157 self: the traveler's own 🚌 / 🚙 for that leg, which no ⏱ run takes)
+    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked, self: m.ground.a });
+    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: depT, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked, self: m.ground.d });
   });
   Object.keys(lanes).forEach(function (a) {
     var L = lanes[a], merged = [];
     L.sort(function (x, y) { return (x.date + (x.time || '99') + x.kind).localeCompare(y.date + (y.time || '99') + y.kind); });
     L.forEach(function (c) {
       var p = merged[merged.length - 1];
-      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe && p.booked === c.booked) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
+      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe && p.booked === c.booked && p.self === c.self) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
       else merged.push(c);
     });
-    // ⏱ one pickup run: arrivals at one airport on one day, chained ≤ 2h apart
-    var gid = 0, tm = function (x) { return +x.time.slice(0, 2) * 60 + +x.time.slice(3, 5); };
-    merged.forEach(function (c, i) {
-      var p = merged[i - 1];
-      if (p && c.kind === 'arr' && p.kind === 'arr' && c.time && p.time && c.date === p.date && tm(c) - tm(p) <= 120) c.group = p.group || (p.group = ++gid);
+    // ⏱ one run (PIA-157: runChain, the one rule): the timed legs of one kind at one airport on one day, chained ≤ RUN_GAP apart,
+    // never a 🚌 / 🚙 leg. Arrivals and departures chain apart (since PIA-157 departures get ⏱ too, and a departure between two
+    // arrivals no longer splits their run). run: every timed leg's run, a single one too; group: a run of two or more (the ⏱ bracket)
+    var gid = 0, rid = 0;
+    ['arr', 'dep'].forEach(function (k) {
+      runChain(merged.filter(function (c) { return c.kind === k && !!c.time && !c.self; })).forEach(function (run) {
+        var g = run.length > 1 ? ++gid : 0; rid++;
+        run.forEach(function (c) { c.run = rid; if (g) c.group = g; });
+      });
     });
     lanes[a] = merged;
   });
   return lanes;
+}
+/* PIA-157: the one ⏱ rule. items: legs of one kind at one airport, in time order, each {date, time}; consecutive legs on one day at
+   most RUN_GAP minutes apart are one run. → [[item…]…], a lone leg its own run */
+function hm(t) { return +t.slice(0, 2) * 60 + +t.slice(3, 5); }
+function runChain(items) {
+  var out = [];
+  (items || []).forEach(function (c) {
+    var r = out[out.length - 1], p = r && r[r.length - 1];
+    if (p && p.date === c.date && hm(c.time) - hm(p.time) <= RUN_GAP) r.push(c); else out.push([c]);
+  });
+  return out;
+}
+
+/* ---- PIA-157 rides: who drives each run between home and the airport, and when to leave home ----
+   Only a trip to a home the family drives from has rides: a host who is not Out lives at a DRIVE_PIVOT airport (Peoria: PIA) and the
+   destination is in that pivot's pair (PIA or ORD), so a trip to New York has none. Its runs are pickups' own ⏱ runs on booked
+   times (never a ≈ cached time): a run is legs of one kind at one airport on one day, chained ≤ RUN_GAP apart; a 🚌 / 🚙 leg is the
+   traveler's own and in no run. A ride is claimed in the DRIVER's own answer note (🚗<traveler>.<a|d><IATA><MMDD>), tied to the
+   airport and the day, not the time: a time change that day carries it (⏰ moves), a day or airport change leaves it "moved" (⚠,
+   open) until the driver says ✓. Nothing here is stored: runs, ⏰, states and candidates are read from the record on each render. */
+function minOf(s) { var m = /^(\d{1,2}):(\d\d)$/.exec(s || ''); return m ? +m[1] * 60 + +m[2] : null; }
+/* a day and minutes past its midnight (negative: the day before; ≥ 24h: the next) → {day, t 'HH:MM'} */
+function dayAt(day, min) { var k = Math.floor(min / 1440), r = min - k * 1440; return { day: addD(day, k), t: hhmm(Math.floor(r / 60), r % 60) }; }
+/* the home whose family drives: a host not Out at a DRIVE_PIVOT airport whose pair holds the destination; '' none (or a removed trip) */
+function rideHome(model) {
+  if (!model || !model.dest || model.decision === 'dropped') return '';
+  var h = model.members.filter(function (x) { return x.host && x.status !== 'out' && DRIVE_PIVOT[x.airport] && DRIVE_PIVOT[x.airport].indexOf(model.dest) >= 0; })[0];
+  return h ? h.airport : '';
+}
+/* → null, or {home, runs, notime, self, waiting, open}:
+   • runs [{key, kind 'a' | 'd', ap, day, legs [{code, time, ride {state 'covered' | 'open' | 'moved', by [drivers], was [claimers]}}],
+     first, last, spread (minutes), drive (minutes, null unknown), leave {day, t}, back {day, t} (null with no known drive), state
+     ('open' while a leg is open or moved), candidates, upcoming (day ≥ today)}, by day and time. key = kind + ap + MMDD + '-' + the
+     run's first traveler in the trip's order (a time change that day keeps it). Pickup: leave = first landing − drive, back = last
+     landing + drive. Drop-off: leave = earliest flight − RIDE_LEAD − drive, back = leave + 2 × drive. drive = HOME_DRIVE at the home
+     airport, else the hub pair's DRIVE.
+   • candidates: the hosts not Out, then the travelers there all that day (d1 < day < d2, In or Maybe) not on the run, in trip order
+     (one who covers every leg is listed too).
+   • notime [{code, kind, ap, day, ride}]: booked legs with no time yet (🛬? / 🛫?); self [{code, kind, ap, day, mode, time}]: 🚌 / 🚙;
+     waiting: the travelers not booked yet; open: the open runs still ahead (a past run never counts).
+   A claim covers the leg whose traveler, kind, airport and day it names; the same traveler and kind elsewhere is "moved". A claim on a
+   leg nobody flies (not booked, Out, gone) or one the traveler covers themselves is ignored; so is any claim of a driver who said Out
+   (they are not there to drive) or on their own leg, and (fix pass) any claim of someone who is not a candidate of that leg's run as
+   it is now (a traveler whose own days moved so they are no longer there that day): that leg is open again. */
+function rides(model, today) {
+  var home = rideHome(model); if (!home) return null;
+  var lanes = pickups(model, {}, 0, false), byCode = {}, claims = [], runs = [], notime = [], self = [];
+  model.members.forEach(function (x, i) { byCode[x.code] = { x: x, i: i }; });
+  model.members.forEach(function (d) { if (d.status !== 'out') d.claims.forEach(function (c) { if (c.code !== d.code && byCode[c.code]) claims.push({ by: d.code, c: c }); }); });
+  var hosts = model.members.filter(function (x) { return x.host && x.status !== 'out'; }).map(function (x) { return x.code; });
+  var candOf = function (day, on) { return hosts.concat(model.travelers.filter(function (x) { return x.answered && !x.bad && !!x.d1 && x.d1 < day && day < x.d2 && on.indexOf(x.code) < 0; }).map(function (x) { return x.code; })); };
+  var legRide = function (code, kind, ap, day, cands) {
+    var by = [], was = [], key = mdKey(day);
+    claims.forEach(function (k) {
+      if (k.c.code !== code || k.c.kind !== kind || cands.indexOf(k.by) < 0) return;
+      if (k.c.ap === ap && k.c.day === key) { if (by.indexOf(k.by) < 0) by.push(k.by); } else if (was.indexOf(k.by) < 0) was.push(k.by);
+    });
+    was = was.filter(function (c) { return by.indexOf(c) < 0; });
+    return { state: by.length ? 'covered' : was.length ? 'moved' : 'open', by: by, was: was };
+  };
+  [model.dest].concat(model.alt ? [model.alt] : []).forEach(function (ap) {
+    var drive = minOf(ap === home ? HOME_DRIVE[home] : DRIVE[model.hub.join('|')]);
+    ['arr', 'dep'].forEach(function (kind) {
+      var k = kind === 'arr' ? 'a' : 'd', groups = [], at = {};
+      (lanes[ap] || []).forEach(function (c) {
+        if (c.kind !== kind || !c.booked || c.pred) return;
+        c.codes.forEach(function (code) {
+          if (!byCode[code]) return;
+          if (c.self) { self.push({ code: code, kind: k, ap: ap, day: c.date, mode: c.self, time: c.time || '' }); return; }
+          if (!c.time) { notime.push({ code: code, kind: k, ap: ap, day: c.date, ride: legRide(code, k, ap, c.date, candOf(c.date, [code])) }); return; }
+          if (!at[c.run]) groups.push(at[c.run] = []);
+          at[c.run].push({ code: code, time: c.time, day: c.date });
+        });
+      });
+      groups.forEach(function (g) {
+        var day = g[0].day, on = g.map(function (l) { return l.code; }), cands = candOf(day, on);
+        var legs = g.map(function (l) { return { code: l.code, time: l.time, ride: legRide(l.code, k, ap, day, cands) }; });
+        var first = legs[0].time, last = legs[legs.length - 1].time;
+        var leave = drive == null ? null : dayAt(day, hm(first) - (k === 'd' ? RIDE_LEAD : 0) - drive);
+        var back = !leave ? null : k === 'a' ? dayAt(day, hm(last) + drive) : dayAt(leave.day, hm(leave.t) + 2 * drive);
+        var lead = on.slice().sort(function (a, b) { return byCode[a].i - byCode[b].i; })[0];
+        runs.push({ key: k + ap + mdKey(day) + '-' + lead, kind: k, ap: ap, day: day, legs: legs, first: first, last: last, spread: hm(last) - hm(first), drive: drive,
+          leave: leave, back: back, state: legs.some(function (l) { return l.ride.state !== 'covered'; }) ? 'open' : 'covered', candidates: cands, upcoming: isIso(today) && day >= today });
+      });
+    });
+  });
+  runs.sort(function (a, b) { return (a.day + a.first + a.kind).localeCompare(b.day + b.first + b.kind); });
+  return { home: home, runs: runs, notime: notime, self: self, waiting: model.travelers.filter(function (x) { return !x.booked; }).map(function (x) { return x.code; }),
+    open: runs.filter(function (r) { return r.state === 'open' && r.upcoming; }).length };
+}
+/* one traveler's leg on a rides trip: {run, ride} in a run, {ride, notime: true} booked with no time yet, {mode} their own 🚌 / 🚙;
+   null for a leg nobody flies yet */
+function rideLeg(R, code, kind) {
+  if (!R) return null;
+  for (var i = 0; i < R.runs.length; i++) { var r = R.runs[i]; if (r.kind !== kind) continue; for (var j = 0; j < r.legs.length; j++) if (r.legs[j].code === code) return { run: r, ride: r.legs[j].ride, mode: '' }; }
+  var n = R.notime.filter(function (x) { return x.code === code && x.kind === kind; })[0]; if (n) return { run: null, ride: n.ride, mode: '', notime: true };
+  var s = R.self.filter(function (x) { return x.code === code && x.kind === kind; })[0]; return s ? { run: null, ride: null, mode: s.mode } : null;
+}
+/* the runs still ahead that this member drives (covers at least one leg of) */
+function drivesOf(R, code) { return R ? R.runs.filter(function (r) { return r.upcoming && r.legs.some(function (l) { return l.ride.by.indexOf(code) >= 0; }); }) : []; }
+/* the drivers of a run (anyone covering one of its legs), in the order they first appear */
+function runDrivers(r) { var out = []; r.legs.forEach(function (l) { l.ride.by.forEach(function (c) { if (out.indexOf(c) < 0) out.push(c); }); }); return out; }
+/* PIA-157: a driver's ride write, built on the record it is sent against (freshWrite rebuilds it there): their own answer with their
+   claims on one run changed. op 'on' claims every leg of the run nobody covers yet (open, or moved); 'off' takes back their claims on
+   the run's legs (moved ones too); 'ok' moves their moved claims to the legs' airport and day as they are now. Every op also drops
+   the driver's claims that no longer name a leg anybody flies (ignored). by 'self' (the driver's own phone) or anything else (the
+   organizer for them: 'keep', or 📞 'proxy' when it is a host's first answer, respondRequest's rule). null: a closed or past trip, no
+   such run (or it is behind us), a driver who is not one of its candidates ('off' also takes the claims of one who no longer is), the
+   organizer's write for someone on a v1 trip (⤒ Update trip first), no change, or a note that would pass 280 (fix pass: rideClaims is
+   the same rule without the note, so a phone can tell "Too long" from the rest). */
+function ridesRequest(doc, driver, runKey, op, by, today) {
+  var p = rideClaims(doc, driver, runKey, op, by, today);
+  return p ? respondRequest(doc, driver, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+/* ridesRequest's patch ({claims}, the driver's whole list), or null for every reason but the note's length */
+function rideClaims(doc, driver, runKey, op, by, today) {
+  if (!doc || !doc.id || docClosed(doc) || !isIso(today) || ['on', 'off', 'ok'].indexOf(op) < 0) return null;
+  var model; try { model = tripModel(doc, { today: today, now: 0 }); } catch (e) { return null; }
+  var R = rides(model, today), d = model.members.filter(function (x) { return x.code === driver; })[0] || null;
+  if (!R || !d || model.past || (by !== 'self' && model.legacy)) return null;
+  var run = R.runs.filter(function (r) { return r.key === runKey; })[0];
+  if (!run || !run.upcoming) return null;
+  var onRun = function (c) { return c.kind === run.kind && run.legs.some(function (l) { return l.code === c.code; }); };
+  // (a claim kept is one that counts: it covers its leg, or it is that leg's moved ride; any other is ignored, and dropped here)
+  var counts = function (c) { var lg = rideLeg(R, c.code, c.kind); return !!lg && !!lg.ride && (lg.ride.by.indexOf(driver) >= 0 || lg.ride.was.indexOf(driver) >= 0); };
+  if (run.candidates.indexOf(driver) < 0 && !(op === 'off' && d.claims.some(onRun))) return null;
+  var want = d.claims.filter(function (c) { return c.code !== driver && counts(c) && !onRun(c); });
+  run.legs.forEach(function (l) {
+    var mine = l.ride.by.indexOf(driver) >= 0, other = l.ride.by.some(function (c) { return c !== driver; }), moved = l.ride.was.indexOf(driver) >= 0;
+    var here = { code: l.code, kind: run.kind, ap: run.ap, day: mdKey(run.day) };
+    if (op === 'off') return;
+    if (mine || (op === 'on' && !other) || (op === 'ok' && moved)) want.push(here);
+  });
+  // (the claims kept stay where they are in the note; new ones go after them)
+  var toks = uniq(want.map(claimTok)), had = d.claims.map(claimTok), order = had.filter(function (t) { return toks.indexOf(t) >= 0; }).concat(toks.filter(function (t) { return had.indexOf(t) < 0; }));
+  var next = uniq(order).map(claimOf);
+  if (uniq(order).join(',') === had.join(',')) return null;
+  return { claims: next };
+}
+/* fix pass: what a tap on a driver's toggle for a run does, and so its aria-pressed (op 'off' = pressed): 'on' while a leg of it is
+   still theirs to take (nobody else covers it, and they do not yet: open, moved, or a traveler who joined the run since); else 'off'
+   once they cover any leg of it (every other leg has its own driver, so a share of a run is released too); else 'on' (every leg is
+   someone else's: the guard holds it as "Already covered", nothing sent) */
+function rideToggle(run, code) {
+  var mine = function (l) { return l.ride.by.indexOf(code) >= 0; }, other = function (l) { return l.ride.by.some(function (c) { return c !== code; }); };
+  if (run.legs.some(function (l) { return !mine(l) && !other(l); })) return 'on';
+  return run.legs.some(mine) ? 'off' : 'on';
+}
+/* PIA-157: the ride write's guard (freshWrite's o.guard, and the phone's own record before it builds): 'closed' (paid or removed
+   meanwhile), 'gone' (the run is not there any more: a day, airport or booking changed), 'taken' ('on', and every leg of it is covered
+   by someone else: nothing is sent and the sheet shows who), 'same' (fix pass: the record already is what the tap asks for, as when
+   Mom's phone and Dad's, one member, claim the same run within a poll: nothing is sent and the tap says ✓), '' it can go */
+function rideGuard(fresh, driver, runKey, op, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: today, now: 0 }); } catch (e) { return 'gone'; }
+  var R = rides(m, today), run = R ? R.runs.filter(function (r) { return r.key === runKey; })[0] : null;
+  if (!run || !run.upcoming) return 'gone';
+  var mine = function (l) { return l.ride.by.indexOf(driver) >= 0; }, moved = function (l) { return l.ride.was.indexOf(driver) >= 0; };
+  if (op === 'on') return run.legs.some(function (l) { return !l.ride.by.length; }) ? '' : run.legs.some(mine) ? 'same' : 'taken';
+  if (op === 'off') return run.legs.some(function (l) { return mine(l) || moved(l); }) ? '' : 'same';
+  return run.legs.some(moved) ? '' : 'same';
+}
+/* PIA-157: a traveler's own way between home and the airport for one leg (kind 'a' their arrival, 'd' their departure): mode 'bus'
+   (the coach, only where that leg's airport is not home: O'Hare, not Peoria), 'rent' (a rental car) or '' (the family drives, as
+   before). Their own answer (by 'self'), or the organizer's for them (by anything else: 'keep'). null: no rides on the trip, a closed
+   or past one, someone who has not answered or does not travel, the organizer's write on a v1 trip, or no change (groundPatch: the
+   same without the note's length). */
+function groundRequest(doc, traveler, kind, mode, by, today) {
+  var p = groundPatch(doc, traveler, kind, mode, by, today);
+  return p ? respondRequest(doc, traveler, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+function groundPatch(doc, traveler, kind, mode, by, today) {
+  var k = kind === 'a' || kind === 0 ? 'a' : kind === 'd' || kind === 1 ? 'd' : '';
+  if (!doc || !doc.id || docClosed(doc) || !k || ['bus', 'rent', ''].indexOf(mode) < 0) return null;
+  var model; try { model = tripModel(doc, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return null; }
+  var x = model.members.filter(function (m) { return m.code === traveler; })[0] || null, home = rideHome(model);
+  if (!home || !x || !x.traveler || !x.answered || (isIso(today) && model.past) || (by !== 'self' && model.legacy)) return null;
+  if (mode === 'bus' && (k === 'a' ? x.A : x.H) === home) return null;
+  var put = function (s, on) { s = s.replace(k, ''); if (on) s += k; return legsOf(s.split('').sort().join('')); };
+  var bus = put(x.marks.bus, mode === 'bus'), rent = put(x.marks.rent, mode === 'rent');
+  if (bus === x.marks.bus && rent === x.marks.rent) return null;
+  return { bus: bus, rent: rent };
+}
+/* fix pass: the 🚌 / 🚙 write's guard on the fresh record: 'closed', 'same' (that leg already goes that way: nothing is sent), '' it
+   can go */
+function groundGuard(fresh, traveler, kind, mode, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return ''; }
+  var x = m.members.filter(function (y) { return y.code === traveler; })[0], k = kind === 'd' || kind === 1 ? 'd' : 'a';
+  return x && x.traveler && (x.ground[k] || '') === (mode || '') ? 'same' : '';
+}
+/* PIA-157: whom the organizer asks to drive: the candidates of every open run still ahead, but me. → null (nobody to ask), or {codes,
+   url (the one candidate's own guest link, several: the trip's guest link; never a key), runs (the open runs ahead)} */
+function rideAsk(model, today, worker) {
+  var R = rides(model, today); if (!R || !R.open) return null;
+  var me = model.me ? model.me.code : '', codes = [], open = R.runs.filter(function (r) { return r.state === 'open' && r.upcoming; });
+  open.forEach(function (r) { r.candidates.forEach(function (c) { if (c !== me && codes.indexOf(c) < 0) codes.push(c); }); });
+  if (!codes.length) return null;
+  return { codes: codes, url: guestLink(model.id, codes.length === 1 ? codes[0] : '', worker), runs: open };
+}
+/* ---- PIA-157: the ride in plain words, for the phone's calendar and an iMessage (both outside the word rule) ---- */
+var DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/* 'HH:MM' → '2:35 PM' */
+function h12(t) { if (!HHMM_RE.test(String(t || ''))) return ''; var h = +t.slice(0, 2); return ((h % 12) || 12) + ':' + t.slice(3) + (h < 12 ? ' AM' : ' PM'); }
+function rideWhere(ap) { var c = airportInfo(ap).city; return ap + (c ? ' ' + c : ''); }
+/* a member's name in a ride's words: their short name; a nameless v1 'Me' who shows the family preset's face at its home airport is
+   that person (as ⤒ Update trip names them: "Ashwin"); else their face */
+function rideName(x) {
+  if (!x) return '';
+  var f = !x.name ? FAMILY.filter(function (p) { return p.key === FAMILY_BY_AIRPORT[x.airport] && p.face === x.face; })[0] : null;
+  return x.short || x.one || (f ? shortName(f.name) : '') || x.face;
+}
+function rideWho(model, r) { return r.legs.map(function (l) { return rideName(model.members.filter(function (m) { return m.code === l.code; })[0]); }).filter(Boolean).join(', '); }
+function rideWhat(model, r) { return (r.kind === 'a' ? 'pick up ' : 'drop off ') + rideWho(model, r); }
+function rideWhen(r) { return (r.kind === 'a' ? 'lands ' : 'flight ') + r.legs.map(function (l) { return h12(l.time); }).join(', '); }
+/* one run: "Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM)." */
+function rideLine(model, r) {
+  return DOW3[dowOf(r.day)] + ' ' + md(r.day) + ': ' + rideWhat(model, r) + ' at ' + rideWhere(r.ap) + ', ' + rideWhen(r) +
+    (r.leave ? ' (leave home ' + (r.leave.day !== r.day ? DOW3[dowOf(r.leave.day)] + ' ' : '') + h12(r.leave.t) + ')' : '') + '.';
+}
+/* how: 'ask' (can you drive?), 'remind' (the driver's runs), 'tell' (a time changed). A pure string: names, days, airports and
+   12-hour times only; never a key, a token or a price (the link goes beside it, guestLink's) */
+function rideText(model, runs, how) {
+  var head = how === 'remind' ? '🚗 Reminder:' : how === 'tell' ? '🚗 Ride update:' : '🚗 Can you drive?';
+  return [head].concat((runs || []).map(function (r) { return rideLine(model, r); })).join(' ');
+}
+/* PIA-157: the driver's runs in their phone's calendar: one VCALENDAR with one VEVENT per run still ahead they drive, from leaving
+   home to being back (floating local time: no Z, no TZID; the driver is at home in the airport's zone), two alarms (a day before and
+   30 minutes before), the guest link alone as its description (never a key, a token or a price), a UID from checked codes only.
+   sig: what the events say (each run's key, its day, ⏰ and its legs' times), kept on the phone at its last 📅 Phone
+   (pialax_ui_v1.rides; rideSigAhead reads it less the runs behind us).
+   ctx = {today, now, worker}. → {sig, n, ics {kind, filename, mime, text}} or null (nothing to add) */
+function rideEvents(model, driverCode, ctx) {
+  ctx = ctx || {};
+  if (!isIso(ctx.today) || typeof ctx.now !== 'number' || !isFinite(ctx.now) || !MEMBER_CODE_RE.test(String(driverCode || ''))) return null;
+  var mine = drivesOf(rides(model, ctx.today), driverCode).filter(function (r) { return r.leave && r.back; });
+  if (!mine.length) return null;
+  var link = guestLink(model.id, '', ctx.worker), id = IDEA_ID_RE.test(String(model.id || '')) ? model.id : 'trip';
+  var stamp = new Date(ctx.now).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z'), at = function (x) { return icsDay(x.day) + 'T' + x.t.replace(':', '') + '00'; };
+  var evs = mine.map(function (r) {
+    var title = '🚗 ' + (r.kind === 'a' ? 'Pick up ' : 'Drop off ') + rideWho(model, r) + ' – ' + rideWhere(r.ap) + ', ' + rideWhen(r);
+    var lines = ['UID:' + id + '-' + driverCode + '-' + r.key + '@pialax', 'DTSTAMP:' + stamp, 'DTSTART:' + at(r.leave), 'DTEND:' + at(r.back), 'SUMMARY:' + icsEsc(title), 'LOCATION:' + icsEsc(rideWhere(r.ap))];
+    if (link) lines.push('DESCRIPTION:' + icsEsc(link));
+    lines.push('STATUS:CONFIRMED');
+    ['-P1D', '-PT30M'].forEach(function (t) { lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(title), 'TRIGGER:' + t, 'END:VALARM'); });
+    return lines;
+  });
+  var sig = mine.map(function (r) { return [r.key, r.day, r.leave.day, r.leave.t].concat(r.legs.map(function (l) { return l.code + '@' + l.time; })).join('|'); }).join(';');
+  return { sig: sig, n: mine.length, ics: { kind: 'ics', filename: 'rides-' + (fileSlug(model.name) || fileSlug(model.dest) || 'trip') + '.ics', mime: 'text/calendar;charset=utf-8', text: icsCalendar(evs) } };
+}
+/* fix pass: a kept rideEvents signature less its runs now behind us (a run's day is its second field), so a run that passes is no
+   change: compared with rideEvents(…).sig ('' once the driver drives nothing ahead), a difference is what changed since 📅 Phone */
+function rideSigAhead(sig, today) {
+  return String(sig || '').split(';').filter(function (s) { var d = s.split('|')[1]; return isIso(d) && isIso(today) && d >= today; }).join(';');
 }
 
 /* ---- hand-offs for one face on one trip (PIA-133) ---- */
@@ -1940,14 +2289,20 @@ function icsFold(line) {
   });
   return out;
 }
+/* PIA-157: one VCALENDAR around its VEVENTs, each the property lines inside it (already escaped), folded: the one calendar file
+   builder (icsText's trip event, rideEvents' runs) */
+function icsCalendar(events) {
+  var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PIALAX//Trip//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  (events || []).forEach(function (ev) { lines.push('BEGIN:VEVENT'); lines.push.apply(lines, ev); lines.push('END:VEVENT'); });
+  lines.push('END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n') + '\r\n';
+}
 function icsText(ev) {
-  var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PIALAX//Trip//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
-    'UID:' + ev.uid, 'DTSTAMP:' + ev.stamp, 'DTSTART;VALUE=DATE:' + icsDay(ev.d1), 'DTEND;VALUE=DATE:' + icsDay(ev.end),
-    'SUMMARY:' + icsEsc(ev.title)];
+  var lines = ['UID:' + ev.uid, 'DTSTAMP:' + ev.stamp, 'DTSTART;VALUE=DATE:' + icsDay(ev.d1), 'DTEND;VALUE=DATE:' + icsDay(ev.end), 'SUMMARY:' + icsEsc(ev.title)];
   if (ev.where) lines.push('LOCATION:' + icsEsc(ev.where));
   if (ev.details) lines.push('DESCRIPTION:' + icsEsc(ev.details));
-  lines.push('STATUS:' + (ev.tentative ? 'TENTATIVE' : 'CONFIRMED'), 'END:VEVENT', 'END:VCALENDAR');
-  return lines.map(icsFold).join('\r\n') + '\r\n';
+  lines.push('STATUS:' + (ev.tentative ? 'TENTATIVE' : 'CONFIRMED'));
+  return icsCalendar([lines]);
 }
 /* P-calendar-add: one all-day event (d2 + 1 is the exclusive end) over my own travel days when I have a usable
    pair, else the plan, as the prototype's sheet does: a host, someone who is out, a phone with no face, or my own
@@ -2221,27 +2576,42 @@ function createRequest(draft, opts) {
 
 /* typed answer text, minus the marks that are reserved for structure: a leading 📞 (the organizer answered) and a
    trailing '(entered by X)' (v1's proxy mark) would otherwise read back as a proxy answer */
+/* PIA-157: …and any marker-shaped token it begins with (🛬 / 🛫 a time, 🚗 a claim, 🚌 / 🚙 / 🐈 a leg, 🧺 dishes), so typed text can
+   never forge a claim; "🚌 taking the bus" stays (🚌 there is not followed by a, d or ad) */
 function typedNote(s) {
   var t = String(s == null ? '' : s).trim(), m;
-  for (;;) { t = t.replace(LEGACY_PROXY_RE, '').trim(); if ((m = /^📞(?: |$)/u.exec(t))) { t = t.slice(m[0].length).trim(); continue; } break; }
+  for (;;) { t = t.replace(LEGACY_PROXY_RE, '').trim(); if ((m = noteMark(t))) { t = t.slice(m.n).trim(); continue; } break; }
   return t;
 }
-/* how many characters of typed text fit after the 📞 / 🛬 / 🛫 prefixes (the Worker caps the whole note at 280),
-   so the answer screen can cap its text field */
-function noteRoom(called, arr, dep) { var p = buildRespNote(called, arr, dep, ''); return TEXT_MAX.note - (p ? p.length + 1 : 0); }
+/* how many characters of typed text fit after the 📞 / 🛬 / 🛫 prefixes and (PIA-157) the note's other markers, mk (the Worker caps
+   the whole note at 280), so the answer screen can cap its text field */
+function noteRoom(called, arr, dep, mk) { var p = buildRespNote(called, arr, dep, '', mk); return p === null ? 0 : Math.max(0, TEXT_MAX.note - (p ? p.length + 1 : 0)); }
 /* POST /idea/respond: always complete, because the Worker blanks missing dates and note and resets origin.
    patch: {status, origin (an override; '' or the home code = none), available_from, available_to, note (text),
            arrTime, depTime, arrive_at, leave_from}. A member with no answer yet needs patch.status (no silent 'in').
    opts.by: 'self' strips 📞, 'proxy' adds it (idempotent), 'keep' (default) keeps the mark as it reads. Typed
-   text never carries the 📞 or '(entered by X)' marks. arrive_at / leave_from are sent only when they change. */
+   text never carries the 📞 or '(entered by X)' marks. arrive_at / leave_from are sent only when they change.
+   PIA-157: the markers too: claims [{code, kind, ap, day}], bus / rent / pet ('', 'a', 'd', 'ad'), dish (palette glyphs); what is
+   not patched is carried from the answer as it is. A host still on their default answer becomes In with their first marker (a ride
+   claimed, a dish): by the organizer that is an answer on their behalf (📞, 'proxy'), by them their own; anyone else still needs an
+   answer first. A write that changes a time or a marker builds nothing when the note would pass 280 or cut its typed text. */
+var MARK_KEYS = ['claims', 'bus', 'rent', 'pet', 'dish'];
 function respondRequest(doc, code, patch, opts) {
   opts = opts || {}; patch = patch || {};
   var mem = memberOf(doc, code); if (!mem || !doc.id || docClosed(doc)) return null;
   var prev = validResp(doc.responses && doc.responses[code]);
   var has = function (k) { return hasOwn(patch, k); };
-  if (!prev && !has('status')) return null;
-  var status = has('status') ? patch.status : prev.status;
+  var marks = MARK_KEYS.some(has), by = opts.by, status;
+  if (!prev && !has('status')) {
+    var dest = docDest(doc), ap = normIata(mem.airport);
+    if (!marks || !dest || !ap || localSet(dest).indexOf(ap) < 0) return null;
+    status = 'in'; if (by !== 'self') by = 'proxy';
+  } else status = has('status') ? patch.status : prev.status;
   if (!hasOwn(IDEA_STATUSES, status)) return null;
+  // a marker patched with something that is not one builds nothing (never silently dropped)
+  if (['bus', 'rent', 'pet'].some(function (k) { return has(k) && patch[k] !== '' && !legsOf(patch[k]); })) return null;
+  if (has('claims') && (!Array.isArray(patch.claims) || patch.claims.some(function (c) { return !claimTok(c); }))) return null;
+  if (has('dish') && (!Array.isArray(patch.dish) || patch.dish.length > 3 || dishesOf(patch.dish).length !== patch.dish.length)) return null;
   var home = normIata(mem.airport);
   var origin = has('origin') ? normIata(patch.origin) : (prev && isIata(prev.origin) && prev.origin !== home ? prev.origin : '');
   if (origin === home) origin = '';
@@ -2251,10 +2621,12 @@ function respondRequest(doc, code, patch, opts) {
   var n = parseRespNote(prev && prev.note);
   var arr = has('arrTime') ? patch.arrTime || '' : n.arr, dep = has('depTime') ? patch.depTime || '' : n.dep;
   if ((arr && !HHMM_RE.test(arr)) || (dep && !HHMM_RE.test(dep))) return null;
-  var called = opts.by === 'self' ? false : opts.by === 'proxy' ? true : n.called;
-  var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text);
-  // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing
-  if ((has('arrTime') || has('depTime')) && parseRespNote(note).text !== String(text || '').trim()) return null;
+  var called = by === 'self' ? false : by === 'proxy' ? true : n.called;
+  var mk = {}; MARK_KEYS.forEach(function (k) { mk[k] = has(k) ? patch[k] : n[k]; });
+  var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text, mk);
+  if (note === null) return null;
+  // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing (PIA-157: nor markers)
+  if ((has('arrTime') || has('depTime') || marks) && parseRespNote(note).text !== String(text || '').trim()) return null;
   var body = { member: code, status: status, origin: origin, available_from: from, available_to: to, note: note };
   var hub = hubPair(docDest(doc));
   var bad = ['arrive_at', 'leave_from'].some(function (k) {
@@ -3101,18 +3473,27 @@ function lockable(model, today) {
       'share'. A v1 trip not updated yet gives 'share' while someone waits, else 'none' (the nav's ⤒ carries its next step);
    3. me, booked: 'track' in my travel window; else 'times' while my landing time is mine to record and missing; else 'none';
    4. me travelling, answered, the dates locked, not booked, my days ahead: 'book';
-   5. else 'none': a host, a guest before 🔒, a guest who has not answered (the answer row is the call), someone out, nobody. */
+   5. else 'none': a host, a guest before 🔒, a guest who has not answered (the answer row is the call), someone out, nobody.
+   PIA-157 adds the rides (rides()), after every step above keeps its own: 'drive' (I drive a run still ahead: its ⏰) before 'rides'
+   (runs still ahead with no driver, and I am the organizer or a host who can drive one). 1: a paid trip still shows 'drive' (a
+   removed one has no rides); 3: booked me, after 'times'; 5: everyone else ('rides' never for a traveler: their family ride needs no
+   action from them). Book, Landing time, Track, Share and Lock dates keep their precedence. */
 function primaryAction(model, today) {
-  var me = model.me;
-  if (model.decision === 'dropped' || model.closed) return me && travelWindow(model, me.code, today) ? 'track' : 'none';
+  var me = model.me, R = null, rd = function () { return R || (R = rides(model, today) || { runs: [], open: 0 }); };
+  var drive = function () { return !!me && drivesOf(rd(), me.code).length > 0; };
+  var ask = function () {
+    return rd().open > 0 && (model.org || (!!me && me.host && rd().runs.some(function (r) { return r.state === 'open' && r.upcoming && r.candidates.indexOf(me.code) >= 0; })));
+  };
+  var rideStep = function () { return drive() ? 'drive' : ask() ? 'rides' : 'none'; };
+  if (model.decision === 'dropped' || model.closed) return me && travelWindow(model, me.code, today) ? 'track' : drive() ? 'drive' : 'none';
   if (model.org && !model.locked) {
     var waiting = model.members.some(function (x) { return !x.host && x.status === 'waiting'; });
     if (model.legacy) return waiting ? 'share' : 'none';
     return waiting ? 'share' : lockable(model, today) ? 'lock' : 'share';
   }
-  if (me && me.traveler && me.booked) return travelWindow(model, me.code, today) ? 'track' : timesBy(model, me.code) === 'self' && !me.arrTime ? 'times' : 'none';
+  if (me && me.traveler && me.booked) return travelWindow(model, me.code, today) ? 'track' : timesBy(model, me.code) === 'self' && !me.arrTime ? 'times' : rideStep();
   if (me && me.traveler && me.answered && model.locked && !me.booked && !!me.d1 && me.d1 >= today) return 'book';
-  return 'none';
+  return rideStep();
 }
 /* The organizer's 🎫 on someone else's row of the people board, shown once the dates are set or anyone has booked:
    never on a host, never on his own row (his is the primary's), never on a closed trip or an unmigrated v1 doc.
@@ -3421,14 +3802,17 @@ function timesRequest(doc, code, arr, dep, by) {
    which the Worker's booked needs first). unanswered: the people with no answer yet (hosts, in by default), whom 💵 closes
    out, because the Worker takes no answer on a paid trip. notimes: the booked travelers with no 🛬 time recorded yet,
    whose times 💵 freezes for the same reason (PIA-139: the confirm names both). again: a paid trip whose amount the
-   organizer can enter again on this phone (a typo fixed: the Worker takes a second booked decision). */
-function paidCheck(model) {
+   organizer can enter again on this phone (a typo fixed: the Worker takes a second booked decision). PIA-157 norides (today given):
+   the travelers with a leg no one drives yet on a run still ahead (open or moved), whose rides 💵 freezes as it freezes answers. */
+function paidCheck(model, today) {
   var unbooked = model.travelers.filter(function (x) { return !x.booked; }).map(function (x) { return x.code; });
   var unanswered = model.members.filter(function (x) { return !x.resp; }).map(function (x) { return x.code; });
   var notimes = model.travelers.filter(function (x) { return x.booked && !x.arrTime; }).map(function (x) { return x.code; });
   var why = !model.org ? 'org' : !model.prices ? 'token' : model.legacy ? 'legacy' : model.closed ? 'closed' : !model.travelers.length ? 'nobody'
     : unbooked.length ? 'unbooked' : !model.locked && (!model.plan || !model.dest) ? 'nodates' : '';
-  return { why: why, unbooked: unbooked, unanswered: unanswered, notimes: notimes, again: why === 'closed' && model.decision === 'booked' && model.paid != null };
+  var norides = [], R = isIso(today) ? rides(model, today) : null;
+  if (R) R.runs.forEach(function (r) { if (r.upcoming) r.legs.forEach(function (l) { if (l.ride.state !== 'covered' && norides.indexOf(l.code) < 0) norides.push(l.code); }); });
+  return { why: why, unbooked: unbooked, unanswered: unanswered, notimes: notimes, again: why === 'closed' && model.decision === 'booked' && model.paid != null, norides: norides };
 }
 /* the same rule on the record a 💵 is sent against: 'closed' (paid or dropped meanwhile), 'unbooked' (a 🎫 was taken away
    on another phone since this one drew 🏁), '' it can go. Who travels and who has booked does not depend on the day, so
@@ -3758,7 +4142,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 156;
+var BUILD = 157;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -3900,6 +4284,8 @@ function listSnap(id, doc) {
 }
 /* pialax_ui_v1 {sel, keySeen, v1read, shelfOpen, joins, draft, famPast, kept}: per-phone conveniences (v2 only: v1 never reads it).
    PIA-153 kept {trip id: 'plan s|plan e|my d1|my d2'}: Keep mine said for those days (mineKept) */
+/* PIA-157 rides {trip id: the signature of the runs this phone's member drives (rideEvents' sig), saved at their last 📅 Phone}: the
+   card's dot and P-rides' 📅 dot while the rides differ from what the phone's calendar holds (pruned to the trips listed here) */
 function uiRead() { return readMap(ST.ui); }
 function uiSet(patch) { var u = uiRead(); Object.keys(patch).forEach(function (k) { if (patch[k] === undefined) delete u[k]; else u[k] = patch[k]; }); lsSet(ST.ui, JSON.stringify(u)); }
 function navRead() { try { var v = JSON.parse(sessionStorage.getItem(NAV_KEY) || 'null'); return plainObj(v) ? v : {}; } catch (e) { return {}; } }
@@ -4691,8 +5077,9 @@ function unsharedIds() { var wl = sharedWl(); return shareModels().filter(functi
 /* new answers since my last look, per trip (faces marked ●) */
 function freshCodes(m) { return newAnswers(m, seenFor(m.id)); }
 /* the Trips tab's numeral: active trips still waiting on my answer, or with answers I have not seen */
-/* (PIA-154: fresh answers count on the organizer's own trips only; a trip waiting on my answer counts on every phone) */
-function tripsBadge() { return activeModels().filter(function (m) { return awaitsMe(m) || (m.org && freshCodes(m).length > 0); }).length; }
+/* (PIA-154: fresh answers count on the organizer's own trips only; a trip waiting on my answer counts on every phone; PIA-157: and a
+   trip whose rides I added to my phone's calendar, since changed: rideChanged) */
+function tripsBadge() { return activeModels().filter(function (m) { return awaitsMe(m) || (m.org && freshCodes(m).length > 0) || rideChanged(m); }).length; }
 /* my face for a list link: my profile, else my face on the trips being sent, else on any trip */
 function myFace(ids) {
   var f = profileFace(); if (f) return f;
@@ -4756,12 +5143,12 @@ var LEGEND = {
   'h-ny': ['🎉', 'New Year'], 'h-mem': ['🎗', 'Memorial Day'], 'h-jul': ['🎆', 'July 4'], 'h-lab': ['🌭', 'Labor Day'], 'h-tg': ['🦃', 'Thanksgiving'], 'h-xm': ['🎄', 'Christmas'],
   // PIA-139: booking, flight times, the calendar and the pickups
   calplus: [CALPLUS, 'Add calendar'], ics: ['📅', 'Calendar file'], gcal: ['↗', 'Google Calendar'],
-  pickup: ['⏱', 'Pickup run'], altpin: [ALTPIN, 'Other airport'],
+  pickup: ['⏱', 'One ride'], altpin: [ALTPIN, 'Other airport'],   // (PIA-157: a ⏱ bracket is one drive, arrivals or departures)
   // PIA-139 fix pass: a time's half of the day (at time entry only, PIA-154), how long a pickup run waits, what 💵 closes. PIA-156: a
   // booking toggle is a checkbox, ☐ until it is booked, ☑ once it is ("☐ I booked", "☑ Booked"; ☑ with U+FE0E, drawn as text like
   // ☐); the key's ⏳ Waiting row, as its long press says it (no answer yet before 🔒, not booked yet after), and its Remind
   tkoff: ['☐', 'Not booked'], tkon: [TK_ON, 'Booked'], waitans: ['⏳', 'No answer yet'], waitbook: ['⏳', 'Not booked yet'], remind: [SHARE, 'Remind'],
-  tday: ['☀', 'Daytime'], tnight: ['🌃', 'Night'], runwait: ['0:35', 'Pickup wait'],
+  tday: ['☀', 'Daytime'], tnight: ['🌃', 'Night'], runwait: ['0:35', 'Time apart'],
   closes: ['⚠🔒', 'Closes answers'],
   // PIA-154: More (the trip's rare actions), a booked traveler with no landing time yet (the organizer's board). PIA-155: More's
   // stage is one picture with its own name (no stepper dots to key)
@@ -4781,7 +5168,10 @@ var LEGEND = {
   ownarr: ['<span class="tn">11/24</span>', 'Own arrival'], hosted: ['🏠2', 'Hosted or hosting'], pastcols: ['🗄', 'Archive'],
   candidate: ['＋📍', 'Another destination'], mapunavailable: ['🗺 ◷', 'Map unavailable'], pair: ['★', 'Cheapest pickup pair'], predicted: ['≈', 'Cached flight time'], calclash: ['⚠', 'Overlapping trips'],
   // PIA-153: the trip page's two ranges (👪 the group's plan, my face my days, ⚠ where they differ)
-  plan: ['👪', 'Group plan'], mine: ['<span class="av s28" style="--pc:var(--p0)"><span class="f">🙂</span></span>', 'My days'], notplan: ['⚠', 'Not the plan']
+  plan: ['👪', 'Group plan'], mine: ['<span class="av s28" style="--pc:var(--p0)"><span class="f">🙂</span></span>', 'My days'], notplan: ['⚠', 'Not the plan'],
+  // PIA-157: rides (🚗 keeps its one meaning, Drive; the share symbol is named Ask / Remind by its control, as Remind is)
+  noride: ['<span class="rq">🚗?</span>', 'No driver yet'], lvhome: ['⏰', 'Leave home'], bus: ['🚌', 'Bus'], rental: ['🚙', 'Rental car'], ridemoved: ['⚠', 'Ride changed'],
+  ask: [SHARE, 'Ask'], notimed: ['🛫?', 'No leaving time'], ridenew: ['<span class="ndot"></span>', 'Rides changed']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -5109,12 +5499,23 @@ function tokenDoor(m) {
    dates are 🔒 (Book), 🛬 my landing time once booked (the trip, with my sheet at 🛬), ✈⏱↗ in my travel days (Track), and the
    organizer's share symbol while someone waits; nothing for Lock dates (🔒 never means "act" on a card) or with nothing to do. A
    host keeps 🏠; the organizer's idea with no place keeps 🧭↗. There is no ✈↗ before 🔒, on any phone. */
+/* PIA-157: the card's ride slot, by the same rule: 'rides' "🚗?" (runs with no driver yet; the trip with P-rides on top), 'drive' my next
+   run's day ("🚗11/20"), from the day before it when to leave home ("🚗⏰12:05"); a tap opens P-rides at that run. It takes a host's 🏠
+   place only then */
+function rideSlot(m, pa) {
+  if (pa === 'rides') return '<button class="slot ride z" data-act="ridescard" data-id="' + m.id + '" aria-label="Rides open" data-lbl="Rides open"><span data-k="noride" aria-hidden="true">🚗?</span></button>';
+  var r = m.me ? drivesOf(ridesOf(m), m.me.code)[0] : null; if (!r) return '';
+  var soon = !!r.leave && RT.today >= addD(r.day, -1), lbl = soon ? 'Leave home ' + leaveAt(r) : 'Drive ' + md(r.day);
+  return '<button class="slot wide z" data-act="ridescard" data-id="' + m.id + '" data-v="' + esc(r.key) + '" aria-label="' + esc(lbl) + '" data-lbl="' + esc(lbl) + '"><span data-k="drive" aria-hidden="true">🚗</span>' +
+    (soon ? '<span data-k="lvhome" aria-hidden="true">⏰</span><span class="tn">' + esc(leaveAt(r)) + '</span>' : '<span class="tn">' + md(r.day) + '</span>') + '</button>';
+}
 function slotHTML(m) {
   var me = m.me; if (m.shelf) return '';
   var h = handoffs(m, '', RT.hctx);
-  if (me && me.host) return '<span class="slot plain z" role="img" aria-label="Host" data-lbl="Host" data-k="host">🏠</span>';
+  if (me && me.host) { var ph = primaryAction(m, RT.today); return ph === 'rides' || ph === 'drive' ? rideSlot(m, ph) : '<span class="slot plain z" role="img" aria-label="Host" data-lbl="Host" data-k="host">🏠</span>'; }
   if (m.org && !m.dest) return h.explore ? '<a class="slot gf z" ' + handoffAttrs(h.explore) + ' aria-label="Explore" data-k="explore">🧭↗</a>' : '';
   var pa = primaryAction(m, RT.today);
+  if (pa === 'rides' || pa === 'drive') return rideSlot(m, pa);
   if (pa === 'book') return h.gf ? '<a class="slot gf z" ' + handoffAttrs(h.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : '<span class="slot off z" role="img" aria-label="Fix dates" data-lbl="Fix dates" data-k="fixdates">🗓⚠</span>';
   if (pa === 'times') return '<button class="slot z" data-act="mytimes" data-id="' + m.id + '" data-v="card" aria-label="Landing time" data-lbl="Landing time" data-k="arrive">🛬</button>';
   if (pa === 'track') return h.flighty ? '<a class="slot wide z" ' + handoffAttrs(h.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight" data-k="flighty">✈⏱↗</a>' : '';
@@ -5139,7 +5540,8 @@ function cardHTML(it, o) {
   // PIA-154: one 8px dot after n/N where the card needs this phone's look, the cards the Trips tab's numeral counts: my answer is
   // awaited (any phone), else answers came in since the organizer's last look (his own cards only)
   var fresh = awaitsMe(m) ? '<span class="ndot" role="img" aria-label="Waiting on your answer" data-lbl="Your answer" data-k="askme"></span>'
-    : m.org && freshCodes(m).length ? '<span class="ndot" role="img" aria-label="New answers" data-lbl="New answer" data-k="new"></span>' : '';
+    : m.org && freshCodes(m).length ? '<span class="ndot" role="img" aria-label="New answers" data-lbl="New answer" data-k="new"></span>'
+    : rideChanged(m) ? '<span class="ndot" role="img" aria-label="Rides changed since your calendar" data-lbl="Rides changed" data-k="ridenew"></span>' : '';   // (PIA-157)
   return '<article class="card' + (o.dim || stale ? ' dim' : '') + fly + '" data-trip="' + m.id + '">' +
     '<div class="card-a">' + postcard(m) + '<h3 class="card-t" data-free><button class="card-open" data-act="open" data-id="' + m.id + '"' + (m.title ? '' : ' aria-label="Trip"') + '>' + (esc(m.title) || '…') + '</button></h3>' +
     (stale ? staleMark() : slotHTML(m)) + restore + '</div>' +
@@ -5528,11 +5930,113 @@ var WHO_ROW = {
 };
 function whoSaid(k, booking) { return k === 'booked' ? 'Booked' : k === 'hosting' ? 'Hosting' : booking ? 'Not booked yet' : 'No answer yet'; }
 function andList(a) { return a.length > 1 ? a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1] : a.join(''); }
+/* ---- PIA-157: rides on screen, read from the model's rides() (the one source of runs, ⏰ and who drives) on each render ---- */
+function ridesOf(m) { try { return m ? rides(m, RT.today) : null; } catch (e) { return null; } }
+/* the key's Rides row is there once a run is still ahead (a booked leg with its time); on a paid trip too (read only, until its last
+   run's day); never on a removed trip or one that is over */
+function ridesShown(m, R) { return !!R && m.decision !== 'dropped' && !m.past && R.runs.some(function (r) { return r.upcoming; }); }
+/* a name in the rides' words and names (fix pass): faceLabel, but a nameless v1 'Me' the family preset recognises is that person
+   (the model's rideName: "Ashwin", never "Person") */
+function rideLabel(x) { var n = rideName(x); return x && n && n !== x.face ? n : faceLabel(x); }
+function namesOf(m, codes) { return andList(codes.map(function (c) { return memberIn(m, c); }).filter(Boolean).map(rideLabel)); }
+function rideFaces(m, codes, n) { var a = codes.map(function (c) { var x = memberIn(m, c); return x ? x.face : ''; }).filter(Boolean); return a.slice(0, n).join('') + (a.length > n ? '+' + (a.length - n) : ''); }
+/* ⏰: the time to leave home, with its day when that is the day before the flight */
+function leaveAt(r) { return r.leave ? (r.leave.day !== r.day ? md(r.leave.day) + ' ' : '') + r.leave.t : ''; }
+/* why a ride control here takes no tap ('' it does): the trip paid or removed, or over */
+function rideShut(m) { return m.closed ? (m.decision === 'dropped' ? 'Removed' : 'Trip closed') : m.past ? 'Trip over' : ''; }
+/* a run said in full, for a screen reader and a long press: "Lands ORD 11/20 at 14:35, Ashwin, no driver yet" */
+function runSaid(m, r) {
+  var st = r.legs.some(function (l) { return l.ride.state === 'moved'; }) ? 'ride changed' : r.state === 'open' ? 'no driver yet' : namesOf(m, runDrivers(r)) + ' driving';
+  return (r.kind === 'a' ? 'Lands ' : 'Leaves ') + r.ap + ' ' + md(r.day) + ' at ' + r.legs.map(function (l) { return l.time; }).join(', ') + ', ' + namesOf(m, r.legs.map(function (l) { return l.code; })) + ', ' + st;
+}
+/* PIA-157: this phone's calendar holds other rides than the trip has now: rideEvents' signature differs from the one kept at its last
+   📅 Phone (pialax_ui_v1.rides), read less the runs now behind us (rideSigAhead: a run that passes is no change). Never for a phone
+   that never added them. Fix pass: also once it drives nothing ahead any more (its ride taken back, moved, unbooked, the traveler Out):
+   its calendar still holds them, so the card's dot shows, and opening the trip says so once (rideAck) */
+function keptRide(id) { var st = uiRead().rides; return plainObj(st) && typeof st[id] === 'string' ? st[id] : ''; }
+function rideChanged(m) {
+  var s = keptRide(m.id);
+  if (!s || !m.me || !RT) return false;
+  var ev = null; try { ev = rideEvents(m, m.me.code, RT.hctx); } catch (e) { ev = null; }
+  return rideSigAhead(s, RT.today) !== (ev ? ev.sig : '');
+}
+/* what 📅 Phone added on this phone (sig; '' forgets it), for the trips still in the list */
+function keepRides(id, sig) {
+  var k = uiRead().rides, o = {}, ids = listIds();
+  if (plainObj(k)) Object.keys(k).forEach(function (t) { if (t !== id && ids.indexOf(t) >= 0 && typeof k[t] === 'string') o[t] = k[t]; });
+  if (sig) o[id] = sig;
+  uiSet({ rides: o });
+}
+/* fix pass: a trip opened whose rides this phone added and no longer drives (rideChanged with nothing to add): "📅 Rides changed" once,
+   and what it added is forgotten (the dot does not stay). A driver who still drives has 📅 Phone for that */
+function rideAck(id) {
+  var m = modelOf(id); if (!m || !m.me || !rideChanged(m)) return;
+  var ev = null; try { ev = rideEvents(m, m.me.code, RT.hctx); } catch (e) { ev = null; }
+  if (ev) return;
+  keepRides(id, '');
+  toast('📅 Rides changed');
+}
+/* PIA-157: the organizer's Ask (the share symbol) while a run still ahead has no driver: one candidate → their own link (the 'nudge'
+   act, data-v ride: "Ask Mom & Dad"), several → the trip's guest link ('tshare', data-v ride: "Ask"); both with the ask in words */
+function rideAskBtn(m, cls) {
+  var ask = m.org && !m.closed && !m.past ? rideAsk(m, RT.today, workerBase()) : null; if (!ask) return '';
+  if (ask.codes.length > 1) return '<button class="ib ' + cls + '" data-act="tshare" data-v="ride" data-id="' + m.id + '" aria-label="Ask" data-lbl="Ask"><span data-k="ask">' + SHARE + '</span></button>';
+  var nm = esc('Ask ' + rideLabel(memberIn(m, ask.codes[0])));
+  return '<button class="ib ' + cls + '" data-act="nudge" data-v="ride" data-id="' + m.id + '" data-code="' + esc(ask.codes[0]) + '" aria-label="' + nm + '" data-lbl="' + nm + '"><span data-k="ask">' + SHARE + '</span></button>';
+}
+/* PIA-157: the key's 🚗 Rides row: its head (🚗 and, while the screen has a marked word left and the primary is not "🚗 Rides", the
+   word) opens P-rides. While anything still ahead is open: one dashed chip per open run (its end's glyph, its day, the travelers'
+   faces; ⚠ when a ride moved), and "🛬? 💪" for a booked leg with no time yet (that traveler's sheet, at the time), as many as the row
+   holds, then +N; the organizer's Ask at its end. When nothing is open: the drivers' faces and the travelers' own 🚌 / 🚙. */
+function rideRow(m, R, prim, word, W0) {
+  var open = R.runs.filter(function (r) { return r.upcoming && r.state === 'open'; }), nt = R.notime.filter(function (n) { return n.day >= RT.today; });
+  // (room: the faces column beside the 76px word column and its 8px gap, less the Ask and its gap; a chip's width as drawn, with its
+  // 6px margin: 48 + 8.2 a character of its day + 17 a face, ⚠ 19, +N 18; measured at 360 / 390 / 430)
+  var share = prim === 'share' ? '' : rideAskBtn(m, 'wkrem'), room = W0 - 32 - 84 - (share ? 52 : 0), items = [], said;
+  var head = '<button class="wkl" data-act="rides" data-id="' + m.id + '" aria-label="Rides" data-lbl="Rides"><span class="wg" data-k="drive" aria-hidden="true">🚗</span>' + (word ? ' <span data-lbl3>Rides</span>' : '') + '</button>';
+  if (open.length || nt.length) {
+    open.forEach(function (r) {
+      var codes = r.legs.map(function (l) { return l.code; }), mv = r.legs.some(function (l) { return l.ride.state === 'moved'; }), s = esc(runSaid(m, r));
+      items.push({ w: Math.ceil(48 + (mv ? 19 : 0) + md(r.day).length * 8.2 + Math.min(2, codes.length) * 17 + (codes.length > 2 ? 18 : 0)),
+        html: '<button class="rk' + (mv ? ' mv' : '') + '" data-act="rides" data-id="' + m.id + '" data-v="' + esc(r.key) + '" aria-label="' + s + '" data-lbl="' + s + '">' + (mv ? '<span class="w" data-k="ridemoved">⚠</span>' : '') +
+          '<span class="rkg" data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span><span class="tn">' + md(r.day) + '</span><span class="rkf" aria-hidden="true" data-pic>' + rideFaces(m, codes, 2) + '</span></button>' });
+    });
+    nt.forEach(function (n) {
+      var x = memberIn(m, n.code), s = esc((n.kind === 'a' ? 'No landing time yet: ' : 'No leaving time yet: ') + rideLabel(x));
+      items.push({ w: 76, html: '<button class="rk" data-act="ridetime" data-id="' + m.id + '" data-code="' + esc(n.code) + '" data-end="' + (n.kind === 'a' ? 0 : 1) + '" aria-label="' + s + '" data-lbl="' + s + '">' +
+        '<span class="rkg" data-k="' + (n.kind === 'a' ? 'notime' : 'notimed') + '" aria-hidden="true">' + (n.kind === 'a' ? '🛬?' : '🛫?') + '</span><span class="rkf" aria-hidden="true" data-pic>' + (x ? x.face : '') + '</span></button>' });
+    });
+    var who = []; open.forEach(function (r) { r.legs.forEach(function (l) { if (l.ride.state !== 'covered' && who.indexOf(l.code) < 0) who.push(l.code); }); });
+    said = 'Rides: ' + [who.length ? namesOf(m, who) + ' no driver yet' : '', nt.length ? namesOf(m, uniq(nt.map(function (n) { return n.code; }))) + ' no time yet' : ''].filter(Boolean).join('; ');
+  } else {
+    var drv = [], gone = [], self = R.self.filter(function (s) { return s.day >= RT.today; });
+    R.runs.filter(function (r) { return r.upcoming; }).forEach(function (r) { runDrivers(r).forEach(function (c) { if (drv.indexOf(c) < 0) drv.push(c); }); r.legs.forEach(function (l) { if (gone.indexOf(l.code) < 0) gone.push(l.code); }); });
+    drv.forEach(function (c) { var x = memberIn(m, c); if (x) items.push({ w: 36, html: '<button class="facebtn" data-act="rides" data-id="' + m.id + '" data-code="' + esc(c) + '" aria-label="' + esc(rideLabel(x) + ' driving') + '" data-lbl="' + esc(rideLabel(x)) + '">' + avatar(x, 28, { plain: true }) + '</button>' }); });
+    self.forEach(function (s) {
+      var x = memberIn(m, s.code), t = esc((s.mode === 'bus' ? 'Bus' : 'Rental car') + ' ' + md(s.day) + ': ' + rideLabel(x));
+      items.push({ w: 64, html: '<button class="rk sf" data-act="rides" data-id="' + m.id + '" data-code="' + esc(s.code) + '" data-end="' + (s.kind === 'a' ? 0 : 1) + '" aria-label="' + t + '" data-lbl="' + t + '"><span class="rkg" data-k="' + (s.mode === 'bus' ? 'bus' : 'rental') + '" aria-hidden="true">' + (s.mode === 'bus' ? '🚌' : '🚙') + '</span><span class="rkf" aria-hidden="true" data-pic>' + (x ? x.face : '') + '</span></button>' });
+    });
+    var bus = self.filter(function (s) { return s.mode === 'bus'; }).map(function (s) { return s.code; }), car = self.filter(function (s) { return s.mode === 'rent'; }).map(function (s) { return s.code; });
+    said = 'Rides: ' + [drv.length ? namesOf(m, drv) + ' drive ' + namesOf(m, gone) : '', bus.length ? namesOf(m, uniq(bus)) + ' by bus' : '', car.length ? namesOf(m, uniq(car)) + ' by rental car' : ''].filter(Boolean).join('; ');
+  }
+  // as many as the row holds beside its word column and the Ask, then +N
+  var n = 0, used = 0;
+  for (var i = 0; i < items.length; i++) { if (n && used + items[i].w + (i < items.length - 1 ? 34 : 0) > room) break; used += items[i].w; n++; }
+  var more = items.length - n;
+  return '<div class="wkr wkride" role="group" aria-label="' + esc(said) + '">' + head + '<span class="wkf">' + items.slice(0, n).map(function (x) { return x.html; }).join('') +
+    (more ? '<span class="wkn tn" aria-hidden="true">+' + more + '</span>' : '') + '</span>' + share + '</div>';
+}
 function whoKey(m, prim, budget) {
-  var ws = whoSet(m, RT.today); if (!ws.rows.length) return '';
+  var ws = whoSet(m, RT.today), RD = ridesOf(m), rr = ridesShown(m, RD); if (!ws.rows.length && !rr) return '';
   var cw = +(document.documentElement && document.documentElement.clientWidth), W0 = Math.min(cw > 0 ? cw : 360, 430);
   var h = '<div class="wk" id="wk-' + m.id + '">';
-  ws.rows.forEach(function (row, i) {
+  // PIA-157: 🚗 Rides comes after ⏳ Waiting and before ✈ Booked / 🏠 Hosting (alone on a paid trip, where whoSet has no rows); the
+  // marked words go by row order while the screen's budget lasts, and the Rides row takes none while the primary says "Rides"
+  var rows = ws.rows.slice(), words = 0;
+  if (rr) rows.splice(rows[0] && rows[0].k === 'waiting' ? 1 : 0, 0, { k: 'rides' });
+  rows.forEach(function (row) {
+    if (row.k === 'rides') { var w = prim !== 'rides' && words < budget; if (w) words++; h += rideRow(m, RD, prim, w, W0); return; }
+    var i = words; if (words < budget) words++; else i = budget;
     var R = WHO_ROW[row.k], said = whoSaid(row.k, ws.booking);
     var people = row.codes.map(function (c) { return memberIn(m, c); }).filter(Boolean);
     var rem = '';
@@ -5650,6 +6154,18 @@ function primaryHTML(m, k) {
   if (k === 'book') return wrap((h.gf ? bookLink(m, h.gf, 'btn pri', m.me.code) : fix('pri')) + myTk(m));
   // PIA-139: after my 🎫 my landing time is what is next: it opens my sheet at 🛬 (it pulses once right after the 🎫)
   if (k === 'times') return wrap('<button class="btn pri' + (timesPulse(m.id, m.me.code) ? ' pulse' : '') + '" data-act="mytimes" data-id="' + m.id + '" aria-label="Landing time"><span data-k="arrive" aria-hidden="true">🛬</span> <span data-lbl3>Landing time</span></button>');
+  // PIA-157: 🚗 Rides (runs still ahead with no driver: the organizer's, and a host's who can drive one) opens P-rides
+  if (k === 'rides') return wrap('<button class="btn pri" data-act="rides" data-id="' + m.id + '" aria-label="Rides"><span data-k="drive" aria-hidden="true">🚗</span> <span data-lbl3>Rides</span></button>');
+  // PIA-157: my next drive: its day, ⏰ when to leave home and the travelers' faces (no word), one tap to P-rides at that run
+  if (k === 'drive') {
+    var dr = m.me ? drivesOf(ridesOf(m), m.me.code)[0] : null; if (!dr) return '';
+    // (fix pass: the faces of the legs I drive; a traveler who joined the run since, still without a driver, is not mine to show)
+    var dcodes = dr.legs.filter(function (l) { return l.ride.by.indexOf(m.me.code) >= 0; }).map(function (l) { return l.code; }), dday = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dowOf(dr.leave ? dr.leave.day : dr.day)];
+    var daria = (dr.leave ? 'Leave home ' + dr.leave.t + ' ' + dday : 'Drive ' + dday + ' ' + md(dr.day)) + ' for ' + namesOf(m, dcodes);
+    return wrap('<button class="btn pri drv" data-act="rides" data-id="' + m.id + '" data-v="' + esc(dr.key) + '" aria-label="' + esc(daria) + '" data-lbl="' + esc(dr.leave ? 'Leave home ' + dr.leave.t : 'Drive') + '"><span data-k="drive" aria-hidden="true">🚗</span><span class="tn">' + md(dr.day) + '</span>' +
+      (dr.leave ? '<span aria-hidden="true"><span data-k="lvhome">⏰</span><span class="tn">' + esc(leaveAt(dr)) + '</span></span>' : '') +
+      '<span class="drvf" aria-hidden="true">' + dcodes.map(function (c) { var x = memberIn(m, c); return x ? avatar(x, 28, { plain: true }) : ''; }).join('') + '</span></button>');
+  }
   // track: my travel days, Flighty in a new tab
   return h.flighty ? wrap('<a class="btn pri" ' + handoffAttrs(h.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈</span> <span data-lbl3>Track</span> <span aria-hidden="true">↗</span></a>') : '';
 }
@@ -5691,7 +6207,8 @@ function renderTrip(id) {
   // PIA-156: the key under the board, after the rows already there (the price row, 💵 Paid: on a short phone with a sticky primary
   // they keep their place on the first screen) and above the primary, with the marked label words the screen has left (5, less
   // "Coming?" / "Hosting?" over the answer row and the primary's own: Lock dates, I booked, Landing time, Track)
-  var ask = ansOpen(m) && awaitsMe(m), budget = 5 - (ask ? 1 : 0) - ({ lock: 2, book: 2, times: 2, track: 1 }[prim] || 0);
+  // (PIA-157: + "🚗 Rides", one marked word; "🚗 11/20 ⏰12:05" has none)
+  var ask = ansOpen(m) && awaitsMe(m), budget = 5 - (ask ? 1 : 0) - ({ lock: 2, book: 2, times: 2, track: 1, rides: 1 }[prim] || 0);
   var html = nav + tripHead(m) + dateRow(m) + mineLine(m) + (ansOpen(m) ? answerRow(m, m.me, { ask: ask }) : '') + peopleBoard(m) + totalRow(m) + paidDoor(m) + whoKey(m, prim, budget) + primaryHTML(m, prim);
   return { id: m.org ? 'trip-organizer' : m.iHost ? 'trip-portal-host' : 'trip-portal', html: html };
 }
@@ -5836,15 +6353,25 @@ function candidateOf(id, ap) {
 /* PIA-154: a pickup chip in the Lands or Leaves column: "MM/DD HH:MM" on its first line, the faces (≤4, +N) on its second; solid
    once booked, dashed while not (or ≈ a cached flight time, the organizer's token phone). Its spoken name says it all; a tap opens
    that day (P-day map mode), as before */
-function pickupChip(m, c, ap) {
+/* PIA-157: a booked chip's ride on a rides trip (never a ≈ cached time): the 18px corner badge (the driver's face, 🚌, 🚙, a dashed ?
+   no one yet, ⚠ the ride moved) and its words for the chip's name; null for any other chip */
+function rideBadge(m, R, c) {
+  if (!R || !c.booked || c.pred || c.codes.length !== 1 || !(c.time || c.self)) return null;
+  var lg = rideLeg(R, c.codes[0], c.kind === 'arr' ? 'a' : 'd'); if (!lg || (!lg.run && !lg.mode)) return null;
+  if (lg.mode) return { html: '<span class="rbd" data-k="' + (lg.mode === 'bus' ? 'bus' : 'rental') + '">' + (lg.mode === 'bus' ? '🚌' : '🚙') + '</span>', said: lg.mode === 'bus' ? 'bus' : 'rental car' };
+  if (lg.ride.state === 'covered') return { html: '<span class="rbd" aria-hidden="true" data-pic>' + rideFaces(m, lg.ride.by, 1) + '</span>', said: namesOf(m, lg.ride.by) + ' driving' };
+  if (lg.ride.state === 'moved') return { html: '<span class="rbd" data-k="ridemoved">⚠</span>', said: 'ride changed' };
+  return { html: '<span class="rbd q" data-k="noride">?</span>', said: 'no driver yet' };
+}
+function pickupChip(m, c, ap, R) {
   var arr = c.kind === 'arr', who = c.codes.map(function (code) { var x = memberIn(m, code); return x ? faceLabel(x) : ''; }).filter(Boolean).join(', ');
   var faces = c.faces.slice(0, 4).join('') + (c.faces.length > 4 ? '+' + (c.faces.length - 4) : '');
   // PIA-139: only an HH:MM time is drawn, escaped (the model's pickups already refuse anything else)
-  var t = typeof c.time === 'string' && HHMM_RE.test(c.time) ? c.time : '', one = c.codes.length === 1 && memberIn(m, c.codes[0]) ? c.codes[0] : '';
+  var t = typeof c.time === 'string' && HHMM_RE.test(c.time) ? c.time : '', one = c.codes.length === 1 && memberIn(m, c.codes[0]) ? c.codes[0] : '', bd = rideBadge(m, R, c);
   return '<button class="pk ' + (arr ? 'arr' : 'dep') + (c.booked && !c.pred ? ' bk' : ' nb') + (c.maybe ? ' maybe' : '') + '" data-act="pickup" data-id="' + m.id + '" data-ap="' + esc(ap) + '" data-v="' + esc(c.date) + '"' + (one ? ' data-code="' + esc(one) + '"' : '') + ' aria-label="' +
-    esc((arr ? 'Lands ' : 'Leaves ') + ap + ' ' + md(c.date) + (t ? (c.pred ? ' about ' : ' at ') + t : '') + (c.booked ? ', booked' : ', not booked') + (who ? ', ' + who : '')) + '" data-lbl="' + (arr ? 'Arrive' : 'Leave') + '">' +
+    esc((arr ? 'Lands ' : 'Leaves ') + ap + ' ' + md(c.date) + (t ? (c.pred ? ' about ' : ' at ') + t : '') + (c.booked ? ', booked' : ', not booked') + (who ? ', ' + who : '') + (bd ? ', ' + bd.said : '')) + '" data-lbl="' + (arr ? 'Arrive' : 'Leave') + '">' +
     '<span class="pk1"><span class="tn">' + md(c.date) + '</span>' + (t ? '<span class="t tn' + (c.pred ? ' pred' : '') + '">' + (c.pred ? '<span data-k="predicted">≈</span>' : '') + esc(t) + '</span>' : '') + '</span>' +
-    '<span class="pf" data-pic>' + faces + '</span></button>';
+    '<span class="pf" data-pic>' + faces + '</span>' + (bd ? bd.html : '') + '</button>';
 }
 /* PIA-154: the pickups as a table under the map: column heads 🛬 Lands and 🛫 Leaves (this screen's marked label words), one row per
    hub airport, the destination first, always drawn (a row with nothing yet is empty). A row's head is its airport, a 44px button to
@@ -5852,17 +6379,18 @@ function pickupChip(m, c, ap) {
 function lanesHTML(m) {
   if (!m.dest) return '';
   var L = pickups(m, m.prices ? readFares() : {}, RT.now, false), tmin = function (x) { return +x.time.slice(0, 2) * 60 + +x.time.slice(3, 5); }, h = '';
-  var aps = [m.dest].concat(m.alt ? [m.alt] : []);
+  var aps = [m.dest].concat(m.alt ? [m.alt] : []), RD = ridesOf(m);   // (PIA-157: each booked chip's ride badge)
+  // (PIA-157: a run's chips drawn together in its ⏱ bracket, also where a traveler's own 🚌 / 🚙 leg falls between them in time)
   var col = function (chips, ap) {
-    var inner = '', i = 0;
-    while (i < chips.length) {
-      var c = chips[i];
-      if (!c.group) { inner += pickupChip(m, c, ap); i++; continue; }
-      var grp = []; while (i < chips.length && chips[i].group === c.group) grp.push(chips[i++]);
-      if (grp.length < 2) { inner += pickupChip(m, grp[0], ap); continue; }
+    var inner = '', done = {};
+    chips.forEach(function (c, i) {
+      if (done[i]) return;
+      if (!c.group) { inner += pickupChip(m, c, ap, RD); return; }
+      var grp = []; chips.forEach(function (x, j) { if (x.group === c.group) { grp.push(x); done[j] = 1; } });
+      if (grp.length < 2) { inner += pickupChip(m, grp[0], ap, RD); return; }
       var gap = tmin(grp[grp.length - 1]) - tmin(grp[0]);
-      inner += '<span class="grp"><span class="gh"><span data-k="pickup">⏱</span><span class="tn" data-k="runwait">' + Math.floor(gap / 60) + ':' + ('0' + gap % 60).slice(-2) + '</span></span>' + grp.map(function (x) { return pickupChip(m, x, ap); }).join('') + '</span>';
-    }
+      inner += '<span class="grp"><span class="gh"><span data-k="pickup">⏱</span><span class="tn" data-k="runwait">' + Math.floor(gap / 60) + ':' + ('0' + gap % 60).slice(-2) + '</span></span>' + grp.map(function (x) { return pickupChip(m, x, ap, RD); }).join('') + '</span>';
+    });
     return inner;
   };
   aps.forEach(function (ap) {
@@ -5999,7 +6527,7 @@ function screenWords() { return countWords($('#screen'), { lbl3: true }) + count
 var SHEETS = {};
 var SHEET_NAME = { migrate: 'Update trip', import: 'Import history', history: 'Review history', source: 'Original notes', mignote: 'Migration note', key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
   edit: 'Edit trip', drop: 'Remove trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'More', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
-  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport', mine: 'My days' };   // each sheet's accessible name
+  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport', mine: 'My days', rides: 'Rides' };   // each sheet's accessible name
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
@@ -6422,13 +6950,16 @@ function openSaveList(p) {
 /* hand a list link to the phone's share sheet (URL only), else the clipboard, else P-link; done(how) once it is out
    ('share', 'copy'), or 'link' when P-link opened over the sheet: then nothing has gone out yet, and P-link's own ⧉
    calls copied() once the person copies it */
-function shareLink(url, done, copied) {
+/* PIA-157 text (optional): words to go with the link (a ride's ask, remind or tell): the share sheet gets {text, url}, the clipboard
+   text + ' ' + url, P-link the URL alone. Every caller without text behaves exactly as before */
+function shareLink(url, done, copied, text) {
   var copy = function () {
-    try { navigator.clipboard.writeText(url).then(function () { done('copy'); }, function () { done('link'); linkSheet(url, copied); }); }
+    var s = text ? text + ' ' + url : url;
+    try { navigator.clipboard.writeText(s).then(function () { done('copy'); }, function () { done('link'); linkSheet(url, copied); }); }
     catch (e) { done('link'); linkSheet(url, copied); }
   };
   var nav = typeof navigator !== 'undefined' ? navigator : null, p = null;
-  if (nav && typeof nav.share === 'function') { try { p = nav.share({ url: url }); } catch (e) { p = null; } }
+  if (nav && typeof nav.share === 'function') { try { p = nav.share(text ? { text: text, url: url } : { url: url }); } catch (e) { p = null; } }
   if (p && typeof p.then === 'function') { p.then(function () { done('share'); }, function (e) { if (!(e && e.name === 'AbortError')) copy(); }); return; }
   copy();
 }
@@ -6444,7 +6975,9 @@ function errInfo(code) {
     // PIA-138: a date move held back on the fresh record (another phone locked the dates, or someone booked meanwhile)
     locked: ['🔒', 'Dates locked', false], booked: ['⚠✈', 'Someone booked', false],
     // PIA-139: 💵 held back on the fresh record (a 🎫 was taken away meanwhile)
-    unbooked: ['✈⚠', 'Not everyone booked', false]
+    unbooked: ['✈⚠', 'Not everyone booked', false],
+    // PIA-157: a ride held back on the fresh record (someone else covered it meanwhile; its day, airport or booking changed)
+    taken: ['🚗', 'Already covered', false], gone: ['🚗⚠', 'Ride changed', false]
   })[code] || ['⚠', 'Not saved', true];
 }
 /* ---- PIA-140: P-total, trust the one number ----
@@ -7117,6 +7650,7 @@ SHEETS.joinfwd = function (sh) {
 function legRows(m, x, edit, links, L) {
   // (each row reads the model's flightEnds alone: its day, own / follows the plan / booked, ⚠ off the plan, airport, hub pair, time)
   var fe = flightEnds(m, x.code); if (!fe) return '';
+  var RD = x.booked ? ridesOf(m) : null;   // (PIA-157: each booked leg's ride, after its time)
   // PIA-154: the PIA / ORD radios only while their flight is still to book; once booked an airport is written out only where it is
   // not the trip's destination
   var hub = fe[0].aps.length === 2 ? fe[0].aps : null, cells = !!(hub && edit && !x.booked), ho = links ? handoffs(m, x.code, RT.hctx) : null, by = timesBy(m, x.code);
@@ -7146,7 +7680,7 @@ function legRows(m, x, edit, links, L) {
     var tmv = tm && !by ? '<span class="lt" role="img" aria-label="' + (r[0] ? 'Leaves at ' : 'Lands at ') + tm + (lockT ? ', times locked' : '') + '" data-lbl="' + (lockT ? 'Times locked' : r[0] ? 'Leaves at' : 'Lands at') + '"><span class="tn">' + esc(tm) + '</span></span>' : '';
     // PIA-154: each row says which end it is in a word ("🛬 Arrive", "🛫 Leave"): 🛬 / 🛫 never stand alone in a text row
     h += '<div class="leg" style="--pc:var(--p' + x.color + ')">' + '<span class="lg0"><span data-k="' + r[2] + '" aria-hidden="true">' + r[1] + '</span> ' + r[3] + '</span>' +
-      day + tmv + (by ? timeFld(m, x, L || {}, r[4]) : '') + drive +
+      day + tmv + (by ? timeFld(m, x, L || {}, r[4]) : '') + rideGlyph(m, RD, x, r[0]) + drive +
       (cells ? '<span class="radg" role="radiogroup" aria-label="' + r[3] + '">' + hub.map(function (a) {
         return '<button class="rad" role="radio" aria-checked="' + (ap === a) + '" data-act="legair" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + r[0] + '" data-v="' + a + '" aria-label="' + r[3] + ' ' + a + '"><i></i></button>';
       }).join('') + '</span>' : ap && ap !== m.dest ? '<b class="lc">' + esc(ap) + '</b>' : '') +
@@ -7154,6 +7688,18 @@ function legRows(m, x, edit, links, L) {
   });
   // the pick between the two halves of the day for a time typed in either row (☀ / 🌃), under both rows
   return h + '</div>' + (by ? halvesHTML(L || {}, { arr: x.arrTime, dep: x.depTime }) : '');
+}
+/* PIA-157: a booked leg's ride on a rides trip, after its time in their flight section: a 44px button into P-rides at that run with
+   the driver's face, dashed 🚗? (no one yet), ⚠ (the ride moved), or the traveler's own 🚌 / 🚙. '' for any other leg */
+function rideGlyph(m, R, x, end) {
+  var lg = R && x.booked ? rideLeg(R, x.code, end ? 'd' : 'a') : null; if (!lg || (!lg.run && !lg.mode)) return '';
+  var g, said;
+  if (lg.mode) { g = lg.mode === 'bus' ? '<span data-k="bus">🚌</span>' : '<span data-k="rental">🚙</span>'; said = lg.mode === 'bus' ? 'Bus' : 'Rental car'; }
+  else if (lg.ride.state === 'covered') { g = '<span aria-hidden="true" data-pic>' + rideFaces(m, lg.ride.by, 2) + '</span>'; said = namesOf(m, lg.ride.by) + ' driving'; }
+  else if (lg.ride.state === 'moved') { g = '<span data-k="ridemoved">⚠</span>'; said = 'Ride changed'; }
+  else { g = '<span class="rq" data-k="noride">🚗?</span>'; said = 'No driver yet'; }
+  // (fix pass: named by its leg and day, so the 🛬 and 🛫 rows' buttons differ: "Landing 11/20 ride: no driver yet")
+  return '<button class="rgl" data-act="rides" data-id="' + m.id + '"' + (lg.run ? ' data-v="' + esc(lg.run.key) + '"' : '') + ' aria-label="' + esc((end ? 'Leaving ' : 'Landing ') + md(end ? x.d2 : x.d1) + ' ride: ' + said) + '" data-lbl="' + esc(said) + '">' + g + '</button>';
 }
 /* where they fly from: the home code (or their override) and how many nearby airports are searched with it; a tap gives
    a 3-letter field (any code), and clearing it goes back to the home airport */
@@ -7208,7 +7754,9 @@ SHEETS.person = function (sh) {
   if (ho.nudge && open) h += '<button class="btn wide" data-act="nudge" data-id="' + m.id + '" data-code="' + esc(x.code) + '"><span data-k="share">' + SHARE + '</span> Share</button>';
   if ((canAct || why) && (!isMe || sh.p.outside)) h += answerRow(m, x, { proxy: !isMe, why: why });
   if (iam) h += '<button class="btn pri wide" data-act="pickface" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc('This is me: ' + faceLabel(x)) + '"><span data-k="me">🙋</span> It\'s me</button>';
-  if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b></div>';
+  // (PIA-157: a host who drives runs still ahead: 🚗n, into P-rides)
+  var hd = x.host ? drivesOf(ridesOf(m), x.code).length : 0;
+  if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b>' + (hd ? '<button class="rgl" data-act="rides" data-id="' + m.id + '" aria-label="' + esc(faceLabel(x) + ' drive ' + hd + (hd === 1 ? ' ride' : ' rides')) + '" data-lbl="' + (hd === 1 ? '1 ride' : hd + ' rides') + '"><span data-k="drive" aria-hidden="true">🚗</span><span class="tn">' + hd + '</span></button>' : '') + '</div>';
   else if (x.traveler && m.dest) {
     // PIA-151: their flight section, in one place: where they fly from, the 🛬 Arrive / 🛫 Leave rows (day, airport, and once booked
     // the time), their fares on the organizer's token phone (until they book), then [✈ Book ↗ | 🎫 I booked] for exactly those days and
@@ -7432,9 +7980,24 @@ function saveTimes(sh, o) {
     var fm = freshModel(id, f); return fm && !docClosed(f) && !timesBy(fm, code) ? 'unbooked' : '';
   } }).then(function (r) {
     if (r.held && r.code === 'unbooked') { if (!o.flush) toast('✈⚠'); }
-    else if (!r.ok) showError(r.code, r.retry); else if (!bad && !o.flush) toast((arr ? '🛬' : '') + (dep ? '🛫' : '') + '✓');
+    else if (!r.ok) showError(r.code, r.retry); else if (!bad && !o.flush) toast((arr ? '🛬' : '') + (dep ? '🛫' : '') + '✓', null, timesTell(id, code, arr !== undefined && arr !== cur.arr, dep !== undefined && dep !== cur.dep));
     return r;
   });
+}
+/* PIA-157: a 🛬 / 🛫 just saved on a leg someone else drives: the toast's share symbol tells them (their own link with the ride in words
+   on the organizer's phone, "Tell Mom & Dad"; the trip's guest link on any other phone, "Tell"); null when no one else drives it */
+function timesTell(id, code, a, d) {
+  var m = modelOf(id), R = ridesOf(m), me = m && m.me ? m.me.code : '', drv = [], runs = [];
+  if (!R) return null;
+  [a ? 'a' : '', d ? 'd' : ''].filter(Boolean).forEach(function (k) {
+    var lg = rideLeg(R, code, k); if (!lg || !lg.run || !lg.run.upcoming) return;
+    var by = lg.ride.by.filter(function (c) { return c !== me; }); if (!by.length) return;
+    if (runs.indexOf(lg.run) < 0) runs.push(lg.run);
+    by.forEach(function (c) { if (drv.indexOf(c) < 0) drv.push(c); });
+  });
+  if (!drv.length) return null;
+  var one = m.org && drv.length === 1, url = guestLink(m.id, one ? drv[0] : '', workerBase()); if (!url) return null;
+  return { label: one ? 'Tell ' + rideLabel(memberIn(m, drv[0])) : 'Tell', go: function () { shareLink(url, function (how) { if (how !== 'link') toast(SHARED); }, null, rideText(m, runs, 'tell')); } };
 }
 /* the page hidden (the app switcher, another app, a call) with a person's sheet open: the times typed there go now, so a
    page the phone discards meanwhile loses nothing that could already go */
@@ -7578,7 +8141,7 @@ SHEETS.mine = function (sh) {
    answers (the Worker takes none on a paid trip), so with anyone not answered yet (a host, in by default) Save asks for a
    confirming tap, their faces beside it. Once paid it reads 💵 $905. */
 function paidRow(m, L) {
-  var pc = paidCheck(m), faces = function (codes, n) { return codes.slice(0, n).map(function (c) { var x = memberIn(m, c); return x ? x.face : ''; }).join('') + (codes.length > n ? '+' + (codes.length - n) : ''); };
+  var pc = paidCheck(m, RT.today), faces = function (codes, n) { return codes.slice(0, n).map(function (c) { var x = memberIn(m, c); return x ? x.face : ''; }).join('') + (codes.length > n ? '+' + (codes.length - n) : ''); };
   var names = function (codes) { var n = codes.slice(0, 3).map(function (c) { var x = memberIn(m, c); return x ? faceLabel(x) : ''; }).filter(Boolean).join(', '); return n + (codes.length > 3 ? ' +' + (codes.length - 3) : ''); };
   if (pc.why === 'closed') {
     if (m.paid == null || !m.prices) return '';
@@ -7597,8 +8160,9 @@ function paidRow(m, L) {
   // Save always asks for a second tap: ⚠ with who has not answered, 🛬 with who has no landing time yet, 🔒; the amount reads
   // back as dollars. The confirm is the app's own (it lapses, another tap puts it back) and a quick double tap is one tap.
   var arm = armed(armKey(m.id, '', 'paid'));
-  var ask = arm ? '<div class="rowc nw paidask"><span class="w paidw" role="img" aria-label="' + esc('Closes answers and flight times' + (pc.unanswered.length ? '; no answer from ' + names(pc.unanswered) : '') + (pc.notimes.length ? '; no landing time from ' + names(pc.notimes) : '')) + '" data-lbl="Closes answers" data-k="closes">⚠' +
-    '<span aria-hidden="true">' + faces(pc.unanswered, 3) + (pc.notimes.length ? '<span data-k="arrive">🛬</span>' + faces(pc.notimes, 3) : '') + '🔒</span></span></div>' : '';
+  // (PIA-157: and the rides still open: 🚗? with the faces no one drives yet)
+  var ask = arm ? '<div class="rowc nw paidask"><span class="w paidw" role="img" aria-label="' + esc('Closes answers and flight times' + (pc.unanswered.length ? '; no answer from ' + names(pc.unanswered) : '') + (pc.notimes.length ? '; no landing time from ' + names(pc.notimes) : '') + (pc.norides.length ? '; rides open: ' + names(pc.norides) : '')) + '" data-lbl="Closes answers" data-k="closes">⚠' +
+    '<span aria-hidden="true">' + faces(pc.unanswered, 3) + (pc.notimes.length ? '<span data-k="arrive">🛬</span>' + faces(pc.notimes, 3) : '') + (pc.norides.length ? '<span class="rq" data-k="noride">🚗?</span>' + faces(pc.norides, 3) : '') + '🔒</span></span></div>' : '';
   return ask + paidField(m, L, arm);
 }
 /* the 💵 field and its Save (Confirm while asking; ◷ while it is out; ⚠↻ after a failure) */
@@ -7611,7 +8175,10 @@ function paidField(m, L, arm) {
 /* PIA-139: at 🏁 Done on the organizer's token phone, the trip view itself opens 💵 (P-stage, the field focused) */
 function paidDoor(m) {
   // (PIA-154: labelled "💵 Paid", an ordinary word, where it said 💵 ＋)
-  return paidCheck(m).why === '' ? '<div class="rowc"><button class="btn wide" data-act="paidopen" data-id="' + m.id + '" aria-label="Paid: record what we paid" data-lbl="Paid"><span aria-hidden="true" data-k="paid">💵</span> Paid</button></div>' : '';
+  // (PIA-157: it waits while a run still ahead has no driver: 💵 would freeze the rides with the answers; ⋯ More's 💵 stays, and its
+  // confirm names the open rides)
+  var R = ridesOf(m);
+  return paidCheck(m, RT.today).why === '' && !(R && R.open) ? '<div class="rowc"><button class="btn wide" data-act="paidopen" data-id="' + m.id + '" aria-label="Paid: record what we paid" data-lbl="Paid"><span aria-hidden="true" data-k="paid">💵</span> Paid</button></div>' : '';
 }
 /* PIA-139: P-calendar-add: hold the trip in the phone's own calendar. A mini postcard and the days (my own, else the plan;
    a '?' corner while they are not final), then [📅 .ics] (an all-day event file for Apple Calendar and most apps, from a
@@ -7630,6 +8197,116 @@ SHEETS.caladd = function (sh) {
   // (WCAG 2.5.3), and a tap says it happened (📅✓ / ↗✓), since a download is silent in the page. PIA-154: "📅 Phone"
   return h + '<div class="split two"><a class="btn" href="' + esc('data:' + c.ics.mime + ',' + encodeURIComponent(c.ics.text)) + '" download="' + esc(c.ics.filename) + '" data-cal="ics" aria-label="Phone calendar file, for Apple Calendar" data-lbl="Calendar file" data-k="ics"><span aria-hidden="true">📅</span> Phone</a>' +
     '<a class="btn" ' + handoffAttrs(c.google) + ' data-cal="gcal" aria-label="Google Calendar" data-lbl="Google Calendar" data-k="gcal"><span aria-hidden="true">↗</span> Google</a></div>';
+};
+/* PIA-157: P-rides, every run of the trip in one sheet (the model's rides(): the Map's own ⏱ runs on booked times), one section per
+   airport with runs, the destination first (the Map's own heads). A run: its end, its day, ⏰ when to leave home (a long press says
+   the arithmetic) and ⏱ how far apart its legs are, then a line per leg: the traveler's face, their time and who drives it (the
+   driver's face; dashed 🚗? no one yet; ⚠ with the claimer's dimmed face once that leg's day or airport moved). The controls, by phone:
+   a candidate's own "☐ 🚗 Drive" (the word while the sheet keeps ≤20 words, later ones glyph only), and on the organizer's phone each
+   candidate's face as a toggle (a ring once on), ✓ for a moved ride (its claimer's phone, or the organizer's) and Remind for a run one
+   driver has; a traveler's own 🚌 (the coach, never at home's own airport) and 🚙 (inline for a lone leg and on their own phone,
+   shown by a tap on their face in a run of several; the organizer's for anyone). Below: the legs the travelers cover themselves (a
+   tap goes back to a family ride), legs with no time yet, who still has to book; and for a driver "📅 Phone", their runs as one
+   calendar file, with a dot while it differs from the one this phone added. On a paid, removed or past trip (or a past run) the
+   controls are greyed and a tap says why; the organizer's for someone else on a v1 trip says "⤒ Update trip first". */
+function hmin(n) { n = Math.max(0, Math.round(n || 0)); return Math.floor(n / 60) + ':' + ('0' + n % 60).slice(-2); }
+function greyed(why) { return why ? ' aria-disabled="true" data-why="1" data-lbl="' + esc(why) + '"' : ''; }
+function groundBtn(m, x, kind, mode, why) {
+  var w = mode === 'bus' ? 'Bus' : 'Rental car';
+  return '<button class="tool rgr' + (why ? ' dis' : '') + '" data-act="ground" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + kind + '" data-v="' + mode + '" aria-pressed="false" aria-label="' + esc(w + ', ' + rideLabel(x) + (why ? ', ' + why.replace(/^⤒ /, '') : '')) + '"' +
+    (why ? greyed(why) : ' data-lbl="' + w + '"') + ' data-k="' + (mode === 'bus' ? 'bus' : 'rental') + '">' + (mode === 'bus' ? '🚌' : '🚙') + '</button>';
+}
+function runHTML(m, R, r, L, o) {
+  var me = m.me, mine = me ? me.code : '', shut = o.shut, key = r.key, many = r.legs.length > 1, drv = runDrivers(r), org = m.org && !m.legacy;
+  var lead = memberIn(m, r.legs[0].code), ln = lead ? rideLabel(lead) : '';
+  var arith = r.leave ? 'Leave home ' + leaveAt(r) + ': ' + hmin(r.drive) + ' drive, ' + (r.kind === 'a' ? 'at ' + r.ap + ' as ' + ln + ' lands' : hmin(RIDE_LEAD) + ' before ' + ln + '’s flight') : '';
+  var h1 = '<span data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span><span class="tn">' + md(r.day) + '</span>' +
+    (r.leave ? '<span class="rlv" role="img" aria-label="' + esc(arith) + '" data-lbl="' + esc(arith) + '"><span data-k="lvhome">⏰</span><span class="tn">' + esc(leaveAt(r)) + '</span></span>' : '') +
+    (many ? '<span class="rlv" role="img" aria-label="' + esc('Legs ' + hmin(r.spread) + ' apart') + '" data-lbl="Time apart"><span data-k="pickup">⏱</span><span class="tn" data-k="runwait">' + hmin(r.spread) + '</span></span>' : '') + '<span class="sp"></span>';
+  var ctl = '', word = false, names = namesOf(m, r.legs.map(function (l) { return l.code; }));
+  if (m.org) {
+    // the organizer's phone: each candidate's face, a toggle (his own too); for someone else on a v1 trip: ⤒ Update trip first
+    r.candidates.forEach(function (c) {
+      var x = memberIn(m, c), on = rideToggle(r, c) === 'off', why = shut || (c !== mine && m.legacy ? '⤒ Update trip first' : '');
+      ctl += '<button class="facebtn rcand' + (why ? ' dis' : '') + '" data-act="ride" data-id="' + m.id + '" data-v="' + esc(key) + '" data-code="' + esc(c) + '" aria-pressed="' + on + '" aria-label="' + esc(rideLabel(x) + ' drives ' + names + (why ? ', ' + why.replace(/^⤒ /, '') : '')) + '"' +
+        (why ? greyed(why) : ' data-lbl="' + esc(rideLabel(x)) + '"') + '>' + avatar(x, 28, { plain: true }) + '</button>';
+    });
+  } else if (me && r.candidates.indexOf(mine) >= 0) {
+    // a candidate's own phone: ☐ 🚗 Drive / ☑ 🚗 Drive (☑ once a tap would take it back: rideToggle)
+    var on = rideToggle(r, mine) === 'off';
+    word = !!o.word;
+    ctl += '<button class="tool rdrv' + (shut ? ' dis' : '') + '" data-act="ride" data-id="' + m.id + '" data-v="' + esc(key) + '" data-code="' + esc(mine) + '" aria-pressed="' + on + '" aria-label="' + esc('Drive ' + names + ' ' + md(r.day) + (shut ? ', ' + shut : '')) + '"' +
+      (shut ? greyed(shut) : ' data-lbl="Drive"') + '>' + tkBox(on) + ' <span data-k="drive" aria-hidden="true">🚗</span>' + (word ? ' Drive' : '') + '</button>';
+  }
+  // ✓: a moved ride put back on the leg as it is now (its claimer's phone, or the organizer's)
+  var movers = []; r.legs.forEach(function (l) { l.ride.was.forEach(function (c) { if (movers.indexOf(c) < 0) movers.push(c); }); });
+  movers.filter(function (c) { return c === mine || org; }).forEach(function (c) {
+    var x = memberIn(m, c);
+    ctl += '<button class="tool rok' + (shut ? ' dis' : '') + '" data-act="rideok" data-id="' + m.id + '" data-v="' + esc(key) + '" data-code="' + esc(c) + '" aria-label="' + esc('Confirm ride, ' + (x ? rideLabel(x) : '')) + '"' + (shut ? greyed(shut) : ' data-lbl="Confirm ride"') + ' data-k="ok">✓</button>';
+  });
+  // the organizer's Remind for a run one driver has (their own link, the run in words)
+  if (m.org && !shut && drv.length === 1 && drv[0] !== mine) {
+    var rn = esc('Remind ' + rideLabel(memberIn(m, drv[0])));
+    ctl += '<button class="ib rrem" data-act="nudge" data-v="rideremind" data-id="' + m.id + '" data-code="' + esc(drv[0]) + '" aria-label="' + rn + '" data-lbl="' + rn + '"><span data-k="remind">' + SHARE + '</span></button>';
+  }
+  var h = '<div class="rrun' + (r.state === 'open' ? ' open' : '') + (o.focus === key ? ' on' : '') + '" id="run-' + esc(key) + '" tabindex="-1" role="group" aria-label="' + esc(runSaid(m, r)) + '"><div class="rrh">' + h1 + ctl + '</div>';
+  r.legs.forEach(function (l) {
+    var x = memberIn(m, l.code); if (!x) return;
+    var own = l.code === mine, can = own || org, why = shut, lk = key + '|' + l.code, show = can && (!many || own || L.leg === lk);
+    var face = can && many && !own ? '<button class="facebtn" data-act="rideleg" data-id="' + m.id + '" data-v="' + esc(key) + '" data-code="' + esc(l.code) + '" aria-expanded="' + (L.leg === lk) + '" aria-label="' + esc(rideLabel(x) + ', how they get there') + '" data-lbl="' + esc(rideLabel(x)) + '">' + avatar(x, 28, { plain: true }) + '</button>'
+      : '<span class="rf" role="img" aria-label="' + esc(rideLabel(x)) + '" data-lbl="' + esc(rideLabel(x)) + '">' + avatar(x, 28, { plain: true }) + '</span>';
+    var st = l.ride.state === 'covered' ? '<span class="rst" role="img" aria-label="' + esc(namesOf(m, l.ride.by) + ' driving') + '" data-lbl="' + esc(namesOf(m, l.ride.by)) + '"><span data-pic>' + rideFaces(m, l.ride.by, 2) + '</span></span>'
+      : l.ride.state === 'moved' ? '<span class="rst" role="img" aria-label="' + esc('Ride changed, ' + namesOf(m, l.ride.was)) + '" data-lbl="Ride changed"><span data-k="ridemoved">⚠</span><span class="rw" data-pic>' + rideFaces(m, l.ride.was, 2) + '</span></span>'
+      : '<span class="rst" role="img" aria-label="No driver yet" data-lbl="No driver yet"><span class="rq" data-k="noride">🚗?</span></span>';
+    var gr = show ? (r.ap !== R.home ? groundBtn(m, x, r.kind, 'bus', why) : '') + groundBtn(m, x, r.kind, 'rent', why) : '';
+    h += '<div class="rleg">' + face + '<span class="tn">' + esc(l.time) + '</span>' + st + '<span class="sp"></span>' + gr + '</div>';
+  });
+  return { html: h + '</div>', word: word };
+}
+SHEETS.rides = function (sh) {
+  var m = modelOf(sh.p.id), R = m ? ridesOf(m) : null, L = sh.local;
+  var head = '<span data-k="drive" aria-hidden="true">🚗</span>' + (m ? '<span class="temo" aria-hidden="true" data-pic>' + m.emoji + '</span>' : '');
+  if (!m || !R) return shHd(head) + (m ? '' : '<div class="rowc">' + staleMark() + '</div>');
+  var mine = m.me ? m.me.code : '', shut = rideShut(m), org = m.org && !m.legacy, today = RT.today;
+  var h = shHd(head, { right: rideAskBtn(m, 'rask') + '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' });
+  var aps = [m.dest].concat(m.alt ? [m.alt] : []).filter(function (ap) { return R.runs.some(function (r) { return r.ap === ap; }); });
+  var ev = mine ? rideEvents(m, mine, RT.hctx) : null;
+  // its words: one airport code a section, "Phone" for a driver, and "Drive" on as many of a candidate's runs as the 20 leave
+  var spare = POPUP_MAX - aps.length - (ev ? 1 : 0);
+  aps.forEach(function (ap) {
+    h += '<div class="rsec"><div class="rsh">' + (ap !== m.dest ? '<span class="altw" data-k="altpin">' + ALTPIN + '</span>' : '<span data-k="dest" aria-hidden="true">📍</span>') + '<b class="lc">' + esc(ap) + '</b></div>';
+    R.runs.filter(function (r) { return r.ap === ap; }).forEach(function (r) {
+      var o = runHTML(m, R, r, L, { shut: shut || (r.upcoming ? '' : 'Trip over'), word: spare > 0, focus: sh.p.run });
+      if (o.word) spare--;
+      h += o.html;
+    });
+    h += '</div>';
+  });
+  // the quiet lines: a traveler's own 🚌 / 🚙 (a tap goes back to a family ride, on their phone or the organizer's), a leg with no time
+  // yet (their sheet, at the time), who still has to book
+  var q = '', ahead = function (x) { return x.day >= today; };
+  R.self.filter(ahead).forEach(function (s) {
+    var x = memberIn(m, s.code); if (!x) return;
+    var w = s.mode === 'bus' ? 'Bus' : 'Rental car', t = w + ' ' + md(s.day) + ', ' + rideLabel(x), can = s.code === mine || org;
+    var inner = '<span data-k="' + (s.mode === 'bus' ? 'bus' : 'rental') + '" aria-hidden="true">' + (s.mode === 'bus' ? '🚌' : '🚙') + '</span><span class="tn">' + md(s.day) + '</span><span aria-hidden="true" data-pic>' + x.face + '</span>';
+    q += can ? '<button class="rql" data-act="ground" data-id="' + m.id + '" data-code="' + esc(s.code) + '" data-end="' + s.kind + '" data-v="' + s.mode + '" aria-pressed="true" aria-label="' + esc(t + (shut ? ', ' + shut : ', tap for a family ride')) + '"' + (shut ? greyed(shut) : ' data-lbl="' + w + '"') + '>' + inner + '</button>'
+      : '<span class="rql" role="img" aria-label="' + esc(t) + '" data-lbl="' + w + '">' + inner + '</span>';
+  });
+  R.notime.filter(ahead).forEach(function (n) {
+    var x = memberIn(m, n.code); if (!x) return;
+    var t = (n.kind === 'a' ? 'No landing time yet: ' : 'No leaving time yet: ') + rideLabel(x);
+    q += '<button class="rql" data-act="ridetime" data-id="' + m.id + '" data-code="' + esc(n.code) + '" data-end="' + (n.kind === 'a' ? 0 : 1) + '" aria-label="' + esc(t) + '" data-lbl="' + esc(t) + '"><span data-k="' + (n.kind === 'a' ? 'notime' : 'notimed') + '" aria-hidden="true">' + (n.kind === 'a' ? '🛬?' : '🛫?') + '</span><span class="tn">' + md(n.day) + '</span><span aria-hidden="true" data-pic>' + x.face + '</span></button>';
+  });
+  if (R.waiting.length) q += '<span class="rql" role="img" aria-label="' + esc('Not booked yet: ' + namesOf(m, R.waiting)) + '" data-lbl="Not booked yet"><span data-k="waitbook" aria-hidden="true">⏳</span><span aria-hidden="true" data-pic>' + rideFaces(m, R.waiting, 6) + '</span></span>';
+  if (q) h += '<div class="rq2">' + q + '</div>';
+  // a driver's 📅 Phone: one calendar file of every run still ahead they drive (two alarms each), its dot while it differs from the
+  // one this phone added last
+  if (ev) {
+    var dot = rideSigAhead(keptRide(m.id), today) !== ev.sig;
+    h += '<a class="btn wide rcal" href="' + esc('data:' + ev.ics.mime + ',' + encodeURIComponent(ev.ics.text)) + '" download="' + esc(ev.ics.filename) + '" data-act="ridecal" data-id="' + m.id + '" aria-label="' + esc('Phone calendar file, your ' + ev.n + (ev.n === 1 ? ' ride' : ' rides') + (dot ? ', changed since you added them' : '')) + '" data-lbl="Calendar file" data-k="ics"><span aria-hidden="true">📅</span> Phone' +
+      (dot ? '<span class="ndot" aria-hidden="true"></span>' : '') + '</a>';
+  }
+  return h;
 };
 /* one person's note: ≤20 words (typing stops there), written by them, or by the organizer for them (marked 📞); everyone
    else reads it. It saves as the sheet closes, inside one complete answer (their days, airports and origin go back as
@@ -7650,7 +8327,7 @@ function personNoteHTML(sh) {
   var right = L.edit ? '<button class="ib" data-act="notesave" aria-label="Save" data-k="ok">✓</button>' : L.canEdit ? '<button class="ib edit" data-act="noteedit" aria-label="Edit" data-k="edit">✎</button>' : '';
   var h = shHd('<span data-k="note">📝</span>' + avatar(x, 40, { plain: true }), { right: right });
   if (!L.edit) return h + '<p class="notev">' + esc(fw.text) + (fw.more ? '…' : '') + '</p>';
-  h += '<textarea id="note-text" class="txt" aria-label="Note" maxlength="' + noteRoom(L.by === 'proxy', x.arrTime, x.depTime) + '">' + esc(L.text) + '</textarea>';
+  h += '<textarea id="note-text" class="txt" aria-label="Note" maxlength="' + noteRoom(L.by === 'proxy', x.arrTime, x.depTime, x.marks) + '">' + esc(L.text) + '</textarea>';
   h += '<div class="counter" id="note-count">' + (L.long ? '<span class="w" data-k="warn">⚠</span> ' : '') + cutMark(L, 'note-text') + ' <span class="tn">' + wordsIn(L.text) + '/' + CAPTION_WORDS + '</span></div>';
   if (L.armed) h += '<p class="warnline"><span data-k="warn">⚠</span> <span data-k="close">⌄</span></p>';
   return h;
@@ -8171,11 +8848,17 @@ SHEETS.day = function (sh) {
       var x = memberIn(m, code); return '<span data-pic>' + x.face + '</span><span data-k="predicted">≈</span><span class="tn">' + pair.times[i] + '</span>';
     }).join('') + '<span data-k="pickup">⏱</span><span class="tn">' + Math.floor(pair.wait / 60) + ':' + ('0' + pair.wait % 60).slice(-2) + '</span></div>';
     h += '<div class="mapday">';
+    var RD = ridesOf(m);   // (PIA-157: each booked leg's ride badge, and a 🚗 into P-rides for each run that day)
     lane.filter(function (c) { return c.date === d; }).forEach(function (c) { c.codes.forEach(function (code) {
       var x = memberIn(m, code); if (!x) return;
       // (PIA-154: no ––:–– for a time not set and no 🎫 on the chip: a booked pickup is drawn solid, an unbooked one dashed)
-      h += '<button class="pk' + (c.booked ? ' bk' : ' nb') + '" data-act="person" data-id="' + m.id + '" data-code="' + esc(code) + '" aria-label="' + esc(faceLabel(x) + (c.kind === 'arr' ? ', lands' : ', leaves') + (c.time ? ' ' + c.time : ', time not set') + (c.booked ? ', booked' : '')) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 32) + nameTag(x.one, m.members.indexOf(x) + 1) + '<span data-k="' + (c.kind === 'arr' ? 'arrive' : 'leave') + '">' + (c.kind === 'arr' ? '🛬' : '🛫') + '</span>' + (c.time ? (c.pred ? '<span data-k="predicted">≈</span>' : '') + '<span class="tn">' + c.time + '</span>' : '') + '</button>';
+      var bd = rideBadge(m, RD, { booked: c.booked, pred: c.pred, codes: [code], time: c.time, self: c.self, kind: c.kind });
+      h += '<button class="pk' + (c.booked ? ' bk' : ' nb') + '" data-act="person" data-id="' + m.id + '" data-code="' + esc(code) + '" aria-label="' + esc(faceLabel(x) + (c.kind === 'arr' ? ', lands' : ', leaves') + (c.time ? ' ' + c.time : ', time not set') + (c.booked ? ', booked' : '') + (bd ? ', ' + bd.said : '')) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 32) + nameTag(x.one, m.members.indexOf(x) + 1) + '<span data-k="' + (c.kind === 'arr' ? 'arrive' : 'leave') + '">' + (c.kind === 'arr' ? '🛬' : '🛫') + '</span>' + (c.time ? (c.pred ? '<span data-k="predicted">≈</span>' : '') + '<span class="tn">' + c.time + '</span>' : '') + (bd ? bd.html : '') + '</button>';
     }); });
+    (RD ? RD.runs : []).filter(function (r) { return r.ap === ap && r.day === d; }).forEach(function (r) {
+      var s = esc('Rides, ' + runSaid(m, r));
+      h += '<button class="tool" data-act="rides" data-id="' + m.id + '" data-v="' + esc(r.key) + '" aria-label="' + s + '" data-lbl="Rides"><span data-k="drive" aria-hidden="true">🚗</span><span data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span></button>';
+    });
     return h + '</div>';
   }
   if (sh.p.calendar) {
@@ -8586,15 +9269,18 @@ var toastTimer = null;
 /* undo (PIA-136): the toast carries ↩ for 5s, the one tap that takes the last action back */
 /* (PIA-154: text may be {html} for a toast that shows a drawn glyph: SHARED, the share symbol and ✓ once a link went out) */
 var SHARED = { html: '<span class="tsh" aria-label="Shared" role="img">' + SHARE + '</span>✓' };
-function toast(text, undo) {
+/* (PIA-157 share {go, label}: the share symbol where ↩ would be, named by its label: a time just saved, told to its driver) */
+function toast(text, undo, share) {
   var t = $('#toast');
   S.undo = typeof undo === 'function' ? undo : null;
-  t.innerHTML = '<span class="tt">' + (text && typeof text === 'object' ? text.html : esc(text)) + (S.undo ? '<button class="undo" data-act="undo" aria-label="Undo">↩</button>' : '') + '</span>';
+  S.toastShare = !S.undo && share && typeof share.go === 'function' ? share.go : null;
+  t.innerHTML = '<span class="tt">' + (text && typeof text === 'object' ? text.html : esc(text)) + (S.undo ? '<button class="undo" data-act="undo" aria-label="Undo">↩</button>' : '') +
+    (S.toastShare ? '<button class="undo tshr" data-act="toastshare" aria-label="' + esc(share.label || 'Share') + '">' + SHARE + '</button>' : '') + '</span>';
   t.classList.toggle('top', !!S.sheet);
   t.hidden = false;
-  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, S.undo ? 5000 : 1600);
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, S.undo || S.toastShare ? 5000 : 1600);
 }
-function hideToast() { var t = $('#toast'); clearTimeout(toastTimer); if (t) t.hidden = true; if (S) S.undo = null; }
+function hideToast() { var t = $('#toast'); clearTimeout(toastTimer); if (t) t.hidden = true; if (S) { S.undo = null; S.toastShare = null; } }
 function linkSheet(url, copied) { openSheet('link', { url: url, copied: typeof copied === 'function' ? copied : null }, { back: !!S.sheet, focus: 'link-url' }); var f = $('#link-url'); if (f) { try { f.select(); } catch (e) { /* not selectable */ } } }
 /* secret links (#k=, #ks=, a token) are only ever copied, never handed to a share sheet */
 function copyLink(url, ok) {
@@ -8691,6 +9377,7 @@ function openTrip(id) {
   S.tab = 'trips'; S.trip = id; S.sel = id; uiSet({ sel: id });
   pushTrip();
   if (DOCS[id]) markSeen(DOCS[id]);
+  rideAck(id);   // (PIA-157 fix pass: rides this phone's calendar holds and it no longer drives: said once, then forgotten)
   render(); window.scrollTo(0, 0);
   refresh(id);
 }
@@ -8970,6 +9657,13 @@ var ACTS = {
   tshare: function (el) {
     var id = el.dataset.id, m = modelOf(id); if (!m) return;
     var url = handoffs(m, '', RT.hctx).share, hash = m.planHash; if (!url) return;
+    // PIA-157: the organizer's Ask for several candidates: the trip's guest link with every open run in words (the plan's share
+    // dot is not this share's)
+    if (el.dataset.v === 'ride') {
+      var ask = m.org ? rideAsk(m, RT.today, workerBase()) : null; if (!ask) return;
+      shareLink(url, function (how) { if (how !== 'link') toast(SHARED); }, null, rideText(m, ask.runs, 'ask'));
+      return;
+    }
     // PIA-137: its dot goes at once (PIA-154: for the rest of this visit too, while the plan stays as it was shared)
     var shared = function () { recordTripShared(id, hash); (S.sharedNow || (S.sharedNow = {}))[id] = hash; render(true); };
     shareLink(url, function (how) { if (how === 'link') return; shared(); toast(SHARED); }, shared);
@@ -9354,6 +10048,14 @@ var ACTS = {
      booked yet too (handoffs' remind: the same personal link) */
   nudge: function (el) {
     var m = modelOf(el.dataset.id); if (!m || m.closed || m.past) return;
+    // PIA-157: the organizer's Ask (data-v ride: the open runs that candidate can drive) and Remind (rideremind: the runs that driver
+    // drives): their own guest link, with the runs in plain words (rideText); never a key or token
+    if (el.dataset.v === 'ride' || el.dataset.v === 'rideremind') {
+      var R = ridesOf(m), rc = el.dataset.code, rurl = m.org && R && memberIn(m, rc) ? guestLink(m.id, rc, workerBase()) : ''; if (!rurl) return;
+      var rruns = el.dataset.v === 'ride' ? R.runs.filter(function (r) { return r.upcoming && r.state === 'open' && r.candidates.indexOf(rc) >= 0; }) : drivesOf(R, rc);
+      shareLink(rurl, function (how) { if (how !== 'link') toast(SHARED); }, null, rideText(m, rruns, el.dataset.v === 'ride' ? 'ask' : 'remind'));
+      return;
+    }
     var ho = handoffs(m, el.dataset.code, RT.hctx); if (!ho) return;
     var own = ho.nudge || (m.org && el.dataset.v === 'remind' ? ho.remind : ''); if (!own) return;
     var url = m.org ? own : ho.share; if (!url) return;
@@ -9745,9 +10447,106 @@ var ACTS = {
     });
     return null;
   },
+  /* PIA-157: P-rides, from the key's Rides row and its chips, the primary, P-person's ride glyph, P-day's 🚗 and the Map's chips: the
+     trip's runs (data-v: the one to show, ringed and scrolled into view) */
+  rides: function (el) {
+    var m = modelOf(el.dataset.id), key = el.dataset.v || ''; if (!m || !ridesOf(m)) return null;
+    var from = S.sheet && (S.sheet.type === 'person' || S.sheet.type === 'day') ? S.sheet : null;
+    openSheet('rides', { id: m.id, run: key }, { back: !!from, focus: key ? 'run-' + key : null });
+    var t = key ? document.getElementById('run-' + key) : null; if (t && t.scrollIntoView) { try { t.scrollIntoView({ block: 'nearest' }); } catch (e) { /* no scroll */ } }
+    return null;
+  },
+  /* the card's 🚗? / 🚗11/20: the trip, with P-rides on top (at the run) */
+  ridescard: function (el) { var m = modelOf(el.dataset.id); if (!m) return null; openTrip(m.id); return ACTS.rides(el); },
+  /* "☐ 🚗 Drive" (a candidate's own phone) or a candidate's face (the organizer's): claims every leg of the run nobody covers yet, or
+     takes back that driver's claims on it; one complete answer from a fresh read, in the driver's own note (ridesRequest), held when
+     someone else covered it meanwhile (🚗 Already covered: nothing sent) */
+  ride: function (el) {
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); if (/^⤒/.test(el.getAttribute('data-lbl') || '')) migNudge(el.dataset.id); return null; }
+    var id = el.dataset.id, key = el.dataset.v, code = el.dataset.code, m = modelOf(id), R = ridesOf(m), run = R && R.runs.filter(function (r) { return r.key === key; })[0];
+    if (!run || !memberIn(m, code)) return null;
+    var self = !!(m.me && m.me.code === code); if (!self && !m.org) return null;
+    // (fix pass: the model's rideToggle, the same rule as the toggle's aria-pressed: a share of a run is released too)
+    return rideWrite(id, code, key, rideToggle(run, code), self ? 'self' : 'keep');
+  },
+  /* ✓ beside a moved ride: the claim goes to the leg's airport and day as they are now */
+  rideok: function (el) {
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return null; }
+    var m = modelOf(el.dataset.id), code = el.dataset.code; if (!m || !memberIn(m, code)) return null;
+    var self = !!(m.me && m.me.code === code); if (!self && !(m.org && !m.legacy)) return null;
+    return rideWrite(m.id, code, el.dataset.v, 'ok', self ? 'self' : 'keep', true);
+  },
+  /* 🚌 / 🚙 on a traveler's own leg (their phone, or the organizer's): that leg becomes their own way between home and the airport;
+     the same glyph again (or its quiet line below) goes back to a family ride. ↩ in the toast puts back what it was */
+  ground: function (el) {
+    if (el.getAttribute && el.getAttribute('aria-disabled') === 'true') { explain(el); return null; }
+    var id = el.dataset.id, code = el.dataset.code, kind = el.dataset.end === 'd' ? 'd' : 'a', m = modelOf(id), x = memberIn(m, code); if (!x) return null;
+    var self = !!(m.me && m.me.code === code); if (!self && !(m.org && !m.legacy)) return null;
+    var was = x.ground[kind] || '', mode = el.dataset.v === was ? '' : el.dataset.v;
+    return groundWrite(id, code, kind, mode, self ? 'self' : 'keep', was);
+  },
+  /* a traveler's face in a run of several: their 🚌 / 🚙 there (view state only) */
+  rideleg: function (el) { var sh = S.sheet; if (!sh || sh.type !== 'rides') return null; var k = el.dataset.v + '|' + el.dataset.code; sh.local.leg = sh.local.leg === k ? '' : k; renderSheet(false); return null; },
+  /* "🛬? 💪": that traveler's sheet, at the time field where this phone may record it (their own, or the organizer's for them) */
+  ridetime: function (el) {
+    var m = modelOf(el.dataset.id), code = el.dataset.code; if (!m || !memberIn(m, code)) return null;
+    openSheet('person', { id: m.id, code: code, outside: !tripShowing() }, { back: !!(S.sheet && S.sheet.type === 'rides'), focus: timesBy(m, code) ? (el.dataset.end === '1' ? 'tm-dep' : 'tm-arr') : null });
+    return null;
+  },
+  /* 📅 Phone (a download, its own default): what it held is kept on this phone (the card's and the button's dot rest until it changes) */
+  ridecal: function (el) {
+    var id = el.dataset.id, m = modelOf(id), ev = m && m.me ? rideEvents(m, m.me.code, RT.hctx) : null;
+    if (ev) keepRides(id, ev.sig);
+    toast('📅✓');
+    later(function () { if (S.sheet && S.sheet.type === 'rides') renderSheet(false); render(true, true); }, 0);   // (after the download's own default)
+    return null;
+  },
+  /* the share symbol in a toast (PIA-157: tell the driver about a time just saved) */
+  toastshare: function () { var f = S.toastShare; hideToast(); return typeof f === 'function' ? f() : null; },
   'sh-close': function () { closeSheet(); },
   'sh-back': function () { sheetBack(); }
 };
+/* PIA-157: one ride write (the toggles, ✓): the driver's one complete answer rebuilt from a fresh read (ridesRequest), guarded there
+   (rideGuard: taken, gone, closed: nothing sent); 🚗✓ with ↩ (the inverse op through the same builder) */
+/* (fix pass) the record already asks it, on this phone's copy or the fresh one, before any write is built: held taps say why in a
+   toast; 'same' (it already is so: Mom's and Dad's phones, one member) says ✓; a claim or 🚌 / 🚙 the note has no room for says
+   "⚠ Too long" (a marker is never clipped), where it was a tap that did nothing */
+function rideHeld(code, ok) {
+  var ei = errInfo(code);
+  toast(code === 'same' ? ok : code === 'closed' ? '🏁' : code === 'taken' || code === 'too_large' ? ei[0] + ' ' + ei[1] : '🚗⚠');
+  return { ok: false, code: code, held: true };
+}
+function rideWrite(id, code, key, op, by, noUndo) {
+  var today = RT.today, doc = DOCS[id], g0 = doc ? rideGuard(doc, code, key, op, today) : '';
+  if (g0) return Promise.resolve(rideHeld(g0, '🚗✓'));
+  var long = function (d) { return !!d && !!rideClaims(d, code, key, op, by, today) && !ridesRequest(d, code, key, op, by, today); };
+  if (long(doc)) return Promise.resolve(rideHeld('too_large'));
+  // (↩ only where it is the exact inverse: an 'on' that added to legs this driver already had is not undone by an 'off')
+  var R0 = ridesOf(modelOf(id)), run0 = R0 ? R0.runs.filter(function (r) { return r.key === key; })[0] : null;
+  var had = !!run0 && run0.legs.some(function (l) { return l.ride.by.indexOf(code) >= 0; });
+  if (by === 'self') confirmHinted(id, code);
+  return freshWrite(id, function (d) { var q = ridesRequest(d, code, key, op, by, today); return q ? [q] : null; }, { guard: function (f) { return rideGuard(f, code, key, op, today); } }).then(function (r) {
+    if (r.held) rideHeld(r.code, '🚗✓');
+    else if (!r.ok && r.code === 'bad_body' && long(DOCS[id])) rideHeld('too_large');
+    else if (!r.ok) showError(r.code, r.retry);
+    else toast('🚗✓', noUndo || op === 'ok' || (op === 'on' && had) ? null : function () { return rideWrite(id, code, key, op === 'on' ? 'off' : 'on', by, true); });
+    return r;
+  });
+}
+/* PIA-157: a traveler's own 🚌 / 🚙 (or back to a family ride): their one complete answer from a fresh read (groundRequest); ↩ puts it back */
+function groundWrite(id, code, kind, mode, by, was, noUndo) {
+  var today = RT.today, doc = DOCS[id], ok = (mode === 'bus' ? '🚌' : mode === 'rent' ? '🚙' : '🚗') + '✓';
+  var long = function (d) { return !!d && !!groundPatch(d, code, kind, mode, by, today) && !groundRequest(d, code, kind, mode, by, today); };
+  if (long(doc)) return Promise.resolve(rideHeld('too_large'));
+  if (by === 'self') confirmHinted(id, code);
+  return freshWrite(id, function (d) { var q = groundRequest(d, code, kind, mode, by, today); return q ? [q] : null; }, { guard: function (f) { return groundGuard(f, code, kind, mode, today); } }).then(function (r) {
+    if (r.held) rideHeld(r.code, ok);
+    else if (!r.ok && r.code === 'bad_body' && long(DOCS[id])) rideHeld('too_large');
+    else if (!r.ok) showError(r.code, r.retry);
+    else toast(ok, noUndo ? null : function () { return groundWrite(id, code, kind, was, by, mode, true); });
+    return r;
+  });
+}
 var TABS = { trips: 1, map: 1, cal: 1 };
 /* PIA-138: before I have answered, my days wait for my answer: the trip view's answer row asks (it pulses) */
 function pulseAnswer(id) {

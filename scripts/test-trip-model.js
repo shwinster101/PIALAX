@@ -1457,9 +1457,10 @@ function makeServer(worker) {
     const doneL = tweak(DW, (d) => { lockAt(d); d.responses['momdad-k3'].booked = true; d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
     const doneHostWait = tweak(DW, (d) => { peoria(d); lockAt(d); d.responses['ashwin-p8'].booked = true; d.responses['anjo-z5'] = R('in', 'LGA', '', '', { booked: true }); });
     const NT = ['momdad-k3', 'ashwin-p8', 'anjo-z5'];   // booked with no 🛬 time recorded yet
-    check(eq(pc(tweak(DW, lockAt), ORGT), { why: 'unbooked', unbooked: ['momdad-k3', 'ashwin-p8', 'anjo-z5'], unanswered: ['anjo-z5'], notimes: [], again: false }) &&
+    // (PIA-157: + norides, the travelers no one drives yet on a run still ahead: none here, no day given)
+    check(eq(pc(tweak(DW, lockAt), ORGT), { why: 'unbooked', unbooked: ['momdad-k3', 'ashwin-p8', 'anjo-z5'], unanswered: ['anjo-z5'], notimes: [], again: false, norides: [] }) &&
       pc(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }), ORGT).why === 'unbooked' && eq(pc(tweak(doneL, (d) => { d.responses['anjo-z5'].booked = false; }), ORGT).unbooked, ['anjo-z5']) &&
-      eq(pc(doneL, ORGT), { why: '', unbooked: [], unanswered: [], notimes: NT, again: false }) && eq(pc(doneHostWait, ORGT), { why: '', unbooked: [], unanswered: ['momdad-k3'], notimes: ['ashwin-p8', 'anjo-z5'], again: false }) &&
+      eq(pc(doneL, ORGT), { why: '', unbooked: [], unanswered: [], notimes: NT, again: false, norides: [] }) && eq(pc(doneHostWait, ORGT), { why: '', unbooked: [], unanswered: ['momdad-k3'], notimes: ['ashwin-p8', 'anjo-z5'], again: false, norides: [] }) &&
       eq(pc(tweak(doneL, (d) => { d.responses['anjo-z5'].note = '🛬15:10'; d.responses['ashwin-p8'].note = '🛫18:00'; }), ORGT).notimes, ['momdad-k3', 'ashwin-p8']) &&
       pc(doneL, { me: 'ashwin-p8', hasEditKey: true }).why === 'token' && pc(doneL, { me: 'anjo-z5', hasToken: true }).why === 'org' &&
       pc(tweak(doneL, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), ORGT).why === 'closed' && pc(tweak(doneL, (d) => { d.decision.stage = 'dropped'; }), ORGT).why === 'closed' &&
@@ -2358,6 +2359,382 @@ function makeServer(worker) {
     const w8 = M.whoSet(m8, TODAY).rows;
     check(m8.members.length === 8 && w8.length === 1 && w8[0].k === 'waiting' && eq(w8[0].codes, m8.members.filter((x) => x.traveler).map((x) => x.code)) && w8[0].codes.length === m8.travelers.length,
       'AC5 the 8-member trip at a place none of them lives (🔒, nobody booked): one ⏳ Waiting row with every traveler, in the trip\'s order', w8.map((r) => r.k + ':' + r.codes.length));
+  }
+  // ═══ PIA-157 ═════════════════════════════════════════════════════════════
+  section('PIA-157 rides: the note grammar, runs and ⏰ from records the real Worker wrote, claims in the driver\'s own answer, 🚌 / 🚙, the primary, 💵\'s wait, the calendar file and the ask');
+  {
+    const T = '2026-10-30', WK = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+    // b2cfd85's (#156) note functions, verbatim: what a phone that has not updated yet does with a #157 note
+    const OLD = (function (clip, TEXT_MAX, normIata, isIata, isIso, hubPair, docDest, icsFold) {
+      var IDEA_STATUSES = { in: 1, maybe: 1, out: 1 };
+      var HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+      function hasOwn(o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, k); }
+      var LEGACY_PROXY_RE = /\s*\(entered by [^()]*\)\s*$/;
+      function parseRespNote(note) {
+        var s = typeof note === 'string' ? note : '', called = false, arr = '', dep = '', m;
+        for (;;) {
+          if ((m = /^📞(?: |$)/u.exec(s))) { called = true; s = s.slice(m[0].length); continue; }
+          if ((m = /^🛬(\d\d:\d\d)(?: |$)/u.exec(s)) && HHMM_RE.test(m[1])) { arr = m[1]; s = s.slice(m[0].length); continue; }
+          if ((m = /^🛫(\d\d:\d\d)(?: |$)/u.exec(s)) && HHMM_RE.test(m[1])) { dep = m[1]; s = s.slice(m[0].length); continue; }
+          break;
+        }
+        if (LEGACY_PROXY_RE.test(s)) { called = true; s = s.replace(LEGACY_PROXY_RE, ''); }
+        return { called: called, arr: arr, dep: dep, text: s.trim() };
+      }
+      function buildRespNote(called, arr, dep, text) {
+        var parts = [];
+        if (called) parts.push('📞');
+        if (arr && HHMM_RE.test(arr)) parts.push('🛬' + arr);
+        if (dep && HHMM_RE.test(dep)) parts.push('🛫' + dep);
+        if (text && String(text).trim()) parts.push(String(text).trim());
+        return clip(parts.join(' '), TEXT_MAX.note);
+      }
+      function memberOf(doc, code) { return ((doc && doc.idea && doc.idea.members) || []).filter(function (m) { return m && m.code === code; })[0] || null; }
+      function docClosed(doc) { var st = doc && doc.decision && doc.decision.stage; return st === 'booked' || st === 'dropped'; }
+      function validResp(r) { return r && typeof r === 'object' && hasOwn(IDEA_STATUSES, r.status) ? r : null; }
+      function icsEsc(s) {
+        return String(s).replace(/\\/g, '\\\\').replace(/\r\n|\r|\n/g, '\\n').replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+          .replace(/;/g, '\\;').replace(/,/g, '\\,');
+      }
+      function icsDay(s) { return s.replace(/-/g, ''); }
+      function icsText(ev) {
+        var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PIALAX//Trip//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
+          'UID:' + ev.uid, 'DTSTAMP:' + ev.stamp, 'DTSTART;VALUE=DATE:' + icsDay(ev.d1), 'DTEND;VALUE=DATE:' + icsDay(ev.end),
+          'SUMMARY:' + icsEsc(ev.title)];
+        if (ev.where) lines.push('LOCATION:' + icsEsc(ev.where));
+        if (ev.details) lines.push('DESCRIPTION:' + icsEsc(ev.details));
+        lines.push('STATUS:' + (ev.tentative ? 'TENTATIVE' : 'CONFIRMED'), 'END:VEVENT', 'END:VCALENDAR');
+        return lines.map(icsFold).join('\r\n') + '\r\n';
+      }
+      function reqPath(route, id) { return route + '?id=' + encodeURIComponent(id); }
+      function typedNote(s) {
+        var t = String(s == null ? '' : s).trim(), m;
+        for (;;) { t = t.replace(LEGACY_PROXY_RE, '').trim(); if ((m = /^📞(?: |$)/u.exec(t))) { t = t.slice(m[0].length).trim(); continue; } break; }
+        return t;
+      }
+      function respondRequest(doc, code, patch, opts) {
+        opts = opts || {}; patch = patch || {};
+        var mem = memberOf(doc, code); if (!mem || !doc.id || docClosed(doc)) return null;
+        var prev = validResp(doc.responses && doc.responses[code]);
+        var has = function (k) { return hasOwn(patch, k); };
+        if (!prev && !has('status')) return null;
+        var status = has('status') ? patch.status : prev.status;
+        if (!hasOwn(IDEA_STATUSES, status)) return null;
+        var home = normIata(mem.airport);
+        var origin = has('origin') ? normIata(patch.origin) : (prev && isIata(prev.origin) && prev.origin !== home ? prev.origin : '');
+        if (origin === home) origin = '';
+        var from = has('available_from') ? patch.available_from || '' : (prev && isIso(prev.available_from) ? prev.available_from : '');
+        var to = has('available_to') ? patch.available_to || '' : (prev && isIso(prev.available_to) ? prev.available_to : '');
+        if ((from && !isIso(from)) || (to && !isIso(to)) || (from && to && to < from)) return null;
+        var n = parseRespNote(prev && prev.note);
+        var arr = has('arrTime') ? patch.arrTime || '' : n.arr, dep = has('depTime') ? patch.depTime || '' : n.dep;
+        if ((arr && !HHMM_RE.test(arr)) || (dep && !HHMM_RE.test(dep))) return null;
+        var called = opts.by === 'self' ? false : opts.by === 'proxy' ? true : n.called;
+        var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text);
+        // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing
+        if ((has('arrTime') || has('depTime')) && parseRespNote(note).text !== String(text || '').trim()) return null;
+        var body = { member: code, status: status, origin: origin, available_from: from, available_to: to, note: note };
+        var hub = hubPair(docDest(doc));
+        var bad = ['arrive_at', 'leave_from'].some(function (k) {
+          if (!has(k)) return false;
+          var v = normIata(patch[k]);
+          if (patch[k] && !v) return true;
+          if (v && hub.indexOf(v) < 0) return true;
+          if (v !== ((prev && prev[k]) || '')) body[k] = v;
+          return false;
+        });
+        return bad ? null : { method: 'POST', path: reqPath('/idea/respond', doc.id), body: body };
+      }
+      function timesRequest(doc, code, arr, dep, by) {
+        var r = validResp(doc && doc.responses && doc.responses[code]);
+        if (!r || !r.booked || (r.status !== 'in' && r.status !== 'maybe')) return null;
+        var n = parseRespNote(r.note), patch = {};
+        if (arr !== undefined && arr !== n.arr) patch.arrTime = arr;
+        if (dep !== undefined && dep !== n.dep) patch.depTime = dep;
+        if (!hasOwn(patch, 'arrTime') && !hasOwn(patch, 'depTime')) return null;
+        return respondRequest(doc, code, patch, { by: by === 'self' ? 'self' : 'keep' });
+      }
+      return { parseRespNote: parseRespNote, buildRespNote: buildRespNote, respondRequest: respondRequest, timesRequest: timesRequest, icsText: icsText };
+    })(M.clip, M.TEXT_MAX, M.normIata, M.isIata, M.isIso, M.hubPair, M.docDest, M.icsFold);
+
+    // ---- the note grammar ----
+    const C1 = { code: 'ashwin-t2', kind: 'a', ap: 'ORD', day: '1120' }, C2 = { code: 'anjo-t3', kind: 'd', ap: 'ORD', day: '1130' };
+    const MK = { claims: [C1, C2], bus: 'd', rent: 'a', pet: 'ad', dish: ['🥧', '🍷'] };
+    const full = M.buildRespNote(true, '14:35', '15:30', 'Bringing the good pie', MK), pf = M.parseRespNote(full);
+    const shuffled = M.parseRespNote('🧺🥧🍷 🐈ad 📞 🚙a 🛫15:30 🚌d 🚗ashwin-t2.aORD1120,anjo-t3.dORD1130 🛬14:35 Bringing the good pie');
+    check(full === '📞 🛬14:35 🛫15:30 🚗ashwin-t2.aORD1120,anjo-t3.dORD1130 🚌d 🚙a 🐈ad 🧺🥧🍷 Bringing the good pie' &&
+      pf.called && pf.arr === '14:35' && pf.dep === '15:30' && eq(pf.claims, [C1, C2]) && pf.bus === 'd' && pf.rent === 'a' && pf.pet === 'ad' && eq(pf.dish, ['🥧', '🍷']) && pf.text === 'Bringing the good pie' &&
+      eq(shuffled, pf) && M.buildRespNote(pf.called, pf.arr, pf.dep, pf.text, M.noteMarks(pf)) === full &&
+      M.buildRespNote(false, '', '', '', { bus: 'a' }) === '🚌a' && M.buildRespNote(false, '', '', 'hi') === 'hi' && M.buildRespNote(true, '09:05', '', 'x') === '📞 🛬09:05 x',
+      'AC1 every marker kind writes in the one fixed order (📞 🛬 🛫 🚗 🚌 🚙 🐈 🧺, then the text), reads back in any order, and round-trips byte for byte; a note without markers builds as before', { full });
+    // the first unknown, malformed or repeated token ends the markers; the legacy "(entered by X)" still reads as 📞; MMDD is a real day
+    const stop = (s) => { const p = M.parseRespNote(s); return [p.claims.length, p.bus, p.pet, p.dish.length, p.text]; };
+    check(eq(stop('🚌a 🚌d rest'), [0, 'a', '', 0, '🚌d rest']) && eq(stop('🚗x.aORD1320 hi'), [0, '', '', 0, '🚗x.aORD1320 hi']) && eq(stop('🚗x.aORD0230 hi'), [0, '', '', 0, '🚗x.aORD0230 hi']) &&
+      eq(stop('🚗x.aORD0229 hi'), [1, '', '', 0, 'hi']) && eq(stop('🚗x.aORD1120, hi'), [0, '', '', 0, '🚗x.aORD1120, hi']) && eq(stop('🚗x.qORD1120'), [0, '', '', 0, '🚗x.qORD1120']) &&
+      eq(stop('🐈adx'), [0, '', '', 0, '🐈adx']) && eq(stop('🧺🥧🥧 x'), [0, '', '', 0, '🧺🥧🥧 x']) && eq(stop('🧺🥧🍷🍰🍪'), [0, '', '', 0, '🧺🥧🍷🍰🍪']) && eq(stop('🧺🦃'), [0, '', '', 0, '🧺🦃']) &&
+      eq(stop('🚌 taking the bus'), [0, '', '', 0, '🚌 taking the bus']) && M.parseRespNote('🚗a.aORD1120 Late flight (entered by Ashwin)').called === true &&
+      M.parseRespNote('📞 📞 🛬10:00 🛬11:00 x').arr === '11:00' && M.DISH_PALETTE.length === 18 && new Set(M.DISH_PALETTE).size === 18 &&
+      M.DISH_PALETTE.every((g) => Array.from(g).length === 1 && M.FACES.indexOf(g) < 0 && M.SCENES.indexOf(g) < 0 && !M.holidays(2026).some((h) => h.g === g)),
+      'AC1 the first unknown, malformed or repeated token begins the text (a 2nd 🚌, 13/20, 02/30, a trailing comma, kind q, 🐈adx, a dish twice, four dishes, 🦃); 02/29 is a real day; "🚌 taking the bus" is text; "(entered by X)" still reads 📞; a 2nd 🛬 still overrides as before; the 18 dishes are single code points, none a face, scene or holiday glyph');
+    // typed text never forges a marker; noteRoom subtracts every marker
+    check(M.typedNote('🚗ashwin-t2.aORD1120 🚌ad 🛬09:00 📞 hello') === 'hello' && M.typedNote('🚌 taking the bus') === '🚌 taking the bus' && M.typedNote('hi 🚗a.aORD1120') === 'hi 🚗a.aORD1120' &&
+      M.noteRoom(false, '', '') === 280 && M.noteRoom(true, '14:35', '', MK) === 280 - (M.buildRespNote(true, '14:35', '', '', MK).length + 1) && M.noteRoom(false, '', '', { bus: 'a' }) === 276,
+      'AC2 typedNote strips any leading marker-shaped token (a claim, 🚌ad, 🛬, 📞), so typed text cannot forge a claim; "🚌 taking the bus" and a claim inside the text stay text; noteRoom subtracts every marker');
+
+    // ---- "P town" through the real Worker: 📍ORD, 🔒 11/20–11/30, Mom & Dad host at PIA (no answer yet), Ashwin booked 14:35 / 15:30, Anjo In ----
+    const PTD = { v: 1, id: 'ptPTownThanksgiving001', created_at: '2026-10-14T10:00:00.000Z', updated_at: '2026-10-16T10:00:00.000Z',
+      idea: { title: '🦃 P town thanksgiving', destination: { city: 'Chicago', airport: 'ORD' }, dates: { departure: '2026-11-20', return: '2026-11-30', searchStart: '', searchEnd: '' }, recommendation: null, notes: '',
+        members: [{ code: 'momdad-t1', label: '🌽 Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'ashwin-t2', label: '💪 Ashwin', airport: 'LAX', headcount: 1 }, { code: 'anjo-t3', label: '🗽 Anjo', airport: 'LGA', headcount: 1 }] },
+      responses: { 'ashwin-t2': R('in', 'LAX', '', '', { booked: true, booked_at: '2026-10-16T00:00:00.000Z', note: '🛬14:35 🛫15:30' }), 'anjo-t3': R('in', 'LGA') },
+      decision: { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null },
+      log: [] };
+    const ptId = srv.seed(PTD), pt0 = await srv.get(ptId, KEY);
+    const pm = (doc, me, today, over) => M.tripModel(doc, Object.assign({ today: today || T, now: NOW, me: me || null }, over || {}));
+    const r0 = M.rides(pm(pt0, 'ashwin-t2'), T);
+    const brief = (r) => r.runs.map((x) => [x.key, x.legs.map((l) => l.code + '@' + l.time + ':' + l.ride.state).join('+'), x.leave && x.leave.t, x.back && x.back.t, x.state, x.candidates.join(','), x.upcoming]);
+    check(r0 && r0.home === 'PIA' && eq(brief(r0), [['aORD1120-ashwin-t2', 'ashwin-t2@14:35:open', '12:05', '17:05', 'open', 'momdad-t1', true], ['dORD1130-ashwin-t2', 'ashwin-t2@15:30:open', '11:00', '16:00', 'open', 'momdad-t1', true]]) &&
+      r0.runs[0].leave.day === '2026-11-20' && r0.runs[1].leave.day === '2026-11-30' && r0.runs[0].drive === 150 && eq(r0.waiting, ['anjo-t3']) && r0.open === 2 && r0.notime.length === 0 && r0.self.length === 0,
+      'AC3 P town on 10/30: R1 Fri 11/20 🛬 ORD 💪 14:35 leave home 12:05, back 17:05; R2 Mon 11/30 🛫 ORD 💪 15:30 leave home 11:00 (2:00 before, 2:30 drive), back 16:00; both open, Mom & Dad the candidates; ⏳ Anjo', brief(r0));
+    // Anjo lands 15:10 and leaves 17:00: one chained run each way; Ashwin's run keys stay (the trip's first traveler)
+    const ptA = tweak(pt0, (d) => { d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛬15:10 🛫17:00'; });
+    const rA = M.rides(pm(ptA), T);
+    check(eq(brief(rA), [['aORD1120-ashwin-t2', 'ashwin-t2@14:35:open+anjo-t3@15:10:open', '12:05', '17:40', 'open', 'momdad-t1', true], ['dORD1130-ashwin-t2', 'ashwin-t2@15:30:open+anjo-t3@17:00:open', '11:00', '16:00', 'open', 'momdad-t1', true]]) &&
+      rA.runs[0].spread === 35 && rA.runs[1].spread === 90 && rA.waiting.length === 0,
+      'AC3 Anjo booked, landing 15:10 and leaving 17:00: R1 holds 14:35 and 15:10 (⏱0:35, ⏰12:05, back 17:40), R2 holds 15:30 and 17:00 (⏱1:30, ⏰11:00), the keys unchanged', brief(rA));
+    // the deliberate fix: a departure between two same-day arrivals no longer splits their ⏱ run; departures chain too
+    const ix = M.pickups(pm(tweak(pt0, (d) => { d.idea.dates.departure = '2026-11-20'; d.responses['ashwin-t2'].available_to = '2026-11-20'; d.responses['ashwin-t2'].note = '🛬12:00 🛫14:00';
+      d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛬13:30'; })), {}, NOW, false).ORD;
+    const ixA = ix.filter((c) => c.kind === 'arr'), ixD = ix.filter((c) => c.kind === 'dep' && c.time);
+    check(eq(ix.map((c) => c.kind + c.time).slice(0, 3), ['arr12:00', 'arr13:30', 'dep14:00']) && !!ixA[0].group && ixA[0].group === ixA[1].group && !ixD[0].group && ixD[0].run !== ixA[0].run &&
+      M.runChain([{ date: 'x', time: '10:00' }, { date: 'x', time: '12:00' }, { date: 'x', time: '14:01' }, { date: 'y', time: '14:02' }]).map((r) => r.length).join() === '2,1,1',
+      'AC3 a departure between two same-day arrivals (12:00 🛬, 13:30 🛬 with 14:00 🛫 after; 12:00 / 14:00 / 13:30 sorted 12:00, 13:30, 14:00) leaves the arrivals one ⏱ run; runChain chains ≤ 2:00 consecutively, never across days',
+      ix.map((c) => c.kind + c.time + ':' + (c.group || '') + '/' + (c.run || '')));
+    const ix2 = M.pickups(pm(tweak(pt0, (d) => { d.responses['ashwin-t2'].note = '🛬14:35'; d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].available_from = '2026-11-20'; d.responses['anjo-t3'].available_to = '2026-11-20'; d.responses['anjo-t3'].note = '🛬16:00 🛫15:00'; })), {}, NOW, false).ORD;
+    const ix2A = ix2.filter((c) => c.kind === 'arr' && c.time);
+    check(ix2A.length === 2 && ix2A[0].group && ix2A[0].group === ix2A[1].group,
+      'AC3 the fix in the order the old rule broke on: 🛬14:35, then 🛫15:00 (sorted between), then 🛬16:00 — one ⏱ run of arrivals (before PIA-157 the departure between them split it)', ix2.map((c) => c.kind + c.time + ':' + (c.group || '')));
+    // an arrival before 02:30 leaves home the day before; a pickup that ends after midnight comes back the next day
+    const early = M.rides(pm(tweak(pt0, (d) => { d.responses['ashwin-t2'].note = '🛬01:10 🛫23:50'; })), T);
+    check(early.runs[0].leave.day === '2026-11-19' && early.runs[0].leave.t === '22:40' && early.runs[0].back.day === '2026-11-20' && early.runs[0].back.t === '03:40' &&
+      early.runs[1].leave.day === '2026-11-30' && early.runs[1].leave.t === '19:20' && early.runs[1].back.t === '00:20' && early.runs[1].back.day === '2026-12-01',
+      'AC3 landing 01:10 (before the 2:30 drive): leave home Thu 11/19 22:40; a 23:50 flight: leave 19:20, back 00:20 the next day', [early.runs[0].leave, early.runs[0].back, early.runs[1].leave, early.runs[1].back]);
+    // at PIA (home): the 0:20 drive
+    const atPia = M.rides(pm(tweak(pt0, (d) => { d.responses['ashwin-t2'].arrive_at = 'PIA'; })), T);
+    check(atPia.runs[0].ap === 'PIA' && atPia.runs[0].drive === 20 && atPia.runs[0].leave.t === '14:15' && atPia.runs[0].back.t === '14:55' && atPia.runs[1].ap === 'ORD',
+      'AC3 Ashwin landing at PIA instead (home): the 0:20 drive, leave home 14:15, back 14:55; his ORD departure keeps 2:30', brief(atPia));
+
+    // ---- writes through the real Worker ----
+    const kR1 = 'aORD1120-ashwin-t2', kR2 = 'dORD1130-ashwin-t2';
+    // Mom & Dad's own first claim: their first answer, In, by them (no 📞)
+    const qSelf = M.ridesRequest(pt0, 'momdad-t1', kR1, 'on', 'self', T), resSelf = await srv.send(qSelf), pt1 = await srv.get(ptId, KEY);
+    const md1 = pt1.responses['momdad-t1'];
+    check(srv.allOk(resSelf) && md1.status === 'in' && md1.note === '🚗ashwin-t2.aORD1120' && md1.origin === 'PIA' && M.parseRespNote(md1.note).called === false &&
+      M.rides(pm(pt1), T).runs[0].state === 'covered' && eq(M.rides(pm(pt1), T).runs[0].legs[0].ride.by, ['momdad-t1']) && M.rides(pm(pt1), T).open === 1,
+      'AC4 Mom & Dad claim R1 on their own phone: their first answer is In (by them: no 📞), the claim 🚗ashwin-t2.aORD1120 in their own note; R1 covered by 🌽, one run left open', md1);
+    // the organizer's claim for a host still on their default: In with 📞 (an answer on their behalf)
+    const ptB = srv.seed(PTD), ptB0 = await srv.get(ptB, KEY);
+    const qOrg = M.ridesRequest(ptB0, 'momdad-t1', kR2, 'on', 'keep', T), resOrg = await srv.send(qOrg), ptB1 = await srv.get(ptB, KEY);
+    check(srv.allOk(resOrg) && ptB1.responses['momdad-t1'].status === 'in' && ptB1.responses['momdad-t1'].note === '📞 🚗ashwin-t2.dORD1130',
+      'AC4 the organizer claims R2 for Mom & Dad while they are on their default: it answers for them, In with 📞 (the honest mark), 🚗ashwin-t2.dORD1130', ptB1.responses['momdad-t1']);
+    // the organizer on an answered host: keep (no 📞 added); 'off' takes it back; nothing changes → nothing built
+    const qKeep = M.ridesRequest(pt1, 'momdad-t1', kR2, 'on', 'keep', T), resKeep = await srv.send(qKeep), pt2 = await srv.get(ptId, KEY);
+    check(srv.allOk(resKeep) && pt2.responses['momdad-t1'].note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130' && M.rides(pm(pt2), T).open === 0 &&
+      M.ridesRequest(pt2, 'momdad-t1', kR2, 'on', 'keep', T) === null && M.ridesRequest(pt2, 'momdad-t1', kR1, 'on', 'self', T) === null &&
+      M.ridesRequest(pt2, 'momdad-t1', kR2, 'off', 'self', T).body.note === '🚗ashwin-t2.aORD1120',
+      'AC4 the organizer claims R2 for Mom & Dad once they have answered: kept as it reads (no 📞); both runs covered; claiming again builds nothing; off takes back that run alone', pt2.responses['momdad-t1']);
+    // nobody else may claim: a non-candidate, a traveler on the run, an unknown run; the trip closed or past
+    check(M.ridesRequest(pt2, 'anjo-t3', kR1, 'on', 'self', T) === null && M.ridesRequest(pt2, 'ashwin-t2', kR1, 'on', 'self', T) === null && M.ridesRequest(pt2, 'momdad-t1', 'aORD1121-ashwin-t2', 'on', 'self', T) === null &&
+      M.ridesRequest(pt2, 'momdad-t1', kR1, 'on', 'self', '2026-12-02') === null && M.ridesRequest(pt2, 'momdad-t1', kR2, 'off', 'self', '2026-11-25') !== null &&
+      M.ridesRequest(pt2, 'momdad-t1', kR1, 'off', 'self', '2026-11-25') === null && M.ridesRequest(tweak(pt2, (d) => { d.decision.stage = 'dropped'; }), 'momdad-t1', kR1, 'off', 'self', T) === null &&
+      M.rides(pm(tweak(pt2, (d) => { d.decision.stage = 'dropped'; })), T) === null,
+      'AC4 no claim from someone who cannot drive it (Anjo is not there all day 11/20, Ashwin is on it), on no run, or once its day is past (11/25: R1 is behind, R2 still ahead); a removed trip has no rides at all');
+    // paid: nothing is built, and the Worker refuses an answer anyway (409)
+    const ptP = srv.seed(tweak(PTD, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; d.responses['anjo-t3'].booked = true; })), ptP0 = await srv.get(ptP, KEY);
+    const late = await srv.send(M.ridesRequest(tweak(ptP0, (d) => { d.decision.stage = 'chosen'; }), 'momdad-t1', kR1, 'on', 'self', T));
+    check(M.ridesRequest(ptP0, 'momdad-t1', kR1, 'on', 'self', T) === null && late[0].status === 409 && M.rides(pm(ptP0), T).open === 2 && M.rides(pm(ptP0), T).notime.length === 2 && M.rideGuard(ptP0, 'momdad-t1', kR1, 'on', T) === 'closed',
+      'AC4 a paid trip builds no ride write (the Worker answers 409 to one sent anyway), its rides still read (Anjo booked with no times: R1 and R2 are Ashwin\'s), the guard says closed');
+    // the v1 Thanksgiving: a host's own claim goes; the organizer's for them waits for ⤒
+    const v1d = tweak(LEG, (d) => { d.responses.LAX.booked = true; d.responses.LAX.note = '🛬14:35'; });
+    const v1m = model(v1d), v1r = M.rides(v1m, T);
+    check(v1m.legacy && v1r && v1r.runs.length >= 1 && M.ridesRequest(v1d, 'PIA', v1r.runs[0].key, 'on', 'self', T) !== null && M.ridesRequest(v1d, 'PIA', v1r.runs[0].key, 'on', 'keep', T) === null &&
+      M.groundRequest(v1d, 'LAX', 'a', 'rent', 'keep', T) === null && M.groundRequest(v1d, 'LAX', 'a', 'rent', 'self', T) !== null,
+      'AC4 the family\'s v1 Thanksgiving (dest PIA): Mom & Dad\'s own claim builds, the organizer\'s for them is null (⤒ Update trip first); the same for a traveler\'s 🚙', v1r && brief(v1r));
+    // the 'taken' guard, and two phones racing for two runs both land (each its own answer: no lost claim)
+    const ptC = srv.seed(tweak(PTD, (d) => { d.responses['anjo-t3'].available_from = '2026-11-18'; })), ptC0 = await srv.get(ptC, KEY);
+    const rC = M.rides(pm(ptC0), T);
+    const qMom = M.ridesRequest(ptC0, 'momdad-t1', kR1, 'on', 'self', T), qAnjo = M.ridesRequest(ptC0, 'anjo-t3', kR1, 'on', 'self', T);
+    await srv.send(qMom); const ptC1 = await srv.get(ptC, KEY);
+    const guard = M.rideGuard(ptC1, 'anjo-t3', kR1, 'on', T);
+    await srv.send(M.ridesRequest(ptC1, 'momdad-t1', kR2, 'on', 'self', T)); await srv.send(M.ridesRequest(ptC1, 'anjo-t3', kR1, 'off', 'self', T) || []);
+    const qA2 = M.ridesRequest(await srv.get(ptC, KEY), 'momdad-t1', kR2, 'off', 'self', T);
+    check(eq(rC.runs[0].candidates, ['momdad-t1', 'anjo-t3']) && qAnjo !== null && guard === 'taken' && M.rideGuard(ptC1, 'anjo-t3', kR1, 'off', T) === 'same' && M.rideGuard(ptC1, 'momdad-t1', kR2, 'on', T) === '' &&
+      eq(M.rides(pm(await srv.get(ptC, KEY)), T).runs.map((r) => r.legs[0].ride.by.join()), ['momdad-t1', 'momdad-t1']) && qA2 !== null,
+      'AC4 Anjo arriving 11/18 can drive R1 too (a candidate after the hosts); Mom & Dad claim it first, so Anjo\'s "on" on the fresh record is held as taken (nothing sent), and her "off" there (she has no claim) is "same" (fix pass: nothing to send); racing claims for R1 and R2 both land, each in Mom & Dad\'s own answer');
+    const ptD = srv.seed(tweak(PTD, (d) => { d.responses['anjo-t3'].available_from = '2026-11-18'; })), ptD0 = await srv.get(ptD, KEY);
+    // (both built on the same record, before either phone saw the other's: each is that driver's own answer, so both land)
+    const qD1 = M.ridesRequest(ptD0, 'momdad-t1', kR1, 'on', 'self', T), qD2 = M.ridesRequest(ptD0, 'anjo-t3', kR1, 'on', 'self', T);
+    const resD = (await srv.send(qD1)).concat(await srv.send(qD2)), twoR = M.rides(pm(await srv.get(ptD, KEY)), T).runs[0];
+    check(srv.allOk(resD) && eq(twoR.legs[0].ride.by.slice().sort(), ['anjo-t3', 'momdad-t1']) && twoR.state === 'covered',
+      'AC5 two drivers on one leg (two phones that tapped at once, each writing their own answer): both faces cover it, no ⚠', twoR.legs[0].ride);
+    // same-day time change: the claim carries, ⏰ moves; a day or airport change: moved (open) until ✓ ('ok')
+    const tc = M.timesRequest(pt2, 'ashwin-t2', '15:05', undefined, 'self'); await srv.send(tc); const pt3 = await srv.get(ptId, KEY), r3 = M.rides(pm(pt3), T);
+    check(pt3.responses['ashwin-t2'].note === '🛬15:05 🛫15:30' && r3.runs[0].key === kR1 && r3.runs[0].state === 'covered' && r3.runs[0].leave.t === '12:35' && eq(r3.runs[0].legs[0].ride.by, ['momdad-t1']),
+      'AC6 Ashwin moves his landing to 15:05 the same day: Mom & Dad\'s claim carries over (tied to ORD and 11/20, not the time), ⏰ moves to 12:35', brief(r3));
+    const dayMv = tweak(pt3, (d) => { d.responses['ashwin-t2'].available_from = '2026-11-21'; }), rMv = M.rides(pm(dayMv), T);
+    const apMv = tweak(pt3, (d) => { d.responses['ashwin-t2'].arrive_at = 'PIA'; }), rAp = M.rides(pm(apMv), T);
+    const okQ = M.ridesRequest(dayMv, 'momdad-t1', 'aORD1121-ashwin-t2', 'ok', 'self', T), okRes = await srv.send([okQ].filter(Boolean));
+    check(rMv.runs[0].key === 'aORD1121-ashwin-t2' && rMv.runs[0].state === 'open' && rMv.runs[0].legs[0].ride.state === 'moved' && eq(rMv.runs[0].legs[0].ride.was, ['momdad-t1']) && rMv.open === 1 &&
+      rAp.runs[0].ap === 'PIA' && rAp.runs[0].legs[0].ride.state === 'moved' &&
+      okQ && okQ.body.note === '🚗ashwin-t2.dORD1130,ashwin-t2.aORD1121' && okRes.length === 1 &&
+      M.ridesRequest(dayMv, 'momdad-t1', 'aORD1121-ashwin-t2', 'on', 'self', T).body.note === okQ.body.note,
+      'AC6 Ashwin lands a day later (11/21) or at PIA instead: the claim is "moved" (⚠, the run open again) until Mom & Dad\'s ✓ (op ok) moves it to the leg as it is now (on does the same)', { mv: brief(rMv), ok: okQ && okQ.body.note });
+    // unbooked, Out or removed from the trip: the claim is ignored, and dropped on the claimer's next ride write
+    const unbk = tweak(pt3, (d) => { d.responses['ashwin-t2'].booked = false; }), outA = tweak(pt3, (d) => { d.responses['ashwin-t2'].status = 'out'; });
+    const gone = tweak(pt3, (d) => { d.idea.members = d.idea.members.filter((x) => x.code !== 'ashwin-t2'); delete d.responses['ashwin-t2']; d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛫17:00'; });
+    const drop = M.ridesRequest(gone, 'momdad-t1', 'dORD1130-anjo-t3', 'on', 'self', T);
+    check(M.rides(pm(unbk), T).runs.length === 0 && M.rides(pm(outA), T).runs.length === 0 && M.rides(pm(gone), T).runs.length === 1 && drop && drop.body.note === '🚗anjo-t3.dORD1130' &&
+      M.primaryAction(pm(unbk, 'momdad-t1'), T) === 'none',
+      'AC6 Ashwin unbooked, Out, or removed from the trip: Mom & Dad\'s claims on his legs are ignored (no run, no ⏰ on their phone), and their next ride write (claiming Anjo\'s 17:00) drops them', drop && drop.body.note);
+    // 🚌 / 🚙: the traveler's own leg, in no run, beating a claim; the coach only from O'Hare (never home: PIA)
+    const bus = M.groundRequest(pt3, 'ashwin-t2', 'd', 'bus', 'self', T), busRes = await srv.send(bus), pt4 = await srv.get(ptId, KEY), r4 = M.rides(pm(pt4), T);
+    check(srv.allOk(busRes) && pt4.responses['ashwin-t2'].note === '🛬15:05 🛫15:30 🚌d' && r4.runs.length === 1 && r4.runs[0].kind === 'a' && eq(r4.self, [{ code: 'ashwin-t2', kind: 'd', ap: 'ORD', day: '2026-11-30', mode: 'bus', time: '15:30' }]) &&
+      M.groundRequest(apMv, 'ashwin-t2', 'a', 'bus', 'self', T) === null && M.groundRequest(apMv, 'ashwin-t2', 'a', 'rent', 'self', T).body.note === '🛬15:05 🛫15:30 🚙a' &&
+      M.groundRequest(pt4, 'ashwin-t2', 'd', 'bus', 'self', T) === null && M.groundRequest(pt4, 'ashwin-t2', 'd', 'rent', 'keep', T).body.note === '🛬15:05 🛫15:30 🚙d' &&
+      M.groundRequest(pt4, 'ashwin-t2', 'd', '', 'self', T).body.note === '🛬15:05 🛫15:30' && M.groundRequest(pt4, 'anjo-t3', 'a', 'bus', 'self', T) !== null && M.groundRequest(pt4, 'momdad-t1', 'a', 'bus', 'self', T) === null &&
+      M.pickups(pm(pt4), {}, NOW, false).ORD.filter((c) => c.kind === 'dep' && c.self === 'bus').length === 1,
+      'AC7 Ashwin takes the coach home (🚌d, his own answer): that leg leaves its run (in self, beating Mom & Dad\'s claim); the coach only where the airport is not home (at PIA: 🚙 only); 🚙 replaces 🚌, blank goes back to the family ride; a host has no leg', r4.self);
+    // a past run is never open; a trip to New York (LGA) or with no host at the Peoria pivot has no rides
+    const nyc = tweak(pt0, (d) => { d.idea.destination = { city: 'New York', airport: 'LGA' }; d.decision.chosen.airport = 'LGA'; });
+    const noHost = tweak(pt0, (d) => { d.idea.members[0].airport = 'SEA'; }), hostOut = tweak(pt0, (d) => { d.responses['momdad-t1'] = R('out', 'PIA'); });
+    const past = M.rides(pm(pt0, null, '2026-11-25'), '2026-11-25');
+    check(past.runs[0].upcoming === false && past.runs[1].upcoming === true && past.open === 1 && M.rides(pm(nyc), T) === null && M.rides(pm(noHost), T) === null && M.rides(pm(hostOut), T) === null &&
+      M.rides(model(DW), TODAY) === null,
+      'AC8 on 11/25 the 11/20 run is past (never open); New York (LGA: Mom & Dad are not hosts there), a trip with no Peoria host, a host who said Out, Diwali in Raleigh: no rides at all');
+
+    // ---- the primary: every role and stage, Book / Landing time / Track / Share / Lock unchanged ----
+    const pa = (doc, me, today, over) => M.primaryAction(pm(doc, me, today, over), today || T);
+    const ORGK = { hasEditKey: true };
+    const unlocked = tweak(pt0, (d) => { d.decision = { stage: 'proposed', chosen: null, chosen_at: null, estimate_total: null, actual_total: null, booked_at: null, delta_pct: null }; });
+    const notimes = tweak(pt0, (d) => { d.responses['ashwin-t2'].note = ''; });
+    check(pa(pt0, 'ashwin-t2', T, ORGK) === 'rides' && pa(pt0, 'momdad-t1') === 'rides' && pa(pt0, 'anjo-t3') === 'book' && pa(pt0, null) === 'none' && pa(pt0, 'ashwin-t2') === 'none' &&
+      pa(pt2, 'momdad-t1') === 'drive' && pa(pt2, 'ashwin-t2', T, ORGK) === 'none' && pa(pt1, 'ashwin-t2', T, ORGK) === 'rides' && pa(pt1, 'momdad-t1') === 'drive' &&
+      pa(unlocked, 'ashwin-t2', T, ORGK) === 'lock' && pa(tweak(unlocked, (d) => { delete d.responses['anjo-t3']; }), 'ashwin-t2', T, ORGK) === 'share' &&
+      pa(notimes, 'ashwin-t2', T, ORGK) === 'times' && pa(pt0, 'ashwin-t2', '2026-11-19', ORGK) === 'track' && pa(pt0, 'ashwin-t2', '2026-11-29', ORGK) === 'track' &&
+      pa(pt2, 'momdad-t1', '2026-11-30') === 'drive' && pa(pt2, 'momdad-t1', '2026-12-01') === 'none' &&
+      pa(tweak(pt2, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 905; }), 'momdad-t1') === 'drive' && pa(tweak(pt2, (d) => { d.decision.stage = 'dropped'; }), 'momdad-t1') === 'none' &&
+      pa(tweak(pt0, (d) => { d.responses['anjo-t3'].available_from = '2026-11-18'; }), 'anjo-t3') === 'book' && pa(tweak(ptA, (d) => { d.responses['anjo-t3'].available_from = '2026-11-18'; d.responses['anjo-t3'].note = '🛬09:00'; }), 'anjo-t3') === 'none' &&
+      pa(nyc, 'ashwin-t2', T, ORGK) === 'none' && pa(LEG, 'LAX', TODAY, { hasEditKey: true }) === 'none',
+      'AC9 primaryAction: the organizer (booked, times in, open runs) and Mom & Dad (a candidate host) get 🚗 Rides; Anjo keeps Book; a guest and a traveler who is not the organizer none; a driver gets 🚗 drive (also on a paid trip, until its day; never on a removed one); Lock, Share, Landing time and Track keep their place; a traveler who could drive never gets Rides; New York and the v1 trip unchanged');
+
+    // ---- 💵 waits while rides are open: paidCheck's norides ----
+    const doneP = tweak(pt0, (d) => { d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛬15:10 🛫17:00'; });
+    const pcOpen = M.paidCheck(pm(doneP, 'ashwin-t2', T, { hasEditKey: true, hasToken: true }), T), pcNoDay = M.paidCheck(pm(doneP, 'ashwin-t2', T, { hasEditKey: true, hasToken: true }));
+    const doneC = tweak(doneP, (d) => { d.responses['momdad-t1'] = R('in', 'PIA', '', '', { note: '🚗ashwin-t2.aORD1120,anjo-t3.aORD1120,ashwin-t2.dORD1130' }); });
+    const pcPart = M.paidCheck(pm(doneC, 'ashwin-t2', T, { hasEditKey: true, hasToken: true }), T);
+    check(pcOpen.why === '' && eq(pcOpen.norides, ['ashwin-t2', 'anjo-t3']) && eq(pcNoDay.norides, []) && pcPart.why === '' && eq(pcPart.norides, ['anjo-t3']) &&
+      eq(M.paidCheck(pm(doneC, 'ashwin-t2', '2026-12-01', { hasEditKey: true, hasToken: true }), '2026-12-01').norides, []),
+      'AC10 paidCheck(model, today).norides: everyone booked, nobody driving yet → Ashwin and Anjo; once Mom & Dad cover R1 and Ashwin\'s 15:30, Anjo\'s 17:00 alone; after the trip none', { pcOpen, pcPart: pcPart.norides });
+
+    // ---- the ask, the share text, the calendar file ----
+    const ask = M.rideAsk(pm(pt0, 'ashwin-t2', T, ORGK), T, WK), ask2 = M.rideAsk(pm(ptC0, 'ashwin-t2', T, ORGK), T, WK);
+    const text = M.rideText(pm(pt0), r0.runs, 'ask');
+    check(ask && eq(ask.codes, ['momdad-t1']) && ask.url === WK + '/i/' + ptId + '#m=momdad-t1' && eq(ask2.codes, ['momdad-t1', 'anjo-t3']) && ask2.url === WK + '/i/' + ptC + '' &&
+      M.rideAsk(pm(pt2, 'ashwin-t2', T, ORGK), T, WK) === null &&
+      text === '🚗 Can you drive? Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM). Mon 11/30: drop off Ashwin at ORD Chicago, flight 3:30 PM (leave home 11:00 AM).' &&
+      M.rideText(pm(ptA), rA.runs.slice(0, 1), 'remind') === '🚗 Reminder: Fri 11/20: pick up Ashwin, Anjo at ORD Chicago, lands 2:35 PM, 3:10 PM (leave home 12:05 PM).' &&
+      /^🚗 Ride update: Fri 11\/20: pick up Ashwin at ORD Chicago, lands 1:10 AM \(leave home Thu 10:40 PM\)\.$/.test(M.rideText(pm(pt0), early.runs.slice(0, 1), 'tell')) &&
+      text.indexOf(KEY) < 0 && !/\$|\d{3,}\.\d|#k=|t=/.test(text) && eq(['00:05', '09:30', '12:00', '14:35', '23:59', 'x'].map(M.h12), ['12:05 AM', '9:30 AM', '12:00 PM', '2:35 PM', '11:59 PM', '']),
+      'AC11 the organizer\'s Ask: one candidate → Mom & Dad\'s own guest link (#m=), several → the trip\'s guest link; none once every run is covered; the text in plain 12-hour English with the weekday ("…lands 2:35 PM (leave home 12:05 PM)…"), the day before named when ⏰ falls on it, never a key, token or price', { text, ask, ask2 });
+    const ev = M.rideEvents(pm(pt2, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK }), evText = ev ? ev.ics.text : '';
+    const vevents = evText.split('BEGIN:VEVENT').length - 1, alarms = (evText.match(/BEGIN:VALARM/g) || []).length;
+    check(ev && ev.n === 2 && vevents === 2 && alarms === 4 && (evText.match(/TRIGGER:-P1D\r\n/g) || []).length === 2 && (evText.match(/TRIGGER:-PT30M\r\n/g) || []).length === 2 &&
+      /\r\nDTSTART:20261120T120500\r\nDTEND:20261120T170500\r\n/.test(evText) && /\r\nDTSTART:20261130T110000\r\nDTEND:20261130T160000\r\n/.test(evText) && !/DTSTART[^\r]*Z\r\n|TZID/.test(evText) &&
+      evText.indexOf('UID:' + ptId + '-momdad-t1-' + kR1 + '@pialax\r\n') >= 0 && evText.indexOf('SUMMARY:🚗 Pick up Ashwin – ORD Chicago\\, lands 2:35 PM\r\n') >= 0 &&
+      evText.indexOf('SUMMARY:🚗 Drop off Ashwin – ORD Chicago\\, flight 3:30 PM\r\n') >= 0 && /\r\nLOCATION:ORD Chicago\r\n/.test(evText) && (evText.match(/STATUS:CONFIRMED/g) || []).length === 2 &&
+      (evText.replace(/\r\n /g, '').match(/\r\nDESCRIPTION:https:\/\/pialax-proxy\.ashwinyedavalli\.workers\.dev\/i\/[A-Za-z0-9_-]{22}\r\n/g) || []).length === 2 &&
+      evText.indexOf(KEY) < 0 && !/#k=|t=|\$/.test(evText) && evText.split('\r\n').every((l) => Buffer.byteLength(l) <= 75) && ev.ics.filename === 'rides-ptownthanksgiving.ics' &&
+      M.rideEvents(pm(pt2, 'ashwin-t2'), 'ashwin-t2', { today: T, now: NOW }) === null && M.rideEvents(pm(pt2, 'momdad-t1', '2026-12-01'), 'momdad-t1', { today: '2026-12-01', now: NOW }) === null &&
+      M.rideEvents(pm(pt3, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK }).sig !== ev.sig,
+      'AC12 rideEvents: one calendar file with both of Mom & Dad\'s runs, each from leaving home to back (floating DTSTART:20261120T120500, no Z, no TZID), two alarms each (a day before, 30 minutes before), UID <id>-<driver>-<run>@pialax, the guest link alone as its description, no key, token or price, lines folded at 75 octets; nothing for someone who drives nothing or once the trip is over; a time change changes its signature', evText.slice(0, 600));
+    // calendarAdd and icsText are byte-identical to b2cfd85 (the one calendar builder now shares icsCalendar)
+    const evs = [{ uid: 'a@pialax', stamp: '20261017T190000Z', d1: '2026-11-20', end: '2026-12-01', title: '? 🦃 P town; thanksgiving, with "everyone"\n', where: 'Chicago', details: WK + '/i/' + ptId, tentative: true },
+      { uid: 'b@pialax', stamp: '20261017T190000Z', d1: '2026-11-20', end: '2026-12-01', title: 'x'.repeat(200), where: '', details: '', tentative: false }];
+    const cal = M.calendarAdd(pm(pt0, 'ashwin-t2', TODAY), { today: TODAY, now: NOW, worker: WK });
+    const calEv = { uid: ptId + '-ashwin-t2@pialax', stamp: new Date(NOW).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z'), d1: cal.d1, end: cal.end, title: cal.title, where: cal.where, details: cal.details, tentative: cal.tentative };
+    check(evs.every((e) => M.icsText(e) === OLD.icsText(e)) && cal.ics.text === OLD.icsText(calEv),
+      'AC12 icsText and calendarAdd\'s file are byte-identical to b2cfd85\'s (escaping, folding, tentative and confirmed; icsCalendar is shared, not changed)');
+
+    // ---- #156 phones read a #157 note: times read, the rest kept byte for byte (the order is load-bearing) ----
+    const n157 = '🛬14:35 🛫15:30 🚗anjo-t3.aORD1120 🚌d 🧺🥧 Bringing pie';
+    const o157 = tweak(pt0, (d) => { d.responses['ashwin-t2'].note = n157; });
+    const oT = OLD.timesRequest(o157, 'ashwin-t2', '15:05', undefined, 'self'), oA = OLD.respondRequest(o157, 'ashwin-t2', { status: 'maybe' }, { by: 'self' });
+    const oBad = OLD.parseRespNote('🚗anjo-t3.aORD1120 🛬14:35 🛫15:30 hi');
+    check(OLD.parseRespNote(n157).arr === '14:35' && OLD.parseRespNote(n157).dep === '15:30' && OLD.parseRespNote(n157).text === '🚗anjo-t3.aORD1120 🚌d 🧺🥧 Bringing pie' &&
+      oT.body.note === '🛬15:05 🛫15:30 🚗anjo-t3.aORD1120 🚌d 🧺🥧 Bringing pie' && oA.body.note === n157 &&
+      eq(M.parseRespNote(oT.body.note).claims, [{ code: 'anjo-t3', kind: 'a', ap: 'ORD', day: '1120' }]) && M.parseRespNote(oT.body.note).bus === 'd' &&
+      oBad.arr === '' && oBad.dep === '' && OLD.timesRequest(tweak(pt0, (d) => { d.responses['ashwin-t2'].note = '🚗anjo-t3.aORD1120 🛬14:35 🛫15:30'; }), 'ashwin-t2', '15:05', undefined, 'self').body.note !== '🚗anjo-t3.aORD1120 🛬15:05 🛫15:30',
+      'AC13 a #156 phone (b2cfd85\'s functions, verbatim) reads 🛬 / 🛫 from a #157 note, keeps the markers after them as text, and writes them back byte for byte after a time change or an answer change; a marker written before 🛬 would break that (the order is load-bearing)', { oT: oT.body.note, oA: oA.body.note });
+
+    // ---- 280: refused, never clipped (an 8-member trip with 32-character codes) ----
+    const big = { v: 1, id: 'bgBigFamilyRidesTest01', idea: { title: '🦃 Big', destination: { city: 'Chicago', airport: 'ORD' }, dates: { departure: '2026-11-20', return: '2026-11-30', searchStart: '', searchEnd: '' }, recommendation: null, notes: '',
+      members: [{ code: 'h'.repeat(32), label: '🌽 Mom & Dad', airport: 'PIA', headcount: 2 }].concat(Array.from({ length: 7 }, (_, i) => ({ code: String.fromCharCode(97 + i).repeat(31) + i, label: M.FACES[i] + ' T' + i, airport: 'LAX', headcount: 1 }))) },
+      responses: {}, decision: { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' } } };
+    big.idea.members.slice(1).forEach((x, i) => { big.responses[x.code] = R('in', 'LAX', '', '', { booked: true, note: '🛬' + ['08:00', '12:00', '16:00', '20:00', '23:00', '06:00', '10:30'][i] + ' 🛫' + ['07:00', '11:00', '15:00', '19:00', '22:00', '05:30', '09:00'][i] }); });
+    const bigR = M.rides(model(big), T), host = 'h'.repeat(32);
+    let bd = clone(big), steps = 0, legs = 0, refused = null;
+    for (const r of bigR.runs) { const q = M.ridesRequest(bd, host, r.key, 'on', 'self', T); if (!q) { refused = r.key; break; } bd = tweak(bd, (d) => { d.responses[host] = Object.assign(R('in', 'PIA'), { note: q.body.note }); }); steps++; legs += r.legs.length; }
+    const bigNote = (bd.responses[host] || {}).note || '';
+    check(bigR.runs.length >= 6 && refused !== null && steps >= 3 && bigNote.length <= 280 && M.parseRespNote(bigNote).claims.length === legs &&
+      M.respondRequest(tweak(bd, (d) => { d.responses[host].note = bigNote + ' ' + 'z'.repeat(40); }), host, { claims: M.parseRespNote(bigNote).claims.concat([{ code: 'a'.repeat(31) + '0', kind: 'd', ap: 'ORD', day: '1130' }]) }, { by: 'self' }) === null &&
+      M.buildRespNote(false, '', '', '', { claims: Array.from({ length: 9 }, (_, i) => ({ code: 'q'.repeat(32), kind: i % 2 ? 'a' : 'd', ap: 'ORD', day: '11' + (10 + i) })) }) === null,
+      'AC14 the 8-member trip with 32-character codes: one host claiming run after run fills the note to ' + bigNote.length + ' of 280 after ' + steps + ' runs, then the next claim is refused (null), never clipped; markers alone past 280 build nothing', { steps, refused, len: bigNote.length });
+
+    // ---- fix pass ----
+    // the 📅 dot's signature: a run that passes is no change; a driver who now drives nothing ahead is one
+    const evB = M.rideEvents(pm(pt2, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW }), evB21 = M.rideEvents(pm(pt2, 'momdad-t1', '2026-11-21'), 'momdad-t1', { today: '2026-11-21', now: NOW });
+    const evOut = M.rideEvents(pm(tweak(pt2, (d) => { d.responses['ashwin-t2'].status = 'out'; }), 'momdad-t1'), 'momdad-t1', { today: T, now: NOW });
+    check(evB.sig.split(';').every((s) => /^[ad]ORD11[23]0-ashwin-t2\|2026-11-[23]0\|/.test(s)) && evB21.sig !== evB.sig && M.rideSigAhead(evB.sig, '2026-11-21') === evB21.sig && M.rideSigAhead(evB.sig, T) === evB.sig &&
+      M.rideSigAhead(evB.sig, '2026-12-01') === '' && evOut === null && M.rideSigAhead(evB.sig, T) !== '' && M.rideSigAhead('', T) === '' && M.rideSigAhead('junk', T) === '',
+      'FIX the 📅 signature names each run\'s day: read less the runs behind us (rideSigAhead), Mom & Dad\'s two rides kept on 10/30 equal the one left on 11/21 (a run that passes is no change, so no dot the day after a drive), nothing after the trip; once Ashwin is Out they drive nothing (rideEvents null) while what they kept is still ahead: a change, so the dot shows', { evB: evB.sig, evB21: evB21.sig });
+    // a share of a run: Mom & Dad cover Ashwin's 14:35, Bob (there 11/15–11/30) covers Anjo's 15:10 in the same run: the toggle releases it
+    const bob = (d) => { d.idea.members.push({ code: 'bob-t4', label: '🎸 Bob', airport: 'SEA', headcount: 1 }); d.responses['bob-t4'] = R('in', 'SEA', '2026-11-15', '2026-12-05', { booked: true }); };
+    const ptE = srv.seed(tweak(PTD, (d) => { bob(d); d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛬15:10 🛫17:00'; d.responses['momdad-t1'] = R('in', 'PIA', '', '', { note: '🚗ashwin-t2.aORD1120' }); d.responses['bob-t4'].note = '🚗anjo-t3.aORD1120'; }));
+    const ptE0 = await srv.get(ptE, KEY), rE = M.rides(pm(ptE0), T).runs[0];
+    const offE = M.ridesRequest(ptE0, 'momdad-t1', kR1, M.rideToggle(rE, 'momdad-t1'), 'self', T), offRes = await srv.send(offE), rE1 = M.rides(pm(await srv.get(ptE, KEY)), T).runs[0];
+    check(rE.key === kR1 && eq(rE.legs.map((l) => l.ride.by.join()), ['momdad-t1', 'bob-t4']) && M.rideToggle(rE, 'momdad-t1') === 'off' && M.rideToggle(rE, 'bob-t4') === 'off' &&
+      M.ridesRequest(ptE0, 'momdad-t1', kR1, 'on', 'self', T) === null && M.rideGuard(ptE0, 'momdad-t1', kR1, 'on', T) === 'same' && srv.allOk(offRes) && offE.body.note === '' &&
+      eq(rE1.legs.map((l) => l.ride.by.join()), ['', 'bob-t4']) && M.rideToggle(rE1, 'momdad-t1') === 'on',
+      'FIX a driver with a share of a run (Mom & Dad drive Ashwin, Bob drives Anjo in the same 11/20 run) can let it go: rideToggle says off (aria-pressed), its write takes their claim back through the real Worker, Bob\'s stays; "on" there builds nothing and the guard calls it same', { e: rE.legs.map((l) => l.ride), e1: rE1.legs.map((l) => l.ride.by) });
+    // a traveler who joined a run I drive: the toggle claims her leg too; every leg someone else's: on, held as taken
+    const joined = tweak(pt1, (d) => { d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛬15:10'; }), rJ = M.rides(pm(joined), T).runs[0];
+    const allOther = tweak(ptC0, (d) => { d.responses['momdad-t1'] = R('in', 'PIA', '', '', { note: '🚗ashwin-t2.aORD1120' }); }), rAO = M.rides(pm(allOther), T).runs[0];
+    check(eq(rJ.legs.map((l) => l.code + ':' + l.ride.by.join()), ['ashwin-t2:momdad-t1', 'anjo-t3:']) && M.rideToggle(rJ, 'momdad-t1') === 'on' && M.ridesRequest(joined, 'momdad-t1', kR1, 'on', 'self', T).body.note === '🚗ashwin-t2.aORD1120,anjo-t3.aORD1120' &&
+      M.primaryAction(pm(joined, 'momdad-t1'), T) === 'drive' && M.rideToggle(rAO, 'anjo-t3') === 'on' && M.rideGuard(allOther, 'anjo-t3', kR1, 'on', T) === 'taken',
+      'FIX Anjo booked into the run Mom & Dad drive (her 15:10 open): their toggle reads ☐ and claims her leg too (one note: both claims); a candidate on a run every leg of which someone else drives: on, held as "Already covered"');
+    // the same end state on the fresh record (Mom's and Dad's phones, one member): 'same', nothing to send; 🚌 / 🚙 likewise
+    check(M.rideGuard(pt2, 'momdad-t1', kR1, 'on', T) === 'same' && M.ridesRequest(pt2, 'momdad-t1', kR1, 'on', 'self', T) === null && M.rideGuard(pt0, 'momdad-t1', kR1, 'off', T) === 'same' &&
+      M.rideGuard(pt2, 'momdad-t1', kR1, 'ok', T) === 'same' && M.rideGuard(dayMv, 'momdad-t1', 'aORD1121-ashwin-t2', 'ok', T) === '' && M.rideGuard(pt2, 'momdad-t1', kR1, 'off', T) === '' &&
+      M.groundGuard(pt4, 'ashwin-t2', 'd', 'bus', T) === 'same' && M.groundGuard(pt4, 'ashwin-t2', 'd', 'rent', T) === '' && M.groundGuard(pt3, 'ashwin-t2', 'd', '', T) === 'same' &&
+      M.groundGuard(tweak(pt4, (d) => { d.decision.stage = 'dropped'; }), 'ashwin-t2', 'd', 'rent', T) === 'closed',
+      'FIX a tap whose end state the fresh record already has is "same", not an error: claim a run already theirs, take back one they never had, ✓ with nothing moved; 🚌 on a leg already 🚌, a family ride already one; removed: closed');
+    // too long is told apart from the other nulls: the patch builds, the note does not
+    const longD = tweak(pt0, (d) => { d.responses['momdad-t1'] = R('in', 'PIA', '', '', { note: 'x'.repeat(261) }); }), longA = tweak(pt0, (d) => { d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛬15:10 ' + 'y'.repeat(270); });
+    check(M.ridesRequest(longD, 'momdad-t1', kR1, 'on', 'self', T) === null && eq(M.rideClaims(longD, 'momdad-t1', kR1, 'on', 'self', T), { claims: [{ code: 'ashwin-t2', kind: 'a', ap: 'ORD', day: '1120' }] }) &&
+      M.rideClaims(pt2, 'momdad-t1', kR1, 'on', 'self', T) === null && M.groundRequest(longA, 'anjo-t3', 'a', 'rent', 'self', T) === null && eq(M.groundPatch(longA, 'anjo-t3', 'a', 'rent', 'self', T), { bus: '', rent: 'a' }) &&
+      M.groundPatch(pt4, 'ashwin-t2', 'd', 'bus', 'self', T) === null,
+      'FIX a claim or 🚙 the note has no room for: rideClaims / groundPatch build the patch, ridesRequest / groundRequest refuse the note (the phone says ⚠ Too long); no change builds no patch either');
+    // a claim by someone who is no longer there that day is ignored (the leg open again) and dropped on their next ride write
+    const ptF = srv.seed(tweak(PTD, (d) => { bob(d); d.responses['bob-t4'].note = '🚗ashwin-t2.aORD1120'; })), ptF0 = await srv.get(ptF, KEY);
+    const moveBob = M.respondRequest(ptF0, 'bob-t4', { available_from: '2026-11-21' }, { by: 'self' }); await srv.send(moveBob); const ptF1 = await srv.get(ptF, KEY), rF1 = M.rides(pm(ptF1), T);
+    const bobOn = M.ridesRequest(ptF1, 'bob-t4', kR2, 'on', 'self', T), bobRes = await srv.send(bobOn), ptF2 = await srv.get(ptF, KEY);
+    check(M.rides(pm(ptF0), T).runs[0].state === 'covered' && rF1.runs[0].state === 'open' && eq(rF1.runs[0].legs[0].ride.by, []) && eq(rF1.runs[0].candidates, ['momdad-t1']) && rF1.open === 2 &&
+      M.drivesOf(rF1, 'bob-t4').length === 0 && M.primaryAction(pm(ptF1, 'bob-t4'), T) !== 'drive' && srv.allOk(bobRes) && ptF2.responses['bob-t4'].note === '🚗ashwin-t2.dORD1130',
+      'FIX Bob claimed Ashwin\'s 11/20 pickup, then moved his own arrival to 11/21: he is no longer a candidate of that run, so his claim is ignored (R1 open, Mom & Dad its one candidate), and his next ride write (Ashwin\'s 11/30 drop-off) drops it', { r: rF1.runs[0].legs[0].ride, note: ptF2.responses['bob-t4'].note });
+    // the ride's words name a nameless v1 'Me' as the family preset does (never a bare face)
+    const v1t = M.rideText(v1m, v1r.runs, 'ask');
+    check(M.rideName(v1m.members.find((x) => x.code === 'LAX')) === 'Ashwin' && /pick up Ashwin at PIA/.test(v1t) && !/💪/.test(v1t) && M.rideName(mem(pm(pt0), 'anjo-t3')) === 'Anjo' &&
+      M.rideName({ name: '', short: '', one: '', face: '🎸', airport: 'LAX' }) === '🎸',
+      'FIX the ride text on the v1 Thanksgiving names its "Me" at LAX (💪) Ashwin, as ⤒ Update trip does ("pick up Ashwin at PIA…"); a nameless member the preset does not recognise keeps their face', v1t);
   }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 

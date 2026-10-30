@@ -29,6 +29,12 @@ var IDEA_HUBS = [['PIA', 'ORD'], ['LGA', 'JFK']];                        // = wo
 var NEARBY_GROUPS = [['LAX', 'BUR', 'LGB', 'SNA', 'ONT'], ['LGA', 'JFK', 'EWR']]; // = v1 TRIP_NEARBY_GROUPS
 var DRIVE_PIVOT = { PIA: ['PIA', 'ORD'] };                               // Peoria travelers can drive to and from O'Hare
 var DRIVE = { 'PIA|ORD': '2:30', 'LGA|JFK': '0:45' };                    // drive time between a hub pair
+var HOME_DRIVE = { PIA: '0:20' };                                        // PIA-157: from home to its own airport
+var RIDE_LEAD = 120;                                                     // PIA-157: minutes at the airport before a flight leaves
+var RUN_GAP = 120;                                                       // PIA-157: legs this close (minutes) make one ⏱ run
+/* PIA-157 (PIA-158 writes it): what someone brings, 🧺 in their answer note: single emoji-presentation code points, none in FACES,
+   SCENES or the holiday glyphs, none twice */
+var DISH_PALETTE = ['🍗', '🥧', '🍰', '🧁', '🍪', '🥗', '🥔', '🍠', '🍞', '🧀', '🍲', '🍷', '🍺', '🥂', '🧃', '🎲', '🎶', '💐'];
 var IDEA_MAX_MEMBERS = 8;                                                // = worker.js IDEA_MAX_MEMBERS
 var IDEA_STATUSES = { in: 1, maybe: 1, out: 1 };
 var IDEA_STAGES = { proposed: 1, chosen: 1, booked: 1, dropped: 1 };
@@ -254,8 +260,35 @@ function originSet(code, dest) {
 
 /* ---- conventions inside free-text fields ----
    idea.notes  = ['📌YYYY-MM-DD'] ['🌙N'] caption   (any other text is kept as the caption)
-   answer note = ['📞'] ['🛬HH:MM'] ['🛫HH:MM'] text  (a legacy trailing '(entered by X)' reads as 📞)
-   The Worker trims both fields, so a prefix may end the string. */
+   answer note = ['📞'] ['🛬HH:MM'] ['🛫HH:MM'] ['🚗'CLAIMS] ['🚌'LEGS] ['🚙'LEGS] ['🐈'LEGS] ['🧺'DISHES] text
+                 (a legacy trailing '(entered by X)' reads as 📞)
+   The Worker trims both fields, so a prefix may end the string.
+   PIA-157: the answer note's markers come after 📞 / 🛬 / 🛫 in that fixed order, each followed by a space or the note's end, and a
+   new kind is only ever appended at the end of the order. CLAIM = <member code>.<a|d><IATA><MMDD>: the note's owner drives that
+   traveler's arrival (a) or departure (d) at that airport on that day; CLAIMS are comma-joined. LEGS = a, d or ad (🚌 a coach, 🚙 a
+   rental car for the traveler's own leg; 🐈 their pet flies on it). DISHES = 1–3 of DISH_PALETTE. Read in any order (a new kind
+   once): the first token that is none of them, malformed, or a new kind seen again begins the text. So an older build, which
+   knows fewer kinds, reads the rest as text and writes it back byte for byte. */
+var CLAIM_RE = /^([A-Za-z0-9_-]{1,32})\.([ad])([A-Z]{3})(\d\d)(\d\d)$/;
+/* a day as a claim names it, 'MMDD' ('' for no day) */
+function mdKey(day) { return isIso(day) ? day.slice(5, 7) + day.slice(8, 10) : /^\d{4}$/.test(String(day || '')) && isIso('2000-' + day.slice(0, 2) + '-' + day.slice(2)) ? String(day) : ''; }
+/* one claim token → {code, kind 'a' | 'd', ap, day 'MMDD'}, or null (the month and day must be a real one) */
+function claimOf(s) { var m = CLAIM_RE.exec(String(s || '')); return m && isIso('2000-' + m[4] + '-' + m[5]) ? { code: m[1], kind: m[2], ap: m[3], day: m[4] + m[5] } : null; }
+function claimTok(c) { var d = c ? mdKey(c.day) : ''; return c && MEMBER_CODE_RE.test(String(c.code)) && (c.kind === 'a' || c.kind === 'd') && isIata(c.ap) && d ? c.code + '.' + c.kind + c.ap + d : ''; }
+function legsOf(v) { return v === 'a' || v === 'd' || v === 'ad' ? v : v === 'da' ? 'ad' : ''; }
+function dishesOf(v) { var out = []; (Array.isArray(v) ? v : []).forEach(function (g) { if (DISH_PALETTE.indexOf(g) >= 0 && out.indexOf(g) < 0 && out.length < 3) out.push(g); }); return out; }
+/* the marker that begins s: {k (called arr dep claims bus rent pet dish), v, n (its length with the space after it)}, or null */
+function noteMark(s) {
+  var sp = s.indexOf(' '), tok = sp < 0 ? s : s.slice(0, sp), n = sp < 0 ? s.length : sp + 1, cps = Array.from(tok), g = cps[0] || '', rest = cps.slice(1).join('');
+  if (!tok) return null;
+  if (tok === '📞') return { k: 'called', v: true, n: n };
+  if ((g === '🛬' || g === '🛫') && HHMM_RE.test(rest)) return { k: g === '🛬' ? 'arr' : 'dep', v: rest, n: n };
+  if (g === '🚗' && rest) { var cl = rest.split(',').map(claimOf); return cl.every(Boolean) ? { k: 'claims', v: cl, n: n } : null; }
+  var lk = { '🚌': 'bus', '🚙': 'rent', '🐈': 'pet' }[g];
+  if (lk && (rest === 'a' || rest === 'd' || rest === 'ad')) return { k: lk, v: rest, n: n };
+  if (g === '🧺') { var ds = cps.slice(1); return ds.length >= 1 && ds.length <= 3 && dishesOf(ds).length === ds.length ? { k: 'dish', v: ds, n: n } : null; }
+  return null;
+}
 function parseNotes(notes) {
   var s = typeof notes === 'string' ? notes : '', pin = '', nights = null, m;
   for (;;) {
@@ -273,25 +306,35 @@ function buildNotes(pin, nights, caption) {
   return clip(parts.join(' '), TEXT_MAX.notes);
 }
 var LEGACY_PROXY_RE = /\s*\(entered by [^()]*\)\s*$/;
+/* → {called, arr, dep, claims [{code, kind, ap, day 'MMDD'}], bus, rent, pet ('' | 'a' | 'd' | 'ad'), dish [], text} */
 function parseRespNote(note) {
-  var s = typeof note === 'string' ? note : '', called = false, arr = '', dep = '', m;
+  var s = typeof note === 'string' ? note : '', o = { called: false, arr: '', dep: '', claims: [], bus: '', rent: '', pet: '', dish: [] }, seen = {}, m;
   for (;;) {
-    if ((m = /^📞(?: |$)/u.exec(s))) { called = true; s = s.slice(m[0].length); continue; }
-    if ((m = /^🛬(\d\d:\d\d)(?: |$)/u.exec(s)) && HHMM_RE.test(m[1])) { arr = m[1]; s = s.slice(m[0].length); continue; }
-    if ((m = /^🛫(\d\d:\d\d)(?: |$)/u.exec(s)) && HHMM_RE.test(m[1])) { dep = m[1]; s = s.slice(m[0].length); continue; }
-    break;
+    m = noteMark(s);
+    // (📞 / 🛬 / 🛫 read as they always have, a repeat too; each later kind once)
+    if (!m || (seen[m.k] && m.k !== 'called' && m.k !== 'arr' && m.k !== 'dep')) break;
+    seen[m.k] = 1; o[m.k] = m.v; s = s.slice(m.n);
   }
-  if (LEGACY_PROXY_RE.test(s)) { called = true; s = s.replace(LEGACY_PROXY_RE, ''); }
-  return { called: called, arr: arr, dep: dep, text: s.trim() };
+  if (LEGACY_PROXY_RE.test(s)) { o.called = true; s = s.replace(LEGACY_PROXY_RE, ''); }
+  o.text = s.trim();
+  return o;
 }
-function buildRespNote(called, arr, dep, text) {
-  var parts = [];
+/* the note, its markers in the fixed order; mk = {claims, bus, rent, pet, dish} (optional). PIA-157: null when the markers and times
+   alone pass the Worker's 280 (a marker is never clipped); typed text after them is clipped as before */
+function buildRespNote(called, arr, dep, text, mk) {
+  var parts = [], k = mk || {}, cl = uniq((Array.isArray(k.claims) ? k.claims : []).map(claimTok).filter(Boolean)), ds = dishesOf(k.dish);
   if (called) parts.push('📞');
   if (arr && HHMM_RE.test(arr)) parts.push('🛬' + arr);
   if (dep && HHMM_RE.test(dep)) parts.push('🛫' + dep);
+  if (cl.length) parts.push('🚗' + cl.join(','));
+  [['🚌', k.bus], ['🚙', k.rent], ['🐈', k.pet]].forEach(function (p) { var v = legsOf(p[1]); if (v) parts.push(p[0] + v); });
+  if (ds.length) parts.push('🧺' + ds.join(''));
+  if (parts.join(' ').length > TEXT_MAX.note) return null;
   if (text && String(text).trim()) parts.push(String(text).trim());
   return clip(parts.join(' '), TEXT_MAX.note);
 }
+/* the markers a parsed note carries, as buildRespNote takes them */
+function noteMarks(n) { return { claims: n.claims, bus: n.bus, rent: n.rent, pet: n.pet, dish: n.dish }; }
 
 /* ---- Google Flights tfs encoder (scratchpad gf-tfs.js, live-verified 2026-10-17) ----
    Schema: fast-flights / krisukox protobuf with Google's envelope. o = {legs:[{date, from:[], to:[]}], adults, trip:1 RT|2 OW|3 multi}.
@@ -583,6 +626,11 @@ function tripModel(doc, ctx) {
       own1: own1, own2: own2, d1: hasDates ? d1 : '', d2: hasDates ? d2 : '', bad: bad, warn: warn, clash: clash,
       A: A, H: H, openJaw: A !== H, override: override, origin: originCode, O: O, from: from,
       traveler: traveler, booked: booked, called: note.called, arrTime: note.arr, depTime: note.dep, noteText: note.text,
+      // PIA-157: the note's markers (noteText holds none, so a note of markers alone shows no 📝): how this traveler gets between home
+      // and each airport by themselves (🚌 the coach, 🚙 a rental car; else the family drives), the rides they drive (claims, in
+      // their own note), their pet's legs (🐈; PIA-158) and what they bring (🧺; PIA-158)
+      ground: { a: note.bus.indexOf('a') >= 0 ? 'bus' : note.rent.indexOf('a') >= 0 ? 'rent' : '', d: note.bus.indexOf('d') >= 0 ? 'bus' : note.rent.indexOf('d') >= 0 ? 'rent' : '' },
+      claims: note.claims, pet: note.pet, dish: note.dish, marks: noteMarks(note),
       link: link, why: why, keys: keys, at: (r && r.updated_at) || '', ansAt: (r && times[m.code]) || ''
     };
   });
@@ -894,26 +942,285 @@ function pickups(model, fares, now, showPredicted) {
     if (predicted && /^\d{4}-\d{2}-\d{2}[ T]/.test(rawArrival) && rawArrival.slice(0, 10) !== m.d1) predicted = '';
     // PIA-139: a recorded time is a firm pickup only while its traveler is booked (a 🎫 taken back leaves none behind)
     var arrT = (m.booked && m.arrTime) || predicted, depT = m.booked ? m.depTime : '';
-    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
-    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: depT, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked });
+    // (PIA-157 self: the traveler's own 🚌 / 🚙 for that leg, which no ⏱ run takes)
+    if (lanes[m.A]) lanes[m.A].push({ kind: 'arr', date: m.d1, time: arrT, pred: !(m.booked && m.arrTime) && !!arrT, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked, self: m.ground.a });
+    if (lanes[m.H]) lanes[m.H].push({ kind: 'dep', date: m.d2, time: depT, pred: false, faces: [m.face], codes: [m.code], maybe: m.status === 'maybe', booked: m.booked, self: m.ground.d });
   });
   Object.keys(lanes).forEach(function (a) {
     var L = lanes[a], merged = [];
     L.sort(function (x, y) { return (x.date + (x.time || '99') + x.kind).localeCompare(y.date + (y.time || '99') + y.kind); });
     L.forEach(function (c) {
       var p = merged[merged.length - 1];
-      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe && p.booked === c.booked) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
+      if (p && !p.time && !c.time && p.kind === c.kind && p.date === c.date && p.maybe === c.maybe && p.booked === c.booked && p.self === c.self) { p.faces = p.faces.concat(c.faces); p.codes = p.codes.concat(c.codes); }
       else merged.push(c);
     });
-    // ⏱ one pickup run: arrivals at one airport on one day, chained ≤ 2h apart
-    var gid = 0, tm = function (x) { return +x.time.slice(0, 2) * 60 + +x.time.slice(3, 5); };
-    merged.forEach(function (c, i) {
-      var p = merged[i - 1];
-      if (p && c.kind === 'arr' && p.kind === 'arr' && c.time && p.time && c.date === p.date && tm(c) - tm(p) <= 120) c.group = p.group || (p.group = ++gid);
+    // ⏱ one run (PIA-157: runChain, the one rule): the timed legs of one kind at one airport on one day, chained ≤ RUN_GAP apart,
+    // never a 🚌 / 🚙 leg. Arrivals and departures chain apart (since PIA-157 departures get ⏱ too, and a departure between two
+    // arrivals no longer splits their run). run: every timed leg's run, a single one too; group: a run of two or more (the ⏱ bracket)
+    var gid = 0, rid = 0;
+    ['arr', 'dep'].forEach(function (k) {
+      runChain(merged.filter(function (c) { return c.kind === k && !!c.time && !c.self; })).forEach(function (run) {
+        var g = run.length > 1 ? ++gid : 0; rid++;
+        run.forEach(function (c) { c.run = rid; if (g) c.group = g; });
+      });
     });
     lanes[a] = merged;
   });
   return lanes;
+}
+/* PIA-157: the one ⏱ rule. items: legs of one kind at one airport, in time order, each {date, time}; consecutive legs on one day at
+   most RUN_GAP minutes apart are one run. → [[item…]…], a lone leg its own run */
+function hm(t) { return +t.slice(0, 2) * 60 + +t.slice(3, 5); }
+function runChain(items) {
+  var out = [];
+  (items || []).forEach(function (c) {
+    var r = out[out.length - 1], p = r && r[r.length - 1];
+    if (p && p.date === c.date && hm(c.time) - hm(p.time) <= RUN_GAP) r.push(c); else out.push([c]);
+  });
+  return out;
+}
+
+/* ---- PIA-157 rides: who drives each run between home and the airport, and when to leave home ----
+   Only a trip to a home the family drives from has rides: a host who is not Out lives at a DRIVE_PIVOT airport (Peoria: PIA) and the
+   destination is in that pivot's pair (PIA or ORD), so a trip to New York has none. Its runs are pickups' own ⏱ runs on booked
+   times (never a ≈ cached time): a run is legs of one kind at one airport on one day, chained ≤ RUN_GAP apart; a 🚌 / 🚙 leg is the
+   traveler's own and in no run. A ride is claimed in the DRIVER's own answer note (🚗<traveler>.<a|d><IATA><MMDD>), tied to the
+   airport and the day, not the time: a time change that day carries it (⏰ moves), a day or airport change leaves it "moved" (⚠,
+   open) until the driver says ✓. Nothing here is stored: runs, ⏰, states and candidates are read from the record on each render. */
+function minOf(s) { var m = /^(\d{1,2}):(\d\d)$/.exec(s || ''); return m ? +m[1] * 60 + +m[2] : null; }
+/* a day and minutes past its midnight (negative: the day before; ≥ 24h: the next) → {day, t 'HH:MM'} */
+function dayAt(day, min) { var k = Math.floor(min / 1440), r = min - k * 1440; return { day: addD(day, k), t: hhmm(Math.floor(r / 60), r % 60) }; }
+/* the home whose family drives: a host not Out at a DRIVE_PIVOT airport whose pair holds the destination; '' none (or a removed trip) */
+function rideHome(model) {
+  if (!model || !model.dest || model.decision === 'dropped') return '';
+  var h = model.members.filter(function (x) { return x.host && x.status !== 'out' && DRIVE_PIVOT[x.airport] && DRIVE_PIVOT[x.airport].indexOf(model.dest) >= 0; })[0];
+  return h ? h.airport : '';
+}
+/* → null, or {home, runs, notime, self, waiting, open}:
+   • runs [{key, kind 'a' | 'd', ap, day, legs [{code, time, ride {state 'covered' | 'open' | 'moved', by [drivers], was [claimers]}}],
+     first, last, spread (minutes), drive (minutes, null unknown), leave {day, t}, back {day, t} (null with no known drive), state
+     ('open' while a leg is open or moved), candidates, upcoming (day ≥ today)}, by day and time. key = kind + ap + MMDD + '-' + the
+     run's first traveler in the trip's order (a time change that day keeps it). Pickup: leave = first landing − drive, back = last
+     landing + drive. Drop-off: leave = earliest flight − RIDE_LEAD − drive, back = leave + 2 × drive. drive = HOME_DRIVE at the home
+     airport, else the hub pair's DRIVE.
+   • candidates: the hosts not Out, then the travelers there all that day (d1 < day < d2, In or Maybe) not on the run, in trip order
+     (one who covers every leg is listed too).
+   • notime [{code, kind, ap, day, ride}]: booked legs with no time yet (🛬? / 🛫?); self [{code, kind, ap, day, mode, time}]: 🚌 / 🚙;
+     waiting: the travelers not booked yet; open: the open runs still ahead (a past run never counts).
+   A claim covers the leg whose traveler, kind, airport and day it names; the same traveler and kind elsewhere is "moved". A claim on a
+   leg nobody flies (not booked, Out, gone) or one the traveler covers themselves is ignored; so is any claim of a driver who said Out
+   (they are not there to drive) or on their own leg, and (fix pass) any claim of someone who is not a candidate of that leg's run as
+   it is now (a traveler whose own days moved so they are no longer there that day): that leg is open again. */
+function rides(model, today) {
+  var home = rideHome(model); if (!home) return null;
+  var lanes = pickups(model, {}, 0, false), byCode = {}, claims = [], runs = [], notime = [], self = [];
+  model.members.forEach(function (x, i) { byCode[x.code] = { x: x, i: i }; });
+  model.members.forEach(function (d) { if (d.status !== 'out') d.claims.forEach(function (c) { if (c.code !== d.code && byCode[c.code]) claims.push({ by: d.code, c: c }); }); });
+  var hosts = model.members.filter(function (x) { return x.host && x.status !== 'out'; }).map(function (x) { return x.code; });
+  var candOf = function (day, on) { return hosts.concat(model.travelers.filter(function (x) { return x.answered && !x.bad && !!x.d1 && x.d1 < day && day < x.d2 && on.indexOf(x.code) < 0; }).map(function (x) { return x.code; })); };
+  var legRide = function (code, kind, ap, day, cands) {
+    var by = [], was = [], key = mdKey(day);
+    claims.forEach(function (k) {
+      if (k.c.code !== code || k.c.kind !== kind || cands.indexOf(k.by) < 0) return;
+      if (k.c.ap === ap && k.c.day === key) { if (by.indexOf(k.by) < 0) by.push(k.by); } else if (was.indexOf(k.by) < 0) was.push(k.by);
+    });
+    was = was.filter(function (c) { return by.indexOf(c) < 0; });
+    return { state: by.length ? 'covered' : was.length ? 'moved' : 'open', by: by, was: was };
+  };
+  [model.dest].concat(model.alt ? [model.alt] : []).forEach(function (ap) {
+    var drive = minOf(ap === home ? HOME_DRIVE[home] : DRIVE[model.hub.join('|')]);
+    ['arr', 'dep'].forEach(function (kind) {
+      var k = kind === 'arr' ? 'a' : 'd', groups = [], at = {};
+      (lanes[ap] || []).forEach(function (c) {
+        if (c.kind !== kind || !c.booked || c.pred) return;
+        c.codes.forEach(function (code) {
+          if (!byCode[code]) return;
+          if (c.self) { self.push({ code: code, kind: k, ap: ap, day: c.date, mode: c.self, time: c.time || '' }); return; }
+          if (!c.time) { notime.push({ code: code, kind: k, ap: ap, day: c.date, ride: legRide(code, k, ap, c.date, candOf(c.date, [code])) }); return; }
+          if (!at[c.run]) groups.push(at[c.run] = []);
+          at[c.run].push({ code: code, time: c.time, day: c.date });
+        });
+      });
+      groups.forEach(function (g) {
+        var day = g[0].day, on = g.map(function (l) { return l.code; }), cands = candOf(day, on);
+        var legs = g.map(function (l) { return { code: l.code, time: l.time, ride: legRide(l.code, k, ap, day, cands) }; });
+        var first = legs[0].time, last = legs[legs.length - 1].time;
+        var leave = drive == null ? null : dayAt(day, hm(first) - (k === 'd' ? RIDE_LEAD : 0) - drive);
+        var back = !leave ? null : k === 'a' ? dayAt(day, hm(last) + drive) : dayAt(leave.day, hm(leave.t) + 2 * drive);
+        var lead = on.slice().sort(function (a, b) { return byCode[a].i - byCode[b].i; })[0];
+        runs.push({ key: k + ap + mdKey(day) + '-' + lead, kind: k, ap: ap, day: day, legs: legs, first: first, last: last, spread: hm(last) - hm(first), drive: drive,
+          leave: leave, back: back, state: legs.some(function (l) { return l.ride.state !== 'covered'; }) ? 'open' : 'covered', candidates: cands, upcoming: isIso(today) && day >= today });
+      });
+    });
+  });
+  runs.sort(function (a, b) { return (a.day + a.first + a.kind).localeCompare(b.day + b.first + b.kind); });
+  return { home: home, runs: runs, notime: notime, self: self, waiting: model.travelers.filter(function (x) { return !x.booked; }).map(function (x) { return x.code; }),
+    open: runs.filter(function (r) { return r.state === 'open' && r.upcoming; }).length };
+}
+/* one traveler's leg on a rides trip: {run, ride} in a run, {ride, notime: true} booked with no time yet, {mode} their own 🚌 / 🚙;
+   null for a leg nobody flies yet */
+function rideLeg(R, code, kind) {
+  if (!R) return null;
+  for (var i = 0; i < R.runs.length; i++) { var r = R.runs[i]; if (r.kind !== kind) continue; for (var j = 0; j < r.legs.length; j++) if (r.legs[j].code === code) return { run: r, ride: r.legs[j].ride, mode: '' }; }
+  var n = R.notime.filter(function (x) { return x.code === code && x.kind === kind; })[0]; if (n) return { run: null, ride: n.ride, mode: '', notime: true };
+  var s = R.self.filter(function (x) { return x.code === code && x.kind === kind; })[0]; return s ? { run: null, ride: null, mode: s.mode } : null;
+}
+/* the runs still ahead that this member drives (covers at least one leg of) */
+function drivesOf(R, code) { return R ? R.runs.filter(function (r) { return r.upcoming && r.legs.some(function (l) { return l.ride.by.indexOf(code) >= 0; }); }) : []; }
+/* the drivers of a run (anyone covering one of its legs), in the order they first appear */
+function runDrivers(r) { var out = []; r.legs.forEach(function (l) { l.ride.by.forEach(function (c) { if (out.indexOf(c) < 0) out.push(c); }); }); return out; }
+/* PIA-157: a driver's ride write, built on the record it is sent against (freshWrite rebuilds it there): their own answer with their
+   claims on one run changed. op 'on' claims every leg of the run nobody covers yet (open, or moved); 'off' takes back their claims on
+   the run's legs (moved ones too); 'ok' moves their moved claims to the legs' airport and day as they are now. Every op also drops
+   the driver's claims that no longer name a leg anybody flies (ignored). by 'self' (the driver's own phone) or anything else (the
+   organizer for them: 'keep', or 📞 'proxy' when it is a host's first answer, respondRequest's rule). null: a closed or past trip, no
+   such run (or it is behind us), a driver who is not one of its candidates ('off' also takes the claims of one who no longer is), the
+   organizer's write for someone on a v1 trip (⤒ Update trip first), no change, or a note that would pass 280 (fix pass: rideClaims is
+   the same rule without the note, so a phone can tell "Too long" from the rest). */
+function ridesRequest(doc, driver, runKey, op, by, today) {
+  var p = rideClaims(doc, driver, runKey, op, by, today);
+  return p ? respondRequest(doc, driver, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+/* ridesRequest's patch ({claims}, the driver's whole list), or null for every reason but the note's length */
+function rideClaims(doc, driver, runKey, op, by, today) {
+  if (!doc || !doc.id || docClosed(doc) || !isIso(today) || ['on', 'off', 'ok'].indexOf(op) < 0) return null;
+  var model; try { model = tripModel(doc, { today: today, now: 0 }); } catch (e) { return null; }
+  var R = rides(model, today), d = model.members.filter(function (x) { return x.code === driver; })[0] || null;
+  if (!R || !d || model.past || (by !== 'self' && model.legacy)) return null;
+  var run = R.runs.filter(function (r) { return r.key === runKey; })[0];
+  if (!run || !run.upcoming) return null;
+  var onRun = function (c) { return c.kind === run.kind && run.legs.some(function (l) { return l.code === c.code; }); };
+  // (a claim kept is one that counts: it covers its leg, or it is that leg's moved ride; any other is ignored, and dropped here)
+  var counts = function (c) { var lg = rideLeg(R, c.code, c.kind); return !!lg && !!lg.ride && (lg.ride.by.indexOf(driver) >= 0 || lg.ride.was.indexOf(driver) >= 0); };
+  if (run.candidates.indexOf(driver) < 0 && !(op === 'off' && d.claims.some(onRun))) return null;
+  var want = d.claims.filter(function (c) { return c.code !== driver && counts(c) && !onRun(c); });
+  run.legs.forEach(function (l) {
+    var mine = l.ride.by.indexOf(driver) >= 0, other = l.ride.by.some(function (c) { return c !== driver; }), moved = l.ride.was.indexOf(driver) >= 0;
+    var here = { code: l.code, kind: run.kind, ap: run.ap, day: mdKey(run.day) };
+    if (op === 'off') return;
+    if (mine || (op === 'on' && !other) || (op === 'ok' && moved)) want.push(here);
+  });
+  // (the claims kept stay where they are in the note; new ones go after them)
+  var toks = uniq(want.map(claimTok)), had = d.claims.map(claimTok), order = had.filter(function (t) { return toks.indexOf(t) >= 0; }).concat(toks.filter(function (t) { return had.indexOf(t) < 0; }));
+  var next = uniq(order).map(claimOf);
+  if (uniq(order).join(',') === had.join(',')) return null;
+  return { claims: next };
+}
+/* fix pass: what a tap on a driver's toggle for a run does, and so its aria-pressed (op 'off' = pressed): 'on' while a leg of it is
+   still theirs to take (nobody else covers it, and they do not yet: open, moved, or a traveler who joined the run since); else 'off'
+   once they cover any leg of it (every other leg has its own driver, so a share of a run is released too); else 'on' (every leg is
+   someone else's: the guard holds it as "Already covered", nothing sent) */
+function rideToggle(run, code) {
+  var mine = function (l) { return l.ride.by.indexOf(code) >= 0; }, other = function (l) { return l.ride.by.some(function (c) { return c !== code; }); };
+  if (run.legs.some(function (l) { return !mine(l) && !other(l); })) return 'on';
+  return run.legs.some(mine) ? 'off' : 'on';
+}
+/* PIA-157: the ride write's guard (freshWrite's o.guard, and the phone's own record before it builds): 'closed' (paid or removed
+   meanwhile), 'gone' (the run is not there any more: a day, airport or booking changed), 'taken' ('on', and every leg of it is covered
+   by someone else: nothing is sent and the sheet shows who), 'same' (fix pass: the record already is what the tap asks for, as when
+   Mom's phone and Dad's, one member, claim the same run within a poll: nothing is sent and the tap says ✓), '' it can go */
+function rideGuard(fresh, driver, runKey, op, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: today, now: 0 }); } catch (e) { return 'gone'; }
+  var R = rides(m, today), run = R ? R.runs.filter(function (r) { return r.key === runKey; })[0] : null;
+  if (!run || !run.upcoming) return 'gone';
+  var mine = function (l) { return l.ride.by.indexOf(driver) >= 0; }, moved = function (l) { return l.ride.was.indexOf(driver) >= 0; };
+  if (op === 'on') return run.legs.some(function (l) { return !l.ride.by.length; }) ? '' : run.legs.some(mine) ? 'same' : 'taken';
+  if (op === 'off') return run.legs.some(function (l) { return mine(l) || moved(l); }) ? '' : 'same';
+  return run.legs.some(moved) ? '' : 'same';
+}
+/* PIA-157: a traveler's own way between home and the airport for one leg (kind 'a' their arrival, 'd' their departure): mode 'bus'
+   (the coach, only where that leg's airport is not home: O'Hare, not Peoria), 'rent' (a rental car) or '' (the family drives, as
+   before). Their own answer (by 'self'), or the organizer's for them (by anything else: 'keep'). null: no rides on the trip, a closed
+   or past one, someone who has not answered or does not travel, the organizer's write on a v1 trip, or no change (groundPatch: the
+   same without the note's length). */
+function groundRequest(doc, traveler, kind, mode, by, today) {
+  var p = groundPatch(doc, traveler, kind, mode, by, today);
+  return p ? respondRequest(doc, traveler, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+function groundPatch(doc, traveler, kind, mode, by, today) {
+  var k = kind === 'a' || kind === 0 ? 'a' : kind === 'd' || kind === 1 ? 'd' : '';
+  if (!doc || !doc.id || docClosed(doc) || !k || ['bus', 'rent', ''].indexOf(mode) < 0) return null;
+  var model; try { model = tripModel(doc, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return null; }
+  var x = model.members.filter(function (m) { return m.code === traveler; })[0] || null, home = rideHome(model);
+  if (!home || !x || !x.traveler || !x.answered || (isIso(today) && model.past) || (by !== 'self' && model.legacy)) return null;
+  if (mode === 'bus' && (k === 'a' ? x.A : x.H) === home) return null;
+  var put = function (s, on) { s = s.replace(k, ''); if (on) s += k; return legsOf(s.split('').sort().join('')); };
+  var bus = put(x.marks.bus, mode === 'bus'), rent = put(x.marks.rent, mode === 'rent');
+  if (bus === x.marks.bus && rent === x.marks.rent) return null;
+  return { bus: bus, rent: rent };
+}
+/* fix pass: the 🚌 / 🚙 write's guard on the fresh record: 'closed', 'same' (that leg already goes that way: nothing is sent), '' it
+   can go */
+function groundGuard(fresh, traveler, kind, mode, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return ''; }
+  var x = m.members.filter(function (y) { return y.code === traveler; })[0], k = kind === 'd' || kind === 1 ? 'd' : 'a';
+  return x && x.traveler && (x.ground[k] || '') === (mode || '') ? 'same' : '';
+}
+/* PIA-157: whom the organizer asks to drive: the candidates of every open run still ahead, but me. → null (nobody to ask), or {codes,
+   url (the one candidate's own guest link, several: the trip's guest link; never a key), runs (the open runs ahead)} */
+function rideAsk(model, today, worker) {
+  var R = rides(model, today); if (!R || !R.open) return null;
+  var me = model.me ? model.me.code : '', codes = [], open = R.runs.filter(function (r) { return r.state === 'open' && r.upcoming; });
+  open.forEach(function (r) { r.candidates.forEach(function (c) { if (c !== me && codes.indexOf(c) < 0) codes.push(c); }); });
+  if (!codes.length) return null;
+  return { codes: codes, url: guestLink(model.id, codes.length === 1 ? codes[0] : '', worker), runs: open };
+}
+/* ---- PIA-157: the ride in plain words, for the phone's calendar and an iMessage (both outside the word rule) ---- */
+var DOW3 = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+/* 'HH:MM' → '2:35 PM' */
+function h12(t) { if (!HHMM_RE.test(String(t || ''))) return ''; var h = +t.slice(0, 2); return ((h % 12) || 12) + ':' + t.slice(3) + (h < 12 ? ' AM' : ' PM'); }
+function rideWhere(ap) { var c = airportInfo(ap).city; return ap + (c ? ' ' + c : ''); }
+/* a member's name in a ride's words: their short name; a nameless v1 'Me' who shows the family preset's face at its home airport is
+   that person (as ⤒ Update trip names them: "Ashwin"); else their face */
+function rideName(x) {
+  if (!x) return '';
+  var f = !x.name ? FAMILY.filter(function (p) { return p.key === FAMILY_BY_AIRPORT[x.airport] && p.face === x.face; })[0] : null;
+  return x.short || x.one || (f ? shortName(f.name) : '') || x.face;
+}
+function rideWho(model, r) { return r.legs.map(function (l) { return rideName(model.members.filter(function (m) { return m.code === l.code; })[0]); }).filter(Boolean).join(', '); }
+function rideWhat(model, r) { return (r.kind === 'a' ? 'pick up ' : 'drop off ') + rideWho(model, r); }
+function rideWhen(r) { return (r.kind === 'a' ? 'lands ' : 'flight ') + r.legs.map(function (l) { return h12(l.time); }).join(', '); }
+/* one run: "Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM)." */
+function rideLine(model, r) {
+  return DOW3[dowOf(r.day)] + ' ' + md(r.day) + ': ' + rideWhat(model, r) + ' at ' + rideWhere(r.ap) + ', ' + rideWhen(r) +
+    (r.leave ? ' (leave home ' + (r.leave.day !== r.day ? DOW3[dowOf(r.leave.day)] + ' ' : '') + h12(r.leave.t) + ')' : '') + '.';
+}
+/* how: 'ask' (can you drive?), 'remind' (the driver's runs), 'tell' (a time changed). A pure string: names, days, airports and
+   12-hour times only; never a key, a token or a price (the link goes beside it, guestLink's) */
+function rideText(model, runs, how) {
+  var head = how === 'remind' ? '🚗 Reminder:' : how === 'tell' ? '🚗 Ride update:' : '🚗 Can you drive?';
+  return [head].concat((runs || []).map(function (r) { return rideLine(model, r); })).join(' ');
+}
+/* PIA-157: the driver's runs in their phone's calendar: one VCALENDAR with one VEVENT per run still ahead they drive, from leaving
+   home to being back (floating local time: no Z, no TZID; the driver is at home in the airport's zone), two alarms (a day before and
+   30 minutes before), the guest link alone as its description (never a key, a token or a price), a UID from checked codes only.
+   sig: what the events say (each run's key, its day, ⏰ and its legs' times), kept on the phone at its last 📅 Phone
+   (pialax_ui_v1.rides; rideSigAhead reads it less the runs behind us).
+   ctx = {today, now, worker}. → {sig, n, ics {kind, filename, mime, text}} or null (nothing to add) */
+function rideEvents(model, driverCode, ctx) {
+  ctx = ctx || {};
+  if (!isIso(ctx.today) || typeof ctx.now !== 'number' || !isFinite(ctx.now) || !MEMBER_CODE_RE.test(String(driverCode || ''))) return null;
+  var mine = drivesOf(rides(model, ctx.today), driverCode).filter(function (r) { return r.leave && r.back; });
+  if (!mine.length) return null;
+  var link = guestLink(model.id, '', ctx.worker), id = IDEA_ID_RE.test(String(model.id || '')) ? model.id : 'trip';
+  var stamp = new Date(ctx.now).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z'), at = function (x) { return icsDay(x.day) + 'T' + x.t.replace(':', '') + '00'; };
+  var evs = mine.map(function (r) {
+    var title = '🚗 ' + (r.kind === 'a' ? 'Pick up ' : 'Drop off ') + rideWho(model, r) + ' – ' + rideWhere(r.ap) + ', ' + rideWhen(r);
+    var lines = ['UID:' + id + '-' + driverCode + '-' + r.key + '@pialax', 'DTSTAMP:' + stamp, 'DTSTART:' + at(r.leave), 'DTEND:' + at(r.back), 'SUMMARY:' + icsEsc(title), 'LOCATION:' + icsEsc(rideWhere(r.ap))];
+    if (link) lines.push('DESCRIPTION:' + icsEsc(link));
+    lines.push('STATUS:CONFIRMED');
+    ['-P1D', '-PT30M'].forEach(function (t) { lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(title), 'TRIGGER:' + t, 'END:VALARM'); });
+    return lines;
+  });
+  var sig = mine.map(function (r) { return [r.key, r.day, r.leave.day, r.leave.t].concat(r.legs.map(function (l) { return l.code + '@' + l.time; })).join('|'); }).join(';');
+  return { sig: sig, n: mine.length, ics: { kind: 'ics', filename: 'rides-' + (fileSlug(model.name) || fileSlug(model.dest) || 'trip') + '.ics', mime: 'text/calendar;charset=utf-8', text: icsCalendar(evs) } };
+}
+/* fix pass: a kept rideEvents signature less its runs now behind us (a run's day is its second field), so a run that passes is no
+   change: compared with rideEvents(…).sig ('' once the driver drives nothing ahead), a difference is what changed since 📅 Phone */
+function rideSigAhead(sig, today) {
+  return String(sig || '').split(';').filter(function (s) { var d = s.split('|')[1]; return isIso(d) && isIso(today) && d >= today; }).join(';');
 }
 
 /* ---- hand-offs for one face on one trip (PIA-133) ---- */
@@ -947,14 +1254,20 @@ function icsFold(line) {
   });
   return out;
 }
+/* PIA-157: one VCALENDAR around its VEVENTs, each the property lines inside it (already escaped), folded: the one calendar file
+   builder (icsText's trip event, rideEvents' runs) */
+function icsCalendar(events) {
+  var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PIALAX//Trip//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH'];
+  (events || []).forEach(function (ev) { lines.push('BEGIN:VEVENT'); lines.push.apply(lines, ev); lines.push('END:VEVENT'); });
+  lines.push('END:VCALENDAR');
+  return lines.map(icsFold).join('\r\n') + '\r\n';
+}
 function icsText(ev) {
-  var lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PIALAX//Trip//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
-    'UID:' + ev.uid, 'DTSTAMP:' + ev.stamp, 'DTSTART;VALUE=DATE:' + icsDay(ev.d1), 'DTEND;VALUE=DATE:' + icsDay(ev.end),
-    'SUMMARY:' + icsEsc(ev.title)];
+  var lines = ['UID:' + ev.uid, 'DTSTAMP:' + ev.stamp, 'DTSTART;VALUE=DATE:' + icsDay(ev.d1), 'DTEND;VALUE=DATE:' + icsDay(ev.end), 'SUMMARY:' + icsEsc(ev.title)];
   if (ev.where) lines.push('LOCATION:' + icsEsc(ev.where));
   if (ev.details) lines.push('DESCRIPTION:' + icsEsc(ev.details));
-  lines.push('STATUS:' + (ev.tentative ? 'TENTATIVE' : 'CONFIRMED'), 'END:VEVENT', 'END:VCALENDAR');
-  return lines.map(icsFold).join('\r\n') + '\r\n';
+  lines.push('STATUS:' + (ev.tentative ? 'TENTATIVE' : 'CONFIRMED'));
+  return icsCalendar([lines]);
 }
 /* P-calendar-add: one all-day event (d2 + 1 is the exclusive end) over my own travel days when I have a usable
    pair, else the plan, as the prototype's sheet does: a host, someone who is out, a phone with no face, or my own
@@ -1228,27 +1541,42 @@ function createRequest(draft, opts) {
 
 /* typed answer text, minus the marks that are reserved for structure: a leading 📞 (the organizer answered) and a
    trailing '(entered by X)' (v1's proxy mark) would otherwise read back as a proxy answer */
+/* PIA-157: …and any marker-shaped token it begins with (🛬 / 🛫 a time, 🚗 a claim, 🚌 / 🚙 / 🐈 a leg, 🧺 dishes), so typed text can
+   never forge a claim; "🚌 taking the bus" stays (🚌 there is not followed by a, d or ad) */
 function typedNote(s) {
   var t = String(s == null ? '' : s).trim(), m;
-  for (;;) { t = t.replace(LEGACY_PROXY_RE, '').trim(); if ((m = /^📞(?: |$)/u.exec(t))) { t = t.slice(m[0].length).trim(); continue; } break; }
+  for (;;) { t = t.replace(LEGACY_PROXY_RE, '').trim(); if ((m = noteMark(t))) { t = t.slice(m.n).trim(); continue; } break; }
   return t;
 }
-/* how many characters of typed text fit after the 📞 / 🛬 / 🛫 prefixes (the Worker caps the whole note at 280),
-   so the answer screen can cap its text field */
-function noteRoom(called, arr, dep) { var p = buildRespNote(called, arr, dep, ''); return TEXT_MAX.note - (p ? p.length + 1 : 0); }
+/* how many characters of typed text fit after the 📞 / 🛬 / 🛫 prefixes and (PIA-157) the note's other markers, mk (the Worker caps
+   the whole note at 280), so the answer screen can cap its text field */
+function noteRoom(called, arr, dep, mk) { var p = buildRespNote(called, arr, dep, '', mk); return p === null ? 0 : Math.max(0, TEXT_MAX.note - (p ? p.length + 1 : 0)); }
 /* POST /idea/respond: always complete, because the Worker blanks missing dates and note and resets origin.
    patch: {status, origin (an override; '' or the home code = none), available_from, available_to, note (text),
            arrTime, depTime, arrive_at, leave_from}. A member with no answer yet needs patch.status (no silent 'in').
    opts.by: 'self' strips 📞, 'proxy' adds it (idempotent), 'keep' (default) keeps the mark as it reads. Typed
-   text never carries the 📞 or '(entered by X)' marks. arrive_at / leave_from are sent only when they change. */
+   text never carries the 📞 or '(entered by X)' marks. arrive_at / leave_from are sent only when they change.
+   PIA-157: the markers too: claims [{code, kind, ap, day}], bus / rent / pet ('', 'a', 'd', 'ad'), dish (palette glyphs); what is
+   not patched is carried from the answer as it is. A host still on their default answer becomes In with their first marker (a ride
+   claimed, a dish): by the organizer that is an answer on their behalf (📞, 'proxy'), by them their own; anyone else still needs an
+   answer first. A write that changes a time or a marker builds nothing when the note would pass 280 or cut its typed text. */
+var MARK_KEYS = ['claims', 'bus', 'rent', 'pet', 'dish'];
 function respondRequest(doc, code, patch, opts) {
   opts = opts || {}; patch = patch || {};
   var mem = memberOf(doc, code); if (!mem || !doc.id || docClosed(doc)) return null;
   var prev = validResp(doc.responses && doc.responses[code]);
   var has = function (k) { return hasOwn(patch, k); };
-  if (!prev && !has('status')) return null;
-  var status = has('status') ? patch.status : prev.status;
+  var marks = MARK_KEYS.some(has), by = opts.by, status;
+  if (!prev && !has('status')) {
+    var dest = docDest(doc), ap = normIata(mem.airport);
+    if (!marks || !dest || !ap || localSet(dest).indexOf(ap) < 0) return null;
+    status = 'in'; if (by !== 'self') by = 'proxy';
+  } else status = has('status') ? patch.status : prev.status;
   if (!hasOwn(IDEA_STATUSES, status)) return null;
+  // a marker patched with something that is not one builds nothing (never silently dropped)
+  if (['bus', 'rent', 'pet'].some(function (k) { return has(k) && patch[k] !== '' && !legsOf(patch[k]); })) return null;
+  if (has('claims') && (!Array.isArray(patch.claims) || patch.claims.some(function (c) { return !claimTok(c); }))) return null;
+  if (has('dish') && (!Array.isArray(patch.dish) || patch.dish.length > 3 || dishesOf(patch.dish).length !== patch.dish.length)) return null;
   var home = normIata(mem.airport);
   var origin = has('origin') ? normIata(patch.origin) : (prev && isIata(prev.origin) && prev.origin !== home ? prev.origin : '');
   if (origin === home) origin = '';
@@ -1258,10 +1586,12 @@ function respondRequest(doc, code, patch, opts) {
   var n = parseRespNote(prev && prev.note);
   var arr = has('arrTime') ? patch.arrTime || '' : n.arr, dep = has('depTime') ? patch.depTime || '' : n.dep;
   if ((arr && !HHMM_RE.test(arr)) || (dep && !HHMM_RE.test(dep))) return null;
-  var called = opts.by === 'self' ? false : opts.by === 'proxy' ? true : n.called;
-  var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text);
-  // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing
-  if ((has('arrTime') || has('depTime')) && parseRespNote(note).text !== String(text || '').trim()) return null;
+  var called = by === 'self' ? false : by === 'proxy' ? true : n.called;
+  var mk = {}; MARK_KEYS.forEach(function (k) { mk[k] = has(k) ? patch[k] : n[k]; });
+  var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text, mk);
+  if (note === null) return null;
+  // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing (PIA-157: nor markers)
+  if ((has('arrTime') || has('depTime') || marks) && parseRespNote(note).text !== String(text || '').trim()) return null;
   var body = { member: code, status: status, origin: origin, available_from: from, available_to: to, note: note };
   var hub = hubPair(docDest(doc));
   var bad = ['arrive_at', 'leave_from'].some(function (k) {
@@ -2108,18 +2438,27 @@ function lockable(model, today) {
       'share'. A v1 trip not updated yet gives 'share' while someone waits, else 'none' (the nav's ⤒ carries its next step);
    3. me, booked: 'track' in my travel window; else 'times' while my landing time is mine to record and missing; else 'none';
    4. me travelling, answered, the dates locked, not booked, my days ahead: 'book';
-   5. else 'none': a host, a guest before 🔒, a guest who has not answered (the answer row is the call), someone out, nobody. */
+   5. else 'none': a host, a guest before 🔒, a guest who has not answered (the answer row is the call), someone out, nobody.
+   PIA-157 adds the rides (rides()), after every step above keeps its own: 'drive' (I drive a run still ahead: its ⏰) before 'rides'
+   (runs still ahead with no driver, and I am the organizer or a host who can drive one). 1: a paid trip still shows 'drive' (a
+   removed one has no rides); 3: booked me, after 'times'; 5: everyone else ('rides' never for a traveler: their family ride needs no
+   action from them). Book, Landing time, Track, Share and Lock dates keep their precedence. */
 function primaryAction(model, today) {
-  var me = model.me;
-  if (model.decision === 'dropped' || model.closed) return me && travelWindow(model, me.code, today) ? 'track' : 'none';
+  var me = model.me, R = null, rd = function () { return R || (R = rides(model, today) || { runs: [], open: 0 }); };
+  var drive = function () { return !!me && drivesOf(rd(), me.code).length > 0; };
+  var ask = function () {
+    return rd().open > 0 && (model.org || (!!me && me.host && rd().runs.some(function (r) { return r.state === 'open' && r.upcoming && r.candidates.indexOf(me.code) >= 0; })));
+  };
+  var rideStep = function () { return drive() ? 'drive' : ask() ? 'rides' : 'none'; };
+  if (model.decision === 'dropped' || model.closed) return me && travelWindow(model, me.code, today) ? 'track' : drive() ? 'drive' : 'none';
   if (model.org && !model.locked) {
     var waiting = model.members.some(function (x) { return !x.host && x.status === 'waiting'; });
     if (model.legacy) return waiting ? 'share' : 'none';
     return waiting ? 'share' : lockable(model, today) ? 'lock' : 'share';
   }
-  if (me && me.traveler && me.booked) return travelWindow(model, me.code, today) ? 'track' : timesBy(model, me.code) === 'self' && !me.arrTime ? 'times' : 'none';
+  if (me && me.traveler && me.booked) return travelWindow(model, me.code, today) ? 'track' : timesBy(model, me.code) === 'self' && !me.arrTime ? 'times' : rideStep();
   if (me && me.traveler && me.answered && model.locked && !me.booked && !!me.d1 && me.d1 >= today) return 'book';
-  return 'none';
+  return rideStep();
 }
 /* The organizer's 🎫 on someone else's row of the people board, shown once the dates are set or anyone has booked:
    never on a host, never on his own row (his is the primary's), never on a closed trip or an unmigrated v1 doc.
@@ -2428,14 +2767,17 @@ function timesRequest(doc, code, arr, dep, by) {
    which the Worker's booked needs first). unanswered: the people with no answer yet (hosts, in by default), whom 💵 closes
    out, because the Worker takes no answer on a paid trip. notimes: the booked travelers with no 🛬 time recorded yet,
    whose times 💵 freezes for the same reason (PIA-139: the confirm names both). again: a paid trip whose amount the
-   organizer can enter again on this phone (a typo fixed: the Worker takes a second booked decision). */
-function paidCheck(model) {
+   organizer can enter again on this phone (a typo fixed: the Worker takes a second booked decision). PIA-157 norides (today given):
+   the travelers with a leg no one drives yet on a run still ahead (open or moved), whose rides 💵 freezes as it freezes answers. */
+function paidCheck(model, today) {
   var unbooked = model.travelers.filter(function (x) { return !x.booked; }).map(function (x) { return x.code; });
   var unanswered = model.members.filter(function (x) { return !x.resp; }).map(function (x) { return x.code; });
   var notimes = model.travelers.filter(function (x) { return x.booked && !x.arrTime; }).map(function (x) { return x.code; });
   var why = !model.org ? 'org' : !model.prices ? 'token' : model.legacy ? 'legacy' : model.closed ? 'closed' : !model.travelers.length ? 'nobody'
     : unbooked.length ? 'unbooked' : !model.locked && (!model.plan || !model.dest) ? 'nodates' : '';
-  return { why: why, unbooked: unbooked, unanswered: unanswered, notimes: notimes, again: why === 'closed' && model.decision === 'booked' && model.paid != null };
+  var norides = [], R = isIso(today) ? rides(model, today) : null;
+  if (R) R.runs.forEach(function (r) { if (r.upcoming) r.legs.forEach(function (l) { if (l.ride.state !== 'covered' && norides.indexOf(l.code) < 0) norides.push(l.code); }); });
+  return { why: why, unbooked: unbooked, unanswered: unanswered, notimes: notimes, again: why === 'closed' && model.decision === 'booked' && model.paid != null, norides: norides };
 }
 /* the same rule on the record a 💵 is sent against: 'closed' (paid or dropped meanwhile), 'unbooked' (a 🎫 was taken away
    on another phone since this one drew 🏁), '' it can go. Who travels and who has booked does not depend on the day, so
@@ -2768,6 +3110,11 @@ if (typeof module !== 'undefined' && module.exports) {
     tapKeys: tapKeys, spendable: spendable, monthWhy: monthWhy,
     quotaRead: quotaRead, quotaBump: quotaBump, quotaExceeded: quotaExceeded, quotaFromAccount: quotaFromAccount,
     v1FareKey: v1FareKey, fareKeyOfV1: fareKeyOfV1, fareFromV1: fareFromV1, v1Fare: v1Fare, faresPut: faresPut, endPrices: endPrices,
-    WIDEN_DAYS: WIDEN_DAYS, followsPlan: followsPlan, cheapWhy: cheapWhy, widenWin: widenWin, widenDelta: widenDelta, moveDelta: moveDelta
+    WIDEN_DAYS: WIDEN_DAYS, followsPlan: followsPlan, cheapWhy: cheapWhy, widenWin: widenWin, widenDelta: widenDelta, moveDelta: moveDelta,
+    // PIA-157
+    HOME_DRIVE: HOME_DRIVE, RIDE_LEAD: RIDE_LEAD, RUN_GAP: RUN_GAP, DISH_PALETTE: DISH_PALETTE, DRIVE_PIVOT: DRIVE_PIVOT, icsText: icsText, icsCalendar: icsCalendar,
+    mdKey: mdKey, claimOf: claimOf, noteMarks: noteMarks, runChain: runChain, rideHome: rideHome, rides: rides, rideLeg: rideLeg, drivesOf: drivesOf, runDrivers: runDrivers,
+    ridesRequest: ridesRequest, rideGuard: rideGuard, groundRequest: groundRequest, rideAsk: rideAsk, h12: h12, rideText: rideText, rideEvents: rideEvents,
+    rideClaims: rideClaims, rideToggle: rideToggle, groundPatch: groundPatch, groundGuard: groundGuard, rideSigAhead: rideSigAhead, rideName: rideName
   };
 }

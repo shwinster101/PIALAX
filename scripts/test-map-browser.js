@@ -137,6 +137,40 @@ async function main() {
     await alt.page.waitForFunction(() => document.querySelector('#sheet [data-act="legair"][data-end="0"][data-v="ORD"]')?.getAttribute('aria-pressed') === 'true');
     check(alt.read().responses['ashwin-p8'].arrive_at === 'ORD' && alt.paid.length === 0, 'alternate-pin airport pick changes the shared arrival, without a search');
     await measure(alt.page, 'Alternate airport'); await alt.ctx.close();
+    // PIA-157: rides under the real map ("P town" as the family has it: 📍ORD, 🔒, Mom & Dad driving from Peoria, on their own organizer
+    // phone). Ashwin and Anjo are booked, landing 35 minutes apart and leaving 50 apart: ORD's Lands and Leaves each bracket their run
+    // ⏱ and every booked chip wears its dashed ? (no driver yet); a chip's day (P-day) has its 🚗; there, Mom & Dad's own face in P-rides
+    // claims the arrival run through the real Worker, in their own answer's note (no search), and the Map's two arrival chips then wear
+    // their 🌽 while the departures still ask
+    const pt = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/idea-diwali.json'))); pt.idea.destination = { city: 'Chicago', airport: 'ORD' };
+    pt.decision = { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-06', return: '2026-11-09' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+    pt.responses['momdad-k3'] = { status: 'in', origin: 'PIA', note: '' };
+    pt.responses['ashwin-p8'] = { status: 'in', origin: 'LAX', note: '🛬14:35 🛫15:30', booked: true };
+    pt.responses['anjo-z5'] = { status: 'in', origin: 'LGA', note: '🛬15:10 🛫16:20', booked: true };
+    const rd = await phone({ doc: pt });
+    const lanesNow = () => rd.page.evaluate(() => { const row = document.querySelector('.lanes .lrow:not(.lhd)'), cells = row ? [...row.querySelectorAll('[role="cell"]')] : [];
+      return { grp: cells.map((c) => c.querySelectorAll('.grp .pk').length), arr: cells[0] ? [...cells[0].querySelectorAll('.pk.bk .rbd')].map((b) => b.textContent) : [], dep: cells[1] ? [...cells[1].querySelectorAll('.pk.bk .rbd')].map((b) => b.textContent) : [],
+        q: document.querySelectorAll('.lanes .pk.bk .rbd.q').length, said: [...document.querySelectorAll('.lanes .pk.bk')].every((p) => /, (no driver yet|Mom & Dad driving)$/.test(p.getAttribute('aria-label') || '')) }; });
+    const ln0 = await lanesNow();
+    check(JSON.stringify(ln0.grp) === '[2,2]' && JSON.stringify(ln0.arr) === '["?","?"]' && JSON.stringify(ln0.dep) === '["?","?"]' && ln0.q === 4 && ln0.said, 'rides under the real map: ORD\'s Lands and Leaves each bracket their run ⏱, every booked chip wears a dashed ? and says "no driver yet" ' + JSON.stringify(ln0));
+    await measure(rd.page, 'Map with rides');
+    await rd.page.click('.lanes .pk.arr'); await rd.page.waitForSelector('#sheet[data-popup="P-day"]');
+    check(await rd.page.locator('#sheet [data-act="rides"][data-v="aORD1106-ashwin-p8"]').count() === 1, 'P-day (Map) has its 🚗 for the arrival run');
+    await measure(rd.page, 'P-day with its run');
+    await rd.page.click('#sheet [data-act="rides"][data-v="aORD1106-ashwin-p8"]'); await rd.page.waitForSelector('#sheet[data-popup="P-rides"]');
+    await measure(rd.page, 'P-rides from the Map');
+    const claimed = rd.page.waitForResponse(r => r.url().includes('/idea/respond') && r.request().method() === 'POST');
+    await rd.page.click('#sheet #run-aORD1106-ashwin-p8 [data-act="ride"][data-code="momdad-k3"]');
+    check((await claimed).ok(), 'Mom & Dad\'s face in P-rides: the claim is accepted by the real Worker');
+    await rd.page.waitForFunction(() => (document.querySelector('#toast')?.textContent || '').includes('🚗✓'));
+    const mdNote = rd.read().responses['momdad-k3'].note;
+    check(mdNote === '🚗ashwin-p8.aORD1106,anjo-z5.aORD1106' && rd.read().responses['momdad-k3'].status === 'in' && rd.paid.length === 0, 'the claim lives in Mom & Dad\'s own answer (both arrival legs, tied to ORD and 11/06), with no search: ' + JSON.stringify(mdNote));
+    await rd.page.click('#sheet [data-act="sh-close"]');
+    await rd.page.waitForFunction(() => document.querySelectorAll('.lanes .pk.arr .rbd.q').length === 0);
+    const ln1 = await lanesNow();
+    check(JSON.stringify(ln1.arr) === '["🌽","🌽"]' && JSON.stringify(ln1.dep) === '["?","?"]' && ln1.said, 'the Map redraws from the shared record: the arrival chips wear Mom & Dad\'s 🌽, the departures still ask ' + JSON.stringify(ln1));
+    check(rd.errors.length === 0, 'rides under the map: no browser exceptions');
+    await rd.ctx.close();
     const eight = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/idea-8members.json')));
     for (const x of eight.idea.members) eight.responses[x.code] = { status: 'in', origin: x.airport, note: '' };
     const cap = await phone({ doc: eight });

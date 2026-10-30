@@ -138,10 +138,33 @@ console.log('▶ test-viewport: mobile layout regression suite');
     d.decision = { stage: 'chosen', chosen: { airport: 'MSY', city: 'New Orleans', departure: d.idea.dates.departure, return: d.idea.dates.return }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
     return d;
   })();
+  // PIA-157: "P town" as the family has it (📍ORD, 🔒, Mom & Dad hosting at PIA, Ashwin booked 14:35 / 15:30, Anjo In) on the organizer's
+  // phone, and a rides trip of 8 (a host at PIA, seven booked at ORD or PIA) on its host's phone; both opened by their link near the end
+  const PTV = 'ptViewportPTownRides10', R8V = 'r8ViewportEightRides11';
+  docs[PTV] = (() => {
+    const d = JSON.parse(JSON.stringify(docs.dwDiwaliRaleigh2026a01)); d.id = PTV; d.idea.title = '🦃 P town thanksgiving'; d.idea.destination = { city: 'Chicago', airport: 'ORD' };
+    d.idea.dates.departure = '2026-11-20'; d.idea.dates.return = '2026-11-30'; d.idea.notes = ''; delete d.responses['momdad-k3'];
+    d.responses['ashwin-p8'] = Object.assign({}, d.responses['ashwin-p8'], { booked: true, note: '🛬14:35 🛫15:30' });
+    d.responses['anjo-z5'] = { member: 'anjo-z5', status: 'in', origin: 'LGA', available_from: '', available_to: '', note: '', arrive_at: '', leave_from: '', updated_at: '2026-10-12T00:00:00.000Z' };
+    d.decision = { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+    return d;
+  })();
+  docs[R8V] = (() => {
+    const d = JSON.parse(JSON.stringify(docs.m8GrandmaNinetieth0c03)); d.id = R8V; d.idea.destination = { city: 'Chicago', airport: 'ORD' };
+    d.idea.dates.departure = '2026-11-20'; d.idea.dates.return = '2026-11-30'; d.idea.notes = '';
+    const host = d.idea.members.find((x) => x.code === 'guadalupehernndezvillanueva-5m'); host.airport = 'PIA';
+    d.idea.members.filter((x) => x !== host).forEach((x, i) => {
+      d.responses[x.code] = Object.assign({}, d.responses[x.code] || {}, { member: x.code, status: 'in', origin: '', available_from: '', available_to: '', arrive_at: i % 3 === 0 ? 'PIA' : '', leave_from: '', booked: true, updated_at: '2026-10-12T00:00:00.000Z',
+        note: '🛬' + ['08:10', '11:20', '13:05', '16:40', '19:15', '21:30', '23:10'][i] + ' 🛫' + ['06:30', '09:45', '12:15', '14:50', '17:20', '19:40', '22:05'][i] });
+    });
+    d.responses[host.code] = { member: host.code, status: 'in', origin: 'PIA', available_from: '', available_to: '', note: '', arrive_at: '', leave_from: '', updated_at: '2026-10-12T00:00:00.000Z' };
+    d.decision = { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
+    return d;
+  })();
   const PSV = 'psViewportPastTahoe007', DRV = 'drViewportDroppedTr008';
   docs[PSV] = (() => { const d = JSON.parse(JSON.stringify(docs.thTahoeSkiWeekend26b02)); d.id = PSV; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; return d; })();
   docs[DRV] = (() => { const d = JSON.parse(JSON.stringify(docs.lxBeachWeekendLAX00d05)); d.id = DRV; d.decision.stage = 'dropped'; return d; })();
-  const ids = Object.keys(docs).filter((id) => id !== E8V), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
+  const ids = Object.keys(docs).filter((id) => id !== E8V && id !== PTV && id !== R8V), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
   // PIA-140: the phone has v1's multi-airport flag (the Worker's /account says features.multi_airport), so the keys are the nearby sets
@@ -171,9 +194,9 @@ console.log('▶ test-viewport: mobile layout regression suite');
     pialax_idea_keys_v1: JSON.stringify({ [DW]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [M8]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [LKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [CYV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [BKV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
-      [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [E8V]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // PIA-141: the cheapest-week trip (PIA-156: + the key's 8)   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
+      [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [E8V]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [PTV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // (PIA-157: + P town)   // PIA-141: the cheapest-week trip (PIA-156: + the key's 8)   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
-      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf' }),
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf', [PTV]: 'ashwin-p8', [R8V]: 'guadalupehernndezvillanueva-5m' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 }), pialax_multi_airport_v1: '1'
   };
   const LAYOUT = () => {
@@ -293,7 +316,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
           return route.fulfill({ status: 200, headers: Object.assign({ 'x-proxy-cache': 'MISS', 'x-fetched-at': '2026-10-17T19:00:00.000Z' }, cors), body: JSON.stringify(serpFor(u)) });
         }
         if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
-        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ || id === CHV || id === E8V) && q.headers()['x-idea-key'] === KEY }) });
+        return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: (id === DW || id === M8 || id === LKV || id === CYV || id === BKV || id === BKP || id === DWJ || id === CHV || id === E8V || id === PTV) && q.headers()['x-idea-key'] === KEY }) });
       });
       const page = await ctx.newPage();
       const fails = [];
@@ -730,6 +753,51 @@ console.log('▶ test-viewport: mobile layout regression suite');
         });
         if (!reach.rem) fails.push('the key\'s Remind should take a tap where it is drawn (nothing over it once scrolled into view)');
         if (!(reach.faces >= 6 && reach.own)) fails.push('each face in the key should take its own tap at its centre ' + JSON.stringify(reach));
+        // PIA-157: P town on the organizer's phone (his own link): the key's 🚗 Rides row after ⏳ Waiting, its head with no word while the
+        // primary says "🚗 Rides", one dashed chip a run (🛬 11/20, 🛫 11/30, each ≥44px and named) and Ask Mom & Dad at its end; on a
+        // 678px-tall phone ⏳ Waiting and its Remind stay wholly above the sticky "🚗 Rides"; then P-rides (two runs, Mom & Dad's face
+        // to tap on each, nothing over the sheet's edge)
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?idea=' + PTV, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+        await measure('P town: the key with its 🚗 Rides row');
+        const prt = await page.evaluate(() => {
+          const r = document.querySelector('#screen .wk .wkr.wkride'), p = document.querySelector('#screen .split.prim [data-act="rides"]');
+          if (!r) return { row: false };
+          const chips = [...r.querySelectorAll('.rk')], ask = r.querySelector('.wkrem'), W = innerWidth;
+          return { row: true, prim: !!p && /🚗\s*Rides/.test(p.textContent.replace(/\s+/g, ' ')), chips: chips.map((c) => c.textContent.replace(/\s+/g, '')), more: (r.querySelector('.wkn') || { textContent: '' }).textContent,
+            named: chips.every((c) => /^(Lands|Leaves) ORD /.test(c.getAttribute('aria-label') || '')), ask: ask ? ask.getAttribute('aria-label') : '',
+            inside: [...r.querySelectorAll('button')].every((b) => { const x = b.getBoundingClientRect(); return x.left >= -0.5 && x.right <= W + 0.5; }) };
+        });
+        // (both runs where the row holds them, else the first and +1)
+        const ptChips = ['🛬11/20🌴', '🛫11/30🌴'], ptN = prt.chips ? prt.chips.length : 0;
+        if (!(prt.row && prt.prim && ptN >= 1 && JSON.stringify(prt.chips) === JSON.stringify(ptChips.slice(0, ptN)) && prt.more === (ptN < 2 ? '+' + (2 - ptN) : '') && prt.named && prt.ask === 'Ask Mom & Dad' && prt.inside)) fails.push('P town\'s Rides row should hold 🛬 11/20 🌴 and 🛫 11/30 🌴 (or the first and +1; named, inside the screen) and Ask Mom & Dad, under "🚗 Rides": ' + JSON.stringify(prt));
+        if (vp.width >= 390 && ptN !== 2) fails.push('at ' + vp.width + 'px P town\'s Rides row should hold both its runs ' + JSON.stringify(prt));
+        fails.push(...keyFails('P town\'s key', await page.evaluate(KEYCHK), ['Waiting:1:nudge', ':0' + (ptN < 2 ? '+' + (2 - ptN) : '') + ':nudge', 'Booked:1', 'Hosting:1']));
+        const shPT = await shortView();
+        if (!(shPT.prim && shPT.first === true && /^⏳ Waiting$/.test(shPT.firstWord) && shPT.rem === true)) fails.push('at 678px tall P town\'s ⏳ Waiting row and its Remind should be wholly above the sticky "🚗 Rides" ' + JSON.stringify(shPT));
+        await tapJs('#screen .split.prim [data-act="rides"]'); await measure('P-rides (the organizer: two runs, Mom & Dad to tap on each)');
+        const prs = await page.evaluate(() => { const a = document.querySelector('#sheet [data-act="nudge"][data-v="ride"]');
+          return { popup: document.querySelector('#sheet').getAttribute('data-popup'), runs: document.querySelectorAll('#sheet .rrun').length, ask: a ? a.getAttribute('aria-label') : '',
+            cands: [...document.querySelectorAll('#sheet .rrun [data-act="ride"].rcand')].map((b) => b.getAttribute('aria-label') + ':' + b.getAttribute('aria-pressed')) }; });
+        if (!(prs.popup === 'P-rides' && prs.runs === 2 && JSON.stringify(prs.cands) === JSON.stringify(['Mom & Dad drives Ashwin:false', 'Mom & Dad drives Ashwin:false']) && prs.ask === 'Ask Mom & Dad')) fails.push('P-rides on the organizer\'s phone should show its two runs, Mom & Dad\'s face to tap on each, and Ask Mom & Dad: ' + JSON.stringify(prs));
+        await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-157: the rides trip of 8 on its PIA host's own phone (a guest; Bartholomew hosts at ORD too): eleven runs at ORD and PIA,
+        // her "☐ 🚗 Drive" on each (a ≥44px target, named, inside the sheet; the word while the sheet keeps ≤20), the long names never
+        // pushing anything over the edge; and the key's Rides row holding what fits, then +N
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?idea=' + R8V, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+        await measure('the rides trip of 8 (a host\'s phone: the key\'s Rides row, +N)');
+        const r8k = await page.evaluate(() => { const r = document.querySelector('#screen .wk .wkr.wkride'); return r ? { chips: r.querySelectorAll('.rk').length, more: (r.querySelector('.wkn') || { textContent: '' }).textContent, over: document.documentElement.scrollWidth - innerWidth } : null; });
+        if (!(r8k && r8k.chips >= 1 && r8k.chips < 11 && r8k.more === '+' + (11 - r8k.chips) && r8k.over <= 0)) fails.push('the 8-person rides trip\'s key should hold the open runs that fit, then +N, with no sideways scroll: ' + JSON.stringify(r8k));
+        await tapJs('#screen .split.prim [data-act="rides"]'); await measure('P-rides (a host of 8: eleven runs, ☐ 🚗 Drive on each)');
+        const r8s = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), d = [...sh.querySelectorAll('.rrun [data-act="ride"].rdrv')];
+          return { popup: sh.getAttribute('data-popup'), runs: sh.querySelectorAll('.rrun').length, secs: [...sh.querySelectorAll('.rsh')].map((e) => e.textContent.replace(/\s+/g, '')), drive: d.length,
+            fit: d.every((b) => { const x = b.getBoundingClientRect(); return x.height >= 43.5 && x.width >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }) &&
+              [...sh.querySelectorAll('.rleg, .rrh')].every((e) => { const x = e.getBoundingClientRect(); return x.right <= S.right + 0.5 && e.scrollWidth <= e.clientWidth + 1; }) };
+        });
+        if (!(r8s.popup === 'P-rides' && r8s.runs === 11 && JSON.stringify(r8s.secs) === JSON.stringify(['📍ORD', 'PIA']) && r8s.drive === 11 && r8s.fit)) fails.push('P-rides on the host\'s phone of 8 should hold 11 runs (📍ORD, then PIA), a 44px ☐ 🚗 Drive on each, nothing over the sheet\'s edge: ' + JSON.stringify(r8s));
+        await tapJs('#sheet [data-act="sh-close"]');
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }

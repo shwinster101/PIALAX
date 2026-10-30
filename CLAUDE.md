@@ -47,6 +47,14 @@ No framework, package.json or build step. GitHub Pages serves
 set. Mom & Dad count as two, Ashwin one, Anjo one. Keep the Peoria ORD drive
 pivot. A missing fare remains unsearched; no synthetic total or estimated week.
 
+Answer-note markers (PIA-157) come after 📞/🛬/🛫 in one fixed order (🚗 claims,
+🚌, 🚙, 🐈, 🧺, then the text); a new marker kind is only ever appended last, so
+an older build keeps the markers it does not know as text, byte for byte. A
+ride claim lives in the driver's own answer; runs and ⏰ are derived, never
+stored (a phone keeps only its last 📅 Phone signature in `pialax_ui_v1`). No
+flight numbers or confirmation codes. A marker or time write over 280 is
+refused, never clipped.
+
 Shared storage keys retain v1 formats: `pialax_idea_keys_v1`,
 `pialax_idea_me_v1`, `pialax_idea_seen_v1`, `pialax_proxy_token`,
 `pialax_proxy_url`, price cache and quota keys. Never delete or replace an edit
@@ -69,7 +77,8 @@ migration and on-device checks are recorded separately from fixture evidence.
 Screens have at most 10 ordinary visible words plus at most 5 marked label
 words (`data-lbl3`, PIA-156) from the allowlist (Coming?, Hosting?, Lock dates,
 I booked, Landing time, Track, Lands, Leaves; Tue, Wed, Thu on Calendar only;
-Booked, Waiting, Hosting in the trip page's key rows only); popups at most 20
+Booked, Waiting, Hosting in the trip page's key rows only; Rides in the trip
+page's key rows and primary only); popups at most 20
 and mark none. ✈ alone means booked. Count visible
 whitespace-separated tokens with a Unicode letter, including names, airport
 codes, labels, placeholders and typed values. Trip names and the expandable Nebby travel-reference notes marked `data-free`,

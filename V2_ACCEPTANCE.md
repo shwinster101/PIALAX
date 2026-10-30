@@ -75,6 +75,19 @@ a row past the 5 keeps its glyph and faces and drops its word). On a short phone
 (the price row, 💵 Paid), so they keep their first-screen place, and its ⏳ Waiting
 row with Remind comes first.
 
+PIA-157 adds rides, each counted by `test-words` with real taps through the real
+Worker: Mom & Dad claim a run in 2 taps from the list (the card's 🚗?, then
+"☐ 🚗 Drive" in P-rides) and in 2 from their own link (the "🚗 Rides" primary,
+then Drive); ↩ in the toast takes it back in 1; their runs go to the phone's
+calendar in 1 more from the same sheet (📅 Phone). The organizer asks a driver in
+1 (the key's Ask: Mom & Dad's own link with the ride in words), covers a run for
+someone in 2 (its chip, their face; their answer is marked 📞 when it was their
+first), puts a moved ride back in 2 (its ⚠ chip, ✓) and reminds a driver in 2
+(the Rides row, the run's share). A traveler marks their own 🚌 or 🚙 for a leg
+in 2 (their chip, the glyph), and the organizer for them in 2. The word rule
+allows Rides as a marked word in the key's row and the primary only; P-rides
+keeps ≤20 words, unmarked, on the 8-member trip too.
+
 The suites compare dates, event-day constraints, answers, stages, bookings,
 headcounts, airport choices and totals with the same shared record/model.
 Writing jobs use the real in-process Worker. Paid upstreams are fixtures; no
@@ -108,7 +121,7 @@ Retirements below are explicit design choices under D1/D4, not claims of parity.
 | Trigger live pricing while controlling spend | Covered by the single explicit runSearch path, shown cost, cache, visit/day/month caps and token gate |
 | Remember a traveler booked and record flight times | Covered by booking marks (✈, PIA-156; the trip page's key says who booked, who is still to book and who hosts), flight-time entry, return invitation and recorded pickup times |
 | Track an actual flight on travel day | Covered by Flighty handoff; live flight tracking remains outside PIALAX |
-| Coordinate rides, arrival gaps and alternate airports | Covered by Map, shared pickup lanes, P-day map mode and cheapest cached pickup pair |
+| Coordinate rides, arrival gaps and alternate airports | Covered by Map, shared pickup lanes, P-day map mode and cheapest cached pickup pair; PIA-157: who drives each run (claims in the driver's own answer), a traveler's own 🚌 / 🚙, ⏰ when to leave home, the key's 🚗 Rides row and primary, P-rides, the driver's timed events in the phone's calendar, Ask / Remind / Tell in words beside a guest link; departures bracketed ⏱ too |
 | See geographic routes at home or abroad | Covered by pinned world map, origin faces, routes, destination/alternate pins and fallback roster |
 | See who hosts and who should host next | Covered by Family's cross-trip hosting counts and headcounts |
 | Expense allocation, reimbursements and cash settlement | Deliberately retired; the paid trip total remains, but PIALAX is not a settlement ledger |
@@ -179,5 +192,6 @@ that the pending checks below have passed.
 - Record the two-person shared-list comprehension check and Mom & Dad icon check.
 - Complete previously recorded real-device booking-return, keyboard and calendar-file checks and the real adults=2 fare-price verification. Browser fixtures are not proof of a provider's live party-price convention.
 - If the separate original six-asks document becomes available, reconcile its exact wording before claiming that original review complete.
+- PIA-157 rides on real phones (pending): ⚙ #157 on Mom's and Dad's phones; a multi-event rides `.ics` from 📅 Phone offers Add All on iPhone with both alarms, and adding it again after a change updates the events by their UID rather than duplicating them; the 24-hour ⏰ times read clearly to Mom & Dad; 🚗 and 🚙 are told apart at the key's and the Map's sizes, light and dark.
 
 No pre-cutover human check is represented as an automated pass.

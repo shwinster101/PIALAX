@@ -202,6 +202,23 @@ DOC[E8] = (() => {
   return d;
 })();
 
+// PIA-157: rides on "P town" (📍ORD; Mom & Dad drive from Peoria). PR: Mom & Dad's claim on Ashwin's arrival is a day off (moved: ⚠), Anjo
+// booked landing 19:30 the same day (its own run) and leaving 11/29 (her own run); PA: Mom & Dad cover everything but Anjo's 11/29 drop-off;
+// R8: Mom & Dad and 7 travelers with long names, every one booked into ORD or PIA, for P-rides' words
+const PR = 'prPTownRidesSplit00001', PA = 'paPTownAnjoLeavesOwn01', R8 = 'r8EightRidesLongNames1';
+DOC[PR] = mkDoc(PR, '🦃 P town thanksgiving', 'ORD', { departure: '2026-11-20', return: '2026-11-30' }, '',
+  [['momdad-t1', '🌽 Mom & Dad', 'PIA', 2], ['ashwin-t2', '💪 Ashwin', 'LAX'], ['anjo-t3', '🗽 Anjo', 'LGA']],
+  { 'momdad-t1': { origin: 'PIA', note: '🚗ashwin-t2.aORD1119' }, 'ashwin-t2': { origin: 'LAX', booked: true, note: '🛬14:35 🛫15:30' }, 'anjo-t3': { origin: 'LGA', booked: true, available_to: '2026-11-29', note: '🛬19:30 🛫10:00' } }, 'chosen');
+DOC[PR].decision.chosen = { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' };
+DOC[PA] = JSON.parse(JSON.stringify(DOC[PR])); DOC[PA].id = PA; DOC[PA].responses['momdad-t1'].note = '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130,anjo-t3.aORD1120';
+DOC[R8] = mkDoc(R8, '🦃 A big family Thanksgiving', 'ORD', { departure: '2026-11-20', return: '2026-11-30' }, '',
+  [['momdad-r0', '🌽 Mom & Dad', 'PIA', 2], ['bartholomewmontgomeryfitzgera-r1', '🦊 Bartholomew Montgomery-Fitzgerald', 'LAX'], ['anastasiakonstantinopoulou-r2', '🐻 Anastasia Konstantinopoulou', 'ATL', 2],
+    ['maximilianoyelaranwhitfield-r3', '🐼 Maximilian Oyelaran-Whitfield', 'SEA'], ['guadalupehernndezvillanueva-r4', '🦉 Guadalupe Hernández-Villanueva', 'SAV'], ['oluwaseunadebayorichardson-r5', '🐙 Oluwaseun Adebayo-Richardson', 'BOS'],
+    ['priyaraghunathanvenkataraman-r6', '🐯 Priya Raghunathan-Venkataraman', 'DEN'], ['leonardobartholomew-r7', '🐸 Leonardo Bartholomew', 'SFO']],
+  ['bartholomewmontgomeryfitzgera-r1', 'anastasiakonstantinopoulou-r2', 'maximilianoyelaranwhitfield-r3', 'guadalupehernndezvillanueva-r4', 'oluwaseunadebayorichardson-r5', 'priyaraghunathanvenkataraman-r6', 'leonardobartholomew-r7'].reduce((o, c, i) => {
+    o[c] = { origin: '', booked: true, arrive_at: i % 3 === 0 ? 'PIA' : '', note: '🛬' + ['08:10', '11:20', '13:05', '16:40', '19:15', '21:30', '23:10'][i] + ' 🛫' + ['06:30', '09:45', '12:15', '14:50', '17:20', '19:40', '22:05'][i] }; return o; }, { 'momdad-r0': { origin: 'PIA' } }), 'chosen');
+DOC[R8].decision.chosen = { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' };
+
 // ---- phones ----
 const keyRec = (ids) => { const o = {}; ids.forEach((id) => { o[id] = { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }; }); return o; };
 const listRec = (ids, pin) => ids.map((id) => ({ id, t: '', e: '', at: 1, pin: (pin || []).indexOf(id) >= 0, arch: false }));
@@ -217,7 +234,7 @@ const PHONES = {
   widest: { ls: { pialax_watchlist_v2: listRec([WC1, WC2, OJ]), pialax_idea_keys_v1: keyRec([WC1, OJ]), pialax_proxy_token: TOKEN, pialax_fares_v2: FARES,   // PIA-135: the widest card, and a half-priced open-jaw traveler
     pialax_idea_me_v1: { [WC1]: 'ashwin-w1', [WC2]: 'ashwin-w9', [OJ]: 'ashwin-o1' }, pialax_ui_v1: { v1read: 1 } } }
 };
-const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY, [WC1]: KEY, [OJ]: KEY, [M8]: KEY, [LC]: KEY, [LK]: KEY, [PT]: KEY, [BZ]: KEY, [E8]: KEY };   // (PIA-156: + P town, the busiest, the 8 waiting)
+const KEYS = { [A]: KEY, [LT]: KEY, [UK]: KEY, [DROP]: KEY, [WC1]: KEY, [OJ]: KEY, [M8]: KEY, [LC]: KEY, [LK]: KEY, [PT]: KEY, [BZ]: KEY, [E8]: KEY, [PR]: KEY, [PA]: KEY, [R8]: KEY };   // (PIA-156: + P town, the busiest, the 8 waiting; PIA-157: the rides trips)
 // PIA-137 phones: the organizer of the set Christmas trip (his 🎫 marks on the board), and a guest on it and on the paid trip
 PHONES.lockorg = { ls: { pialax_watchlist_v2: listRec([LK]), pialax_idea_keys_v1: keyRec([LK]), pialax_proxy_token: TOKEN, pialax_idea_me_v1: { [LK]: 'ashwin-k1' }, pialax_ui_v1: { v1read: 1 } } };
 PHONES.portal = { ls: { pialax_watchlist_v2: listRec([LK, PD]), pialax_idea_me_v1: { [LK]: 'leo-k3', [PD]: 'leo-q3' }, pialax_ui_v1: { v1read: 1 } } };
@@ -306,9 +323,10 @@ const COUNT = (sels) => {
 // PIA-154: the only label words a screen may mark (data-lbl3); never in a popup. PIA-156 (the owner's "a word or 2"): at most 5 a
 // screen, and the trip page's key adds Booked, Waiting and Hosting
 const LBL3_MAX = 5;
-const LBL3_OK = ['Coming?', 'Hosting?', 'Lock dates', 'I booked', 'Landing time', 'Track', 'Lands', 'Leaves', 'Tue', 'Wed', 'Thu', 'Booked', 'Waiting', 'Hosting'];
+const LBL3_OK = ['Coming?', 'Hosting?', 'Lock dates', 'I booked', 'Landing time', 'Track', 'Lands', 'Leaves', 'Tue', 'Wed', 'Thu', 'Booked', 'Waiting', 'Hosting', 'Rides'];
 const LBL3_DAYS = ['Tue', 'Wed', 'Thu'];   // (Calendar's weekday header only)
 const LBL3_KEY = ['Booked', 'Waiting', 'Hosting'];   // (PIA-156: the trip page's key rows only, inside #screen .wk .wkl)
+const LBL3_RIDES = ['Rides'];   // (PIA-157: the trip page's key row word (#screen .wk .wkl) and its primary (#screen .split.prim) only)
 const SKIP_KEY = ['back', 'key', 'settings', 'close'];
 // the build ⚙ shows (app.html's one BUILD constant; test-app checks it is the newest ticket's number)
 const BUILD_NO = +((/\bvar BUILD = (\d+);/.exec(fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8')) || [])[1] || 0);
@@ -437,6 +455,13 @@ async function main() {
         .filter(([e, t]) => kw.indexOf(t) >= 0 && !e.closest('#screen .wk .wkl')).map(([, t]) => t);
     }, LBL3_KEY) : [];
     if (offKey.length) bad('Booked / Waiting / Hosting marked outside the trip page\'s key rows: ' + label, offKey);
+    // PIA-157: Rides is the trip page's key row word and its primary's alone (#screen .wk .wkl, #screen .split.prim)
+    const offRides = marks.some((t) => LBL3_RIDES.indexOf(t) >= 0) ? await page.evaluate((kw) => {
+      const vis = (el) => { for (let e = el; e && e.nodeType === 1; e = e.parentElement) { if (e.hasAttribute('hidden')) return false; const cs = getComputedStyle(e); if (cs.display === 'none' || cs.visibility === 'hidden') return false; } return true; };
+      return [...document.querySelectorAll('#screen [data-lbl3], #tabbar [data-lbl3]')].filter(vis).map((e) => [e, (e.textContent || '').trim().replace(/\s+/g, ' ')])
+        .filter(([e, t]) => kw.indexOf(t) >= 0 && !e.closest('#screen .wk .wkl') && !e.closest('#screen .split.prim')).map(([, t]) => t);
+    }, LBL3_RIDES) : [];
+    if (offRides.length) bad('Rides marked outside the trip page\'s key rows and primary: ' + label, offRides);
     if (r.m.length) markedScreens++;
     return w;
   }
@@ -475,13 +500,16 @@ async function main() {
       await run('sixth', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '<i data-lbl3>Track</i></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: a 6th marked word'));
       await run('fifth', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '</main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: 5 marked words'));
       await run('offKey', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>Waiting</b></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Waiting marked off the key'));
+      // (PIA-157: "Rides" marked in the key's word column or the primary passes; marked anywhere else on the screen fails)
+      await run('ridesOk', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p>' + key('Rides') + '<div class="split prim"><b data-lbl3>Rides</b></div></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Rides in the key and the primary'));
+      await run('ridesOff', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>Rides</b></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Rides marked off the key and primary'));
       await run('popup', '<main id="screen"></main><div id="sheet"><p>' + ws(21, 's') + ' <span data-lbl3>Track</span></p></div>', () => measurePopup(page, 'self-test: popup'));
       await run('popupOk', '<main id="screen"></main><div id="sheet"><p>' + ws(20, 's') + '</p></div>', () => measurePopup(page, 'self-test: popup at 20'));
     } finally { console.log = log0; }
     failCount = f0; Object.assign(worst, JSON.parse(keep)); [screensCounted, popupsCounted, markedScreens] = c0;
     await ctx.close();
-    check(caught.over === 4 && caught.atLimit === 0 && caught.sixth === 1 && caught.fifth === 0 && caught.offKey === 1 && caught.popup === 2 && caught.popupOk === 0,
-      'PIA-154 + PIA-156 the gate itself fails what it must: measureScreen on 11 ordinary + 6 marked words (one off the list, Tue off Calendar) fails 4 ways, 10 + 5 on Calendar passes; a trip page with a 6th marked word from the list fails, 10 + 5 ("I booked" and the key\'s three) passes; a marked "Waiting" outside the key\'s rows fails; measurePopup on 21 words with a mark fails twice, 20 plain passes', caught);
+    check(caught.over === 4 && caught.atLimit === 0 && caught.sixth === 1 && caught.fifth === 0 && caught.offKey === 1 && caught.ridesOk === 0 && caught.ridesOff === 1 && caught.popup === 2 && caught.popupOk === 0,
+      'PIA-154 + PIA-156 + PIA-157 the gate itself fails what it must: measureScreen on 11 ordinary + 6 marked words (one off the list, Tue off Calendar) fails 4 ways, 10 + 5 on Calendar passes; a trip page with a 6th marked word from the list fails, 10 + 5 ("I booked" and the key\'s three) passes; a marked "Waiting" outside the key\'s rows fails; "Rides" in the key\'s word column and the primary passes, anywhere else fails; measurePopup on 21 words with a mark fails twice, 20 plain passes', caught);
   }
 
   // ⓘ on this screen: every page counted, every glyph on screen explained, ⚙ at the foot. "Every glyph" is read
@@ -3390,7 +3418,8 @@ async function main() {
     {
       const { ctx, page, net } = await phone('ptorg', { worker: true, share: true, url: '?idea=' + PT, ls: { pialax_watchlist_v2: listRec([PT]), pialax_idea_keys_v1: keyRec([PT]), pialax_idea_me_v1: { [PT]: 'ashwin-t2' }, pialax_ui_v1: { v1read: 1 } } });
       await settle(page, 200);
-      const keyNow = () => page.evaluate(() => [...document.querySelectorAll('#screen .wk .wkr')].map((r) => ({ name: r.getAttribute('aria-label'), text: r.querySelector('.wkl').textContent.replace(/\s+/g, ' ').trim(),
+      // (PIA-157: the key's 🚗 Rides row is PIA-157's own section; these are whoSet's rows)
+      const keyNow = () => page.evaluate(() => [...document.querySelectorAll('#screen .wk .wkr:not(.wkride)')].map((r) => ({ name: r.getAttribute('aria-label'), text: r.querySelector('.wkl').textContent.replace(/\s+/g, ' ').trim(),
         faces: r.querySelectorAll('.wkf [data-act="person"]').length, rem: (r.querySelector('.wkrem') || { getAttribute: () => '' }).getAttribute('data-act'), h: Math.round(r.getBoundingClientRect().height) })));
       q.key = await keyNow(); q.marked = await markedOf(page, ['#screen']);
       // (the board, then the rows already under it (his 🔑🔍 here), then the key, then any primary)
@@ -3420,7 +3449,7 @@ async function main() {
       // Anjo's phone on P town: the same rows, no Remind; "☐ I booked" + the key's three: 5 marked words, the new cap exactly
       const { ctx, page } = await phone('ptguest', { worker: true, url: '?idea=' + PT, ls: { pialax_watchlist_v2: listRec([PT]), pialax_idea_me_v1: { [PT]: 'anjo-t3' }, pialax_ui_v1: { v1read: 1 } } });
       await settle(page, 200);
-      q.guest = { marked: await markedOf(page, ['#screen']), rem: await page.$$eval('#screen .wkrem', (es) => es.length), rows: await page.$$eval('#screen .wk .wkr', (es) => es.map((e) => e.getAttribute('aria-label'))),
+      q.guest = { marked: await markedOf(page, ['#screen']), rem: await page.$$eval('#screen .wkrem', (es) => es.length), rows: await page.$$eval('#screen .wk .wkr:not(.wkride)', (es) => es.map((e) => e.getAttribute('aria-label'))),
         tk: await page.$eval('#screen .split.prim [data-act="mybook"]', (e) => e.textContent.replace(/\s+/g, ' ').trim() + '|' + e.getAttribute('aria-pressed')).catch(() => '') };
       q.guest.w = await measureScreen(page, 'PIA-156 › P town, Anjo (☐ I booked + the key: 5 marked words)');
       await ctx.close();
@@ -3447,15 +3476,149 @@ async function main() {
       await ctx.close();
     }
     const okRows = eq(q.key.map((r) => r.text), ['⏳ Waiting', '✈ Booked', '🏠 Hosting']) && eq(q.key.map((r) => r.name), ['Not booked yet: Anjo', 'Booked: Ashwin', 'Hosting: Mom & Dad']) && eq(q.key.map((r) => r.faces), [1, 1, 1]) && eq(q.key.map((r) => r.rem), ['nudge', '', '']) && q.key.every((r) => r.h >= 44);
-    check(okRows && q.order && eq(q.marked, ['Waiting', 'Booked', 'Hosting']) && q.pressWord === 'Not booked yet' && q.pressRem === 'Remind Anjo' && q.afterPress.pop === null && q.afterPress.shared === 0 &&
+    check(okRows && q.order && eq(q.marked, ['Waiting', 'Booked', 'Hosting', 'Rides']) && q.pressWord === 'Not booked yet' && q.pressRem === 'Remind Anjo' && q.afterPress.pop === null && q.afterPress.shared === 0 &&
       q.remind.taps === 1 && q.remind.shared.length === 1 && new RegExp('/i/' + PT + '#m=anjo-t3$').test(q.remind.shared[0]) && q.remind.shared[0].indexOf(KEY) < 0 && q.remind.posts === 0 && q.remind.pop === null &&
       q.face.pop === 'P-person' && q.face.who === 'Anjo',
-      'PIA-156 the owner\'s "P town" on his phone, real taps through the real Worker: under the board, after his 🔑🔍 row, three 44px rows, "⏳ Waiting" 🗽 with Remind, "✈ Booked" 💪, "🏠 Hosting" 🌽 (named "Not booked yet: Anjo", "Booked: Ashwin", "Hosting: Mom & Dad"; ⓘ explains ⏳ ✈ 🏠 and Remind); a long press on Waiting says "Not booked yet", on Remind "Remind Anjo", and does nothing; reminding Anjo, the one unbooked traveler, is 1 tap (before: 2, her face then Share; none once she was In): her own link, no key, nothing written; her face in the key opens her sheet', q);
-    check(eq(q.guest.marked, ['Waiting', 'Booked', 'Hosting', 'I booked']) && q.guest.rem === 0 && eq(q.guest.rows, ['Not booked yet: Anjo', 'Booked: Ashwin', 'Hosting: Mom & Dad']) && q.guest.tk === '☐ I booked|false' && q.guest.w.length <= SCREEN_MAX &&
+      'PIA-156 the owner\'s "P town" on his phone, real taps through the real Worker: under the board, after his 🔑🔍 row, three 44px rows (PIA-157: and the 🚗 Rides row, his primary "🚗 Rides" its marked word), "⏳ Waiting" 🗽 with Remind, "✈ Booked" 💪, "🏠 Hosting" 🌽 (named "Not booked yet: Anjo", "Booked: Ashwin", "Hosting: Mom & Dad"; ⓘ explains ⏳ ✈ 🏠 and Remind); a long press on Waiting says "Not booked yet", on Remind "Remind Anjo", and does nothing; reminding Anjo, the one unbooked traveler, is 1 tap (before: 2, her face then Share; none once she was In): her own link, no key, nothing written; her face in the key opens her sheet', q);
+    check(eq(q.guest.marked, ['Waiting', 'Rides', 'Booked', 'I booked']) && q.guest.rem === 0 && eq(q.guest.rows, ['Not booked yet: Anjo', 'Booked: Ashwin', 'Hosting: Mom & Dad']) && q.guest.tk === '☐ I booked|false' && q.guest.w.length <= SCREEN_MAX &&
       eq(q.busy.marked, ['Hosting?', 'Waiting', 'Booked', 'Lock dates']) && q.busy.rows.length === 3 && /^🏠\|Hosting: Mom & Dad$/.test(q.busy.rows[2]) && q.busy.w.length <= SCREEN_MAX,
-      'PIA-156 ≤10 + 5: Anjo\'s phone marks exactly 5 ("☐ I booked" and the key\'s three; no Remind for a guest); the busiest state (Hosting? + Waiting + Booked + Lock dates) is 5, the Hosting row keeping 🏠 and its faces without its word', { guest: q.guest, busy: q.busy });
+      'PIA-156 ≤10 + 5: Anjo\'s phone marks exactly 5 ("☐ I booked", the key\'s Waiting, PIA-157\'s Rides and Booked; Hosting keeps its glyph; no Remind for a guest); the busiest state (Hosting? + Waiting + Booked + Lock dates) is 5, the Hosting row keeping 🏠 and its faces without its word', { guest: q.guest, busy: q.busy });
     check(q.e8 && q.e8.faces === 4 && q.e8.more === '+4' && q.e8.rem === 'tshare' && q.e8.inside && q.e8.over <= 0 && q.e8.w.length <= SCREEN_MAX && q.e8.share.taps === 1 && q.e8.share.shared.length === 1 && new RegExp('/i/' + E8 + '$').test(q.e8.share.shared[0]),
       'PIA-156 the 8-member trip at 360px (🔒, all 8 to book): the Waiting row holds 4 faces, +4 and Remind, every button ≥44px and on screen (no sideways scroll); Remind for several is the trip\'s guest share in 1 tap', q.e8);
+  }
+
+  section('PIA-157 rides with real taps through the real Worker: Mom & Dad claim a run in 2 taps (from the link and from the list), the organizer\'s ask, cover, remind and ✓, 🚌 / 🚙 in 2, ↩ in 1; every state ≤10 + 5 and P-rides ≤20, unmarked');
+  {
+    const q = {}, momNote = (net, id) => (JSON.parse(net.kv.map.get('idea:' + id)).responses['momdad-t1'] || {}).note || '';
+    const until = async (page, f, ms) => { for (let t = 0; t < (ms || 8000); t += 50) { if (await f()) return true; await page.waitForTimeout(50); } return false; };
+    const toastText = (page) => page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent.replace(/\s+/g, ' ').trim() : ''; });
+    {
+      // Mom & Dad from the list: the card's 🚗? (1) → "☐ 🚗 Drive" (2); ↩ in the toast (1); both runs, then 📅 Phone in the same sheet (1)
+      const { ctx, page, net } = await phone('ptmom', { worker: true, ls: { pialax_watchlist_v2: listRec([PT]), pialax_idea_me_v1: { [PT]: 'momdad-t1' }, pialax_ui_v1: { v1read: 1 } } });
+      await measureScreen(page, 'PIA-157 › Mom & Dad\'s list: the card\'s 🚗?');
+      q.slot0 = await page.$eval('#screen [data-act="ridescard"]', (e) => e.textContent.trim() + '|' + e.getAttribute('aria-label')).catch(() => '');
+      let taps = 0; if (await fingerTap(page, '#screen [data-act="ridescard"]')) taps++; await settle(page, 200);
+      q.list = { pop: await popupId(page) }; q.list.w = await measurePopup(page, 'PIA-157 › P-rides on Mom & Dad\'s phone (ORD, Drive, Drive)');
+      // the ⏰'s long press: the arithmetic (≤12 words), a popup of its own; it does nothing
+      const lv = await page.$('#sheet .rlv'); await lv.scrollIntoViewIfNeeded().catch(() => {}); const b = await lv.boundingBox();
+      await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(650);
+      q.lvLabel = await page.evaluate(() => { const l = document.querySelector('#lbl'); return l && !l.hidden ? l.textContent : ''; });
+      if (q.lvLabel) await measurePopup(page, 'PIA-157 › ⏰\'s long press', '#lbl'); await page.mouse.up(); await settle(page, 120); await untilLabelGone(page);
+      if (await fingerTap(page, '#sheet [data-act="ride"][data-v="aORD1120-ashwin-t2"]')) taps++;
+      await until(page, () => /aORD1120/.test(momNote(net, PT)));
+      q.list.taps = taps; q.list.note = momNote(net, PT); q.list.toast = await toastText(page);
+      if (q.list.toast) await measurePopup(page, 'PIA-157 › the toast 🚗✓ ↩', '#toast');
+      let undo = 0; if (await fingerTap(page, '#toast [data-act="undo"]')) undo++;
+      await until(page, () => !/🚗/.test(momNote(net, PT)));
+      q.undo = { taps: undo, note: momNote(net, PT) };
+      await settle(page, 200);
+      await fingerTap(page, '#sheet [data-act="ride"][data-v="aORD1120-ashwin-t2"]'); await until(page, () => /aORD1120/.test(momNote(net, PT))); await settle(page, 300);
+      await fingerTap(page, '#sheet [data-act="ride"][data-v="dORD1130-ashwin-t2"]'); await until(page, () => /dORD1130/.test(momNote(net, PT))); await settle(page, 300);
+      q.both = { note: momNote(net, PT), phone: await page.$$eval('#sheet a[download][data-act="ridecal"]', (es) => es.map((e) => e.textContent.trim() + '|' + e.getAttribute('download') + '|' + Math.round(e.getBoundingClientRect().height))) };
+      q.both.w = await measurePopup(page, 'PIA-157 › P-rides on Mom & Dad\'s phone, both claimed (ORD, Drive, Drive, Phone)');
+      let cal = 0; if (await fingerTap(page, '#sheet a[data-act="ridecal"]')) cal++; await settle(page, 300);
+      q.cal = { taps: cal, toast: await toastText(page), dot: await page.$$eval('#sheet a[data-act="ridecal"] .ndot', (es) => es.length), kept: await page.evaluate((id) => (JSON.parse(localStorage.getItem('pialax_ui_v1') || '{}').rides || {})[id] || '', PT) };
+      await closeSheet(page);
+      q.trip = { marked: await markedOf(page, ['#screen']), prim: await page.$eval('#screen .split.prim .btn', (e) => e.textContent.replace(/\s+/g, ' ').trim() + '|' + e.getAttribute('aria-label')).catch(() => '') };
+      q.trip.w = await measureScreen(page, 'PIA-157 › Mom & Dad\'s trip page, both runs claimed (🚗 11/20 ⏰12:05)');
+      await keyCheck(page, 'PIA-157 › Mom & Dad\'s trip page');
+      await page.click('#screen [data-act="back"]'); await settle(page, 150);
+      q.slot1 = await page.$eval('#screen [data-act="ridescard"]', (e) => e.textContent.trim()).catch(() => '');
+      await ctx.close();
+    }
+    {
+      // Mom & Dad from Ashwin's iMessage (their own link, #m=): the trip opens → "🚗 Rides" (1) → "☐ 🚗 Drive" (2)
+      const { ctx, page, net } = await phone('ptlink', { worker: true, url: '?idea=' + PT + '#m=momdad-t1', ls: { pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      q.link = { marked: await markedOf(page, ['#screen']) }; q.link.w = await measureScreen(page, 'PIA-157 › Mom & Dad from the link: the trip page before claiming (🚗 Rides)');
+      let taps = 0; if (await fingerTap(page, '#screen .split.prim [data-act="rides"]')) taps++; await settle(page, 200);
+      if (await fingerTap(page, '#sheet [data-act="ride"][data-v="aORD1120-ashwin-t2"]')) taps++;
+      await until(page, () => /aORD1120/.test(momNote(net, PT)));
+      q.link.taps = taps; q.link.note = momNote(net, PT); q.link.me = await page.evaluate((id) => (JSON.parse(localStorage.getItem('pialax_idea_me_v1') || '{}'))[id] || '', PT);
+      await ctx.close();
+    }
+    {
+      // the organizer on PR (Mom & Dad's claim on his arrival a day off: ⚠): the key's Ask (1) shares her link with the runs in words; ✓ on
+      // the moved run: chip (1) → ✓ (2); Anjo's 19:30 for Mom & Dad: chip (1) → 🌽 (2); Remind the driver: the row (1) → the run's share (2)
+      const { ctx, page, net } = await phone('prorg', { worker: true, share: true, url: '?idea=' + PR, ls: { pialax_watchlist_v2: listRec([PR]), pialax_idea_keys_v1: keyRec([PR]), pialax_idea_me_v1: { [PR]: 'ashwin-t2' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      q.org = { marked: await markedOf(page, ['#screen']), chips: await page.$$eval('#screen .wkride .rk', (es) => es.map((e) => e.getAttribute('data-v') + '|' + (e.querySelector('[data-k="ridemoved"]') ? '⚠' : ''))) };
+      q.org.w = await measureScreen(page, 'PIA-157 › the organizer on P town with a moved ride (⚠) and Ask');
+      await keyCheck(page, 'PIA-157 › the organizer\'s key with the Rides row');
+      let ask = 0; if (await fingerTap(page, '#screen .wkride [data-act="nudge"][data-v="ride"]')) ask++; await settle(page, 250);
+      q.ask = { taps: ask, shared: await page.evaluate(() => (window.__shared || []).slice(-1)[0] || null), posts: net.posts };
+      let ok = 0; if (await fingerTap(page, '#screen .wkride .rk[data-v="aORD1120-ashwin-t2"]')) ok++; await settle(page, 200);
+      q.orgSheet = await measurePopup(page, 'PIA-157 › P-rides on the organizer\'s phone (ORD)');
+      if (await fingerTap(page, '#sheet [data-act="rideok"][data-v="aORD1120-ashwin-t2"]')) ok++;
+      await until(page, () => /ashwin-t2\.aORD1120/.test(momNote(net, PR)));
+      q.ok = { taps: ok, note: momNote(net, PR) };
+      await closeSheet(page); await settle(page, 200);
+      let cover = 0; if (await fingerTap(page, '#screen .wkride .rk[data-v="aORD1120-anjo-t3"]')) cover++; await settle(page, 200);
+      if (await fingerTap(page, '#sheet [data-act="ride"][data-v="aORD1120-anjo-t3"][data-code="momdad-t1"]')) cover++;
+      await until(page, () => /anjo-t3\.aORD1120/.test(momNote(net, PR)));
+      q.cover = { taps: cover, note: momNote(net, PR) };
+      await closeSheet(page); await settle(page, 200);
+      let rem = 0; if (await fingerTap(page, '#screen .wkride .wkl')) rem++; await settle(page, 200);
+      if (await fingerTap(page, '#sheet [data-act="nudge"][data-v="rideremind"]')) rem++; await settle(page, 250);
+      q.remind = { taps: rem, shared: await page.evaluate(() => (window.__shared || []).slice(-1)[0] || null) };
+      await closeSheet(page);
+      await ctx.close();
+    }
+    {
+      // Anjo marks the coach home: her 🛫 chip (1) → 🚌 (2); the organizer marks her renting instead: her chip (1) → 🚙 (2)
+      const { ctx, page, net } = await phone('paanjo', { worker: true, url: '?idea=' + PA, ls: { pialax_watchlist_v2: listRec([PA]), pialax_idea_me_v1: { [PA]: 'anjo-t3' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      q.anjo = { marked: await markedOf(page, ['#screen']) }; q.anjo.w = await measureScreen(page, 'PIA-157 › Anjo booked, her drop-off the one open run');
+      let taps = 0; if (await fingerTap(page, '#screen .wkride .rk[data-v="dORD1129-anjo-t3"]')) taps++; await settle(page, 200);
+      q.anjo.sheet = await measurePopup(page, 'PIA-157 › P-rides on Anjo\'s phone (🚌 / 🚙 on her own leg)');
+      // (the sheet opens at that run; her arrival's run, covered by Mom & Dad, offers her own 🚌 / 🚙 too)
+      if (await fingerTap(page, '#sheet #run-dORD1129-anjo-t3 [data-act="ground"][data-code="anjo-t3"][data-v="bus"]')) taps++;
+      await until(page, () => /🚌d/.test(JSON.parse(net.kv.map.get('idea:' + PA)).responses['anjo-t3'].note));
+      q.anjo.taps = taps; q.anjo.note = JSON.parse(net.kv.map.get('idea:' + PA)).responses['anjo-t3'].note; q.anjo.toast = await toastText(page);
+      await closeSheet(page);
+      await ctx.close();
+    }
+    {
+      const { ctx, page, net } = await phone('paorg', { worker: true, url: '?idea=' + PA, ls: { pialax_watchlist_v2: listRec([PA]), pialax_idea_keys_v1: keyRec([PA]), pialax_idea_me_v1: { [PA]: 'ashwin-t2' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      let taps = 0; if (await fingerTap(page, '#screen .wkride .rk[data-v="dORD1129-anjo-t3"]')) taps++; await settle(page, 200);
+      if (await fingerTap(page, '#sheet #run-dORD1129-anjo-t3 [data-act="ground"][data-code="anjo-t3"][data-v="rent"]')) taps++;
+      await until(page, () => /🚙d/.test(JSON.parse(net.kv.map.get('idea:' + PA)).responses['anjo-t3'].note));
+      q.rent = { taps, note: JSON.parse(net.kv.map.get('idea:' + PA)).responses['anjo-t3'].note };
+      await closeSheet(page);
+      q.rent.w = await measureScreen(page, 'PIA-157 › the organizer, every ride covered (drivers\' faces, 🚙)');
+      q.rent.row = await page.$eval('#screen .wkride', (e) => e.getAttribute('aria-label')).catch(() => '');
+      await ctx.close();
+    }
+    {
+      // P-rides on the 8-member trip (Mom & Dad's phone: every run's candidate), at 360: ≤20 words, the "Drive" word only where it fits
+      const { ctx, page } = await phone('r8mom', { worker: true, url: '?idea=' + R8, ls: { pialax_watchlist_v2: listRec([R8]), pialax_idea_me_v1: { [R8]: 'momdad-r0' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      q.r8 = { w: await measureScreen(page, 'PIA-157 › the 8-member rides trip, Mom & Dad\'s trip page') };
+      await fingerTap(page, '#screen .split.prim [data-act="rides"]'); await settle(page, 200);
+      q.r8.pop = await popupId(page); q.r8.sheet = await measurePopup(page, 'PIA-157 › P-rides, the 8-member trip on Mom & Dad\'s phone');
+      q.r8.toggles = await page.$$eval('#sheet [data-act="ride"]', (es) => es.length); q.r8.secs = await page.$$eval('#sheet .rsh', (es) => es.map((e) => e.textContent.trim()));
+      await ctx.close();
+    }
+    check(/^🚗\?\|Rides open$/.test(q.slot0) && q.list.pop === 'P-rides' && q.list.taps === 2 && q.list.note === '🚗ashwin-t2.aORD1120' && eq(q.list.w, ['ORD', 'Drive', 'Drive']) &&
+      /^Leave home 12:05: 2:30 drive, at ORD as Ashwin lands$/.test(q.lvLabel) && q.lvLabel.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 12 && /🚗✓/.test(q.list.toast) &&
+      q.undo.taps === 1 && q.undo.note === '' && q.both.note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130' && /^📅 Phone\|rides-ptownthanksgiving\.ics\|\d+$/.test(q.both.phone[0] || '') && +(q.both.phone[0] || '').split('|')[2] >= 44 &&
+      eq(q.both.w, ['ORD', 'Drive', 'Drive', 'Phone']) && q.cal.taps === 1 && /📅✓/.test(q.cal.toast) && q.cal.dot === 0 && q.cal.kept.length > 10 &&
+      eq(q.trip.marked, ['Waiting', 'Rides', 'Booked', 'Hosting']) && /^🚗 ?11\/20 ?⏰ ?12:05[^|]*\|Leave home 12:05 Friday for Ashwin$/.test(q.trip.prim) && q.trip.w.length <= SCREEN_MAX && /^🚗11\/20$/.test(q.slot1),
+      'PIA-157 Mom & Dad from the list, real taps through the real Worker: the card\'s 🚗? (1) → "☐ 🚗 Drive" (2) writes 🚗ashwin-t2.aORD1120 in their own answer; P-rides reads ORD, Drive, Drive; ⏰\'s long press says "Leave home 12:05: 2:30 drive, at ORD as Ashwin lands"; ↩ in the toast takes it back (1); both runs, then 📅 Phone in the same sheet (1: a rides-….ics, its dot gone, its signature kept); the trip page then reads "🚗 11/20 ⏰12:05" (no word) with Waiting, Rides, Booked, Hosting marked, the card 🚗11/20', q);
+    check(q.link.taps === 2 && q.link.note === '🚗ashwin-t2.aORD1120' && q.link.me === 'momdad-t1' && eq(q.link.marked, ['Waiting', 'Booked', 'Hosting', 'Rides']) && q.link.w.length <= SCREEN_MAX,
+      'PIA-157 Mom & Dad from Ashwin\'s iMessage (their own link): the trip opens with "🚗 Rides" (Waiting, Booked, Hosting and Rides marked: 4, ≤10 ordinary) → (1) → "☐ 🚗 Drive" (2), and the phone is Mom & Dad from then on', q.link);
+    check(eq(q.org.chips.slice(0, 1), ['aORD1120-ashwin-t2|⚠']) && q.org.w.length <= SCREEN_MAX && q.ask.taps === 1 && q.ask.shared && new RegExp('/i/' + PR + '#m=momdad-t1$').test(q.ask.shared.url) &&
+      /^🚗 Can you drive\? Fri 11\/20: pick up Ashwin at ORD Chicago, lands 2:35 PM \(leave home 12:05 PM\)\./.test(q.ask.shared.text || '') && (q.ask.shared.text || '').indexOf(KEY) < 0 && eq(q.orgSheet, ['ORD']) &&
+      q.ok.taps === 2 && /ashwin-t2\.aORD1120/.test(q.ok.note) && !/1119/.test(q.ok.note) && q.cover.taps === 2 && /📞 .*anjo-t3\.aORD1120|anjo-t3\.aORD1120/.test(q.cover.note) &&
+      q.remind.taps === 2 && q.remind.shared && /^🚗 Reminder: /.test(q.remind.shared.text || '') && new RegExp('#m=momdad-t1$').test(q.remind.shared.url || ''),
+      'PIA-157 the organizer, real taps: Ask in the key (1) shares Mom & Dad\'s own link with "🚗 Can you drive? Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM)…" (no key); the moved ride\'s ⚠ chip (1) → ✓ (2) moves their claim to 11/20; Anjo\'s 19:30 for Mom & Dad: her chip (1) → 🌽 (2); Remind the driver: the row (1) → the run\'s share (2) "🚗 Reminder: …"; P-rides reads ORD alone on his phone', q);
+    check(q.anjo.taps === 2 && /🛫10:00 🚌d$/.test(q.anjo.note) && /🚌✓/.test(q.anjo.toast) && q.anjo.w.length <= SCREEN_MAX && q.anjo.sheet.length <= POPUP_MAX &&
+      q.rent.taps === 2 && /🛫10:00 🚙d$/.test(q.rent.note) && /by rental car/.test(q.rent.row) && q.rent.w.length <= SCREEN_MAX,
+      'PIA-157 Anjo marks the coach home: her 🛫 chip (1) → 🚌 (2), 🚌d in her own answer; on the organizer\'s phone her chip (1) → 🚙 (2) marks a rental instead; with every ride covered the key\'s row names the drivers and "by rental car"', { anjo: q.anjo, rent: q.rent });
+    check(q.r8.pop === 'P-rides' && q.r8.sheet.length <= POPUP_MAX && q.r8.toggles >= 8 && eq(q.r8.secs, ['📍ORD', 'PIA']) && q.r8.sheet.filter((w) => w === 'Drive').length === q.r8.toggles &&
+      q.r8.sheet.filter((w) => w !== 'Drive').join() === 'ORD,PIA' && q.r8.w.length <= SCREEN_MAX,
+      'PIA-157 P-rides on the 8-member trip at 360 (Mom & Dad a candidate on every one of its runs, at two airports): two codes and a "Drive" a toggle, within 20 (seven travelers make at most 14 runs: the word budget of 20 less the codes and 📅 Phone always holds them)', q.r8);
   }
 
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');

@@ -431,3 +431,68 @@ and one whose dates cannot be flown 🗓⚠. The booking toggles read as checkbo
 the same words both ways ("☐ I booked" / "☑ I booked", the organizer's "☐ Booked" /
 "☑ Booked"; ☑ in text presentation, U+FE0E). The same writes as before; no Worker,
 storage or link-format change.
+
+### PIA-157 amendment: rides (2026-10-30)
+
+**The word rule's allowlist adds Rides**, for the trip page's key row and its
+primary only ("🚗 Rides"); `test-words` fails it marked anywhere else. Popups keep
+20 and mark nothing.
+
+**Which trips have rides.** A trip to a home the family drives from: a host who is
+not Out lives at a drive-pivot airport (Peoria, PIA) and the destination is PIA or
+ORD. Its runs follow the pickups' ⏱ rule on booked times only (never a ≈ cached
+time; on the organizer's token phone a ≈ chip can still join a Map bracket that
+no run holds): legs of one kind at one airport on one day, chained at most 2
+hours apart (`runChain`, the one rule for the Map's brackets and the runs;
+arrivals and departures chain apart, and a traveler's own 🚌 / 🚙 leg is in no
+run). ⏰ leave
+home: a pickup its drive before the first landing, a drop-off its drive plus 2
+hours before the earliest flight (0:20 to PIA, 2:30 to ORD). Who can drive: the
+hosts not Out, then the travelers there all that day. Nothing about a run is
+stored; it is read from the record on each render (D2).
+
+**A claim lives in the driver's own answer** ("🚗ashwin-p8.aORD1120": the
+traveler, the end, the airport and the day, never the time), written as one
+complete answer from a fresh read through the one write path. A time change that
+day keeps it; a day or airport change leaves it "moved" (⚠, open) until the driver
+or the organizer says ✓. A claim counts only from someone who can drive that run
+as it is now (a host not Out, or a traveler there all that day); any other is
+ignored and its claimer's next ride write drops it. One toggle rule
+(`rideToggle`) says what a tap does and whether it reads ☑: claim what nobody
+covers, else let go of the driver's share. Every leg someone else's holds the tap
+("Already covered"); a record already as asked (Mom's phone and Dad's are one
+member) says ✓; nothing is sent either way. No flight number or confirmation
+code is stored anywhere, and nothing tracks a flight (Flighty does, D1).
+
+**The answer note's markers, a forward-compatible grammar.** After 📞 / 🛬 / 🛫,
+in a fixed order: 🚗 claims, 🚌 legs, 🚙 legs, 🐈 legs, 🧺 dishes, then the typed
+text. A later ticket appends any new kind last. Each of the new kinds is read
+once; the first unknown or malformed token starts the text, so an older build
+keeps the markers as text byte for byte. A marker or time write that would pass
+280 characters is refused, never clipped.
+
+**Where rides show.** The trip page's key gains a 🚗 Rides row after ⏳ Waiting
+(open runs as dashed chips, a booked leg with no time, the organizer's Ask; once
+covered, the drivers' faces); the primary is "🚗 Rides" for the organizer and a
+host who can drive an open run, and "🚗 11/20 ⏰12:05" for a driver, after every
+earlier primary keeps its precedence; the card's slot says the same. P-rides holds
+every run (claims, the organizer's toggles, ✓, Remind, 🚌 / 🚙) and a driver's 📅
+Phone: one calendar file of their runs, in floating local time with two alarms,
+whose description is the guest link alone. The phone keeps what it added; read
+less the runs already behind us, any difference with the rides ahead dots 📅
+Phone, the card and the Trips numeral, also once that phone drives nothing (its
+calendar still holds the old events): opening the trip then says "📅 Rides
+changed" once and forgets it. Ask, Remind and the time toast's Tell put the ride
+in words beside a guest link, never a key or token.
+
+**Known limits (recorded, not built).** Times are wall-clock times on the leg's
+own day: a landing after midnight on the day after the traveler's first day, or
+a ride across the night the clocks change (2026-11-01), puts ⏰ and the calendar
+event off by that day or that hour. Every host not Out is offered Drive, with ⏰
+from the Peoria home (a host living at ORD would read Peoria's times). A run's key
+follows its first traveler in the trip's order, so an earlier traveler joining a
+run changes the calendar event's UID (adding it again may make a second event).
+Marking 🚌 / 🚙 on a leg someone drives gives no Tell in its toast (↩ instead);
+the driver sees it in the app and by the card's dot only once they added the
+calendar. A traveler cannot ask for a ride yet (the organizer's Ask is the one
+share).
