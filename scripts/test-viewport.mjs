@@ -161,10 +161,19 @@ console.log('▶ test-viewport: mobile layout regression suite');
     d.decision = { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null };
     return d;
   })();
+  // PIA-158: P town with Nebby flying both ways (Ashwin's 🐈ad) and Mom & Dad In with a note: their face carries ×2 over the bubble, 🐕
+  // Kona beside it and 📝 under it (the tight corner), on Ashwin's phone (opened by its link near the end)
+  const PTN = 'ptViewportPTownPets012';
+  docs[PTN] = (() => {
+    const d = JSON.parse(JSON.stringify(docs[PTV])); d.id = PTN;
+    d.responses['ashwin-p8'] = Object.assign({}, d.responses['ashwin-p8'], { note: '🛬14:35 🛫15:30 🐈ad' });
+    d.responses['momdad-k3'] = { member: 'momdad-k3', status: 'in', origin: 'PIA', available_from: '', available_to: '', note: 'Turkey is on us', arrive_at: '', leave_from: '', updated_at: '2026-10-12T00:00:00.000Z' };
+    return d;
+  })();
   const PSV = 'psViewportPastTahoe007', DRV = 'drViewportDroppedTr008';
   docs[PSV] = (() => { const d = JSON.parse(JSON.stringify(docs.thTahoeSkiWeekend26b02)); d.id = PSV; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; return d; })();
   docs[DRV] = (() => { const d = JSON.parse(JSON.stringify(docs.lxBeachWeekendLAX00d05)); d.id = DRV; d.decision.stage = 'dropped'; return d; })();
-  const ids = Object.keys(docs).filter((id) => id !== E8V && id !== PTV && id !== R8V), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
+  const ids = Object.keys(docs).filter((id) => id !== E8V && id !== PTV && id !== R8V && id !== PTN), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
   // PIA-140: the phone has v1's multi-airport flag (the Worker's /account says features.multi_airport), so the keys are the nearby sets
@@ -196,7 +205,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
       [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [E8V]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [PTV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // (PIA-157: + P town)   // PIA-141: the cheapest-week trip (PIA-156: + the key's 8)   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
-      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf', [PTV]: 'ashwin-p8', [R8V]: 'guadalupehernndezvillanueva-5m' }),
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf', [PTV]: 'ashwin-p8', [R8V]: 'guadalupehernndezvillanueva-5m', [PTN]: 'ashwin-p8' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 }), pialax_multi_airport_v1: '1'
   };
   const LAYOUT = () => {
@@ -347,7 +356,8 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
         await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
         await measure('list');
-        const shelf = await page.$('#screen [data-act="shelf"]'); if (shelf) { await shelf.click(); await page.waitForTimeout(100); await measure('list + shelf'); }
+        // (PIA-158: clicked by its selector, found again if a doc arriving redraws the list between finding it and the click)
+        const shelf = await page.$('#screen [data-act="shelf"]'); if (shelf) { await page.click('#screen [data-act="shelf"]'); await page.waitForTimeout(100); await measure('list + shelf'); }
         await page.click('#screen [data-act="seg"][data-v="family"]'); await page.waitForTimeout(100); await measure('family');
         // PIA-142: the board's other pages (≤4 trip columns each), 🗄 with the past trip as a column, and the sheet a cell opens
         const tapF = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
@@ -797,6 +807,57 @@ console.log('▶ test-viewport: mobile layout regression suite');
               [...sh.querySelectorAll('.rleg, .rrh')].every((e) => { const x = e.getBoundingClientRect(); return x.right <= S.right + 0.5 && e.scrollWidth <= e.clientWidth + 1; }) };
         });
         if (!(r8s.popup === 'P-rides' && r8s.runs === 11 && JSON.stringify(r8s.secs) === JSON.stringify(['📍ORD', 'PIA']) && r8s.drive === 11 && r8s.fit)) fails.push('P-rides on the host\'s phone of 8 should hold 11 runs (📍ORD, then PIA), a 44px ☐ 🚗 Drive on each, nothing over the sheet\'s edge: ' + JSON.stringify(r8s));
+        await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-158: P town with Nebby and Kona on Ashwin's phone: the side bubble (16px on the board's 44px faces, 18px on P-person's 72px)
+        // never meets ×2, 📝, the top badge or the status mark; the header's picture is a 72×44 button; P-house's picture and its 18 dishes
+        // stay inside the sheet, every tile a 44px target
+        await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href) + '?idea=' + PTN, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+        await measure('P town with Nebby and Kona: the board\'s bubbles');
+        const BUBBLES = (root) => [...document.querySelectorAll(root + ' .av')].filter((a) => a.querySelector('.pet')).map((a) => {
+          const box = (e) => { if (!e) return null; const r = e.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; };
+          const p = box(a.querySelector('.pet')), meet = (o) => !!o && Math.min(p.r, o.r) - Math.max(p.l, o.l) > 0.25 && Math.min(p.b, o.b) - Math.max(p.t, o.t) > 0.25;
+          const others = { cnt: box(a.querySelector('.cnt')), bd: box(a.querySelector('.bd:not(.bd2)')), bd2: box(a.querySelector('.bd2')), mk: box(a.querySelector('.mk')) };
+          return { g: a.querySelector('.pet').textContent, size: Math.round(p.w) + 'x' + Math.round(p.h), hits: Object.keys(others).filter((k) => meet(others[k])), has: Object.keys(others).filter((k) => !!others[k]), left: p.l };
+        });
+        const bb = await page.evaluate(BUBBLES, '#screen .pb');
+        const head = await page.evaluate(() => { const b = document.querySelector('#screen .thead [data-act="house"]'); if (!b) return null; const r = b.getBoundingClientRect(); return { w: Math.round(r.width), h: Math.round(r.height), name: b.getAttribute('aria-label') }; });
+        if (!(bb.length === 2 && bb.every((x) => x.hits.length === 0 && x.size === '16x16' && x.left >= 0) && bb.some((x) => x.g === '🐕' && x.has.indexOf('cnt') >= 0 && x.has.indexOf('bd2') >= 0) && bb.some((x) => x.g === '🐈')))
+          fails.push('the board\'s side bubbles (🐕 on Mom & Dad\'s face with ×2 and 📝, 🐈 on Ashwin\'s) should be 16px and meet no other mark, on screen: ' + JSON.stringify(bb));
+        if (!(head && head.w === 72 && head.h === 44 && head.name === 'House')) fails.push('the trip header\'s picture should be a 72×44 button named House: ' + JSON.stringify(head));
+        await tapJs('#screen .pb [data-act="person"][data-code="momdad-k3"]'); await measure('P-person, Mom & Dad (🐕 beside the 72px face, 🐕 Kona, 🐈 11/20–11/30 ›)');
+        const pb = await page.evaluate(BUBBLES, '#sheet .pav');
+        if (!(pb.length === 1 && pb[0].size === '18x18' && pb[0].hits.length === 0 && pb[0].g === '🐕')) fails.push('P-person\'s 72px face should carry its 18px bubble meeting no other mark: ' + JSON.stringify(pb));
+        await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen .thead [data-act="house"]'); await measure('P-house (the house today, 🧺)');
+        await tapJs('#sheet [data-act="dishpick"][data-code="ashwin-p8"]'); await measure('P-house, the 18 dishes open');
+        const hz = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), pic = sh.querySelector('.hpic').getBoundingClientRect(), tiles = [...sh.querySelectorAll('.dtile')];
+          return { popup: sh.getAttribute('data-popup'), pic: pic.left >= S.left - 0.5 && pic.right <= S.right + 0.5 && pic.height >= 100, tiles: tiles.length,
+            fit: tiles.every((b) => { const x = b.getBoundingClientRect(); return x.width >= 43.5 && x.height >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }), over: sh.scrollWidth - sh.clientWidth };
+        });
+        if (!(hz.popup === 'P-house' && hz.pic && hz.tiles === 18 && hz.fit && hz.over <= 0)) fails.push('P-house\'s picture and its 18 dishes should stay inside the sheet, each tile a 44px target: ' + JSON.stringify(hz));
+        await tapJs('#sheet [data-act="dishpick"][data-code="ashwin-p8"]');
+        await tapJs('#sheet [data-act="sh-close"]');
+        // (fix pass) Ashwin's own P-person with Nebby on ("☑ 🐈 Nebby" and its › n/5) and P-pet (its 5 ticks, a tick on, the travel plan
+        // open), measured like every state: no horizontal scroll, every target 44px and named
+        await tapJs('#screen .pb [data-act="person"][data-code="ashwin-p8"]'); await measure('P-person, Ashwin (☑ 🐈 Nebby, › n/5)');
+        const nebRow = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), r = sh.querySelector('.petrow');
+          return r ? [...r.querySelectorAll('button')].map((b) => { const x = b.getBoundingClientRect(); return { act: b.getAttribute('data-act'), h: Math.round(x.height), w: Math.round(x.width), in: x.left >= S.left - 0.5 && x.right <= S.right + 0.5 }; }) : null;
+        });
+        await tapJs('#sheet .petrow [data-act="petsheet"]'); await measure('P-pet on Ashwin\'s phone (5 ticks, the folds)');
+        await tapJs('#sheet [data-act="pettick"][data-v="p"]'); await page.$eval('#sheet .pet-notes summary', (e) => e.click()); await page.waitForTimeout(110);
+        await measure('P-pet, a tick on and Nebby\'s travel plan open');
+        const ppet = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), ticks = [...sh.querySelectorAll('[data-act="pettick"]')];
+          return { popup: sh.getAttribute('data-popup'), ticks: ticks.length, fit: ticks.every((b) => { const x = b.getBoundingClientRect(); return x.height >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }),
+            open: !!sh.querySelector('.pet-notes[open]'), folds: sh.querySelectorAll('.pet-notes').length, over: sh.scrollWidth - sh.clientWidth };
+        });
+        if (!(nebRow && nebRow.length === 2 && nebRow.map((b) => b.act).join() === 'pet,petsheet' && nebRow.every((b) => b.h >= 44 && b.w >= 44 && b.in)))
+          fails.push('Ashwin\'s Nebby row (☑ 🐈 Nebby, › n/5) should be two 44px targets inside the sheet: ' + JSON.stringify(nebRow));
+        if (!(ppet.popup === 'P-pet' && ppet.ticks === 5 && ppet.fit && ppet.open && ppet.folds === 2 && ppet.over <= 0)) fails.push('P-pet\'s 5 ticks and its two folds should stay inside the sheet, each tick a 44px target: ' + JSON.stringify(ppet));
+        await tapJs('#sheet [data-act="pettick"][data-v="p"]');
         await tapJs('#sheet [data-act="sh-close"]');
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);

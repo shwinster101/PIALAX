@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="157">
+<meta name="pialax-build" content="158">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -753,6 +753,38 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .split.two > * { flex: 1 1 0; min-width: 0; }
 .tiles6 .tool.bad, .stagetools .tool.bad { color: var(--bad); }
 .tiles6 .tool.done { border-color: var(--in); background: color-mix(in srgb, var(--in) 14%, var(--surface)); }
+/* PIA-158: a pet beside a face (the trip board's 44px, P-person's 72px; opt in, never by size): a small round bubble on the face's left,
+   between ×2 above and 📝 below; 🐈 a pet flying with them, 🐕 a pet at home with a host */
+.av .pet { position: absolute; left: -8px; top: 13px; width: 16px; height: 16px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; line-height: 1;
+  background: var(--markbg); color: var(--markink); box-shadow: 0 0 0 1.5px var(--surface); }
+.av.s72 .pet { top: 27px; width: 18px; height: 18px; font-size: 12px; }
+/* PIA-158: Nebby in P-person (the toggle, its ›), Kona's row, P-pet's ticks */
+.petrow { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 6px; }
+.petrow .btn.tkb { min-height: 48px; }
+.petro { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 17px; font-weight: 700; }
+.petgo { min-width: 48px; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 14px; border: 1.5px solid var(--line); padding: 0 12px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.petgo .tn { font-size: 15px; color: var(--ink2); }
+.konal { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 18px; font-weight: 700; }
+.konal .petgo { font-size: 16px; padding: 0 10px; gap: 4px; }
+.pticks { display: grid; gap: 6px; margin-top: 4px; }
+.pticks .tool { width: 100%; justify-content: start; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; font-size: 17px; text-align: left; }
+.pticks .tool .tkg { font-size: 20px; line-height: 1; }
+.pticks .tool[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 12%, var(--surface)); }
+.rpet { font-size: 14px; margin-left: -4px; }
+/* PIA-158: P-house, the large postcard with the table strip, who brings what (🧺) */
+.pc.big { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 16px; box-shadow: none; display: block; }
+.hpic { position: relative; margin-top: 4px; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
+.hpic .tbl { display: flex; justify-content: center; gap: 4px; min-height: 30px; align-items: center; background: var(--table); font-size: 20px; line-height: 1; padding: 2px 8px; flex-wrap: wrap; }
+.hgo { display: inline-flex; align-items: center; gap: 2px; font-size: 17px; font-weight: 700; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.dishes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
+.dchip { min-height: 48px; display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; border-radius: 24px; border: 1.5px solid var(--line); font-size: 20px; line-height: 1; }
+.dchip.mine { border-color: var(--ink); }
+.dchip[aria-expanded="true"] { background: var(--sunk); }
+.dchip .dadd { font-size: 20px; font-weight: 700; color: var(--ink2); padding: 0 4px; }
+.dgrid { display: grid; grid-template-columns: repeat(6, minmax(44px, 1fr)); gap: 6px; margin-top: 10px; }
+.dtile { min-height: 48px; border-radius: 12px; border: 1.5px solid var(--line); font-size: 24px; line-height: 1; display: grid; place-items: center; }
+.dtile[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
+.dsave { margin-top: 10px; }
 .pet-notes { margin-top: 16px; overflow-wrap: anywhere; }
 .pet-notes summary { min-height: 44px; padding: 12px 4px; cursor: pointer; font-weight: 700; }
 .pet-notes-body { font-size: 16px; line-height: 1.5; }
@@ -1113,6 +1145,10 @@ var FAMILY = [
 ];
 /* v1 docs carry no faces: P-migrate suggests them by home airport. */
 var FAMILY_BY_AIRPORT = { PIA: 'momdad', ORD: 'momdad', LAX: 'ashwin', LGA: 'anjo', JFK: 'anjo', EWR: 'anjo', JAX: 'anjo' };
+/* PIA-158: the family's pets, by the preset's key (familyKey): Nebby, Ashwin's cat, flies with him in the cabin on the legs his
+   answer's 🐈 names; Kona, the family dog, is at home with Mom & Dad on every trip they host. Read from here, never stored: a note
+   keeps only which legs (🐈a / 🐈d / 🐈ad), and Kona is never written anywhere */
+var PETS = { ashwin: { g: '🐈', name: 'Nebby', flies: true }, momdad: { g: '🐕', name: 'Kona', home: true } };
 
 /* Airports: IATA → [city, lat, lon]. Source: OurAirports airports.csv
    (https://ourairports.com/data/, public domain), fetched 2026-10-18,
@@ -1666,6 +1702,8 @@ function tripModel(doc, ctx) {
       // their own note), their pet's legs (🐈; PIA-158) and what they bring (🧺; PIA-158)
       ground: { a: note.bus.indexOf('a') >= 0 ? 'bus' : note.rent.indexOf('a') >= 0 ? 'rent' : '', d: note.bus.indexOf('d') >= 0 ? 'bus' : note.rent.indexOf('d') >= 0 ? 'rent' : '' },
       claims: note.claims, pet: note.pet, dish: note.dish, marks: noteMarks(note),
+      // PIA-158: the family preset's key ('' for anyone else): whose pet this member has (PETS, petOf)
+      fam: familyKey(m),
       link: link, why: why, keys: keys, at: (r && r.updated_at) || '', ansAt: (r && times[m.code]) || ''
     };
   });
@@ -2214,7 +2252,13 @@ function rideName(x) {
   var f = !x.name ? FAMILY.filter(function (p) { return p.key === FAMILY_BY_AIRPORT[x.airport] && p.face === x.face; })[0] : null;
   return x.short || x.one || (f ? shortName(f.name) : '') || x.face;
 }
-function rideWho(model, r) { return r.legs.map(function (l) { return rideName(model.members.filter(function (m) { return m.code === l.code; })[0]); }).filter(Boolean).join(', '); }
+/* (PIA-158: a traveler whose pet flies that leg is "Ashwin + Nebby 🐈", in the ride's words and its calendar event alike) */
+function rideWho(model, r) {
+  return r.legs.map(function (l) {
+    var x = model.members.filter(function (m) { return m.code === l.code; })[0], n = rideName(x), p = n ? petLeg(x, r.kind) : null;
+    return p ? n + ' + ' + p.name + ' ' + p.g : n;
+  }).filter(Boolean).join(', ');
+}
 function rideWhat(model, r) { return (r.kind === 'a' ? 'pick up ' : 'drop off ') + rideWho(model, r); }
 function rideWhen(r) { return (r.kind === 'a' ? 'lands ' : 'flight ') + r.legs.map(function (l) { return h12(l.time); }).join(', '); }
 /* one run: "Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM)." */
@@ -2231,8 +2275,9 @@ function rideText(model, runs, how) {
 /* PIA-157: the driver's runs in their phone's calendar: one VCALENDAR with one VEVENT per run still ahead they drive, from leaving
    home to being back (floating local time: no Z, no TZID; the driver is at home in the airport's zone), two alarms (a day before and
    30 minutes before), the guest link alone as its description (never a key, a token or a price), a UID from checked codes only.
-   sig: what the events say (each run's key, its day, ⏰ and its legs' times), kept on the phone at its last 📅 Phone
-   (pialax_ui_v1.rides; rideSigAhead reads it less the runs behind us).
+   sig: what the events say (each run's key, its day, ⏰ and its legs' times; PIA-158: a leg's time ends in "+🐈" while the pet flies
+   it, so its "+ Nebby 🐈" dots the driver's 📅 Phone, and a run with no pet keeps #157's signature byte for byte), kept on the phone
+   at its last 📅 Phone (pialax_ui_v1.rides; rideSigAhead reads it less the runs behind us).
    ctx = {today, now, worker}. → {sig, n, ics {kind, filename, mime, text}} or null (nothing to add) */
 function rideEvents(model, driverCode, ctx) {
   ctx = ctx || {};
@@ -2249,13 +2294,107 @@ function rideEvents(model, driverCode, ctx) {
     ['-P1D', '-PT30M'].forEach(function (t) { lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(title), 'TRIGGER:' + t, 'END:VALARM'); });
     return lines;
   });
-  var sig = mine.map(function (r) { return [r.key, r.day, r.leave.day, r.leave.t].concat(r.legs.map(function (l) { return l.code + '@' + l.time; })).join('|'); }).join(';');
+  var petAt = function (r, l) { var p = petLeg(model.members.filter(function (m) { return m.code === l.code; })[0], r.kind); return p ? '+' + p.g : ''; };
+  var sig = mine.map(function (r) { return [r.key, r.day, r.leave.day, r.leave.t].concat(r.legs.map(function (l) { return l.code + '@' + l.time + petAt(r, l); })).join('|'); }).join(';');
   return { sig: sig, n: mine.length, ics: { kind: 'ics', filename: 'rides-' + (fileSlug(model.name) || fileSlug(model.dest) || 'trip') + '.ics', mime: 'text/calendar;charset=utf-8', text: icsCalendar(evs) } };
 }
 /* fix pass: a kept rideEvents signature less its runs now behind us (a run's day is its second field), so a run that passes is no
    change: compared with rideEvents(…).sig ('' once the driver drives nothing ahead), a difference is what changed since 📅 Phone */
 function rideSigAhead(sig, today) {
   return String(sig || '').split(';').filter(function (s) { var d = s.split('|')[1]; return isIso(d) && isIso(today) && d >= today; }).join(';');
+}
+
+/* ---- PIA-158 pets & fun: Nebby flies, Kona is at home, the house fills up, who brings what, 🎊 once ----
+   Nothing here is stored but what the answer notes already carry (🐈 legs, 🧺 dishes, in each person's own note, PIA-157's grammar):
+   the pets come from PETS by the family preset's key, the house and "all set" are read from the record on each render. */
+/* a member's pet on this trip: {g, name, legs ('a' | 'd' | 'ad'), flies: true} for a traveler who answered In or Maybe and whose
+   note's 🐈 names legs, when the preset gives them a pet that flies (Nebby); {g, name, home: true} for a host who is not Out whose
+   preset has a pet at home (Kona: derived, never written, never in heads); else null */
+function petOf(x) {
+  var p = x && hasOwn(PETS, x.fam) ? PETS[x.fam] : null;
+  if (!p) return null;
+  if (p.flies && x.traveler && x.answered && legsOf(x.pet)) return { g: p.g, name: p.name, legs: legsOf(x.pet), flies: true };
+  return p.home && x.host && x.status !== 'out' ? { g: p.g, name: p.name, home: true } : null;
+}
+/* the pet that flies this member's leg (kind 'a' their arrival, 'd' their departure), or null */
+function petLeg(x, kind) { var p = petOf(x); return p && p.flies && p.legs.indexOf(kind) >= 0 ? p : null; }
+/* the preset pet that could fly with this member (whether or not it does on this trip): PETS' entry, or null */
+function petCan(x) { var p = x && hasOwn(PETS, x.fam) ? PETS[x.fam] : null; return p && p.flies ? p : null; }
+/* every member's pet on this trip, by member code (petOf) */
+function petsOf(model) { var o = {}; ((model && model.members) || []).forEach(function (x) { var p = petOf(x); if (p) o[x.code] = p; }); return o; }
+/* the pet's write: the owner's own answer with its 🐈 legs ('ad' both ways, '' not coming), by 'self' or the organizer's for him
+   ('keep': no 📞 added, one there kept), through respondRequest → respond() / freshWrite. null: a closed or past trip, a member who is not a traveler
+   who answered In or Maybe, one whose preset has no pet that flies, the organizer's write for someone on a v1 trip, no change, or (petRequest
+   alone) a note with no room for it (petPatch is the same rule without the note, so the phone tells "⚠ Too long" from the rest) */
+function petRequest(doc, code, legs, by, today) {
+  var p = petPatch(doc, code, legs, by, today);
+  return p ? respondRequest(doc, code, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+function petPatch(doc, code, legs, by, today) {
+  var v = legs === '' ? '' : legsOf(legs);
+  if (!doc || !doc.id || docClosed(doc) || !isIso(today) || (legs !== '' && !v)) return null;
+  var model; try { model = tripModel(doc, { today: today, now: 0 }); } catch (e) { return null; }
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler || !x.answered || !petCan(x) || model.past || (by !== 'self' && model.legacy) || x.marks.pet === v) return null;
+  return { pet: v };
+}
+/* the 🐈 write's guard on the fresh record: 'closed', 'same' (the note already says so: nothing is sent), '' it can go */
+function petGuard(fresh, code, legs, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return ''; }
+  var x = m.members.filter(function (y) { return y.code === code; })[0];
+  return x && x.marks.pet === (legs === '' ? '' : legsOf(legs)) ? 'same' : '';
+}
+/* what someone brings (🧺, at most 3 palette dishes, [] nothing), in their own answer: by 'self' or the organizer's for them ('keep';
+   a host still on their default becomes In through respondRequest's rule, with 📞 when the organizer writes it). The driver's 🚗
+   claims, 🛬 / 🛫 and every other marker are carried as they are. null: a closed or past trip, someone Out (they bring nothing), a
+   traveler who has not answered yet, dishes off the palette or more than 3, the organizer's write for someone on a v1 trip, no
+   change, or (dishRequest alone) a note with no room (dishPatch: the same without the note) */
+function dishRequest(doc, code, dishes, by, today) {
+  var p = dishPatch(doc, code, dishes, by, today);
+  return p ? respondRequest(doc, code, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+function dishPatch(doc, code, dishes, by, today) {
+  if (!doc || !doc.id || docClosed(doc) || !isIso(today) || !Array.isArray(dishes) || dishes.length > 3 || dishesOf(dishes).length !== dishes.length) return null;
+  var model; try { model = tripModel(doc, { today: today, now: 0 }); } catch (e) { return null; }
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || x.status === 'out' || (!x.answered && !x.unconfirmed) || model.past || (by !== 'self' && model.legacy) || x.dish.join('') === dishes.join('')) return null;
+  return { dish: dishesOf(dishes) };
+}
+/* the 🧺 write's guard on the fresh record: 'closed', 'same' (those dishes already: nothing is sent), '' it can go */
+function dishGuard(fresh, code, dishes, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return ''; }
+  var x = m.members.filter(function (y) { return y.code === code; })[0];
+  return x && x.dish.join('') === dishesOf(dishes).join('') ? 'same' : '';
+}
+/* the home postcard's scene, by day alone (no landing times, no flight status). → {win, path, door, walk, lit}:
+   • win: the hosts not Out, then the booked travelers there today (d1 ≤ today ≤ d2), in trip order, at most 4 (member codes);
+   • path: the booked travelers still to come (d1 > today), in trip order, at most 4 (the card and the header draw 2); a traveler
+     not booked yet is not drawn, so booking is what fills the house;
+   • door: [{g, name, code (its owner)}] a host's pet at home (Kona), then a pet that flew in once its owner is in the window;
+   • walk: [{g, name, code}] a pet on the path beside its owner;
+   • lit: every traveler (none Out) booked and there today */
+function houseScene(model, today) {
+  var on = function (x) { return x.traveler && x.booked && !x.bad && !!x.d1 && !!x.d2; }, here = function (x) { return on(x) && x.d1 <= today && today <= x.d2; };
+  var code = function (x) { return x.code; }, hosts = model.members.filter(function (x) { return x.host && x.status !== 'out'; });
+  var win = hosts.concat(model.travelers.filter(here)).slice(0, 4).map(code);
+  var path = model.travelers.filter(function (x) { return on(x) && x.d1 > today; }).slice(0, 4).map(code);
+  var door = [], walk = [];
+  hosts.forEach(function (x) { var p = petOf(x); if (p && p.home) door.push({ g: p.g, name: p.name, code: x.code }); });
+  model.travelers.forEach(function (x) {
+    var p = petOf(x); if (!p || !p.flies) return;
+    if (win.indexOf(x.code) >= 0) door.push({ g: p.g, name: p.name, code: x.code }); else if (path.indexOf(x.code) >= 0) walk.push({ g: p.g, name: p.name, code: x.code });
+  });
+  return { win: win, path: path, door: door, walk: walk, lit: isIso(today) && model.travelers.length > 0 && model.travelers.every(here) };
+}
+/* 🎊 all set: at least one traveler, every traveler (none Out) booked, every ride covered (no open run ahead, and no booked leg ahead
+   still without its time, which no run can plan), on a trip that is not removed or over */
+function allSet(model, today) {
+  if (!model || !isIso(today) || model.decision === 'dropped' || model.past || (!!model.departureOnly && model.departureOnly < today)) return false;
+  if (!model.travelers.length || !model.travelers.every(function (x) { return x.booked; })) return false;
+  var R = rides(model, today);
+  return !R || (!R.open && !R.notime.some(function (n) { return n.day >= today; }));
 }
 
 /* ---- hand-offs for one face on one trip (PIA-133) ---- */
@@ -2392,6 +2531,15 @@ function familyOf(member) {
   var fam = key ? FAMILY.filter(function (f) { return f.key === key; })[0] : null;
   if (!fam || (lab.face && !isMeLabel(lab.name))) return null;
   return isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || !lab.name ? fam : null;
+}
+/* PIA-158: the family preset's key ('momdad', 'ashwin', 'anjo') for a member row of any version, '' for anyone else: familyOf's
+   name rule with the face left free (a v2 label such as "💪 Ashwin" has its face, which familyOf leaves alone): one of the preset's
+   home airports, named as the preset names them, the v1 word 'Me', or not named at all; a label that is only a face counts only
+   when it is the preset's own face (as rideName reads a nameless member). A renamed member or a moved home airport is nobody's */
+function familyKey(member) {
+  var lab = splitLabel(member && member.label), key = FAMILY_BY_AIRPORT[normIata(member && member.airport)];
+  var fam = key ? FAMILY.filter(function (f) { return f.key === key; })[0] : null;
+  return fam && (isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || (!lab.name && (!lab.face || lab.face === fam.face))) ? fam.key : '';
 }
 /* P-migrate's suggested face and name for a v1 member (by home airport; others keep their name with a hashed face) */
 function migrateLabel(member) {
@@ -4142,7 +4290,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 157;
+var BUILD = 158;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -5171,7 +5319,11 @@ var LEGEND = {
   plan: ['👪', 'Group plan'], mine: ['<span class="av s28" style="--pc:var(--p0)"><span class="f">🙂</span></span>', 'My days'], notplan: ['⚠', 'Not the plan'],
   // PIA-157: rides (🚗 keeps its one meaning, Drive; the share symbol is named Ask / Remind by its control, as Remind is)
   noride: ['<span class="rq">🚗?</span>', 'No driver yet'], lvhome: ['⏰', 'Leave home'], bus: ['🚌', 'Bus'], rental: ['🚙', 'Rental car'], ridemoved: ['⚠', 'Ride changed'],
-  ask: [SHARE, 'Ask'], notimed: ['🛫?', 'No leaving time'], ridenew: ['<span class="ndot"></span>', 'Rides changed']
+  ask: [SHARE, 'Ask'], notimed: ['🛫?', 'No leaving time'], ridenew: ['<span class="ndot"></span>', 'Rides changed'],
+  // PIA-158: the pets (🐈 flies with its owner, 🐕 at home with a host), › to the pet's plan, P-pet's ticks (👜 the carrier: 🧳 is
+  // Trips), 🧺 what someone brings (🍽 to pick: ＋ is New trip), 🎊 everyone booked and every ride covered
+  petfly: ['🐈', 'Pet flying'], pethome: ['🐕', 'Pet at home'], petgo: ['›', 'Pet plan'], carrier: ['👜', 'Carrier'], papers: ['📄', 'Papers'], fees: ['💲', 'Pet fees'],
+  dish: ['🧺', 'Bringing'], dishadd: ['🍽', 'Pick dishes'], allset: ['🎊', 'All set']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -5204,6 +5356,9 @@ function avatar(m, size, o) {
       b.slice(0, o.max || 1).forEach(function (x, i) { h += '<span class="bd' + (i ? ' bd2' : '') + '" data-k="' + x[1] + '">' + x[0] + '</span>'; });
     }
     if (m.headcount > 1) h += '<span class="cnt" data-k="count">×' + m.headcount + '</span>';
+    // PIA-158: o.pet (the trip board and P-person only, never by size): the pet beside the face, 🐈 flying with them, 🐕 at home with a host
+    var pt = o.pet ? petOf(m) : null;
+    if (pt) h += '<span class="pet" data-k="' + (pt.home ? 'pethome' : 'petfly') + '">' + pt.g + '</span>';
   }
   return h + '</span>';
 }
@@ -5237,14 +5392,30 @@ function sceneKind(m) {
   return 'plane';
 }
 function F(c) { return 'style="fill:var(--' + c + ')"'; }
-function sceneSVG(kind, emoji, hostFaces) {
+/* PIA-158 scene (kind 'home' only, houseScene's faces and glyphs, from postcard): {win [faces], path [faces], door [glyphs], walk [glyphs
+   beside path faces, '' none], lit}. The window holds up to 4 faces (P-house; the card and the header pass 2), the path up to 4 coming
+   up the lawn with a pet beside its owner (18 units apart, so a pet clears the next face), the door its pets, and a warm glow round
+   the window when everyone is there. What it adds stays inside x 22–138 (the path's round cap ends at 22.5), so the card's (x 20–140)
+   and header's slice crops keep it. With no scene, or one with only the window's faces (≤2), nothing
+   on the path or at the door and not lit, the picture is #157's byte for byte; every other kind ignores scene. */
+function sceneSVG(kind, emoji, hostFaces, scene) {
   var s = '<svg class="scene" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true">';
   if (kind === 'home') {
-    var fx = hostFaces.length > 1 ? [64, 78] : [71];
+    var sc = scene || null, wf = sc ? sc.win : hostFaces, path = sc ? sc.path || [] : [], door = sc ? sc.door || [] : [];
+    var t = function (x, y, px, g) { return '<text x="' + x + '" y="' + y + '" text-anchor="middle" style="font-size:' + px + 'px">' + g + '</text>'; };
     s += '<rect width="160" height="90" ' + F('sk-day') + '/><circle cx="134" cy="19" r="10" ' + F('sun') + '/><rect y="68" width="160" height="22" ' + F('grass') + '/>' +
-      '<path d="M40 47 L80 16 L120 47 Z" ' + F('roof') + '/><rect x="48" y="46" width="64" height="34" ' + F('wall') + '/><rect x="54" y="51" width="34" height="21" rx="2" ' + F('win') + '/>' +
-      '<rect x="95" y="55" width="12" height="25" ' + F('door') + '/>' +
-      hostFaces.slice(0, 2).map(function (f, i) { return '<text x="' + fx[i] + '" y="67" text-anchor="middle" style="font-size:15px">' + f + '</text>'; }).join('');
+      '<path d="M40 47 L80 16 L120 47 Z" ' + F('roof') + '/><rect x="48" y="46" width="64" height="34" ' + F('wall') + '/>' +
+      (sc && sc.lit ? '<rect x="50" y="47" width="42" height="29" rx="5" style="fill:var(--sun);opacity:.55"/>' : '') +
+      '<rect x="54" y="51" width="34" height="21" rx="2" ' + F('win') + '/>' +
+      '<rect x="95" y="55" width="12" height="25" ' + F('door') + '/>';
+    if (!sc || wf.length <= 2) { var fx = wf.length > 1 ? [64, 78] : [71]; s += wf.slice(0, 2).map(function (f, i) { return t(fx[i], 67, 15, f); }).join(''); }
+    else if (wf.length === 3) s += wf.map(function (f, i) { return t(61 + i * 10, 66, 11, f); }).join('');
+    else s += wf.slice(0, 4).map(function (f, i) { return t(i % 2 ? 78 : 64, i < 2 ? 61 : 71, 10, f); }).join('');
+    if (path.length) {
+      s += '<path d="M25 88 Q58 76 101 80" style="fill:none;stroke:var(--sand);stroke-width:5;stroke-linecap:round"/>';
+      s += path.slice(0, 4).map(function (f, i) { var x = 30 + i * 18; return t(x, 85, 11, f) + (sc.walk && sc.walk[i] ? t(x + 8, 86, 7, sc.walk[i]) : ''); }).join('');
+    }
+    s += door.slice(0, 2).map(function (g, i) { return t(115 + i * 11, 81, 11, g); }).join('');
   } else if (kind === 'festive') {
     var bulbs = [[6, 19], [22, 27], [38, 30], [54, 28], [70, 21], [86, 17], [102, 21], [118, 25], [134, 23], [150, 17]];
     s += '<rect width="160" height="90" ' + F('sk-eve') + '/><path d="M-4 14 Q40 42 80 16 T164 14" style="fill:none;stroke:var(--wire);stroke-width:1.2"/>' +
@@ -5271,9 +5442,25 @@ function sceneSVG(kind, emoji, hostFaces) {
 }
 /* a postcard: the trip's scene (a home's hosts in its window), nothing over it (PIA-154: no 🔒 corner, no mini locator; the
    date pill says 🔒, the Map says where) */
-function postcard(m, cls) {
+/* PIA-158: a home's postcard is alive (houseScene, by day): the hosts not Out and whoever is there today in the window, the booked
+   travelers still to come on the path (a pet beside its owner), Kona at the door (and a pet that flew in, once its owner is there),
+   the window glowing once everyone is. o.big: P-house's large picture (4 in the window and on the path; the card and the header 2).
+   o.btn: the trip header's picture as a 72×44 button into P-house ("House"). A draft or a stub (no model) is drawn as before. */
+function postcard(m, cls, o) {
+  o = o || {};
   var hostFaces = (m.members || []).filter(function (x) { return x.host; }).map(function (x) { return x.face; });
-  return '<span class="pc ' + (cls || '') + '" aria-hidden="true">' + sceneSVG(sceneKind(m), m.emoji, hostFaces) + '</span>';
+  var kind = sceneKind(m), svg = sceneSVG(kind, m.emoji, hostFaces, kind === 'home' ? homeScene(m, o.big ? 4 : 2) : null);
+  if (o.btn) return '<button class="pc ' + (cls || '') + '" data-act="house" data-id="' + m.id + '" aria-label="House" data-lbl="House">' + svg + '</button>';
+  return '<span class="pc ' + (cls || '') + '" aria-hidden="true">' + svg + '</span>';
+}
+/* houseScene's codes as the faces and glyphs sceneSVG draws, n in the window and on the path; null without a model (a draft) */
+function homeScene(m, n) {
+  if (!m || !m.travelers || !RT) return null;
+  var h; try { h = houseScene(m, RT.today); } catch (e) { return null; }
+  var face = function (c) { var x = memberIn(m, c); return x ? x.face : ''; }, walk = {};
+  h.walk.forEach(function (p) { walk[p.code] = p.g; });
+  var path = h.path.slice(0, n).filter(function (c) { return !!memberIn(m, c); });
+  return { win: h.win.slice(0, n).map(face).filter(Boolean), path: path.map(face), walk: path.map(function (c) { return walk[c] || ''; }), door: h.door.map(function (p) { return p.g; }), lit: h.lit };
 }
 function ghostPicture() {
   var faces = [['🦊', 'p0', 150], ['🐼', 'p2', 176], ['🐸', 'p3', 202]];
@@ -5902,7 +6089,7 @@ function peopleBoard(m) {
   m.members.forEach(function (x, xi) {
     var isMe = !!(m.me && x.code === m.me.code);
     h += '<div class="pb-row' + (isMe ? ' own' : '') + (x.status === 'out' ? ' dimrow' : '') + '" style="--pc:var(--p' + x.color + ')"><span class="who">' +
-      '<button class="facebtn" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 44, { marks: 'board' }) + '</button>' +
+      '<button class="facebtn" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 44, { marks: 'board', pet: true }) + '</button>' +
       nameTag(x.one, namePrio(m, x, xi)) + '</span>' +
       // PIA-151: a traveler's bar opens their flight section (P-person): mine on any phone, anyone's on the organizer's (before I
       // answer, my answer row asks first); booked, it carries the times they land and leave. PIA-138: my own bar as a host (or
@@ -5970,11 +6157,25 @@ function keepRides(id, sig) {
 /* fix pass: a trip opened whose rides this phone added and no longer drives (rideChanged with nothing to add): "📅 Rides changed" once,
    and what it added is forgotten (the dot does not stay). A driver who still drives has 📅 Phone for that */
 function rideAck(id) {
-  var m = modelOf(id); if (!m || !m.me || !rideChanged(m)) return;
+  var m = modelOf(id); if (!m || !m.me || !rideChanged(m)) return false;
   var ev = null; try { ev = rideEvents(m, m.me.code, RT.hctx); } catch (e) { ev = null; }
-  if (ev) return;
+  if (ev) return false;
   keepRides(id, '');
   toast('📅 Rides changed');
+  return true;   // (PIA-158: the toast has one place: 🎊 waits for the next open)
+}
+/* PIA-158: 🎊 All set, once a phone: the first time this phone opens the trip page with everyone travelling booked and every ride
+   covered (the model's allSet), a burst from the header's picture (none with reduced motion) and the toast "🎊 All set"; kept as
+   pialax_ui_v1.party[id] = 1 for the trips still in the list (without storage, in memory for the visit). Only openTrip calls it (right
+   after the tap that opened the trip, while nothing covers the page): never a card, a redraw or the minute's poll */
+function cheer(id) {
+  var m = modelOf(id); if (!m || !RT || !allSet(m, RT.today)) return;
+  var k = uiRead().party, o = {}, ids = listIds();
+  if (plainObj(k) && k[id]) return;
+  if (plainObj(k)) Object.keys(k).forEach(function (t) { if (ids.indexOf(t) >= 0 && k[t] === 1) o[t] = 1; });
+  o[id] = 1; uiSet({ party: o });
+  burst($('#screen .thead .pc'));
+  toast({ html: '<span data-k="allset" aria-hidden="true">🎊</span> All set' });
 }
 /* PIA-157: the organizer's Ask (the share symbol) while a run still ahead has no driver: one candidate → their own link (the 'nudge'
    act, data-v ride: "Ask Mom & Dad"), several → the trip's guest link ('tshare', data-v ride: "Ask"); both with the ask in words */
@@ -6191,7 +6392,9 @@ function myTk(m, o) {
 /* PIA-154: the trip page's header: a small postcard (its scene and the hosts in the house, nothing over it), the title, 📝 right after
    it only when the trip has a caption, and under the title 📍 the destination (one tap to the Map) */
 function tripHead(m) {
-  return '<div class="thead">' + postcard(m, 'th') + '<div class="thd"><h2 class="ttl"><span data-free>' + esc(m.title) + '</span>' +
+  // (PIA-158: on a hosted trip that is not removed, the picture is a 72×44 button named "House": one tap into P-house)
+  var house = sceneKind(m) === 'home' && m.decision !== 'dropped';
+  return '<div class="thead">' + postcard(m, 'th', { btn: house }) + '<div class="thd"><h2 class="ttl"><span data-free>' + esc(m.title) + '</span>' +
     (m.caption ? '<button class="ib nt" data-act="cap" data-id="' + m.id + '" aria-label="Note" data-k="note">📝</button>' : '') + '</h2>' +
     '<button class="chip dchip" data-act="tomap" data-id="' + m.id + '" aria-label="Map" data-k="dest"><span aria-hidden="true">📍</span>' + esc(m.dest || '?') + '</button></div></div>';
 }
@@ -6527,7 +6730,8 @@ function screenWords() { return countWords($('#screen'), { lbl3: true }) + count
 var SHEETS = {};
 var SHEET_NAME = { migrate: 'Update trip', import: 'Import history', history: 'Review history', source: 'Original notes', mignote: 'Migration note', key: 'Key', organizer: 'Settings', link: 'Link', error: 'Error', new: 'New trip', sharelist: 'Share list', savelist: 'Save list',
   edit: 'Edit trip', drop: 'Remove trip', note: 'Note', face: 'Pick yourself', person: 'Person', stage: 'More', joinfwd: 'Join request', dates: 'Dates', day: 'Day',
-  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport', mine: 'My days', rides: 'Rides' };   // each sheet's accessible name
+  caladd: 'Add to calendar', total: 'Group total', cheap: 'Cheaper week', candidate: 'Another destination', mapairport: 'Airport', mine: 'My days', rides: 'Rides',
+  pet: 'Nebby', house: 'House' };   // each sheet's accessible name (PIA-158: P-pet, P-house)
 /* the sheet's name in the DOM (data-popup, for the word gate) and for a screen reader */
 function popupName(sh) {
   if (sh.type === 'new') { var D = sh.local.d || {}; return (D.edit ? 'P-edit-' : 'P-new-') + ['what', 'who', 'when'][Math.max(1, Math.min(3, D.step || 1)) - 1]; }
@@ -7544,23 +7748,178 @@ function tripNoteHTML(sh) {
   return h;
 };
 /* PIA-148: reference notes are outside the word budget by explicit product request.
-   This is guidance, not shared booking state: opening it never writes a trip or RSVP. */
-function nebbyTravelNotes(open) {
-  return '<details class="pet-notes" data-free' + (open ? ' open' : '') + '><summary id="nebby-notes-toggle">Nebby’s travel plan 🐈</summary>' +
-    '<div class="pet-notes-body"><p>In cabin with Ashwin, fitting comfortably in an approved under-seat carrier. Prefer nonstop.</p>' +
-    '<p>Peoria: compare PIA connections with nonstop ORD plus the drive.</p>' +
-    '<h3>Before booking</h3><ul><li>Confirm pet space on every flight, including return. Reserve with each operating airline; your ticket doesn’t reserve Nebby.</li>' +
+   This is guidance, not shared booking state: opening it never writes a trip or RSVP.
+   PIA-158: moved from every trip's Note sheet to P-pet, the trip where she flies: "In cabin with" her owner as the rides name him
+   (rideLabel: a v1 "Me" is Ashwin), the Peoria line only on a PIA | ORD trip, and no "Still unconfirmed" line (P-pet's ticks are
+   what is still to do) */
+function nebbyTravelNotes(m, owner, open) {
+  var pc = petCan(owner) || PETS.ashwin, nm = esc(pc.name), who = esc(owner ? rideLabel(owner) : 'Ashwin');
+  return '<details class="pet-notes" data-free' + (open ? ' open' : '') + '><summary id="nebby-notes-toggle">' + nm + '’s travel plan ' + pc.g + '</summary>' +
+    '<div class="pet-notes-body"><p>In cabin with ' + who + ', fitting comfortably in an approved under-seat carrier. Prefer nonstop.</p>' +
+    (m && m.hub.join('|') === 'PIA|ORD' ? '<p>Peoria: compare PIA connections with nonstop ORD plus the drive.</p>' : '') +
+    '<h3>Before booking</h3><ul><li>Confirm pet space on every flight, including return. Reserve with each operating airline; your ticket doesn’t reserve ' + nm + '.</li>' +
     '<li>Check carrier size/weight, health documents and fees each way.</li></ul>' +
     '<h3>Before travel</h3><ul><li>Practice carrier time. Pack liners, cleanup supplies, food and a litter kit.</li>' +
     '<li>Ask her vet about travel fitness and anxiety. No sedation without veterinary advice.</li></ul>' +
-    '<h3>Security</h3><p>Request a private screening room before removing Nebby.</p>' +
-    '<p>Still unconfirmed: flights, carrier fit, pet reservation and fees.</p>' +
+    '<h3>Security</h3><p>Request a private screening room before removing ' + nm + '.</p>' +
     '<p>Pet fees are not included in airfare.</p></div></details>';
 }
-SHEETS.note = function (sh) {
-  var h = tripNoteHTML(sh);
-  return !sh.p.code && (sh.p.draft || modelOf(sh.p.id)) ? h + nebbyTravelNotes(sh.local.nebbyOpen) : h;
+/* PIA-158: a host's pet at home, while a pet comes to stay (a second reference fold in P-pet, outside the word budget) */
+function konaNotes(home, guest, open) {
+  var k = esc(home.name), n = esc(guest ? guest.name : 'Nebby');
+  return '<details class="pet-notes kona" data-free' + (open ? ' open' : '') + '><summary id="kona-notes-toggle">At home with ' + k + ' ' + home.g + '</summary>' +
+    '<div class="pet-notes-body"><ul><li>A quiet room with a door for ' + n + ', with litter and water.</li>' +
+    '<li>Cat food up high, out of ' + k + '’s reach.</li>' +
+    '<li>Keep them apart at first and swap smells.</li>' +
+    '<li>Short supervised meetings with ' + k + ' on a leash.</li>' +
+    '<li>' + n + '’s carrier stays her safe spot.</li></ul></div></details>';
+}
+SHEETS.note = function (sh) { return tripNoteHTML(sh); };   // (PIA-158: the pet fold moved to P-pet)
+/* ---- PIA-158: Nebby per trip, Kona at home, P-pet ---- */
+/* the ticks this phone keeps for a trip's pet checklist (pialax_ui_v1.pet[id]: letters of 'adcpf', 🛬 reserved, 🛫 reserved, carrier,
+   papers, fees), for the trips still in the list */
+var PET_TICKS = 'adcpf';
+function keptPet(id) { var st = uiRead().pet; return plainObj(st) && typeof st[id] === 'string' ? st[id].split('').filter(function (c, i, a) { return PET_TICKS.indexOf(c) >= 0 && a.indexOf(c) === i; }).join('') : ''; }
+function keepPet(id, s) {
+  var k = uiRead().pet, o = {}, ids = listIds();
+  if (plainObj(k)) Object.keys(k).forEach(function (t) { if (t !== id && ids.indexOf(t) >= 0 && typeof k[t] === 'string') o[t] = k[t]; });
+  if (s) o[id] = s;
+  uiSet({ pet: o });
+}
+/* the owner's checklist on this trip while the pet comes: 🛬 Reserved (she flies the arrival), 🛫 Reserved (the departure), Carrier,
+   Papers, Fees; n of them ticked on this phone. null while she does not come */
+function petTicks(m, x) {
+  var p = petOf(x); if (!p || !p.flies) return null;
+  var all = PET_TICKS.split('').filter(function (c) { return (c !== 'a' && c !== 'd') || p.legs.indexOf(c) >= 0; }), kept = keptPet(m.id);
+  return { all: all, kept: kept, n: all.filter(function (c) { return kept.indexOf(c) >= 0; }).length, of: all.length };
+}
+/* › into P-pet: the pet's plan (with its ticks done on the owner's own phone: 2/5); o.home: it opens with "At home with Kona" open */
+function petGo(m, x, ticks, inner, o) {
+  var pc = petCan(x), nm = pc.name + '’s plan';
+  return '<button class="petgo" data-act="petsheet" data-id="' + m.id + '" data-code="' + esc(x.code) + '"' + (o && o.home ? ' data-v="home"' : '') + ' aria-label="' + esc((o && o.said) || (nm + (ticks ? ', ' + ticks.n + ' of ' + ticks.of + ' done' : ''))) + '" data-lbl="' + esc(nm) + '">' +
+    (inner || '') + '<span data-k="petgo" aria-hidden="true">›</span>' + (ticks ? '<span class="tn">' + ticks.n + '/' + ticks.of + '</span>' : '') + '</button>';
+}
+/* Nebby per trip, in her owner's flight section once he has answered (In or Maybe), at any stage: "☐ 🐈 Nebby" / "☑ 🐈 Nebby"
+   (aria-pressed; a long press "Nebby comes"), his own answer's 🐈 both ways or none (petWrite: his own phone, or the organizer's for
+   him), then › to P-pet (on his own phone, with how many of its ticks are done while she comes: 2/5). Everyone else, and a closed or
+   past trip, reads "🐈 Nebby ›" while she comes, and nothing while she does not */
+function petRow(m, x, isMe) {
+  var pc = petCan(x); if (!pc || !x.traveler || !x.answered) return '';
+  var on = !!petOf(x), can = !m.closed && !m.past && (isMe || (m.org && !m.legacy)), ticks = isMe ? petTicks(m, x) : null;
+  if (can) return '<div class="petrow"><button class="btn tkb' + (on ? ' tkon' : ' tkoff') + '" data-act="pet" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-pressed="' + on + '" aria-label="' + esc(pc.name + ' comes') + '" data-lbl="' + esc(pc.name + ' comes') + '">' +
+    tkBox(on) + ' <span data-k="petfly" aria-hidden="true">' + pc.g + '</span> ' + esc(pc.name) + '</button>' + petGo(m, x, ticks) + '</div>';
+  return on ? '<div class="petrow"><span class="petro" role="img" aria-label="' + esc(pc.name + ' comes') + '" data-lbl="' + esc(pc.name + ' comes') + '"><span data-k="petfly" aria-hidden="true">' + pc.g + '</span> ' + esc(pc.name) + '</span>' + petGo(m, x, ticks) + '</div>' : '';
+}
+/* Kona at home with a host, on every trip they host (her own row under the host's 🏠 line; read from the preset, never written);
+   while a pet is coming, "🐈 11/20–11/30 ›" (its owner's days) opens P-pet with "At home with Kona" open */
+function konaRow(m, x) {
+  var k = petOf(x); if (!k || !k.home) return '';
+  var o = m.travelers.filter(function (t) { var p = petOf(t); return !!p && p.flies && !!t.d1; })[0], po = o ? petOf(o) : null;
+  var days = o ? md(o.d1) + '–' + md(o.d2) : '';
+  return '<div class="konal"><span class="petro" role="img" aria-label="' + esc(k.name + ' at home') + '" data-lbl="' + esc(k.name + ' at home') + '"><span data-k="pethome" aria-hidden="true">' + k.g + '</span> ' + esc(k.name) + '</span>' +
+    (po ? petGo(m, o, null, '<span data-k="petfly" aria-hidden="true">' + po.g + '</span><span class="tn">' + days + '</span>', { home: true, said: po.name + ' comes ' + days }) : '') + '</div>';
+}
+/* P-pet ("🐈 Nebby"): on her owner's own phone while she comes, the checklist kept on this phone (44px ☐ / ☑ rows: 🛬 Reserved and
+   🛫 Reserved for the legs she flies, 👜 Carrier, 📄 Papers, 💲 Fees); then the reference folds (outside the word budget): her travel
+   plan, and on a trip whose host has a pet at home, "At home with Kona" (opened from Kona's row). Every other phone: the folds only.
+   Nothing here is sent: the ticks stay on this phone */
+SHEETS.pet = function (sh) {
+  var m = modelOf(sh.p.id), x = memberIn(m, sh.p.code), pc = x ? petCan(x) : null, L = sh.local;
+  var h = shHd('<span data-k="petfly" aria-hidden="true">' + (pc ? pc.g : '🐈') + '</span>' + (pc ? ' <span class="pnm">' + esc(pc.name) + '</span>' : ''));
+  if (!m || !x || !pc) return h + (m ? '' : '<div class="rowc">' + staleMark() + '</div>');
+  var t = m.me && m.me.code === x.code ? petTicks(m, x) : null;
+  if (t) {
+    var row = { a: ['🛬', 'arrive', 'Reserved', 'Reserved, arrival flight'], d: ['🛫', 'leave', 'Reserved', 'Reserved, departure flight'], c: ['👜', 'carrier', 'Carrier', 'Carrier'], p: ['📄', 'papers', 'Papers', 'Papers'], f: ['💲', 'fees', 'Fees', 'Fees'] };
+    h += '<div class="pticks">' + t.all.map(function (c) {
+      var r = row[c], on = t.kept.indexOf(c) >= 0;
+      return '<button class="tool" data-act="pettick" data-id="' + m.id + '" data-v="' + c + '" aria-pressed="' + on + '" aria-label="' + r[3] + '">' + tkBox(on) + ' <span data-k="' + r[1] + '" aria-hidden="true">' + r[0] + '</span> ' + r[2] + '</button>';
+    }).join('') + '</div>';
+  }
+  var home = m.members.map(petOf).filter(function (p) { return p && p.home; })[0];
+  return h + nebbyTravelNotes(m, x, !!L.nebbyOpen) + (home ? konaNotes(home, pc, !!L.konaOpen) : '');
 };
+/* ---- PIA-158: P-house, the home filling up, and who brings what (🧺) ---- */
+var DISH_NAMES = { '🍗': 'Chicken', '🥧': 'Pie', '🍰': 'Cake', '🧁': 'Cupcakes', '🍪': 'Cookies', '🥗': 'Salad', '🥔': 'Potatoes', '🍠': 'Sweet potatoes', '🍞': 'Bread',
+  '🧀': 'Cheese', '🍲': 'Stew', '🍷': 'Wine', '🍺': 'Beer', '🥂': 'Bubbly', '🧃': 'Juice', '🎲': 'Games', '🎶': 'Music', '💐': 'Flowers' };
+function dishSaid(ds) { return andList(ds.map(function (g) { return DISH_NAMES[g] || g; })); }
+/* whose dishes this phone can change: their own, or (the organizer, not on a v1 trip) anyone's; a trip still open and not over;
+   never someone Out; a traveler who has not answered yet answers first (a host on their default becomes In with their dishes) */
+function dishCan(m, x) {
+  if (!m || !x || m.closed || m.past || x.status === 'out' || (!x.answered && !x.unconfirmed)) return false;
+  return !!(m.me && m.me.code === x.code) || (m.org && !m.legacy);
+}
+/* the house in words, for a screen reader and a long press: who is home (and the pets at the door), who is on the way (with their pet),
+   who has not booked yet, and who brings what */
+function houseSaid(m) {
+  var h = houseScene(m, RT.today), nm = function (c) { return rideLabel(memberIn(m, c)); }, walk = {};
+  h.walk.forEach(function (p) { walk[p.code] = p.name; });
+  var out = [];
+  if (h.win.length || h.door.length) out.push('Home: ' + h.win.map(nm).concat(h.door.map(function (p) { return p.name; })).join(', ') + '.');
+  if (h.path.length) out.push('On the way: ' + h.path.map(function (c) { return nm(c) + (walk[c] ? ' with ' + walk[c] : ''); }).join(', ') + '.');
+  var un = m.travelers.filter(function (x) { return !x.booked; }); if (un.length) out.push('Not booked yet: ' + un.map(rideLabel).join(', ') + '.');
+  m.members.forEach(function (x) { if (x.status !== 'out' && x.dish.length) out.push('Bringing, ' + rideLabel(x) + ': ' + dishSaid(x.dish) + '.'); });
+  return out.join(' ') || 'House';
+}
+/* P-house (the trip header's picture, on a hosted trip that is not removed): the trip's picture large, the house as it is today (who
+   is in the window, on the path, at the door), the table strip with everyone's dishes, ⏳ the days left before the trip starts (as
+   the card's ⏳, paid or not); then 🧺: my chip first (my face and my dishes, or 🍽), then everyone else who picked one. My chip (on
+   the organizer's phone, also the chip of anyone who has picked) opens the 18 dishes in place: up to 3 (a 4th pulses ✓ instead),
+   saved once, on ✓ or as the sheet closes (dishWrite: ◷, then ⚠ ↻ on a failure). A paid, removed or past trip reads only. No
+   words: faces, dishes and glyphs */
+SHEETS.house = function (sh) {
+  var m = modelOf(sh.p.id), L = sh.local;
+  var togo = m && m.daysTo > 0 ? '<span class="hgo" role="img" aria-label="' + esc(m.daysTo + (m.daysTo === 1 ? ' day left' : ' days left')) + '" data-lbl="Days left"><span data-k="togo" aria-hidden="true">⏳</span><span class="tn">' + m.daysTo + '</span></span>' : '';
+  var h = shHd((m ? '<span class="temo" aria-hidden="true" data-pic>' + m.emoji + '</span>' : '') + togo);
+  if (!m) return h + '<div class="rowc">' + staleMark() + '</div>';
+  var bring = m.members.filter(function (x) { return x.status !== 'out' && x.dish.length; });
+  h += '<div class="hpic" role="img" aria-label="' + esc(houseSaid(m)) + '">' + postcard(m, 'big', { big: true }) +
+    (bring.length ? '<span class="tbl" aria-hidden="true" data-pic>' + bring.map(function (x) { return x.dish.join(''); }).join('') + '</span>' : '') + '</div>';
+  var me = m.me && m.me.status !== 'out' ? m.me : null, open = L.pick ? memberIn(m, L.pick) : null;
+  if (open && !dishCan(m, open)) { open = null; L.pick = null; L.sel = null; }
+  var people = (me ? [me] : []).concat(m.members.filter(function (x) { return x !== me && x.status !== 'out' && x.dish.length; }));
+  var chips = people.map(function (x) {
+    var can = dishCan(m, x), ds = open === x && L.sel ? L.sel : x.dish;
+    if (x === me && !ds.length && !can) return '';
+    var inner = '<span data-k="dish" aria-hidden="true">🧺</span>' + avatar(x, 28, { plain: true }) +
+      (ds.length ? '<span aria-hidden="true" data-pic>' + ds.join('') + '</span>' : '<span class="dadd" data-k="dishadd" aria-hidden="true">🍽</span>');
+    var said = 'Bringing, ' + rideLabel(x) + ': ' + (ds.length ? dishSaid(ds) : 'nothing yet');
+    return can ? '<button class="dchip' + (x === me ? ' mine' : '') + '" data-act="dishpick" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-expanded="' + (open === x) + '" aria-label="' + esc(said + ', pick') + '" data-lbl="Bringing">' + inner + '</button>'
+      : '<span class="dchip" role="img" aria-label="' + esc(said) + '" data-lbl="Bringing">' + inner + '</span>';
+  }).join('');
+  if (chips) h += '<div class="dishes" role="group" aria-label="Bringing">' + chips + '</div>';
+  if (open) {
+    var sel = L.sel || open.dish;
+    h += '<div class="dgrid" role="group" aria-label="' + esc('Dishes, ' + rideLabel(open)) + '">' + DISH_PALETTE.map(function (g, i) {
+      return '<button class="dtile" data-act="dish" data-v="' + i + '" aria-pressed="' + (sel.indexOf(g) >= 0) + '" aria-label="' + DISH_NAMES[g] + '" data-lbl="' + DISH_NAMES[g] + '"><span aria-hidden="true" data-pic>' + g + '</span></button>';
+    }).join('') + '</div>';
+    h += L.busy ? '<button class="btn pri wide dsave busy" aria-label="Saving" aria-busy="true" disabled>◷</button>'
+      : L.failed ? '<button class="btn pri wide dsave" data-act="dishsave" aria-label="Retry">⚠ ↻</button>'
+      : '<button class="btn pri wide dsave" data-act="dishsave" aria-label="Save" data-k="ok">✓</button>';
+  }
+  return h;
+};
+/* the picks in P-house not saved yet ({m, x, sel}), or null */
+function dishPending(sh) {
+  var L = sh && sh.type === 'house' ? sh.local : null, m = L && modelOf(sh.p.id), x = L && L.pick ? memberIn(m, L.pick) : null;
+  return x && L.sel && !L.busy && L.sel.join('') !== x.dish.join('') && dishCan(m, x) ? { m: m, x: x, sel: L.sel.slice() } : null;
+}
+/* P-house's picks go once, on ✓ (or the chip again) or as the sheet closes (closing: no redraw; a failure then is P-error with ↻).
+   Unchanged, nothing is sent and the dishes fold away */
+function dishSave(sh, closing) {
+  var L = sh.local, p = dishPending(sh);
+  if (!p) { if (!closing && !L.busy) { L.pick = null; L.sel = null; L.failed = ''; if (S.sheet === sh) renderSheet(false); } return Promise.resolve(null); }
+  var self = !!(p.m.me && p.m.me.code === p.x.code), who = p.x.code;
+  if (closing) { L.pick = null; L.sel = null; } else { L.busy = true; L.failed = ''; renderSheet(false); }
+  return dishWrite(p.m.id, who, p.sel, self ? 'self' : 'keep', p.x.dish.slice()).then(function (r) {
+    // (a save made on the way to another chip, or as the sheet closed, leaves what is open now alone; its failure is P-error with ↻)
+    var here = !closing && S.sheet === sh && L.pick === who;
+    if (!closing) L.busy = false;
+    if (r.ok || (r.held && r.code !== 'too_large')) { if (here) { L.pick = null; L.sel = null; L.failed = ''; } }
+    else if (!r.held) { if (here) L.failed = r.code || 'network'; else showError(r.code || 'network', r.retry); }
+    if (S.sheet === sh) renderSheet(false);
+    return r;
+  });
+}
 /* a caption leaves with its sheet: unchanged → nothing is sent; a longer v1 text being replaced asks for a second ⌄
    (false = the sheet stays open); else one organizer edit, kept here to try again when it fails. The create sheet's
    own caption just goes back into its draft. */
@@ -7721,6 +8080,8 @@ function personAria(x) {
   if (x.warn && x.warn.length) marks.push('check dates');
   if (x.called) marks.push('answered by the organizer');
   if (x.noteText) marks.push('note');
+  // PIA-158: the pet beside the face, in words (the bubble itself is part of the face: aria-hidden)
+  var pt = petOf(x); if (pt) marks.push(pt.home ? pt.name + ' at home' : 'with ' + pt.name);
   return [faceLabel(x), st].concat(marks).filter(Boolean).join(', ');
 }
 /* P-person: everything about one person on one trip. Me, or the organizer on anyone (not on a v1 doc): their legs with
@@ -7741,7 +8102,7 @@ SHEETS.person = function (sh) {
   var ho = handoffs(m, x.code, RT.hctx);
   // the 72px face is named by the person (long-press, a screen reader), its marks each by their own key
   var h = '<div class="sh-hd pers' + (sh.back ? ' bk' : '') + '">' + (sh.back ? '<button class="ib" data-act="sh-back" aria-label="Back" data-k="back">‹</button>' : '') +
-    '<span class="pav" role="img" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 72, { marks: true }) + '</span>' +
+    '<span class="pav" role="img" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 72, { marks: true, pet: true }) + '</span>' +
     '<span class="pnm">' + nameWords(x.short) + '</span><span class="sp"></span>' + (isMe ? '<button class="ib" data-act="face" data-id="' + m.id + '" aria-label="Switch person" data-k="switch">⇄</button>' : '') +
     // PIA-140: with their fares shown, ⓘ reads this sheet's glyphs (a fare's age, level and stops, ★, $—, ⛔)
     (m.prices && x.traveler && m.dest && x.keys.length && !m.closed ? '<button class="ib" data-act="skey" aria-label="Key" data-k="key">ⓘ</button>' : '') +
@@ -7756,7 +8117,7 @@ SHEETS.person = function (sh) {
   if (iam) h += '<button class="btn pri wide" data-act="pickface" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="' + esc('This is me: ' + faceLabel(x)) + '"><span data-k="me">🙋</span> It\'s me</button>';
   // (PIA-157: a host who drives runs still ahead: 🚗n, into P-rides)
   var hd = x.host ? drivesOf(ridesOf(m), x.code).length : 0;
-  if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b>' + (hd ? '<button class="rgl" data-act="rides" data-id="' + m.id + '" aria-label="' + esc(faceLabel(x) + ' drive ' + hd + (hd === 1 ? ' ride' : ' rides')) + '" data-lbl="' + (hd === 1 ? '1 ride' : hd + ' rides') + '"><span data-k="drive" aria-hidden="true">🚗</span><span class="tn">' + hd + '</span></button>' : '') + '</div>';
+  if (x.host) h += '<div class="pline"><span data-k="host">🏠</span><b>' + esc(m.dest) + '</b>' + (hd ? '<button class="rgl" data-act="rides" data-id="' + m.id + '" aria-label="' + esc(faceLabel(x) + ' drive ' + hd + (hd === 1 ? ' ride' : ' rides')) + '" data-lbl="' + (hd === 1 ? '1 ride' : hd + ' rides') + '"><span data-k="drive" aria-hidden="true">🚗</span><span class="tn">' + hd + '</span></button>' : '') + '</div>' + konaRow(m, x);
   else if (x.traveler && m.dest) {
     // PIA-151: their flight section, in one place: where they fly from, the 🛬 Arrive / 🛫 Leave rows (day, airport, and once booked
     // the time), their fares on the organizer's token phone (until they book), then [✈ Book ↗ | 🎫 I booked] for exactly those days and
@@ -7766,6 +8127,7 @@ SHEETS.person = function (sh) {
     else if (timesBy(m, x.code)) h += timesRow(m, x, L);   // PIA-139: once booked, the times they land and leave (saved as the sheet closes)
     if (m.prices && x.keys.length && !m.closed && !x.booked) h += fareRows(m, x, edit);   // PIA-140: their fares, and each end ±1 day (the organizer's token phone)
     if (links) h += bookRow(m, x, ho);
+    h += petRow(m, x, isMe);   // PIA-158: their pet on this trip (before the note row is fitted to what the sheet leaves)
   } else if (!isMe && m.org && m.dest && open) {
     // PIA-154: someone out, once the dates are 🔒 (or anyone booked): the organizer's "🎫 Booked" for them here, as the board's 🎫
     // column had it (its confirming tap records them In first)
@@ -8259,7 +8621,9 @@ function runHTML(m, R, r, L, o) {
       : l.ride.state === 'moved' ? '<span class="rst" role="img" aria-label="' + esc('Ride changed, ' + namesOf(m, l.ride.was)) + '" data-lbl="Ride changed"><span data-k="ridemoved">⚠</span><span class="rw" data-pic>' + rideFaces(m, l.ride.was, 2) + '</span></span>'
       : '<span class="rst" role="img" aria-label="No driver yet" data-lbl="No driver yet"><span class="rq" data-k="noride">🚗?</span></span>';
     var gr = show ? (r.ap !== R.home ? groundBtn(m, x, r.kind, 'bus', why) : '') + groundBtn(m, x, r.kind, 'rent', why) : '';
-    h += '<div class="rleg">' + face + '<span class="tn">' + esc(l.time) + '</span>' + st + '<span class="sp"></span>' + gr + '</div>';
+    // (PIA-158: 🐈 beside the traveler's 28px face where their pet flies this leg: no bubble on a 28px face)
+    var pl = petLeg(x, r.kind), pet = pl ? '<span class="rpet" role="img" aria-label="' + esc('With ' + pl.name) + '" data-lbl="' + esc('With ' + pl.name) + '"><span data-k="petfly" aria-hidden="true">' + pl.g + '</span></span>' : '';
+    h += '<div class="rleg">' + face + pet + '<span class="tn">' + esc(l.time) + '</span>' + st + '<span class="sp"></span>' + gr + '</div>';
   });
   return { html: h + '</div>', word: word };
 }
@@ -9122,7 +9486,8 @@ function renderSheet(first) {
   // (a toggle or a chip has no id)
   var el = $('#sheet'), act = document.activeElement, inside = !!(act && act !== el && el.contains(act)), fid = inside && act.id ? act.id : null, sig = inside && !fid && !first ? ctlSig(act) : null, sel = null;
   if (fid && act.selectionStart != null) { try { sel = [act.selectionStart, act.selectionEnd]; } catch (e) { sel = null; } }
-  if (!first && sh.type === 'note') { var petNotes = el.querySelector('.pet-notes'); if (petNotes) sh.local.nebbyOpen = petNotes.open; }
+  // (PIA-158: P-pet's reference folds stay as they were opened across a redraw, a tick's too)
+  if (!first && sh.type === 'pet') { var nf = el.querySelector('.pet-notes:not(.kona)'), kf = el.querySelector('.pet-notes.kona'); if (nf) sh.local.nebbyOpen = nf.open; if (kf) sh.local.konaOpen = kf.open; }
   el.innerHTML = SHEETS[sh.type](sh);
   el.setAttribute('data-popup', popupName(sh));
   el.setAttribute('aria-label', sheetName(sh));
@@ -9194,6 +9559,7 @@ function closeSheet(fromPop) {
   var dated = false, picked = null;
   for (var s = S.sheet; s; s = s.back) {
     if (s.type === 'person') saveTimes(s);   // PIA-139: booked times typed in a person's sheet go as it closes
+    if (s.type === 'house') dishSave(s, true);   // PIA-158: so do P-house's dishes picked and not saved (nothing when unchanged)
     keepDraft(s); if (s.type === 'new' && draftWorth(s.local.d)) lost = s.local.d;
     if (s.type === 'dates') { dated = true; if (!picked && datesUnsaved(s)) picked = s; }   // PIA-138: a pick not saved
   }
@@ -9226,6 +9592,7 @@ function sheetBack() {
   if (!leaveNote(S.sheet, false)) return;
   if (!timesHold(S.sheet, false)) return;
   keepDraft(S.sheet); saveTimes(S.sheet);
+  if (S.sheet.type === 'house') dishSave(S.sheet, true);   // (PIA-158: as it closes)
   // PIA-151: back on a person's sheet, the field it was first opened on (their 🛬 time) is not focused again (the keyboard would
   // rise on every ‹): only a focus set for this way back (quickBack's) is
   if (b.type === 'person') { if (!b.focusBack) b.focus = null; b.focusBack = false; }
@@ -9314,7 +9681,7 @@ function pressTarget(t, x, y) {
   if (!t || !t.closest || t.closest('input,textarea')) return null;
   var ctl = t.closest(CTL_SEL);
   // PIA-137: a mark on a face (⚠ 🎫 🏠 📞 📝, ×N) is named in place when the finger is on it; the face (its name) otherwise
-  var mk = t.closest('.av .bd [data-k], .av .bd[data-k], .av .cnt[data-k], .cell .ov [data-k], .cell .own[data-k], .rowh .hn[data-k], .pill .w[data-lbl], .pill .tg[data-lbl]');   // PIA-142: a Family cell's marks, own day and 🏠n too (PIA-154: the card's ⚠ names its cause, its ⏳ "Days left")
+  var mk = t.closest('.av .bd [data-k], .av .bd[data-k], .av .cnt[data-k], .av .pet[data-k], .cell .ov [data-k], .cell .own[data-k], .rowh .hn[data-k], .pill .w[data-lbl], .pill .tg[data-lbl]');   // PIA-142: a Family cell's marks, own day and 🏠n too (PIA-154: the card's ⚠ names its cause, its ⏳ "Days left")
   if (mk && ctl && ctl.contains(mk) && hasOwn(LEGEND, mk.getAttribute('data-k'))) return mk;
   if (ctl && !ctl.classList.contains('card-open')) return ctl;
   var scope = t.closest('#screen') || t.closest('#sheet');   // a sheet's glyphs (◷, ⟦ ⟧, a stepper's dots) are named too
@@ -9377,8 +9744,11 @@ function openTrip(id) {
   S.tab = 'trips'; S.trip = id; S.sel = id; uiSet({ sel: id });
   pushTrip();
   if (DOCS[id]) markSeen(DOCS[id]);
-  rideAck(id);   // (PIA-157 fix pass: rides this phone's calendar holds and it no longer drives: said once, then forgotten)
+  var told = rideAck(id);   // (PIA-157 fix pass: rides this phone's calendar holds and it no longer drives: said once, then forgotten)
   render(); window.scrollTo(0, 0);
+  // (PIA-158: 🎊 the first time this phone opens it all set, once the tap that opened it is done: not when a sheet came up over it
+  // (a card's 🚗 opens P-rides on top) and, after "📅 Rides changed", on the next open)
+  if (!told) later(function () { if (tripShowing() && S.trip === id && !S.sheet) cheer(id); }, 0);
   refresh(id);
 }
 /* PIA-137: the Map a trip's 📍 opened has a history entry of its own, over the trip's, so the phone's Back comes back to
@@ -10485,6 +10855,54 @@ var ACTS = {
     var was = x.ground[kind] || '', mode = el.dataset.v === was ? '' : el.dataset.v;
     return groundWrite(id, code, kind, mode, self ? 'self' : 'keep', was);
   },
+  /* PIA-158: "☐ 🐈 Nebby": her owner's answer says she comes both ways (🐈ad), or not at all; his phone, or the organizer's for him */
+  pet: function (el) {
+    var id = el.dataset.id, code = el.dataset.code, m = modelOf(id), x = memberIn(m, code); if (!x || !petCan(x)) return null;
+    var self = !!(m.me && m.me.code === code); if (!self && !(m.org && !m.legacy)) return null;
+    var was = x.marks.pet || '';
+    return petWrite(id, code, was ? '' : 'ad', self ? 'self' : 'keep', was);
+  },
+  /* › into P-pet (from P-person, ‹ goes back to it); data-v home: from Kona's row, "At home with Kona" open */
+  petsheet: function (el) {
+    var m = modelOf(el.dataset.id), x = memberIn(m, el.dataset.code); if (!x || !petCan(x)) return null;
+    var kona = el.dataset.v === 'home';
+    openSheet('pet', { id: m.id, code: x.code }, { back: !!(S.sheet && S.sheet.type === 'person'), local: { konaOpen: kona, nebbyOpen: false } });
+    return null;
+  },
+  /* a tick in P-pet's checklist: kept on this phone only (pialax_ui_v1.pet), nothing is sent */
+  pettick: function (el) {
+    var id = el.dataset.id, c = el.dataset.v; if (!c || PET_TICKS.indexOf(c) < 0 || c.length !== 1) return null;
+    var k = keptPet(id), next = k.indexOf(c) >= 0 ? k.replace(c, '') : k + c;
+    keepPet(id, PET_TICKS.split('').filter(function (t) { return next.indexOf(t) >= 0; }).join(''));
+    if (S.sheet && S.sheet.type === 'pet') renderSheet(false);
+    return null;
+  },
+  /* PIA-158: the trip header's picture: P-house */
+  house: function (el) { var m = modelOf(el.dataset.id); if (!m || sceneKind(m) !== 'home') return null; openSheet('house', { id: m.id }, { local: {} }); return null; },
+  /* a 🧺 chip: its 18 dishes in place (another chip's picks go first); the same chip again saves and folds them away */
+  dishpick: function (el) {
+    var sh = S.sheet; if (!sh || sh.type !== 'house' || sh.local.busy) return null;
+    var L = sh.local, code = el.dataset.code, m = modelOf(sh.p.id), x = memberIn(m, code); if (!dishCan(m, x)) return null;
+    if (L.pick === code) return dishSave(sh, false);
+    if (dishPending(sh)) dishSave(sh, true);
+    L.pick = code; L.sel = x.dish.slice(); L.failed = '';
+    renderSheet(false);
+    return null;
+  },
+  /* a dish tile: on or off (at most 3: a 4th pulses ✓ instead of adding) */
+  dish: function (el) {
+    var sh = S.sheet; if (!sh || sh.type !== 'house' || !sh.local.pick || sh.local.busy) return null;
+    var L = sh.local, g = DISH_PALETTE[+el.dataset.v]; if (!g) return null;
+    if (!L.sel) { var x0 = memberIn(modelOf(sh.p.id), L.pick); L.sel = x0 ? x0.dish.slice() : []; }
+    var i = L.sel.indexOf(g);
+    if (i >= 0) L.sel.splice(i, 1);
+    else if (L.sel.length >= 3) { pulseEl($('#sheet .dsave')); return null; }
+    else L.sel.push(g);
+    L.failed = '';
+    renderSheet(false);
+    return null;
+  },
+  dishsave: function () { var sh = S.sheet; return sh && sh.type === 'house' ? dishSave(sh, false) : null; },
   /* a traveler's face in a run of several: their 🚌 / 🚙 there (view state only) */
   rideleg: function (el) { var sh = S.sheet; if (!sh || sh.type !== 'rides') return null; var k = el.dataset.v + '|' + el.dataset.code; sh.local.leg = sh.local.leg === k ? '' : k; renderSheet(false); return null; },
   /* "🛬? 💪": that traveler's sheet, at the time field where this phone may record it (their own, or the organizer's for them) */
@@ -10544,6 +10962,37 @@ function groundWrite(id, code, kind, mode, by, was, noUndo) {
     else if (!r.ok && r.code === 'bad_body' && long(DOCS[id])) rideHeld('too_large');
     else if (!r.ok) showError(r.code, r.retry);
     else toast(ok, noUndo ? null : function () { return groundWrite(id, code, kind, was, by, mode, true); });
+    return r;
+  });
+}
+/* PIA-158: the pet's legs in her owner's own answer (🐈ad, or '' not coming), his phone's write or the organizer's for him: one complete
+   answer from a fresh read (petRequest), guarded there (petGuard: closed, same); a note with no room says "⚠ Too long" and sends
+   nothing (petPatch builds, petRequest does not); 🐈✓ with ↩ (no Tell: as 🚌 / 🚙, the driver sees it in the app and by the 📅 dot) */
+function petWrite(id, code, legs, by, was, noUndo) {
+  var today = RT.today, doc = DOCS[id];
+  var long = function (d) { return !!d && !!petPatch(d, code, legs, by, today) && !petRequest(d, code, legs, by, today); };
+  if (long(doc)) return Promise.resolve(rideHeld('too_large'));
+  if (by === 'self') confirmHinted(id, code);
+  return freshWrite(id, function (d) { var q = petRequest(d, code, legs, by, today); return q ? [q] : null; }, { guard: function (f) { return petGuard(f, code, legs, today); } }).then(function (r) {
+    if (r.held) rideHeld(r.code, '🐈✓');
+    else if (!r.ok && r.code === 'bad_body' && long(DOCS[id])) rideHeld('too_large');
+    else if (!r.ok) showError(r.code, r.retry);
+    else toast('🐈✓', noUndo ? null : function () { return petWrite(id, code, was, by, legs, true); });
+    return r;
+  });
+}
+/* PIA-158: what someone brings (🧺, ≤3 dishes) in their own answer, their phone's write or the organizer's for them: one complete answer
+   from a fresh read (dishRequest: the driver's 🚗 claims, 🛬 / 🛫 and every other marker carried), guarded there (dishGuard); "⚠ Too
+   long" when the note has no room (nothing sent); 🧺✓ with ↩ */
+function dishWrite(id, code, dishes, by, was, noUndo) {
+  var today = RT.today, doc = DOCS[id];
+  var long = function (d) { return !!d && !!dishPatch(d, code, dishes, by, today) && !dishRequest(d, code, dishes, by, today); };
+  if (long(doc)) return Promise.resolve(rideHeld('too_large'));
+  if (by === 'self') confirmHinted(id, code);
+  return freshWrite(id, function (d) { var q = dishRequest(d, code, dishes, by, today); return q ? [q] : null; }, { guard: function (f) { return dishGuard(f, code, dishes, today); } }).then(function (r) {
+    if (r.held) rideHeld(r.code, '🧺✓');
+    else if (!r.ok && r.code === 'bad_body' && long(DOCS[id])) rideHeld('too_large');
+    else if (r.ok) toast('🧺✓', noUndo ? null : function () { return dishWrite(id, code, was, by, dishes, true); });
     return r;
   });
 }

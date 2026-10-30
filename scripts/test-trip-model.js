@@ -2736,6 +2736,142 @@ function makeServer(worker) {
       M.rideName({ name: '', short: '', one: '', face: '🎸', airport: 'LAX' }) === '🎸',
       'FIX the ride text on the v1 Thanksgiving names its "Me" at LAX (💪) Ashwin, as ⤒ Update trip does ("pick up Ashwin at PIA…"); a nameless member the preset does not recognise keeps their face', v1t);
   }
+
+  // ═══ PIA-158 ═════════════════════════════════════════════════════════════
+  section('PIA-158 pets & fun: Nebby per trip and Kona at home from the preset, 🐈 / 🧺 written through the real Worker, the house filling up, 🎊 all set, "+ Nebby 🐈" in the ride words and the 📅 signature');
+  {
+    const T = '2026-10-30', WK = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+    const PTD = { v: 1, id: 'ptPTownPetsAndFun0001', created_at: '2026-10-14T10:00:00.000Z', updated_at: '2026-10-16T10:00:00.000Z',
+      idea: { title: '🦃 P town thanksgiving', destination: { city: 'Chicago', airport: 'ORD' }, dates: { departure: '2026-11-20', return: '2026-11-30', searchStart: '', searchEnd: '' }, recommendation: null, notes: '',
+        members: [{ code: 'momdad-t1', label: '🌽 Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'ashwin-t2', label: '💪 Ashwin', airport: 'LAX', headcount: 1 }, { code: 'anjo-t3', label: '🗽 Anjo', airport: 'LGA', headcount: 1 }] },
+      responses: { 'ashwin-t2': R('in', 'LAX', '', '', { booked: true, booked_at: '2026-10-16T00:00:00.000Z', note: '🛬14:35 🛫15:30' }), 'anjo-t3': R('in', 'LGA') },
+      decision: { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null },
+      log: [] };
+    const pm = (doc, me, today, over) => M.tripModel(doc, Object.assign({ today: today || T, now: NOW, me: me || null }, over || {}));
+    const ptId = srv.seed(PTD), pt0 = await srv.get(ptId, KEY);
+
+    // ---- familyKey: the preset by home airport and name, whatever the face; petOf / petsOf ----
+    const fk = (label, airport) => M.familyKey({ code: 'x', label, airport });
+    check(fk('💪 Ashwin', 'LAX') === 'ashwin' && M.familyOf({ code: 'x', label: '💪 Ashwin', airport: 'LAX' }) === null && fk('Me', 'LAX') === 'ashwin' && fk('', 'LAX') === 'ashwin' && fk('💪', 'LAX') === 'ashwin' &&
+      fk('🦊', 'LAX') === '' && fk('🌽', 'PIA') === 'momdad' && fk('🦊', 'PIA') === '' &&
+      fk('🌴 Ashwin', 'LAX') === 'ashwin' && fk('🌽 Mom & Dad', 'PIA') === 'momdad' && fk('Mom & Dad', 'ORD') === 'momdad' && fk('🗽 Anjo', 'LGA') === 'anjo' &&
+      fk('💪 Ash', 'LAX') === '' && fk('💪 Ashwin', 'SEA') === '' && fk('🐢 Sam', 'LAX') === '' && M.PETS.ashwin.name === 'Nebby' && M.PETS.ashwin.flies && M.PETS.momdad.name === 'Kona' && M.PETS.momdad.home &&
+      mem(pm(pt0), 'ashwin-t2').fam === 'ashwin' && mem(pm(pt0), 'momdad-t1').fam === 'momdad' && mem(pm(pt0), 'anjo-t3').fam === 'anjo' && mem(model(LEG), 'LAX').fam === 'ashwin',
+      'familyKey: the family preset\'s key by home airport and name, the face free (a v2 "💪 Ashwin", for which familyOf is null, a v1 "Me", no name, another face beside the name): ashwin / momdad / anjo; a label that is only a face counts only as the preset\'s own face (💪 at LAX, 🌽 at PIA; 🦊 alone is nobody\'s); a renamed member, a moved airport or anyone else: none. PETS: Nebby flies, Kona is at home; every member carries fam');
+    const pt1d = tweak(pt0, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:30 🐈ad'; });
+    const ps1 = M.petsOf(pm(pt1d)), ps0 = M.petsOf(pm(pt0));
+    check(eq(ps1, { 'momdad-t1': { g: '🐕', name: 'Kona', home: true }, 'ashwin-t2': { g: '🐈', name: 'Nebby', legs: 'ad', flies: true } }) && eq(ps0, { 'momdad-t1': { g: '🐕', name: 'Kona', home: true } }) &&
+      eq(Object.keys(M.petsOf(pm(tweak(pt1d, (d) => { d.responses['momdad-t1'] = R('out', 'PIA'); })))), ['ashwin-t2']) &&
+      eq(Object.keys(M.petsOf(pm(tweak(pt1d, (d) => { d.responses['ashwin-t2'].status = 'out'; })))), ['momdad-t1']) &&
+      eq(M.petsOf(pm(tweak(pt1d, (d) => { d.idea.destination = { city: 'Los Angeles', airport: 'LAX' }; d.decision.chosen.airport = 'LAX'; }))), {}) &&
+      eq(M.petsOf(pm(tweak(pt1d, (d) => { d.idea.destination = { city: 'New York', airport: 'LGA' }; d.decision.chosen.airport = 'LGA'; d.responses['momdad-t1'] = R('in', 'PIA'); }))), { 'ashwin-t2': { g: '🐈', name: 'Nebby', legs: 'ad', flies: true } }) &&
+      M.petOf(mem(pm(tweak(pt1d, (d) => { d.responses['ashwin-t2'].note = '🐈a'; })), 'ashwin-t2')).legs === 'a' && M.petLeg(mem(pm(tweak(pt1d, (d) => { d.responses['ashwin-t2'].note = '🐈a'; })), 'ashwin-t2'), 'd') === null &&
+      pm(pt1d).heads === pm(pt0).heads,
+      'petsOf: Ashwin\'s 🐈ad → Nebby both ways; Mom & Dad hosting (not Out) → Kona at home (derived, never written, never in heads); a host who said Out → no Kona; Ashwin Out → no Nebby; a trip to LAX (Ashwin hosts) has neither; New York (Mom & Dad travel) has no Kona; 🐈a flies the arrival only', ps1);
+
+    // ---- 🐈: the owner's own answer through the real Worker; the organizer's 'keep'; refusals ----
+    const qPet = M.petRequest(pt0, 'ashwin-t2', 'ad', 'self', T), resPet = await srv.send(qPet), pt1 = await srv.get(ptId, KEY);
+    const qOff = M.petRequest(pt1, 'ashwin-t2', '', 'keep', T);
+    check(srv.allOk(resPet) && pt1.responses['ashwin-t2'].note === '🛬14:35 🛫15:30 🐈ad' && pt1.responses['ashwin-t2'].booked === true && pt1.responses['ashwin-t2'].status === 'in' &&
+      M.petRequest(pt1, 'ashwin-t2', 'ad', 'self', T) === null && M.petGuard(pt1, 'ashwin-t2', 'ad', T) === 'same' && M.petGuard(pt1, 'ashwin-t2', '', T) === '' && M.petGuard(tweak(pt1, (d) => { d.decision.stage = 'dropped'; }), 'ashwin-t2', '', T) === 'closed' &&
+      qOff && qOff.body.note === '🛬14:35 🛫15:30' && M.parseRespNote(qOff.body.note).called === false &&
+      M.petRequest(pt0, 'anjo-t3', 'ad', 'self', T) === null && M.petRequest(pt0, 'momdad-t1', 'ad', 'self', T) === null && M.petRequest(pt0, 'ashwin-t2', 'x', 'self', T) === null &&
+      M.petRequest(pt0, 'ashwin-t2', 'ad', 'self', '2026-12-01') === null && M.petRequest(tweak(pt0, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 900; }), 'ashwin-t2', 'ad', 'self', T) === null &&
+      M.petRequest(tweak(pt0, (d) => { d.responses['ashwin-t2'] = R('maybe', 'LAX'); }), 'ashwin-t2', 'a', 'self', T).body.note === '🐈a' && M.petRequest(tweak(pt0, (d) => { delete d.responses['ashwin-t2']; }), 'ashwin-t2', 'ad', 'self', T) === null &&
+      M.petRequest(tweak(LEG, (d) => { d.responses.LAX.note = 'hi'; }), 'LAX', 'ad', 'self', TODAY).body.note === '🐈ad hi' && M.petRequest(LEG, 'LAX', 'ad', 'keep', TODAY) === null,
+      'petRequest: Ashwin\'s own 🐈ad (the Worker keeps his 🎫 and 🛬 / 🛫), nothing again, the guard\'s same / closed, the organizer\'s off (keep: no 📞); none for Anjo (no pet that flies), a host, a bad leg, after the trip, a paid trip or before he answers; Maybe goes; on the v1 Thanksgiving his own write goes and the organizer\'s for him waits for ⤒', { note: pt1.responses['ashwin-t2'].note, off: qOff && qOff.body.note });
+    // 280: refused, never clipped (petPatch builds, petRequest does not, so the phone says "⚠ Too long")
+    const longP = tweak(pt0, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:30 ' + 'n'.repeat(262); });
+    check(M.petRequest(longP, 'ashwin-t2', 'ad', 'self', T) === null && eq(M.petPatch(longP, 'ashwin-t2', 'ad', 'self', T), { pet: 'ad' }) && M.petPatch(pt1, 'ashwin-t2', 'ad', 'self', T) === null,
+      'a 🐈 the note has no room for: petPatch builds {pet: ad}, petRequest refuses (null), the typed text is never cut; no change builds no patch');
+    // fix pass: petPatch and dishPatch hold every refusal but the note's room themselves (so the phone's "⚠ Too long", patch && !request,
+    // never stands for a trip that closed, someone Out or a traveler who has not answered)
+    const paidP = tweak(pt0, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 900; }), dropP = tweak(pt0, (d) => { d.decision.stage = 'dropped'; });
+    const cPatch = [M.petPatch(paidP, 'ashwin-t2', 'ad', 'self', T), M.petPatch(dropP, 'ashwin-t2', 'ad', 'self', T), M.petPatch(tweak(pt0, (d) => { delete d.responses['ashwin-t2']; }), 'ashwin-t2', 'ad', 'self', T),
+      M.petPatch(tweak(pt0, (d) => { d.responses['ashwin-t2'].status = 'out'; }), 'ashwin-t2', 'ad', 'self', T), M.petPatch(pt0, 'momdad-t1', 'ad', 'self', T), M.petPatch(pt0, 'anjo-t3', 'ad', 'self', T),
+      M.petPatch(LEG, 'LAX', 'ad', 'keep', TODAY), M.petPatch(pt0, 'ashwin-t2', 'ad', 'self', '2026-12-01'), M.petPatch(pt0, 'ashwin-t2', 'x', 'self', T),
+      M.dishPatch(paidP, 'anjo-t3', ['🥧'], 'self', T), M.dishPatch(dropP, 'anjo-t3', ['🥧'], 'self', T), M.dishPatch(tweak(pt0, (d) => { d.responses['anjo-t3'].status = 'out'; }), 'anjo-t3', ['🥧'], 'self', T),
+      M.dishPatch(tweak(pt0, (d) => { delete d.responses['anjo-t3']; }), 'anjo-t3', ['🥧'], 'self', T), M.dishPatch(pt0, 'anjo-t3', ['🥧', '🍰', '🍪', '🧁'], 'self', T), M.dishPatch(pt0, 'anjo-t3', ['🦃'], 'self', T),
+      M.dishPatch(LEG, 'PIA', ['🥧'], 'keep', TODAY), M.dishPatch(pt0, 'anjo-t3', ['🥧'], 'self', '2026-12-01')];
+    check(cPatch.every((p) => p === null) && eq(M.petPatch(pt0, 'ashwin-t2', 'ad', 'self', T), { pet: 'ad' }) && eq(M.dishPatch(pt0, 'anjo-t3', ['🥧'], 'self', T), { dish: ['🥧'] }) &&
+      eq(M.petPatch(LEG, 'LAX', 'ad', 'self', TODAY), { pet: 'ad' }),
+      'petPatch / dishPatch refuse what petRequest / dishRequest refuse, the note\'s room aside: a paid or removed trip, a traveler who has not answered, someone Out, a host or a traveler with no pet that flies, the organizer\'s for someone on a v1 trip, after the trip, a bad leg; a 4th dish, one off the palette; the plain cases build', cPatch.map((p, i) => (p === null ? -1 : i)).filter((i) => i >= 0));
+
+    // ---- 🧺: anyone's own answer (a host's default becomes In), keeping the driver's 🚗 claims byte for byte ----
+    const qDish = M.dishRequest(pt1, 'momdad-t1', ['🥧', '🍷'], 'self', T), resDish = await srv.send(qDish), pt2 = await srv.get(ptId, KEY);
+    const ptB = srv.seed(PTD), ptB0 = await srv.get(ptB, KEY), qOrgD = M.dishRequest(ptB0, 'momdad-t1', ['🥧'], 'keep', T), resOrgD = await srv.send(qOrgD), ptB1 = await srv.get(ptB, KEY);
+    check(srv.allOk(resDish) && pt2.responses['momdad-t1'].status === 'in' && pt2.responses['momdad-t1'].note === '🧺🥧🍷' && pt2.responses['momdad-t1'].origin === 'PIA' &&
+      srv.allOk(resOrgD) && ptB1.responses['momdad-t1'].status === 'in' && ptB1.responses['momdad-t1'].note === '📞 🧺🥧' && eq(mem(pm(pt2), 'momdad-t1').dish, ['🥧', '🍷']),
+      '🧺 Mom & Dad on their default: their own first dish write answers In (no 📞), 🧺🥧🍷 in their note; the organizer\'s for them answers on their behalf (📞 🧺🥧)', [pt2.responses['momdad-t1'], ptB1.responses['momdad-t1']]);
+    const claimsQ = M.ridesRequest(pt2, 'momdad-t1', 'aORD1120-ashwin-t2', 'on', 'self', T); await srv.send(claimsQ); const pt3 = await srv.get(ptId, KEY);
+    const claimsQ2 = M.ridesRequest(pt3, 'momdad-t1', 'dORD1130-ashwin-t2', 'on', 'self', T); await srv.send(claimsQ2); const pt4 = await srv.get(ptId, KEY);
+    const qDish2 = M.dishRequest(pt4, 'momdad-t1', ['🍗'], 'self', T), resDish2 = await srv.send(qDish2), pt5 = await srv.get(ptId, KEY);
+    const qPet2 = M.petRequest(pt5, 'ashwin-t2', 'a', 'self', T), resPet2 = await srv.send(qPet2), pt6 = await srv.get(ptId, KEY);
+    check(pt4.responses['momdad-t1'].note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130 🧺🥧🍷' && srv.allOk(resDish2) && pt5.responses['momdad-t1'].note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130 🧺🍗' &&
+      srv.allOk(resPet2) && pt6.responses['ashwin-t2'].note === '🛬14:35 🛫15:30 🐈a' && M.rides(pm(pt6), T).open === 0 && pt6.responses['momdad-t1'].note === pt5.responses['momdad-t1'].note,
+      '🧺 a dish write keeps the driver\'s 🚗 claims byte for byte (🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130 🧺🍗) and a 🐈 write keeps 🛬 / 🛫 (🛬14:35 🛫15:30 🐈a), through the real Worker; both rides stay covered', [pt5.responses['momdad-t1'].note, pt6.responses['ashwin-t2'].note]);
+    const longD = tweak(pt0, (d) => { d.responses['anjo-t3'].note = 'y'.repeat(276); });
+    check(M.dishRequest(pt0, 'anjo-t3', ['🥧', '🍰', '🍪', '🧁'], 'self', T) === null && M.dishRequest(pt0, 'anjo-t3', ['🦃'], 'self', T) === null && M.dishRequest(pt0, 'anjo-t3', '🥧', 'self', T) === null &&
+      M.dishRequest(pt0, 'anjo-t3', ['🥧', '🥧'], 'self', T) === null && M.dishRequest(pt0, 'anjo-t3', ['🥧'], 'self', T).body.note === '🧺🥧' &&
+      M.dishRequest(pt5, 'momdad-t1', ['🍗'], 'self', T) === null && M.dishRequest(pt5, 'momdad-t1', [], 'self', T).body.note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130' &&
+      M.dishRequest(tweak(pt0, (d) => { d.responses['anjo-t3'].status = 'out'; }), 'anjo-t3', ['🥧'], 'self', T) === null && M.dishRequest(tweak(pt0, (d) => { delete d.responses['anjo-t3']; }), 'anjo-t3', ['🥧'], 'self', T) === null &&
+      M.dishRequest(pt0, 'anjo-t3', ['🥧'], 'self', '2026-12-01') === null && M.dishRequest(tweak(pt0, (d) => { d.decision.stage = 'dropped'; }), 'anjo-t3', ['🥧'], 'self', T) === null &&
+      M.dishRequest(LEG, 'PIA', ['🥧'], 'keep', TODAY) === null && M.dishRequest(LEG, 'PIA', ['🥧'], 'self', TODAY).body.status === 'in' &&
+      M.dishRequest(longD, 'anjo-t3', ['🥧'], 'self', T) === null && eq(M.dishPatch(longD, 'anjo-t3', ['🥧'], 'self', T), { dish: ['🥧'] }) &&
+      M.dishGuard(pt5, 'momdad-t1', ['🍗'], T) === 'same' && M.dishGuard(pt5, 'momdad-t1', ['🥧'], T) === '' && M.dishGuard(tweak(pt5, (d) => { d.decision.stage = 'booked'; }), 'momdad-t1', ['🥧'], T) === 'closed',
+      '🧺 refusals: a 4th dish, one off the palette, not a list, one twice, no change, someone Out, a traveler who has not answered, after the trip, a removed trip, the organizer\'s for someone on a v1 trip (their own goes: Mom & Dad\'s first answer); [] clears it and keeps the claims; a note with no room: dishPatch builds, dishRequest refuses; the guard\'s same / closed');
+
+    // ---- the house, by day: 10/30, 11/20, 12/1 ----
+    const ptA = tweak(pt1d, (d) => { d.responses['anjo-t3'].booked = true; d.responses['anjo-t3'].note = '🛬15:10 🛫17:00'; });
+    const hs = (doc, day) => M.houseScene(pm(doc, null, day), day);
+    const h1030 = hs(pt1d, T), h1120 = hs(ptA, '2026-11-20'), h1201 = hs(ptA, '2026-12-01'), hOut = hs(tweak(pt1d, (d) => { d.responses['momdad-t1'] = R('out', 'PIA'); }), T);
+    check(eq(h1030, { win: ['momdad-t1'], path: ['ashwin-t2'], door: [{ g: '🐕', name: 'Kona', code: 'momdad-t1' }], walk: [{ g: '🐈', name: 'Nebby', code: 'ashwin-t2' }], lit: false }) &&
+      eq(h1120, { win: ['momdad-t1', 'ashwin-t2', 'anjo-t3'], path: [], door: [{ g: '🐕', name: 'Kona', code: 'momdad-t1' }, { g: '🐈', name: 'Nebby', code: 'ashwin-t2' }], walk: [], lit: true }) &&
+      eq(h1201, { win: ['momdad-t1'], path: [], door: [{ g: '🐕', name: 'Kona', code: 'momdad-t1' }], walk: [], lit: false }) &&
+      eq(hOut, { win: [], path: ['ashwin-t2'], door: [], walk: [{ g: '🐈', name: 'Nebby', code: 'ashwin-t2' }], lit: false }) && eq(hs(ptA, T).path, ['ashwin-t2', 'anjo-t3']),
+      'houseScene: on 10/30 Mom & Dad in the window, Ashwin on the path with Nebby beside him (Anjo, not booked, is not drawn), Kona at the door; on 11/20 everyone booked is there (the window lit, Nebby at the door with Kona); on 12/1 the hosts alone; a host who said Out leaves the window and the door empty', { h1030, h1120 });
+    // ---- 🎊 all set ----
+    const allC = tweak(ptA, (d) => { d.responses['momdad-t1'] = R('in', 'PIA', '', '', { note: '🚗ashwin-t2.aORD1120,anjo-t3.aORD1120,ashwin-t2.dORD1130,anjo-t3.dORD1130' }); });
+    const nyc = tweak(pt0, (d) => { d.idea.destination = { city: 'New York', airport: 'LGA' }; d.decision.chosen.airport = 'LGA'; d.responses['anjo-t3'].booked = true; d.responses['momdad-t1'] = R('in', 'PIA'); d.responses['momdad-t1'].booked = true; });
+    check(M.allSet(pm(allC), T) === true && M.allSet(pm(pt0), T) === false && M.allSet(pm(ptA), T) === false &&
+      M.allSet(pm(tweak(allC, (d) => { d.responses['anjo-t3'].note = '🛬15:10'; })), T) === false && M.rides(pm(tweak(allC, (d) => { d.responses['anjo-t3'].note = '🛬15:10'; })), T).open === 0 &&
+      M.allSet(pm(allC, null, '2026-12-01'), '2026-12-01') === false && M.allSet(pm(tweak(allC, (d) => { d.decision.stage = 'dropped'; })), T) === false &&
+      M.allSet(pm(tweak(allC, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 1800; })), T) === true && M.allSet(pm(nyc), T) === true &&
+      M.allSet(pm(tweak(allC, (d) => { d.responses['anjo-t3'].status = 'out'; d.responses['momdad-t1'].note = '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130'; })), T) === true,
+      'allSet: everyone travelling booked and every ride covered (Mom & Dad drive all four legs) → 🎊; Anjo unbooked, or a run still open → no; a booked leg ahead with no time (Anjo\'s 🛫?), which no run can plan, → no (while rides() has no open run); over or removed → no; paid → yes; New York (no rides) once everyone booked → yes; someone Out does not count');
+    // fix pass: each predicate on its own (no open ride to hide it): a trip with no rides and one traveler not booked; nobody travelling (all
+    // Out); the window lit only when every traveler is there; at most 4 in the window and on the path
+    const nyc1 = tweak(nyc, (d) => { d.responses['momdad-t1'].booked = false; });
+    const allOut = tweak(allC, (d) => { d.responses['ashwin-t2'].status = 'out'; d.responses['anjo-t3'].status = 'out'; });
+    const big = tweak(ptA, (d) => { [['sam-t4', '🐢 Sam', 'BOS'], ['kim-t5', '🦉 Kim', 'SEA'], ['lee-t6', '🐙 Lee', 'SFO']].forEach(([c, l, a]) => { d.idea.members.push({ code: c, label: l, airport: a, headcount: 1 }); d.responses[c] = R('in', a, '', '', { booked: true, booked_at: '2026-10-16T00:00:00.000Z' }); }); });
+    const h20 = hs(pt1d, '2026-11-20'), hO = hs(allOut, '2026-11-20'), hb30 = hs(big, T), hb21 = hs(big, '2026-11-21');
+    check(M.rides(pm(nyc1), T) === null && M.allSet(pm(nyc1), T) === false && pm(allOut).travelers.length === 0 && M.allSet(pm(allOut), T) === false &&
+      h20.lit === false && eq(h20.win, ['momdad-t1', 'ashwin-t2']) && hO.lit === false && eq(hO.win, ['momdad-t1']) &&
+      eq(hb30.path, ['ashwin-t2', 'anjo-t3', 'sam-t4', 'kim-t5']) && eq(hb21.win, ['momdad-t1', 'ashwin-t2', 'anjo-t3', 'sam-t4']) && hb21.lit === true && pm(big).travelers.length === 5,
+      'allSet and houseScene, each rule on its own: New York (no rides) with Mom & Dad not booked → no 🎊; a trip where every traveler said Out → no 🎊 and no glow; 11/20 with Ashwin there and Anjo not booked → not lit; 5 travelers: 4 on the path on 10/30 and 4 in the window on 11/21 (the hosts first), lit once all 5 are there', { h20, hb30: hb30.path, hb21: hb21.win });
+
+    // ---- "+ Nebby 🐈" in the ride words, the calendar event and its 📅 signature; none without 🐈 ----
+    const pt7 = tweak(pt4, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:30 🐈ad'; }), pt8 = tweak(pt4, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:30 🐈a'; });
+    const pt9 = tweak(pt4, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:30'; });
+    const ev0 = M.rideEvents(pm(pt9, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK }), ev7 = M.rideEvents(pm(pt7, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK });
+    const ev8 = M.rideEvents(pm(pt8, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK }), t7 = M.rideText(pm(pt7), M.rides(pm(pt7), T).runs, 'remind');
+    check(ev0.sig === 'aORD1120-ashwin-t2|2026-11-20|2026-11-20|12:05|ashwin-t2@14:35;dORD1130-ashwin-t2|2026-11-30|2026-11-30|11:00|ashwin-t2@15:30' &&
+      ev7.sig === 'aORD1120-ashwin-t2|2026-11-20|2026-11-20|12:05|ashwin-t2@14:35+🐈;dORD1130-ashwin-t2|2026-11-30|2026-11-30|11:00|ashwin-t2@15:30+🐈' &&
+      ev8.sig === 'aORD1120-ashwin-t2|2026-11-20|2026-11-20|12:05|ashwin-t2@14:35+🐈;dORD1130-ashwin-t2|2026-11-30|2026-11-30|11:00|ashwin-t2@15:30' &&
+      M.rideSigAhead(ev7.sig, '2026-11-21') === ev7.sig.split(';')[1] && M.rideSigAhead(ev0.sig, T) !== ev7.sig &&
+      ev7.ics.text.indexOf('SUMMARY:🚗 Pick up Ashwin + Nebby 🐈 – ORD Chicago\\, lands 2:35 PM\r\n') >= 0 && ev7.ics.text.indexOf('SUMMARY:🚗 Drop off Ashwin + Nebby 🐈 – ORD Chicago\\, flight 3:30 PM\r\n') >= 0 &&
+      ev8.ics.text.indexOf('SUMMARY:🚗 Drop off Ashwin – ORD Chicago\\, flight 3:30 PM\r\n') >= 0 && ev0.ics.text.indexOf('Nebby') < 0 &&
+      t7 === '🚗 Reminder: Fri 11/20: pick up Ashwin + Nebby 🐈 at ORD Chicago, lands 2:35 PM (leave home 12:05 PM). Mon 11/30: drop off Ashwin + Nebby 🐈 at ORD Chicago, flight 3:30 PM (leave home 11:00 AM).' &&
+      M.rideText(pm(pt9), M.rides(pm(pt9), T).runs, 'ask') === '🚗 Can you drive? Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM). Mon 11/30: drop off Ashwin at ORD Chicago, flight 3:30 PM (leave home 11:00 AM).' &&
+      ev7.ics.text.split('\r\n').every((l) => Buffer.byteLength(l) <= 75),
+      'Nebby in the rides: with 🐈ad the driver\'s calendar events and the ride words say "Ashwin + Nebby 🐈" on both runs (🐈a: the pickup only), and each leg she flies ends its 📅 signature\'s time in "+🐈" (so the driver\'s 📅 Phone gets its dot); without 🐈 the signature and the words are #157\'s byte for byte', { ev0: ev0.sig, ev7: ev7.sig });
+    // a #157-format note round-trips, and 🐈 off keeps every other marker
+    const n157 = '📞 🛬14:35 🛫15:30 🚗anjo-t3.aORD1120 🚌d 🐈ad 🧺🥧 Bringing pie', p157 = tweak(pt0, (d) => { d.responses['ashwin-t2'].note = n157; });
+    const pn = M.parseRespNote(n157);
+    check(M.buildRespNote(pn.called, pn.arr, pn.dep, pn.text, M.noteMarks(pn)) === n157 && M.petRequest(p157, 'ashwin-t2', '', 'keep', T).body.note === '📞 🛬14:35 🛫15:30 🚗anjo-t3.aORD1120 🚌d 🧺🥧 Bringing pie' &&
+      M.dishRequest(p157, 'ashwin-t2', ['🥧', '🍰'], 'self', T).body.note === '🛬14:35 🛫15:30 🚗anjo-t3.aORD1120 🚌d 🐈ad 🧺🥧🍰 Bringing pie',
+      'a #157-format note with every marker round-trips byte for byte; 🐈 off (the organizer\'s keep) and a dish change (his own: 📞 cleared, as every own answer does) keep the other markers and the text');
+  }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 
   console.log('');

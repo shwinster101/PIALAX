@@ -78,6 +78,10 @@ var FAMILY = [
 ];
 /* v1 docs carry no faces: P-migrate suggests them by home airport. */
 var FAMILY_BY_AIRPORT = { PIA: 'momdad', ORD: 'momdad', LAX: 'ashwin', LGA: 'anjo', JFK: 'anjo', EWR: 'anjo', JAX: 'anjo' };
+/* PIA-158: the family's pets, by the preset's key (familyKey): Nebby, Ashwin's cat, flies with him in the cabin on the legs his
+   answer's 🐈 names; Kona, the family dog, is at home with Mom & Dad on every trip they host. Read from here, never stored: a note
+   keeps only which legs (🐈a / 🐈d / 🐈ad), and Kona is never written anywhere */
+var PETS = { ashwin: { g: '🐈', name: 'Nebby', flies: true }, momdad: { g: '🐕', name: 'Kona', home: true } };
 
 /* Airports: IATA → [city, lat, lon]. Source: OurAirports airports.csv
    (https://ourairports.com/data/, public domain), fetched 2026-10-18,
@@ -631,6 +635,8 @@ function tripModel(doc, ctx) {
       // their own note), their pet's legs (🐈; PIA-158) and what they bring (🧺; PIA-158)
       ground: { a: note.bus.indexOf('a') >= 0 ? 'bus' : note.rent.indexOf('a') >= 0 ? 'rent' : '', d: note.bus.indexOf('d') >= 0 ? 'bus' : note.rent.indexOf('d') >= 0 ? 'rent' : '' },
       claims: note.claims, pet: note.pet, dish: note.dish, marks: noteMarks(note),
+      // PIA-158: the family preset's key ('' for anyone else): whose pet this member has (PETS, petOf)
+      fam: familyKey(m),
       link: link, why: why, keys: keys, at: (r && r.updated_at) || '', ansAt: (r && times[m.code]) || ''
     };
   });
@@ -1179,7 +1185,13 @@ function rideName(x) {
   var f = !x.name ? FAMILY.filter(function (p) { return p.key === FAMILY_BY_AIRPORT[x.airport] && p.face === x.face; })[0] : null;
   return x.short || x.one || (f ? shortName(f.name) : '') || x.face;
 }
-function rideWho(model, r) { return r.legs.map(function (l) { return rideName(model.members.filter(function (m) { return m.code === l.code; })[0]); }).filter(Boolean).join(', '); }
+/* (PIA-158: a traveler whose pet flies that leg is "Ashwin + Nebby 🐈", in the ride's words and its calendar event alike) */
+function rideWho(model, r) {
+  return r.legs.map(function (l) {
+    var x = model.members.filter(function (m) { return m.code === l.code; })[0], n = rideName(x), p = n ? petLeg(x, r.kind) : null;
+    return p ? n + ' + ' + p.name + ' ' + p.g : n;
+  }).filter(Boolean).join(', ');
+}
 function rideWhat(model, r) { return (r.kind === 'a' ? 'pick up ' : 'drop off ') + rideWho(model, r); }
 function rideWhen(r) { return (r.kind === 'a' ? 'lands ' : 'flight ') + r.legs.map(function (l) { return h12(l.time); }).join(', '); }
 /* one run: "Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM)." */
@@ -1196,8 +1208,9 @@ function rideText(model, runs, how) {
 /* PIA-157: the driver's runs in their phone's calendar: one VCALENDAR with one VEVENT per run still ahead they drive, from leaving
    home to being back (floating local time: no Z, no TZID; the driver is at home in the airport's zone), two alarms (a day before and
    30 minutes before), the guest link alone as its description (never a key, a token or a price), a UID from checked codes only.
-   sig: what the events say (each run's key, its day, ⏰ and its legs' times), kept on the phone at its last 📅 Phone
-   (pialax_ui_v1.rides; rideSigAhead reads it less the runs behind us).
+   sig: what the events say (each run's key, its day, ⏰ and its legs' times; PIA-158: a leg's time ends in "+🐈" while the pet flies
+   it, so its "+ Nebby 🐈" dots the driver's 📅 Phone, and a run with no pet keeps #157's signature byte for byte), kept on the phone
+   at its last 📅 Phone (pialax_ui_v1.rides; rideSigAhead reads it less the runs behind us).
    ctx = {today, now, worker}. → {sig, n, ics {kind, filename, mime, text}} or null (nothing to add) */
 function rideEvents(model, driverCode, ctx) {
   ctx = ctx || {};
@@ -1214,13 +1227,107 @@ function rideEvents(model, driverCode, ctx) {
     ['-P1D', '-PT30M'].forEach(function (t) { lines.push('BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:' + icsEsc(title), 'TRIGGER:' + t, 'END:VALARM'); });
     return lines;
   });
-  var sig = mine.map(function (r) { return [r.key, r.day, r.leave.day, r.leave.t].concat(r.legs.map(function (l) { return l.code + '@' + l.time; })).join('|'); }).join(';');
+  var petAt = function (r, l) { var p = petLeg(model.members.filter(function (m) { return m.code === l.code; })[0], r.kind); return p ? '+' + p.g : ''; };
+  var sig = mine.map(function (r) { return [r.key, r.day, r.leave.day, r.leave.t].concat(r.legs.map(function (l) { return l.code + '@' + l.time + petAt(r, l); })).join('|'); }).join(';');
   return { sig: sig, n: mine.length, ics: { kind: 'ics', filename: 'rides-' + (fileSlug(model.name) || fileSlug(model.dest) || 'trip') + '.ics', mime: 'text/calendar;charset=utf-8', text: icsCalendar(evs) } };
 }
 /* fix pass: a kept rideEvents signature less its runs now behind us (a run's day is its second field), so a run that passes is no
    change: compared with rideEvents(…).sig ('' once the driver drives nothing ahead), a difference is what changed since 📅 Phone */
 function rideSigAhead(sig, today) {
   return String(sig || '').split(';').filter(function (s) { var d = s.split('|')[1]; return isIso(d) && isIso(today) && d >= today; }).join(';');
+}
+
+/* ---- PIA-158 pets & fun: Nebby flies, Kona is at home, the house fills up, who brings what, 🎊 once ----
+   Nothing here is stored but what the answer notes already carry (🐈 legs, 🧺 dishes, in each person's own note, PIA-157's grammar):
+   the pets come from PETS by the family preset's key, the house and "all set" are read from the record on each render. */
+/* a member's pet on this trip: {g, name, legs ('a' | 'd' | 'ad'), flies: true} for a traveler who answered In or Maybe and whose
+   note's 🐈 names legs, when the preset gives them a pet that flies (Nebby); {g, name, home: true} for a host who is not Out whose
+   preset has a pet at home (Kona: derived, never written, never in heads); else null */
+function petOf(x) {
+  var p = x && hasOwn(PETS, x.fam) ? PETS[x.fam] : null;
+  if (!p) return null;
+  if (p.flies && x.traveler && x.answered && legsOf(x.pet)) return { g: p.g, name: p.name, legs: legsOf(x.pet), flies: true };
+  return p.home && x.host && x.status !== 'out' ? { g: p.g, name: p.name, home: true } : null;
+}
+/* the pet that flies this member's leg (kind 'a' their arrival, 'd' their departure), or null */
+function petLeg(x, kind) { var p = petOf(x); return p && p.flies && p.legs.indexOf(kind) >= 0 ? p : null; }
+/* the preset pet that could fly with this member (whether or not it does on this trip): PETS' entry, or null */
+function petCan(x) { var p = x && hasOwn(PETS, x.fam) ? PETS[x.fam] : null; return p && p.flies ? p : null; }
+/* every member's pet on this trip, by member code (petOf) */
+function petsOf(model) { var o = {}; ((model && model.members) || []).forEach(function (x) { var p = petOf(x); if (p) o[x.code] = p; }); return o; }
+/* the pet's write: the owner's own answer with its 🐈 legs ('ad' both ways, '' not coming), by 'self' or the organizer's for him
+   ('keep': no 📞 added, one there kept), through respondRequest → respond() / freshWrite. null: a closed or past trip, a member who is not a traveler
+   who answered In or Maybe, one whose preset has no pet that flies, the organizer's write for someone on a v1 trip, no change, or (petRequest
+   alone) a note with no room for it (petPatch is the same rule without the note, so the phone tells "⚠ Too long" from the rest) */
+function petRequest(doc, code, legs, by, today) {
+  var p = petPatch(doc, code, legs, by, today);
+  return p ? respondRequest(doc, code, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+function petPatch(doc, code, legs, by, today) {
+  var v = legs === '' ? '' : legsOf(legs);
+  if (!doc || !doc.id || docClosed(doc) || !isIso(today) || (legs !== '' && !v)) return null;
+  var model; try { model = tripModel(doc, { today: today, now: 0 }); } catch (e) { return null; }
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || !x.traveler || !x.answered || !petCan(x) || model.past || (by !== 'self' && model.legacy) || x.marks.pet === v) return null;
+  return { pet: v };
+}
+/* the 🐈 write's guard on the fresh record: 'closed', 'same' (the note already says so: nothing is sent), '' it can go */
+function petGuard(fresh, code, legs, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return ''; }
+  var x = m.members.filter(function (y) { return y.code === code; })[0];
+  return x && x.marks.pet === (legs === '' ? '' : legsOf(legs)) ? 'same' : '';
+}
+/* what someone brings (🧺, at most 3 palette dishes, [] nothing), in their own answer: by 'self' or the organizer's for them ('keep';
+   a host still on their default becomes In through respondRequest's rule, with 📞 when the organizer writes it). The driver's 🚗
+   claims, 🛬 / 🛫 and every other marker are carried as they are. null: a closed or past trip, someone Out (they bring nothing), a
+   traveler who has not answered yet, dishes off the palette or more than 3, the organizer's write for someone on a v1 trip, no
+   change, or (dishRequest alone) a note with no room (dishPatch: the same without the note) */
+function dishRequest(doc, code, dishes, by, today) {
+  var p = dishPatch(doc, code, dishes, by, today);
+  return p ? respondRequest(doc, code, p, { by: by === 'self' ? 'self' : 'keep' }) : null;
+}
+function dishPatch(doc, code, dishes, by, today) {
+  if (!doc || !doc.id || docClosed(doc) || !isIso(today) || !Array.isArray(dishes) || dishes.length > 3 || dishesOf(dishes).length !== dishes.length) return null;
+  var model; try { model = tripModel(doc, { today: today, now: 0 }); } catch (e) { return null; }
+  var x = model.members.filter(function (m) { return m.code === code; })[0] || null;
+  if (!x || x.status === 'out' || (!x.answered && !x.unconfirmed) || model.past || (by !== 'self' && model.legacy) || x.dish.join('') === dishes.join('')) return null;
+  return { dish: dishesOf(dishes) };
+}
+/* the 🧺 write's guard on the fresh record: 'closed', 'same' (those dishes already: nothing is sent), '' it can go */
+function dishGuard(fresh, code, dishes, today) {
+  if (!fresh || docClosed(fresh)) return 'closed';
+  var m; try { m = tripModel(fresh, { today: isIso(today) ? today : '2000-01-01', now: 0 }); } catch (e) { return ''; }
+  var x = m.members.filter(function (y) { return y.code === code; })[0];
+  return x && x.dish.join('') === dishesOf(dishes).join('') ? 'same' : '';
+}
+/* the home postcard's scene, by day alone (no landing times, no flight status). → {win, path, door, walk, lit}:
+   • win: the hosts not Out, then the booked travelers there today (d1 ≤ today ≤ d2), in trip order, at most 4 (member codes);
+   • path: the booked travelers still to come (d1 > today), in trip order, at most 4 (the card and the header draw 2); a traveler
+     not booked yet is not drawn, so booking is what fills the house;
+   • door: [{g, name, code (its owner)}] a host's pet at home (Kona), then a pet that flew in once its owner is in the window;
+   • walk: [{g, name, code}] a pet on the path beside its owner;
+   • lit: every traveler (none Out) booked and there today */
+function houseScene(model, today) {
+  var on = function (x) { return x.traveler && x.booked && !x.bad && !!x.d1 && !!x.d2; }, here = function (x) { return on(x) && x.d1 <= today && today <= x.d2; };
+  var code = function (x) { return x.code; }, hosts = model.members.filter(function (x) { return x.host && x.status !== 'out'; });
+  var win = hosts.concat(model.travelers.filter(here)).slice(0, 4).map(code);
+  var path = model.travelers.filter(function (x) { return on(x) && x.d1 > today; }).slice(0, 4).map(code);
+  var door = [], walk = [];
+  hosts.forEach(function (x) { var p = petOf(x); if (p && p.home) door.push({ g: p.g, name: p.name, code: x.code }); });
+  model.travelers.forEach(function (x) {
+    var p = petOf(x); if (!p || !p.flies) return;
+    if (win.indexOf(x.code) >= 0) door.push({ g: p.g, name: p.name, code: x.code }); else if (path.indexOf(x.code) >= 0) walk.push({ g: p.g, name: p.name, code: x.code });
+  });
+  return { win: win, path: path, door: door, walk: walk, lit: isIso(today) && model.travelers.length > 0 && model.travelers.every(here) };
+}
+/* 🎊 all set: at least one traveler, every traveler (none Out) booked, every ride covered (no open run ahead, and no booked leg ahead
+   still without its time, which no run can plan), on a trip that is not removed or over */
+function allSet(model, today) {
+  if (!model || !isIso(today) || model.decision === 'dropped' || model.past || (!!model.departureOnly && model.departureOnly < today)) return false;
+  if (!model.travelers.length || !model.travelers.every(function (x) { return x.booked; })) return false;
+  var R = rides(model, today);
+  return !R || (!R.open && !R.notime.some(function (n) { return n.day >= today; }));
 }
 
 /* ---- hand-offs for one face on one trip (PIA-133) ---- */
@@ -1357,6 +1464,15 @@ function familyOf(member) {
   var fam = key ? FAMILY.filter(function (f) { return f.key === key; })[0] : null;
   if (!fam || (lab.face && !isMeLabel(lab.name))) return null;
   return isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || !lab.name ? fam : null;
+}
+/* PIA-158: the family preset's key ('momdad', 'ashwin', 'anjo') for a member row of any version, '' for anyone else: familyOf's
+   name rule with the face left free (a v2 label such as "💪 Ashwin" has its face, which familyOf leaves alone): one of the preset's
+   home airports, named as the preset names them, the v1 word 'Me', or not named at all; a label that is only a face counts only
+   when it is the preset's own face (as rideName reads a nameless member). A renamed member or a moved home airport is nobody's */
+function familyKey(member) {
+  var lab = splitLabel(member && member.label), key = FAMILY_BY_AIRPORT[normIata(member && member.airport)];
+  var fam = key ? FAMILY.filter(function (f) { return f.key === key; })[0] : null;
+  return fam && (isMeLabel(lab.name) || normName(lab.name) === normName(fam.name) || (!lab.name && (!lab.face || lab.face === fam.face))) ? fam.key : '';
 }
 /* P-migrate's suggested face and name for a v1 member (by home airport; others keep their name with a hashed face) */
 function migrateLabel(member) {
@@ -3115,6 +3231,9 @@ if (typeof module !== 'undefined' && module.exports) {
     HOME_DRIVE: HOME_DRIVE, RIDE_LEAD: RIDE_LEAD, RUN_GAP: RUN_GAP, DISH_PALETTE: DISH_PALETTE, DRIVE_PIVOT: DRIVE_PIVOT, icsText: icsText, icsCalendar: icsCalendar,
     mdKey: mdKey, claimOf: claimOf, noteMarks: noteMarks, runChain: runChain, rideHome: rideHome, rides: rides, rideLeg: rideLeg, drivesOf: drivesOf, runDrivers: runDrivers,
     ridesRequest: ridesRequest, rideGuard: rideGuard, groundRequest: groundRequest, rideAsk: rideAsk, h12: h12, rideText: rideText, rideEvents: rideEvents,
-    rideClaims: rideClaims, rideToggle: rideToggle, groundPatch: groundPatch, groundGuard: groundGuard, rideSigAhead: rideSigAhead, rideName: rideName
+    rideClaims: rideClaims, rideToggle: rideToggle, groundPatch: groundPatch, groundGuard: groundGuard, rideSigAhead: rideSigAhead, rideName: rideName,
+    // PIA-158
+    PETS: PETS, familyKey: familyKey, petOf: petOf, petLeg: petLeg, petCan: petCan, petsOf: petsOf, petRequest: petRequest, petPatch: petPatch, petGuard: petGuard,
+    dishRequest: dishRequest, dishPatch: dishPatch, dishGuard: dishGuard, houseScene: houseScene, allSet: allSet
   };
 }

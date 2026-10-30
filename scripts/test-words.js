@@ -1723,14 +1723,9 @@ async function main() {
     await page.click('#screen [data-act="cap"]'); await settle(page, 120);
     const before = await page.$eval('#note-text', (e) => e.value.split(/\s+/).length);
     await measurePopup(page, 'P-note (a longer v1 caption, first 20 words)');
-    const captionBeforePet = await page.$eval('#note-text', (e) => e.value);
-    await page.focus('#sheet .pet-notes summary');
-    await page.keyboard.press('Enter');
-    await measurePopup(page, 'P-note (Nebby guidance expanded, exempt notes)');
-    const pet = await page.$eval('#sheet .pet-notes', (e) => ({ open: e.open, text: e.innerText, exempt: e.hasAttribute('data-free'), width: e.scrollWidth <= e.clientWidth }));
-    check(pet.open && pet.exempt && pet.width && pet.text.includes('Pet fees are not included') && pet.text.includes('private screening room') && pet.text.includes('return') && (await page.$eval('#note-text', (e) => e.value)) === captionBeforePet,
-      'PIA-148 Nebby guidance expands without changing the saved-note field, fits the phone and leaves fees/reservation unconfirmed', pet);
-    await page.click('#sheet .pet-notes summary');
+    // (PIA-158: Nebby's travel plan moved to P-pet, on the trips she flies; the Note sheet is the caption alone. Its copy is checked there)
+    const noFold = await page.evaluate(() => !document.querySelector('#sheet .pet-notes') && !document.querySelector('#sheet #nebby-notes-toggle'));
+    check(noFold, 'PIA-158 P-note (the trip\'s caption) has no pet fold: Nebby\'s travel plan moved to P-pet (PIA-148\'s purpose kept on the trips she flies)');
 
     await page.fill('#note-text', ''); await page.type('#note-text', 'Dad wants the Peoria parade and then we eat ' + Array.from({ length: 15 }, (_, i) => 'w' + i).join(' '), { delay: 0 });
     const typed = await page.$eval('#note-text', (e) => e.value.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length);   // numerals are free: "w11" stops at its letter
@@ -3524,6 +3519,45 @@ async function main() {
       await keyCheck(page, 'PIA-157 › Mom & Dad\'s trip page');
       await page.click('#screen [data-act="back"]'); await settle(page, 150);
       q.slot1 = await page.$eval('#screen [data-act="ridescard"]', (e) => e.textContent.trim()).catch(() => '');
+      // PIA-158 (the same phone): Ashwin says Nebby comes both ways (🐈ad in his own answer, written as the Worker keeps it); Mom & Dad's
+      // phone reads it: the card's dot and 📅 Phone's (their calendar events now say "+ Nebby 🐈"), 🐈 beside his face in P-rides; Kona's
+      // row → P-pet in 2 taps (her face, "🐈 ›": At home with Kona open); the potluck in 4 (the header's picture, their 🧺, Pie, ✓), the
+      // claims kept; P-person, P-pet and P-house each ≤20 words and unmarked
+      { const d = JSON.parse(net.kv.map.get('idea:' + PT)); d.responses['ashwin-t2'].note = '🛬14:35 🛫15:30 🐈ad'; net.kv.map.set('idea:' + PT, JSON.stringify(d)); }
+      await page.reload(); await settle(page, 400);
+      q.pet = { cardDot: await page.$$eval('#screen [data-trip="' + PT + '"] [data-k="ridenew"]', (es) => es.length) };
+      await openCard(page, PT); await settle(page, 250);
+      q.pet.bubbles = await page.$$eval('#screen .pb .pet', (es) => es.map((e) => e.getAttribute('data-k') + ':' + e.textContent));
+      q.pet.trip = await measureScreen(page, 'PIA-158 › Mom & Dad\'s trip page with Nebby coming (bubbles 🐕 🐈)');
+      // (fix pass) a long press on a bubble names it in place (its LEGEND name, not the face's), and opens nothing
+      const pressPet = async (sel) => {
+        const h = await page.$(sel); if (!h) return null; await h.scrollIntoViewIfNeeded().catch(() => {}); const b = await h.boundingBox(); if (!b) return null;
+        await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2); await page.mouse.down(); await page.waitForTimeout(650);
+        const read = () => page.evaluate(() => { const l = document.querySelector('#lbl'); return l && !l.hidden ? l.textContent : null; });
+        let s = await read(); for (let n = 0; s === null && n < 6; n++) { await page.waitForTimeout(100); s = await read(); }
+        if (s) await measurePopup(page, 'PIA-158 › the bubble\'s long press "' + s + '"', '#lbl');
+        await page.mouse.up(); await settle(page, 120); await untilLabelGone(page);
+        return { s, pop: await popupId(page), scr: await screenId(page) };
+      };
+      q.pet.press = { fly: await pressPet('#screen .pb .pet[data-k="petfly"]'), home: await pressPet('#screen .pb .pet[data-k="pethome"]') };
+      await fingerTap(page, '#screen .split.prim [data-act="rides"]'); await settle(page, 200);
+      q.pet.rides = { w: await measurePopup(page, 'PIA-158 › P-rides on Mom & Dad\'s phone, Nebby flying (ORD, Drive, Drive, Phone)'), cat: await page.$$eval('#sheet .rpet [data-k="petfly"]', (es) => es.length), dot: await page.$$eval('#sheet a[data-act="ridecal"] .ndot', (es) => es.length) };
+      await closeSheet(page);
+      let kt = 0; if (await fingerTap(page, '#screen .pb [data-act="person"][data-code="momdad-t1"]')) kt++; await settle(page, 200);
+      q.pet.person = await measurePopup(page, 'PIA-158 › P-person, Mom & Dad on their phone (🏠 ORD 🚗2, 🐕 Kona, 🐈 11/20–11/30 ›)');
+      if (await fingerTap(page, '#sheet .konal [data-act="petsheet"]')) kt++; await settle(page, 200);
+      q.pet.kona = { taps: kt, pop: await popupId(page), open: await page.$eval('#sheet .pet-notes.kona', (e) => e.open).catch(() => null), ticks: await page.$$eval('#sheet [data-act="pettick"]', (es) => es.length) };
+      q.pet.kona.w = await measurePopup(page, 'PIA-158 › P-pet from Kona\'s row (the folds only, At home with Kona open)');
+      await closeSheet(page);
+      let pt = 0; if (await fingerTap(page, '#screen .thead [data-act="house"]')) pt++; await settle(page, 200);
+      q.pet.house = { pop: await popupId(page), w0: await measurePopup(page, 'PIA-158 › P-house on Mom & Dad\'s phone') };
+      if (await fingerTap(page, '#sheet [data-act="dishpick"][data-code="momdad-t1"]')) pt++; await settle(page, 150);
+      q.pet.house.w1 = await measurePopup(page, 'PIA-158 › P-house, the 18 dishes open');
+      if (await fingerTap(page, '#sheet [data-act="dish"][data-v="1"]')) pt++; await settle(page, 120);
+      if (await fingerTap(page, '#sheet [data-act="dishsave"]')) pt++;
+      await until(page, () => /🧺/.test(momNote(net, PT)));
+      q.pet.house.taps = pt; q.pet.house.note = momNote(net, PT); q.pet.house.toast = await toastText(page);
+      await closeSheet(page);
       await ctx.close();
     }
     {
@@ -3562,6 +3596,31 @@ async function main() {
       if (await fingerTap(page, '#sheet [data-act="nudge"][data-v="rideremind"]')) rem++; await settle(page, 250);
       q.remind = { taps: rem, shared: await page.evaluate(() => (window.__shared || []).slice(-1)[0] || null) };
       await closeSheet(page);
+      // PIA-158 (the same phone, after the checks above): Nebby on in 2 taps (his bar, "☐ 🐈 Nebby"); a prep tick in 3 (his face, ›, 👜
+      // Carrier: kept on this phone, nothing sent); P-pet's travel plan copy; Remind now says "Ashwin + Nebby 🐈"
+      const ashNote = () => (JSON.parse(net.kv.map.get('idea:' + PR)).responses['ashwin-t2'] || {}).note || '';
+      let nb = 0; if (await fingerTap(page, '#screen .pb [data-act="flight"][data-code="ashwin-t2"]')) nb++; await settle(page, 200);
+      q.neb = { person: await measurePopup(page, 'PIA-158 › P-person, Ashwin on his phone (☐ 🐈 Nebby)') };
+      if (await fingerTap(page, '#sheet [data-act="pet"][data-code="ashwin-t2"]')) nb++;
+      await until(page, () => /🐈ad/.test(ashNote()));
+      q.neb.taps = nb; q.neb.note = ashNote(); q.neb.toast = await toastText(page);
+      await settle(page, 200); q.neb.on = await measurePopup(page, 'PIA-158 › P-person, Ashwin on his phone (☑ 🐈 Nebby › 0/5)');
+      await closeSheet(page);
+      const p0 = net.posts; let tk = 0;
+      if (await fingerTap(page, '#screen .pb [data-act="person"][data-code="ashwin-t2"]')) tk++; await settle(page, 200);
+      if (await fingerTap(page, '#sheet [data-act="petsheet"][data-code="ashwin-t2"]')) tk++; await settle(page, 200);
+      q.neb.pet = await measurePopup(page, 'PIA-158 › P-pet on Ashwin\'s phone (Nebby, Reserved, Reserved, Carrier, Papers, Fees)');
+      // (fix pass: the travel plan opened first, so the tick's redraw is seen to keep it open)
+      await page.focus('#sheet .pet-notes summary'); await page.keyboard.press('Enter'); await settle(page, 120);
+      if (await fingerTap(page, '#sheet [data-act="pettick"][data-v="c"]')) tk++; await settle(page, 150);
+      q.neb.tick = { taps: tk, posts: net.posts - p0, kept: await page.evaluate((id) => (JSON.parse(localStorage.getItem('pialax_ui_v1') || '{}').pet || {})[id] || '', PR),
+        pressed: await page.$eval('#sheet [data-act="pettick"][data-v="c"]', (e) => e.getAttribute('aria-pressed')).catch(() => '') };
+      q.neb.fold = await page.$eval('#sheet .pet-notes', (e) => ({ open: e.open, text: e.innerText, exempt: e.hasAttribute('data-free'), width: e.scrollWidth <= e.clientWidth }));
+      q.neb.foldW = await measurePopup(page, 'PIA-158 › P-pet, Nebby\'s travel plan open (exempt reference)');
+      await closeSheet(page);
+      if (await fingerTap(page, '#screen .wkride .wkl')) { await settle(page, 200); await fingerTap(page, '#sheet [data-act="nudge"][data-v="rideremind"]'); await settle(page, 250); }
+      q.neb.remind = await page.evaluate(() => (window.__shared || []).slice(-1)[0] || null);
+      await closeSheet(page);
       await ctx.close();
     }
     {
@@ -3588,6 +3647,14 @@ async function main() {
       await closeSheet(page);
       q.rent.w = await measureScreen(page, 'PIA-157 › the organizer, every ride covered (drivers\' faces, 🚙)');
       q.rent.row = await page.$eval('#screen .wkride', (e) => e.getAttribute('aria-label')).catch(() => '');
+      // PIA-158: everyone booked and every ride covered now: back, open the trip again → "🎊 All set" once; again → nothing
+      await page.click('#screen [data-act="back"]'); await settle(page, 150);
+      await openCard(page, PA); await settle(page, 200);
+      q.party = { t1: await toastText(page) };
+      if (q.party.t1) await measurePopup(page, 'PIA-158 › the toast 🎊 All set', '#toast');
+      await page.click('#screen [data-act="back"]'); await settle(page, 1800);
+      await openCard(page, PA); await settle(page, 200);
+      q.party.t2 = await toastText(page); q.party.kept = await page.evaluate((id) => (JSON.parse(localStorage.getItem('pialax_ui_v1') || '{}').party || {})[id] || 0, PA);
       await ctx.close();
     }
     {
@@ -3619,6 +3686,21 @@ async function main() {
     check(q.r8.pop === 'P-rides' && q.r8.sheet.length <= POPUP_MAX && q.r8.toggles >= 8 && eq(q.r8.secs, ['📍ORD', 'PIA']) && q.r8.sheet.filter((w) => w === 'Drive').length === q.r8.toggles &&
       q.r8.sheet.filter((w) => w !== 'Drive').join() === 'ORD,PIA' && q.r8.w.length <= SCREEN_MAX,
       'PIA-157 P-rides on the 8-member trip at 360 (Mom & Dad a candidate on every one of its runs, at two airports): two codes and a "Drive" a toggle, within 20 (seven travelers make at most 14 runs: the word budget of 20 less the codes and 📅 Phone always holds them)', q.r8);
+    // PIA-158
+    const pn = q.pet || {}, nb = q.neb || {}, words = (w) => (w || []).join(' ');
+    check(pn.press && pn.press.fly && pn.press.fly.s === 'Pet flying' && pn.press.fly.pop === null && pn.press.home && pn.press.home.s === 'Pet at home' && pn.press.home.pop === null && pn.press.home.scr === pn.press.fly.scr,
+      'PIA-158 a long press on a side bubble on Mom & Dad\'s trip board names it in place ("Pet flying" on Ashwin\'s 🐈, "Pet at home" on their 🐕), not the face, and opens nothing', pn.press);
+    check(pn.cardDot >= 1 && eq(pn.bubbles, ['pethome:🐕', 'petfly:🐈']) && (pn.trip || []).length <= SCREEN_MAX && pn.rides && pn.rides.cat === 2 && pn.rides.dot === 1 && eq(pn.rides.w, ['ORD', 'Drive', 'Drive', 'Phone']) &&
+      words(pn.person) === 'Mom Dad ORD Kona Note' && pn.kona.taps === 2 && pn.kona.pop === 'P-pet' && pn.kona.open === true && pn.kona.ticks === 0 && eq(pn.kona.w, ['Nebby']) &&
+      pn.house.pop === 'P-house' && pn.house.w0.length === 0 && pn.house.w1.length === 0 && pn.house.taps === 4 && pn.house.note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130 🧺🥧' && /🧺✓/.test(pn.house.toast),
+      'PIA-158 Mom & Dad\'s phone, real taps through the real Worker, once Ashwin says Nebby comes (🐈ad): the card\'s dot and 📅 Phone\'s (their calendar now says "+ Nebby 🐈"), the board\'s bubbles 🐕 (theirs) and 🐈 (his), 🐈 beside his face on both runs in P-rides (ORD, Drive, Drive, Phone); home prep in 2 taps (their face, "🐈 11/20–11/30 ›": P-pet with At home with Kona open, no ticks: "Nebby"); the potluck in 4 (the header\'s picture, their 🧺, Pie, ✓: "🚗… 🧺🥧", the claims kept, 🧺✓); P-person "Mom Dad ORD Kona Note", P-pet and P-house (no words) ≤20 and unmarked', pn);
+    check(nb.taps === 2 && nb.note === '🛬14:35 🛫15:30 🐈ad' && /🐈✓/.test(nb.toast) && words(nb.person) === 'Ashwin From LAX Arrive Leave Track I booked Nebby Note' && (nb.on || []).length <= POPUP_MAX &&
+      eq(nb.pet, ['Nebby', 'Reserved', 'Reserved', 'Carrier', 'Papers', 'Fees']) && nb.tick.taps === 3 && nb.tick.posts === 0 && nb.tick.kept === 'c' && nb.tick.pressed === 'true' &&
+      nb.fold.open && nb.fold.exempt && nb.fold.width && nb.fold.text.includes('Pet fees are not included') && nb.fold.text.includes('private screening room') && nb.fold.text.includes('return') && !nb.fold.text.includes('Still unconfirmed') &&
+      eq(nb.foldW, ['Nebby', 'Reserved', 'Reserved', 'Carrier', 'Papers', 'Fees']) && nb.remind && /^🚗 Reminder: Fri 11\/20: pick up Ashwin \+ Nebby 🐈 at ORD Chicago/.test(nb.remind.text || '') && (nb.remind.text || '').indexOf(KEY) < 0,
+      'PIA-158 the organizer\'s own Nebby, real taps: his bar (1) → "☐ 🐈 Nebby" (2) writes 🐈ad in his answer (🛬 / 🛫 kept, 🐈✓); P-person "…Nebby Note" (10); a prep tick in 3 (his face, › 0/5, 👜 Carrier: ☑, kept on this phone, nothing sent); P-pet reads Nebby, Reserved ×2, Carrier, Papers, Fees (6) and its travel plan, opened before the tick, is still open after the tick\'s redraw (exempt, fits the phone) and keeps the fees, the screening room and the return, no "Still unconfirmed"; Remind now says "pick up Ashwin + Nebby 🐈"', nb);
+    check(q.party && /^🎊 All set$/.test(q.party.t1) && !/All set/.test(q.party.t2 || '') && q.party.kept === 1,
+      'PIA-158 the organizer\'s phone once every ride is covered and everyone has booked: back, open the trip again → the burst and "🎊 All set" (2 words) once; opening it again says nothing (pialax_ui_v1.party kept)', q.party);
   }
 
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');

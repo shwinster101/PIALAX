@@ -51,9 +51,12 @@ Answer-note markers (PIA-157) come after 📞/🛬/🛫 in one fixed order (🚗
 🚌, 🚙, 🐈, 🧺, then the text); a new marker kind is only ever appended last, so
 an older build keeps the markers it does not know as text, byte for byte. A
 ride claim lives in the driver's own answer; runs and ⏰ are derived, never
-stored (a phone keeps only its last 📅 Phone signature in `pialax_ui_v1`). No
+stored (a phone keeps just its last 📅 Phone signature of them, in `pialax_ui_v1`). No
 flight numbers or confirmation codes. A marker or time write over 280 is
-refused, never clipped.
+refused, never clipped. Pets (PIA-158) come from the family preset (`PETS`,
+`familyKey`): only 🐈's legs are written, in the owner's answer; Kona and the
+house scene are derived, never stored. `pialax_ui_v1` also keeps this phone's
+P-pet ticks (`pet`) and its 🎊 flag (`party`), for the trips in its list.
 
 Shared storage keys retain v1 formats: `pialax_idea_keys_v1`,
 `pialax_idea_me_v1`, `pialax_idea_seen_v1`, `pialax_proxy_token`,
@@ -81,7 +84,7 @@ Booked, Waiting, Hosting in the trip page's key rows only; Rides in the trip
 page's key rows and primary only); popups at most 20
 and mark none. ✈ alone means booked. Count visible
 whitespace-separated tokens with a Unicode letter, including names, airport
-codes, labels, placeholders and typed values. Trip names and the expandable Nebby travel-reference notes marked `data-free`,
+codes, labels, placeholders and typed values. Trip names and the pet travel and at-home reference folds marked `data-free`,
 numerals, prices, dates, emoji and glyphs are exempt. Use named 44px targets,
 keyboard focus/Back, glyph explanations and the existing sheet patterns.
 

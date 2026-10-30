@@ -496,3 +496,38 @@ Marking 🚌 / 🚙 on a leg someone drives gives no Tell in its toast (↩ inst
 the driver sees it in the app and by the card's dot only once they added the
 calendar. A traveler cannot ask for a ride yet (the organizer's Ask is the one
 share).
+
+### PIA-158 amendment: pets and fun (2026-10-30)
+
+**The pets come from the family preset, never from a stored field.** `PETS` beside
+`FAMILY`: Nebby (🐈, Ashwin's cat, flies in the cabin) and Kona (🐕, the family dog,
+at home with Mom & Dad). `familyKey` names the preset person by home airport and
+name whatever the face (a v2 "💪 Ashwin" too; a label that is only a face counts
+only as the preset's own face), so a renamed member or a moved home airport loses
+the pet silently. The only thing written is Nebby's legs, 🐈a / 🐈d /
+🐈ad in Ashwin's own answer (PIA-157's grammar), by his phone or the organizer's for
+him; Kona is never written and never counted in heads. P-person's flight section
+has "☐ 🐈 Nebby" (both ways or not at all; one-way is later) and › to P-pet, his
+checklist (🛬 / 🛫 Reserved, 👜 Carrier, 📄 Papers, 💲 Fees) kept on his phone
+alone, and the reference folds moved off every trip's Note sheet: her travel plan,
+and "At home with Kona" where Mom & Dad host. Both folds are outside the word
+budget (`data-free`). A small bubble beside a face (the trip board's 44px faces and
+P-person's 72px, opt in, never by size) says 🐈 flies with them or 🐕 is at home;
+the rides' words and the driver's calendar events say "+ Nebby 🐈" on the legs she
+flies, and those legs' times in the 📅 signature carry "+🐈", so a driver's 📅 Phone
+gets its dot (a run without her keeps #157's signature).
+
+**The house fills up; who brings what; 🎊 once.** A home trip's postcard is drawn
+from `houseScene` by day: the hosts not Out and whoever is there today in the
+window, the booked travelers still to come on the path (a traveler not booked yet
+is not drawn), Kona at the door, a warm glow once everyone is there; every other
+scene is unchanged byte for byte. The trip header's picture is a 72×44 button,
+"House", into P-house: the large picture, ⏳ the days left, and 🧺 what each person
+brings (up to 3 of 18 dishes in their own answer, saved once, the driver's 🚗
+claims kept; read only on a paid, removed or past trip). The first time a tap opens
+a trip on a phone with every traveler booked and every ride covered (`allSet`; a
+booked leg ahead with no time does not count as covered), it bursts from the
+header's picture and says "🎊 All set", once (`pialax_ui_v1.party`), never on a
+card, a redraw, the poll, or a link or reload that lands on the trip page, and
+after "📅 Rides changed" on the next open instead. No word is added to any trip
+page; no Worker, link or storage-key change.

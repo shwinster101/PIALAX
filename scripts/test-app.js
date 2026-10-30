@@ -85,7 +85,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-156
   'LEG_GLYPH', 'TK_ON',
   // PIA-157
-  'ridesOf', 'rideChanged', 'rides', 'rideEvents', 'shareLink', 'timesTell', 'slotHTML', 'whoKey'];
+  'ridesOf', 'rideChanged', 'rides', 'rideEvents', 'shareLink', 'timesTell', 'slotHTML', 'whoKey',
+  // PIA-158
+  'sceneSVG', 'postcard', 'houseScene', 'allSet', 'petOf', 'keptPet', 'cheer', 'avatar', 'SHEET_NAME', 'DISH_PALETTE', 'DISH_NAMES', 'tripHead', 'nebbyTravelNotes'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -5477,7 +5479,7 @@ function norm(doc) {
     const rs = recShare(), o2 = await boot136({ ls: lsOf([MP], { pialax_idea_keys_v1: keyOf([MP]), pialax_idea_me_v1: { [MP]: 'ashwin-p8' } }), navigator: rs.nav });
     act(o2, 'open', { id: MP }); await o2.api.ACTS.tshare({ dataset: { id: MP } }); await tick();
     check(rs.shared.length === 1 && eq(Object.keys(rs.shared[0]), ['url']) && o2.api.LEGEND.noride[1] === 'No driver yet' && o2.api.LEGEND.lvhome[0] === '⏰' && o2.api.LEGEND.bus[1] === 'Bus' && o2.api.LEGEND.rental[1] === 'Rental car' &&
-      o2.api.LEGEND.ridemoved[1] === 'Ride changed' && o2.api.LEGEND.drive[1] === 'Drive' && o2.api.BUILD === 157,
+      o2.api.LEGEND.ridemoved[1] === 'Ride changed' && o2.api.LEGEND.drive[1] === 'Drive' && o2.api.BUILD >= 157,
       'PIA-157 I/K/L the trip\'s plain Share still hands the share sheet {url} alone (shareLink without text is unchanged); LEGEND names 🚗? No driver yet, ⏰ Leave home, 🚌 Bus, 🚙 Rental car, ⚠ Ride changed (🚗 keeps Drive); ⚙ #157', rs.shared);
   }
   {
@@ -5545,6 +5547,325 @@ function norm(doc) {
       new RegExp('/i/' + P6 + '$').test(sh6.url || '') && /^🚗 Can you drive\? Fri 11\/20: pick up Ashwin at ORD Chicago, lands 2:35 PM \(leave home 12:05 PM\)\. Mon 11\/30: drop off Ashwin/.test(sh6.text || '') &&
       (sh6.url + sh6.text).indexOf(KEY) < 0 && !/#k=|#m=/.test(sh6.url || ''),
       'PIA-157 fix (the several-candidate Ask, now asserted): with Anjo there from 11/18 the 11/20 pickup has two candidates, so the key\'s row ends in "Ask" (tshare, data-v ride; no personal nudge): the trip\'s guest link /i/<id> and "🚗 Can you drive? Fri 11/20: …", no key, no #m=', sh6);
+  }
+
+  // ═══ PIA-158 ═══
+  section('PIA-158 pets & fun: Nebby per trip (P-person, P-pet), the side bubble, Kona at home, the living postcard, P-house and 🧺, 🎊 once a phone');
+  {
+    // P town (the phones read 10/17): Ashwin booked 14:35 / 15:30 with Nebby both ways (🐈ad), Mom & Dad In with a note (📝 under their
+    // face, ×2 over it: the tight corner), Anjo In and not booked
+    const pt = (d) => { d.idea.destination = { city: 'Chicago', airport: 'ORD' }; d.idea.dates.departure = '2026-11-20'; d.idea.dates.return = '2026-11-30'; d.idea.notes = '';
+      d.idea.members[1].label = '💪 Ashwin'; chosenAt(d, '2026-11-20', '2026-11-30', 'ORD'); d.responses['ashwin-p8'].booked = true; d.responses['ashwin-p8'].note = '🛬14:35 🛫15:30 🐈ad';
+      d.responses['momdad-k3'] = Object.assign(RESP('in'), { member: 'momdad-k3', origin: 'PIA', note: 'Turkey is on us' }); d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); };
+    const lastToast = (t) => t.rec['#toast'].__rec.html.slice(-1)[0] || '';
+    const P = seedAs(DWX, pt);
+    const org = await boot136({ ls: lsOf([P], { pialax_idea_keys_v1: keyOf([P]), pialax_idea_me_v1: { [P]: 'ashwin-p8' } }), rec: ['#toast'] });
+    const mom = await boot136({ ls: lsOf([P], { pialax_idea_me_v1: { [P]: 'momdad-k3' } }), rec: ['#toast'] });
+    act(org, 'open', { id: P }); act(mom, 'open', { id: P });
+    const ho = screen(org), board = ho.slice(ho.indexOf('<div class="pb"'), ho.indexOf('<div class="wk"')), key = ho.slice(ho.indexOf('<div class="wk"'));
+    const pets = (h) => (String(h).match(/<span class="pet" data-k="(pet[a-z]+)">/g) || []).map((s) => /data-k="([a-z]+)"/.exec(s)[1]);
+    org.api.ACTS.rides({ dataset: { id: P } }); const sR = sheet(org); org.api.closeSheet();
+    act(org, 'person', { id: P, code: 'ashwin-p8' }); const sA = sheet(org); org.api.closeSheet();
+    act(org, 'pnote', { id: P, code: 'momdad-k3' }); const sN = sheet(org); org.api.closeSheet();
+    const fam = org.api.renderFamily().html;
+    check(eq(pets(board), ['pethome', 'petfly']) && /<span class="pet" data-k="petfly">🐈<\/span>/.test(board) && /<span class="pet" data-k="pethome">🐕<\/span>/.test(board) &&
+      /aria-label="Ashwin, in, booked, with Nebby"/.test(board) && /aria-label="Mom &amp; Dad, in, host, note, Kona at home"/.test(board) &&
+      pets(key).length === 0 && pets(sR).length === 0 && pets(fam).length === 0 && pets(sN).length === 0 && eq(pets(sA), ['petfly']) && /class="av s72[^"]*"[^>]*>[\s\S]*?<span class="pet" data-k="petfly">🐈<\/span>/.test(sA) &&
+      (sR.match(/<span class="rpet" role="img" aria-label="With Nebby" data-lbl="With Nebby"><span data-k="petfly" aria-hidden="true">🐈<\/span><\/span>/g) || []).length === 2,
+      'B the side bubble only where it is asked for: the trip board\'s 44px faces (🐕 on Mom & Dad\'s, 🐈 on Ashwin\'s; their names say "with Nebby", "Kona at home") and P-person\'s 72px face; none on the key\'s or P-rides\' 28px faces (P-rides puts 🐈 beside Ashwin\'s face on each leg she flies), the Family board or the person-note header', { board: pets(board), sA: pets(sA) });
+    // (fix pass: opt in, never by size: P-day's and the Calendar day's 48px faces, which are neither plain nor asked, draw none)
+    org.api.openSheet('day', { id: P, date: '2026-11-21' }); const sDay = sheet(org); org.api.closeSheet();
+    act(org, 'calday', { id: P, v: '2026-11-21' }); const sCal = sheet(org); org.api.closeSheet();
+    check(/class="av s48/.test(sDay) && /class="av s48/.test(sCal) && /🌽/.test(sDay) && /💪/.test(sCal) && pets(sDay).length === 0 && pets(sCal).length === 0,
+      'B no bubble on the 48px faces of P-day or the Calendar\'s day on 11/21 (Mom & Dad home with Kona, Ashwin there with Nebby): the bubble is opt in, never by size', { day: pets(sDay), cal: pets(sCal) });
+
+    // A: Nebby per trip in Ashwin's own flight section; his toggle off and ↩; the organizer's 'keep'; read-only elsewhere
+    const rowA = (/<div class="petrow">[\s\S]*?<\/div>/.exec(sA) || [''])[0];
+    act(mom, 'person', { id: P, code: 'ashwin-p8' }); const sMA = sheet(mom); mom.api.closeSheet();
+    const q0 = nPosts(org);
+    await org.api.ACTS.pet({ dataset: { id: P, code: 'ashwin-p8' } }); await until(() => srv.read(P).responses['ashwin-p8'].note === '🛬14:35 🛫15:30'); await tick();
+    const w1 = posts(org, 0).slice(-1)[0], t1 = lastToast(org);
+    await org.api.S.undo(); await until(() => /🐈ad/.test(srv.read(P).responses['ashwin-p8'].note)); await tick();
+    check(/<button class="btn tkb tkon" data-act="pet" data-id="[^"]+" data-code="ashwin-p8" aria-pressed="true" aria-label="Nebby comes" data-lbl="Nebby comes"><span class="tkg" data-k="tkon"[^>]*>[^<]*<\/span> <span data-k="petfly" aria-hidden="true">🐈<\/span> Nebby<\/button>/.test(rowA) &&
+      /data-act="petsheet"[^>]*aria-label="Nebby’s plan, 0 of 5 done"[^>]*><span data-k="petgo" aria-hidden="true">›<\/span><span class="tn">0\/5<\/span><\/button>/.test(rowA) &&
+      nPosts(org) - q0 === 2 && w1.path === '/idea/respond' && w1.body.member === 'ashwin-p8' && w1.body.note === '🛬14:35 🛫15:30' && /🐈✓/.test(t1) && /data-act="undo"/.test(t1) &&
+      srv.read(P).responses['ashwin-p8'].note === '🛬14:35 🛫15:30 🐈ad' && srv.read(P).responses['ashwin-p8'].booked === true &&
+      /<div class="petrow"><span class="petro" role="img" aria-label="Nebby comes"[^>]*><span data-k="petfly" aria-hidden="true">🐈<\/span> Nebby<\/span><button class="petgo"[^>]*aria-label="Nebby’s plan"/.test(sMA) && !/data-act="pet"/.test(sMA),
+      'A "☑ 🐈 Nebby" in Ashwin\'s own flight section (aria-pressed, "Nebby comes") with › 0/5 to P-pet; a tap takes 🐈 out of his answer (one /idea/respond, 🛬 / 🛫 and his ✈ kept), 🐈✓ with ↩, which puts 🐈ad back; on Mom & Dad\'s phone "🐈 Nebby ›" to read, no toggle', { rowA, w1 });
+    // (fix pass) the row by stage and role: on a paid or past trip, Ashwin's own phone reads it (no toggle; a forced tap sends nothing);
+    // before he answers there is no row; on a v1 trip the organizer's phone that is Mom & Dad reads it (and its tap does nothing); on a
+    // v2 trip it toggles Nebby for him with 'keep' (his 📞 stays), while his own phone's write is 'self' (📞 cleared)
+    const rowOf = (h) => (/<div class="petrow">[\s\S]*?<\/div>/.exec(h) || [''])[0];
+    const PPd = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].booked = true; d.decision.stage = 'booked'; d.decision.actual_total = 1500; });
+    const PSt = seedAs(DWX, (d) => { pt(d); d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-05'; chosenAt(d, '2026-10-01', '2026-10-05', 'ORD'); });
+    const PUn = seedAs(DWX, (d) => { pt(d); delete d.responses['ashwin-p8']; });
+    const TGp = seedAs(TGX, (d) => { d.responses.LAX.note = '🐈ad'; });
+    const gate = {};
+    for (const [k, id, me, code] of [['paid', PPd, 'ashwin-p8', 'ashwin-p8'], ['past', PSt, 'ashwin-p8', 'ashwin-p8'], ['unans', PUn, 'ashwin-p8', 'ashwin-p8'], ['v1', TGp, 'PIA', 'LAX']]) {
+      const t = await boot136({ ls: lsOf([id], { pialax_idea_keys_v1: keyOf([id]), pialax_idea_me_v1: { [id]: me } }) });
+      act(t, 'open', { id }); act(t, 'person', { id, code }); const h = sheet(t); t.api.closeSheet();
+      const q = nPosts(t), qf = t.fetches.length; await act(t, 'pet', { id, code }); await tick(10);
+      gate[k] = { row: rowOf(h), toggle: /data-act="pet"/.test(h), posts: nPosts(t) - q, fetches: t.fetches.length - qf, err: !!(t.api.S.sheet || t.api.S.errNext), flight: /data-act="petsheet"|class="petrow"|data-act="book|class="lrow2|🛬/.test(h), past: !!t.api.modelOf(id).past, legacy: !!t.api.modelOf(id).legacy };
+    }
+    const ro = (g) => /^<div class="petrow"><span class="petro" role="img" aria-label="Nebby comes"/.test(g.row) && !g.toggle && g.posts === 0;
+    const PK = seedAs(DWX, (d) => { pt(d); d.responses['ashwin-p8'].note = '📞 🛬14:35 🛫15:30 🐈ad'; }), PK2 = seedAs(DWX, (d) => { pt(d); d.responses['ashwin-p8'].note = '📞 🛬14:35 🛫15:30 🐈ad'; });
+    const ok1 = await boot136({ ls: lsOf([PK], { pialax_idea_keys_v1: keyOf([PK]), pialax_idea_me_v1: { [PK]: 'momdad-k3' } }), rec: ['#toast'] });
+    act(ok1, 'open', { id: PK }); act(ok1, 'person', { id: PK, code: 'ashwin-p8' }); const sK = sheet(ok1); ok1.api.closeSheet();
+    const qk = nPosts(ok1); await act(ok1, 'pet', { id: PK, code: 'ashwin-p8' }); await until(() => !/🐈/.test(srv.read(PK).responses['ashwin-p8'].note)); await tick();
+    const wk = posts(ok1, 0).slice(-1)[0];
+    const sf1 = await boot136({ ls: lsOf([PK2], { pialax_idea_me_v1: { [PK2]: 'ashwin-p8' } }), rec: ['#toast'] });
+    act(sf1, 'open', { id: PK2 }); await act(sf1, 'pet', { id: PK2, code: 'ashwin-p8' }); await until(() => !/🐈/.test(srv.read(PK2).responses['ashwin-p8'].note)); await tick();
+    check(ro(gate.paid) && ro(gate.past) && gate.past.past && gate.unans.row === '' && gate.unans.posts === 0 && ro(gate.v1) && gate.v1.legacy && gate.v1.fetches === 0 && !gate.v1.err &&
+      /data-act="pet" data-id="[^"]+" data-code="ashwin-p8" aria-pressed="true"/.test(sK) && nPosts(ok1) - qk === 1 && wk.body.member === 'ashwin-p8' && wk.body.note === '📞 🛬14:35 🛫15:30' &&
+      srv.read(PK).responses['ashwin-p8'].note === '📞 🛬14:35 🛫15:30' && srv.read(PK2).responses['ashwin-p8'].note === '🛬14:35 🛫15:30' && /🐈✓/.test(lastToast(ok1)),
+      'A the Nebby row\'s rules: a paid trip and a past trip read "🐈 Nebby ›" on Ashwin\'s own phone (no toggle; a forced tap sends nothing); no row before he answers; a v1 trip on the organizer\'s phone that is Mom & Dad reads only (a forced tap does nothing: no read, no error sheet); on a v2 trip that phone\'s toggle writes his answer with \'keep\' (one /idea/respond, 📞 kept: "📞 🛬14:35 🛫15:30"), while his own phone\'s is \'self\' (📞 cleared)', { gate, wk: wk && wk.body.note });
+    // (fix pass) "⚠ Too long": a 🐈 or a 🧺 the note has no room for builds and sends nothing (not even a read), the note never clipped
+    const LP = seedAs(DWX, (d) => { pt(d); d.responses['ashwin-p8'].note = '🛬14:35 🛫15:30 ' + 'n'.repeat(262); });
+    const lp = await boot136({ ls: lsOf([LP], { pialax_idea_me_v1: { [LP]: 'ashwin-p8' } }), rec: ['#toast'] }); act(lp, 'open', { id: LP });
+    const lq = nPosts(lp), lf = lp.fetches.length; await act(lp, 'pet', { id: LP, code: 'ashwin-p8' }); await tick(6);
+    const longPet = { posts: nPosts(lp) - lq, fetches: lp.fetches.length - lf, toast: lastToast(lp), note: srv.read(LP).responses['ashwin-p8'].note };
+    // (second fix pass) the same tap on a phone a nudge link greeted as Ashwin (#m=, nothing stored): the refused tap is held before
+    // the write path, so it does not make this phone Ashwin (a hinted face's first write would: confirmHinted)
+    const lh = loadApp({ fetch: srv.fetch, url: BASE + '?idea=' + LP + '#m=ashwin-p8', ls: seedLs({ pialax_ui_v1: { v1read: 1 } }), rec: ['#toast'] });
+    await until(() => !!lh.api.DOCS[LP]); await tick(); lh.flush();
+    const hq = nPosts(lh), hf = lh.fetches.length, hme = (lh.api.modelOf(LP).me || {}).code; await act(lh, 'pet', { id: LP, code: 'ashwin-p8' }); await tick(6);
+    longPet.hint = { me: hme, stored: lh.api.meFor(LP), still: (lh.api.modelOf(LP).me || {}).code, posts: nPosts(lh) - hq, fetches: lh.fetches.length - hf, toast: lastToast(lh) };
+    const LD = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].note = 'y'.repeat(276); });
+    const ld = await boot136({ ls: lsOf([LD], { pialax_idea_me_v1: { [LD]: 'anjo-z5' } }), rec: ['#toast'] }); act(ld, 'open', { id: LD }); act(ld, 'house', { id: LD });
+    act(ld, 'dishpick', { id: LD, code: 'anjo-z5' }); act(ld, 'dish', { v: '1' });
+    const dq = nPosts(ld), df = ld.fetches.length; await act(ld, 'dishsave'); await tick(6);
+    const sLD = sheet(ld), longDish = { posts: nPosts(ld) - dq, fetches: ld.fetches.length - df, toast: lastToast(ld), note: srv.read(LD).responses['anjo-z5'].note, open: /class="dtile"/.test(sLD),
+      save: /<button class="btn pri wide dsave" data-act="dishsave" aria-label="Save" data-k="ok">✓<\/button>/.test(sLD) && !/aria-label="Retry"/.test(sLD) };
+    ld.api.closeSheet(); await tick(6); longDish.closed = nPosts(ld) - dq;
+    check(longPet.posts === 0 && longPet.fetches === 0 && /⚠ Too long/.test(longPet.toast) && longPet.note === '🛬14:35 🛫15:30 ' + 'n'.repeat(262) &&
+      longPet.hint.me === 'ashwin-p8' && longPet.hint.stored === '' && longPet.hint.still === 'ashwin-p8' && longPet.hint.posts === 0 && longPet.hint.fetches === 0 && /⚠ Too long/.test(longPet.hint.toast) &&
+      longDish.posts === 0 && longDish.fetches === 0 && /⚠ Too long/.test(longDish.toast) && longDish.note === 'y'.repeat(276) && longDish.open && longDish.save && longDish.closed === 0,
+      'a note with no room: Ashwin\'s "☐ 🐈 Nebby" and Anjo\'s 🧺 ✓ (and the sheet closing after it) build nothing and send nothing, not even a read, and say "⚠ Too long"; the notes are never clipped; the refused 🐈 on a phone his #m= link greeted leaves it unconfirmed (nothing stored, still greeted), and P-house keeps its ✓ (no ⚠ ↻: there is nothing to retry)', { longPet, longDish });
+
+    // C: P-pet's ticks on Ashwin's phone (kept in pialax_ui_v1.pet, nothing sent); the folds; other phones the folds only
+    act(org, 'person', { id: P, code: 'ashwin-p8' }); act(org, 'petsheet', { id: P, code: 'ashwin-p8' });
+    const pp0 = sheet(org), back = org.api.S.sheet && org.api.S.sheet.back && org.api.S.sheet.back.type, f0 = org.fetches.length;
+    act(org, 'pettick', { id: P, v: 'c' }); act(org, 'pettick', { id: P, v: 'a' }); const pp1 = sheet(org);
+    act(org, 'pettick', { id: P, v: 'c' }); act(org, 'pettick', { id: P, v: 'c' });
+    const kept = (org.api.uiRead().pet || {})[P]; act(org, 'sh-back'); const sA2 = sheet(org); org.api.closeSheet();
+    const ticks = (h) => (h.match(/data-act="pettick" data-id="[^"]+" data-v="([adcpf])" aria-pressed="(true|false)"/g) || []).map((s) => /data-v="(.)" aria-pressed="(\w+)"/.exec(s).slice(1).join(':'));
+    act(mom, 'petsheet', { id: P, code: 'ashwin-p8' }); const pm0 = sheet(mom); mom.api.closeSheet();
+    check(back === 'person' && eq(ticks(pp0), ['a:false', 'd:false', 'c:false', 'p:false', 'f:false']) && eq(ticks(pp1), ['a:true', 'd:false', 'c:true', 'p:false', 'f:false']) && kept === 'ac' &&
+      org.fetches.length === f0 && /<span class="tn">2\/5<\/span>/.test(sA2) && /<span data-k="carrier" aria-hidden="true">👜<\/span> Carrier/.test(pp0) && /data-k="papers"[^>]*>📄<\/span> Papers/.test(pp0) && /data-k="fees"[^>]*>💲<\/span> Fees/.test(pp0) &&
+      /<span data-k="arrive" aria-hidden="true">🛬<\/span> Reserved/.test(pp0) && !/🧳/.test(pp0) && ticks(pm0).length === 0 && /id="nebby-notes-toggle"/.test(pm0) && /id="kona-notes-toggle"/.test(pm0) && !/kona" data-free open/.test(pm0) &&
+      /<details class="pet-notes" data-free><summary id="nebby-notes-toggle">Nebby’s travel plan 🐈<\/summary>/.test(pp0),
+      'C P-pet (from › in P-person, ‹ back to it) on Ashwin\'s phone: 🛬 Reserved, 🛫 Reserved, 👜 Carrier (🧳 is Trips), 📄 Papers, 💲 Fees, ☐ / ☑ kept on this phone only (pialax_ui_v1.pet = "ac", nothing fetched), so P-person reads 2/5; on Mom & Dad\'s phone the folds alone (her travel plan, At home with Kona), both shut', { pp1: ticks(pp1), kept });
+    // the ticks on a phone whose storage refuses every write: kept in memory for the visit, drawn ☑ all the same
+    const sls = lsOf([P], { pialax_idea_me_v1: { [P]: 'ashwin-p8' } }); sls.setItem = () => { throw new Error('QuotaExceededError'); };
+    const sp = await boot136({ ls: sls }); act(sp, 'open', { id: P }); act(sp, 'petsheet', { id: P, code: 'ashwin-p8' }); act(sp, 'pettick', { id: P, v: 'p' });
+    const spH = sheet(sp), spKept = sp.api.keptPet(P); sp.api.closeSheet();
+    check(spKept === 'p' && eq(ticks(spH), ['a:false', 'd:false', 'c:false', 'p:true', 'f:false']),
+      'C P-pet\'s ticks on a phone whose storage refuses every write: 📄 Papers ☑, kept in memory for the visit (lsSet\'s fallback), nothing lost on the redraw', { spKept, t: ticks(spH) });
+    // (second fix pass) what a phone keeps is pruned to the trips in its list, and only P-pet's own letters count, once each: a trip no
+    // longer listed loses its ticks on the next tick of another; a stored value that is not P-pet's ('zz', a repeat) reads as no tick
+    const GONE = 'gone0000000000000000xx';
+    const kp = await boot136({ ls: lsOf([P, LP], { pialax_idea_me_v1: { [P]: 'ashwin-p8' }, pialax_ui_v1: { v1read: 1, pet: { [P]: 'zcqac', [LP]: 'zz', [GONE]: 'ac' } } }) });
+    const pkK = [kp.api.keptPet(P), kp.api.keptPet(LP)];
+    act(kp, 'open', { id: P }); act(kp, 'petsheet', { id: P, code: 'ashwin-p8' }); const pkH = sheet(kp);
+    act(kp, 'pettick', { id: P, v: 'p' }); const pk1 = kp.api.uiRead().pet;
+    act(kp, 'pettick', { id: P, v: 'c' }); act(kp, 'pettick', { id: P, v: 'a' }); act(kp, 'pettick', { id: P, v: 'p' }); const pk2 = kp.api.uiRead().pet; kp.api.closeSheet();
+    check(eq(pkK, ['ca', '']) && eq(ticks(pkH), ['a:true', 'd:false', 'c:true', 'p:false', 'f:false']) && eq(pk1, { [LP]: 'zz', [P]: 'acp' }) && eq(pk2, { [LP]: 'zz' }),
+      'C pialax_ui_v1.pet: a kept "zcqac" reads as 🛬 Reserved and 👜 Carrier (other letters and the repeat ignored), a kept "zz" as nothing; 📄 Papers ☑ keeps "acp" and drops the trip no longer in the list (another listed trip\'s value kept as it is); unticking all three leaves no entry for the trip', { pkK, pk1, pk2 });
+    // the fold's copy is true per trip: in cabin with Ashwin, the Peoria line only on a PIA | ORD trip, no "Still unconfirmed"
+    const NY = seedAs(DWX, (d) => { pt(d); d.idea.destination = { city: 'New York', airport: 'LGA' }; d.decision.chosen.airport = 'LGA'; d.responses['momdad-k3'] = Object.assign(RESP('in'), { member: 'momdad-k3', origin: 'PIA' }); });
+    const ny = await boot136({ ls: lsOf([NY], { pialax_idea_keys_v1: keyOf([NY]), pialax_idea_me_v1: { [NY]: 'ashwin-p8' } }) });
+    act(ny, 'open', { id: NY }); act(ny, 'petsheet', { id: NY, code: 'ashwin-p8' }); const pny = sheet(ny); ny.api.closeSheet();
+    check(/In cabin with Ashwin, fitting comfortably/.test(pp0) && /Peoria: compare PIA connections/.test(pp0) && !/Peoria:/.test(pny) && !/Still unconfirmed/.test(pp0 + pny) &&
+      /Pet fees are not included in airfare\./.test(pny) && /private screening room/.test(pny) && /including return/.test(pny) && !/kona-notes-toggle/.test(pny) && /<span class="pnm">Nebby<\/span>/.test(pny),
+      'C the fold says what is true on this trip: "In cabin with Ashwin", the Peoria line only where the trip is PIA | ORD (not New York), no "Still unconfirmed" line (the ticks replace it), fees, the screening room and the return kept; no Kona fold where nobody hosts with a pet');
+    // (fix pass) a one-way 🐈a (another phone's, or a later UI): the ticks are the arrival's 🛬 Reserved, Carrier, Papers, Fees (4), and
+    // P-rides puts 🐈 beside Ashwin on the pickup alone; on the v1 Thanksgiving his "Me" is named: "In cabin with Ashwin"
+    const OW = seedAs(DWX, (d) => { pt(d); d.responses['ashwin-p8'].note = '🛬14:35 🛫15:30 🐈a'; });
+    const ow1 = await boot136({ ls: lsOf([OW], { pialax_idea_me_v1: { [OW]: 'ashwin-p8' } }) }); act(ow1, 'open', { id: OW });
+    act(ow1, 'petsheet', { id: OW, code: 'ashwin-p8' }); const pOW = sheet(ow1); ow1.api.closeSheet();
+    ow1.api.ACTS.rides({ dataset: { id: OW } }); const rOW = sheet(ow1); ow1.api.closeSheet();
+    const rideCats = (rOW.split('<div class="rleg">').slice(1).map((s) => /data-k="petfly"/.test(s.split('</div>')[0]) ? 1 : 0));
+    const TGm = seedAs(TGX, (d) => { d.responses.LAX.note = '🐈ad'; });
+    const tgm = await boot136({ ls: lsOf([TGm], { pialax_idea_me_v1: { [TGm]: 'LAX' } }) }); act(tgm, 'open', { id: TGm }); act(tgm, 'petsheet', { id: TGm, code: 'LAX' }); const pTG = sheet(tgm); tgm.api.closeSheet();
+    check(eq(ticks(pOW), ['a:false', 'c:false', 'p:false', 'f:false']) && eq(rideCats, [1, 0]) && /In cabin with Ashwin, fitting comfortably/.test(pTG) && !/In cabin with Me\b/.test(pTG),
+      'C a one-way 🐈a: P-pet\'s ticks are 🛬 Reserved, 👜 Carrier, 📄 Papers, 💲 Fees (no 🛫 Reserved), and P-rides puts 🐈 beside Ashwin on the 11/20 pickup only; on the v1 Thanksgiving the fold names his "Me" as Ashwin (rideLabel)', { t: ticks(pOW), rideCats });
+    // the Note sheet has no pet fold any more: the trip's caption and the create flow's own caption
+    act(org, 'cap', { id: P }); const nCap = sheet(org); org.api.closeSheet();
+    org.api.openCreate({}); act(org, 'nnote'); const nDraft = sheet(org); org.api.closeSheet();
+    check(!/pet-notes|nebby-notes-toggle/.test(nCap + nDraft) && /id="note-text"/.test(nCap) && /id="note-text"/.test(nDraft),
+      'C the Note sheet is the caption alone, the trip\'s and the create flow\'s draft: Nebby\'s fold moved to P-pet (PIA-148\'s purpose kept on the trips she flies)');
+
+    // D: Kona on Mom & Dad's sheet, her own row under the host line (which stays #157's); "🐈 11/20–11/30 ›" opens P-pet at home
+    const MD = seedAs(DWX, (d) => { pt(d); d.responses['momdad-k3'].note = '🚗ashwin-p8.aORD1120,ashwin-p8.dORD1130'; });
+    const mo2 = await boot136({ ls: lsOf([MD], { pialax_idea_me_v1: { [MD]: 'momdad-k3' } }), rec: ['#toast'] });
+    act(mo2, 'open', { id: MD }); act(mo2, 'person', { id: MD, code: 'momdad-k3' }); const sM = sheet(mo2);
+    const go = ctl(sM, 'petsheet', { v: 'home' }); act(mo2, 'petsheet', go); const pk = sheet(mo2), kback = mo2.api.S.sheet.back && mo2.api.S.sheet.back.type; mo2.api.closeSheet();
+    const head = screen(mo2).slice(0, 4000);
+    check(/<div class="pline"><span data-k="host">🏠<\/span><b>ORD<\/b><button class="rgl" data-act="rides"[^>]*aria-label="Mom &amp; Dad drive 2 rides" data-lbl="2 rides"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn">2<\/span><\/button><\/div><div class="konal">/.test(sM) &&
+      /<div class="konal"><span class="petro" role="img" aria-label="Kona at home" data-lbl="Kona at home"><span data-k="pethome" aria-hidden="true">🐕<\/span> Kona<\/span><button class="petgo" data-act="petsheet"[^>]*data-code="ashwin-p8" data-v="home" aria-label="Nebby comes 11\/20–11\/30"[^>]*><span data-k="petfly" aria-hidden="true">🐈<\/span><span class="tn">11\/20–11\/30<\/span><span data-k="petgo" aria-hidden="true">›<\/span><\/button><\/div>/.test(sM) &&
+      kback === 'person' && /<details class="pet-notes kona" data-free open><summary id="kona-notes-toggle">At home with Kona 🐕<\/summary>/.test(pk) && /Cat food up high, out of Kona’s reach/.test(pk) &&
+      /<button class="pc th" data-act="house" data-id="[^"]+" aria-label="House" data-lbl="House"><svg class="scene"[\s\S]*?>🐕<\/text><\/svg><\/button>/.test(head),
+      'D Kona: Mom & Dad\'s host line is unchanged ("🏠 ORD 🚗2") with "🐕 Kona" on its own row after it, and while Nebby comes "🐈 11/20–11/30 ›" (Ashwin\'s days), which opens P-pet with "At home with Kona" open (‹ back to their sheet); she sits at the door of the trip\'s header picture, now the "House" button', (/<div class="konal">[\s\S]*?<\/div>/.exec(sM) || [''])[0]);
+    // ride words and the calendar say "+ Nebby 🐈", and turning her on dots a driver's 📅 Phone (the signature changed)
+    mo2.api.ACTS.rides({ dataset: { id: MD } }); const cal = /href="data:text\/calendar;charset=utf-8,([^"]+)"/.exec(sheet(mo2)), ics = cal ? decodeURIComponent(cal[1]) : '';
+    mo2.api.ACTS.ridecal({ dataset: { id: MD } }); await tick(4); mo2.api.closeSheet();
+    const calm = !mo2.api.rideChanged(mo2.api.modelOf(MD));
+    const dm = srv.read(MD); dm.responses['ashwin-p8'].note = '🛬14:35 🛫15:30'; srv.write(dm); await mo2.api.refreshAll(true); await tick();
+    const dotted = mo2.api.rideChanged(mo2.api.modelOf(MD));
+    check(/SUMMARY:🚗 Pick up Ashwin \+ Nebby 🐈 – ORD Chicago\\, lands 2:35 PM\r\n/.test(ics) && /SUMMARY:🚗 Drop off Ashwin \+ Nebby 🐈 – ORD Chicago\\, flight 3:30 PM\r\n/.test(ics) && calm && dotted,
+      'the ride calendar file says "Pick up Ashwin + Nebby 🐈" / "Drop off Ashwin + Nebby 🐈"; once Nebby stays home the signature differs from the one kept at 📅 Phone, so the driver\'s dot shows (rideChanged)');
+
+    // F / G: P-house from the header's picture; 🧺 Mom & Dad's chip, the 18 dishes in place, 3 at most, ✓ saves (claims kept), close saves
+    act(mo2, 'open', { id: MD }); const hm = screen(mo2);
+    await tap(mo2, hm, 'house', {}); const ph0 = sheet(mo2), type0 = mo2.api.S.sheet && mo2.api.S.sheet.type;
+    act(mo2, 'dishpick', { id: MD, code: 'momdad-k3' }); const ph1 = sheet(mo2);
+    ['1', '11', '0', '2'].forEach((v) => act(mo2, 'dish', { v })); const ph2 = sheet(mo2), sel = (mo2.api.S.sheet.local.sel || []).join('');
+    const q1 = nPosts(mo2); await act(mo2, 'dishsave'); await until(() => /🧺/.test(srv.read(MD).responses['momdad-k3'].note)); await tick();
+    const wd = posts(mo2, 0).slice(-1)[0], td = lastToast(mo2), ph3 = sheet(mo2), nd = nPosts(mo2) - q1;
+    act(mo2, 'dishpick', { id: MD, code: 'momdad-k3' }); act(mo2, 'dish', { v: '11' }); const q2 = nPosts(mo2); mo2.api.closeSheet();
+    await until(() => srv.read(MD).responses['momdad-k3'].note === '🚗ashwin-p8.aORD1120,ashwin-p8.dORD1130 🧺🥧🍗'); await tick();
+    const q3 = nPosts(mo2); await tap(mo2, screen(mo2), 'house', {}); act(mo2, 'dishpick', { id: MD, code: 'momdad-k3' }); mo2.api.closeSheet(); await tick(6);
+    const cFG = [type0 === 'house', mo2.api.popupName({ type: 'house', local: {}, p: {} }) === 'P-house', /<span class="hgo" role="img" aria-label="34 days left" data-lbl="Days left"><span data-k="togo" aria-hidden="true">⏳<\/span><span class="tn">34<\/span><\/span>/.test(ph0),
+      /<div class="hpic" role="img" aria-label="Home: Mom &amp; Dad, Kona\. On the way: Ashwin\. Not booked yet: Anjo\."><span class="pc big" aria-hidden="true"><svg/.test(ph0),
+      /<button class="dchip mine" data-act="dishpick"[^>]*data-code="momdad-k3" aria-expanded="false" aria-label="Bringing, Mom &amp; Dad: nothing yet, pick"[^>]*><span data-k="dish" aria-hidden="true">🧺<\/span><span class="av s28[\s\S]*?<span class="dadd" data-k="dishadd" aria-hidden="true">🍽<\/span><\/button>/.test(ph0),
+      (ph1.match(/class="dtile" data-act="dish"/g) || []).length === 18, /data-v="1" aria-pressed="false" aria-label="Pie" data-lbl="Pie"/.test(ph1), sel === '🥧🍷🍗', (ph2.match(/class="dtile"[^>]*aria-pressed="true"/g) || []).length === 3,
+      nd === 1, wd.body.member === 'momdad-k3' && wd.body.note === '🚗ashwin-p8.aORD1120,ashwin-p8.dORD1130 🧺🥧🍷🍗', /🧺✓/.test(td), !/class="dtile"/.test(ph3),
+      /aria-label="Home: Mom &amp; Dad, Kona\. On the way: Ashwin\. Not booked yet: Anjo\. Bringing, Mom &amp; Dad: Pie, Wine and Chicken\."/.test(ph3), /<span class="tbl" aria-hidden="true" data-pic>🥧🍷🍗<\/span>/.test(ph3),
+      q2 === nPosts(mo2) - 1, q3 === nPosts(mo2)];
+    check(cFG.every(Boolean),
+      'F / G P-house from the header\'s picture (1 tap): ⏳34, the large postcard named in words, Mom & Dad\'s 🧺 🍽; their chip opens the 18 dishes (Pie, …), a 4th pick is refused (3 kept), ✓ saves once (one /idea/respond keeping their 🚗 claims: "🚗… 🧺🥧🍷🍗"), 🧺✓, the table strip and the picture\'s name carry the dishes; a change saves as the sheet closes; opened and closed unchanged sends nothing', { failed: cFG.map((b, i) => (b ? -1 : i)).filter((i) => i >= 0), wd, sel, posts: posts(mo2, 0).slice(-4).map((p) => p.body.note), q: [q1, q2, q3, nPosts(mo2)] });
+    // read only on a paid trip: no chip to pick
+    const PD = seedAs(DWX, (d) => { pt(d); d.responses['momdad-k3'].note = '🧺🥧'; d.responses['anjo-z5'].booked = true; d.decision.stage = 'booked'; d.decision.actual_total = 1500; });
+    const mp = await boot136({ ls: lsOf([PD], { pialax_idea_me_v1: { [PD]: 'momdad-k3' } }) }); act(mp, 'open', { id: PD }); act(mp, 'house', { id: PD }); const phP = sheet(mp); mp.api.closeSheet();
+    const DR = seedAs(DWX, (d) => { pt(d); d.decision.stage = 'dropped'; }), md0 = await boot136({ ls: lsOf([DR], { pialax_idea_me_v1: { [DR]: 'momdad-k3' } }) }); act(md0, 'open', { id: DR });
+    const RD = seedAs(DWX), rd0 = await boot136({ ls: lsOf([RD], { pialax_idea_me_v1: { [RD]: 'ashwin-p8' } }) }); act(rd0, 'open', { id: RD });
+    check(!/data-act="dishpick"/.test(phP) && /<span class="dchip" role="img" aria-label="Bringing, Mom &amp; Dad: Pie"/.test(phP) && /aria-label="34 days left"/.test(phP) && !/data-act="house"/.test(screen(md0)) && !/data-act="house"/.test(screen(rd0)) && /<span class="pc th" aria-hidden="true">/.test(screen(rd0)),
+      'G P-house reads only on a paid trip (Mom & Dad\'s Pie, no chip to pick; ⏳34 as the card\'s ⏳, paid or not); the header\'s picture is no button on a removed trip or a trip nobody hosts (Diwali in Raleigh)');
+    // (fix pass) the organizer's phone changes a dish someone picked ('keep': the driver's claim kept) and ↩ puts it back; a past trip reads
+    // only; ⏳ the day before says "1 day left"
+    const OE = seedAs(DWX, (d) => { pt(d); d.responses['momdad-k3'].note = '🚗ashwin-p8.aORD1120 🧺🥧'; });
+    const oe = await boot136({ ls: lsOf([OE], { pialax_idea_keys_v1: keyOf([OE]), pialax_idea_me_v1: { [OE]: 'ashwin-p8' } }), rec: ['#toast'] });
+    act(oe, 'open', { id: OE }); act(oe, 'house', { id: OE }); const oe0 = sheet(oe);
+    act(oe, 'dishpick', { id: OE, code: 'momdad-k3' }); act(oe, 'dish', { v: '11' });
+    const oq = nPosts(oe); await act(oe, 'dishsave'); await until(() => /🍷/.test(srv.read(OE).responses['momdad-k3'].note)); await tick();
+    const ow = posts(oe, 0).slice(-1)[0] || { body: {} }, ot = lastToast(oe), on1 = srv.read(OE).responses['momdad-k3'].note, onP = nPosts(oe) - oq;
+    if (typeof oe.api.S.undo === 'function') await oe.api.S.undo();
+    await until(() => !/🍷/.test(srv.read(OE).responses['momdad-k3'].note)); await tick(); oe.api.closeSheet();
+    const PSd = seedAs(DWX, (d) => { pt(d); d.idea.dates.departure = '2026-10-01'; d.idea.dates.return = '2026-10-05'; chosenAt(d, '2026-10-01', '2026-10-05', 'ORD'); d.responses['momdad-k3'].note = '🧺🥧'; });
+    const ps = await boot136({ ls: lsOf([PSd], { pialax_idea_me_v1: { [PSd]: 'momdad-k3' } }) }); act(ps, 'open', { id: PSd }); act(ps, 'house', { id: PSd }); const phS = sheet(ps); ps.api.closeSheet();
+    const P1d = seedAs(DWX, (d) => { pt(d); d.idea.dates.departure = '2026-10-18'; d.idea.dates.return = '2026-10-20'; chosenAt(d, '2026-10-18', '2026-10-20', 'ORD'); });
+    const p1 = await boot136({ ls: lsOf([P1d], { pialax_idea_me_v1: { [P1d]: 'momdad-k3' } }) }); act(p1, 'open', { id: P1d }); act(p1, 'house', { id: P1d }); const ph1d = sheet(p1); p1.api.closeSheet();
+    const cOE = [/<button class="dchip mine" data-act="dishpick"[^>]*data-code="ashwin-p8"/.test(oe0), /<button class="dchip" data-act="dishpick"[^>]*data-code="momdad-k3"[^>]*aria-label="Bringing, Mom &amp; Dad: Pie, pick"/.test(oe0),
+      onP === 1, ow.body.member === 'momdad-k3', on1 === '🚗ashwin-p8.aORD1120 🧺🥧🍷', /🧺✓/.test(ot) && /data-act="undo"/.test(ot), srv.read(OE).responses['momdad-k3'].note === '🚗ashwin-p8.aORD1120 🧺🥧',
+      !!ps.api.modelOf(PSd).past, !/data-act="dishpick"/.test(phS), /<span class="dchip" role="img" aria-label="Bringing, Mom &amp; Dad: Pie"/.test(phS), /aria-label="1 day left" data-lbl="Days left"/.test(ph1d)];
+    check(cOE.every(Boolean),
+      'G on the organizer\'s phone Mom & Dad\'s picked chip is a button too: Wine added to their Pie (one answer, their 🚗 claim kept: "🚗… 🧺🥧🍷"), 🧺✓ with ↩, which puts "🧺🥧" back; a past trip reads only (no chip to pick); the day before it starts ⏳ says "1 day left"', { failed: cOE.map((b, i) => (b ? -1 : i)).filter((i) => i >= 0), on1, ot, after: srv.read(OE).responses['momdad-k3'].note, phS: phS.slice(0, 1500), ph1d: ph1d.slice(0, 600) });
+
+    // H: 🎊 once a phone: the first open all set (everyone booked, every ride covered); not again; it waits behind "📅 Rides changed"
+    const AS = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].note = '🛬15:10 🛫17:00';
+      d.responses['momdad-k3'].note = '🚗ashwin-p8.aORD1120,anjo-z5.aORD1120,ashwin-p8.dORD1130,anjo-z5.dORD1130'; });
+    // (fix pass: every "nothing came" below waits real time past later()'s timer, and the burst is counted: 14 confetti from the picture)
+    const settleT = async () => { await tick(30); await new Promise((r) => setTimeout(r, 60)); };
+    const ca = await boot136({ ls: lsOf([AS], { pialax_idea_me_v1: { [AS]: 'anjo-z5' } }), rec: ['#toast'] });
+    let conf = 0; const ce0 = ca.doc.createElement; ca.doc.createElement = function (tag) { if (tag === 'i') conf++; return ce0.apply(this, arguments); };
+    const n0 = ca.rec['#toast'].__rec.html.length; act(ca, 'open', { id: AS }); const t0 = lastToast(ca), c0 = conf; await until(() => /All set/.test(lastToast(ca)), 60);
+    const ta = lastToast(ca), party = (ca.api.uiRead().party || {})[AS], c1 = conf;
+    act(ca, 'back'); act(ca, 'open', { id: AS }); await settleT(); const n1 = ca.rec['#toast'].__rec.html.filter((h) => /All set/.test(h)).length, c2 = conf;
+    // (a sheet that comes up over the page in the same tap, as a card's 🚗 opens P-rides: no 🎊 under it, kept for a later open)
+    const AS2 = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].note = '🛬15:10 🛫17:00';
+      d.responses['momdad-k3'].note = '🚗ashwin-p8.aORD1120,anjo-z5.aORD1120,ashwin-p8.dORD1130,anjo-z5.dORD1130'; });
+    const cs = await boot136({ ls: lsOf([AS2], { pialax_idea_me_v1: { [AS2]: 'momdad-k3' } }), rec: ['#toast'] });
+    act(cs, 'ridescard', { id: AS2, v: 'aORD1120-ashwin-p8' }); await settleT();
+    const underSheet = { sheet: cs.api.S.sheet && cs.api.S.sheet.type, cheered: cs.rec['#toast'].__rec.html.some((h) => /All set/.test(h)), party: (cs.api.uiRead().party || {})[AS2] };
+    cs.api.closeSheet(); act(cs, 'back'); act(cs, 'open', { id: AS2 }); await until(() => /All set/.test(lastToast(cs)), 60); underSheet.later = /All set/.test(lastToast(cs));
+    const RC = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].note = '🛬15:10 🛫17:00 🚙ad'; d.responses['ashwin-p8'].note = '🛬14:35 🛫15:30 🐈ad 🚙ad'; });
+    const rc = await boot136({ ls: lsOf([RC], { pialax_idea_me_v1: { [RC]: 'momdad-k3' }, pialax_ui_v1: { v1read: 1, rides: { [RC]: 'aORD1120-ashwin-p8|2026-11-20|2026-11-20|12:05|ashwin-p8@14:35' } } }), rec: ['#toast'] });
+    act(rc, 'open', { id: RC }); await settleT(); const tr1 = lastToast(rc), pr1 = (rc.api.uiRead().party || {})[RC];
+    act(rc, 'back'); act(rc, 'open', { id: RC }); await until(() => /All set/.test(lastToast(rc)), 60); const tr2 = lastToast(rc), pr2 = (rc.api.uiRead().party || {})[RC];
+    const nsAS = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].note = '🛬15:10 🛫17:00 🚙ad'; d.responses['ashwin-p8'].note = '🛬14:35 🛫15:30 🚙ad'; });
+    const nls = lsOf([nsAS], { pialax_idea_me_v1: { [nsAS]: 'ashwin-p8' } }); nls.setItem = () => { throw new Error('QuotaExceededError'); };
+    const ns = await boot136({ ls: nls, rec: ['#toast'] }); act(ns, 'open', { id: nsAS }); await settleT(); act(ns, 'back'); act(ns, 'open', { id: nsAS }); await settleT();
+    const nsN = ns.rec['#toast'].__rec.html.filter((h) => /All set/.test(h)).length;
+    // (fix pass) never a redraw or the poll: the trip open and not all set (Anjo not booked); she books on another phone; the read and the
+    // redraw that follow say nothing and keep nothing; the next open cheers once
+    const RW = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].note = '🛬15:10 🛫17:00';
+      d.responses['momdad-k3'].note = '🚗ashwin-p8.aORD1120,anjo-z5.aORD1120,ashwin-p8.dORD1130,anjo-z5.dORD1130'; });
+    const rw = await boot136({ ls: lsOf([RW], { pialax_idea_me_v1: { [RW]: 'ashwin-p8' } }), rec: ['#toast'] });
+    act(rw, 'open', { id: RW }); await settleT(); const rw0 = rw.api.allSet(rw.api.modelOf(RW), '2026-10-17');
+    const dw = srv.read(RW); dw.responses['anjo-z5'].booked = true; srv.write(dw); await rw.api.refreshAll(true); await tick(); rw.flush(); rw.api.render(); await settleT();
+    const rwq = { before: rw0, after: rw.api.allSet(rw.api.modelOf(RW), '2026-10-17'), told: rw.rec['#toast'].__rec.html.some((h) => /All set/.test(h)), party: (rw.api.uiRead().party || {})[RW] };
+    act(rw, 'back'); act(rw, 'open', { id: RW }); await until(() => /All set/.test(lastToast(rw)), 60); rwq.next = /All set/.test(lastToast(rw));
+    // (second fix pass) pialax_ui_v1.party keeps the trips still in the list: a trip no longer listed is dropped by the next 🎊
+    const cp = await boot136({ ls: lsOf([AS, P], { pialax_idea_me_v1: { [AS]: 'anjo-z5' }, pialax_ui_v1: { v1read: 1, party: { [GONE]: 1, [P]: 1 } } }), rec: ['#toast'] });
+    act(cp, 'open', { id: AS }); await until(() => /All set/.test(lastToast(cp)), 60); const cpParty = cp.api.uiRead().party;
+    check(eq(cpParty, { [P]: 1, [AS]: 1 }) && /All set/.test(lastToast(cp)),
+      'H 🎊 keeps pialax_ui_v1.party to the trips in the list: the trip no longer listed is dropped, the listed one already cheered is kept, the trip just cheered is added', cpParty);
+    check(ca.api.allSet(ca.api.modelOf(AS), '2026-10-17') && !/All set/.test(t0) && c0 === 0 && /<span data-k="allset" aria-hidden="true">🎊<\/span> All set/.test(ta) && party === 1 && c1 === 14 && n1 === 1 && c2 === 14 && ca.rec['#toast'].__rec.html.length > n0 &&
+      /📅 Rides changed/.test(tr1) && !/All set/.test(tr1) && pr1 === undefined && /All set/.test(tr2) && pr2 === 1 && nsN === 1 && !/All set/.test(lastToast(org)) &&
+      underSheet.sheet === 'rides' && !underSheet.cheered && underSheet.party === undefined && underSheet.later &&
+      rwq.before === false && rwq.after === true && !rwq.told && rwq.party === undefined && rwq.next,
+      'H 🎊 All set once a phone: Anjo\'s phone opens the trip with everyone booked and Mom & Dad driving every leg → right after that tap (not in it), the burst (14 confetti from the header\'s picture) and "🎊 All set", pialax_ui_v1.party kept; the next open says nothing and bursts nothing; on a phone whose open says "📅 Rides changed" (its kept rides gone: both travelers rent a car) 🎊 waits (party unset) and comes on the next open; so it does when the tap brings a sheet over the page (the card\'s 🚗 → P-rides); a phone with no storage cheers once a visit; a trip not all set never cheers; a trip that becomes all set while open (Anjo books elsewhere: the read and the redraw) says nothing until the next open', { ta, tr1, tr2, underSheet, conf: [c0, c1, c2], rwq });
+
+    // E: the living postcard: every scene but the home is #157's byte for byte; a home with nothing new is #157's too
+    const F = (c) => 'style="fill:var(--' + c + ')"';
+    const OLDSCENE = (kind, emoji, hostFaces) => {   // e06cd5e's (#157) sceneSVG, verbatim
+      let s = '<svg class="scene" viewBox="0 0 160 90" preserveAspectRatio="xMidYMid slice" aria-hidden="true">';
+      if (kind === 'home') {
+        const fx = hostFaces.length > 1 ? [64, 78] : [71];
+        s += '<rect width="160" height="90" ' + F('sk-day') + '/><circle cx="134" cy="19" r="10" ' + F('sun') + '/><rect y="68" width="160" height="22" ' + F('grass') + '/>' +
+          '<path d="M40 47 L80 16 L120 47 Z" ' + F('roof') + '/><rect x="48" y="46" width="64" height="34" ' + F('wall') + '/><rect x="54" y="51" width="34" height="21" rx="2" ' + F('win') + '/>' +
+          '<rect x="95" y="55" width="12" height="25" ' + F('door') + '/>' +
+          hostFaces.slice(0, 2).map((f, i) => '<text x="' + fx[i] + '" y="67" text-anchor="middle" style="font-size:15px">' + f + '</text>').join('');
+      } else if (kind === 'festive') {
+        const bulbs = [[6, 19], [22, 27], [38, 30], [54, 28], [70, 21], [86, 17], [102, 21], [118, 25], [134, 23], [150, 17]];
+        s += '<rect width="160" height="90" ' + F('sk-eve') + '/><path d="M-4 14 Q40 42 80 16 T164 14" style="fill:none;stroke:var(--wire);stroke-width:1.2"/>' +
+          bulbs.map((b, i) => '<circle cx="' + b[0] + '" cy="' + (b[1] + 3) + '" r="3.2" ' + F('b' + (1 + i % 4)) + '/>').join('') +
+          '<rect y="72" width="160" height="18" ' + F('table') + '/><text x="80" y="66" text-anchor="middle" style="font-size:30px">' + emoji + '</text>';
+      } else if (kind === 'beach') {
+        s += '<rect width="160" height="90" ' + F('sk-day') + '/><circle cx="118" cy="28" r="13" ' + F('sun') + '/><rect y="50" width="160" height="24" ' + F('sea') + '/>' +
+          '<path d="M0 56 q10 -5 20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0 t20 0" style="fill:none;stroke:var(--foam);stroke-width:2"/><rect y="72" width="160" height="18" ' + F('sand') + '/>';
+      } else if (kind === 'mountain') {
+        s += '<rect width="160" height="90" ' + F('sk-day') + '/><circle cx="30" cy="20" r="9" ' + F('sun') + '/><path d="M0 90 L52 30 L86 70 L112 40 L160 90 Z" ' + F('mtn') + '/>' +
+          '<path d="M52 30 L64 44 L57 42 L50 47 L42 42 Z" ' + F('snow') + '/><path d="M112 40 L124 54 L117 52 L110 56 L102 51 Z" ' + F('snow') + '/><path d="M0 90 L30 66 L60 90 Z" ' + F('mtn2') + '/>';
+      } else if (kind === 'city') {
+        s += '<rect width="160" height="90" ' + F('sk-dusk') + '/>';
+        [[8, 40, 22], [32, 22, 18], [52, 48, 20], [74, 14, 16], [92, 34, 24], [118, 26, 18], [138, 44, 20]].forEach((b, i) => {
+          s += '<rect x="' + b[0] + '" y="' + b[1] + '" width="' + b[2] + '" height="' + (90 - b[1]) + '" ' + F(i % 2 ? 'bldg2' : 'bldg') + '/>';
+          for (let y = b[1] + 6; y < 84; y += 10) for (let x = b[0] + 4; x < b[0] + b[2] - 4; x += 7) if ((x * 7 + y * 3 + i) % 5 < 3) s += '<rect x="' + x + '" y="' + y + '" width="3" height="4" ' + F('lit') + '/>';
+        });
+      } else {
+        s += '<rect width="160" height="90" ' + F('frame') + '/><rect x="46" y="8" width="68" height="74" rx="30" ' + F('sk-day') + '/>' +
+          '<ellipse cx="70" cy="56" rx="18" ry="7" ' + F('cloud') + '/><ellipse cx="92" cy="40" rx="13" ry="5" ' + F('cloud') + '/>' +
+          '<rect x="46" y="8" width="68" height="74" rx="30" style="fill:none;stroke:var(--ink3);stroke-width:2"/>';
+      }
+      return s + '</svg>';
+    };
+    const SV = org.api.sceneSVG, sc = { win: ['🌽'], path: ['💪'], walk: ['🐈'], door: ['🐕'], lit: true };
+    const kinds = [['festive', '🦃'], ['beach', '🌊'], ['mountain', '🗻'], ['city', '🌆'], ['plane', '💡']];
+    const homes = [[], ['🌽'], ['🌽', '🐻'], ['🌽', '🐻', '🦊']];
+    const lit = SV('home', '🦃', ['🌽'], sc);
+    check(kinds.every(([k, e]) => SV(k, e, ['🌽'], sc) === OLDSCENE(k, e, ['🌽']) && SV(k, e, []) === OLDSCENE(k, e, [])) &&
+      homes.every((h) => SV('home', '🦃', h) === OLDSCENE('home', '🦃', h)) && homes.slice(0, 3).every((h) => SV('home', '🦃', ['x'], { win: h, path: [], walk: [], door: [], lit: false }) === OLDSCENE('home', '🦃', h)) &&
+      /style="fill:var\(--sun\);opacity:\.55"\/><rect x="54" y="51"/.test(lit) && /<text x="30" y="85"[^>]*>💪<\/text><text x="38" y="86"[^>]*style="font-size:7px">🐈<\/text>/.test(lit) && />🐕<\/text><\/svg>$/.test(lit) &&
+      /M25 88 Q58 76 101 80/.test(lit) && (SV('home', '🦃', [], { win: ['a', 'b', 'c', 'd'], path: [], walk: [], door: [], lit: false }).match(/style="font-size:10px"/g) || []).length === 4 &&
+      /<text x="30" y="85"[^>]*>a<\/text><text x="38" y="86"[^>]*>🐈<\/text><text x="48" y="85"[^>]*>b<\/text><text x="66" y="85"[^>]*>c<\/text><text x="84" y="85"[^>]*>d<\/text>/.test(SV('home', '🦃', [], { win: ['🌽'], path: ['a', 'b', 'c', 'd', 'e'], walk: ['🐈', '', '', '', ''], door: [], lit: false })),
+      'E the living postcard: festive, beach, mountain, city and plane are #157\'s byte for byte (a scene passed is ignored); a home with only its window\'s faces (none, one, two; three without a scene) is #157\'s too; houseScene adds a warm glow when everyone is there (an existing token, --sun), the path with Nebby beside Ashwin (faces 18 apart from x 30, so a pet clears the next face; the path\'s cap from x 22.5), Kona at the door, and up to 4 in the window and on the path (P-house)', lit.slice(-500));
+    // (fix pass) the card and the header draw 2 on the path, P-house 4: three booked travelers still to come (Bob too)
+    const P3P = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].booked = true; d.idea.members.push({ code: 'bob-q4', label: '🎸 Bob', airport: 'SEA', headcount: 1 });
+      d.responses['bob-q4'] = Object.assign(RESP('in'), { member: 'bob-q4', origin: 'SEA', booked: true }); });
+    const p3 = await boot136({ ls: lsOf([P3P], { pialax_idea_me_v1: { [P3P]: 'momdad-k3' } }) }); act(p3, 'open', { id: P3P });
+    const onPath = (h) => (String(h).match(/<text x="\d+" y="85"[^>]*style="font-size:11px">/g) || []).length;
+    const hd3 = /<button class="pc th"[\s\S]*?<\/button>/.exec(screen(p3)), cd3 = p3.api.postcard(p3.api.modelOf(P3P), 'cd');
+    act(p3, 'house', { id: P3P }); const hs3 = sheet(p3); p3.api.closeSheet();
+    check(onPath(hd3 && hd3[0]) === 2 && onPath(cd3) === 2 && onPath(hs3) === 3,
+      'E three booked travelers still to come: the header\'s and a card\'s picture draw 2 on the path, P-house all 3 (up to 4)', { head: onPath(hd3 && hd3[0]), card: onPath(cd3), house: onPath(hs3) });
+    check(org.api.LEGEND.petfly[0] === '🐈' && org.api.LEGEND.pethome[1] === 'Pet at home' && org.api.LEGEND.dish[0] === '🧺' && org.api.LEGEND.dish[1] === 'Bringing' && org.api.LEGEND.allset[0] === '🎊' &&
+      org.api.LEGEND.carrier[0] === '👜' && org.api.LEGEND.papers[0] === '📄' && org.api.LEGEND.fees[0] === '💲' && org.api.LEGEND.petgo[0] === '›' &&
+      org.api.LEGEND.trips[0] === '🧳' && !Object.keys(org.api.LEGEND).some((k) => k !== 'trips' && org.api.LEGEND[k][0] === '🧳') && org.api.SHEET_NAME.pet === 'Nebby' && org.api.SHEET_NAME.house === 'House' &&
+      org.api.DISH_PALETTE.every((g) => !!org.api.DISH_NAMES[g]) && org.api.BUILD === 158 && org.api.LEGEND.dishadd[0] === '🍽' && org.api.LEGEND.newtrip[0] === '＋' &&
+      ['petfly', 'pethome', 'petgo', 'carrier', 'papers', 'fees', 'dish', 'dishadd', 'allset'].every((n) => Object.keys(org.api.LEGEND).filter((k) => org.api.LEGEND[k][0] === org.api.LEGEND[n][0]).join() === n),
+      'LEGEND / ⓘ: 🐈 Pet flying, 🐕 Pet at home, › Pet plan, 👜 Carrier (🧳 keeps its one meaning, Trips), 📄 Papers, 💲 Pet fees, 🧺 Bringing, 🍽 Pick dishes (＋ keeps New trip), 🎊 All set, each glyph meaning that one thing in LEGEND; P-pet and P-house named; every dish has its name; ⚙ #158',
+      ['petfly', 'pethome', 'petgo', 'carrier', 'papers', 'fees', 'dish', 'dishadd', 'allset'].map((n) => n + ':' + Object.keys(org.api.LEGEND).filter((k) => org.api.LEGEND[k][0] === org.api.LEGEND[n][0]).join('/')));
   }
 
   // ═══ AC12 / AC14 ═══
