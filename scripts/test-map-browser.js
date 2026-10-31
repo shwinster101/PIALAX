@@ -78,7 +78,7 @@ async function main() {
     async function measure(page, label) {
       const report = await page.evaluate(() => {
         const visible = e => !!(e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden' && !e.closest('[hidden],.vh'));
-        // (PIA-154: a screen's marked label words, data-lbl3 — the pickups table's Lands / Leaves here — count apart: ≤10 + ≤5 marked, PIA-156)
+        // (PIA-154: a screen's marked label words, data-lbl3 — the pickups table's Lands / Leaves here — count apart: ≤14 (PIA-159) + ≤5 marked, PIA-156)
         const marked = [];
         function words(roots) {
           const out = [];
@@ -90,9 +90,10 @@ async function main() {
         }
         const sheet = document.querySelector('#sheet'), open = visible(sheet), root = open ? sheet : document.querySelector('#screen');
         const small = [...root.querySelectorAll('button,a')].filter(visible).filter(e => { const r = e.getBoundingClientRect(); return r.width < 43.5 || r.height < 43.5 || !(e.getAttribute('aria-label') || e.textContent.trim()); }).map(e => e.outerHTML.slice(0, 160));
-        return { words: words(open ? [sheet] : [root, document.querySelector('#tabbar')]), marked, max: open ? 20 : 10, small, overflow: document.documentElement.scrollWidth > innerWidth + 1 || sheet.scrollWidth > sheet.clientWidth + 1 && open };
+        return { words: words(open ? [sheet] : [root, document.querySelector('#tabbar')]), marked, open, max: open ? 20 : 14, small, overflow: document.documentElement.scrollWidth > innerWidth + 1 || sheet.scrollWidth > sheet.clientWidth + 1 && open };
       });
-      check(report.words.length <= report.max && report.marked.length <= (report.max === 10 ? 5 : 0) && !report.small.length && !report.overflow, label + ': words (≤10 + 5 marked), 44px named controls, no overflow ' + JSON.stringify(report));
+      // (PIA-159: a screen holds 14 ordinary words, 10 before it; a popup 20 and marks none)
+      check(report.words.length <= report.max && report.marked.length <= (report.open ? 0 : 5) && !report.small.length && !report.overflow, label + ': words (≤14 + 5 marked; a popup ≤20, none marked), 44px named controls, no overflow ' + JSON.stringify(report));
     }
     for (const width of [360, 390, 430]) for (const dark of [false, true]) {
       const t = await phone({ width, dark });
@@ -122,7 +123,7 @@ async function main() {
       check(await t.page.locator('[data-map="ready"]').count() === 0 && await t.page.locator('.map-faces [data-act="person"]').count() === 3 && await t.page.locator('.lanes .pk').count() > 0, fail + ': faces and pickups survive; no unverified map is drawn');
       await measure(t.page, fail + ' fallback');
       await t.page.click('.pk.arr'); await t.page.waitForSelector('#sheet[data-popup="P-day"]');
-      check((await t.page.locator('#sheet .mapday').innerText()).includes('15:00'), fail + ': pickup opens the real names and recorded times');
+      check(/3:00\s*PM/.test(await t.page.locator('#sheet .mapday').innerText()), fail + ': pickup opens the real names and recorded times (PIA-159: 12-hour, 3:00 PM)');
       await measure(t.page, fail + ' pickup day');
       check(t.paid.length === 0 && !(await t.page.locator('#screen').innerText()).includes('$') && !t.requests.some(r => r.url === mapURL && r.headers['x-pialax-token']), fail + ': guest has no prices or searches; map fetch has no token');
       await t.ctx.close();
@@ -171,6 +172,19 @@ async function main() {
     check(JSON.stringify(ln1.arr) === '["🌽","🌽"]' && JSON.stringify(ln1.dep) === '["?","?"]' && ln1.said, 'the Map redraws from the shared record: the arrival chips wear Mom & Dad\'s 🌽, the departures still ask ' + JSON.stringify(ln1));
     check(rd.errors.length === 0, 'rides under the map: no browser exceptions');
     await rd.ctx.close();
+    // PIA-159: Anjo's real airport, Midway (🛬MDW 🛫MDW on her booked legs with their times): the map keeps its two pins (ORD and the
+    // PIA alternate, no Midway pin) and her arcs end where they did, at the ORD pin; the pickups table gains Midway's own row
+    const mdw = JSON.parse(JSON.stringify(pt)), ordOnly = JSON.parse(JSON.stringify(pt));
+    mdw.responses['momdad-k3'].note = ''; ordOnly.responses['momdad-k3'].note = '';
+    mdw.responses['anjo-z5'].note = '🛬22:30 🛫17:10 🛬MDW 🛫MDW'; ordOnly.responses['anjo-z5'].note = '🛬22:30 🛫17:10';
+    const shape = async (t) => t.page.evaluate(() => ({ pins: [...document.querySelectorAll('.map .pin')].map((p) => p.getAttribute('aria-label') || p.textContent.trim()), arcs: [...document.querySelectorAll('.map .arc')].map((a) => a.getAttribute('d')),
+      rows: [...document.querySelectorAll('.lanes .lrow:not(.lhd) .lh')].map((h) => h.getAttribute('data-v')),
+      mdw: [...document.querySelectorAll('.lanes .lrow:not(.lhd)')].filter((r) => r.querySelector('.lh[data-v="MDW"]')).map((r) => [...r.querySelectorAll('.pk')].map((p) => p.getAttribute('aria-label'))).flat() }));
+    const tm = await phone({ doc: mdw }), sm = await shape(tm); await measure(tm.page, 'Map with Midway\'s row'); await tm.ctx.close();
+    const to = await phone({ doc: ordOnly }), so = await shape(to); await to.ctx.close();
+    check(sm.pins.length === 2 && !sm.pins.some((p) => /MDW|Midway/.test(p)) && JSON.stringify(sm.arcs) === JSON.stringify(so.arcs) && sm.arcs.length >= 2 &&
+      JSON.stringify(sm.rows) === '["ORD","PIA","MDW"]' && JSON.stringify(so.rows) === '["ORD","PIA"]' && sm.mdw.length === 2 && sm.mdw.every((s) => /^(Lands|Leaves) MDW 11\/(6|9) at (10:30|5:10) PM, booked, Anjo/.test(s || '')),
+      'PIA-159 Anjo at Midway: no Midway pin (ORD and the PIA alternate only), her arcs end at the ORD pin exactly as before her airport was recorded, and the pickups table has Midway\'s own row (after ORD and PIA) with her 10:30 PM landing and 5:10 PM leave ' + JSON.stringify({ sm, so: so.rows }));
     const eight = JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/fixtures/idea-8members.json')));
     for (const x of eight.idea.members) eight.responses[x.code] = { status: 'in', origin: x.airport, note: '' };
     const cap = await phone({ doc: eight });
@@ -213,7 +227,7 @@ async function main() {
     const pairDoc = clone(ny), pairFares = {}, pm = M.tripModel(pairDoc, { today: '2026-10-17', now: NOW, hasEditKey: true, hasToken: true, multiAirport: true });
     pm.travelers.forEach((x, i) => x.keys.forEach(k => { pairFares[k.key] = { p: 300 + i * 10, f: NOW - 1000, off: [{ p: 300 + i * 10, a: x.A, ar: x.d1 + ' 15:00' }] }; }));
     const paired = await phone({ doc: pairDoc, fares: pairFares }); await paired.page.click('.pk.arr');
-    check(await paired.page.locator('#sheet .pair [data-k="pair"]').count() === 1 && (await paired.page.locator('#sheet .pair').innerText()).includes('15:00'), 'P-day shows the cheapest fresh cached pair and its arrival times, without a search');
+    check(await paired.page.locator('#sheet .pair [data-k="pair"]').count() === 1 && /3:00\s*PM/.test(await paired.page.locator('#sheet .pair').innerText()), 'P-day shows the cheapest fresh cached pair and its arrival times (PIA-159: 12-hour), without a search');
     await measure(paired.page, 'Cheapest pickup pair'); check(paired.paid.length === 0, 'comparing cached pickup offers costs no searches'); await paired.ctx.close();
     for (const airport of ['ZZQ', 'LHR']) {
       const d = clone(ny); d.idea.destination.airport = airport;

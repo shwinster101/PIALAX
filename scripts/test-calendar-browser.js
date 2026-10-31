@@ -70,7 +70,7 @@ async function main() {
       const r = await page.evaluate(() => {
         const visible = e => !!e && !!e.getClientRects().length && !e.closest('[hidden],.vh') && getComputedStyle(e).visibility !== 'hidden';
         const sheet = document.querySelector('#sheet'), open = visible(sheet), roots = open ? [sheet] : [document.querySelector('#screen'), document.querySelector('#tabbar')], words = [], small = [], marked = [];
-        // (PIA-154: a screen's marked label words, data-lbl3 — Tue / Wed / Thu here — count apart: ≤10 ordinary + ≤5 marked (PIA-156); a popup marks none)
+        // (PIA-154: a screen's marked label words, data-lbl3 — Tue / Wed / Thu here — count apart: ≤14 ordinary (PIA-159) + ≤5 marked (PIA-156); a popup marks none)
         for (const root of roots) for (const e of [root, ...root.querySelectorAll('*')]) if (visible(e)) {
           if (!e.closest('[data-free]')) {
             for (const n of e.childNodes) if (n.nodeType === 3) (e.closest('[data-lbl3]') ? marked : words).push(...n.textContent.split(/\s+/).filter(t => /\p{L}/u.test(t)));
@@ -78,9 +78,10 @@ async function main() {
           }
           if (e.matches('button,a')) { const r = e.getBoundingClientRect(); if (r.width < 43.5 || r.height < 43.5 || !(e.getAttribute('aria-label') || e.textContent.trim())) small.push(e.outerHTML.slice(0, 120)); }
         }
-        return { words, marked, small, max: open ? 20 : 10, overflow: document.documentElement.scrollWidth > innerWidth + 1 || open && sheet.scrollWidth > sheet.clientWidth + 1 };
+        return { words, marked, small, open, max: open ? 20 : 14, overflow: document.documentElement.scrollWidth > innerWidth + 1 || open && sheet.scrollWidth > sheet.clientWidth + 1 };
       });
-      check(r.words.length <= r.max && r.marked.length <= (r.max === 10 ? 5 : 0) && !r.small.length && !r.overflow, label + ': word budget (≤10 + 5 marked), named 44px targets, no overflow', r);
+      // (PIA-159: a screen holds 14 ordinary words, 10 before it; a popup 20 and marks none)
+      check(r.words.length <= r.max && r.marked.length <= (r.open ? 0 : 5) && !r.small.length && !r.overflow, label + ': word budget (≤14 + 5 marked; a popup ≤20, none marked), named 44px targets, no overflow', r);
     }
     async function agreement(t, docs) {
       const current = docs.map(d => t.db.read(d.id)), m = M.tripModel(current[0], { today: TODAY, now: NOW, otherTrips: current.slice(1) });

@@ -88,6 +88,17 @@ in 2 (their chip, the glyph), and the organizer for them in 2. The word rule
 allows Rides as a marked word in the key's row and the primary only; P-rides
 keeps ≤20 words, unmarked, on the 8-member trip too.
 
+PIA-159 adds each leg's real airport and 12-hour times, counted by `test-words`
+with real taps through the real Worker: a traveler's first times on a rides trip
+in 6 ("🛬 Landing time", PM, Midway, the 🛫 field, PM, ⌄; the 🛫 follows the
+landing's airport), a time change in 3 (the bar, the leg's [code time], ⌄; the
+saved time's AM / PM carried), and the organizer's airport-only fix of times
+entered before #159 in 4 (the bar, the leg, Midway, ⌄), with "Tell" for the driver
+the move affects. On a rides trip a leg's first time asks for its airport (+1 tap
+against a default). The word rule becomes 14 + 5: a screen keeps at most 14
+ordinary words and 5 marked label words (the list unchanged); a time's digits are
+free and its AM / PM counts; a popup keeps 20, unmarked.
+
 The suites compare dates, event-day constraints, answers, stages, bookings,
 headcounts, airport choices and totals with the same shared record/model.
 Writing jobs use the real in-process Worker. Paid upstreams are fixtures; no
@@ -121,7 +132,7 @@ Retirements below are explicit design choices under D1/D4, not claims of parity.
 | Trigger live pricing while controlling spend | Covered by the single explicit runSearch path, shown cost, cache, visit/day/month caps and token gate |
 | Remember a traveler booked and record flight times | Covered by booking marks (✈, PIA-156; the trip page's key says who booked, who is still to book and who hosts), flight-time entry, return invitation and recorded pickup times |
 | Track an actual flight on travel day | Covered by Flighty handoff; live flight tracking remains outside PIALAX |
-| Coordinate rides, arrival gaps and alternate airports | Covered by Map, shared pickup lanes, P-day map mode and cheapest cached pickup pair; PIA-157: who drives each run (claims in the driver's own answer), a traveler's own 🚌 / 🚙, ⏰ when to leave home, the key's 🚗 Rides row and primary, P-rides, the driver's timed events in the phone's calendar, Ask / Remind / Tell in words beside a guest link; departures bracketed ⏱ too |
+| Coordinate rides, arrival gaps and alternate airports | Covered by Map, shared pickup lanes, P-day map mode and cheapest cached pickup pair; PIA-157: who drives each run (claims in the driver's own answer), a traveler's own 🚌 / 🚙, ⏰ when to leave home, the key's 🚗 Rides row and primary, P-rides, the driver's timed events in the phone's calendar, Ask / Remind / Tell in words beside a guest link; departures bracketed ⏱ too; PIA-159: each leg's real airport (Midway), one drive to two airports, 12-hour times |
 | See geographic routes at home or abroad | Covered by pinned world map, origin faces, routes, destination/alternate pins and fallback roster |
 | See who hosts and who should host next | Covered by Family's cross-trip hosting counts and headcounts |
 | Hosting prep and potluck (PIA-158) | Covered by P-house (the trip header's picture on a hosted trip): the house drawn from the record by day (who is home, who is on the way, Kona at the door), ⏳ the days left, and 🧺 what each person brings (up to 3 dishes in their own answer, the driver's claims kept); Kona at home on Mom & Dad's sheet and "At home with Kona" in P-pet; 🎊 once a phone when everyone is booked and every ride covered |
@@ -194,6 +205,8 @@ that the pending checks below have passed.
 - Record the two-person shared-list comprehension check and Mom & Dad icon check.
 - Complete previously recorded real-device booking-return, keyboard and calendar-file checks and the real adults=2 fare-price verification. Browser fixtures are not proof of a provider's live party-price convention.
 - If the separate original six-asks document becomes available, reconcile its exact wording before claiming that original review complete.
-- PIA-157 rides on real phones (pending): ⚙ #157 on Mom's and Dad's phones; a multi-event rides `.ics` from 📅 Phone offers Add All on iPhone with both alarms, and adding it again after a change updates the events by their UID rather than duplicating them; the 24-hour ⏰ times read clearly to Mom & Dad; 🚗 and 🚙 are told apart at the key's and the Map's sizes, light and dark.
+- PIA-157 rides on real phones (pending): ⚙ #157 on Mom's and Dad's phones; a multi-event rides `.ics` from 📅 Phone offers Add All on iPhone with both alarms, and adding it again after a change updates the events by their UID rather than duplicating them (PIA-159 changes the UID's format once: an event added on #157 / #158 is added again beside the old one); the ⏰ times (12-hour since PIA-159) read clearly to Mom & Dad; 🚗 and 🚙 are told apart at the key's and the Map's sizes, light and dark.
+- PIA-159 on real phones (pending, never auto-passed): ⚙ #159 on Mom's and Dad's phones before 11/19 and before anyone claims a ride (owner #10); the rollout order ship → ⚙ #159 on the parents' phones → Anjo enters her times only once her phone shows ⚙ #159 → claims (owner #11). Mom's iPhone: the 13px board labels, the 17px P-rides lines and the drive primary read without glasses at her text size; 📅 Phone imports the Midway pickup as Fri 7:45 PM to Sat 1:15 AM with alarms Thu 7:45 PM and Fri 7:15 PM, its location opens Maps at Midway, its notes show the words and the link, and adding it again after an airport change replaces the event by UID; the 🎊 or echo toast never covers the drive primary. Anjo's iPhone: ⚙ #159 before she enters her times; the number pad with the [AM | PM] segment in 6 taps, the Midway pick and the echo; the app-switch flush. Ashwin's iPhone: retyping 3:47 PM in 3 taps with the carried PM's pulse and the echo. A stale #157 / #158 tab, if any, shows "🛬MDW 🛫MDW" as note text and loses nothing. Before ship: confirm nobody added P town's rides with 📅 Phone (the UID format change would add them again once), that the live trip has no ride claims yet, and that no live note holds prose starting with 🛬 or 🛫 and three capital letters (#159 reads it as an airport marker and its next write drops it).
+- PIA-159 browser checks not written yet (pending; the behaviour was checked by hand, nothing guards it): the moved 🚗 alt-airport tag on the board; the 13px label overlap on the 8-member trip (at 14 words its labels are dropped, so P town's board carries that check); the two-face drive primary on the day before at 360; Mom's cover-both (2 taps) and all-three (4 taps) flows; the hold and the flush as real clicks (they are `test-app` cases); the Map ladder's drop order; P town's exact fitter outcomes and the full AM / PM word lists in `test-words`' P-rides pins.
 
 No pre-cutover human check is represented as an automated pass.

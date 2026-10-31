@@ -310,7 +310,7 @@ PIA-046 through PIA-051, this file's §10 positioning principle unchanged._
 | **D4** | Cheapest week on demand | Organizer-initiated, real searches only, the cost shown before spending, never a synthetic price. |
 | **D5** | Desktop = the phone app in a centred column | One `@media (min-width:700px)` block; at cutover the v1 pages become redirect shims. |
 
-**The strict word rule.** A word is a visible whitespace-separated token containing a Unicode letter — tab and segment labels, codes, month names, names, buttons, placeholders and typed values all count. Free: trip names (`[data-free]`), numerals, prices, dates, emoji, glyphs and shapes. Every screen ≤10 words, every popup (sheet, long-press label, toast) ≤20, in every state. `scripts/test-words.sh` counts the rendered DOM in Chromium on fixture phones (8 members with long names, unknown airports, a revealed token, long typed values, a failed refresh) and fails the gate; it is in preflight and skips itself without Playwright. Test & Eval (T3) treats a word-budget failure like a failing assertion, never as a style note.
+**The strict word rule.** A word is a visible whitespace-separated token containing a Unicode letter — tab and segment labels, codes, month names, names, buttons, placeholders and typed values all count. Free: trip names (`[data-free]`), numerals, prices, dates, emoji, glyphs and shapes. Every screen ≤10 words (14 since PIA-159, below), every popup (sheet, long-press label, toast) ≤20, in every state. `scripts/test-words.sh` counts the rendered DOM in Chromium on fixture phones (8 members with long names, unknown airports, a revealed token, long typed values, a failed refresh) and fails the gate; it is in preflight and skips itself without Playwright. Test & Eval (T3) treats a word-budget failure like a failing assertion, never as a style note.
 
 **Amended domain rules.** The mock / estimate engine is retired for v2 (no `getMock`, sample fares, meetup estimators or seeded personal trips in `app.html`; an unsearched fare is shown as unsearched). The ORD drive pivot and `familyForDate` are kept, inside the trip model. Keys shared with v1 are read and written in v1's exact formats; v2 never deletes or replaces an edit key and reads `pialax_watchlist_v1` once without writing it. v2's list link uses `?l=` because v1 owns `?w=` (PIA-131) and `?wl=`.
 
@@ -341,7 +341,7 @@ release readiness and verified deployed bytes.
 
 ### PIA-154 amendment: one glyph, one meaning; three label words (2026-10-27)
 
-**The word rule, amended.** A screen keeps at most 10 ordinary words, and may add
+**The word rule, amended.** A screen keeps at most 10 ordinary words (14 since PIA-159), and may add
 at most 3 *marked* label words, each inside `[data-lbl3]` and each from one list:
 Coming?, Hosting?, Lock dates, I booked, Landing time, Track, Lands, Leaves, and
 Tue / Wed / Thu in Calendar's weekday header. A popup (sheet, long-press label,
@@ -360,7 +360,8 @@ phone, Share, Calendar, Note, Edit, Remove for everyone; PIA-155) live in ⋯ Mo
 **One glyph, one meaning.** One share symbol (an inline SVG) replaces 📣
 everywhere; 🎫 only means booked (superseded by the PIA-156 amendment: ✈ alone
 means booked, 🎫 is gone); 🔒 only belongs to the date pill, P-dates and
-Lock dates; ☀ / 🌃 only appear while a time is typed; 📌 only where the event
+Lock dates; ☀ / 🌃 only appear while a time is typed (PIA-159: retired; the
+half of an hour 1–12 is the [AM | PM] segment); 📌 only where the event
 day is set (P-dates, and the create and edit steps), never on a pill or card.
 No placeholders stand in for missing data (no $— chips, 0 days or ––:––): where
 something can be priced, the action that fills it is shown instead. A saved plan
@@ -400,7 +401,7 @@ Google's live price), nor a 🔍N on the card.
 ### PIA-156 amendment: who's set; ✈ means booked; five label words (2026-10-29)
 
 **The word rule, amended again (the owner's "a word or 2").** A screen keeps at
-most 10 ordinary words and may add at most **5** marked label words
+most 10 ordinary words (14 since PIA-159) and may add at most **5** marked label words
 (`[data-lbl3]`), each from the list: Coming?, Hosting?, Lock dates, I booked,
 Landing time, Track, Lands, Leaves, Tue / Wed / Thu (Calendar's header only) and
 Booked, Waiting, Hosting (the trip page's key rows only). A popup keeps 20 and marks
@@ -474,11 +475,13 @@ keeps the markers as text byte for byte. A marker or time write that would pass
 **Where rides show.** The trip page's key gains a 🚗 Rides row after ⏳ Waiting
 (open runs as dashed chips, a booked leg with no time, the organizer's Ask; once
 covered, the drivers' faces); the primary is "🚗 Rides" for the organizer and a
-host who can drive an open run, and "🚗 11/20 ⏰12:05" for a driver, after every
+host who can drive an open run, and "🚗 11/20 ⏰12:05" for a driver (PIA-159: 12-hour
+with the stop's code, "🚗 11/20 ⏰ 12:05 PM ORD"), after every
 earlier primary keeps its precedence; the card's slot says the same. P-rides holds
 every run (claims, the organizer's toggles, ✓, Remind, 🚌 / 🚙) and a driver's 📅
 Phone: one calendar file of their runs, in floating local time with two alarms,
-whose description is the guest link alone. The phone keeps what it added; read
+whose description is the guest link alone (PIA-159: the ride in words, then the
+guest link). The phone keeps what it added; read
 less the runs already behind us, any difference with the rides ahead dots 📅
 Phone, the card and the Trips numeral, also once that phone drives nothing (its
 calendar still holds the old events): opening the trip then says "📅 Rides
@@ -531,3 +534,62 @@ header's picture and says "🎊 All set", once (`pialax_ui_v1.party`), never on 
 card, a redraw, the poll, or a link or reload that lands on the trip page, and
 after "📅 Rides changed" on the next open instead. No word is added to any trip
 page; no Worker, link or storage-key change.
+
+### PIA-159 amendment: airports per leg; 12-hour times; 14 + 5 (2026-10-31)
+
+**Each booked leg names its real airport.** Two markers join the answer note,
+after 🧺 and before the text: 🛬IATA and 🛫IATA, "my booked arrival really lands
+at", "my departure really leaves from". Only an airport outside the trip's hub
+pair is written (Midway on an O'Hare or a Peoria trip), only on a booked leg that
+has its time, and a marker is honored only while all four still hold: booked, the
+leg's time, the airport among the trip's leg choices (`legChoices`: the hub pair,
+its metro, and an airport within an hour's drive of the hub: ORD [ORD, MDW, PIA],
+PIA [PIA, ORD, MDW], LGA [LGA, JFK, EWR]) and the hub field equal to the hub
+nearest it (`hubNear`). A marker that no longer holds is dropped by the next
+write; one patched that cannot hold is refused. An older build reads both as text
+and rewrites them byte for byte. Airport codes and times only, never a flight
+number or a confirmation code. The drive table gains Peoria→Midway 2:45 and
+O'Hare↔Midway 0:45 (owner-confirmed 2026-10-31).
+
+**One drive to two airports.** `rides()` joins a drive's stops on the same day and
+kind when nobody waits more than 2:00 and each airport is visited once (the home
+airport never joins): the 11/30 drop-off is one drive, ① O'Hare ② Midway. A drive
+leaves at its rounded-down 5 minutes, walks its stops from there and is home at
+the next 5 minutes ("home about"). A separate drive says why on a long press (a
+wait, no time to reach the next airport, or no drive time known). P-rides reads by
+day; the drive primary, the card's slot and P-rides' focus follow the phone's own
+clock to each drive's home time (overnight too), and the minute's poll moves them
+on. The calendar event's notes carry the ride in words before the guest link; its
+location is the airport's full name.
+
+**12-hour times.** A person reads every clock time in 12-hour (it is stored as
+24-hour HH:MM): "10:30 PM", a same-day same-half range "12:05–5:05 PM", "7:45 PM–Sat
+1:15 AM". Entry is the time's digits with a fixed [AM | PM] segment beside the field
+(an hour 1–12 takes the saved time's half and the segment pulses; with no saved time
+it waits on the segment), and the leg's airport pills under it. On a rides trip a
+leg's first time asks for its airport (none pressed, the planned one outlined); a
+sheet close holds once for each reason something cannot be saved yet, the most
+urgent first ("🛬⚠", "🛬 AM or PM?", "🛬 Airport?", "🛬 Time?"), ⚠ and the AM / PM
+once for each leg, so the AM / PM's hold never spends the airport's nor one leg's
+the other's; a close for a reason already held (for that leg) lets it go. Every save echoes what was saved ("🛬 MDW
+10:30 PM · 🛫 MDW 5:10 PM ✓"), with Tell for a driver the change affects, and a
+note with no room for the airport sends the times alone ("📝 Too long: MDW").
+
+**The word rule, amended (14 + 5).** A screen keeps at most 14 ordinary words and
+may add at most 5 marked label words, on the unchanged list; a popup keeps 20 and
+marks none. A time's digits are free and its AM / PM is a word; a 12-hour time is
+drawn with its AM / PM or not at all (the trip page's fitter drops a whole board
+label, departures first, never just its AM / PM). `test-words` counts generated
+(::before / ::after) text too.
+
+**Not built (LATER).** Candidate widening (owner confirm #4, not confirmed): a
+traveler home at least 30 minutes before a run may drive it. PIA-157's rule stays
+exactly as it is: the hosts not Out, then the travelers there all that day. Also
+later: pasting "MDW 10:30PM" to fill the airport and time; a 🗓+1 "lands next day"
+chip; ⌨ any other airport, with no known drive; a Midway map pin or a zoomed
+airport view; a warning when one driver's drives overlap; per-host home drives (a
+host living at O'Hare); a Peoria coach time marker; directions with traffic;
+marking a run done and thanking its driver; rides on New York trips; cancelled
+events for a run absorbed under another lead's UID; and a "check time" ⏰ on a run
+that crosses 2:00 AM on a DST Sunday in the home zone (today's floating wall-clock
+arithmetic is an hour off there; the model's test pins it).

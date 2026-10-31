@@ -16,7 +16,7 @@
 //       search is a HIT with the first fetch's X-Fetched-At and no upstream
 //       call; the dashboards (both files) keep that age and don't count quota.
 
-process.env.TZ = 'America/Los_Angeles';   // PIA-140: the app's local reset times (⛔ 17:00 = 00:00 UTC) are read in one zone
+process.env.TZ = 'America/Los_Angeles';   // PIA-140: the app's local reset times (⛔ 5:00 PM = 00:00 UTC; 12-hour since PIA-159) are read in one zone
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -626,9 +626,9 @@ function makeRooms(IdeaRoom, env, gate) {
       const unlocked = a.api.lockNow();
       await drawn(a); await settle(a);
       const sent3 = a.paid().filter((r) => r.path === '/search').length;
-      check(serpCalls() - u0 === 2 && sent1 === 2 && cap === '2026-10-17' && q.used === 1 && q.exceeded === false && sent2 === sent1 && /aria-label="Searches resume at 17:00"[^>]*>⛔ 17:00</.test(lockTxt) &&
+      check(serpCalls() - u0 === 2 && sent1 === 2 && cap === '2026-10-17' && q.used === 1 && q.exceeded === false && sent2 === sent1 && /aria-label="Searches resume at 5:00 PM"[^>]*>⛔ 5:00 PM</.test(lockTxt) &&
         unlocked === '' && sent3 > sent2,
-        'A1 app.html: the Worker\'s day cap (429 daily_cap) locks spending until the next UTC day only (pialax_daily_cap_v1 = 2026-10-17, the month untouched): every tap sends nothing, the button reads ⛔ 17:00 (local), and at 00:00 UTC it spends again', { sent1, sent2, sent3, cap, q, unlocked });
+        'A1 app.html: the Worker\'s day cap (429 daily_cap) locks spending until the next UTC day only (pialax_daily_cap_v1 = 2026-10-17, the month untouched): every tap sends nothing, the button reads ⛔ 5:00 PM (local, 12-hour since PIA-159), and at 00:00 UTC it spends again', { sent1, sent2, sent3, cap, q, unlocked });
     }
 
     // A1: an upstream 429 (SerpAPI's own) → the month lock: every spend control locked, ⛔ 11/1, nothing sent, the next day too

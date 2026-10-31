@@ -2819,8 +2819,8 @@ function norm(doc) {
     act(t, 'mytimes', { id });
     const s2 = sheet(t), focusArr = t.api.S.sheet && t.api.S.sheet.focus === 'tm-arr' && t.api.S.sheet.type === 'person' && t.api.S.sheet.p.code === 'anjo-z5';
     check(pulseGone && focusArr && /<div class="split"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈<\/span> Track <span aria-hidden="true">↗<\/span><\/a><button class="btn tkb tkon" data-act="unbook"[^>]*aria-pressed="true"[^>]*data-lbl="I booked"><span class="tkg" data-k="tkon" aria-hidden="true">☑︎<\/span> I booked<\/button>/.test(s2) &&
-      /<span class="fld tiny invite"><label for="tm-arr"/.test(s2) && /id="tm-dep"/.test(s2) && !/placeholder=/.test(s2),
-      'PIA-139 AC1/AC2 the times button opens her own sheet with 🛬 focused: [✈ Track ↗ | 🎫 Booked] and the 🛬 / 🛫 time fields (no ––:–– placeholder), 🛬 inviting the time once (the pulse ends by itself)');
+      /<span class="fld tiny tmf invite"><label for="tm-arr"/.test(s2) && /id="tm-dep"/.test(s2) && !/placeholder=/.test(s2) && /id="seg-arr"/.test(s2) && !/id="seg-dep"/.test(s2),
+      'PIA-139 AC1/AC2 the times button opens her own sheet with 🛬 focused: [✈ Track ↗ | 🎫 Booked] and the 🛬 / 🛫 time fields (no ––:–– placeholder), 🛬 inviting the time once (the pulse ends by itself); PIA-159: 🛬 is the edit row (its [AM | PM] segment), 🛫 an empty field until it has the focus');
     t.api.closeSheet();
     // a mistaken 🎫 is one ↩ away: the toast's undo takes it back
     const reBook = seedAs(DWX, (d) => { lock139(d); anjoIn()(d); });
@@ -2849,15 +2849,20 @@ function norm(doc) {
   {
     // AC2 booked times: typed in her sheet, saved as it closes, kept in the note's prefix, on everyone's pickup chips
     const id = seedAs(DWX, (d) => { atPeoria(d); chosenAt(d, '2026-11-06', '2026-11-09', 'PIA'); anjoIn({ note: 'Taking the red-eye', available_from: '2026-11-05', leave_from: 'ORD', booked: true, booked_at: '2026-10-16T00:00:00.000Z' })(d); });
-    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    const t = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }), rec: ['#toast'] });
+    const toastText = (b) => (b.rec['#toast'] ? b.rec['#toast'].innerHTML : '');
     act(t, 'open', { id }); act(t, 'person', { id, code: 'anjo-z5' });
     const p0 = nPosts(t);
     typed(t, 'tm-arr', '1510', 'anjo-z5'); typed(t, 'tm-dep', '18:05', 'anjo-z5');
-    const keptOnRedraw = /id="tm-arr"[^>]*value="1510"/.test(sheet(t));
+    const keptOnRedraw = /id="tm-dep"[^>]*value="18:05"/.test(sheet(t)) && /id="tmb-arr"[^>]*aria-label="Landing time, Peoria \(PIA\), 3:10 PM, change"/.test(sheet(t));
+    // (PIA-159: a Peoria-hosted trip with Midway in reach asks her first entry's airport: the first close is held, "🛬 Airport?"; the
+    // second saves the planned airports, her PIA arrival and ORD leave)
+    t.api.closeSheet(); await tick();
+    const heldAp = !!t.api.S.sheet && t.api.S.sheet.type === 'person' && nPosts(t) === p0 && /🛬 Airport\?/.test(toastText(t));
     t.api.closeSheet(); await until(() => /🛬/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
     const ps = posts(t).slice(-1)[0], r = srv.read(id).responses['anjo-z5'];
-    check(keptOnRedraw && nPosts(t) - p0 === 1 && ps.path === '/idea/respond' && r.note === '🛬15:10 🛫18:05 Taking the red-eye' && r.available_from === '2026-11-05' && r.leave_from === 'ORD' && r.origin === 'LGA' && r.booked === true && r.status === 'in',
-      'PIA-139 AC2 she types 1510 and 18:05 in her sheet (kept through a redraw); closing it sends ONE complete answer: 🛬15:10 🛫18:05 before her note, her own arrival, the ORD leave, LGA and her 🎫 all kept', r);
+    check(keptOnRedraw && heldAp && nPosts(t) - p0 === 1 && ps.path === '/idea/respond' && r.note === '🛬15:10 🛫18:05 Taking the red-eye' && r.available_from === '2026-11-05' && r.leave_from === 'ORD' && r.origin === 'LGA' && r.booked === true && r.status === 'in',
+      'PIA-139 AC2 she types 1510 and 18:05 in her sheet (PIA-159: read back 12-hour, the leg she types in its edit row); PIA-159: on this Peoria-hosted trip the first close asks "🛬 Airport?" (held once, nothing sent); the second sends ONE complete answer: 🛬15:10 🛫18:05 before her note, her own PIA arrival, the ORD leave, LGA and her 🎫 all kept', r);
     // everyone's map: the host's phone and a guest's phone read the times on their pickup chips
     const host = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'momdad-k3' } }) });
     act(host, 'tab', { v: 'map' });
@@ -2865,11 +2870,12 @@ function norm(doc) {
     const guest = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'ashwin-p8' } }) });
     const mg = guest.api.renderSelected('map', 'map').html;
     // (PIA-157: Peoria is a rides trip, so each booked chip with a time carries its ride's 18px badge: no driver yet, a dashed ?)
-    const chipRe = /<button class="pk arr bk" data-act="pickup" data-id="[^"]+" data-ap="PIA" data-v="2026-11-05" data-code="anjo-z5" aria-label="Lands PIA 11\/5 at 15:10, booked, Anjo, no driver yet" data-lbl="Arrive"><span class="pk1"><span class="tn">11\/5<\/span><span class="t tn">15:10<\/span><\/span><span class="pf" data-pic>🗽<\/span><span class="rbd q" data-k="noride">\?<\/span><\/button>/;
-    const depRe = /<button class="pk dep bk" data-act="pickup" data-id="[^"]+" data-ap="ORD" data-v="2026-11-09" data-code="anjo-z5" aria-label="Leaves ORD 11\/9 at 18:05, booked, Anjo, no driver yet" data-lbl="Leave"><span class="pk1"><span class="tn">11\/9<\/span><span class="t tn">18:05<\/span><\/span>/;
+    // (PIA-159: 12-hour, the meridiem real text; the chip's time a unit the Map's fitter may drop, its spoken name keeps it)
+    const chipRe = /<button class="pk arr bk" data-act="pickup" data-id="[^"]+" data-ap="PIA" data-v="2026-11-05" data-code="anjo-z5" aria-label="Lands PIA 11\/5 at 3:10 PM, booked, Anjo, no driver yet" data-lbl="Arrive"><span class="pk1"><span class="tn">11\/5<\/span><span class="t" data-nm="\d+"><span class="tm">3:10 <span class="mer">PM<\/span><\/span><\/span><\/span><span class="pf" data-pic>🗽<\/span><span class="rbd q" data-k="noride">\?<\/span><\/button>/;
+    const depRe = /<button class="pk dep bk" data-act="pickup" data-id="[^"]+" data-ap="ORD" data-v="2026-11-09" data-code="anjo-z5" aria-label="Leaves ORD 11\/9 at 6:05 PM, booked, Anjo, no driver yet" data-lbl="Leave"><span class="pk1"><span class="tn">11\/9<\/span><span class="t" data-nm="\d+"><span class="tm">6:05 <span class="mer">PM<\/span><\/span><\/span><\/span>/;
     const laneOf = (h, ap) => (new RegExp('<div class="lrow" role="row"><span role="rowheader"><button class="lh" data-act="mapairport"[^>]*data-v="' + ap + '"[\\s\\S]*?</div></div>').exec(h) || [''])[0];
     check(chipRe.test(laneOf(mh, 'PIA')) && depRe.test(laneOf(mh, 'ORD')) && chipRe.test(mg) && depRe.test(mg) && /<b class="lc">PIA<\/b>/.test(mh) && /<b class="lc">ORD<\/b>/.test(mh) && mh.indexOf('$') < 0 && !/☀|🌃|✈/.test(laneOf(mh, 'PIA') + laneOf(mh, 'ORD')),
-      'PIA-139 AC2 her times reach everyone\'s Map: the host\'s and a guest\'s pickups read 11/5 15:10 🗽 in PIA\'s row and 11/9 18:05 🗽 in ORD\'s (PIA-154: a lanes table, two lines a chip, solid while booked; no ☀ / 🌃 or booked mark, ✈ since PIA-156, on it; no price anywhere)');
+      'PIA-139 AC2 her times reach everyone\'s Map: the host\'s and a guest\'s pickups read 11/5 3:10 PM 🗽 in PIA\'s row and 11/9 6:05 PM 🗽 in ORD\'s (PIA-154: a lanes table, two lines a chip, solid while booked; no ☀ / 🌃 or booked mark, ✈ since PIA-156, on it; no price anywhere; PIA-159: 12-hour)');
     act(host, 'pickup', { id, v: '2026-11-05', code: 'anjo-z5' });
     const pkPerson = host.api.S.sheet && host.api.S.sheet.type === 'day' && host.api.S.sheet.p.mapmode === true;
     host.api.closeSheet();
@@ -2883,52 +2889,53 @@ function norm(doc) {
     const os = sheet(o);
     typed(o, 'tm-dep', '1930', 'anjo-z5'); o.api.closeSheet();
     await until(() => /19:30/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
-    check(/id="tm-arr"[^>]*value="15:10"/.test(os) && srv.read(id).responses['anjo-z5'].note === '📞 🛬15:10 🛫19:30 Taking the red-eye' && o.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').noteText === 'Taking the red-eye',
-      'PIA-139 AC2 the organizer records her 🛫 19:30 for her: only that time changes; her 🛬 15:10 and her note stay, the 📞 as it was');
+    check(/id="tmb-arr" data-act="tmedit"[^>]*aria-label="Landing time, Peoria \(PIA\), 3:10 PM, change" data-lbl="Landing time"><b class="ap">PIA<\/b> <span class="tm">3:10 <span class="mer">PM<\/span><\/span><\/button>/.test(os) &&
+      srv.read(id).responses['anjo-z5'].note === '📞 🛬15:10 🛫19:30 Taking the red-eye' && o.api.modelOf(id).members.find((x) => x.code === 'anjo-z5').noteText === 'Taking the red-eye',
+      'PIA-139 AC2 the organizer records her 🛫 19:30 for her: only that time changes; her 🛬 15:10 and her note stay, the 📞 as it was (PIA-159: her 🛬 reads [PIA 3:10 PM], a 44px button into its edit row)');
     // a guest looking at her sees the times beside her days (no field); nothing is typed for someone not booked
     await guest.api.refresh(id); await tick();
     act(guest, 'open', { id }); act(guest, 'person', { id, code: 'anjo-z5' });
     const gs = sheet(guest); guest.api.closeSheet(); act(guest, 'person', { id, code: 'ashwin-p8' });
     const ms = sheet(guest);
-    check(!/id="tm-/.test(gs) && /<span class="lt" role="img" aria-label="Lands at 15:10" data-lbl="Lands at"><span class="tn">15:10<\/span><\/span>/.test(gs) &&
-      /<span class="lt" role="img" aria-label="Leaves at 19:30" data-lbl="Leaves at"><span class="tn">19:30<\/span><\/span>/.test(gs) && !/☀|🌃/.test(gs) && !/id="tm-/.test(ms),
-      'PIA-139 AC2 a guest looking at her reads 15:10 and 19:30 beside her days (PIA-154: plain HH:MM; ☀ / 🌃 belong to the time field), with no field; my own sheet has no time fields until I have booked');
+    check(!/id="tm-/.test(gs) && /<span class="lt" role="img" aria-label="Landing time, Peoria \(PIA\), 3:10 PM" data-lbl="Lands at"><b class="ap">PIA<\/b> <span class="tm">3:10 <span class="mer">PM<\/span><\/span><\/span>/.test(gs) &&
+      /<span class="lt" role="img" aria-label="Leaving time, O&#39;Hare \(ORD\), 7:30 PM" data-lbl="Leaves at"><b class="ap">ORD<\/b> <span class="tm">7:30 <span class="mer">PM<\/span><\/span><\/span>/.test(gs) && !/☀|🌃|<\/span> Arrive<|<\/span> Leave</.test(gs) && !/id="tm-/.test(ms),
+      'PIA-139 AC2 a guest looking at her reads [PIA 3:10 PM] and [ORD 7:30 PM] beside her days (PIA-159: 12-hour with the leg\'s airport, no "Arrive" / "Leave" on a booked row), with no field; my own sheet has no time fields until I have booked', gs);
     // a time that is not HH:MM is not sent; neither is one that would cut her note
-    const t2 = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
+    const t2 = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }), rec: ['#toast'] });
     act(t2, 'open', { id }); act(t2, 'person', { id, code: 'anjo-z5' });
     const q0 = nPosts(t2);
     typed(t2, 'tm-arr', '25:99', 'anjo-z5'); t2.api.closeSheet(); await tick();
     const held = t2.api.S.sheet && t2.api.S.sheet.type === 'person', heldHtml = sheet(t2);
     t2.api.closeSheet(); await tick();
-    check(nPosts(t2) === q0 && srv.read(id).responses['anjo-z5'].note === '📞 🛬15:10 🛫19:30 Taking the red-eye' && held && /<span class="fld tiny bad"><label for="tm-arr"/.test(heldHtml) && !t2.api.S.sheet,
+    check(nPosts(t2) === q0 && srv.read(id).responses['anjo-z5'].note === '📞 🛬15:10 🛫19:30 Taking the red-eye' && held && /<span class="fld tiny tmf bad"><label for="tm-arr"/.test(heldHtml) && !t2.api.S.sheet,
       'PIA-139 AC2 a typed 25:99 is not a time: the first close keeps the sheet open with the field marked ⚠ (to fix in place); the second lets it go; nothing is sent');
-    // a 12-hour reader's "440" (4:40 PM) never silently becomes 04:40: it waits for ☀ / 🌃, and the pick is what is sent
+    // PIA-159: a 12-hour reader's "440" over her saved 3:10 PM takes the PM pressed on the [AM | PM] segment (a carried half: it
+    // pulses), and that is what is sent; AM pressed instead makes it 4:40 AM
     act(t2, 'person', { id, code: 'anjo-z5' });
     typed(t2, 'tm-arr', '440', 'anjo-z5');
-    const typing = sheet(t2);
-    t2.api.timesLeft({ id: 'tm-arr' });
-    const halves = sheet(t2), q1 = nPosts(t2);
-    t2.api.closeSheet(); await tick();
-    const stillOpen = t2.api.S.sheet && t2.api.S.sheet.type === 'person' && nPosts(t2) === q1;
-    const hOrder = (/role="radiogroup" aria-label="Lands, which half of the day">([\s\S]*?)<\/div>/.exec(halves) || [])[1] || '';
-    act(t2, 'tmhalf', { end: 'arr', v: 'pm' });
-    const picked = sheet(t2);
+    const typing = sheet(t2), q1 = nPosts(t2);
+    const segPm = /id="seg-arr" role="radiogroup" aria-label="Lands, AM or PM"><button class="segb" role="radio" aria-checked="false"[^>]*data-v="am"[^>]*>AM<\/button><button class="segb" role="radio" aria-checked="true"[^>]*data-v="pm"[^>]*>PM<\/button>/.test(typing);
+    act(t2, 'tmseg', { code: 'anjo-z5', end: 'arr', v: 'am' }); const am = sheet(t2), amOn = /data-v="am"[^>]*>AM/.test(am) && /aria-checked="true"[^>]*data-v="am"/.test(am);
+    act(t2, 'tmseg', { code: 'anjo-z5', end: 'arr', v: 'pm' });
     t2.api.closeSheet(); await until(() => /🛬16:40/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
-    check(/id="tm-half" data-sig="" hidden/.test(typing) && /data-act="tmhalf" data-end="arr" data-v="pm" aria-label="Daytime 16:40"><span class="dp" data-k="tday" aria-hidden="true">☀<\/span><span class="tn">16:40<\/span>/.test(hOrder) &&
-      /data-act="tmhalf" data-end="arr" data-v="am" aria-label="Night 04:40"><span class="dp" data-k="tnight" aria-hidden="true">🌃<\/span><span class="tn">04:40<\/span>/.test(hOrder) && hOrder.indexOf('16:40') < hOrder.indexOf('04:40') &&
-      stillOpen && /id="tm-arr"[^>]*value="16:40"/.test(picked) && /id="tm-half" data-sig="" hidden/.test(picked) && nPosts(t2) === q1 + 1 &&
+    check(segPm && amOn && /id="tm-arr"[^>]*value="440"/.test(typing) && !/☀|🌃|tmhalf/.test(typing) && nPosts(t2) === q1 + 1 && !t2.api.S.sheet &&
       srv.read(id).responses['anjo-z5'].note === '🛬16:40 🛫19:30 Taking the red-eye',
-      'PIA-139 AC2 "440" asks nothing while typed; left in the field it asks [☀ 16:40 | 🌃 04:40] (no words; daytime first) and holds the close; ☀ puts 16:40 in the field, and that is what is sent (her own write clears 📞)', srv.read(id).responses['anjo-z5'].note);
-    // "6:05 pm" typed on a keyboard with letters decides its half at once; "905" closed twice without a pick is not sent
+      'PIA-159 "440" over her saved 3:10 PM: the [AM | PM] segment beside the field shows PM pressed from the first keystroke (the carried half), AM pressed makes it 4:40 AM, PM again; the close sends 16:40 (her own write clears 📞); no ☀ / 🌃 pick any more', srv.read(id).responses['anjo-z5'].note);
+    // "6:05 pm" typed on a keyboard with letters presses its own half (the field keeps 12-hour digits); an hour typed with no half
+    // pressed and none to carry (no saved time) waits: held once ("🛬 AM or PM?"), the next close lets it go unsent
     act(t2, 'person', { id, code: 'anjo-z5' });
     const fake = { id: 'tm-dep', value: '6:05 pm', dataset: { code: 'anjo-z5' }, closest: () => null };
     t2.api.onTyped(fake);
     const q2 = nPosts(t2); t2.api.closeSheet(); await until(() => /🛫18:05/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    const noArr = srv.read(id); noArr.responses['anjo-z5'].note = '🛫18:05 Taking the red-eye'; srv.write(noArr); await t2.api.refresh(id); await tick();
     act(t2, 'person', { id, code: 'anjo-z5' });
-    typed(t2, 'tm-arr', '905', 'anjo-z5'); const q3 = nPosts(t2);
-    t2.api.closeSheet(); t2.api.closeSheet(); await tick();
-    check(fake.value === '18:05' && q3 === q2 + 1 && srv.read(id).responses['anjo-z5'].note === '🛬16:40 🛫18:05 Taking the red-eye' && nPosts(t2) === q3 && !t2.api.S.sheet,
-      'PIA-139 AC2 "6:05 pm" becomes 18:05 in the field and is sent as 🛫18:05; "905" with no ☀ / 🌃 picked is never sent as 09:05 (two closes: not sent)', srv.read(id).responses['anjo-z5'].note);
+    typed(t2, 'tm-arr', '905', 'anjo-z5'); const q3 = nPosts(t2), waits = sheet(t2);
+    t2.api.closeSheet(); await tick();
+    const heldHalf = !!t2.api.S.sheet && /🛬 AM or PM\?/.test(t2.rec['#toast'].innerHTML);
+    t2.api.closeSheet(); await tick();
+    check(fake.value === '6:05' && q3 === q2 + 1 && /aria-checked="false"[^>]*data-v="am"[\s\S]*?aria-checked="false"[^>]*data-v="pm"/.test(waits) && heldHalf &&
+      srv.read(id).responses['anjo-z5'].note === '🛫18:05 Taking the red-eye' && nPosts(t2) === q3 && !t2.api.S.sheet,
+      'PIA-159 "6:05 pm" presses PM and the field keeps "6:05", sent as 🛫18:05; "905" on a leg with no time and no half pressed waits (neither half pressed): the first close is held, the second lets it go unsent (never 09:05)', srv.read(id).responses['anjo-z5'].note);
   }
   {
     // AC3 the organizer marks someone booked from the people board; someone who has not answered is recorded in first (📞)
@@ -3116,8 +3123,8 @@ function norm(doc) {
     o.ls.setItem('pialax_fares_v2', JSON.stringify(fares));
     const lanes = o.api.lanesHTML(o.api.modelOf(id));
     const chip = o.api.pickupChip(o.api.modelOf(id), { kind: 'arr', date: '2026-11-05', time: '<img src=x onerror=alert(1)>', pred: true, faces: ['🗽'], codes: ['anjo-z5'], maybe: false, booked: false }, 'PIA');
-    check(!/<img|<b>|onerror/.test(lanes) && !/<img|onerror/.test(chip) && /aria-label="Lands PIA 11\/5, not booked, Anjo"/.test(lanes) && /<span class="t tn pred"><span data-k="predicted">≈<\/span>15:20<\/span>/.test(lanes) && !/class="t tn/.test(chip),
-      'PIA-139 the organizer\'s cached offers: a landing time that is markup or junk draws no time and no markup (her chip reads "Lands PIA 11/5"); a "YYYY-MM-DD HH:MM" stamp reads as ≈15:20; pickupChip itself drops a time that is not HH:MM', { lanes: lanes.slice(0, 600) });
+    check(!/<img|<b>|onerror/.test(lanes) && !/<img|onerror/.test(chip) && /aria-label="Lands PIA 11\/5, not booked, Anjo"/.test(lanes) && /<span class="t pred" data-nm="\d+"><span data-k="predicted">≈<\/span><span class="tm">3:20 <span class="mer">PM<\/span><\/span><\/span>/.test(lanes) && !/class="t[ "]/.test(chip),
+      'PIA-139 the organizer\'s cached offers: a landing time that is markup or junk draws no time and no markup (her chip reads "Lands PIA 11/5"); a "YYYY-MM-DD HH:MM" stamp reads as ≈3:20 PM (PIA-159: 12-hour); pickupChip itself drops a time that is not HH:MM', { lanes: lanes.slice(0, 600) });
   }
   {
     // PIA-139 fix pass: taking a 🎫 back (a sticky confirm) clears its times; times typed when the page is hidden go then;
@@ -3154,7 +3161,8 @@ function norm(doc) {
       // the first refresh joins the read the open sent before the change (awaited, it is done); the second reads the record as it is
       if (knows) { await o.api.refresh(idx); await o.api.refresh(idx); }
       const an = o.api.modelOf(idx).members.find((x) => x.code === 'anjo-z5'), sawBooked = !!an && !!an.booked;
-      const q0 = nPosts(o), g0 = o.fetches.length; o.api.closeSheet();
+      // (PIA-159: on this Peoria-hosted trip a first time entry's close is held once for its airport, "🛬 Airport?": the second goes)
+      const q0 = nPosts(o), g0 = o.fetches.length; o.api.closeSheet(); if (o.api.S.sheet) o.api.closeSheet();
       await until(() => /✈⚠/.test(o.rec['#toast'].innerHTML) && !(o.api.PEND[idx] > 0)); await tick();
       return { sawBooked, toast: /✈⚠/.test(o.rec['#toast'].innerHTML), posts: posts(o).slice(q0).map((q) => q.path), reads: o.fetches.slice(g0).filter((f) => f.method === 'GET').length,
         sheet: o.api.S.sheet ? o.api.S.sheet.type : null, note: srv.read(idx).responses['anjo-z5'].note || '' };
@@ -3390,10 +3398,10 @@ function norm(doc) {
     d.ls.setItem('pialax_serpapi_quota', JSON.stringify({ period: '2026-10', used: 50, budget: 50, exceeded: false })); const lk3 = d.api.lockNow();
     d.ls.setItem('pialax_serpapi_quota', JSON.stringify({ period: '2026-10', used: 12, budget: 1000, exceeded: false })); d.api.S.acct = { plan_searches_left: 10 }; const lk4 = d.api.lockNow(); d.api.S.acct = null;
     d.ls.setItem('pialax_serpapi_quota', JSON.stringify({ period: '2026-09', used: 990, budget: 1000, exceeded: true })); const lk5 = d.api.lockNow();
-    check(/<button class="btn pri wide dis" data-act="search"[^>]*aria-disabled="true" data-why="1" aria-label="Searches resume at 17:00" data-lbl="Daily limit" data-k="cap">⛔ 17:00<\/button>/.test(lk1) &&
-      /<button class="btn sq dis" data-act="search"[^>]*aria-label="Searches resume at 17:00" data-lbl="Daily limit 17:00" data-k="cap">⛔<\/button>/.test(lkp) && searches(d).length === dsz && dayOver === '' &&
+    check(/<button class="btn pri wide dis" data-act="search"[^>]*aria-disabled="true" data-why="1" aria-label="Searches resume at 5:00 PM" data-lbl="Daily limit" data-k="cap">⛔ 5:00 PM<\/button>/.test(lk1) &&
+      /<button class="btn sq dis" data-act="search"[^>]*aria-label="Searches resume at 5:00 PM" data-lbl="Daily limit 5:00 PM" data-k="cap">⛔<\/button>/.test(lkp) && searches(d).length === dsz && dayOver === '' &&
       /aria-label="SerpAPI refused the last search; checked again in a few minutes, at the latest searches resume on 11\/1" data-lbl="SerpAPI refused" data-k="cap">⛔ 11\/1<\/button>/.test(lk2) && lk3 === 'month' && lk4 === 'month' && lk5 === '' && d.api.readQuota().used === 0,
-      'PIA-140 AC3 the Worker\'s day cap reads ⛔ 17:00 on P-total (local time of 00:00 UTC), ⛔ in a person\'s square ±1 button with the time in its label, and spends nothing; it lifts at 00:00 UTC; the month lock (upstream 429, the organizer\'s month cap, the plan\'s last 10) reads ⛔ 11/1 and says why (SerpAPI refused); a new month starts at 0, unlocked (v1\'s rule)');
+      'PIA-140 AC3 the Worker\'s day cap reads ⛔ 5:00 PM on P-total (local time of 00:00 UTC, 12-hour since PIA-159), ⛔ in a person\'s square ±1 button with the time in its label, and spends nothing; it lifts at 00:00 UTC; the month lock (upstream 429, the organizer\'s month cap, the plan\'s last 10) reads ⛔ 11/1 and says why (SerpAPI refused); a new month starts at 0, unlocked (v1\'s rule)');
 
     // AC4 a search that found no fares: $∅, not offered again within 24h, offered a day later
     const DN = seedAs(DWX, (dd) => { dd.idea.members = dd.idea.members.filter((x) => x.code === 'ashwin-p8'); dd.responses = { 'ashwin-p8': dd.responses['ashwin-p8'] }; });
@@ -3500,8 +3508,8 @@ function norm(doc) {
       const t = await boot140o({ ls: orgLs(DC, { pialax_daily_cap_v1: '2026-10-17' }) });
       act(t, 'open', { id: DC }); const v1 = screen(t);
       t.ls.removeItem('pialax_daily_cap_v1'); t.ss.setItem('pialax_spent_v2', '8'); t.api.render(true); const v2 = screen(t);
-      check(/<button class="pricerow"[^>]*><span class="chipq w lk" data-k="cap">⛔ 17:00<\/span><\/button>/.test(v1) && /<button class="pricerow"[^>]*><span class="chipq w lk" data-k="cap">⛔<\/span><\/button>/.test(v2) && !/🔍<\/span><span class="tn">0|Price <span class="tn">0/.test(v1 + v2),
-        'PIA-140 the trip page\'s price row shows the lock instead of a cost no tap will spend: ⛔ 17:00 under the Worker\'s day cap, ⛔ once the visit\'s 8 are spent; never a 🔍0');
+      check(/<button class="pricerow"[^>]*><span class="chipq w lk" data-k="cap">⛔ 5:00 PM<\/span><\/button>/.test(v1) && /<button class="pricerow"[^>]*><span class="chipq w lk" data-k="cap">⛔<\/span><\/button>/.test(v2) && !/🔍<\/span><span class="tn">0|Price <span class="tn">0/.test(v1 + v2),
+        'PIA-140 the trip page\'s price row shows the lock instead of a cost no tap will spend: ⛔ 5:00 PM under the Worker\'s day cap, ⛔ once the visit\'s 8 are spent; never a 🔍0');
     }
 
     // the visit's 8: ⛔ ↻ says how it lifts, and a confirming tap starts a new visit (it spends nothing itself)
@@ -3773,9 +3781,9 @@ function norm(doc) {
         u.ls.removeItem('pialax_daily_cap_v1'); u.ss.setItem('pialax_spent_v2', '8'); u.api.render(true);
         const vc = sheet(u); await tap(u, vc, 'search', { v: 'week' }); await tick(10);
         u.ss.setItem('pialax_spent_v2', '7'); u.api.render(true); const one = sheet(u);
-        check(/data-act="search"[^>]*data-v="week"[^>]*aria-label="Searches resume at 17:00" data-lbl="Daily limit" data-k="cap">⛔ 17:00<\/button>/.test(dc) && /data-act="newvisit"[^>]*>⛔ ↻<\/button>/.test(vc) &&
+        check(/data-act="search"[^>]*data-v="week"[^>]*aria-label="Searches resume at 5:00 PM" data-lbl="Daily limit" data-k="cap">⛔ 5:00 PM<\/button>/.test(dc) && /data-act="newvisit"[^>]*>⛔ ↻<\/button>/.test(vc) &&
           /data-v="week" data-day="2026-11-22" data-n="1" aria-label="Search 1 of 2 fares, 1 search"/.test(one) && searches(u).length === 0,
-          'PIA-141 AC4 the PIA-140 caps apply unchanged: past the Worker\'s day cap the week\'s button reads ⛔ 17:00, at the visit\'s 8 ⛔ ↻, with 1 left 🔍1/2; a tap on a lock sends nothing');
+          'PIA-141 AC4 the PIA-140 caps apply unchanged: past the Worker\'s day cap the week\'s button reads ⛔ 5:00 PM, at the visit\'s 8 ⛔ ↻, with 1 left 🔍1/2; a tap on a lock sends nothing');
       }
       // ⟦◀ ▶⟧ on a trip with no 📌: ▶⟧ saves a window a week wider (one edit), the new weeks drawn at once with the first one selected
       {
@@ -4198,7 +4206,8 @@ function norm(doc) {
   // ═══ PIA-151: my flight ═══
   section('PIA-151 my flight: each traveler\'s two ends in one place (day on a one-tap calendar, airport, time), one write a save, the board\'s final check, different days per person');
   const el0 = (ds, dis) => ({ dataset: ds, getAttribute: (k) => (dis && k === 'aria-disabled' ? 'true' : null) });   // a tapped control (aria-disabled when dis)
-  const legOf = (h, end) => (h.match(/<div class="leg"[\s\S]*?(?=<div class="leg"|<\/div><(?:div|button|a|p|span class="sdots")|$)/g) || [])[end] || '';
+  // (PIA-159: a booked leg's row is "leg lbk", its edit row "leg lbk tedit")
+  const legOf = (h, end) => (h.match(/<div class="leg(?: [^"]*)?"[\s\S]*?(?=<div class="leg[ "]|<\/div><(?:div|button|a|p|span class="sdots")|$)/g) || [])[end] || '';
   const toastTxt = (t) => (t.rec['#toast'] ? t.rec['#toast'].innerHTML : '');
   {
     // AC1 / AC2 / AC3 / AC5 Anjo (in, her own 11/5–11/8) on her phone: her bar opens her flight section; each end's day opens a month
@@ -4251,8 +4260,9 @@ function norm(doc) {
     act(t, 'open', { id }); act(t, 'mytimes', { id });
     const s0 = sheet(t), legA = legOf(s0, 0), legD = legOf(s0, 1);
     check(t.api.S.sheet.focus === 'tm-arr' && /id="tm-arr"/.test(legA) && /data-end="0"/.test(legA) && /id="tm-dep"/.test(legD) && /data-end="1"/.test(legD) && !/data-act="legshift"/.test(s0) &&
-      /class="ld bk" data-act="dates"[^>]*aria-label="Arrive date 11\/6, booked day"/.test(s0) && /id="tm-half" data-sig="" hidden/.test(s0),
-      'PIA-151 AC1 booked: her booked bar opens her flight section at 🛬; each row holds its day (booked: never following the plan), its time field (🛬 in the arrive row, 🛫 in the leave row) in place of −1 / +1');
+      /class="ld bk" data-act="dates"[^>]*aria-label="Arrive date 11\/6, booked day"/.test(s0) && !/tm-half|tmhalf/.test(s0) &&
+      /<div class="leg lbk tedit"[^>]*>[\s\S]*?id="tm-arr"[^>]*aria-label="Lands at"[\s\S]*?<span class="ampm" id="seg-arr" role="radiogroup" aria-label="Lands, AM or PM"><button class="segb" role="radio" aria-checked="false"[^>]*data-v="am" aria-label="AM">AM<\/button><button class="segb" role="radio" aria-checked="false"[^>]*data-v="pm" aria-label="PM">PM<\/button><\/span><\/div>/.test(s0),
+      'PIA-151 AC1 booked: her booked bar opens her flight section at 🛬; each row holds its day (booked: never following the plan), its time field (🛬 in the arrive row, 🛫 in the leave row) in place of −1 / +1; PIA-159: the 🛬 row being edited carries its fixed [AM | PM] segment (none pressed yet), no ☀ / 🌃 halves');
     typed(t, 'tm-arr', '0905', 'anjo-z5');
     act(t, 'dates', ctl(sheet(t), 'dates', { end: '0' }));
     const p0 = nPosts(t);
@@ -4325,14 +4335,14 @@ function norm(doc) {
     const rowOf = (c) => (new RegExp('<div class="pb-row[^"]*"[^>]*><span class="who"><button class="facebtn" data-act="person" data-id="[^"]+" data-code="' + c + '"[\\s\\S]*?(?=<div class="pb-row|$)').exec(h) || [''])[0];
     const ash = rowOf('ashwin-p8'), anj = rowOf('anjo-z5'), md = rowOf('momdad-k3');
     const bc = {
-      ashBar: /class="track mybar" data-act="flight"[^>]*aria-label="My flight 11\/6–11\/9, booked, lands at 09:05, leaves at 18:30"/.test(ash),
-      ashLand: /<span class="btm a" style="left:[\d.]+%" role="img" aria-label="Lands at 09:05" data-lbl="Lands at"><span class="tn">09:05<\/span><\/span>/.test(ash),
-      ashLeave: /<span class="btm d" style="right:[\d.]+%" role="img" aria-label="Leaves at 18:30"[^>]*><span class="tn">18:30<\/span>/.test(ash),
-      anjBar: /class="track fbar" data-act="flight"[^>]*data-code="anjo-z5" aria-label="Anjo, flight 11\/6–11\/9, booked, no landing time"/.test(anj),
+      ashBar: /class="track mybar lab" data-act="flight"[^>]*aria-label="My flight 11\/6–11\/9, booked, lands Raleigh \(RDU\) 9:05 AM, leaves Raleigh \(RDU\) 6:30 PM"/.test(ash),
+      ashLand: /<span class="btm a" data-nm="\d+" style="left:[\d.]+%" role="img" aria-label="Lands at 9:05 AM" data-lbl="Lands at"><span class="tm">9:05 <span class="mer">AM<\/span><\/span><\/span>/.test(ash),
+      ashLeave: /<span class="btm d" data-nm="\d+" style="right:[\d.]+%" role="img" aria-label="Leaves at 6:30 PM"[^>]*><span class="tm">6:30 <span class="mer">PM<\/span><\/span>/.test(ash),
+      anjBar: /class="track fbar lab" data-act="flight"[^>]*data-code="anjo-z5" aria-label="Anjo, flight 11\/6–11\/9, booked, no landing time"/.test(anj),
       anjMiss: /<span class="btm a miss"[^>]*aria-label="No landing time" data-lbl="No landing time" data-k="notime">🛬\?<\/span>/.test(anj) && !/btm d/.test(anj) && !/––:––/.test(anj),
       md: /class="track fbar" data-act="flight"[^>]*data-code="momdad-k3"/.test(md) && !/btm/.test(md), same: h.indexOf(board) >= 0, words: shown(board.replace(/&amp;/g, '&')) };
-    check(bc.ashBar && bc.ashLand && bc.ashLeave && bc.anjBar && bc.anjMiss && bc.md && bc.same && eq(bc.words, ['Mom', 'Dad', 'Ashwin', 'Anjo']),   // (PIA-153: "Mom & Dad", as every sheet spells it; PIA-154: my own name too)
-      'PIA-151 AC7 the organizer\'s board: his bar reads 09:05 over its start and 18:30 under its end (PIA-154: plain HH:MM); Anjo (booked, no time yet) a muted 🛬? (never ––:––); Mom & Dad (not booked) no time; every traveler\'s bar is a button to their flight; no new words but the names', { bc, ash: ash.slice(-900), anj: anj.slice(-700) });
+    check(bc.ashBar && bc.ashLand && bc.ashLeave && bc.anjBar && bc.anjMiss && bc.md && bc.same && eq(bc.words, ['Mom', 'Dad', 'Ashwin', 'AM', 'PM', 'Anjo']),   // (PIA-153: "Mom & Dad", as every sheet spells it; PIA-154: my own name too)
+      'PIA-151 AC7 the organizer\'s board: his bar reads 9:05 AM over its start and 6:30 PM under its end (PIA-159: 12-hour, its AM / PM counted as words; the full place in its spoken name); Anjo (booked, no time yet) a muted 🛬? (never ––:––); Mom & Dad (not booked) no time; every traveler\'s bar is a button to their flight; no new words but the names and AM / PM', { bc, ash: ash.slice(-900), anj: anj.slice(-700) });
     act(o, 'flight', ctl(h, 'flight', { code: 'anjo-z5' }));
     const os = sheet(o);
     check(o.api.S.sheet && o.api.S.sheet.type === 'person' && o.api.S.sheet.p.code === 'anjo-z5' && o.api.S.sheet.focus === 'tm-arr' && /id="tm-arr" data-code="anjo-z5"/.test(os) && /data-act="answer"[^>]*data-proxy="1"/.test(os),
@@ -4342,8 +4352,8 @@ function norm(doc) {
     const g = await boot136({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }) });
     act(g, 'open', { id });
     const gh = screen(g);
-    check(/class="track mybar" data-act="flight"[^>]*data-code="anjo-z5"/.test(gh) && !/class="track fbar"/.test(gh) && /<span class="btm a"[^>]*aria-label="Lands at 09:05"/.test(gh),
-      'PIA-151 AC7 on Anjo\'s phone only her own bar opens a flight; Ashwin\'s still reads his 09:05');
+    check(/class="track mybar(?: lab)?" data-act="flight"[^>]*data-code="anjo-z5"/.test(gh) && !/class="track fbar[ "]/.test(gh) && /<span class="btm a"[^>]*aria-label="Lands at 9:05 AM"/.test(gh),
+      'PIA-151 AC7 on Anjo\'s phone only her own bar opens a flight; Ashwin\'s still reads his 9:05 AM');
     const pd = seedAs(DWX, (d) => { atPeoria(d); anjoIn()(d); }), ph = await boot136({ ls: lsOf([pd], { pialax_idea_me_v1: { [pd]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([pd]) }) });
     act(ph, 'open', { id: pd });
     const hh = screen(ph);
@@ -4412,9 +4422,9 @@ function norm(doc) {
     const x2 = srv.read(id).responses['anjo-z5'], h2 = screen(t);
     check(t.api.modelOf(id).decision === 'proposed' && !/split prim/.test(h0) && !/data-act="mybook"|google\.com\/travel/.test(h0) && !!dec && eq(dec.legs.map((L) => L.date), ['2026-11-05', '2026-11-09']) &&
       /<div class="split"><a class="btn pri"[^>]*aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb tkoff" data-act="mybook"/.test(s0) && pB === 1 && x1.booked === true &&
-      /<span class="fld tiny invite"><label for="tm-arr"/.test(s1) && legOf(s1, 0).indexOf('id="tm-arr"') >= 0 && x2.note === '🛬21:40' && x2.available_from === '2026-11-05' && x2.booked &&
-      /class="track mybar" data-act="flight"[^>]*aria-label="My flight 11\/5–11\/9, outside plan, booked, lands at 21:40"/.test(h2),
-      'PIA-151 AC5 on a trip still Asking: her flight section offers [✈ Book ↗ | 🎫 I booked] for exactly her 11/5–11/9 (PIA-154: the trip view has no primary and no ✈↗ before 🔒); 🎫 records her booked in one write, her 🛬 field in its row invites the time, and 21:40 goes as the sheet closes (her own 11/5 and 🎫 kept); then the trip view shows her booked bar with 21:40', { pB, x2 });
+      /<span class="fld tiny tmf invite"><label for="tm-arr"/.test(s1) && legOf(s1, 0).indexOf('id="tm-arr"') >= 0 && x2.note === '🛬21:40' && x2.available_from === '2026-11-05' && x2.booked &&
+      /class="track mybar lab" data-act="flight"[^>]*aria-label="My flight 11\/5–11\/9, outside plan, booked, lands Raleigh \(RDU\) 9:40 PM"/.test(h2),
+      'PIA-151 AC5 on a trip still Asking: her flight section offers [✈ Book ↗ | 🎫 I booked] for exactly her 11/5–11/9 (PIA-154: the trip view has no primary and no ✈↗ before 🔒); 🎫 records her booked in one write, her 🛬 field in its row invites the time, and 21:40 goes as the sheet closes (her own 11/5 and 🎫 kept); then the trip view shows her booked bar with 9:40 PM (PIA-159: 12-hour)', { pB, x2 });
     // the organizer, before anyone has booked: no 🎫 on the board, one in Anjo's flight section (she has not answered: a confirming tap)
     const id2 = seedAs(DWX), o = await boot136({ ls: org138(id2) });
     act(o, 'open', { id: id2 });
@@ -4457,9 +4467,9 @@ function norm(doc) {
     await tap(t, sheet(t), 'dday', { v: '2026-11-05' }); await tick();
     await tap(t, sheet(t), 'dsave'); await settleWrites(t, id);
     const x = srv.read(id).responses['anjo-z5'];
-    check(/<b class="lc">ORD<\/b>/.test(legOf(s0, 0)) && !/data-act="legair"/.test(s0) && /id="tm-arr"[^>]*value="09:05"/.test(s0) && x.available_from === '2026-11-05' && x.arrive_at === 'ORD' && x.leave_from === 'ORD' &&
+    check(/<button class="tmb" id="tmb-arr"[^>]*aria-label="Landing time, O&#39;Hare \(ORD\), 9:05 AM, change"[^>]*><b class="ap">ORD<\/b> <span class="tm">9:05 <span class="mer">AM<\/span><\/span><\/button>/.test(legOf(s0, 0)) && !/data-act="legair"/.test(s0) && x.available_from === '2026-11-05' && x.arrive_at === 'ORD' && x.leave_from === 'ORD' &&
       x.note === '🛬09:05 🛫18:30 Red-eye' && x.booked === true && x.origin === 'LGA' && x.status === 'in',
-      'PIA-151 AC4 on a hub trip (PIA | ORD) her booked 🛬 moved to 11/5 on its calendar (after its ⚠ 🎫 confirm) keeps both her ORD ends, 09:05 / 18:30, her note, LGA and her 🎫 in the record', x);
+      'PIA-151 AC4 on a hub trip (PIA | ORD) her booked 🛬 (read "ORD 9:05 AM", a button into its edit row: PIA-159) moved to 11/5 on its calendar (after its ⚠ 🎫 confirm) keeps both her ORD ends, 09:05 / 18:30, her note, LGA and her 🎫 in the record', x);
     t.api.closeSheet();
   }
   {
@@ -4490,10 +4500,11 @@ function norm(doc) {
     act(t, 'dates', ctl(sheet(t), 'dates', { end: '1' }));
     const n0 = nPosts(t);
     t.api.closeSheet(); await tick();
-    const held = t.api.S.sheet && t.api.S.sheet.type === 'person' && /🛬☀🌃\?/.test(toastTxt(t)) && nPosts(t) === n0 && /id="tm-half" data-sig="arr\|905"/.test(sheet(t));
-    await tap(t, sheet(t), 'tmhalf', { end: 'arr', v: 'pm' }); t.api.closeSheet(); await until(() => /🛬21:05/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
+    const held = t.api.S.sheet && t.api.S.sheet.type === 'person' && /🛬 AM or PM\?/.test(toastTxt(t)) && nPosts(t) === n0 &&
+      /<span class="ampm" id="seg-arr"[^>]*><button class="segb" role="radio" aria-checked="false"[^>]*data-v="am"[^>]*>AM<\/button><button class="segb" role="radio" aria-checked="false"/.test(sheet(t));
+    await tap(t, sheet(t), 'tmseg', { end: 'arr', v: 'pm' }); t.api.closeSheet(); await until(() => /🛬21:05/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
     check(f0 === 'tm-arr' && f1 === null && held && !t.api.S.sheet && srv.read(id).responses['anjo-z5'].note === '🛬21:05',
-      'PIA-151 opened at her 🛬 time, a plain ‹ back from her day\'s calendar focuses nothing again (no keyboard on every back); "905" typed, then a close from the calendar on top goes back to her flight section and holds once (🛬☀🌃?, nothing sent); 🌃 21:05 picked, the close sends it', { f0, f1, held });
+      'PIA-151 opened at her 🛬 time, a plain ‹ back from her day\'s calendar focuses nothing again (no keyboard on every back); "905" typed, then a close from the calendar on top goes back to her flight section and holds once (PIA-159: "🛬 AM or PM?", neither half pressed, nothing sent); PM tapped, the close sends 21:05', { f0, f1, held, toast: toastTxt(t) });
   }
   {
     // AC7 the board's times stay on their track: a booked arrival on the last day of the range is anchored at its bar's end, a booked
@@ -4503,10 +4514,10 @@ function norm(doc) {
     act(o, 'open', { id });
     const h = screen(o), r = o.api.modelOf(id).range;
     const rowOf = (c) => (new RegExp('<div class="pb-row[^"]*"[^>]*><span class="who"><button class="facebtn" data-act="person" data-id="[^"]+" data-code="' + c + '"[\\s\\S]*?(?=<div class="pb-row|$)').exec(h) || [''])[0];
-    const lab = (c, k) => (new RegExp('<span class="btm ' + k + '[^"]*" style="([^"]+)"').exec(rowOf(c)) || [])[1] || '';
+    const lab = (c, k) => (new RegExp('<span class="btm ' + k + '[^"]*"(?: data-nm="\\d+")? style="([^"]+)"').exec(rowOf(c)) || [])[1] || '';
     const aA = lab('anjo-z5', 'a'), aD = lab('anjo-z5', 'd'), sA = lab('ashwin-p8', 'a'), sD = lab('ashwin-p8', 'd');
     check(r && r.e >= '2026-11-09' && /^right:/.test(aA) && /^right:/.test(aD) && /^left:/.test(sA) && /^left:/.test(sD),
-      'PIA-151 AC7 the board\'s time labels never run past the track: Anjo landing on its last day (11/9) reads her 09:05 right-aligned to her bar\'s end; Ashwin leaving on its first day reads his 19:40 left-aligned to his bar\'s start', { aA, aD, sA, sD, r });
+      'PIA-151 AC7 the board\'s time labels never run past the track: Anjo landing on its last day (11/9) reads her 9:05 AM right-aligned to her bar\'s end; Ashwin leaving on its first day reads his 7:40 PM left-aligned to his bar\'s start', { aA, aD, sA, sD, r });
   }
 
   // ═══ PIA-152: a smooth first look ═══
@@ -4710,11 +4721,15 @@ function norm(doc) {
     const pa = sheet(ta), hasBook = /aria-label="Google Flights" data-k="gf">✈↗<\/a>/.test(pa) && /data-act="mybook"/.test(pa), q0 = posts(ta).length;   // (PIA-154: ✈↗ until the v2 plan is 🔒, then ✈ Book ↗)
     const rb = await ta.api.ACTS.mybook({ dataset: ctl(pa, 'mybook') }), pb = sheet(ta), r1 = srv.read(TA).responses.LGA;
     typed(ta, 'tm-arr', '09:05', 'LGA'); typed(ta, 'tm-dep', '18:30', 'LGA');
+    // (PIA-159, owner #5: a rides trip whose airports reach Midway asks for each first time's airport: the first close holds once,
+    // "🛬 Airport?", nothing sent; the next close saves them at the planned airport)
+    ta.api.closeSheet(); await tick();
+    const apHeld = !!ta.api.S.sheet && ta.api.S.sheet.type === 'person' && /🛬 Airport\?/.test(ta.rec['#toast'].innerHTML) && posts(ta).length === q0 + 1;
     ta.api.closeSheet(); await until(() => !(ta.api.PEND[TA] > 0)); await tick();
     const r2 = srv.read(TA).responses.LGA, pq = posts(ta).slice(q0).map((q) => q.path);
-    check(hasBook && rb && rb.ok && r1.booked && /id="tm-arr" data-code="LGA"/.test(pb) && r2.booked && r2.note === '🛬09:05 🛫18:30 Arriving late, PTO approved' && TM.docLegacy(srv.read(TA)) && eq(pq, ['/idea/booked', '/idea/respond']) &&
+    check(hasBook && rb && rb.ok && r1.booked && /id="tm-arr" data-code="LGA"/.test(pb) && apHeld && r2.booked && r2.note === '🛬09:05 🛫18:30 Arriving late, PTO approved' && TM.docLegacy(srv.read(TA)) && eq(pq, ['/idea/booked', '/idea/respond']) &&
       ta.api.modelOf(TA).stage === 'booking',
-      'PIA-153 AC4a the family\'s v1 trip on Anjo\'s phone: her flight section is the v2 one, [✈ Book ↗ | 🎫]; her 🎫 (/idea/booked) and then her 🛬 09:05 / 🛫 18:30 (one complete /idea/respond) go through the existing write path onto the v1 record, which stays v1 until ⤒ Update trip', { pq, note: r2.note });
+      'PIA-153 AC4a the family\'s v1 trip on Anjo\'s phone: her flight section is the v2 one, [✈ Book ↗ | 🎫]; her 🎫 (/idea/booked) and then her 🛬 09:05 / 🛫 18:30 (one complete /idea/respond, after the one "🛬 Airport?" hold: PIA-159) go through the existing write path onto the v1 record, which stays v1 until ⤒ Update trip', { pq, note: r2.note, apHeld });
     // the organizer on the same kind of trip: his own [Book | 🎫]; on Anjo's sheet ⤒ in its header, his 🎫 for her and her days greyed with
     // "⤒ Update trip first" (nothing sent); in P-dates his own days, the trip's half greyed with the same words
     const TB = seedAs(TGX);
@@ -5344,19 +5359,22 @@ function norm(doc) {
       eq(marked(ho), ['Waiting', 'Booked', 'Hosting', 'Rides']) && eq(marked(hm), ['Hosting?', 'Waiting', 'Booked', 'Hosting', 'Rides']) && eq(marked(ha), ['Waiting', 'Rides', 'Booked', 'I booked']) &&
       !/data-lbl3>Rides/.test(ro) && /data-lbl3>Rides/.test(ra) && order(ho).every((v, i, a) => v > 0 && (!i || v > a[i - 1])) && order(ha).every((v, i, a) => v > 0 && (!i || v > a[i - 1])) &&
       eq(chips(ro), ['aORD1120-ashwin-p8']) && /<span class="wkn tn" aria-hidden="true">\+1<\/span>/.test(ro) && eq(chips(rm), ['aORD1120-ashwin-p8', 'dORD1130-ashwin-p8']) &&
-      /aria-label="Rides: Ashwin no driver yet"/.test(ro) && /aria-label="Lands ORD 11\/20 at 14:35, Ashwin, no driver yet"/.test(ro) && /<span class="rkg" data-k="arrive" aria-hidden="true">🛬<\/span><span class="tn">11\/20<\/span><span class="rkf" aria-hidden="true" data-pic>💪<\/span>/.test(ro) &&
+      /aria-label="Rides: Ashwin no driver yet"/.test(ro) && /aria-label="Lands O&#39;Hare \(ORD\) Fri 11\/20 at 2:35 PM, Ashwin, no driver yet"/.test(ro) && /<span class="rkg" data-k="arrive" aria-hidden="true">🛬<\/span><span class="tn">11\/20<\/span><span class="rkf" aria-hidden="true" data-pic>💪<\/span>/.test(ro) &&
       /data-act="nudge" data-v="ride"[^>]*data-code="momdad-k3" aria-label="Ask Mom &amp; Dad"/.test(ro) && !/data-act="nudge"|data-act="tshare"/.test(rm + ra + rn) && !!rn && /data-act="rides"/.test(rn),
-      'PIA-157 A the key\'s 🚗 Rides row, after ⏳ Waiting and before ✈ Booked / 🏠 Hosting, on every phone: the organizer and Mom & Dad (a candidate host) get "🚗 Rides" as their primary (its word, so the row keeps its glyph alone: 4 marked words); Anjo keeps Book and the row its word (Waiting, Rides, Booked; Hosting drops to its glyph: 5); open runs as dashed chips (🛬 11/20 💪, said in full) as many as fit at 360 (the organizer\'s Ask beside them: 1 and +1; Mom & Dad 2), and only the organizer\'s row ends in Ask (one candidate: "Ask Mom & Dad", her own link)',
+      'PIA-157 A the key\'s 🚗 Rides row, after ⏳ Waiting and before ✈ Booked / 🏠 Hosting, on every phone: the organizer and Mom & Dad (a candidate host) get "🚗 Rides" as their primary (its word, so the row keeps its glyph alone: 4 marked words); Anjo keeps Book and the row its word (Waiting, Rides, Booked; Hosting drops to its glyph: 5); open runs as dashed chips (🛬 11/20 💪, said in full: PIA-159 "Lands O\'Hare (ORD) Fri 11/20 at 2:35 PM") as many as fit at 360 (the organizer\'s Ask beside them: 1 and +1; Mom & Dad 2), and only the organizer\'s row ends in Ask (one candidate: "Ask Mom & Dad", her own link)',
       { ro: ro.slice(0, 600), marked: [marked(ho), marked(hm), marked(ha)] });
     // the card: 🚗? for the organizer and in the host's 🏠 place for Mom & Dad; a tap opens the trip with P-rides on top
     const so = org.api.slotHTML(org.api.modelOf(PT)), sm = mom.api.slotHTML(mom.api.modelOf(PT)), sa = anj.api.slotHTML(anj.api.modelOf(PT));
     act(mom, 'back'); act(mom, 'ridescard', { id: PT }); const momFromCard = mom.api.S.trip === PT && mom.api.S.sheet && mom.api.S.sheet.type === 'rides';
     const sheetM = sheet(mom);
     check(/class="slot ride z" data-act="ridescard"[^>]*aria-label="Rides open" data-lbl="Rides open"><span data-k="noride" aria-hidden="true">🚗\?<\/span>/.test(so) && /data-act="ridescard"/.test(sm) && !/🏠/.test(sm) && !/ridescard/.test(sa) && momFromCard &&
-      /<b class="lc">ORD<\/b>/.test(sheetM) && (sheetM.match(/data-act="ride" [^>]*data-code="momdad-k3" aria-pressed="false"/g) || []).length === 2 && (sheetM.match(/> Drive<\/button>/g) || []).length === 2 &&
-      /<span class="rlv" role="img" aria-label="Leave home 12:05: 2:30 drive, at ORD as Ashwin lands"/.test(sheetM) && /aria-label="Leave home 11:00: 2:30 drive, 2:00 before Ashwin’s flight"/.test(sheetM) &&
+      /<div class="rday">Fri <span class="tn">11\/20<\/span><\/div>/.test(sheetM) && /<div class="rday">Mon <span class="tn">11\/30<\/span><\/div>/.test(sheetM) && !/<b class="lc">/.test(sheetM) &&
+      /<b class="ap">ORD<\/b><span class="tm">2:35 <span class="mer">PM<\/span><\/span>/.test(sheetM) && /<b class="ap">ORD<\/b><span class="tm">3:30 <span class="mer">PM<\/span><\/span>/.test(sheetM) &&
+      (sheetM.match(/data-act="ride" [^>]*data-code="momdad-k3" aria-pressed="false"/g) || []).length === 2 && (sheetM.match(/> Drive<\/button>/g) || []).length === 2 &&
+      /<span class="rlv" role="img" aria-label="Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">12:05–5:05 <span class="mer">PM<\/span><\/span><\/span>/.test(sheetM) &&
+      /aria-label="Leave home 11:00 AM: 2:30 drive, 2:00 before Ashwin’s flight, home 4:00 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:00 AM–4:00 <span class="mer">PM<\/span><\/span>/.test(sheetM) &&
       /<span class="rq" data-k="noride">🚗\?<\/span>/.test(sheetM) && /data-k="waitbook"[^>]*>⏳<\/span><span aria-hidden="true" data-pic>🗽/.test(sheetM) && !/data-act="ridecal"|data-act="ground"/.test(sheetM),
-      'PIA-157 C/D the card\'s slot is 🚗? ("Rides open") for the organizer and in Mom & Dad\'s 🏠 place (Anjo\'s keeps her Book); from the list it opens the trip with P-rides on top: 📍ORD, both runs, ⏰12:05 / ⏰11:00 (a long press: "2:30 drive, at ORD as Ashwin lands", "2:00 before Ashwin’s flight"), dashed 🚗? on each leg, "☐ 🚗 Drive" twice on Mom & Dad\'s phone, ⏳ 🗽 below; no 📅 Phone yet, no 🚌 / 🚙 on someone else\'s leg', sheetM.slice(0, 800));
+      'PIA-157 C/D the card\'s slot is 🚗? ("Rides open") for the organizer and in Mom & Dad\'s 🏠 place (Anjo\'s keeps her Book); from the list it opens the trip with P-rides on top: by day (PIA-159: "Fri 11/20", "Mon 11/30"; each leg "ORD 2:35 PM"), both runs, ⏰12:05–5:05 PM / ⏰11:00 AM–4:00 PM (a long press: "Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM", "…2:00 before Ashwin’s flight…"), dashed 🚗? on each leg, "☐ 🚗 Drive" twice on Mom & Dad\'s phone, ⏳ 🗽 below; no 📅 Phone yet, no 🚌 / 🚙 on someone else\'s leg', sheetM.slice(0, 1600));
     // Mom & Dad claim R1 on their phone: their first answer (In, by them: no 📞), the claim in their own note; 🚗✓ and ↩ takes it back
     const p0 = nPosts(mom);
     await tap(mom, sheetM, 'ride', { v: 'aORD1120-ashwin-p8' }); await until(() => /🚗/.test((srv.read(PT).responses['momdad-k3'] || {}).note || '')); await tick();
@@ -5371,30 +5389,33 @@ function norm(doc) {
     await tap(mom, sheet(mom), 'ride', { v: 'dORD1130-ashwin-p8' }); await until(() => /dORD1130/.test(srv.read(PT).responses['momdad-k3'].note)); await tick();
     const both = srv.read(PT).responses['momdad-k3'].note, sheetM2 = sheet(mom); mom.api.closeSheet(); const hm2 = screen(mom), rm2 = rowOf(hm2), slot2 = mom.api.slotHTML(mom.api.modelOf(PT));
     check(both === '🚗ashwin-p8.aORD1120,ashwin-p8.dORD1130' && mom.api.primaryAction(mom.api.modelOf(PT), '2026-10-17') === 'drive' &&
-      /<button class="btn pri drv" data-act="rides" data-id="[^"]+" data-v="aORD1120-ashwin-p8" aria-label="Leave home 12:05 Friday for Ashwin" data-lbl="Leave home 12:05"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn">11\/20<\/span><span aria-hidden="true"><span data-k="lvhome">⏰<\/span><span class="tn">12:05<\/span><\/span><span class="drvf"/.test(hm2) &&
+      /<button class="btn pri drv" data-act="rides" data-id="[^"]+" data-v="aORD1120-ashwin-p8" aria-label="Leave home 12:05 PM Friday for Ashwin, O&#39;Hare \(ORD\)" data-lbl="Leave home 12:05 PM"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn">11\/20<\/span><span class="dlv" aria-hidden="true"><span data-k="lvhome">⏰<\/span><span class="tm">12:05 <span class="mer">PM<\/span><\/span><\/span><span aria-hidden="true"><b class="ap">ORD<\/b><\/span><span class="drvf"/.test(hm2) &&
       eq(marked(hm2), ['Waiting', 'Rides', 'Booked', 'Hosting']) && /aria-label="Rides: Mom &amp; Dad drive Ashwin"/.test(rm2) && /data-act="rides"[^>]*data-code="momdad-k3" aria-label="Mom &amp; Dad driving"/.test(rm2) &&
       /data-act="ridescard"[^>]*data-v="aORD1120-ashwin-p8" aria-label="Drive 11\/20" data-lbl="Drive 11\/20"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn">11\/20<\/span>/.test(slot2) &&
       (sheetM2.match(/aria-pressed="true"/g) || []).length === 2 && /download="rides-diwaliinraleigh\.ics" data-act="ridecal"/.test(sheetM2) && /<span class="ndot" aria-hidden="true"><\/span><\/a>/.test(sheetM2),
-      'PIA-157 B/C both runs claimed: Mom & Dad\'s primary is "🚗 11/20 ⏰12:05" with Ashwin\'s face (no word; "Leave home 12:05 Friday for Ashwin"), the key\'s row "Mom & Dad drive Ashwin" (its word back: 4 marked), the card 🚗11/20; P-rides shows ☑ twice and 📅 Phone with its dot', { both, rm2: rm2.slice(0, 400) });
+      'PIA-157 B/C both runs claimed: Mom & Dad\'s primary is "🚗 11/20 ⏰ 12:05 PM ORD" with Ashwin\'s face (PIA-159: 12-hour, the stop\'s code; "Leave home 12:05 PM Friday for Ashwin, O\'Hare (ORD)"), the key\'s row "Mom & Dad drive Ashwin" (its word back: 4 marked), the card 🚗11/20; P-rides shows ☑ twice and 📅 Phone with its dot', { both, rm2: rm2.slice(0, 400) });
     // 📅 Phone: one file, both runs, floating local times, two alarms each, the guest link only; tapping it keeps its signature (the dot rests)
     mom.api.ACTS.rides({ dataset: { id: PT } }); const cal = /href="data:text\/calendar;charset=utf-8,([^"]+)"/.exec(sheet(mom)), ics = cal ? decodeURIComponent(cal[1]) : '';
     mom.api.ACTS.ridecal({ dataset: { id: PT } }); await tick(4); const kept = mom.api.uiRead().rides || {};
     const dotGone = !/<span class="ndot" aria-hidden="true"><\/span><\/a>/.test(sheet(mom)); mom.api.closeSheet();
+    const icsU = ics.replace(/\r\n /g, '').replace(/&#39;/g, '\'').replace(/&quot;/g, '"').replace(/&amp;/g, '&');   // (RFC 5545 folding and the href's HTML escaping undone)
+    const descs = icsU.split('\r\n').filter((l) => /^DESCRIPTION:/.test(l) && !/^DESCRIPTION:🚗/.test(l)), gl = TM.guestLink(PT, '', W);
     check(/BEGIN:VCALENDAR/.test(ics) && (ics.match(/BEGIN:VEVENT/g) || []).length === 2 && (ics.match(/BEGIN:VALARM/g) || []).length === 4 && /DTSTART:20261120T120500\r\n/.test(ics) && /DTSTART:20261130T110000\r\n/.test(ics) &&
-      ics.indexOf(KEY) < 0 && !/#k=|t=|\$/.test(ics) && /DESCRIPTION:https:\/\/pialax-proxy/.test(ics) && typeof kept[PT] === 'string' && kept[PT].length > 10 && dotGone && !mom.api.rideChanged(mom.api.modelOf(PT)),
-      'PIA-157 D 📅 Phone: one calendar file with both runs (DTSTART 11/20 12:05 and 11/30 11:00, floating), two alarms each, the guest link alone; a tap keeps its signature on this phone (pialax_ui_v1.rides) and the dot rests', ics.slice(0, 300));
+      ics.indexOf(KEY) < 0 && !/#k=|t=|\$/.test(icsU) && descs.length === 2 && descs.every((l) => (l.match(/https?:\/\//g) || []).length === 1 && l.slice(l.indexOf('http')) === gl) && /\r\nDESCRIPTION:Fri 11\/20: pick up Ashwin at O'Hare \(ORD\)\\, lands 2:35 PM \(leave home 12:05 PM\\, home about 5:05 PM\)\.\\nhttps:\/\/pialax-proxy[^\r]*\/i\/[A-Za-z0-9_-]+\r\n/.test(icsU) &&
+      /\r\nLOCATION:O'Hare International Airport \(ORD\)\r\n/.test(icsU) && typeof kept[PT] === 'string' && kept[PT].length > 10 && dotGone && !mom.api.rideChanged(mom.api.modelOf(PT)),
+      'PIA-157 D 📅 Phone: one calendar file with both runs (DTSTART 11/20 12:05 and 11/30 11:00, floating), two alarms each, the guest link alone as its link (PIA-159: after the ride in words, "Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM).", the airport\'s full name its location); a tap keeps its signature on this phone (pialax_ui_v1.rides) and the dot rests', icsU.slice(0, 900));
     // a same-day time change: the claim carries, ⏰ moves; Mom & Dad's card and the Trips tab get their dot (the calendar holds the old time);
     // the organizer saved it, so his toast offers to tell the driver (their own link, the new ride in words)
     act(org, 'person', { id: PT, code: 'ashwin-p8' }); typed(org, 'tm-arr', '15:05', 'ashwin-p8'); org.api.closeSheet();
-    await until(() => /🛬15:05/.test(srv.read(PT).responses['ashwin-p8'].note)); await until(() => /🛬✓/.test(org.rec['#toast'].__rec.html.slice(-1)[0] || '')); await tick();
+    await until(() => /🛬15:05/.test(srv.read(PT).responses['ashwin-p8'].note)); await until(() => /🛬 ORD 3:05 PM ✓/.test(org.rec['#toast'].__rec.html.slice(-1)[0] || '')); await tick();
     const toastO = org.rec['#toast'].__rec.html.slice(-1)[0] || '', tellBtn = /data-act="toastshare" aria-label="Tell Mom &amp; Dad"/.test(toastO);
     const n0 = rs.shared.length; await org.api.ACTS.toastshare({ dataset: {} }); await tick();
     const told = rs.shared[n0] || {};
     await mom.api.refreshAll(true); await tick(); mom.api.render();
     const mm = mom.api.modelOf(PT), card = mom.api.renderIdeas().html;
-    check(tellBtn && /🛬✓/.test(toastO) && /\/i\/[A-Za-z0-9_-]{22}#m=momdad-k3$/.test(told.url || '') && /^🚗 Ride update: Fri 11\/20: pick up Ashwin at ORD Chicago, lands 3:05 PM \(leave home 12:35 PM\)\.$/.test(told.text || '') &&
+    check(tellBtn && /🛬 ORD 3:05 PM ✓/.test(toastO) && /\/i\/[A-Za-z0-9_-]{22}#m=momdad-k3$/.test(told.url || '') && /^🚗 Ride update: Fri 11\/20: pick up Ashwin at O'Hare \(ORD\), lands 3:05 PM \(leave home 12:35 PM, home about 5:35 PM\)\.$/.test(told.text || '') &&
       (told.text || '').indexOf(KEY) < 0 && mom.api.rideChanged(mm) && mom.api.tripsBadge() >= 1 && /data-k="ridenew"/.test(card) && mom.api.primaryAction(mm, '2026-10-17') === 'drive',
-      'PIA-157 H/J Ashwin\'s landing moved to 15:05 (the same day): Mom & Dad\'s claim carries, ⏰ is 12:35; his toast "🛬✓" carries the share symbol, "Tell Mom & Dad": her own link with "🚗 Ride update: Fri 11/20: pick up Ashwin … lands 3:05 PM (leave home 12:35 PM)." (no key); on her phone the card\'s dot (Rides changed) and the Trips numeral until she adds the rides again', { told, toastO });
+      'PIA-157 H/J Ashwin\'s landing moved to 15:05 (the same day): Mom & Dad\'s claim carries, ⏰ is 12:35; his toast (PIA-159: the echo "🛬 ORD 3:05 PM ✓") carries the share symbol, "Tell Mom & Dad": her own link with "🚗 Ride update: Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 3:05 PM (leave home 12:35 PM, home about 5:35 PM)." (no key); on her phone the card\'s dot (Rides changed) and the Trips numeral until she adds the rides again', { told, toastO });
     // P-person: each booked leg's ride after its time (🌽 driving), into P-rides; Mom & Dad's host line 🏠 ORD 🚗2
     act(org, 'person', { id: PT, code: 'ashwin-p8' }); const pa = sheet(org); org.api.closeSheet();
     act(org, 'person', { id: PT, code: 'momdad-k3' }); const pm2 = sheet(org); org.api.closeSheet();
@@ -5419,7 +5440,7 @@ function norm(doc) {
     const mdr = srv.read(PT2).responses['momdad-k3'];
     // the ask for several runs' candidates: Anjo is there for R2 (11/18–11/30)? no: she leaves on 11/30 herself; the trip's guest link when two
     check(eq(keys, ['aORD1118-anjo-z5:anjo-z5', 'aORD1120-ashwin-p8:ashwin-p8', 'dORD1130-ashwin-p8:ashwin-p8+anjo-z5']) && faceT && mdr.status === 'in' && mdr.note === '📞 🚗ashwin-p8.aORD1120' &&
-      /class="rrun open on" id="run-aORD1120-ashwin-p8"/.test(so) && /<span data-k="pickup">⏱<\/span><span class="tn" data-k="runwait">1:30<\/span>/.test(so) &&
+      /class="rrun open on" id="run-aORD1120-ashwin-p8"/.test(so) && /<span data-k="pickup">⏱<\/span><span class="tn" data-dur data-k="runwait">1:30<\/span>/.test(so) &&
       /data-act="ride"[^>]*data-v="aORD1120-ashwin-p8" data-code="anjo-z5"/.test(so),
       'PIA-157 D the organizer\'s P-rides at R1 (ringed): each candidate\'s face is a toggle (Mom & Dad, and Anjo, there since 11/18); his tap for Mom & Dad, still on their default, answers for them: In with 📞 and the claim; Anjo\'s own 11/18 landing is its own run, the 11/30 drop-off one run of two (⏱1:30)', { keys, mdr });
     // Anjo's own phone: her 🛫 leg in R2 shows 🚌 and 🚙 inline (her own); 🚌 → her 🚌d, the leg leaves the run, 🚌✓ ↩ puts it back
@@ -5468,12 +5489,12 @@ function norm(doc) {
     const g = await boot136({ ls: lsOf([MP], { pialax_idea_me_v1: { [MP]: 'momdad-k3' } }) });
     act(g, 'tab', { v: 'map' }); const mh = g.api.renderSelected('map', 'map').html;
     act(g, 'pickup', { id: MP, ap: 'ORD', v: '2026-11-20' }); const day = sheet(g);
-    const g2 = /<span class="grp"><span class="gh"><span data-k="pickup">⏱<\/span><span class="tn" data-k="runwait">0:35<\/span><\/span>(<button class="pk arr bk"[^]*?<\/button>){2}<\/span>/.test(mh);
-    check(g2 && /aria-label="Lands ORD 11\/20 at 14:35, booked, Ashwin, Mom &amp; Dad driving"[^>]*>[\s\S]*?<span class="rbd" aria-hidden="true" data-pic>🌽<\/span><\/button>/.test(mh) &&
-      /aria-label="Lands ORD 11\/20 at 15:10, booked, Anjo, no driver yet"[^>]*>[\s\S]*?<span class="rbd q" data-k="noride">\?<\/span><\/button>/.test(mh) &&
-      /aria-label="Leaves ORD 11\/30 at 17:00, booked, Anjo, bus"[^>]*>[\s\S]*?<span class="rbd" data-k="bus">🚌<\/span><\/button>/.test(mh) && g.api.S.sheet && g.api.S.sheet.type === 'day' &&
+    const g2 = /<span class="grp"><span class="gh"><span data-k="pickup">⏱<\/span><span class="tn" data-dur data-k="runwait">0:35<\/span><\/span>(<button class="pk arr bk"[^]*?<\/button>){2}<\/span>/.test(mh);
+    check(g2 && /aria-label="Lands ORD 11\/20 at 2:35 PM, booked, Ashwin, Mom &amp; Dad driving"[^>]*>[\s\S]*?<span class="tm">2:35 <span class="mer">PM<\/span><\/span>[\s\S]*?<span class="rbd" aria-hidden="true" data-pic>🌽<\/span><\/button>/.test(mh) &&
+      /aria-label="Lands ORD 11\/20 at 3:10 PM, booked, Anjo, no driver yet"[^>]*>[\s\S]*?<span class="rbd q" data-k="noride">\?<\/span><\/button>/.test(mh) &&
+      /aria-label="Leaves ORD 11\/30 at 5:00 PM, booked, Anjo, bus"[^>]*>[\s\S]*?<span class="rbd" data-k="bus">🚌<\/span><\/button>/.test(mh) && g.api.S.sheet && g.api.S.sheet.type === 'day' &&
       /<span class="rbd" aria-hidden="true" data-pic>🌽<\/span><\/button>/.test(day) &&/data-act="rides" data-id="[^"]+" data-v="aORD1120-ashwin-p8"[^>]*data-lbl="Rides"><span data-k="drive" aria-hidden="true">🚗<\/span>/.test(day),
-      'PIA-157 F the Map: the 11/20 arrivals one ⏱0:35 run, Ashwin\'s chip badged 🌽 (Mom & Dad driving), Anjo\'s a dashed ? (no driver yet), her 17:00 departure 🚌 (her own); a chip opens P-day, whose legs carry the same badge and a 🚗 into P-rides at the run', mh.slice(mh.indexOf('class="lanes"'), mh.indexOf('class="lanes"') + 900));
+      'PIA-157 F the Map: the 11/20 arrivals one ⏱0:35 run, Ashwin\'s chip (PIA-159: "2:35 PM") badged 🌽 (Mom & Dad driving), Anjo\'s a dashed ? (no driver yet), her 5:00 PM departure 🚌 (her own); a chip opens P-day, whose legs carry the same badge and a 🚗 into P-rides at the run', mh.slice(mh.indexOf('class="lanes"'), mh.indexOf('class="lanes"') + 900));
     g.api.closeSheet();
     // the shared links: a share with no text is exactly as before ({url}); the ask's text never carries a key
     const rs = recShare(), o2 = await boot136({ ls: lsOf([MP], { pialax_idea_keys_v1: keyOf([MP]), pialax_idea_me_v1: { [MP]: 'ashwin-p8' } }), navigator: rs.nav });
@@ -5520,7 +5541,7 @@ function norm(doc) {
     // (4) a traveler who joined a run I drive: the primary shows only the legs I drive; my toggle reads ☐ and claims hers too
     const P4 = seedAs(DWX, (d) => { pt(d); d.responses['anjo-z5'].booked = true; d.responses['anjo-z5'].note = '🛬15:10'; d.responses['momdad-k3'] = Object.assign(RESP('in'), { member: 'momdad-k3', origin: 'PIA', note: '🚗ashwin-p8.aORD1120' }); });
     const mj = await boot136(momIs(P4)); act(mj, 'open', { id: P4 }); const h4 = screen(mj); mj.api.ACTS.rides({ dataset: { id: P4, v: K1 } }); const s4 = sheet(mj);
-    check(/class="btn pri drv"[^>]*aria-label="Leave home 12:05 Friday for Ashwin"/.test(h4) && /<span class="drvf" aria-hidden="true">[^]*?💪[^]*?<\/span><\/button>/.test(h4) && !/<span class="drvf"[^]*?🗽[^]*?<\/button>/.test(h4) &&
+    check(/class="btn pri drv"[^>]*aria-label="Leave home 12:05 PM Friday for Ashwin, O&#39;Hare \(ORD\)"/.test(h4) && /<span class="drvf" aria-hidden="true">[^]*?💪[^]*?<\/span><\/button>/.test(h4) && !/<span class="drvf"[^]*?🗽[^]*?<\/button>/.test(h4) &&
       new RegExp('data-act="ride" [^>]*data-v="' + K1 + '" data-code="momdad-k3" aria-pressed="false"').test(s4),
       'PIA-157 fix: Anjo booked into the 11/20 run Mom & Dad drive for Ashwin (her 15:10 still open): their primary reads "for Ashwin" with his face alone (not hers), and their toggle there reads ☐ (a tap claims her leg too)', (/<button class="btn pri drv"[^]*?<\/button>/.exec(h4) || [''])[0]);
     // (5) 📅 Phone kept, then the drives are gone (Ashwin Out): the card's dot and the Trips numeral show; opening the trip says
@@ -5544,7 +5565,7 @@ function norm(doc) {
     act(o6, 'open', { id: P6 }); const h6 = screen(o6), askBtn = ctl(h6, 'tshare', { v: 'ride' });
     await tap(o6, h6, 'tshare', { v: 'ride' }); await tick(); const sh6 = rs6.shared.slice(-1)[0] || {};
     check(!!askBtn && /data-act="tshare" data-v="ride" data-id="[^"]+" aria-label="Ask" data-lbl="Ask"/.test(h6) && !ctl(h6, 'nudge', { v: 'ride' }) &&
-      new RegExp('/i/' + P6 + '$').test(sh6.url || '') && /^🚗 Can you drive\? Fri 11\/20: pick up Ashwin at ORD Chicago, lands 2:35 PM \(leave home 12:05 PM\)\. Mon 11\/30: drop off Ashwin/.test(sh6.text || '') &&
+      new RegExp('/i/' + P6 + '$').test(sh6.url || '') && /^🚗 Can you drive\? Fri 11\/20: pick up Ashwin at O'Hare \(ORD\), lands 2:35 PM \(leave home 12:05 PM, home about 5:05 PM\)\. Mon 11\/30: drop off Ashwin/.test(sh6.text || '') &&
       (sh6.url + sh6.text).indexOf(KEY) < 0 && !/#k=|#m=/.test(sh6.url || ''),
       'PIA-157 fix (the several-candidate Ask, now asserted): with Anjo there from 11/18 the 11/20 pickup has two candidates, so the key\'s row ends in "Ask" (tshare, data-v ride; no personal nudge): the trip\'s guest link /i/<id> and "🚗 Can you drive? Fri 11/20: …", no key, no #m=', sh6);
   }
@@ -5712,8 +5733,9 @@ function norm(doc) {
     const calm = !mo2.api.rideChanged(mo2.api.modelOf(MD));
     const dm = srv.read(MD); dm.responses['ashwin-p8'].note = '🛬14:35 🛫15:30'; srv.write(dm); await mo2.api.refreshAll(true); await tick();
     const dotted = mo2.api.rideChanged(mo2.api.modelOf(MD));
-    check(/SUMMARY:🚗 Pick up Ashwin \+ Nebby 🐈 – ORD Chicago\\, lands 2:35 PM\r\n/.test(ics) && /SUMMARY:🚗 Drop off Ashwin \+ Nebby 🐈 – ORD Chicago\\, flight 3:30 PM\r\n/.test(ics) && calm && dotted,
-      'the ride calendar file says "Pick up Ashwin + Nebby 🐈" / "Drop off Ashwin + Nebby 🐈"; once Nebby stays home the signature differs from the one kept at 📅 Phone, so the driver\'s dot shows (rideChanged)');
+    const icsU = ics.replace(/\r\n /g, '').replace(/&#39;/g, '\'').replace(/&quot;/g, '"').replace(/&amp;/g, '&');
+    check(/SUMMARY:🚗 Pick up Ashwin \+ Nebby 🐈 – O'Hare \(ORD\)\\, lands 2:35 PM\r\n/.test(icsU) && /SUMMARY:🚗 Drop off Ashwin \+ Nebby 🐈 – O'Hare \(ORD\)\\, flight 3:30 PM\r\n/.test(icsU) && calm && dotted,
+      'the ride calendar file says "Pick up Ashwin + Nebby 🐈 – O\'Hare (ORD), lands 2:35 PM" / "Drop off Ashwin + Nebby 🐈 – O\'Hare (ORD), flight 3:30 PM" (PIA-159: the airport by name); once Nebby stays home the signature differs from the one kept at 📅 Phone, so the driver\'s dot shows (rideChanged)');
 
     // F / G: P-house from the header's picture; 🧺 Mom & Dad's chip, the 18 dishes in place, 3 at most, ✓ saves (claims kept), close saves
     act(mo2, 'open', { id: MD }); const hm = screen(mo2);
@@ -5862,10 +5884,277 @@ function norm(doc) {
     check(org.api.LEGEND.petfly[0] === '🐈' && org.api.LEGEND.pethome[1] === 'Pet at home' && org.api.LEGEND.dish[0] === '🧺' && org.api.LEGEND.dish[1] === 'Bringing' && org.api.LEGEND.allset[0] === '🎊' &&
       org.api.LEGEND.carrier[0] === '👜' && org.api.LEGEND.papers[0] === '📄' && org.api.LEGEND.fees[0] === '💲' && org.api.LEGEND.petgo[0] === '›' &&
       org.api.LEGEND.trips[0] === '🧳' && !Object.keys(org.api.LEGEND).some((k) => k !== 'trips' && org.api.LEGEND[k][0] === '🧳') && org.api.SHEET_NAME.pet === 'Nebby' && org.api.SHEET_NAME.house === 'House' &&
-      org.api.DISH_PALETTE.every((g) => !!org.api.DISH_NAMES[g]) && org.api.BUILD === 158 && org.api.LEGEND.dishadd[0] === '🍽' && org.api.LEGEND.newtrip[0] === '＋' &&
+      org.api.DISH_PALETTE.every((g) => !!org.api.DISH_NAMES[g]) && org.api.BUILD >= 158 && org.api.LEGEND.dishadd[0] === '🍽' && org.api.LEGEND.newtrip[0] === '＋' &&
       ['petfly', 'pethome', 'petgo', 'carrier', 'papers', 'fees', 'dish', 'dishadd', 'allset'].every((n) => Object.keys(org.api.LEGEND).filter((k) => org.api.LEGEND[k][0] === org.api.LEGEND[n][0]).join() === n),
-      'LEGEND / ⓘ: 🐈 Pet flying, 🐕 Pet at home, › Pet plan, 👜 Carrier (🧳 keeps its one meaning, Trips), 📄 Papers, 💲 Pet fees, 🧺 Bringing, 🍽 Pick dishes (＋ keeps New trip), 🎊 All set, each glyph meaning that one thing in LEGEND; P-pet and P-house named; every dish has its name; ⚙ #158',
+      'LEGEND / ⓘ: 🐈 Pet flying, 🐕 Pet at home, › Pet plan, 👜 Carrier (🧳 keeps its one meaning, Trips), 📄 Papers, 💲 Pet fees, 🧺 Bringing, 🍽 Pick dishes (＋ keeps New trip), 🎊 All set, each glyph meaning that one thing in LEGEND; P-pet and P-house named; every dish has its name; ⚙ #158 or later',
       ['petfly', 'pethome', 'petgo', 'carrier', 'papers', 'fees', 'dish', 'dishadd', 'allset'].map((n) => n + ':' + Object.keys(org.api.LEGEND).filter((k) => org.api.LEGEND[k][0] === org.api.LEGEND[n][0]).join('/')));
+  }
+
+  // ═══ PIA-159 ═══
+  section('PIA-159 airports per leg and 12-hour times: every surface in 12-hour, the [AM | PM] segment, the airport pills, a hold for each reason, the echo, Tell, Too long, the flush; Midway\'s lane; the drive on the phone\'s clock; P-rides by day');
+  {
+    // P town with the real flights: 📍ORD (the PIA / ORD pair), 🔒 11/20–11/30, Mom & Dad at PIA hosting (In); Ashwin booked LAX→ORD
+    // 2:35 PM and ORD→LAX 3:47 PM with Nebby; Anjo booked LGA→MDW 10:30 PM and MDW→LGA 5:10 PM. The phones read 10/17 unless a case
+    // moves the clock (November: Pacific standard time, UTC−8)
+    const pt9 = (anjo, mom, ash) => (d) => { d.idea.destination = { city: 'Chicago', airport: 'ORD' }; d.idea.dates.departure = '2026-11-20'; d.idea.dates.return = '2026-11-30'; d.idea.notes = '';
+      d.idea.members[1].label = '💪 Ashwin'; chosenAt(d, '2026-11-20', '2026-11-30', 'ORD');
+      d.responses['momdad-k3'] = Object.assign(RESP('in'), { member: 'momdad-k3', origin: 'PIA', note: mom || '' });
+      d.responses['ashwin-p8'] = Object.assign(RESP('in'), { member: 'ashwin-p8', origin: 'LAX', booked: true, booked_at: '2026-10-16T00:00:00.000Z', note: ash == null ? '🛬14:35 🛫15:47 🐈ad' : ash });
+      d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA', booked: true, booked_at: '2026-10-16T00:00:00.000Z', note: anjo == null ? '🛬22:30 🛫17:10 🛬MDW 🛫MDW' : anjo }); };
+    const ALL = '🚗ashwin-p8.aORD1120,anjo-z5.aMDW1120,ashwin-p8.dORD1130,anjo-z5.dMDW1130';
+    const momOf = (id) => ({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'momdad-k3' } }), rec: ['#toast'] });
+    // the 12-hour sweep: every visible H:MM outside a duration ([data-dur]) is followed by AM / PM, or starts an "H:MM–H:MM AM" range
+    const bad12 = (h) => {
+      const txt = String(h || '').replace(/<([a-z]+)\b[^>]*\sdata-dur\b[^>]*>[^<]*<\/\1>/g, ' ').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ');
+      const out = [], re = /(\d{1,2}):(\d\d)(?!\d)/g; let mm;
+      while ((mm = re.exec(txt))) { const rest = txt.slice(re.lastIndex); if (!/^\s*(AM|PM)(?![A-Za-z])/.test(rest) && !/^–\d{1,2}:\d\d\s*(AM|PM)(?![A-Za-z])/.test(rest)) out.push(txt.slice(Math.max(0, mm.index - 12), re.lastIndex + 8)); }
+      return out;
+    };
+    const Q = seedAs(DWX, pt9(null, ALL));
+    const o = await boot136({ ls: lsOf([Q], { pialax_idea_keys_v1: keyOf([Q]), pialax_idea_me_v1: { [Q]: 'ashwin-p8' } }), rec: ['#toast'] });
+    const mo = await boot136(momOf(Q));
+    act(o, 'open', { id: Q }); act(mo, 'open', { id: Q });
+    const v = { orgTrip: screen(o), momTrip: screen(mo) };
+    act(o, 'person', { id: Q, code: 'anjo-z5' }); v.anjo = sheet(o); o.api.closeSheet();
+    act(o, 'person', { id: Q, code: 'ashwin-p8' }); v.ash = sheet(o); o.api.closeSheet();
+    mo.api.ACTS.rides({ dataset: { id: Q } }); v.rides = sheet(mo); mo.api.closeSheet();
+    act(mo, 'tab', { v: 'map' }); v.map = mo.api.renderSelected('map', 'map').html;
+    act(mo, 'pickup', { id: Q, ap: 'MDW', v: '2026-11-20' }); v.dayMDW = sheet(mo); mo.api.closeSheet();
+    act(mo, 'pickup', { id: Q, ap: 'MDW', v: '2026-11-30' }); v.dayMDW30 = sheet(mo); mo.api.closeSheet();
+    act(mo, 'mapairport', { id: Q, v: 'MDW' }); const apType = mo.api.S.sheet && mo.api.S.sheet.type; act(mo, 'mapwho', { code: 'anjo-z5' }); v.apMDW = sheet(mo); mo.api.closeSheet();
+    act(mo, 'tab', { v: 'trips' }); v.slot = mo.api.slotHTML(mo.api.modelOf(Q)); v.card = mo.api.renderIdeas().html;
+    const bad = {}; Object.keys(v).forEach((k) => { const b = bad12(v[k]); if (b.length) bad[k] = b; });
+    check(!Object.keys(bad).length && /10:30 <span class="mer">PM<\/span>/.test(v.anjo) && /2:35 <span class="mer">PM<\/span>/.test(v.orgTrip) && /7:45 PM–Sat 1:15 <span class="mer">AM<\/span>/.test(v.rides) && /10:30 <span class="mer">PM<\/span>/.test(v.map),
+      'PIA-159 the 12-hour sweep: on the organizer\'s and Mom & Dad\'s trip pages, Anjo\'s and Ashwin\'s P-person, Mom & Dad\'s P-rides, the Map, P-day and P-mapairport on Midway, the card and its slot, every visible H:MM outside a duration reads AM / PM (or begins a "12:05–5:05 PM" range)', bad);
+    {
+      // (fix pass) the board's labels, exactly: the airport once, on the bar's first timed label, where it is not the destination
+      // (both ends named on an open jaw); none at 📍ORD; the landing data-nm 260 + row, the leaving one 280 + row (Anjo is row 2)
+      const apName = { ORD: 'O&#39;Hare (ORD)', MDW: 'Midway (MDW)', PIA: 'Peoria (PIA)' };
+      const lab = (k, nm, ap, t, mer) => '<span class="btm ' + k + '" data-nm="' + nm + '" role="img" aria-label="' + (k === 'a' ? 'Lands at ' : 'Leaves at ') + (ap ? apName[ap] + ', ' : '') + t + ' ' + mer + '" data-lbl="' + (k === 'a' ? 'Lands at' : 'Leaves at') + '">' + (ap ? '<b class="ap">' + ap + '</b> ' : '') + '<span class="tm">' + t + ' <span class="mer">' + mer + '</span></span></span>';
+      const miss = '<span class="btm a miss" role="img" aria-label="No landing time" data-lbl="No landing time" data-k="notime">🛬?</span>';
+      const labsOf = (h, code) => { const r = h.split('<div class="pb-row').slice(1).filter((x) => (/data-code="([^"]+)"/.exec(x) || [])[1] === code)[0] || ''; return (r.match(/<span class="btm[\s\S]*?(?=<span class="btm|<\/button>)/g) || []).map((x) => x.replace(/ style="[^"]*"/, '')); };
+      const want = {
+        '🛬22:30 🛫17:10 🛬MDW 🛫MDW': [lab('a', 262, 'MDW', '10:30', 'PM'), lab('d', 282, '', '5:10', 'PM')],
+        '🛬22:30 🛫17:10 🛬MDW': [lab('a', 262, 'MDW', '10:30', 'PM'), lab('d', 282, 'ORD', '5:10', 'PM')],
+        '🛬22:30 🛫17:10 🛫MDW': [lab('a', 262, 'ORD', '10:30', 'PM'), lab('d', 282, 'MDW', '5:10', 'PM')],
+        '🛫17:10 🛫MDW': [miss, lab('d', 282, 'MDW', '5:10', 'PM')],
+        '🛫17:10': [miss, lab('d', 282, '', '5:10', 'PM')],
+        '🛬22:30 🛫17:10': [lab('a', 262, '', '10:30', 'PM'), lab('d', 282, '', '5:10', 'PM')],
+        // (her own Peoria pick both ways and a lone 🛫: the one label names Peoria, the bar's ends being the same airport)
+        '🛫17:10 PIA': [miss, lab('d', 282, 'PIA', '5:10', 'PM')] };
+      const got = {};
+      for (const nt of Object.keys(want)) {
+        const pia = / PIA$/.test(nt), Qb = seedAs(DWX, (d) => { pt9(nt.replace(/ PIA$/, ''), ALL)(d); if (pia) Object.assign(d.responses['anjo-z5'], { arrive_at: 'PIA', leave_from: 'PIA' }); });
+        const ob = await boot136({ ls: lsOf([Qb], { pialax_idea_keys_v1: keyOf([Qb]), pialax_idea_me_v1: { [Qb]: 'ashwin-p8' } }) });
+        act(ob, 'open', { id: Qb }); const hb = screen(ob); got[nt] = labsOf(hb, 'anjo-z5');
+        if (nt === '🛬22:30 🛫17:10 🛬MDW 🛫MDW') got.ashwin = labsOf(hb, 'ashwin-p8');
+      }
+      const bw = Object.keys(want).filter((nt) => !eq(got[nt], want[nt]));
+      check(!bw.length && eq(got.ashwin, [lab('a', 261, '', '2:35', 'PM'), lab('d', 281, '', '3:47', 'PM')]),
+        'PIA-159 (fix pass) the board\'s labels on P town, exactly: Anjo at Midway both ways "MDW 10:30 PM" over the bar and a bare "5:10 PM" under it; an open jaw names both ends (MDW … ORD, ORD … MDW); a lone 🛫 at Midway names it after the organizer\'s 🛬?, and so does a lone 🛫 at her own Peoria pick; at 📍ORD no code (Ashwin\'s "2:35 PM" / "3:47 PM"); data-nm 260 + row landing, 280 + row leaving', { bad: bw.map((nt) => [nt, got[nt]]), ashwin: got.ashwin });
+    }
+    // P-rides by day: R2 a drive of its own (its long press says why), R3 one drive to two airports, ① O'Hare ② Midway, the 0:45 between
+    const rd = v.rides, cal = /href="data:text\/calendar;charset=utf-8,([^"]+)"/.exec(rd), ics = cal ? decodeURIComponent(cal[1]).replace(/\r\n /g, '').replace(/&#39;/g, '\'').replace(/&amp;/g, '&') : '';
+    check(/<div class="rday">Fri <span class="tn">11\/20<\/span><\/div>/.test(rd) && /<div class="rday">Mon <span class="tn">11\/30<\/span><\/div>/.test(rd) &&
+      /aria-label="Separate drive: Anjo lands 10:30 PM at Midway, 7:55 hours after Ashwin"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">7:45 PM–Sat 1:15 <span class="mer">AM<\/span><\/span>/.test(rd) &&
+      /aria-label="Leave 11:15 AM: O&#39;Hare 1:45 PM, Midway 2:30 PM, home 5:15 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:15 AM–5:15 <span class="mer">PM<\/span><\/span>/.test(rd) &&
+      /<span class="rnum" data-k="stopn" aria-hidden="true">①<\/span>/.test(rd) && /<span class="rnum" data-k="stopn" aria-hidden="true">②<\/span>/.test(rd) &&
+      /<div class="rhop" role="img" aria-label="0:45 drive to Midway \(MDW\)" data-lbl="Drive between"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn" data-dur>0:45<\/span><\/div>/.test(rd) &&
+      /<b class="ap">MDW<\/b><span class="tm">5:10 <span class="mer">PM<\/span><\/span>/.test(rd) && /aria-label="Lands O&#39;Hare \(ORD\) Fri 11\/20 at 2:35 PM, Ashwin, Mom &amp; Dad driving"/.test(rd) &&
+      /\r\nSUMMARY:🚗 Drop off Ashwin \+ Nebby 🐈 \(ORD 3:47 PM\)\\, then Anjo \(MDW 5:10 PM\)\r\n/.test(ics) && /\r\nUID:[A-Za-z0-9_-]+-momdad-k3-a1120-anjo-z5@pialax\r\n/.test(ics) && /\r\nLOCATION:Chicago Midway International Airport \(MDW\)\r\n/.test(ics),
+      'PIA-159 Mom & Dad\'s P-rides by day ("Fri 11/20", "Mon 11/30"): Anjo\'s 10:30 PM Midway pickup a drive of its own, ⏰ 7:45 PM–Sat 1:15 AM (its long press: "Separate drive: Anjo lands 10:30 PM at Midway, 7:55 hours after Ashwin", the wait in hours so it never reads as a clock time); the 11/30 drop-off one drive to two airports, ⏰ 11:15 AM–5:15 PM (long press: each stop walked from the leave), ① O\'Hare ② Midway with "🚗 0:45" between; 📅 Phone says "Drop off Ashwin + Nebby 🐈 (ORD 3:47 PM), then Anjo (MDW 5:10 PM)", Midway\'s full name its location, an airport-free UID', { rd: rd.slice(0, 1600) });
+    // the Map: Midway's own lane (no pin of its own: test-map-browser), P-mapairport and P-day map mode on MDW
+    const mp = v.map, mc = {
+      head: /<button class="lh" data-act="mapairport" data-id="[^"]+" data-v="MDW" aria-label="Other airport MDW, 0:45 drive" data-lbl="MDW">/.test(mp),
+      chips: /aria-label="Lands MDW 11\/20 at 10:30 PM, booked, Anjo, Mom &amp; Dad driving"/.test(mp) && /aria-label="Leaves MDW 11\/30 at 5:10 PM, booked, Anjo, Mom &amp; Dad driving"/.test(mp),
+      noOrd: !/data-ap="ORD"[^>]*data-code="anjo-z5"/.test(mp), ap: apType === 'mapairport' && /<div class="sh-hd">[\s\S]*?MDW/.test(v.apMDW) && (v.apMDW.match(/<b>MDW<\/b>/g) || []).length === 2,
+      day: /aria-label="Anjo, lands 10:30 PM, booked, Mom &amp; Dad driving"/.test(v.dayMDW) && /data-act="rides"[^>]*data-v="aMDW1120-anjo-z5"/.test(v.dayMDW),
+      // (fix pass: the joined 11/30 drive shows on Midway's day too, its spoken name each stop in turn)
+      day30: /aria-label="Anjo, leaves 5:10 PM, booked, Mom &amp; Dad driving"/.test(v.dayMDW30) &&
+        /data-act="rides" data-id="[^"]+" data-v="dORD1130-ashwin-p8" aria-label="Rides, Leaves O&#39;Hare \(ORD\) Mon 11\/30 at 3:47 PM, Ashwin, then Midway \(MDW\) at 5:10 PM, Anjo, Mom &amp; Dad driving"/.test(v.dayMDW30),
+      note: !/data-act="pnote"[^>]*aria-label="Note"/.test(v.anjo) && /data-act="pnote"[^>]*aria-label="Add note"/.test(v.anjo) && TM.tripModel(srv.read(Q), { today: '2026-10-17', now: NOW }).members.filter((x) => x.code === 'anjo-z5')[0].noteText === '' };
+    check(Object.keys(mc).every((k) => mc[k]),
+      'PIA-159 the Map: Midway\'s own lane ("○MDW 🚗0:45", after ORD and PIA) holds Anjo\'s 10:30 PM landing and 5:10 PM leave (none on O\'Hare\'s); its head opens P-mapairport on MDW (her two legs read MDW), a chip P-day on MDW with the 🚗 into her run (on 11/30 the joined drive too: "Leaves O\'Hare (ORD) Mon 11/30 at 3:47 PM, Ashwin, then Midway (MDW) at 5:10 PM, Anjo, Mom & Dad driving"); a note of markers alone shows no 📝 text on #159 (only the organizer\'s "📝 Note" to add one)', { mc, mdw: (/<div class="lrow" role="row"><span role="rowheader"><button class="lh"[^>]*data-v="MDW"[\s\S]*?<\/div><\/div>/.exec(mp) || [''])[0].slice(0, 900), ap: v.apMDW.slice(-700), day: v.dayMDW.slice(-900) });
+  }
+  {
+    // the drive on the phone's clock: nextDrive until a run is home, overnight too; the poll moves it on (no timer of its own)
+    const pt9 = (d) => { d.idea.destination = { city: 'Chicago', airport: 'ORD' }; d.idea.dates.departure = '2026-11-20'; d.idea.dates.return = '2026-11-30'; d.idea.notes = '';
+      d.idea.members[1].label = '💪 Ashwin'; chosenAt(d, '2026-11-20', '2026-11-30', 'ORD');
+      d.responses['momdad-k3'] = Object.assign(RESP('in'), { member: 'momdad-k3', origin: 'PIA', note: '🚗ashwin-p8.aORD1120,anjo-z5.aMDW1120,ashwin-p8.dORD1130,anjo-z5.dMDW1130' });
+      d.responses['ashwin-p8'] = Object.assign(RESP('in'), { member: 'ashwin-p8', origin: 'LAX', booked: true, note: '🛬14:35 🛫15:47 🐈ad' });
+      d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA', booked: true, note: '🛬22:30 🛫17:10 🛬MDW 🛫MDW' }); };
+    const Q = seedAs(DWX, pt9), pst = (mo_, d, h, mi) => Date.UTC(2026, mo_, d, h + 8, mi);
+    const phone = async (when) => { CLOCK = when; const t = await boot136({ ls: lsOf([Q], { pialax_idea_me_v1: { [Q]: 'momdad-k3' } }) }); act(t, 'open', { id: Q }); return t; };
+    try {
+      const p1 = await phone(pst(10, 21, 0, 30)), h1 = screen(p1), s1 = p1.api.slotHTML(p1.api.modelOf(Q)); p1.api.ACTS.rides({ dataset: { id: Q } }); const r1 = sheet(p1); p1.api.closeSheet();
+      const p2 = await phone(pst(10, 30, 17, 16)), h2 = screen(p2), pa2 = p2.api.primaryAction(p2.api.modelOf(Q), '2026-11-30', '17:16');
+      const p3 = await phone(pst(10, 20, 17, 4)), h3a = screen(p3);
+      CLOCK = pst(10, 20, 17, 6); const h3b = screen(p3); await p3.api.poll(); await tick(); p3.flush(); const h3c = screen(p3);
+      const drvOf = (h) => (/<button class="btn pri drv"[^>]*data-v="([^"]+)"/.exec(h) || [])[1] || '';
+      check(/<button class="btn pri drv" data-act="rides" data-id="[^"]+" data-v="aMDW1120-anjo-z5" aria-label="Leave home 7:45 PM Friday for Anjo, Midway \(MDW\)" data-lbl="Leave home 7:45 PM"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn">11\/20<\/span><span class="dlv" aria-hidden="true"><span data-k="lvhome">⏰<\/span><span class="tm">7:45 <span class="mer">PM<\/span><\/span><\/span><span aria-hidden="true"><b class="ap">MDW<\/b><\/span>/.test(h1) &&
+        /<button class="slot wide z two" data-act="ridescard"[^>]*data-v="aMDW1120-anjo-z5" aria-label="Leave home Fri 11\/20 7:45 PM"[^>]*><span class="sl1">[\s\S]*?<span class="sl2" aria-hidden="true"><span class="tm">7:45 <span class="mer">PM<\/span><\/span><\/span><\/button>/.test(s1) &&
+        /<div class="rrun" id="run-aMDW1120-anjo-z5"/.test(r1) && /<div class="rrun done" id="run-aORD1120-ashwin-p8"/.test(r1) && /<button class="tool rdrv dis" data-act="ride"[^>]*data-v="aMDW1120-anjo-z5"[^>]*aria-disabled="true"/.test(r1) &&
+        pa2 !== 'drive' && !/btn pri drv/.test(h2) && drvOf(h3a) === 'aORD1120-ashwin-p8' && drvOf(h3b) === 'aORD1120-ashwin-p8' && drvOf(h3c) === 'aMDW1120-anjo-z5',
+        'PIA-159 the drive follows the phone\'s clock: at 12:30 AM on 11/21 Mom & Dad\'s primary is still Anjo\'s run ("🚗 11/20 ⏰ 7:45 PM MDW", "Leave home 7:45 PM Friday for Anjo, Midway (MDW)"), the card\'s slot two lines (🚗⏰ over 7:45 PM), P-rides draws it live after midnight with its toggle read only (O\'Hare\'s 11/20 run done); at 5:16 PM on 11/30, home from the last drive, no drive primary; at 5:04 PM on 11/20 the O\'Hare run, still so at 5:06 PM until the minute\'s poll moves it on to Midway\'s',
+        { h1: (/<button class="btn pri drv"[\s\S]*?<\/button>/.exec(h1) || [''])[0].slice(0, 500), s1, pa2, d3: [drvOf(h3a), drvOf(h3b), drvOf(h3c)] });
+      // (fix pass) the flip comes from the poll itself: every frame drawn first and the record unchanged (its refresh asks for no
+      // frame), then 5:06 PM: Mom & Dad's poll asks for exactly one frame, which moves the primary on; Ashwin's phone, which drives
+      // nothing, asks for none
+      const settled = async (when, me) => { CLOCK = when; const t = await boot136({ ls: lsOf([Q], { pialax_idea_me_v1: { [Q]: me } }) }); act(t, 'open', { id: Q }); t.flush(); await t.api.refreshAll(true); await tick(); t.flush(); return t; };
+      const p4 = await settled(pst(10, 20, 17, 4), 'momdad-k3'), a4 = await settled(pst(10, 20, 17, 4), 'ashwin-p8');
+      CLOCK = pst(10, 20, 17, 6); const h4a = screen(p4);
+      await p4.api.poll(); await tick(); const q4 = p4.frames.length; p4.flush(); const h4b = screen(p4);
+      await a4.api.poll(); await tick(); const qa4 = a4.frames.length;
+      check(drvOf(h4a) === 'aORD1120-ashwin-p8' && q4 === 1 && drvOf(h4b) === 'aMDW1120-anjo-z5' && qa4 === 0,
+        'PIA-159 (fix pass) the minute\'s poll is what moves the drive on: with nothing else pending and the record unchanged, Mom & Dad\'s poll at 5:06 PM (O\'Hare\'s run home at 5:05 PM) asks for one frame and the primary becomes Midway\'s run; Ashwin\'s phone, which drives nothing, asks for none', { q4, qa4, d: [drvOf(h4a), drvOf(h4b)] });
+      // (fix pass) a drive that leaves home the day before its run (Anjo lands at Midway 1:30 AM Sat 11/21; Mom & Dad leave Fri 10:45 PM):
+      // the primary and the card's slot read the leave day's numerals, 11/20 (D16); the slot goes two lines from the day before the leave
+      // day (Thu 11/19), not the run's
+      const QE = seedAs(DWX, (d) => { pt9(d); d.responses['anjo-z5'].available_from = '2026-11-21'; d.responses['anjo-z5'].note = '🛬01:30 🛫17:10 🛬MDW 🛫MDW'; d.responses['momdad-k3'].note = '🚗anjo-z5.aMDW1121'; });
+      const eAt = async (when) => { CLOCK = when; const t = await boot136({ ls: lsOf([QE], { pialax_idea_me_v1: { [QE]: 'momdad-k3' } }) }); act(t, 'open', { id: QE }); return { h: screen(t), s: t.api.slotHTML(t.api.modelOf(QE)) }; };
+      const e18 = await eAt(pst(10, 18, 12, 0)), e19 = await eAt(pst(10, 19, 12, 0));
+      const priE = (h) => (/<button class="btn pri drv"[\s\S]*?<\/button>/.exec(h) || [''])[0];
+      check(/data-v="aMDW1121-anjo-z5" aria-label="Leave home 10:45 PM Friday for Anjo, Midway \(MDW\), lands 1:30 AM Saturday"[^>]*><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn">11\/20<\/span><span class="dlv" aria-hidden="true"><span data-k="lvhome">⏰<\/span><span class="tm">10:45 <span class="mer">PM<\/span><\/span><\/span><span aria-hidden="true"><b class="ap">MDW<\/b><\/span>/.test(priE(e18.h)) &&
+        /^<button class="slot wide z" data-act="ridescard"[^>]*data-v="aMDW1121-anjo-z5" aria-label="Drive 11\/20"[^>]*><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn">11\/20<\/span><\/button>$/.test(e18.s) &&
+        /^<button class="slot wide z two" data-act="ridescard"[^>]*data-v="aMDW1121-anjo-z5" aria-label="Leave home Fri 11\/20 10:45 PM"[^>]*>[\s\S]*<span class="sl2" aria-hidden="true"><span class="tm">10:45 <span class="mer">PM<\/span><\/span><\/span><\/button>$/.test(e19.s),
+        'PIA-159 (fix pass) a drive leaving home the evening before a 1:30 AM Midway landing: on 11/18 Mom & Dad\'s primary reads "🚗 11/20 ⏰ 10:45 PM MDW" (the leave day\'s numerals; "Friday … lands 1:30 AM Saturday" in words) and the card\'s slot "🚗 11/20"; on Thu 11/19, the day before the leave day, the slot is two lines, 🚗⏰ over 10:45 PM', { p18: priE(e18.h).slice(0, 420), s18: e18.s, s19: e19.s });
+      // (fix pass) a joined drive with two drivers: the primary names the code of the first stop this phone drives (Grandma, a second
+      // host in Peoria, takes Ashwin at O'Hare; Mom & Dad have only Anjo's Midway stop: "MDW", and only Midway in words)
+      const QG = seedAs(DWX, (d) => { pt9(d); d.idea.members.push({ code: 'gma-q7', label: '👵 Grandma', airport: 'PIA', headcount: 1 }); d.responses['gma-q7'] = Object.assign(RESP('in'), { member: 'gma-q7', origin: 'PIA', note: '🚗ashwin-p8.dORD1130' }); d.responses['momdad-k3'].note = '🚗anjo-z5.dMDW1130'; });
+      CLOCK = pst(10, 29, 12, 0); const g1 = await boot136({ ls: lsOf([QG], { pialax_idea_me_v1: { [QG]: 'momdad-k3' } }) }); act(g1, 'open', { id: QG }); const gp = priE(screen(g1));
+      check(/data-v="dORD1130-ashwin-p8" aria-label="Leave home 11:15 AM Monday: Midway \(MDW\) for Anjo"/.test(gp) && /<span aria-hidden="true"><b class="ap">MDW<\/b><\/span>/.test(gp) && !/<b class="ap">ORD<\/b>/.test(gp),
+        'PIA-159 (fix pass) on a joined drive Mom & Dad share with Grandma (she takes Ashwin at O\'Hare), their primary names Midway, the stop they drive ("⏰ 11:15 AM MDW", "Midway (MDW) for Anjo"), never O\'Hare', gp.slice(0, 500));
+    } finally { CLOCK = NOW; }
+  }
+  {
+    const pt9 = (anjo, mom, ash) => (d) => { d.idea.destination = { city: 'Chicago', airport: 'ORD' }; d.idea.dates.departure = '2026-11-20'; d.idea.dates.return = '2026-11-30'; d.idea.notes = '';
+      d.idea.members[1].label = '💪 Ashwin'; chosenAt(d, '2026-11-20', '2026-11-30', 'ORD');
+      d.responses['momdad-k3'] = Object.assign(RESP('in'), { member: 'momdad-k3', origin: 'PIA', note: mom || '' });
+      d.responses['ashwin-p8'] = Object.assign(RESP('in'), { member: 'ashwin-p8', origin: 'LAX', booked: true, note: ash == null ? '🛬14:35 🛫15:47 🐈ad' : ash });
+      d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA', booked: true, note: anjo }); };
+    const anjOf = (id) => ({ ls: lsOf([id], { pialax_idea_me_v1: { [id]: 'anjo-z5' } }), rec: ['#toast'] });
+    const noteOf = (id, c) => srv.read(id).responses[c || 'anjo-z5'].note;
+    // (1) Anjo's first entry on her own phone: the pills (O'Hare, Midway, Peoria; none pressed on a rides trip, the planned O'Hare
+    // outlined), "1030" with no half holds the close once ("🛬 AM or PM?"), then PM, Midway (her 🛫 follows), "510", PM: one write
+    const Q1 = seedAs(DWX, pt9('')), a1 = await boot136(anjOf(Q1));
+    act(a1, 'open', { id: Q1 }); act(a1, 'mytimes', { id: Q1 }); const e0 = sheet(a1), q0 = nPosts(a1);
+    typed(a1, 'tm-arr', '1030', 'anjo-z5'); a1.api.closeSheet(); await tick();
+    const held1 = !!a1.api.S.sheet && a1.api.S.sheet.type === 'person' && /🛬 AM or PM\?/.test(toastTxt(a1)) && nPosts(a1) === q0;
+    await tap(a1, sheet(a1), 'tmseg', { end: 'arr', v: 'pm' }); await tap(a1, sheet(a1), 'tmap', { end: 'arr', v: 'MDW' });
+    typed(a1, 'tm-dep', '510', 'anjo-z5'); const e2 = sheet(a1); await tap(a1, e2, 'tmseg', { end: 'dep', v: 'pm' });
+    a1.api.closeSheet(); await until(() => /🛬22:30/.test(noteOf(Q1))); await tick();
+    const ps1 = posts(a1).slice(q0), x1 = srv.read(Q1).responses['anjo-z5'];
+    check(/<div class="pills" id="pills-arr" role="radiogroup" aria-label="Lands at airport"><button class="pill plan" role="radio" aria-checked="false"[^>]*data-v="ORD" aria-label="O&#39;Hare, ORD">ORD<\/button><button class="pill" role="radio" aria-checked="false"[^>]*data-v="MDW" aria-label="Midway, MDW">MDW<\/button><button class="pill" role="radio" aria-checked="false"[^>]*data-v="PIA" aria-label="Peoria, PIA">PIA<\/button><\/div>/.test(e0) &&
+      held1 && /class="pill fol" role="radio" aria-checked="true"[^>]*data-v="MDW" aria-label="Midway, MDW, same as landing"/.test(e2) &&
+      ps1.length === 1 && ps1[0].path === '/idea/respond' && x1.note === '🛬22:30 🛫17:10 🛬MDW 🛫MDW' && x1.arrive_at === '' && x1.leave_from === '' && x1.booked && /🛬 MDW 10:30 PM · 🛫 MDW 5:10 PM ✓/.test(toastTxt(a1)),
+      'PIA-159 Anjo\'s first times on her own phone: the 🛬 row\'s pills read O\'Hare, Midway, Peoria with none pressed (a rides trip asks; the planned ORD outlined); "1030" with no half holds the close once ("🛬 AM or PM?", nothing sent); PM, Midway (her 🛫 follows it, dashed: "same as landing"), "510", PM: one /idea/respond, "🛬22:30 🛫17:10 🛬MDW 🛫MDW" (arrive_at stays blank), and the echo "🛬 MDW 10:30 PM · 🛫 MDW 5:10 PM ✓"', { ps1, x1, toast: toastTxt(a1) });
+    // (2) an airport picked with no time holds once ("🛬 Time?"); her 🛫 follows only once it has its own time: "🛬22:30 🛬MDW"
+    const Q2 = seedAs(DWX, pt9('')), a2 = await boot136(anjOf(Q2));
+    act(a2, 'open', { id: Q2 }); act(a2, 'mytimes', { id: Q2 }); const q2 = nPosts(a2);
+    await tap(a2, sheet(a2), 'tmap', { end: 'arr', v: 'MDW' }); a2.api.closeSheet(); await tick();
+    const held2 = !!a2.api.S.sheet && /🛬 Time\?/.test(toastTxt(a2)) && nPosts(a2) === q2;
+    typed(a2, 'tm-arr', '22:30', 'anjo-z5'); a2.api.closeSheet(); await until(() => /🛬22:30/.test(noteOf(Q2))); await tick();
+    check(held2 && noteOf(Q2) === '🛬22:30 🛬MDW' && nPosts(a2) === q2 + 1 && /🛬 MDW 10:30 PM ✓/.test(toastTxt(a2)),
+      'PIA-159 Midway picked with no time holds the close once ("🛬 Time?", nothing sent); with 22:30 typed the next close writes "🛬22:30 🛬MDW": her 🛫, which follows the landing\'s airport, is written only with a 🛫 time of its own', { note: noteOf(Q2), toast: toastTxt(a2) });
+    // (2b) one hold for each reason (fix pass): a hold spent on the half (or on ⚠, or on "Time?") never spends the airport's.
+    // A: "1030", ⌄ ("🛬 AM or PM?"), PM, ⌄ still asks "🛬 Airport?" (nothing sent), Midway, ⌄: "🛬22:30 🛬MDW"
+    // (each close records the hold's toast, or "closed" with the posts sent while held; the last write is waited for by its note)
+    const holdRun = async (steps, want) => {
+      const Qh = seedAs(DWX, pt9('')), ah = await boot136(anjOf(Qh)), seen = [];
+      act(ah, 'open', { id: Qh }); act(ah, 'mytimes', { id: Qh }); const q = nPosts(ah);
+      for (const s of steps) {
+        if (s[0] === 'type') typed(ah, s[1], s[2], 'anjo-z5');
+        else if (s[0] === 'seg') await tap(ah, sheet(ah), 'tmseg', { end: s[1], v: s[2] });
+        else if (s[0] === 'ap') await tap(ah, sheet(ah), 'tmap', { end: s[1], v: s[2] });
+        else { const p0 = nPosts(ah) - q; ah.api.closeSheet(); await tick(); seen.push(ah.api.S.sheet ? toastTxt(ah).replace(/<[^>]*>/g, '') + (p0 ? ' +' + p0 : '') : 'closed' + (p0 ? ' +' + p0 : '')); }
+      }
+      if (want) await until(() => noteOf(Qh) === want); else { for (let i = 0; i < 40; i++) await tick(2); }
+      return { seen, note: noteOf(Qh), posts: nPosts(ah) - q };
+    };
+    const hA = await holdRun([['type', 'tm-arr', '1030'], ['close'], ['seg', 'arr', 'pm'], ['close'], ['ap', 'arr', 'MDW'], ['close']], '🛬22:30 🛬MDW');
+    const hA2 = await holdRun([['type', 'tm-arr', '1030'], ['close'], ['seg', 'arr', 'pm'], ['close'], ['close']], '🛬22:30');
+    check(eq(hA.seen, ['🛬 AM or PM?', '🛬 Airport?', 'closed']) && hA.note === '🛬22:30 🛬MDW' && hA.posts === 1 &&
+      eq(hA2.seen, ['🛬 AM or PM?', '🛬 Airport?', 'closed']) && hA2.note === '🛬22:30' && hA2.posts === 1,
+      'PIA-159 (fix pass) a hold spent on the half never spends the airport\'s: Anjo\'s "1030", ⌄ holds "🛬 AM or PM?"; PM, ⌄ still holds "🛬 Airport?" (nothing sent); Midway, ⌄ writes "🛬22:30 🛬MDW" in one write; ignored, the next close saves at the planned O\'Hare ("🛬22:30"), as a first-reason hold does', { hA, hA2 });
+    // B: a value that is no time (⚠), fixed to "10:30p", ⌄ asks the airport too; C: an airport picked with no time ("Time?"), then "1030"
+    // with no half asks "AM or PM?" (a time waiting for its half is held for that, never as "Time?"); the next close lets it go unsent;
+    // D: 22:30 and "510" with no half: "🛫 AM or PM?" first, then "🛬 Airport?" (her 🛫 follows the landing's pick): both at Midway
+    const hB = await holdRun([['type', 'tm-arr', '13:75'], ['close'], ['type', 'tm-arr', '10:30p'], ['close'], ['ap', 'arr', 'MDW'], ['close']], '🛬22:30 🛬MDW');
+    const hC = await holdRun([['ap', 'arr', 'MDW'], ['close'], ['type', 'tm-arr', '1030'], ['close'], ['close']], '');
+    const hD = await holdRun([['type', 'tm-arr', '22:30'], ['type', 'tm-dep', '510'], ['close'], ['seg', 'dep', 'pm'], ['close'], ['ap', 'arr', 'MDW'], ['close']], '🛬22:30 🛫17:10 🛬MDW 🛫MDW');
+    check(eq(hB.seen, ['🛬⚠', '🛬 Airport?', 'closed']) && hB.note === '🛬22:30 🛬MDW' && hB.posts === 1 &&
+      eq(hC.seen, ['🛬 Time?', '🛬 AM or PM?', 'closed']) && hC.note === '' && hC.posts === 0 &&
+      eq(hD.seen, ['🛫 AM or PM?', '🛬 Airport?', 'closed']) && hD.note === '🛬22:30 🛫17:10 🛬MDW 🛫MDW' && hD.posts === 1,
+      'PIA-159 (fix pass) one hold for each reason, the most urgent first: "13:75" (🛬⚠), fixed to "10:30p", still asks "🛬 Airport?"; Midway picked with no time ("🛬 Time?"), then "1030" asks "🛬 AM or PM?" and the next close sends nothing; 22:30 with "510" asks "🛫 AM or PM?", then "🛬 Airport?", and Midway saves both legs there in one write', { hB, hC, hD });
+    // (2b, fix pass 2) ⚠ and the half are held once for each leg: "1030" and "510" with no half ask "🛬 AM or PM?", then (PM for the
+    // 🛬) "🛫 AM or PM?", then "🛬 Airport?". E: PM for the 🛫 too, Midway: both legs at Midway in one write. F: the 🛫's ask
+    // ignored: it is let go unsent, the 🛬 saves at Midway. G: two values that are no time: "🛬⚠", then "🛫⚠", then nothing sent
+    const hE = await holdRun([['type', 'tm-arr', '1030'], ['type', 'tm-dep', '510'], ['close'], ['seg', 'arr', 'pm'], ['close'], ['seg', 'dep', 'pm'], ['close'], ['ap', 'arr', 'MDW'], ['close']], '🛬22:30 🛫17:10 🛬MDW 🛫MDW');
+    const hF = await holdRun([['type', 'tm-arr', '1030'], ['type', 'tm-dep', '510'], ['close'], ['seg', 'arr', 'pm'], ['close'], ['close'], ['ap', 'arr', 'MDW'], ['close']], '🛬22:30 🛬MDW');
+    const hG = await holdRun([['type', 'tm-arr', '13:75'], ['type', 'tm-dep', '99'], ['close'], ['close'], ['close']], '');
+    check(eq(hE.seen, ['🛬 AM or PM?', '🛫 AM or PM?', '🛬 Airport?', 'closed']) && hE.note === '🛬22:30 🛫17:10 🛬MDW 🛫MDW' && hE.posts === 1 &&
+      eq(hF.seen, ['🛬 AM or PM?', '🛫 AM or PM?', '🛬 Airport?', 'closed']) && hF.note === '🛬22:30 🛬MDW' && hF.posts === 1 &&
+      eq(hG.seen, ['🛬⚠', '🛫⚠', 'closed']) && hG.note === '' && hG.posts === 0,
+      'PIA-159 (fix pass 2) ⚠ and the AM / PM are held once for each leg: "1030" and "510" with no half ask "🛬 AM or PM?", then (PM for the 🛬) "🛫 AM or PM?", then "🛬 Airport?"; PM for the 🛫 and Midway write "🛬22:30 🛫17:10 🛬MDW 🛫MDW" in one write; the 🛫\'s ask ignored, it stays unsent and the 🛬 saves at Midway; "13:75" and "99" hold "🛬⚠", then "🛫⚠", and the next close sends nothing', { hE, hF, hG });
+    // (2c) fix pass: her 🛫's first entry after her 🛬 was saved at Midway follows it: "510", PM, and the 🛫 pills show Midway pressed,
+    // dashed ("same as landing"), no airport asked; ⌄ writes both legs at Midway
+    const Qf = seedAs(DWX, pt9('🛬22:30 🛬MDW')), af = await boot136(anjOf(Qf));
+    act(af, 'open', { id: Qf }); act(af, 'mytimes', { id: Qf }); const qf = nPosts(af);
+    typed(af, 'tm-dep', '510', 'anjo-z5'); await tap(af, sheet(af), 'tmseg', { end: 'dep', v: 'pm' }); const ef = sheet(af);
+    af.api.closeSheet(); await until(() => /🛫17:10/.test(noteOf(Qf))); await tick();
+    check(/<div class="pills" id="pills-dep"[^>]*>[\s\S]*?<button class="pill fol" role="radio" aria-checked="true"[^>]*data-v="MDW" aria-label="Midway, MDW, same as landing">MDW<\/button>/.test(ef) && !/🛫 Airport\?/.test(toastTxt(af)) &&
+      noteOf(Qf) === '🛬22:30 🛫17:10 🛬MDW 🛫MDW' && nPosts(af) === qf + 1 && !af.api.S.sheet,
+      'PIA-159 (fix pass) with her 🛬 saved at Midway, her 🛫\'s first entry follows it: "510", PM, the 🛫 pills show Midway pressed and dashed ("same as landing"), no "🛫 Airport?" hold; the first close writes "🛬22:30 🛫17:10 🛬MDW 🛫MDW" in one write', { note: noteOf(Qf), toast: toastTxt(af), pills: (/<div class="pills" id="pills-dep"[\s\S]*?<\/div>/.exec(ef) || [''])[0] });
+    // (3) the organizer's airport-only fix (times entered before #159, at O'Hare; Mom & Dad drive that pickup): her face, her 🛬
+    // [ORD 10:30 PM], Midway, ⌄: one write with both airports (her 🛫 follows), the echo, and "Tell Mom & Dad" (their claim moved:
+    // ride.was) with the run as it is now
+    const Q3 = seedAs(DWX, pt9('🛬22:30 🛫17:10', '🚗anjo-z5.aORD1120')), rs = recShare();
+    const o3 = await boot136({ ls: lsOf([Q3], { pialax_idea_keys_v1: keyOf([Q3]), pialax_idea_me_v1: { [Q3]: 'ashwin-p8' } }), navigator: rs.nav, rec: ['#toast'] });
+    act(o3, 'open', { id: Q3 }); act(o3, 'person', { id: Q3, code: 'anjo-z5' }); const f0 = sheet(o3), q3 = nPosts(o3);
+    await tap(o3, f0, 'tmedit', { end: 'arr' }); await tap(o3, sheet(o3), 'tmap', { end: 'arr', v: 'MDW' }); o3.api.closeSheet();
+    await until(() => /🛬MDW/.test(noteOf(Q3))); await until(() => /Tell Mom &amp; Dad/.test(toastTxt(o3))); await tick();
+    const t3 = toastTxt(o3), n3 = rs.shared.length; await o3.api.ACTS.toastshare({ dataset: {} }); await tick(); const told = rs.shared[n3] || {};
+    check(/<button class="tmb" id="tmb-arr" data-act="tmedit"[^>]*data-code="anjo-z5" data-end="arr" aria-label="Landing time, O&#39;Hare \(ORD\), 10:30 PM, change" data-lbl="Landing time"><b class="ap">ORD<\/b> <span class="tm">10:30 <span class="mer">PM<\/span><\/span><\/button>/.test(f0) &&
+      nPosts(o3) === q3 + 1 && noteOf(Q3) === '🛬22:30 🛫17:10 🛬MDW 🛫MDW' &&/🛬 MDW 10:30 PM · 🛫 MDW 5:10 PM ✓/.test(t3) && /data-act="toastshare" aria-label="Tell Mom &amp; Dad"/.test(t3) &&
+      /#m=momdad-k3$/.test(told.url || '') && /^🚗 Ride update: Fri 11\/20: pick up Anjo at Midway \(MDW\), lands 10:30 PM \(leave home 7:45 PM, home about Sat 1:15 AM\)\./.test(told.text || '') && (told.text || '').indexOf(KEY) < 0,
+      'PIA-159 the organizer\'s airport-only fix in 4 taps (her face, her 🛬 "ORD 10:30 PM", Midway, ⌄): one /idea/respond writes both airports (her 🛫 follows), the echo "🛬 MDW 10:30 PM · 🛫 MDW 5:10 PM ✓", and Mom & Dad, whose claim the move left behind (ride.was), get "Tell Mom & Dad": "🚗 Ride update: Fri 11/20: pick up Anjo at Midway (MDW), lands 10:30 PM (leave home 7:45 PM, home about Sat 1:15 AM)."', { note: noteOf(Q3), t3, told });
+    // (4) a note with no room for an airport: the times alone go, "📝 Too long: MDW" says what was left out (never clipped)
+    const LONG = 'x'.repeat(262), Q4 = seedAs(DWX, pt9(LONG)), a4 = await boot136(anjOf(Q4));
+    act(a4, 'open', { id: Q4 }); act(a4, 'mytimes', { id: Q4 });
+    typed(a4, 'tm-arr', '1030', 'anjo-z5'); await tap(a4, sheet(a4), 'tmseg', { end: 'arr', v: 'pm' }); await tap(a4, sheet(a4), 'tmap', { end: 'arr', v: 'MDW' });
+    typed(a4, 'tm-dep', '510', 'anjo-z5'); await tap(a4, sheet(a4), 'tmseg', { end: 'dep', v: 'pm' });
+    a4.api.closeSheet(); await until(() => /🛬22:30/.test(noteOf(Q4))); await tick();
+    const t4 = toastTxt(a4);
+    check(noteOf(Q4) === '🛬22:30 🛫17:10 ' + LONG && /<span aria-hidden="true">🛬 10:30 PM · 🛫 5:10 PM ✓ · 📝 Too long: MDW<\/span><span class="vh">Saved 10:30 PM · 5:10 PM\. The note is too long to add Midway \(MDW\); shorten the note\.<\/span>/.test(t4),
+      'PIA-159 Anjo\'s 262-character note has room for her times but not for Midway: the times alone go (her note whole, nothing clipped) and the toast says "🛬 10:30 PM · 🛫 5:10 PM ✓ · 📝 Too long: MDW" (in words: shorten the note)', { note: noteOf(Q4).slice(0, 40), t4 });
+    // (5) the page hidden with a first entry on a rides trip and no airport picked, or an hour that took the saved time's half: both
+    // stay typed, unsent, for the next close
+    const Q5 = seedAs(DWX, pt9('')), a5 = await boot136(anjOf(Q5));
+    act(a5, 'open', { id: Q5 }); act(a5, 'mytimes', { id: Q5 }); const q5 = nPosts(a5);
+    typed(a5, 'tm-arr', '22:30', 'anjo-z5'); a5.api.flushTimes(); await tick();
+    const kept5 = nPosts(a5) === q5 && !!a5.api.S.sheet && a5.api.S.sheet.local.times && a5.api.S.sheet.local.times.arr === '22:30';
+    a5.api.closeSheet(); await tick(); const held5 = /🛬 Airport\?/.test(toastTxt(a5)) && nPosts(a5) === q5;
+    a5.api.closeSheet(); await until(() => /🛬22:30/.test(noteOf(Q5))); await tick();
+    const s5 = await boot136({ ls: lsOf([Q5], { pialax_idea_me_v1: { [Q5]: 'ashwin-p8' } }), rec: ['#toast'] });
+    act(s5, 'open', { id: Q5 }); act(s5, 'person', { id: Q5, code: 'ashwin-p8' }); await tap(s5, sheet(s5), 'tmedit', { end: 'arr' });
+    typed(s5, 'tm-arr', '305', 'ashwin-p8'); const c5 = sheet(s5), pulsed = ((s5.api.S.sheet.local.times || {}).pulsed || {}).arr === '305', qa = nPosts(s5);
+    s5.api.flushTimes(); await tick(); const keptC = nPosts(s5) === qa && noteOf(Q5, 'ashwin-p8') === '🛬14:35 🛫15:47 🐈ad';
+    s5.api.closeSheet(); await until(() => /🛬15:05/.test(noteOf(Q5, 'ashwin-p8'))); await tick();
+    check(kept5 && held5 && noteOf(Q5) === '🛬22:30' && pulsed && /<span class="ampm" id="seg-arr"[^>]*><button class="segb" role="radio" aria-checked="false"[^>]*>AM<\/button><button class="segb" role="radio" aria-checked="true"[^>]*>PM<\/button>/.test(c5) &&
+      keptC && noteOf(Q5, 'ashwin-p8') === '🛬15:05 🛫15:47 🐈ad' && /🛬 ORD 3:05 PM ✓/.test(toastTxt(s5)),
+      'PIA-159 the flush (the page hidden with the sheet open): Anjo\'s 22:30 with no airport picked yet stays typed and unsent; her close then asks once ("🛬 Airport?") and the next saves it at the planned O\'Hare; Ashwin\'s "305" takes his saved time\'s PM (the segment pulses once, PM pressed), stays unsent through the flush, and goes on the close: "🛬 ORD 3:05 PM ✓"', { kept5, held5, note: noteOf(Q5), pulsed, keptC, ash: noteOf(Q5, 'ashwin-p8') });
+    // (6) New York (no rides): the planned airport stays pressed and a first time saves on the first close; a typed "p" presses PM
+    const NY = seedAs(DWX, (d) => { pt9('')(d); d.idea.destination = { city: 'New York', airport: 'LGA' }; d.decision.chosen.airport = 'LGA'; d.responses['ashwin-p8'].note = ''; delete d.responses['anjo-z5']; });
+    const n6 = await boot136({ ls: lsOf([NY], { pialax_idea_me_v1: { [NY]: 'ashwin-p8' } }), rec: ['#toast'] });
+    act(n6, 'open', { id: NY }); act(n6, 'mytimes', { id: NY }); const e6 = sheet(n6), q6 = nPosts(n6);
+    typed(n6, 'tm-arr', '1:30p', 'ashwin-p8'); const e6b = sheet(n6); n6.api.closeSheet(); await until(() => /🛬13:30/.test(noteOf(NY, 'ashwin-p8'))); await tick();
+    check(/<div class="pills" id="pills-arr"[^>]*><button class="pill" role="radio" aria-checked="true"[^>]*data-v="LGA" aria-label="LaGuardia, LGA">LGA<\/button><button class="pill" role="radio" aria-checked="false"[^>]*data-v="JFK" aria-label="JFK">JFK<\/button><button class="pill" role="radio" aria-checked="false"[^>]*data-v="EWR" aria-label="Newark, EWR">EWR<\/button><\/div>/.test(e6) &&
+      /id="tm-arr"[^>]*value="1:30"/.test(e6b) && /aria-checked="true"[^>]*data-v="pm" aria-label="PM"/.test(e6b) && nPosts(n6) === q6 + 1 && noteOf(NY, 'ashwin-p8') === '🛬13:30' && !n6.api.S.sheet && /🛬 LGA 1:30 PM ✓/.test(toastTxt(n6)),
+      'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
+    // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
+    const L = a1.api.LEGEND;
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 159,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #159', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ AC12 / AC14 ═══

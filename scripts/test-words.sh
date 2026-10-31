@@ -3,7 +3,8 @@
 #
 # Renders every screen and popup of the v2 shell against fixtures (an 8-member trip
 # with long names, unknown airports, a revealed token, long typed values, a failed
-# refresh …) and fails any screen over 10 or popup over 20 strict words. It also
+# refresh …) and fails any screen over 14 (PIA-159; 10 before it) or popup over 20
+# strict words. It also
 # checks the shell's browser-only criteria: tabs, segment, sheets, ⓘ, long-press
 # labels, ⚙ reachability and link handling. See scripts/test-words.js.
 #

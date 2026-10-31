@@ -4,7 +4,8 @@
 //
 // THE RULE (CLAUDE.md, PIALAX_HQ.md): a word is a visible whitespace-separated token that contains a Unicode
 // letter. Tab labels, codes, month names, names, buttons, placeholders and typed values all count. Trip names
-// ([data-free]), numerals, emoji, glyphs and shapes are free. Every screen ≤10 ordinary words plus ≤5 marked label
+// ([data-free]), numerals, emoji, glyphs and shapes are free (a time's digits too; its AM / PM counts). Every screen ≤14
+// ordinary words (PIA-159; 10 before it) plus ≤5 marked label
 // words (PIA-156; inside [data-lbl3], each on the allowlist; Tue / Wed / Thu on Calendar only), and every popup (sheet,
 // long-press label, toast) ≤20 with nothing marked, in every state.
 //
@@ -48,7 +49,8 @@ const NOW_ISO = '2026-10-17T19:00:00.000Z';
 const KEY = 'pialax-test-edit-key-0123456789abcdefghijk';
 const TOKEN = 'org-token-0123456789abcdefABCDEF';
 const WIDTHS = [360, 390, 430];
-const SCREEN_MAX = 10, POPUP_MAX = 20;
+const SCREEN_MAX = 14, POPUP_MAX = 20;   // (PIA-159: 14 ordinary words a screen, 10 before it)
+const FAM8_NAMES = 9;   // (PIA-159: the names the Family board of 13 keeps at 14 words; 5 at 10)
 
 function loadPlaywright() {
   const roots = [];
@@ -218,6 +220,13 @@ DOC[R8] = mkDoc(R8, '🦃 A big family Thanksgiving', 'ORD', { departure: '2026-
   ['bartholomewmontgomeryfitzgera-r1', 'anastasiakonstantinopoulou-r2', 'maximilianoyelaranwhitfield-r3', 'guadalupehernndezvillanueva-r4', 'oluwaseunadebayorichardson-r5', 'priyaraghunathanvenkataraman-r6', 'leonardobartholomew-r7'].reduce((o, c, i) => {
     o[c] = { origin: '', booked: true, arrive_at: i % 3 === 0 ? 'PIA' : '', note: '🛬' + ['08:10', '11:20', '13:05', '16:40', '19:15', '21:30', '23:10'][i] + ' 🛫' + ['06:30', '09:45', '12:15', '14:50', '17:20', '19:40', '22:05'][i] }; return o; }, { 'momdad-r0': { origin: 'PIA' } }), 'chosen');
 DOC[R8].decision.chosen = { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' };
+// PIA-159: P town with the real flights still to enter: Ashwin booked LAX→ORD 2:35 PM, ORD→LAX 3:47 PM; Anjo booked LGA→MDW, MDW→LGA,
+// no times yet (her phone enters them: Midway, 10:30 PM and 5:10 PM)
+const P9 = 'p9PTownRealFlights0001';
+DOC[P9] = mkDoc(P9, '🦃 P town thanksgiving', 'ORD', { departure: '2026-11-20', return: '2026-11-30' }, '',
+  [['momdad-t1', '🌽 Mom & Dad', 'PIA', 2], ['ashwin-t2', '💪 Ashwin', 'LAX'], ['anjo-t3', '🗽 Anjo', 'LGA']],
+  { 'momdad-t1': { origin: 'PIA' }, 'ashwin-t2': { origin: 'LAX', booked: true, note: '🛬14:35 🛫15:47' }, 'anjo-t3': { origin: 'LGA', booked: true } }, 'chosen');
+DOC[P9].decision.chosen = { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' };
 
 // ---- phones ----
 const keyRec = (ids) => { const o = {}; ids.forEach((id) => { o[id] = { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }; }); return o; };
@@ -303,7 +312,7 @@ function workerKV() {
 }
 
 // ---- the strict counter, evaluated in the page (independent of the app's own countWords) ----
-// PIA-154: words inside [data-lbl3] are a screen's marked label words (≤5 since PIA-156, from LBL3_OK), counted apart from its ≤10; the
+// PIA-154: words inside [data-lbl3] are a screen's marked label words (≤5 since PIA-156, from LBL3_OK), counted apart from its ≤14 (PIA-159); the
 // counter returns {w: the ordinary words, m: the marked ones} (a popup has no marked words at all: any is a failure)
 const COUNT = (sels) => {
   const out = [], marked = [];
@@ -315,6 +324,8 @@ const COUNT = (sels) => {
       if (el.closest('[data-free]') || /^(SCRIPT|STYLE)$/.test(el.tagName) || !vis(el)) continue;
       const into = el.closest('[data-lbl3]') ? marked : out;
       if (el.tagName !== 'TEXTAREA') for (const n of el.childNodes) if (n.nodeType === 3) push(n.textContent, into);
+      // (PIA-159: generated text counts too, so a CSS "PM" is a word: a ::before / ::after content string)
+      for (const ps of ['::before', '::after']) { const c = /^"([\s\S]*)"$/.exec(getComputedStyle(el, ps).content || ''); if (c && c[1]) push(c[1], into); }
       if ((el.tagName === 'INPUT' && !['password', 'hidden', 'checkbox', 'radio'].includes(el.type)) || el.tagName === 'TEXTAREA') push(el.value || el.placeholder || '', into);
     }
   }
@@ -355,15 +366,16 @@ async function main() {
   check(!!(WORKER && typeof WORKER.fetch === 'function'), 'PIA-136 worker.js loads in-process (the phones that create and edit write to the real /idea handlers)');
   check(await buildS1(), 'PIA-141 Thanksgiving S1 built as the app meets it: the legacy doc migrated through the real Worker (📌 11/26 from v1\'s card), then 🔓; and the same with no 📌');
   {
-    // PIA-154 the counter itself: ordinary and marked words apart; the gate's limits (10 + 5 on a screen since PIA-156, a popup marks none)
+    // PIA-154 the counter itself: ordinary and marked words apart; the gate's limits (14 + 5 on a screen since PIA-159, a popup marks none)
     const ctx = await browser.newContext(), page = await ctx.newPage(), ws = (n, p) => Array.from({ length: n }, (_, i) => p + i).join(' ');
     const at = async (html) => { await page.setContent('<div id="screen">' + html + '</div><div id="tabbar"></div><div id="sheet"><p>' + ws(3, 's') + ' <span data-lbl3>Track</span></p></div>'); return page.evaluate(COUNT, ['#screen', '#tabbar']); };
-    const ok5 = await at('<p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b><i data-lbl3>Booked</i><i data-lbl3>Waiting</i><i data-lbl3>Hosting</i><span data-free>Long trip name here</span> 🔒 12');
-    const plain11 = await at('<p>' + ws(11, 'w') + '</p>'), marked6 = await at('<p>' + ws(2, 'w') + '</p><b data-lbl3>Lock dates</b><i data-lbl3>Booked</i><i data-lbl3>Waiting</i><i data-lbl3>Hosting</i><i data-lbl3>Coming?</i>');
+    // (PIA-159: a 12-hour time's digits are free and its AM / PM a word, wherever the app puts it: "10:30 <span>PM</span>" is one word)
+    const ok5 = await at('<p>' + ws(13, 'w') + '</p><span class="tm">10:30 <span class="mer">PM</span></span><b data-lbl3>I booked</b><i data-lbl3>Booked</i><i data-lbl3>Waiting</i><i data-lbl3>Hosting</i><span data-free>Long trip name here</span> 🔒 12');
+    const plain15 = await at('<p>' + ws(15, 'w') + '</p>'), marked6 = await at('<p>' + ws(2, 'w') + '</p><b data-lbl3>Lock dates</b><i data-lbl3>Booked</i><i data-lbl3>Waiting</i><i data-lbl3>Hosting</i><i data-lbl3>Coming?</i>');
     const pop = await page.evaluate(COUNT, ['#sheet']);
-    check(LBL3_MAX === 5 && ok5.w.length === 10 && ok5.m.length === 5 && plain11.w.length > SCREEN_MAX && marked6.m.length === 6 && marked6.m.length > LBL3_MAX && marked6.w.length === 2 && pop.w.length === 3 && pop.m.length === 1 &&
+    check(SCREEN_MAX === 14 && LBL3_MAX === 5 && ok5.w.length === 14 && ok5.w.indexOf('PM') >= 0 && ok5.m.length === 5 && plain15.w.length > SCREEN_MAX && marked6.m.length === 6 && marked6.m.length > LBL3_MAX && marked6.w.length === 2 && pop.w.length === 3 && pop.m.length === 1 &&
       LBL3_OK.indexOf('Lock dates') >= 0 && ['Booked', 'Waiting', 'Hosting'].every((w) => LBL3_OK.indexOf(w) >= 0) && LBL3_OK.indexOf('Book') < 0,
-      'PIA-154 + PIA-156 the counter keeps a screen\'s marked label words (data-lbl3) apart: 10 ordinary + 5 marked passes ("I booked" and the key\'s Booked / Waiting / Hosting); an 11th ordinary or a 6th marked word is over its limit; a popup\'s marked word is caught (popups mark none)', { ok5, plain11: plain11.w.length, marked6, pop });
+      'PIA-154 + PIA-156 + PIA-159 the counter keeps a screen\'s marked label words (data-lbl3) apart: 14 ordinary (a time\'s PM one of them, its digits free) + 5 marked passes ("I booked" and the key\'s Booked / Waiting / Hosting); a 15th ordinary or a 6th marked word is over its limit; a popup\'s marked word is caught (popups mark none)', { ok5, plain15: plain15.w.length, marked6, pop });
     await ctx.close();
   }
 
@@ -495,21 +507,22 @@ async function main() {
       // (PIA-156: 6 marked words, one of them off the list and Tue off Calendar; 5 on the list at the limit. The key's words sit in
       // its rows' word column, as the app draws them; a marked "Waiting" anywhere else is a misplaced mark)
       const key = (...w) => '<div class="wk">' + w.map((x) => '<div class="wkr"><span class="wkl"><span class="wg">⏳</span> <span data-lbl3>' + x + '</span></span></div>').join('') + '</div>';
-      await run('over', '<main id="screen" data-screen="trip-organizer"><p>' + ws(11, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Book</i> <i data-lbl3>Tue</i>' + key('Waiting', 'Hosting') + '</main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: over'));
-      await run('atLimit', '<main id="screen" data-screen="calendar"><p>' + ws(10, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Tue</i>' + key('Booked', 'Waiting') + '<span data-free>A long trip name</span></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: at the limit'));
-      await run('sixth', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '<i data-lbl3>Track</i></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: a 6th marked word'));
-      await run('fifth', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '</main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: 5 marked words'));
-      await run('offKey', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>Waiting</b></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Waiting marked off the key'));
+      // (PIA-159: the screen's limit is 14 ordinary words; 15 is over)
+      await run('over', '<main id="screen" data-screen="trip-organizer"><p>' + ws(15, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Book</i> <i data-lbl3>Tue</i>' + key('Waiting', 'Hosting') + '</main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: over'));
+      await run('atLimit', '<main id="screen" data-screen="calendar"><p>' + ws(14, 'w') + '</p><b data-lbl3>Lock dates</b> <i data-lbl3>Tue</i>' + key('Booked', 'Waiting') + '<span data-free>A long trip name</span></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: at the limit'));
+      await run('sixth', '<main id="screen" data-screen="trip-portal"><p>' + ws(14, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '<i data-lbl3>Track</i></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: a 6th marked word'));
+      await run('fifth', '<main id="screen" data-screen="trip-portal"><p>' + ws(14, 'w') + '</p><b data-lbl3>I booked</b>' + key('Waiting', 'Booked', 'Hosting') + '</main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: 5 marked words'));
+      await run('offKey', '<main id="screen" data-screen="trip-portal"><p>' + ws(14, 'w') + '</p><b data-lbl3>Waiting</b></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Waiting marked off the key'));
       // (PIA-157: "Rides" marked in the key's word column or the primary passes; marked anywhere else on the screen fails)
-      await run('ridesOk', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p>' + key('Rides') + '<div class="split prim"><b data-lbl3>Rides</b></div></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Rides in the key and the primary'));
-      await run('ridesOff', '<main id="screen" data-screen="trip-portal"><p>' + ws(10, 'w') + '</p><b data-lbl3>Rides</b></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Rides marked off the key and primary'));
+      await run('ridesOk', '<main id="screen" data-screen="trip-portal"><p>' + ws(14, 'w') + '</p>' + key('Rides') + '<div class="split prim"><b data-lbl3>Rides</b></div></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Rides in the key and the primary'));
+      await run('ridesOff', '<main id="screen" data-screen="trip-portal"><p>' + ws(14, 'w') + '</p><b data-lbl3>Rides</b></main><nav id="tabbar"></nav>', () => measureScreen(page, 'self-test: Rides marked off the key and primary'));
       await run('popup', '<main id="screen"></main><div id="sheet"><p>' + ws(21, 's') + ' <span data-lbl3>Track</span></p></div>', () => measurePopup(page, 'self-test: popup'));
       await run('popupOk', '<main id="screen"></main><div id="sheet"><p>' + ws(20, 's') + '</p></div>', () => measurePopup(page, 'self-test: popup at 20'));
     } finally { console.log = log0; }
     failCount = f0; Object.assign(worst, JSON.parse(keep)); [screensCounted, popupsCounted, markedScreens] = c0;
     await ctx.close();
     check(caught.over === 4 && caught.atLimit === 0 && caught.sixth === 1 && caught.fifth === 0 && caught.offKey === 1 && caught.ridesOk === 0 && caught.ridesOff === 1 && caught.popup === 2 && caught.popupOk === 0,
-      'PIA-154 + PIA-156 + PIA-157 the gate itself fails what it must: measureScreen on 11 ordinary + 6 marked words (one off the list, Tue off Calendar) fails 4 ways, 10 + 5 on Calendar passes; a trip page with a 6th marked word from the list fails, 10 + 5 ("I booked" and the key\'s three) passes; a marked "Waiting" outside the key\'s rows fails; "Rides" in the key\'s word column and the primary passes, anywhere else fails; measurePopup on 21 words with a mark fails twice, 20 plain passes', caught);
+      'PIA-154 + PIA-156 + PIA-157 + PIA-159 the gate itself fails what it must: measureScreen on 15 ordinary + 6 marked words (one off the list, Tue off Calendar) fails 4 ways, 14 + 5 on Calendar passes; a trip page with a 6th marked word from the list fails, 14 + 5 ("I booked" and the key\'s three) passes; a marked "Waiting" outside the key\'s rows fails; "Rides" in the key\'s word column and the primary passes, anywhere else fails; measurePopup on 21 words with a mark fails twice, 20 plain passes', caught);
   }
 
   // ⓘ on this screen: every page counted, every glyph on screen explained, ⚙ at the foot. "Every glyph" is read
@@ -776,16 +789,20 @@ async function main() {
       if (deep && !seenOn(who + ' person').done) { seenOn(who + ' person').done = true; await labelCheck(page, tag('P-person ' + c), who + '-person', 'sheet'); }
       // PIA-139: a booked traveler's 🛬 / 🛫 time fields, typed in (by them, or by the organizer for them); nothing is saved here
       if (deep && (await page.$('#sheet #tm-arr'))) {
-        await page.fill('#sheet #tm-arr', ''); await page.type('#sheet #tm-arr', '1510', { delay: 0 });
-        await page.fill('#sheet #tm-dep', ''); await page.type('#sheet #tm-dep', '23:59', { delay: 0 });
+        // (PIA-159: a leg not being edited reads [code time]: its button opens the field again)
+        const fld = async (k) => { if (!(await page.$('#sheet #tm-' + k)) && (await page.$('#sheet #tmb-' + k))) { await jsClick(page, '#sheet #tmb-' + k); await settle(page, 40); } };
+        await fld('arr'); await page.fill('#sheet #tm-arr', ''); await page.type('#sheet #tm-arr', '1510', { delay: 0 });
+        await fld('dep'); await page.fill('#sheet #tm-dep', ''); await page.type('#sheet #tm-dep', '23:59', { delay: 0 });
         await measurePopup(page, tag('P-person ' + c + ' (times typed)'));
-        // PIA-139 fix pass: an hour that could be either half of the day, left: [☀ | 🌃]; a time that is not one, left: ⚠
-        await page.fill('#sheet #tm-arr', ''); await page.type('#sheet #tm-arr', '310', { delay: 0 });
-        await page.fill('#sheet #tm-dep', ''); await page.type('#sheet #tm-dep', '25:99', { delay: 0 });
-        await jsClick(page, '#sheet #tm-arr'); await page.$eval('#sheet #tm-arr', (e) => e.focus()); await settle(page, 40);
-        const hv = await page.$$eval('#sheet #tm-half [data-act="tmhalf"]', (els) => els.length);
-        await measurePopup(page, tag('P-person ' + c + ' (☀ / 🌃 asked, a time marked ⚠)'));
-        timesLog.push(tag(c) + (hv === 2 ? ' halves' : ''));
+        // PIA-139 fix pass: a time that is not one, left: ⚠. PIA-159: an hour that could be either half of the day sits beside the
+        // fixed [AM | PM] segment of its field, in the leg's edit row
+        await fld('arr'); await page.fill('#sheet #tm-arr', ''); await page.type('#sheet #tm-arr', '310', { delay: 0 });
+        await fld('dep'); await page.fill('#sheet #tm-dep', ''); await page.type('#sheet #tm-dep', '25:99', { delay: 0 });
+        await fld('arr'); await jsClick(page, '#sheet #tm-arr'); await page.$eval('#sheet #tm-arr', (e) => e.focus()); await settle(page, 40);
+        // (the half pressed for the 1510 just typed stays pressed: the segment's two radios, one or none pressed)
+        const hv = await page.$$eval('#sheet #seg-arr [data-act="tmseg"]', (els) => els.length - (els.filter((e) => e.getAttribute('aria-checked') === 'true').length > 1 ? 1 : 0));
+        await measurePopup(page, tag('P-person ' + c + ' (AM | PM to press, a time marked ⚠)'));
+        timesLog.push(tag(c) + (hv === 2 ? ' seg' : ''));
         // put the fields back as they were, so closing the sheet sends nothing (this walk writes nowhere)
         await page.evaluate(() => { ['tm-arr', 'tm-dep'].forEach((id) => { const f = document.getElementById(id); if (f) { f.value = f.defaultValue; f.dispatchEvent(new Event('input', { bubbles: true })); } }); });
       }
@@ -1127,7 +1144,7 @@ async function main() {
   }
 
   // ═══ AC3: every screen and popup within budget, at three widths, on every phone ═══
-  section('AC3 the strict word gate: every screen ≤10 words and every popup ≤20, rendered, on every phone');
+  section('AC3 the strict word gate: every screen ≤14 words (PIA-159) and every popup ≤20, rendered, on every phone');
   const NAMES = ['organizer', 'guest', 'host', 'eight', 'shelf', 'fresh', 'lockorg', 'portal', 'bookorg', 'booked', 'prices'];   // PIA-139: + the Done 8-member trip's organizer and a booked traveler; PIA-140: + the worst-case prices
   for (const width of WIDTHS) await Promise.all(NAMES.map((name) => walk(name, { width })));   // phones in parallel, one width at a time
   ok('walked every screen of the ' + NAMES.join(', ') + ' phones at ' + WIDTHS.join(', ') + 'px');
@@ -2183,11 +2200,11 @@ async function main() {
     const secret = calLog.filter((c) => [KEY, TOKEN, '#k=', 't=' + TOKEN].some((x) => c.ics.indexOf(x) >= 0 || c.g.indexOf(x) >= 0));
     const onlyGuest = calLog.every((c) => { const links = sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []; return links.length === 1 && /^https:\/\/pialax-proxy\.ashwinyedavalli\.workers\.dev\/i\/[A-Za-z0-9_-]{22}$/.test(links[0]) && /details=https%3A%2F%2Fpialax-proxy\.ashwinyedavalli\.workers\.dev%2Fi%2F/.test(c.g); });
     // (PIA-154: no ? corner in P-calendar-add: a tentative event says so in its own title, "? …", and STATUS:TENTATIVE)
-    const cv = { times: timesLog.length >= 2 && timesLog.every((x) => / halves$/.test(x)), paid: paidLog.some((x) => x.arm === 'Confirm') && paidLog.some((x) => x.why === 'Not everyone booked'),
+    const cv = { times: timesLog.length >= 2 && timesLog.every((x) => / seg$/.test(x)), paid: paidLog.some((x) => x.arm === 'Confirm') && paidLog.some((x) => x.why === 'Not everyone booked'),
       cal: calLog.length >= 20 && calLog.every((c) => c.pid === 'P-calendar-add'), secret: secret.length === 0, onlyGuest, noTq: calLog.every((c) => !c.tq),
       tent: calLog.some((c) => /SUMMARY:\? /.test(sec(c.ics)) && /STATUS:TENTATIVE/.test(c.ics)), conf: calLog.some((c) => !/SUMMARY:\? /.test(sec(c.ics)) && /STATUS:CONFIRMED/.test(c.ics)) };
     check(Object.values(cv).every(Boolean),
-      'PIA-139 + PIA-154 the walk counted the 🛬 / 🛫 time fields typed in (' + timesLog.length + ' times), P-stage\'s 💵 typed and asking first (and greyed with why elsewhere), and P-calendar-add from ⋯ More ' + calLog.length + ' times (tentative "? " in the event\'s own title, no corner badge; and set): every event carries only the guest /i/<id> link, never the key or token',
+      'PIA-139 + PIA-154 + PIA-159 the walk counted the 🛬 / 🛫 time fields typed in (' + timesLog.length + ' times, each "310" beside its [AM | PM] segment), P-stage\'s 💵 typed and asking first (and greyed with why elsewhere), and P-calendar-add from ⋯ More ' + calLog.length + ' times (tentative "? " in the event\'s own title, no corner badge; and set): every event carries only the guest /i/<id> link, never the key or token',
       { cv, cal: calLog.length, notCal: calLog.filter((c) => c.pid !== 'P-calendar-add').map((c) => c.who + ' ' + c.pid).slice(0, 4),
         notGuest: calLog.filter((c) => { const links = sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []; return !(links.length === 1 && /^https:\/\/pialax-proxy\.ashwinyedavalli\.workers\.dev\/i\/[A-Za-z0-9_-]{22}$/.test(links[0]) && /details=https%3A%2F%2Fpialax-proxy\.ashwinyedavalli\.workers\.dev%2Fi%2F/.test(c.g)); }).map((c) => c.who + ' ' + c.pid + ' ' + (sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []).join(',') + ' g=' + c.g.slice(0, 120)).slice(0, 4),
         secret: secret.slice(0, 2), tq: calLog.filter((c) => c.tq).map((c) => c.who).slice(0, 2) });
@@ -2218,7 +2235,9 @@ async function main() {
     await page.click('#screen .split.prim [data-act="mytimes"]'); await settle(page, 150);
     r.focus = await page.evaluate(() => (document.activeElement || {}).id || '');
     r.fields = !!(await page.$('#sheet #tm-arr')) && !!(await page.$('#sheet #tm-dep'));
-    await page.type('#sheet #tm-arr', '0905', { delay: 0 }); await page.keyboard.press('Enter'); await page.type('#sheet #tm-dep', '1720', { delay: 0 });
+    // (PIA-159: Guadalupe hosts in Peoria, so his first time asks for its airport: Peoria, the planned one; his 🛫 follows it)
+    await page.type('#sheet #tm-arr', '0905', { delay: 0 }); await page.click('#sheet #pills-arr [data-act="tmap"][data-v="PIA"]'); await settle(page, 80);
+    await page.click('#sheet #tm-dep'); await settle(page, 60); await page.type('#sheet #tm-dep', '1720', { delay: 0 });
     await measurePopup(page, 'set trip › my P-person, times typed');
     // taking his 🎫 back asks, and keeps asking past 6s until another tap (nothing is sent here: ⌄ puts it back)
     const u0 = net.posts;
@@ -2233,7 +2252,7 @@ async function main() {
     check(eq(r.split, ['gf:ret', ':mybook']) && !r.glow0 && eq(r.mk0, ['Waiting', 'Hosting', 'I booked']) && eq(r.mk1, ['Waiting', 'Booked', 'Hosting', 'Landing time']) && r.glow === 'true|I booked, tap to mark' && r.posts === 1 && r.booked && r.after === 'mytimes:button:🛬 Landing time' && r.pulse && r.focus === 'tm-arr' && r.fields &&
       r.sticky === 'Confirm not booked' && r.unbookSent === 0 && r.stillBooked &&
       r.note === '🛬09:05 🛫17:20 Red-eye Monday night then a train down from Chicago with the kids and the dog',
-      'PIA-139 AC1/AC2 + PIA-154 Leo\'s [✈ Book ↗ | 🎫 I booked]: back from Google Flights the 🎫 glows ("I booked, tap to mark"), a real tap marks him booked (one write) and the primary becomes 🛬 Landing time, pulsing; it opens his sheet at 🛬, where 0905 ↵ 1720 and ⌄ save 🛬09:05 🛫17:20 before his whole note; taking the 🎫 back still asks after 6s, and ⌄ sends nothing of it', r);
+      'PIA-139 AC1/AC2 + PIA-154 Leo\'s [✈ Book ↗ | 🎫 I booked]: back from Google Flights the 🎫 glows ("I booked, tap to mark"), a real tap marks him booked (one write) and the primary becomes 🛬 Landing time, pulsing; it opens his sheet at 🛬, where 0905, Peoria (PIA-159: a rides trip asks for the first time\'s airport), 1720 and ⌄ save 🛬09:05 🛫17:20 before his whole note; taking the 🎫 back still asks after 6s, and ⌄ sends nothing of it', r);
     // P-calendar-add from ⋯ More (PIA-154): a set trip is not tentative; the event is the guest link alone
     await jsClick(page, '#screen .nav [data-act="stage"]'); await settle(page, 100);
     await jsClick(page, '#sheet [data-act="caladd"]'); await settle(page, 100);
@@ -2248,18 +2267,19 @@ async function main() {
     await page.click('#screen [data-act="back"]'); await settle(page, 120);
     await openCard(page, BK); await settle(page, 200);
     await jsClick(page, '#screen .pb-row.own [data-act="person"]'); await settle(page, 100);
-    // "410" (a 12-hour 4:10 PM) is not sent as 04:10: leaving the field asks [☀ 16:10 | 🌃 04:10]; ☀ puts 16:10 there
+    // "410" (a 12-hour 4:10) is never sent as 04:10. PIA-159: his 🛬 reads "3:10 PM", a button into its edit row; "410" typed there
+    // takes his saved time's PM at once (the [AM | PM] segment pulses, PM pressed: nothing to ask), and the close sends 16:10
+    const readArr = await page.$eval('#sheet #tmb-arr', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => null);
+    await page.click('#sheet #tmb-arr'); await settle(page, 80);
     await page.fill('#sheet #tm-arr', ''); await page.type('#sheet #tm-arr', '410', { delay: 0 });
-    const typingHalves = await page.$eval('#sheet #tm-half', (e) => e.hidden).catch(() => null);
-    await page.click('#sheet #tm-dep'); await settle(page, 80);
-    const halves = await page.$$eval('#sheet #tm-half [data-act="tmhalf"]', (els) => els.map((e) => e.textContent.trim() + ':' + Math.round(e.getBoundingClientRect().height)));
-    await measurePopup(page, 'Done trip › my P-person, ☀ / 🌃 asked for 410');
-    await page.click('#sheet [data-act="tmhalf"][data-v="pm"]'); await settle(page, 80);
+    const seg = await page.$$eval('#sheet #seg-arr [data-act="tmseg"]', (els) => els.map((e) => e.textContent.trim() + ':' + e.getAttribute('aria-checked') + ':' + Math.round(e.getBoundingClientRect().height)));
+    const pulsed = await page.$eval('#sheet #seg-arr', (e) => e.classList.contains('cpulse')).catch(() => false);
+    await measurePopup(page, 'Done trip › my P-person, 410 over his 3:10 PM');
     const fieldNow = await page.$eval('#sheet #tm-arr', (e) => e.value);
     await page.click('#sheet [data-act="sh-close"]'); await settle(page, 500);
     const bk = JSON.parse(net.kv.map.get('idea:' + BK)).responses['bartholomewmontgomeryfitzgera-dj'];
-    check(typingHalves === true && eq(halves.map((x) => x.split(':').slice(0, 2).join(':')), ['☀16:10', '🌃04:10']) && halves.every((x) => +x.split(':').pop() >= 44) && fieldNow === '16:10',
-      'PIA-139 AC2 Bartholomew types 410: nothing asks while he types; leaving the field asks [☀16:10 | 🌃04:10] (≥44px, no words), and ☀ puts 16:10 in the field', { typingHalves, halves, fieldNow });
+    check(readArr === 'SAV 3:10 PM' && eq(seg.map((x) => x.split(':').slice(0, 2).join(':')), ['AM:false', 'PM:true']) && seg.every((x) => +x.split(':').pop() >= 44) && pulsed && fieldNow === '410',
+      'PIA-139 AC2 + PIA-159 Bartholomew\'s 🛬 reads "SAV 3:10 PM" (a button into its edit row); "410" there takes his saved PM at once: the [AM | PM] segment (two ≥44px radios, no words but AM / PM) pulses with PM pressed, nothing to ask', { readArr, seg, pulsed, fieldNow });
     await page.click('#screen [data-act="back"]'); await settle(page, 100);
     await page.click('#tabbar [data-act="tab"][data-v="map"]'); await settle(page, 150);
     if (await page.$('#screen [data-act="pick"][data-id="' + BK + '"]')) { await page.click('#screen [data-act="pick"][data-id="' + BK + '"]'); await settle(page, 120); }
@@ -2277,9 +2297,9 @@ async function main() {
     if (await page.$('#screen .pk:not([data-code])')) { await page.click('#screen .pk:not([data-code])'); await settle(page, 120); multi = await popupId(page); await measurePopup(page, 'Map › a chip of several › P-day'); await closeSheet(page); }
     check(bk.note === '🛬16:10 🛫18:05 Driving down from Chicago if flights are bad' && bk.booked && lanes.length === 1 && /^SAV: /.test(lanes[0]),
       'PIA-139 AC2 Bartholomew changes his 🛬 to 16:10 (his 🛫 18:05 and note kept); the Map\'s SAV row shows everyone\'s chips with their times', { note: bk.note, lanes });
-    check(lanes.length === 1 && ['16:10', '15:05', '15:40', '18:05', '20:00'].every((x) => lanes[0].indexOf(x) >= 0) && / ⏱0:35$/.test(lanes[0]) && lanes[0].indexOf('☀') < 0 && lanes[0].indexOf('🌃') < 0 && lanes[0].indexOf('✈') < 0 && corners >= 5 &&
-      eq(heads, ['🛬 Lands', '🛫 Leaves']) && day === 'P-day' && /Bartholomew/.test(dayWho) && /16:10/.test(dayWho) && (multi === '' || multi === 'P-day'),
-      'PIA-139 AC2 + PIA-154 the pickups table (🛬 Lands | 🛫 Leaves) reads 16:10 on 12/10, then 15:05 and 15:40 on 12/11 (one ⏱ pickup run of 0:35), 18:05 and 20:00 on the way home (no ☀ / 🌃, no booked mark, ✈ since PIA-156 (🎫 before): a booked chip is solid); every chip opens P-day map mode with the travelers and their times', { lanes, heads, corners, day, dayWho, multi });
+    check(lanes.length === 1 && ['4:10 PM', '3:05 PM', '3:40 PM', '6:05 PM', '8:00 PM'].every((x) => lanes[0].indexOf(x) >= 0) && / ⏱0:35$/.test(lanes[0]) && lanes[0].indexOf('☀') < 0 && lanes[0].indexOf('🌃') < 0 && lanes[0].indexOf('✈') < 0 && corners >= 5 &&
+      eq(heads, ['🛬 Lands', '🛫 Leaves']) && day === 'P-day' && /Bartholomew/.test(dayWho) && /4:10 PM/.test(dayWho) && (multi === '' || multi === 'P-day'),
+      'PIA-139 AC2 + PIA-154 + PIA-159 the pickups table (🛬 Lands | 🛫 Leaves) reads 4:10 PM on 12/10, then 3:05 PM and 3:40 PM on 12/11 (one ⏱ pickup run of 0:35), 6:05 PM and 8:00 PM on the way home (12-hour; no ☀ / 🌃, no booked mark, ✈ since PIA-156 (🎫 before): a booked chip is solid); every chip opens P-day map mode with the travelers and their times', { lanes, heads, corners, day, dayWho, multi });
     await ctx.close();
   }
   {
@@ -2348,19 +2368,23 @@ async function main() {
     const dec = MODEL.gfDecode(r.open.book);
     r.open.legs = dec ? dec.legs.map((L) => L.date + ':' + [].concat(L.from).join(',') + '>' + [].concat(L.to).join(',')) : null;
     await measurePopup(page, 'my flight › his flight section (not booked: days following the plan, PIA | ORD, Book | 🎫)');
-    // AC5 / AC9 🎫 → landing time: 🎫 (1), the 🛬 field in its row, inviting (2), typed, ↵ ↵
+    // AC5 / AC9 🎫 → landing time: 🎫 (1), the 🛬 field in its row, inviting (2), typed; PIA-159 (owner #5): a rides trip (Guadalupe
+    // hosts in Peoria) asks for the leg's airport on its first time, so Peoria (3, his 🛫 follows) and ⌄ (4) save it
     taps = 0; const p0 = net.posts;
     await tapS('#sheet [data-act="mybook"]', 50); await page.waitForSelector('#sheet #tm-arr', { timeout: 8000 }).catch(() => {}); await settle(page, 100);
     r.invite = await page.$eval('#sheet #tm-arr', (e) => e.closest('.fld').classList.contains('invite') && !!e.closest('.leg')).catch(() => false);
     r.noShift = !(await page.$('#sheet [data-act="legshift"]'));
     await tapS('#sheet #tm-arr', 80);
-    await page.keyboard.type('0905'); await page.keyboard.press('Enter'); await page.keyboard.press('Enter'); await recUntil((x) => /🛬09:05/.test(x.note)); await settle(page, 150);
+    await page.keyboard.type('0905');
+    r.pills = await page.$$eval('#sheet #pills-arr [data-act="tmap"]', (els) => els.map((e) => e.textContent.trim() + ':' + e.getAttribute('aria-checked') + ':' + Math.round(Math.min(e.getBoundingClientRect().height, e.getBoundingClientRect().width)))).catch(() => []);
+    await tapS('#sheet #pills-arr [data-act="tmap"][data-v="PIA"]', 80);
+    await measurePopup(page, 'my flight › booked: his 🛬 row being edited, its [AM | PM] and its airports (Peoria picked)');
+    await tapS('#sheet [data-act="sh-close"]', 50); await recUntil((x) => /🛬09:05/.test(x.note)); await settle(page, 300);
     r.jobB = { taps, posts: net.posts - p0, booked: rec().booked === true, note: rec().note };
-    await measurePopup(page, 'my flight › booked: each row its day, its time field and its airports');
     check(r.open.pop === 'P-person' && r.open.taps === 1 && eq(r.open.rows, ['12/22', '12/27']) && r.open.cells === 4 && r.open.tk && r.open.tkWords === '☐ I booked' && eq(r.open.legs, ['2026-12-22:SEA>PIA', '2026-12-27:PIA>SEA']) &&
-      r.invite && r.noShift && r.jobB.taps === 2 && r.jobB.posts === 2 && r.jobB.booked && /^🛬09:05 Red-eye/.test(r.jobB.note),
-      'PIA-151 AC1/AC5/AC9 + PIA-154 one tap on Leo\'s bar opens his flight section: 🛬 12/22 and 🛫 12/27 (both following the plan, dimmed, no 🗓 corner), PIA | ORD for each end, ✈ Book ↗ for exactly SEA→PIA 12/22 and PIA→SEA 12/27 with "🎫 I booked" beside it; then 🎫 → landing time in 2 taps: 🎫, the 🛬 field (in its own row, inviting), 0905 ↵ ↵ saved', r);
-    await page.click('#sheet [data-act="sh-close"]'); await settle(page, 300);
+      r.invite && r.noShift && eq(r.pills.map((x) => x.split(':').slice(0, 2).join(':')), ['PIA:false', 'ORD:false', 'MDW:false']) && r.pills.every((x) => +x.split(':').pop() >= 44) &&
+      r.jobB.taps === 4 && r.jobB.posts === 2 && r.jobB.booked && /^🛬09:05 Red-eye/.test(r.jobB.note),
+      'PIA-151 AC1/AC5/AC9 + PIA-154 + PIA-159 one tap on Leo\'s bar opens his flight section: 🛬 12/22 and 🛫 12/27 (both following the plan, dimmed, no 🗓 corner), PIA | ORD for each end, ✈ Book ↗ for exactly SEA→PIA 12/22 and PIA→SEA 12/27 with "🎫 I booked" beside it; then 🎫 → landing time in 4 taps: 🎫, the 🛬 field (in its own row, inviting), 0905, the airport his first time asks for on a rides trip (Peoria, O\'Hare, Midway, none pressed, ≥44px), ⌄: saved at Peoria (no marker: the planned airport)', r);
     // AC9 record my booked arrive DAY + time from the trip page in ≤5 taps: my booked bar (1), my 🛬 day (2), the day (3), ⚠ 🎫 Confirm
     // (4: the first move after my 🎫 asks once), the time typed in the 🛬 field that has the focus, ⌄ (5). (PIA-154: with a landing time
     // recorded the primary is gone; the bar opens the sheet)
@@ -2385,8 +2409,8 @@ async function main() {
     await measureScreen(page, 'set trip › my bar with my landing time (the final check)');
     check(r.prim === null && r.f1 !== 'tm-arr' && r.cal.pop === 'P-dates' && r.cal.endg === '🛬 Arrive' && !r.cal.save && r.cal.cross === 'Ends cross' && r.cal.pin && r.ask === '⚠ ✈ Confirm' && r.askPosts === 0 &&
       r.back.pop === 'P-person' && r.back.focus === 'tm-arr' && r.back.day === '12/21⚠' && r.jobA.taps === 5 && r.jobA.posts === 2 && r.jobA.from === '2026-12-21' && r.jobA.to === '' && r.jobA.booked &&
-      /^🛬15:10 Red-eye/.test(r.jobA.note) && r.board === '15:10',
-      'PIA-151 AC2/AC9 + PIA-154 from the trip page Leo (booked, his landing time recorded: no primary) records his booked arrive day and time in 5 taps: his bar, his 🛬 day (a month calendar for that end, "🛬 Arrive": 📌 on its day, days past his 🛫 greyed "Ends cross", no Save to find), 12/21, ⚠ 🎫 Confirm (once a visit, nothing sent before it), back at his 🛬 field, 1510, ⌄: two writes (the day, then the time), his 🎫 kept, and his bar reads 15:10', r);
+      /^🛬15:10 Red-eye/.test(r.jobA.note) && r.board.replace(/\s+/g, ' ').trim() === '3:10 PM',
+      'PIA-151 AC2/AC9 + PIA-154 from the trip page Leo (booked, his landing time recorded: no primary) records his booked arrive day and time in 5 taps: his bar, his 🛬 day (a month calendar for that end, "🛬 Arrive": 📌 on its day, days past his 🛫 greyed "Ends cross", no Save to find), 12/21, ⚠ 🎫 Confirm (once a visit, nothing sent before it), back at his 🛬 field (PIA-159: its edit row), 1510, ⌄: two writes (the day, then the time), his 🎫 kept, and his bar reads 3:10 PM', r);
     // AC4 one end saving (◷) and failed (⚠ ↻, the day still picked; ↻ saves it), each a counted popup state
     await jsClick(page, '#screen .pb [data-act="flight"][data-code="leo-k3"]'); await settle(page, 150);
     await page.click('#sheet [data-act="dates"][data-end="1"]'); await settle(page, 150);
@@ -2417,7 +2441,8 @@ async function main() {
     const rows = () => page.evaluate(() => [...document.querySelectorAll('#screen .pb .pb-row')].map((row) => {
       const f = row.querySelector('.who [data-act="person"]'), tr = row.querySelector('.track');
       return { code: f && f.getAttribute('data-code'), btn: !!(tr && tr.tagName === 'BUTTON' && tr.getAttribute('data-act') === 'flight'), h: tr ? Math.round(tr.getBoundingClientRect().height) : 0,
-        a: ((row.querySelector('.btm.a') || {}).textContent || ''), miss: !!row.querySelector('.btm.a.miss'), d: ((row.querySelector('.btm.d') || {}).textContent || '') };
+        a: ((row.querySelector('.btm.a') || {}).textContent || '').replace(/\s+/g, ' ').trim(), miss: !!row.querySelector('.btm.a.miss'), d: ((row.querySelector('.btm.d') || {}).textContent || '').replace(/\s+/g, ' ').trim(),
+        aria: tr ? tr.getAttribute('aria-label') || '' : '' };
     }));
     const b0 = await rows(), by = (c) => b0.find((x) => x.code === c) || {};
     const w0 = await measureScreen(page, 'Done 8-member trip › the board\'s final check (times, 🛬?)');
@@ -2428,11 +2453,15 @@ async function main() {
     await page.fill('#sheet #tm-arr', '1730');
     await page.click('#sheet [data-act="sh-close"]'); taps++; await settle(page, 700);
     const note = JSON.parse(net.kv.map.get('idea:' + BK)).responses['samlee-sb'].note, b1 = await rows();
-    check(by('bartholomewmontgomeryfitzgera-dj').a === '15:10' && by('bartholomewmontgomeryfitzgera-dj').d === '18:05' && by('anastasiakonstantinopoulou-x1').a === '15:40' && !by('anastasiakonstantinopoulou-x1').d &&
-      by('oluwaseunadebayorichardson-ew').a === '15:05' && by('oluwaseunadebayorichardson-ew').d === '20:00' && by('samlee-sb').miss && by('samlee-sb').a === '🛬?' && by('maximilianoyelaranwhitfield-5u').miss &&
+    // (PIA-159: 12-hour labels, each AM / PM a word; past 14 words the fitter drops whole labels, departures first, last row first)
+    const lab = (x, k, want) => x[k] === '' || x[k] === want, said = (x, a, d) => new RegExp('lands [^,]*' + a + (d ? ', leaves [^,]*' + d : '')).test(x.aria);
+    const ladder = !(b0.some((x) => /lands /.test(x.aria) && !x.a) && b0.some((x) => x.d !== ''));   // (an arrival label gone only once every departure label is)
+    check(lab(by('bartholomewmontgomeryfitzgera-dj'), 'a', '3:10 PM') && lab(by('bartholomewmontgomeryfitzgera-dj'), 'd', '6:05 PM') && lab(by('anastasiakonstantinopoulou-x1'), 'a', '3:40 PM') && !by('anastasiakonstantinopoulou-x1').d &&
+      lab(by('oluwaseunadebayorichardson-ew'), 'a', '3:05 PM') && lab(by('oluwaseunadebayorichardson-ew'), 'd', '8:00 PM') && by('samlee-sb').miss && by('samlee-sb').a === '🛬?' && by('maximilianoyelaranwhitfield-5u').miss &&
+      said(by('bartholomewmontgomeryfitzgera-dj'), '3:10 PM', '6:05 PM') && said(by('anastasiakonstantinopoulou-x1'), '3:40 PM') && said(by('oluwaseunadebayorichardson-ew'), '3:05 PM', '8:00 PM') && ladder &&
       b0.filter((x) => x.btn).every((x) => x.h >= 44) && b0.some((x) => !x.btn) && w0.length <= SCREEN_MAX &&
-      s.pop === 'P-person' && s.focus === 'tm-arr' && taps === 2 && note === '🛬17:30' && (b1.find((x) => x.code === 'samlee-sb') || {}).a === '17:30',
-      'PIA-151 AC7/AC8 + PIA-154 at a glance on the 8-name board (≤10 words): Bartholomew lands 15:10 and leaves 18:05, Anastasia lands 15:40, Oluwaseun 15:05 / 20:00 (plain HH:MM), Sam Lee and Maximiliano booked with a muted 🛬? (no landing time); a tap on Sam Lee\'s row opens his flight section at 🛬, 1730 and ⌄: recorded for him in 2 taps (his 📞 mark as it reads, as PIA-139\'s organizer times), and his row reads 17:30', { b0, s, note, w: w0.length });
+      s.pop === 'P-person' && s.focus === 'tm-arr' && taps === 2 && note === '🛬17:30' && said(b1.find((x) => x.code === 'samlee-sb') || {}, '5:30 PM') && lab(b1.find((x) => x.code === 'samlee-sb') || {}, 'a', '5:30 PM'),
+      'PIA-151 AC7/AC8 + PIA-154 + PIA-159 at a glance on the 8-name board (≤14 words): Bartholomew lands 3:10 PM and leaves 6:05 PM, Anastasia lands 3:40 PM, Oluwaseun 3:05 PM / 8:00 PM (12-hour; a label the 14 have no room for is dropped whole, departures first, and every bar\'s spoken name keeps both times), Sam Lee and Maximiliano booked with a muted 🛬? (no landing time); a tap on Sam Lee\'s row opens his flight section at 🛬, 1730 and ⌄: recorded for him in 2 taps (his 📞 mark as it reads, as PIA-139\'s organizer times), and his bar says 5:30 PM', { b0, s, note, w: w0.length });
     await ctx.close();
   }
   {
@@ -2459,7 +2488,7 @@ async function main() {
     await closeSheet(page);
     const w3 = await measureScreen(page, 'Asking 8-name trip › the trip view once Anastasia has booked (her ––:––)');
     check(codes.length === 8 && seen.every((x) => x.book && x.tk && x.w <= POPUP_MAX) && inv && an.booked === true && net.posts - p0 === 1 && w2.length <= POPUP_MAX && w0.length <= SCREEN_MAX && w3.length <= SCREEN_MAX,
-      'PIA-151 AC5/AC9 on the 8-name trip still Asking, every traveler\'s flight section has [✈ Book ↗ | 🎫] (≤20 words each); the organizer\'s 🎫 for Anastasia is one tap (one write), then her 🛬 field invites the time; the trip view stays ≤10 words before and after', { seen, inv, posts: net.posts - p0, w2: w2.length, w0: w0.length, w3: w3.length });
+      'PIA-151 AC5/AC9 on the 8-name trip still Asking, every traveler\'s flight section has [✈ Book ↗ | 🎫] (≤20 words each); the organizer\'s 🎫 for Anastasia is one tap (one write), then her 🛬 field invites the time; the trip view stays ≤14 words (PIA-159) before and after', { seen, inv, posts: net.posts - p0, w2: w2.length, w0: w0.length, w3: w3.length });
     await ctx.close();
   }
 
@@ -2554,19 +2583,19 @@ async function main() {
     await page.evaluate(() => { const q = JSON.parse(localStorage.getItem('pialax_serpapi_quota')); q.exceeded = false; localStorage.setItem('pialax_serpapi_quota', JSON.stringify(q)); });
     check(mo && mo[0] === '⛔ 11/1' && mo[1] === 'SerpAPI refused' && moWhy === 'SerpAPI refused' && chipM === '⛔ 11/1' && net.paid.filter((x) => x.path === '/search').length === nv0,
       'PIA-140 with real clicks: SerpAPI\'s refusal locks the month: P-total reads ⛔ 11/1, a tap says why ("SerpAPI refused") and sends nothing, and the trip page\'s total block shows ⛔ 11/1 instead of a cost', { mo, moWhy, chipM });
-    // the Worker's day cap: every spend control reads ⛔ 17:00 (00:00 UTC, local), a tap explains and sends nothing
+    // the Worker's day cap: every spend control reads ⛔ 5:00 PM (00:00 UTC, local), a tap explains and sends nothing
     await closeSheet(page);
     // (one fare forgotten on this phone, so there is a leg to search again)
     await page.evaluate(() => { localStorage.setItem('pialax_daily_cap_v1', '2026-10-17'); const f = JSON.parse(localStorage.getItem('pialax_fares_v2')); delete f[Object.keys(f)[0]]; localStorage.setItem('pialax_fares_v2', JSON.stringify(f)); });
     await page.click('#screen .pricerow'); await settle(page, 200);
     const lk = await page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('aria-label'), e.getAttribute('aria-disabled')]).catch(() => null);
-    await measurePopup(page, 'prices › P-total locked (⛔ 17:00)');
+    await measurePopup(page, 'prices › P-total locked (⛔ 5:00 PM)');
     const n0 = net.paid.filter((x) => x.path === '/search').length;
     await page.click('#sheet [data-act="search"]', { force: true }); await settle(page, 200);   // aria-disabled (it explains itself): a tap as a finger makes it
     const why = await page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : ''; });
     await measurePopup(page, 'prices › ⛔ explained', '#lbl');
-    check(lk && lk[0] === '⛔ 17:00' && lk[1] === 'Searches resume at 17:00' && lk[2] === 'true' && why === 'Daily limit' && net.paid.filter((x) => x.path === '/search').length === n0,
-      'PIA-140 AC3 with real clicks: past the Worker\'s day cap P-total\'s 🔍 reads ⛔ 17:00 (00:00 UTC in Los Angeles), a tap says "Daily limit" and sends nothing', { lk, why });
+    check(lk && lk[0] === '⛔ 5:00 PM' && lk[1] === 'Searches resume at 5:00 PM' && lk[2] === 'true' && why === 'Daily limit' && net.paid.filter((x) => x.path === '/search').length === n0,
+      'PIA-140 AC3 with real clicks: past the Worker\'s day cap P-total\'s 🔍 reads ⛔ 5:00 PM (00:00 UTC in Los Angeles), a tap says "Daily limit" and sends nothing', { lk, why });
     await closeSheet(page);
     // ⚙ on the organizer's phone: today's Worker searches (from /account), this visit's dots, the month against its cap, ⛔ while locked
     // (PIA-154: on a trip page ⚙ is at ⓘ's foot)
@@ -2575,8 +2604,8 @@ async function main() {
     const gear = await page.evaluate(() => ({ bud: (document.querySelector('#sheet .bud') || {}).textContent || '', cap: (document.querySelector('#org-cap') || {}).value || '', lock: (document.querySelector('#sheet .capt') || {}).textContent || '' }));
     await measurePopup(page, 'prices › ⚙ with the budget');
     await labelCheck(page, 'prices › ⚙ budget', 'prices-real-gear', 'sheet');
-    check(/🔍 \d+\/30/.test(gear.bud) && gear.cap === '1000' && gear.lock === '⛔ 17:00' && net.paid.some((x) => x.path === '/account' && x.token === TOKEN),
-      'PIA-140 ⚙ on the organizer\'s phone: today\'s Worker searches left (/account, the token in its header), the month cap (1000), and ⛔ 17:00 while the day cap holds', gear);
+    check(/🔍 \d+\/30/.test(gear.bud) && gear.cap === '1000' && gear.lock === '⛔ 5:00 PM' && net.paid.some((x) => x.path === '/account' && x.token === TOKEN),
+      'PIA-140 ⚙ on the organizer\'s phone: today\'s Worker searches left (/account, the token in its header), the month cap (1000), and ⛔ 5:00 PM while the day cap holds', gear);
     // ⚙ with every lock on at once: each sits with what it counts (the day's ⛔ by 🔍 n/30, the visit's ↻ by its dots, the month's
     // ⛔ and why in the month's row)
     await closeSheet(page);
@@ -2586,8 +2615,8 @@ async function main() {
       month: [...document.querySelectorAll('#sheet .capf ~ .capt')].map((e) => [e.textContent, e.getAttribute('data-lbl')]) }));
     await measurePopup(page, 'prices › ⚙ with the day, visit and month locks');
     await labelCheck(page, 'prices › ⚙ every lock', 'prices-real-gear-locks', 'sheet');
-    check(/⛔ 17:00/.test(all3.budget) && all3.visit && all3.month.length === 1 && all3.month[0][0] === '⛔ 11/1' && all3.month[0][1] === 'SerpAPI refused',
-      'PIA-140 ⚙ with every lock on: the day\'s ⛔ 17:00 beside today\'s searches, the visit\'s ↻ beside its dots, and the month\'s ⛔ 11/1 in the month\'s row with why ("SerpAPI refused")', all3);
+    check(/⛔ 5:00 PM/.test(all3.budget) && all3.visit && all3.month.length === 1 && all3.month[0][0] === '⛔ 11/1' && all3.month[0][1] === 'SerpAPI refused',
+      'PIA-140 ⚙ with every lock on: the day\'s ⛔ 5:00 PM beside today\'s searches, the visit\'s ↻ beside its dots, and the month\'s ⛔ 11/1 in the month\'s row with why ("SerpAPI refused")', all3);
     await ctx.close();
     // a 🔍 tapped while P-total's /account read is out waits for it: ◷ ("Searching"), nothing sent until it is in
     {
@@ -2759,15 +2788,15 @@ async function main() {
         }
         R.askPosts = net.posts - p0;
         await closeSheet(page);
-        // the PIA-140 locks on a week's button: the Worker's day cap (⛔ 17:00, its tap says why), the visit's 8 (⛔ ↻)
+        // the PIA-140 locks on a week's button: the Worker's day cap (⛔ 5:00 PM, its tap says why), the visit's 8 (⛔ ↻)
         await page.evaluate(() => localStorage.setItem('pialax_daily_cap_v1', '2026-10-17'));
         await jsClick(page, '#screen .daterow [data-act="dates"]'); await settle(page, 120);
         await jsClick(page, '#sheet [data-act="dcheap"]'); await settle(page, 250);
         await jsClick(page, '#sheet .cbar[data-v="2026-11-21"]'); await settle(page, 80);
         R.day = await page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('data-lbl')]).catch(() => null);
-        await measurePopup(page, T('P-cheapest ⛔ 17:00'));
+        await measurePopup(page, T('P-cheapest ⛔ 5:00 PM'));
         await page.click('#sheet [data-act="search"]', { force: true }); await settle(page, 150);
-        R.dayWhy = await lbl(page); if (R.dayWhy) await measurePopup(page, T('⛔ 17:00 explained'), '#lbl');
+        R.dayWhy = await lbl(page); if (R.dayWhy) await measurePopup(page, T('⛔ 5:00 PM explained'), '#lbl');
         await page.evaluate(() => { localStorage.removeItem('pialax_daily_cap_v1'); sessionStorage.setItem('pialax_spent_v2', '8'); });
         await jsClick(page, '#sheet .cbar[data-v="2026-11-23"]'); await settle(page, 80);
         R.visit = await page.$eval('#sheet [data-act="newvisit"]', (e) => [e.textContent.trim(), e.getAttribute('data-lbl')]).catch(() => null);
@@ -2827,8 +2856,8 @@ async function main() {
       'PIA-141 AC6 with real clicks: Move shows ◷ while its one write is out, then ‹ P-dates on the new plan (11/22–12/1) with its toast (↩); the record holds 11/22–12/01', real.map((R) => [R.width, R.busy, R.back, R.readout, R.toast]));
     check(real.every((R) => R.ask && R.ask[0] === '⚠🗽 Confirm' && R.ask[1] === 'Confirm' && R.askPosts === 0),
       'PIA-141 AC2 with real clicks: Move on a week that leaves Anjo\'s days out only asks (⚠🗽 Confirm, nothing sent), counted with its label', real.map((R) => [R.width, R.ask, R.askPosts]));
-    check(real.every((R) => R.day && R.day[0] === '⛔ 17:00' && R.day[1] === 'Daily limit' && R.dayWhy === 'Daily limit' && R.visit && R.visit[0] === '⛔ ↻' && R.visit[1] === 'New visit'),
-      'PIA-141 AC4 the PIA-140 locks on a week\'s button, at every width: ⛔ 17:00 (its tap says "Daily limit"), ⛔ ↻ at the visit\'s 8; nothing sent', real.map((R) => [R.width, R.day, R.dayWhy, R.visit]));
+    check(real.every((R) => R.day && R.day[0] === '⛔ 5:00 PM' && R.day[1] === 'Daily limit' && R.dayWhy === 'Daily limit' && R.visit && R.visit[0] === '⛔ ↻' && R.visit[1] === 'New visit'),
+      'PIA-141 AC4 the PIA-140 locks on a week\'s button, at every width: ⛔ 5:00 PM (its tap says "Daily limit"), ⛔ ↻ at the visit\'s 8; nothing sent', real.map((R) => [R.width, R.day, R.dayWhy, R.visit]));
     check(real.every((R) => R.widen.join() === '⟦◀,▶⟧' && R.widened.searchEnd === '2026-12-13' && R.widened.searchStart === '2026-11-13' && R.widened.departure === '2026-11-20' && R.widened.bars.indexOf('2026-11-28') >= 0 && R.o2.every((x) => x <= 0)),
       'PIA-141 with real clicks: with no 📌, ⟦◀ ▶⟧ sit on the paging row; ▶⟧ saves ⟦11/13–12/13⟧ through the real Worker (the plan untouched) and the first new week (11/28) is on screen', real.map((R) => [R.width, R.widen, R.widened]));
     check(real.every((R) => R.undated.length === 7 && R.undated.every((b) => b.wf === '⚠🌴🗽' && b.w >= 44) && R.undated[0].v === '2026-12-18' && R.o3.every((x) => x <= 0)),
@@ -2852,7 +2881,7 @@ async function main() {
       { opened: opened.map((x) => x.who + ' ' + x.l0.bars.length + (x.cost ? ' ' + x.cost : '')), greyed: greyed.map((x) => x.who + ' ' + x.why), badLay: badLay.map((x) => x.who) });
   }
 
-  section('PIA-142 Trips › Family with real clicks: ≤4 trip columns a page at every width, ◀ ▶, 🗄 for the past trips, a cell opens that person with the answer row, the ghost row, ≤10 words in every state');
+  section('PIA-142 Trips › Family with real clicks: ≤4 trip columns a page at every width, ◀ ▶, 🗄 for the past trips, a cell opens that person with the answer row, the ghost row, ≤14 words in every state');
   {
     // the walk above: every page of every phone's board, at every width, 🗄 off and on
     const pages = famLog.filter((x) => x.board === true), ghosts = famLog.filter((x) => x.board === false), cells = famLog.filter((x) => 'sheet' in x);
@@ -2881,7 +2910,8 @@ async function main() {
   // a tap where the finger lands (an aria-disabled control too: Playwright's click waits for "enabled")
   const fingerTap = async (page, sel) => { const h = await page.$(sel); if (!h) return false; await h.scrollIntoViewIfNeeded().catch(() => {}); const b = await h.boundingBox(); if (!b) return false; await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); return true; };
   for (const width of WIDTHS) {
-    // the worst case for names: 13 people (8 long names, two Sam Lees, unknown airports); fitNames keeps the screen at 10 words exactly
+    // the worst case for names: 13 people (8 long names, two Sam Lees, unknown airports); fitNames keeps the screen at 14 words exactly
+    // (PIA-159; 10 before it)
     const { ctx, page, net } = await phone('fam8', { width, worker: true });
     await page.click('#screen [data-act="seg"][data-v="family"]'); await settle(page, 150);
     const w = await measureScreen(page, 'fam8 @' + width + ' Family (13 people, long names, unknown airports)');
@@ -2908,9 +2938,9 @@ async function main() {
       await page.mouse.up(); await settle(page, 120);
       r.pressOk = r.press === lbl && (await screenId(page)) === sid && !(await popupId(page)) && !(await page.$('#screen .rowh.hl'));
     } else await closeSheet(page);
-    check(r.words === 10 && r.rows === 13 && r.names === 5 && r.cols === 3 && !r.small.length && r.over <= 0 && r.sheet === 'P-person' && r.proxy &&
+    check(r.words === SCREEN_MAX && r.rows === 13 && r.names === FAM8_NAMES && r.cols === 3 && !r.small.length && r.over <= 0 && r.sheet === 'P-person' && r.proxy &&
       (width !== 360 || (r.rec.status === 'out' && /^📞 /.test(r.rec.note) && r.cell.st === 'out' && r.cell.marks === '' && r.pressOk)),
-      'PIA-142 AC6 @' + width + ' 13 people on 3 trips: 10 words exactly (fitNames keeps 5 names, every face stays), every target ≥44px, no sideways scroll; Bartholomew\'s cell opens his sheet with the organizer\'s answer row' +
+      'PIA-142 AC6 + PIA-159 @' + width + ' 13 people on 3 trips: 14 words exactly (fitNames keeps ' + FAM8_NAMES + ' names, 5 at 10 words; every face stays), every target ≥44px, no sideways scroll; Bartholomew\'s cell opens his sheet with the organizer\'s answer row' +
       (width === 360 ? '; Out there is saved as 📞 through the real Worker and his cell turns ⊘ (PIA-154: 📞 stays in his sheet, off the board); a face whose name was dropped names itself on a long press' : ''), r);
     await ctx.close();
   }
@@ -3404,7 +3434,7 @@ async function main() {
     } finally { globalThis.fetch = offline; }
   }
 
-  section('PIA-156 who is set: the quiet key under the board with real taps through the real Worker; Remind the one unbooked traveler in 1 tap; ≤10 + 5 in every state');
+  section('PIA-156 who is set: the quiet key under the board with real taps through the real Worker; Remind the one unbooked traveler in 1 tap; ≤14 + 5 in every state (PIA-159)');
   {
     // the owner's "P town" on his phone: the key reads ⏳ Waiting 🗽 [Remind] / ✈ Booked 💪 / 🏠 Hosting 🌽 (after his 🔑🔍 row, above
     // any primary); Remind is 1 tap (before: her face, then Share, and her sheet offers none once she is In); ⓘ explains ⏳ ✈ 🏠 and
@@ -3477,12 +3507,12 @@ async function main() {
       'PIA-156 the owner\'s "P town" on his phone, real taps through the real Worker: under the board, after his 🔑🔍 row, three 44px rows (PIA-157: and the 🚗 Rides row, his primary "🚗 Rides" its marked word), "⏳ Waiting" 🗽 with Remind, "✈ Booked" 💪, "🏠 Hosting" 🌽 (named "Not booked yet: Anjo", "Booked: Ashwin", "Hosting: Mom & Dad"; ⓘ explains ⏳ ✈ 🏠 and Remind); a long press on Waiting says "Not booked yet", on Remind "Remind Anjo", and does nothing; reminding Anjo, the one unbooked traveler, is 1 tap (before: 2, her face then Share; none once she was In): her own link, no key, nothing written; her face in the key opens her sheet', q);
     check(eq(q.guest.marked, ['Waiting', 'Rides', 'Booked', 'I booked']) && q.guest.rem === 0 && eq(q.guest.rows, ['Not booked yet: Anjo', 'Booked: Ashwin', 'Hosting: Mom & Dad']) && q.guest.tk === '☐ I booked|false' && q.guest.w.length <= SCREEN_MAX &&
       eq(q.busy.marked, ['Hosting?', 'Waiting', 'Booked', 'Lock dates']) && q.busy.rows.length === 3 && /^🏠\|Hosting: Mom & Dad$/.test(q.busy.rows[2]) && q.busy.w.length <= SCREEN_MAX,
-      'PIA-156 ≤10 + 5: Anjo\'s phone marks exactly 5 ("☐ I booked", the key\'s Waiting, PIA-157\'s Rides and Booked; Hosting keeps its glyph; no Remind for a guest); the busiest state (Hosting? + Waiting + Booked + Lock dates) is 5, the Hosting row keeping 🏠 and its faces without its word', { guest: q.guest, busy: q.busy });
+      'PIA-156 ≤14 + 5: Anjo\'s phone marks exactly 5 ("☐ I booked", the key\'s Waiting, PIA-157\'s Rides and Booked; Hosting keeps its glyph; no Remind for a guest); the busiest state (Hosting? + Waiting + Booked + Lock dates) is 5, the Hosting row keeping 🏠 and its faces without its word', { guest: q.guest, busy: q.busy });
     check(q.e8 && q.e8.faces === 4 && q.e8.more === '+4' && q.e8.rem === 'tshare' && q.e8.inside && q.e8.over <= 0 && q.e8.w.length <= SCREEN_MAX && q.e8.share.taps === 1 && q.e8.share.shared.length === 1 && new RegExp('/i/' + E8 + '$').test(q.e8.share.shared[0]),
       'PIA-156 the 8-member trip at 360px (🔒, all 8 to book): the Waiting row holds 4 faces, +4 and Remind, every button ≥44px and on screen (no sideways scroll); Remind for several is the trip\'s guest share in 1 tap', q.e8);
   }
 
-  section('PIA-157 rides with real taps through the real Worker: Mom & Dad claim a run in 2 taps (from the link and from the list), the organizer\'s ask, cover, remind and ✓, 🚌 / 🚙 in 2, ↩ in 1; every state ≤10 + 5 and P-rides ≤20, unmarked');
+  section('PIA-157 rides with real taps through the real Worker: Mom & Dad claim a run in 2 taps (from the link and from the list), the organizer\'s ask, cover, remind and ✓, 🚌 / 🚙 in 2, ↩ in 1; PIA-159: Anjo\'s Midway times in 6, Ashwin\'s 3:47 PM in 3, the airport-only fix in 4; every state ≤14 + 5 and P-rides ≤20, unmarked');
   {
     const q = {}, momNote = (net, id) => (JSON.parse(net.kv.map.get('idea:' + id)).responses['momdad-t1'] || {}).note || '';
     const until = async (page, f, ms) => { for (let t = 0; t < (ms || 8000); t += 50) { if (await f()) return true; await page.waitForTimeout(50); } return false; };
@@ -3621,6 +3651,18 @@ async function main() {
       if (await fingerTap(page, '#screen .wkride .wkl')) { await settle(page, 200); await fingerTap(page, '#sheet [data-act="nudge"][data-v="rideremind"]'); await settle(page, 250); }
       q.neb.remind = await page.evaluate(() => (window.__shared || []).slice(-1)[0] || null);
       await closeSheet(page);
+      // PIA-159 (the same phone, last): Ashwin's real flight home, 3:30 → 3:47 PM in 3 taps: his bar (1), his 🛫 "ORD 3:30 PM" (2), 347
+      // (his saved PM carried: the segment pulses), ⌄ (3): one write, the echo "🛫 ORD 3:47 PM ✓"
+      const pa = net.posts; let at = 0;
+      if (await fingerTap(page, '#screen .pb [data-act="flight"][data-code="ashwin-t2"]')) at++; await settle(page, 200);
+      q.ash = { read: await page.$eval('#sheet #tmb-dep', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => '') };
+      if (await fingerTap(page, '#sheet #tmb-dep')) at++; await settle(page, 150);
+      await page.fill('#sheet #tm-dep', '347'); await settle(page, 60);
+      q.ash.seg = await page.$$eval('#sheet #seg-dep [data-act="tmseg"]', (es) => es.map((e) => e.getAttribute('aria-checked'))); q.ash.pulse = await page.$eval('#sheet #seg-dep', (e) => e.classList.contains('cpulse')).catch(() => false);
+      q.ash.w = await measurePopup(page, 'PIA-159 › Ashwin\'s 🛫 edit row: 347, PM carried');
+      if (await fingerTap(page, '#sheet [data-act="sh-close"]')) at++;
+      await until(page, () => /🛫15:47/.test(ashNote())); await settle(page, 150);
+      q.ash.taps = at; q.ash.posts = net.posts - pa; q.ash.note = ashNote(); q.ash.toast = await toastText(page);
       await ctx.close();
     }
     {
@@ -3655,6 +3697,21 @@ async function main() {
       await page.click('#screen [data-act="back"]'); await settle(page, 1800);
       await openCard(page, PA); await settle(page, 200);
       q.party.t2 = await toastText(page); q.party.kept = await page.evaluate((id) => (JSON.parse(localStorage.getItem('pialax_ui_v1') || '{}').party || {})[id] || 0, PA);
+      // PIA-159 (the same phone, last): the organizer's airport-only fix for Anjo, whose times went in before #159 at O'Hare (Mom & Dad
+      // drive her 11/20 pickup): her bar (1), her 🛬 "ORD 7:30 PM" (2), Midway (3: her 🛫 follows, its time saved), ⌄ (4): one write,
+      // the echo, and "Tell Mom & Dad" (their claim the move left behind)
+      const anjoNote = () => JSON.parse(net.kv.map.get('idea:' + PA)).responses['anjo-t3'].note;
+      const pf = net.posts; let ft = 0;
+      if (await fingerTap(page, '#screen .pb [data-act="flight"][data-code="anjo-t3"]')) ft++; await settle(page, 200);
+      if (await fingerTap(page, '#sheet #tmb-arr')) ft++; await settle(page, 150);
+      q.fix = { pills: await page.$$eval('#sheet #pills-arr [data-act="tmap"]', (es) => es.map((e) => e.textContent.trim() + ':' + e.getAttribute('aria-checked'))) };
+      if (await fingerTap(page, '#sheet #pills-arr [data-act="tmap"][data-v="MDW"]')) ft++; await settle(page, 100);
+      q.fix.w = await measurePopup(page, 'PIA-159 › the organizer\'s fix: Anjo\'s 🛬 at Midway, her 🛫 following');
+      if (await fingerTap(page, '#sheet [data-act="sh-close"]')) ft++;
+      await until(page, () => /🛬MDW/.test(anjoNote())); await settle(page, 150);
+      q.fix.taps = ft; q.fix.posts = net.posts - pf; q.fix.note = anjoNote(); q.fix.toast = await toastText(page);
+      q.fix.tell = await page.$eval('#toast [data-act="toastshare"]', (e) => e.getAttribute('aria-label')).catch(() => '');
+      if (q.fix.toast) await measurePopup(page, 'PIA-159 › the echo with Tell', '#toast');
       await ctx.close();
     }
     {
@@ -3664,41 +3721,82 @@ async function main() {
       q.r8 = { w: await measureScreen(page, 'PIA-157 › the 8-member rides trip, Mom & Dad\'s trip page') };
       await fingerTap(page, '#screen .split.prim [data-act="rides"]'); await settle(page, 200);
       q.r8.pop = await popupId(page); q.r8.sheet = await measurePopup(page, 'PIA-157 › P-rides, the 8-member trip on Mom & Dad\'s phone');
-      q.r8.toggles = await page.$$eval('#sheet [data-act="ride"]', (es) => es.length); q.r8.secs = await page.$$eval('#sheet .rsh', (es) => es.map((e) => e.textContent.trim()));
+      q.r8.toggles = await page.$$eval('#sheet [data-act="ride"]', (es) => es.length); q.r8.secs = await page.$$eval('#sheet .rday', (es) => es.map((e) => e.textContent.replace(/\s+/g, ' ').trim()));
+      q.r8.folds = await page.$$eval('#sheet .rfold', (es) => es.length);
       await ctx.close();
     }
-    check(/^🚗\?\|Rides open$/.test(q.slot0) && q.list.pop === 'P-rides' && q.list.taps === 2 && q.list.note === '🚗ashwin-t2.aORD1120' && eq(q.list.w, ['ORD', 'Drive', 'Drive']) &&
-      /^Leave home 12:05: 2:30 drive, at ORD as Ashwin lands$/.test(q.lvLabel) && q.lvLabel.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 12 && /🚗✓/.test(q.list.toast) &&
+    {
+      // PIA-159 (the one new phone): Anjo's first times on her own phone, the real flights (LGA→MDW 10:30 PM, MDW→LGA 5:10 PM), in 6
+      // taps: "🛬 Landing time" (1), 1030, PM (2), Midway (3: her 🛫 follows), her 🛫 field (4), 510, PM (5), ⌄ (6): one write, the echo
+      const { ctx, page, net } = await phone('p9anjo', { worker: true, url: '?idea=' + P9, ls: { pialax_watchlist_v2: listRec([P9]), pialax_idea_me_v1: { [P9]: 'anjo-t3' }, pialax_ui_v1: { v1read: 1 } } });
+      await settle(page, 200);
+      const anjoNote = () => (JSON.parse(net.kv.map.get('idea:' + P9)).responses['anjo-t3'] || {}).note || '';
+      q.p9 = { prim: await page.$eval('#screen .split.prim .btn', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => ''), w0: await measureScreen(page, 'PIA-159 › Anjo booked, no times yet (🛬 Landing time)') };
+      const p0 = net.posts; let taps = 0;
+      if (await fingerTap(page, '#screen .split.prim [data-act="mytimes"]')) taps++; await settle(page, 200);
+      await page.keyboard.type('1030'); await settle(page, 60);
+      q.p9.wait = await page.$$eval('#sheet #seg-arr [data-act="tmseg"]', (es) => es.map((e) => e.getAttribute('aria-checked')));
+      q.p9.e0 = await measurePopup(page, 'PIA-159 › Anjo\'s 🛬 edit row: 1030, AM | PM, O\'Hare / Midway / Peoria');
+      if (await fingerTap(page, '#sheet #seg-arr [data-act="tmseg"][data-v="pm"]')) taps++; await settle(page, 80);
+      if (await fingerTap(page, '#sheet #pills-arr [data-act="tmap"][data-v="MDW"]')) taps++; await settle(page, 80);
+      if (await fingerTap(page, '#sheet #tm-dep')) taps++; await settle(page, 80);
+      await page.keyboard.type('510'); await settle(page, 60);
+      q.p9.fol = await page.$eval('#sheet #pills-dep [data-v="MDW"]', (e) => e.className + '|' + e.getAttribute('aria-checked') + '|' + e.getAttribute('aria-label')).catch(() => '');
+      q.p9.e1 = await measurePopup(page, 'PIA-159 › Anjo\'s 🛫 edit row: 510, Midway followed');
+      if (await fingerTap(page, '#sheet #seg-dep [data-act="tmseg"][data-v="pm"]')) taps++; await settle(page, 80);
+      if (await fingerTap(page, '#sheet [data-act="sh-close"]')) taps++;
+      await until(page, () => /🛬22:30/.test(anjoNote())); await settle(page, 150);
+      q.p9.taps = taps; q.p9.posts = net.posts - p0; q.p9.note = anjoNote(); q.p9.toast = await toastText(page);
+      if (q.p9.toast) await measurePopup(page, 'PIA-159 › the echo toast', '#toast');
+      q.p9.w1 = await measureScreen(page, 'PIA-159 › Anjo\'s trip page with her Midway times');
+      q.p9.bar = await page.$eval('#screen .pb [data-act="flight"][data-code="anjo-t3"]', (e) => e.getAttribute('aria-label')).catch(() => '');
+      await ctx.close();
+    }
+    // (PIA-159: P-rides reads by day; every leg names its airport and each time its AM / PM: the words less AM / PM below)
+    const noAmPm = (w) => (w || []).filter((x) => !/^(AM|PM)(–|$)/.test(x));
+    const DAYW = /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)$/;
+    check(/^🚗\?\|Rides open$/.test(q.slot0) && q.list.pop === 'P-rides' && q.list.taps === 2 && q.list.note === '🚗ashwin-t2.aORD1120' && eq(noAmPm(q.list.w), ['Fri', 'Drive', 'ORD', 'Mon', 'Drive', 'ORD']) && q.list.w.length <= POPUP_MAX &&
+      /^Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM$/.test(q.lvLabel) && q.lvLabel.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 12 && /🚗✓/.test(q.list.toast) &&
       q.undo.taps === 1 && q.undo.note === '' && q.both.note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130' && /^📅 Phone\|rides-ptownthanksgiving\.ics\|\d+$/.test(q.both.phone[0] || '') && +(q.both.phone[0] || '').split('|')[2] >= 44 &&
-      eq(q.both.w, ['ORD', 'Drive', 'Drive', 'Phone']) && q.cal.taps === 1 && /📅✓/.test(q.cal.toast) && q.cal.dot === 0 && q.cal.kept.length > 10 &&
-      eq(q.trip.marked, ['Waiting', 'Rides', 'Booked', 'Hosting']) && /^🚗 ?11\/20 ?⏰ ?12:05[^|]*\|Leave home 12:05 Friday for Ashwin$/.test(q.trip.prim) && q.trip.w.length <= SCREEN_MAX && /^🚗11\/20$/.test(q.slot1),
-      'PIA-157 Mom & Dad from the list, real taps through the real Worker: the card\'s 🚗? (1) → "☐ 🚗 Drive" (2) writes 🚗ashwin-t2.aORD1120 in their own answer; P-rides reads ORD, Drive, Drive; ⏰\'s long press says "Leave home 12:05: 2:30 drive, at ORD as Ashwin lands"; ↩ in the toast takes it back (1); both runs, then 📅 Phone in the same sheet (1: a rides-….ics, its dot gone, its signature kept); the trip page then reads "🚗 11/20 ⏰12:05" (no word) with Waiting, Rides, Booked, Hosting marked, the card 🚗11/20', q);
+      eq(noAmPm(q.both.w), ['Fri', 'Drive', 'ORD', 'Mon', 'Drive', 'ORD', 'Phone']) && q.cal.taps === 1 && /📅✓/.test(q.cal.toast) && q.cal.dot === 0 && q.cal.kept.length > 10 &&
+      eq(q.trip.marked, ['Waiting', 'Rides', 'Booked', 'Hosting']) && /^🚗 ?11\/20 ?⏰ ?12:05 ?PM ?ORD[^|]*\|Leave home 12:05 PM Friday for Ashwin, O'Hare \(ORD\)$/.test(q.trip.prim) && q.trip.w.length <= SCREEN_MAX && /^🚗11\/20$/.test(q.slot1),
+      'PIA-157 + PIA-159 Mom & Dad from the list, real taps through the real Worker: the card\'s 🚗? (1) → "☐ 🚗 Drive" (2) writes 🚗ashwin-t2.aORD1120 in their own answer; P-rides reads by day (Fri, Drive, ORD 2:35 PM; Mon, Drive, ORD 3:30 PM, each ⏰ range in 12-hour); ⏰\'s long press says "Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM"; ↩ in the toast takes it back (1); both runs, then 📅 Phone in the same sheet (1: a rides-….ics, its dot gone, its signature kept); the trip page then reads "🚗 11/20 ⏰ 12:05 PM ORD" with Waiting, Rides, Booked, Hosting marked ("Leave home 12:05 PM Friday for Ashwin, O\'Hare (ORD)"), the card 🚗11/20', q);
     check(q.link.taps === 2 && q.link.note === '🚗ashwin-t2.aORD1120' && q.link.me === 'momdad-t1' && eq(q.link.marked, ['Waiting', 'Booked', 'Hosting', 'Rides']) && q.link.w.length <= SCREEN_MAX,
-      'PIA-157 Mom & Dad from Ashwin\'s iMessage (their own link): the trip opens with "🚗 Rides" (Waiting, Booked, Hosting and Rides marked: 4, ≤10 ordinary) → (1) → "☐ 🚗 Drive" (2), and the phone is Mom & Dad from then on', q.link);
+      'PIA-157 Mom & Dad from Ashwin\'s iMessage (their own link): the trip opens with "🚗 Rides" (Waiting, Booked, Hosting and Rides marked: 4, ≤14 ordinary) → (1) → "☐ 🚗 Drive" (2), and the phone is Mom & Dad from then on', q.link);
     check(eq(q.org.chips.slice(0, 1), ['aORD1120-ashwin-t2|⚠']) && q.org.w.length <= SCREEN_MAX && q.ask.taps === 1 && q.ask.shared && new RegExp('/i/' + PR + '#m=momdad-t1$').test(q.ask.shared.url) &&
-      /^🚗 Can you drive\? Fri 11\/20: pick up Ashwin at ORD Chicago, lands 2:35 PM \(leave home 12:05 PM\)\./.test(q.ask.shared.text || '') && (q.ask.shared.text || '').indexOf(KEY) < 0 && eq(q.orgSheet, ['ORD']) &&
+      /^🚗 Can you drive\? Fri 11\/20: pick up Ashwin at O'Hare \(ORD\), lands 2:35 PM \(leave home 12:05 PM, home about 5:05 PM\)\./.test(q.ask.shared.text || '') && (q.ask.shared.text || '').indexOf(KEY) < 0 &&
+      noAmPm(q.orgSheet).length > 0 && noAmPm(q.orgSheet).every((w) => w === 'ORD' || DAYW.test(w)) && q.orgSheet.indexOf('ORD') >= 0 && q.orgSheet.length <= POPUP_MAX &&
       q.ok.taps === 2 && /ashwin-t2\.aORD1120/.test(q.ok.note) && !/1119/.test(q.ok.note) && q.cover.taps === 2 && /📞 .*anjo-t3\.aORD1120|anjo-t3\.aORD1120/.test(q.cover.note) &&
       q.remind.taps === 2 && q.remind.shared && /^🚗 Reminder: /.test(q.remind.shared.text || '') && new RegExp('#m=momdad-t1$').test(q.remind.shared.url || ''),
-      'PIA-157 the organizer, real taps: Ask in the key (1) shares Mom & Dad\'s own link with "🚗 Can you drive? Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM)…" (no key); the moved ride\'s ⚠ chip (1) → ✓ (2) moves their claim to 11/20; Anjo\'s 19:30 for Mom & Dad: her chip (1) → 🌽 (2); Remind the driver: the row (1) → the run\'s share (2) "🚗 Reminder: …"; P-rides reads ORD alone on his phone', q);
+      'PIA-157 + PIA-159 the organizer, real taps: Ask in the key (1) shares Mom & Dad\'s own link with "🚗 Can you drive? Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM)…" (no key); the moved ride\'s ⚠ chip (1) → ✓ (2) moves their claim to 11/20; Anjo\'s 7:30 PM for Mom & Dad: her chip (1) → 🌽 (2); Remind the driver: the row (1) → the run\'s share (2) "🚗 Reminder: …"; P-rides on his phone reads its days, ORD and the times\' AM / PM alone (no Drive word: faces)', q);
     check(q.anjo.taps === 2 && /🛫10:00 🚌d$/.test(q.anjo.note) && /🚌✓/.test(q.anjo.toast) && q.anjo.w.length <= SCREEN_MAX && q.anjo.sheet.length <= POPUP_MAX &&
       q.rent.taps === 2 && /🛫10:00 🚙d$/.test(q.rent.note) && /by rental car/.test(q.rent.row) && q.rent.w.length <= SCREEN_MAX,
       'PIA-157 Anjo marks the coach home: her 🛫 chip (1) → 🚌 (2), 🚌d in her own answer; on the organizer\'s phone her chip (1) → 🚙 (2) marks a rental instead; with every ride covered the key\'s row names the drivers and "by rental car"', { anjo: q.anjo, rent: q.rent });
-    check(q.r8.pop === 'P-rides' && q.r8.sheet.length <= POPUP_MAX && q.r8.toggles >= 8 && eq(q.r8.secs, ['📍ORD', 'PIA']) && q.r8.sheet.filter((w) => w === 'Drive').length === q.r8.toggles &&
-      q.r8.sheet.filter((w) => w !== 'Drive').join() === 'ORD,PIA' && q.r8.w.length <= SCREEN_MAX,
-      'PIA-157 P-rides on the 8-member trip at 360 (Mom & Dad a candidate on every one of its runs, at two airports): two codes and a "Drive" a toggle, within 20 (seven travelers make at most 14 runs: the word budget of 20 less the codes and 📅 Phone always holds them)', q.r8);
+    check(q.r8.pop === 'P-rides' && q.r8.sheet.length <= POPUP_MAX && q.r8.toggles >= 1 && q.r8.secs.length >= 1 && q.r8.secs.every((s) => /^((Mon|Tue|Wed|Thu|Fri|Sat|Sun) )?\d{1,2}\/\d{1,2}$/.test(s)) &&
+      q.r8.sheet.filter((w) => w === 'Drive').length <= q.r8.toggles && noAmPm(q.r8.sheet).every((w) => w === 'Drive' || w === 'ORD' || w === 'PIA' || DAYW.test(w)) && q.r8.w.length <= SCREEN_MAX,
+      'PIA-157 + PIA-159 P-rides on the 8-member trip at 360 (Mom & Dad a candidate on every one of its runs, at two airports): by day (' + q.r8.secs.join(', ') + '), within 20 words: the ladder gives up "Drive" on later runs, then the weekdays, then folds the runs but one to their chips (' + q.r8.folds + ' folded, ' + q.r8.toggles + ' toggles drawn); nothing but codes, days, Drive and AM / PM', q.r8);
+    check(q.p9 && /^🛬 ?Landing time$/.test(q.p9.prim) && eq(q.p9.wait, ['false', 'false']) && q.p9.taps === 6 && q.p9.posts === 1 && q.p9.note === '🛬22:30 🛫17:10 🛬MDW 🛫MDW' &&
+      /^pill fol\|true\|Midway, MDW, same as landing$/.test(q.p9.fol) && /^🛬 MDW 10:30 PM · 🛫 MDW 5:10 PM ✓/.test(q.p9.toast) && q.p9.e0.length <= POPUP_MAX && q.p9.e1.length <= POPUP_MAX &&
+      q.p9.w0.length <= SCREEN_MAX && q.p9.w1.length <= SCREEN_MAX && /lands Midway \(MDW\) 10:30 PM, leaves Midway \(MDW\) 5:10 PM$/.test(q.p9.bar),
+      'PIA-159 Anjo\'s first times on her own phone, real taps through the real Worker, in 6: "🛬 Landing time" (1), 1030 (AM | PM waiting, neither pressed), PM (2), Midway (3; her 🛫 follows, dashed: "same as landing"), her 🛫 field (4), 510, PM (5), ⌄ (6): one /idea/respond "🛬22:30 🛫17:10 🛬MDW 🛫MDW", the echo "🛬 MDW 10:30 PM · 🛫 MDW 5:10 PM ✓", her bar "lands Midway (MDW) 10:30 PM, leaves Midway (MDW) 5:10 PM"; every state ≤14 / ≤20', q.p9);
+    check(q.ash && q.ash.read === 'ORD 3:30 PM' && eq(q.ash.seg, ['false', 'true']) && q.ash.pulse && q.ash.taps === 3 && q.ash.posts === 1 && /^🛬14:35 🛫15:47 🐈ad$/.test(q.ash.note) && /^🛫 ORD 3:47 PM ✓/.test(q.ash.toast) && q.ash.w.length <= POPUP_MAX,
+      'PIA-159 Ashwin\'s real flight home, 3:30 → 3:47 PM in 3 taps on his phone: his bar (1), his 🛫 "ORD 3:30 PM" (2), 347 (his saved PM carried: the segment pulses, PM pressed), ⌄ (3): one write, the echo "🛫 ORD 3:47 PM ✓"', q.ash);
+    check(q.fix && eq(q.fix.pills, ['ORD:true', 'MDW:false', 'PIA:false']) && q.fix.taps === 4 && q.fix.posts === 1 && /^🛬19:30 🛫10:00 🚙d 🛬MDW 🛫MDW$/.test(q.fix.note) &&
+      /^🛬 MDW 7:30 PM · 🛫 MDW 10:00 AM ✓/.test(q.fix.toast) && q.fix.tell === 'Tell Mom & Dad' && q.fix.w.length <= POPUP_MAX,
+      'PIA-159 the organizer\'s airport-only fix for Anjo (times entered before #159 at O\'Hare, Mom & Dad driving her pickup) in 4 taps: her bar (1), her 🛬 "ORD 7:30 PM" (2; O\'Hare pressed, as saved), Midway (3; her 🛫 follows), ⌄ (4): one write with both airports, the echo "🛬 MDW 7:30 PM · 🛫 MDW 10:00 AM ✓" and "Tell Mom & Dad" (their claim the move left behind)', q.fix);
     // PIA-158
     const pn = q.pet || {}, nb = q.neb || {}, words = (w) => (w || []).join(' ');
     check(pn.press && pn.press.fly && pn.press.fly.s === 'Pet flying' && pn.press.fly.pop === null && pn.press.home && pn.press.home.s === 'Pet at home' && pn.press.home.pop === null && pn.press.home.scr === pn.press.fly.scr,
       'PIA-158 a long press on a side bubble on Mom & Dad\'s trip board names it in place ("Pet flying" on Ashwin\'s 🐈, "Pet at home" on their 🐕), not the face, and opens nothing', pn.press);
-    check(pn.cardDot >= 1 && eq(pn.bubbles, ['pethome:🐕', 'petfly:🐈']) && (pn.trip || []).length <= SCREEN_MAX && pn.rides && pn.rides.cat === 2 && pn.rides.dot === 1 && eq(pn.rides.w, ['ORD', 'Drive', 'Drive', 'Phone']) &&
+    check(pn.cardDot >= 1 && eq(pn.bubbles, ['pethome:🐕', 'petfly:🐈']) && (pn.trip || []).length <= SCREEN_MAX && pn.rides && pn.rides.cat === 2 && pn.rides.dot === 1 && eq(noAmPm(pn.rides.w), ['Fri', 'Drive', 'ORD', 'Mon', 'Drive', 'ORD', 'Phone']) &&
       words(pn.person) === 'Mom Dad ORD Kona Note' && pn.kona.taps === 2 && pn.kona.pop === 'P-pet' && pn.kona.open === true && pn.kona.ticks === 0 && eq(pn.kona.w, ['Nebby']) &&
       pn.house.pop === 'P-house' && pn.house.w0.length === 0 && pn.house.w1.length === 0 && pn.house.taps === 4 && pn.house.note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130 🧺🥧' && /🧺✓/.test(pn.house.toast),
       'PIA-158 Mom & Dad\'s phone, real taps through the real Worker, once Ashwin says Nebby comes (🐈ad): the card\'s dot and 📅 Phone\'s (their calendar now says "+ Nebby 🐈"), the board\'s bubbles 🐕 (theirs) and 🐈 (his), 🐈 beside his face on both runs in P-rides (ORD, Drive, Drive, Phone); home prep in 2 taps (their face, "🐈 11/20–11/30 ›": P-pet with At home with Kona open, no ticks: "Nebby"); the potluck in 4 (the header\'s picture, their 🧺, Pie, ✓: "🚗… 🧺🥧", the claims kept, 🧺✓); P-person "Mom Dad ORD Kona Note", P-pet and P-house (no words) ≤20 and unmarked', pn);
-    check(nb.taps === 2 && nb.note === '🛬14:35 🛫15:30 🐈ad' && /🐈✓/.test(nb.toast) && words(nb.person) === 'Ashwin From LAX Arrive Leave Track I booked Nebby Note' && (nb.on || []).length <= POPUP_MAX &&
+    check(nb.taps === 2 && nb.note === '🛬14:35 🛫15:30 🐈ad' && /🐈✓/.test(nb.toast) && words(nb.person) === 'Ashwin From LAX ORD PM ORD PM Track I booked Nebby Note' && (nb.on || []).length <= POPUP_MAX &&
       eq(nb.pet, ['Nebby', 'Reserved', 'Reserved', 'Carrier', 'Papers', 'Fees']) && nb.tick.taps === 3 && nb.tick.posts === 0 && nb.tick.kept === 'c' && nb.tick.pressed === 'true' &&
       nb.fold.open && nb.fold.exempt && nb.fold.width && nb.fold.text.includes('Pet fees are not included') && nb.fold.text.includes('private screening room') && nb.fold.text.includes('return') && !nb.fold.text.includes('Still unconfirmed') &&
-      eq(nb.foldW, ['Nebby', 'Reserved', 'Reserved', 'Carrier', 'Papers', 'Fees']) && nb.remind && /^🚗 Reminder: Fri 11\/20: pick up Ashwin \+ Nebby 🐈 at ORD Chicago/.test(nb.remind.text || '') && (nb.remind.text || '').indexOf(KEY) < 0,
-      'PIA-158 the organizer\'s own Nebby, real taps: his bar (1) → "☐ 🐈 Nebby" (2) writes 🐈ad in his answer (🛬 / 🛫 kept, 🐈✓); P-person "…Nebby Note" (10); a prep tick in 3 (his face, › 0/5, 👜 Carrier: ☑, kept on this phone, nothing sent); P-pet reads Nebby, Reserved ×2, Carrier, Papers, Fees (6) and its travel plan, opened before the tick, is still open after the tick\'s redraw (exempt, fits the phone) and keeps the fees, the screening room and the return, no "Still unconfirmed"; Remind now says "pick up Ashwin + Nebby 🐈"', nb);
+      eq(nb.foldW, ['Nebby', 'Reserved', 'Reserved', 'Carrier', 'Papers', 'Fees']) && nb.remind && /^🚗 Reminder: Fri 11\/20: pick up Ashwin \+ Nebby 🐈 at O'Hare \(ORD\)/.test(nb.remind.text || '') && (nb.remind.text || '').indexOf(KEY) < 0,
+      'PIA-158 the organizer\'s own Nebby, real taps: his bar (1) → "☐ 🐈 Nebby" (2) writes 🐈ad in his answer (🛬 / 🛫 kept, 🐈✓); P-person "…Nebby Note" (12: PIA-159\'s booked rows read "ORD 2:35 PM" / "ORD 3:30 PM" in place of Arrive / Leave); a prep tick in 3 (his face, › 0/5, 👜 Carrier: ☑, kept on this phone, nothing sent); P-pet reads Nebby, Reserved ×2, Carrier, Papers, Fees (6) and its travel plan, opened before the tick, is still open after the tick\'s redraw (exempt, fits the phone) and keeps the fees, the screening room and the return, no "Still unconfirmed"; Remind now says "pick up Ashwin + Nebby 🐈"', nb);
     check(q.party && /^🎊 All set$/.test(q.party.t1) && !/All set/.test(q.party.t2 || '') && q.party.kept === 1,
       'PIA-158 the organizer\'s phone once every ride is covered and everyone has booked: back, open the trip again → the burst and "🎊 All set" (2 words) once; opening it again says nothing (pialax_ui_v1.party kept)', q.party);
   }

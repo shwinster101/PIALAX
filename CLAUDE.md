@@ -48,8 +48,10 @@ set. Mom & Dad count as two, Ashwin one, Anjo one. Keep the Peoria ORD drive
 pivot. A missing fare remains unsearched; no synthetic total or estimated week.
 
 Answer-note markers (PIA-157) come after 📞/🛬/🛫 in one fixed order (🚗 claims,
-🚌, 🚙, 🐈, 🧺, then the text); a new marker kind is only ever appended last, so
-an older build keeps the markers it does not know as text, byte for byte. A
+🚌, 🚙, 🐈, 🧺, 🛬 airport, 🛫 airport (PIA-159; only an airport outside the hub,
+on a booked leg with a time), then the text); a new marker kind is only ever
+appended last, so an older build keeps the markers it does not know as text,
+byte for byte. A
 ride claim lives in the driver's own answer; runs and ⏰ are derived, never
 stored (a phone keeps just its last 📅 Phone signature of them, in `pialax_ui_v1`). No
 flight numbers or confirmation codes. A marker or time write over 280 is
@@ -77,15 +79,16 @@ migration and on-device checks are recorded separately from fixture evidence.
 
 ## UI and security
 
-Screens have at most 10 ordinary visible words plus at most 5 marked label
+Screens have at most 14 ordinary visible words (PIA-159) plus at most 5 marked label
 words (`data-lbl3`, PIA-156) from the allowlist (Coming?, Hosting?, Lock dates,
 I booked, Landing time, Track, Lands, Leaves; Tue, Wed, Thu on Calendar only;
 Booked, Waiting, Hosting in the trip page's key rows only; Rides in the trip
 page's key rows and primary only); popups at most 20
 and mark none. ✈ alone means booked. Count visible
 whitespace-separated tokens with a Unicode letter, including names, airport
-codes, labels, placeholders and typed values. Trip names and the pet travel and at-home reference folds marked `data-free`,
-numerals, prices, dates, emoji and glyphs are exempt. Use named 44px targets,
+codes, labels, placeholders, typed values and a time's AM / PM. Trip names and the pet travel and at-home reference folds marked `data-free`,
+numerals (a time's digits too), prices, dates, emoji and glyphs are exempt. A
+person reads every clock time in 12-hour; it is stored as 24-hour HH:MM. Use named 44px targets,
 keyboard focus/Back, glyph explanations and the existing sheet patterns.
 
 Preserve strict CSP, exact d3/topojson paths and their frozen SRI hashes, exact

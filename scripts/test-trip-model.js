@@ -2640,22 +2640,29 @@ function makeServer(worker) {
     const text = M.rideText(pm(pt0), r0.runs, 'ask');
     check(ask && eq(ask.codes, ['momdad-t1']) && ask.url === WK + '/i/' + ptId + '#m=momdad-t1' && eq(ask2.codes, ['momdad-t1', 'anjo-t3']) && ask2.url === WK + '/i/' + ptC + '' &&
       M.rideAsk(pm(pt2, 'ashwin-t2', T, ORGK), T, WK) === null &&
-      text === '🚗 Can you drive? Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM). Mon 11/30: drop off Ashwin at ORD Chicago, flight 3:30 PM (leave home 11:00 AM).' &&
-      M.rideText(pm(ptA), rA.runs.slice(0, 1), 'remind') === '🚗 Reminder: Fri 11/20: pick up Ashwin, Anjo at ORD Chicago, lands 2:35 PM, 3:10 PM (leave home 12:05 PM).' &&
-      /^🚗 Ride update: Fri 11\/20: pick up Ashwin at ORD Chicago, lands 1:10 AM \(leave home Thu 10:40 PM\)\.$/.test(M.rideText(pm(pt0), early.runs.slice(0, 1), 'tell')) &&
+      // (PIA-159: the airport by name, "O'Hare (ORD)", and home again: "home about 5:05 PM")
+      text === '🚗 Can you drive? Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM). Mon 11/30: drop off Ashwin at O\'Hare (ORD), flight 3:30 PM (leave home 11:00 AM, home about 4:00 PM).' &&
+      M.rideText(pm(ptA), rA.runs.slice(0, 1), 'remind') === '🚗 Reminder: Fri 11/20: pick up Ashwin, Anjo at O\'Hare (ORD), lands 2:35 PM, 3:10 PM (leave home 12:05 PM, home about 5:40 PM).' &&
+      /^🚗 Ride update: Fri 11\/20: pick up Ashwin at O'Hare \(ORD\), lands 1:10 AM \(leave home Thu 10:40 PM, home about 3:40 AM\)\.$/.test(M.rideText(pm(pt0), early.runs.slice(0, 1), 'tell')) &&
       text.indexOf(KEY) < 0 && !/\$|\d{3,}\.\d|#k=|t=/.test(text) && eq(['00:05', '09:30', '12:00', '14:35', '23:59', 'x'].map(M.h12), ['12:05 AM', '9:30 AM', '12:00 PM', '2:35 PM', '11:59 PM', '']),
       'AC11 the organizer\'s Ask: one candidate → Mom & Dad\'s own guest link (#m=), several → the trip\'s guest link; none once every run is covered; the text in plain 12-hour English with the weekday ("…lands 2:35 PM (leave home 12:05 PM)…"), the day before named when ⏰ falls on it, never a key, token or price', { text, ask, ask2 });
     const ev = M.rideEvents(pm(pt2, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK }), evText = ev ? ev.ics.text : '';
     const vevents = evText.split('BEGIN:VEVENT').length - 1, alarms = (evText.match(/BEGIN:VALARM/g) || []).length;
     check(ev && ev.n === 2 && vevents === 2 && alarms === 4 && (evText.match(/TRIGGER:-P1D\r\n/g) || []).length === 2 && (evText.match(/TRIGGER:-PT30M\r\n/g) || []).length === 2 &&
       /\r\nDTSTART:20261120T120500\r\nDTEND:20261120T170500\r\n/.test(evText) && /\r\nDTSTART:20261130T110000\r\nDTEND:20261130T160000\r\n/.test(evText) && !/DTSTART[^\r]*Z\r\n|TZID/.test(evText) &&
-      evText.indexOf('UID:' + ptId + '-momdad-t1-' + kR1 + '@pialax\r\n') >= 0 && evText.indexOf('SUMMARY:🚗 Pick up Ashwin – ORD Chicago\\, lands 2:35 PM\r\n') >= 0 &&
-      evText.indexOf('SUMMARY:🚗 Drop off Ashwin – ORD Chicago\\, flight 3:30 PM\r\n') >= 0 && /\r\nLOCATION:ORD Chicago\r\n/.test(evText) && (evText.match(/STATUS:CONFIRMED/g) || []).length === 2 &&
-      (evText.replace(/\r\n /g, '').match(/\r\nDESCRIPTION:https:\/\/pialax-proxy\.ashwinyedavalli\.workers\.dev\/i\/[A-Za-z0-9_-]{22}\r\n/g) || []).length === 2 &&
+      // (PIA-159: the UID holds no airport, <id>-<driver>-<a|d><MMDD>-<lead>@pialax; the airport by name, its full name as the location;
+      // the description the ride in words, then exactly one URL, the guest link: never #k=, t= or $)
+      evText.indexOf('UID:' + ptId + '-momdad-t1-a1120-ashwin-t2@pialax\r\n') >= 0 && evText.indexOf('SUMMARY:🚗 Pick up Ashwin – O\'Hare (ORD)\\, lands 2:35 PM\r\n') >= 0 &&
+      evText.indexOf('SUMMARY:🚗 Drop off Ashwin – O\'Hare (ORD)\\, flight 3:30 PM\r\n') >= 0 && /\r\nLOCATION:O'Hare International Airport \(ORD\)\r\n/.test(evText) && (evText.match(/STATUS:CONFIRMED/g) || []).length === 2 &&
+      (() => {
+        const ds = evText.replace(/\r\n /g, '').split('\r\n').filter((l) => /^DESCRIPTION:/.test(l) && !/^DESCRIPTION:🚗/.test(l)), link = M.guestLink(ptId, '', WK);
+        return ds.length === 2 && ds.every((l) => { const urls = l.match(/https?:\/\/[^\s\\]+/g) || []; return urls.length === 1 && urls[0] === link && !/#k=|t=|\$/.test(l); }) &&
+          ds[0] === 'DESCRIPTION:Fri 11/20: pick up Ashwin at O\'Hare (ORD)\\, lands 2:35 PM (leave home 12:05 PM\\, home about 5:05 PM).\\n' + link;
+      })() &&
       evText.indexOf(KEY) < 0 && !/#k=|t=|\$/.test(evText) && evText.split('\r\n').every((l) => Buffer.byteLength(l) <= 75) && ev.ics.filename === 'rides-ptownthanksgiving.ics' &&
       M.rideEvents(pm(pt2, 'ashwin-t2'), 'ashwin-t2', { today: T, now: NOW }) === null && M.rideEvents(pm(pt2, 'momdad-t1', '2026-12-01'), 'momdad-t1', { today: '2026-12-01', now: NOW }) === null &&
       M.rideEvents(pm(pt3, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK }).sig !== ev.sig,
-      'AC12 rideEvents: one calendar file with both of Mom & Dad\'s runs, each from leaving home to back (floating DTSTART:20261120T120500, no Z, no TZID), two alarms each (a day before, 30 minutes before), UID <id>-<driver>-<run>@pialax, the guest link alone as its description, no key, token or price, lines folded at 75 octets; nothing for someone who drives nothing or once the trip is over; a time change changes its signature', evText.slice(0, 600));
+      'AC12 rideEvents: one calendar file with both of Mom & Dad\'s runs, each from leaving home to back (floating DTSTART:20261120T120500, no Z, no TZID), two alarms each (a day before, 30 minutes before), PIA-159 UID <id>-<driver>-<a|d><MMDD>-<lead>@pialax, the ride in words then the guest link as its description (one URL, the guest link; no key, token or price), lines folded at 75 octets; nothing for someone who drives nothing or once the trip is over; a time change changes its signature', evText.slice(0, 600));
     // calendarAdd and icsText are byte-identical to b2cfd85 (the one calendar builder now shares icsCalendar)
     const evs = [{ uid: 'a@pialax', stamp: '20261017T190000Z', d1: '2026-11-20', end: '2026-12-01', title: '? 🦃 P town; thanksgiving, with "everyone"\n', where: 'Chicago', details: WK + '/i/' + ptId, tentative: true },
       { uid: 'b@pialax', stamp: '20261017T190000Z', d1: '2026-11-20', end: '2026-12-01', title: 'x'.repeat(200), where: '', details: '', tentative: false }];
@@ -2732,7 +2739,7 @@ function makeServer(worker) {
       'FIX Bob claimed Ashwin\'s 11/20 pickup, then moved his own arrival to 11/21: he is no longer a candidate of that run, so his claim is ignored (R1 open, Mom & Dad its one candidate), and his next ride write (Ashwin\'s 11/30 drop-off) drops it', { r: rF1.runs[0].legs[0].ride, note: ptF2.responses['bob-t4'].note });
     // the ride's words name a nameless v1 'Me' as the family preset does (never a bare face)
     const v1t = M.rideText(v1m, v1r.runs, 'ask');
-    check(M.rideName(v1m.members.find((x) => x.code === 'LAX')) === 'Ashwin' && /pick up Ashwin at PIA/.test(v1t) && !/💪/.test(v1t) && M.rideName(mem(pm(pt0), 'anjo-t3')) === 'Anjo' &&
+    check(M.rideName(v1m.members.find((x) => x.code === 'LAX')) === 'Ashwin' && /pick up Ashwin at Peoria \(PIA\)/.test(v1t) && !/💪/.test(v1t) && M.rideName(mem(pm(pt0), 'anjo-t3')) === 'Anjo' &&
       M.rideName({ name: '', short: '', one: '', face: '🎸', airport: 'LAX' }) === '🎸',
       'FIX the ride text on the v1 Thanksgiving names its "Me" at LAX (💪) Ashwin, as ⤒ Update trip does ("pick up Ashwin at PIA…"); a nameless member the preset does not recognise keeps their face', v1t);
   }
@@ -2859,10 +2866,11 @@ function makeServer(worker) {
       ev7.sig === 'aORD1120-ashwin-t2|2026-11-20|2026-11-20|12:05|ashwin-t2@14:35+🐈;dORD1130-ashwin-t2|2026-11-30|2026-11-30|11:00|ashwin-t2@15:30+🐈' &&
       ev8.sig === 'aORD1120-ashwin-t2|2026-11-20|2026-11-20|12:05|ashwin-t2@14:35+🐈;dORD1130-ashwin-t2|2026-11-30|2026-11-30|11:00|ashwin-t2@15:30' &&
       M.rideSigAhead(ev7.sig, '2026-11-21') === ev7.sig.split(';')[1] && M.rideSigAhead(ev0.sig, T) !== ev7.sig &&
-      ev7.ics.text.indexOf('SUMMARY:🚗 Pick up Ashwin + Nebby 🐈 – ORD Chicago\\, lands 2:35 PM\r\n') >= 0 && ev7.ics.text.indexOf('SUMMARY:🚗 Drop off Ashwin + Nebby 🐈 – ORD Chicago\\, flight 3:30 PM\r\n') >= 0 &&
-      ev8.ics.text.indexOf('SUMMARY:🚗 Drop off Ashwin – ORD Chicago\\, flight 3:30 PM\r\n') >= 0 && ev0.ics.text.indexOf('Nebby') < 0 &&
-      t7 === '🚗 Reminder: Fri 11/20: pick up Ashwin + Nebby 🐈 at ORD Chicago, lands 2:35 PM (leave home 12:05 PM). Mon 11/30: drop off Ashwin + Nebby 🐈 at ORD Chicago, flight 3:30 PM (leave home 11:00 AM).' &&
-      M.rideText(pm(pt9), M.rides(pm(pt9), T).runs, 'ask') === '🚗 Can you drive? Fri 11/20: pick up Ashwin at ORD Chicago, lands 2:35 PM (leave home 12:05 PM). Mon 11/30: drop off Ashwin at ORD Chicago, flight 3:30 PM (leave home 11:00 AM).' &&
+      // (PIA-159: the words with the airport by name and home again; the signatures above are #158's byte for byte)
+      ev7.ics.text.indexOf('SUMMARY:🚗 Pick up Ashwin + Nebby 🐈 – O\'Hare (ORD)\\, lands 2:35 PM\r\n') >= 0 && ev7.ics.text.indexOf('SUMMARY:🚗 Drop off Ashwin + Nebby 🐈 – O\'Hare (ORD)\\, flight 3:30 PM\r\n') >= 0 &&
+      ev8.ics.text.indexOf('SUMMARY:🚗 Drop off Ashwin – O\'Hare (ORD)\\, flight 3:30 PM\r\n') >= 0 && ev0.ics.text.indexOf('Nebby') < 0 &&
+      t7 === '🚗 Reminder: Fri 11/20: pick up Ashwin + Nebby 🐈 at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM). Mon 11/30: drop off Ashwin + Nebby 🐈 at O\'Hare (ORD), flight 3:30 PM (leave home 11:00 AM, home about 4:00 PM).' &&
+      M.rideText(pm(pt9), M.rides(pm(pt9), T).runs, 'ask') === '🚗 Can you drive? Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM). Mon 11/30: drop off Ashwin at O\'Hare (ORD), flight 3:30 PM (leave home 11:00 AM, home about 4:00 PM).' &&
       ev7.ics.text.split('\r\n').every((l) => Buffer.byteLength(l) <= 75),
       'Nebby in the rides: with 🐈ad the driver\'s calendar events and the ride words say "Ashwin + Nebby 🐈" on both runs (🐈a: the pickup only), and each leg she flies ends its 📅 signature\'s time in "+🐈" (so the driver\'s 📅 Phone gets its dot); without 🐈 the signature and the words are #157\'s byte for byte', { ev0: ev0.sig, ev7: ev7.sig });
     // a #157-format note round-trips, and 🐈 off keeps every other marker
@@ -2871,6 +2879,329 @@ function makeServer(worker) {
     check(M.buildRespNote(pn.called, pn.arr, pn.dep, pn.text, M.noteMarks(pn)) === n157 && M.petRequest(p157, 'ashwin-t2', '', 'keep', T).body.note === '📞 🛬14:35 🛫15:30 🚗anjo-t3.aORD1120 🚌d 🧺🥧 Bringing pie' &&
       M.dishRequest(p157, 'ashwin-t2', ['🥧', '🍰'], 'self', T).body.note === '🛬14:35 🛫15:30 🚗anjo-t3.aORD1120 🚌d 🐈ad 🧺🥧🍰 Bringing pie',
       'a #157-format note with every marker round-trips byte for byte; 🐈 off (the organizer\'s keep) and a dish change (his own: 📞 cleared, as every own answer does) keep the other markers and the text');
+  }
+
+  // ═══ PIA-159 ═════════════════════════════════════════════════════════════
+  section('PIA-159 airports per leg and 12-hour times: 🛬IATA / 🛫IATA in the traveler\'s own note under the honor rule, one drive to two airports, the ride in words, nextDrive');
+  {
+    const T = '2026-10-31', WK = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+    const PTD = { v: 1, id: 'ptPTownAirports0000001', created_at: '2026-10-14T10:00:00.000Z', updated_at: '2026-10-16T10:00:00.000Z',
+      idea: { title: '🦃 P town thanksgiving', destination: { city: 'Chicago', airport: 'ORD' }, dates: { departure: '2026-11-20', return: '2026-11-30', searchStart: '', searchEnd: '' }, recommendation: null, notes: '',
+        members: [{ code: 'momdad-t1', label: '🌽 Mom & Dad', airport: 'PIA', headcount: 2 }, { code: 'ashwin-t2', label: '💪 Ashwin', airport: 'LAX', headcount: 1 }, { code: 'anjo-t3', label: '🗽 Anjo', airport: 'LGA', headcount: 1 }] },
+      responses: { 'ashwin-t2': R('in', 'LAX', '', '', { booked: true, booked_at: '2026-10-16T00:00:00.000Z', note: '🛬14:35 🛫15:47 🐈ad' }), 'anjo-t3': R('in', 'LGA', '', '', { booked: true, booked_at: '2026-10-20T00:00:00.000Z' }) },
+      decision: { stage: 'chosen', chosen: { airport: 'ORD', city: 'Chicago', departure: '2026-11-20', return: '2026-11-30' }, chosen_at: '2026-10-16T00:00:00.000Z', estimate_total: null, actual_total: null, booked_at: null, delta_pct: null },
+      log: [] };
+    const pm = (doc, me, today, over) => M.tripModel(doc, Object.assign({ today: today || T, now: NOW, me: me || null }, over || {}));
+    const anjo = (doc) => mem(pm(doc), 'anjo-t3');
+    const brief = (r) => r.runs.map((x) => [x.key, x.uid, x.aps.join('+'), x.leave && x.leave.day + ' ' + x.leave.t, x.back && x.back.day + ' ' + x.back.t, x.exact && x.exact.leave.t + '/' + x.exact.back.t, x.stops.map((s) => s.ap + '@' + (s.at && s.at.t)).join(' ')]);
+    const hasKey = (o, k) => !!o && Object.prototype.hasOwnProperty.call(o, k);
+    // = 2cf6ec9 (unchanged by #158): #157 / #158's note functions, verbatim, as a phone that has not updated yet runs them
+    const OLD159 = (function (IDEA_HUBS, NEARBY_GROUPS, MEMBER_CODE_RE, TEXT_MAX, DISH_PALETTE, clip, normIata, isIata, isIso) {
+      var IDEA_STATUSES = { in: 1, maybe: 1, out: 1 };
+      var HHMM_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+      function uniq(a) { var o = []; a.forEach(function (x) { if (o.indexOf(x) < 0) o.push(x); }); return o; }
+      function hasOwn(o, k) { return !!o && Object.prototype.hasOwnProperty.call(o, k); }
+      function hubPair(dest) { for (var i = 0; i < IDEA_HUBS.length; i++) if (IDEA_HUBS[i].indexOf(dest) >= 0) return IDEA_HUBS[i].slice(); return dest ? [dest] : []; }
+      function metroOf(dest) { for (var i = 0; i < NEARBY_GROUPS.length; i++) if (NEARBY_GROUPS[i].indexOf(dest) >= 0) return NEARBY_GROUPS[i].slice(); return []; }
+      function localSet(dest) { return dest ? uniq(hubPair(dest).concat(metroOf(dest))) : []; }
+      var CLAIM_RE = /^([A-Za-z0-9_-]{1,32})\.([ad])([A-Z]{3})(\d\d)(\d\d)$/;
+      function mdKey(day) { return isIso(day) ? day.slice(5, 7) + day.slice(8, 10) : /^\d{4}$/.test(String(day || '')) && isIso('2000-' + day.slice(0, 2) + '-' + day.slice(2)) ? String(day) : ''; }
+      function claimOf(s) { var m = CLAIM_RE.exec(String(s || '')); return m && isIso('2000-' + m[4] + '-' + m[5]) ? { code: m[1], kind: m[2], ap: m[3], day: m[4] + m[5] } : null; }
+      function claimTok(c) { var d = c ? mdKey(c.day) : ''; return c && MEMBER_CODE_RE.test(String(c.code)) && (c.kind === 'a' || c.kind === 'd') && isIata(c.ap) && d ? c.code + '.' + c.kind + c.ap + d : ''; }
+      function legsOf(v) { return v === 'a' || v === 'd' || v === 'ad' ? v : v === 'da' ? 'ad' : ''; }
+      function dishesOf(v) { var out = []; (Array.isArray(v) ? v : []).forEach(function (g) { if (DISH_PALETTE.indexOf(g) >= 0 && out.indexOf(g) < 0 && out.length < 3) out.push(g); }); return out; }
+      function noteMark(s) {
+        var sp = s.indexOf(' '), tok = sp < 0 ? s : s.slice(0, sp), n = sp < 0 ? s.length : sp + 1, cps = Array.from(tok), g = cps[0] || '', rest = cps.slice(1).join('');
+        if (!tok) return null;
+        if (tok === '📞') return { k: 'called', v: true, n: n };
+        if ((g === '🛬' || g === '🛫') && HHMM_RE.test(rest)) return { k: g === '🛬' ? 'arr' : 'dep', v: rest, n: n };
+        if (g === '🚗' && rest) { var cl = rest.split(',').map(claimOf); return cl.every(Boolean) ? { k: 'claims', v: cl, n: n } : null; }
+        var lk = { '🚌': 'bus', '🚙': 'rent', '🐈': 'pet' }[g];
+        if (lk && (rest === 'a' || rest === 'd' || rest === 'ad')) return { k: lk, v: rest, n: n };
+        if (g === '🧺') { var ds = cps.slice(1); return ds.length >= 1 && ds.length <= 3 && dishesOf(ds).length === ds.length ? { k: 'dish', v: ds, n: n } : null; }
+        return null;
+      }
+      var LEGACY_PROXY_RE = /\s*\(entered by [^()]*\)\s*$/;
+      function parseRespNote(note) {
+        var s = typeof note === 'string' ? note : '', o = { called: false, arr: '', dep: '', claims: [], bus: '', rent: '', pet: '', dish: [] }, seen = {}, m;
+        for (;;) {
+          m = noteMark(s);
+          // (📞 / 🛬 / 🛫 read as they always have, a repeat too; each later kind once)
+          if (!m || (seen[m.k] && m.k !== 'called' && m.k !== 'arr' && m.k !== 'dep')) break;
+          seen[m.k] = 1; o[m.k] = m.v; s = s.slice(m.n);
+        }
+        if (LEGACY_PROXY_RE.test(s)) { o.called = true; s = s.replace(LEGACY_PROXY_RE, ''); }
+        o.text = s.trim();
+        return o;
+      }
+      function buildRespNote(called, arr, dep, text, mk) {
+        var parts = [], k = mk || {}, cl = uniq((Array.isArray(k.claims) ? k.claims : []).map(claimTok).filter(Boolean)), ds = dishesOf(k.dish);
+        if (called) parts.push('📞');
+        if (arr && HHMM_RE.test(arr)) parts.push('🛬' + arr);
+        if (dep && HHMM_RE.test(dep)) parts.push('🛫' + dep);
+        if (cl.length) parts.push('🚗' + cl.join(','));
+        [['🚌', k.bus], ['🚙', k.rent], ['🐈', k.pet]].forEach(function (p) { var v = legsOf(p[1]); if (v) parts.push(p[0] + v); });
+        if (ds.length) parts.push('🧺' + ds.join(''));
+        if (parts.join(' ').length > TEXT_MAX.note) return null;
+        if (text && String(text).trim()) parts.push(String(text).trim());
+        return clip(parts.join(' '), TEXT_MAX.note);
+      }
+      function noteMarks(n) { return { claims: n.claims, bus: n.bus, rent: n.rent, pet: n.pet, dish: n.dish }; }
+      function docDest(doc) {
+        var I = (doc && doc.idea) || {}, rec = I.recommendation;
+        return normIata((rec && rec.airport) || (I.destination && I.destination.airport) || ''); // = worker.js ideaMutate dest
+      }
+      function memberOf(doc, code) { return ((doc && doc.idea && doc.idea.members) || []).filter(function (m) { return m && m.code === code; })[0] || null; }
+      function docClosed(doc) { var st = doc && doc.decision && doc.decision.stage; return st === 'booked' || st === 'dropped'; }
+      function validResp(r) { return r && typeof r === 'object' && hasOwn(IDEA_STATUSES, r.status) ? r : null; }
+      function reqPath(route, id) { return route + '?id=' + encodeURIComponent(id); }
+      function typedNote(s) {
+        var t = String(s == null ? '' : s).trim(), m;
+        for (;;) { t = t.replace(LEGACY_PROXY_RE, '').trim(); if ((m = noteMark(t))) { t = t.slice(m.n).trim(); continue; } break; }
+        return t;
+      }
+      var MARK_KEYS = ['claims', 'bus', 'rent', 'pet', 'dish'];
+      function respondRequest(doc, code, patch, opts) {
+        opts = opts || {}; patch = patch || {};
+        var mem = memberOf(doc, code); if (!mem || !doc.id || docClosed(doc)) return null;
+        var prev = validResp(doc.responses && doc.responses[code]);
+        var has = function (k) { return hasOwn(patch, k); };
+        var marks = MARK_KEYS.some(has), by = opts.by, status;
+        if (!prev && !has('status')) {
+          var dest = docDest(doc), ap = normIata(mem.airport);
+          if (!marks || !dest || !ap || localSet(dest).indexOf(ap) < 0) return null;
+          status = 'in'; if (by !== 'self') by = 'proxy';
+        } else status = has('status') ? patch.status : prev.status;
+        if (!hasOwn(IDEA_STATUSES, status)) return null;
+        // a marker patched with something that is not one builds nothing (never silently dropped)
+        if (['bus', 'rent', 'pet'].some(function (k) { return has(k) && patch[k] !== '' && !legsOf(patch[k]); })) return null;
+        if (has('claims') && (!Array.isArray(patch.claims) || patch.claims.some(function (c) { return !claimTok(c); }))) return null;
+        if (has('dish') && (!Array.isArray(patch.dish) || patch.dish.length > 3 || dishesOf(patch.dish).length !== patch.dish.length)) return null;
+        var home = normIata(mem.airport);
+        var origin = has('origin') ? normIata(patch.origin) : (prev && isIata(prev.origin) && prev.origin !== home ? prev.origin : '');
+        if (origin === home) origin = '';
+        var from = has('available_from') ? patch.available_from || '' : (prev && isIso(prev.available_from) ? prev.available_from : '');
+        var to = has('available_to') ? patch.available_to || '' : (prev && isIso(prev.available_to) ? prev.available_to : '');
+        if ((from && !isIso(from)) || (to && !isIso(to)) || (from && to && to < from)) return null;
+        var n = parseRespNote(prev && prev.note);
+        var arr = has('arrTime') ? patch.arrTime || '' : n.arr, dep = has('depTime') ? patch.depTime || '' : n.dep;
+        if ((arr && !HHMM_RE.test(arr)) || (dep && !HHMM_RE.test(dep))) return null;
+        var called = by === 'self' ? false : by === 'proxy' ? true : n.called;
+        var mk = {}; MARK_KEYS.forEach(function (k) { mk[k] = has(k) ? patch[k] : n[k]; });
+        var text = has('note') ? typedNote(patch.note) : n.text, note = buildRespNote(called, arr, dep, text, mk);
+        if (note === null) return null;
+        // PIA-139: booked times never cut a note short: times that would leave the text it has no room build nothing (PIA-157: nor markers)
+        if ((has('arrTime') || has('depTime') || marks) && parseRespNote(note).text !== String(text || '').trim()) return null;
+        var body = { member: code, status: status, origin: origin, available_from: from, available_to: to, note: note };
+        var hub = hubPair(docDest(doc));
+        var bad = ['arrive_at', 'leave_from'].some(function (k) {
+          if (!has(k)) return false;
+          var v = normIata(patch[k]);
+          if (patch[k] && !v) return true;
+          if (v && hub.indexOf(v) < 0) return true;
+          if (v !== ((prev && prev[k]) || '')) body[k] = v;
+          return false;
+        });
+        return bad ? null : { method: 'POST', path: reqPath('/idea/respond', doc.id), body: body };
+      }
+      function timesRequest(doc, code, arr, dep, by) {
+        var r = validResp(doc && doc.responses && doc.responses[code]);
+        if (!r || !r.booked || (r.status !== 'in' && r.status !== 'maybe')) return null;
+        var n = parseRespNote(r.note), patch = {};
+        if (arr !== undefined && arr !== n.arr) patch.arrTime = arr;
+        if (dep !== undefined && dep !== n.dep) patch.depTime = dep;
+        if (!hasOwn(patch, 'arrTime') && !hasOwn(patch, 'depTime')) return null;
+        return respondRequest(doc, code, patch, { by: by === 'self' ? 'self' : 'keep' });
+      }
+      return { noteMark: noteMark, parseRespNote: parseRespNote, buildRespNote: buildRespNote, noteMarks: noteMarks, typedNote: typedNote, respondRequest: respondRequest, timesRequest: timesRequest };
+    })(M.IDEA_HUBS, M.NEARBY_GROUPS, M.MEMBER_CODE_RE, M.TEXT_MAX, M.DISH_PALETTE, M.clip, M.normIata, M.isIata, M.isIso);
+
+    // ---- the grammar: 🛬IATA / 🛫IATA after 🧺, read in any order, once; typed text never forges one; never clipped ----
+    const full = '📞 🛬22:30 🛫17:10 🚗ashwin-t2.aORD1120 🚌a 🚙d 🐈ad 🧺🥧 🛬MDW 🛫MDW see you', pf = M.parseRespNote(full);
+    const big = Array.from({ length: 12 }, (_, i) => ({ code: ('m' + i + 'x'.repeat(31)).slice(0, 32), kind: 'a', ap: 'MDW', day: '1120' }));
+    // (every marker and six claims with long codes: 275 units without the airports, 287 with them)
+    const mkBig = { claims: big.slice(0, 5).concat([{ code: 'z'.repeat(13), kind: 'a', ap: 'MDW', day: '1120' }]), bus: 'a', rent: 'd', pet: 'ad', dish: ['🥧', '🍰', '🍪'] }, noAp = M.buildRespNote(true, '22:30', '17:10', '', mkBig);
+    const nFit = noAp ? noAp.length : 0, nAp = nFit + ' 🛬MDW 🛫MDW'.length;
+    check(pf.arrAp === 'MDW' && pf.depAp === 'MDW' && pf.arr === '22:30' && pf.text === 'see you' && M.buildRespNote(pf.called, pf.arr, pf.dep, pf.text, M.noteMarks(pf)) === full &&
+      eq((({ arrAp, depAp, arr, text }) => [arrAp, depAp, arr, text])(M.parseRespNote('🛬MDW 🛬22:30 🛫MDW hi')), ['MDW', 'MDW', '22:30', 'hi']) &&
+      eq((({ arrAp, text }) => [arrAp, text])(M.parseRespNote('🛬MDW 🛬ORD hi')), ['MDW', '🛬ORD hi']) && M.parseRespNote('🛬MDWX hi').arrAp === '' && M.parseRespNote('🛬mdw hi').text === '🛬mdw hi' &&
+      M.typedNote('🛬MDW 🛫JFK hello') === 'hello' && M.typedNote('landing 🛬MDW') === 'landing 🛬MDW' &&
+      M.noteRoom(false, '22:30', '17:10', { arrAp: 'MDW', depAp: 'MDW' }) === 280 - '🛬22:30 🛫17:10 🛬MDW 🛫MDW'.length - 1 && '🛬22:30 🛫17:10 🛬MDW 🛫MDW'.length === 27 &&
+      nFit === 275 && nAp === 287 && M.buildRespNote(true, '22:30', '17:10', '', Object.assign({}, mkBig, { arrAp: 'MDW', depAp: 'MDW' })) === null,
+      'grammar: 🛬IATA / 🛫IATA go after 🧺 and round-trip byte for byte with every other marker; read in any order, each once (a 2nd 🛬IATA begins the text; a 4-letter or lower-case code is text); typedNote strips a leading one; noteRoom counts them (Anjo\'s 27 units); markers alone past 280 build nothing, never clipped (the airports make a full note refuse sooner)', { nFit, nAp });
+
+    // ---- the airports a booked leg can be at; the nearest hub; drives either way ----
+    check(eq(M.legChoices('ORD'), ['ORD', 'MDW', 'PIA']) && eq(M.legChoices('PIA'), ['PIA', 'ORD', 'MDW']) && eq(M.legChoices('LGA'), ['LGA', 'JFK', 'EWR']) && eq(M.legChoices('BOS'), ['BOS']) &&
+      eq(M.legChoices({ dest: 'ORD' }), M.legChoices('ORD')) && eq(M.legOutsideHub('ORD'), ['MDW']) && eq(M.legOutsideHub('LGA'), ['EWR']) && eq(M.legOutsideHub('BOS'), []) &&
+      M.hubNear('ORD', 'MDW') === 'ORD' && M.hubNear('PIA', 'MDW') === 'ORD' && M.hubNear('LGA', 'EWR') === 'LGA' && M.hubNear('JFK', 'EWR') === 'JFK' && M.hubNear('ORD', 'PIA') === 'PIA' &&
+      M.driveMin('MDW', 'PIA') === 165 && M.driveMin('PIA', 'MDW') === 165 && M.driveMin('MDW', 'ORD') === 45 && M.driveMin('ORD', 'ORD') === 0 && M.driveMin('MDW', 'LGA') === null &&
+      M.homeDrive('PIA', 'PIA') === 20 && M.homeDrive('PIA', 'ORD') === 150 && M.homeDrive('PIA', 'MDW') === 165 && M.DRIVE['PIA|MDW'] === '2:45' && M.DRIVE['ORD|MDW'] === '0:45' && M.NEAR_MIN === 60,
+      'legChoices: ORD [ORD, MDW, PIA], PIA [PIA, ORD, MDW], LGA [LGA, JFK, EWR], BOS [BOS]; legOutsideHub; hubNear: MDW → ORD on ORD and PIA trips, EWR → the destination (no drive known); the owner-confirmed drives PIA|MDW 2:45 and ORD|MDW 0:45, either way');
+
+    // ---- the honor rule: legAp, through the real Worker's records ----
+    const id0 = srv.seed(PTD), d0 = await srv.get(id0, KEY);
+    const withAnjo = (note, extra) => tweak(d0, (d) => { Object.assign(d.responses['anjo-t3'], { note: note }, extra || {}); });
+    const honored = anjo(withAnjo('🛬22:30 🛫17:10 🛬MDW 🛫MDW')), unbooked = anjo(withAnjo('🛬22:30 🛫17:10 🛬MDW 🛫MDW', { booked: false })), noTime = anjo(withAnjo('🛫17:10 🛬MDW 🛫MDW'));
+    const hubMk = anjo(withAnjo('🛬22:30 🛫17:10 🛬ORD 🛫PIA')), badField = anjo(withAnjo('🛬22:30 🛫17:10 🛬MDW 🛫MDW', { arrive_at: 'PIA' }));
+    check(honored.arrAp === 'MDW' && honored.depAp === 'MDW' && honored.A === 'ORD' && honored.H === 'ORD' && M.legAp(honored, 'a') === 'MDW' && M.legAp(honored, 1) === 'MDW' && honored.marks.arrAp === 'MDW' && honored.noteText === '' &&
+      unbooked.arrAp === 'ORD' && unbooked.marks.arrAp === 'MDW' && noTime.arrAp === 'ORD' && noTime.depAp === 'MDW' && hubMk.arrAp === 'ORD' && hubMk.depAp === 'ORD' && badField.arrAp === 'PIA' && badField.depAp === 'MDW' &&
+      eq(M.flightEnds(pm(withAnjo('🛬22:30 🛫17:10 🛬MDW 🛫MDW')), 'anjo-t3').map((e) => [e.ap, e.hub, e.choices.join()]), [['MDW', 'ORD', 'ORD,MDW,PIA'], ['MDW', 'ORD', 'ORD,MDW,PIA']]) &&
+      eq(M.flightEnds(pm(withAnjo('', { booked: false })), 'anjo-t3').map((e) => e.choices.length), [0, 0]),
+      'the honor rule: Anjo booked with 🛬22:30 🛫17:10 🛬MDW 🛫MDW lands and leaves at Midway (legAp; A / H stay ORD for prices and links; no 📝: the markers are not text); not booked, a leg with no time, a hub airport as a marker, or a hub field that is not hubNear it (arrive_at PIA) → A / H; flightEnds names the leg\'s real airport and its choices once booked');
+
+    // ---- legPatch / legRequest through the real Worker ----
+    const first = M.legRequest(d0, 'anjo-t3', { arr: '22:30', dep: '17:10', arrAp: 'MDW', depAp: 'MDW' }, 'self'), firstRes = await srv.send(first), d1 = await srv.get(id0, KEY);
+    const tOnly = M.legRequest(d1, 'anjo-t3', { arr: '22:45' }, 'self'), oldT = OLD159.timesRequest(d1, 'anjo-t3', '22:45', undefined, 'self');
+    const plain = tweak(d1, (d) => { d.responses['anjo-t3'].note = '🛬22:30 🛫17:10 red-eye'; });
+    const toPia = M.legRequest(d1, 'anjo-t3', { arrAp: 'PIA' }, 'self'), back = M.legRequest(d1, 'anjo-t3', { arrAp: 'ORD', depAp: 'ORD' }, 'keep');
+    check(srv.allOk(firstRes) && eq(first.body, { member: 'anjo-t3', status: 'in', origin: '', available_from: '', available_to: '', note: '🛬22:30 🛫17:10 🛬MDW 🛫MDW' }) && d1.responses['anjo-t3'].note === '🛬22:30 🛫17:10 🛬MDW 🛫MDW' &&
+      !d1.responses['anjo-t3'].arrive_at && anjo(d1).arrAp === 'MDW' && anjo(d1).depAp === 'MDW' && d1.responses['anjo-t3'].booked === true &&
+      tOnly.body.note === '🛬22:45 🛫17:10 🛬MDW 🛫MDW' && eq(tOnly, oldT) && eq(M.timesRequest(plain, 'anjo-t3', '22:45', undefined, 'self'), OLD159.timesRequest(plain, 'anjo-t3', '22:45', undefined, 'self')) &&
+      toPia.body.note === '🛬22:30 🛫17:10 🛫MDW' && toPia.body.arrive_at === 'PIA' && back.body.note === '🛬22:30 🛫17:10' && !hasKey(back.body, 'arrive_at') &&
+      M.legPatch(d1, 'anjo-t3', { arrAp: 'BOS' }, 'self') === null && M.legPatch(d1, 'anjo-t3', { arrAp: 'MDW' }, 'self') === null && M.legPatch(d0, 'anjo-t3', { arrAp: 'MDW' }, 'self') === null &&
+      M.legPatch(tweak(d1, (d) => { d.responses['anjo-t3'].booked = false; }), 'anjo-t3', { arr: '21:00' }, 'self') === null && M.legPatch(d1, 'anjo-t3', { arr: '25:00' }, 'self') === null &&
+      M.legPatch(d1, 'anjo-t3', { arr: '22:30', dep: '17:10', arrAp: 'MDW', depAp: 'MDW' }, 'self') === null,
+      'legRequest: Anjo\'s first entry is ONE complete answer "🛬22:30 🛫17:10 🛬MDW 🛫MDW" (the Worker keeps it, her 🎫 and her empty hub fields: MDW → ORD = the destination, so nothing is sent for them); time alone = #158\'s timesRequest byte for byte, with or without markers; PIA → arrive_at PIA and her 🛬 marker cleared; ORD clears both; null: an airport not offered, no change, an airport for a leg with no time, not booked, not a time', { first: first && first.body, toPia: toPia && toPia.body });
+    // a note at 270 units: the airport has no room (legRequest null, legPatch not), the time alone still goes
+    const long = withAnjo('🛬22:30 🛫17:10 ' + 'x'.repeat(254)), lo = { arr: '22:40', arrAp: 'MDW', depAp: 'MDW' }, lp = M.legPatch(long, 'anjo-t3', lo, 'self');
+    check(long.responses['anjo-t3'].note.length === 270 && lp && lp.arrAp === 'MDW' && lp.depAp === 'MDW' && M.legRequest(long, 'anjo-t3', lo, 'self') === null &&
+      M.timesRequest(long, 'anjo-t3', '22:40', undefined, 'self').body.note === '🛬22:40 🛫17:10 ' + 'x'.repeat(254),
+      'a 270-unit note: legRequest with Midway both ways (12 more units) builds nothing (never clipped, the text never cut), legPatch still names them (so the phone tells "Too long: MDW" from the rest), and the time alone goes');
+    // on a PIA trip Midway's hub field is ORD (hubNear); unbooking clears the markers and gives that field back; a pick of their own stays
+    const PIAD = tweak(PTD, (d) => { d.idea.destination = { city: 'Peoria', airport: 'PIA' }; d.decision.chosen.airport = 'PIA'; d.responses['anjo-t3'].note = '🛬22:30 🛫17:10'; });
+    const idP = srv.seed(PIAD), p0 = await srv.get(idP, KEY), pq = M.legRequest(p0, 'anjo-t3', { arrAp: 'MDW' }, 'self'), pqRes = await srv.send(pq), p1 = await srv.get(idP, KEY);
+    const ub = M.bookedRequests(p1, 'anjo-t3', false, { by: 'self' }), ubRes = await srv.send(ub), p2 = await srv.get(idP, KEY);
+    const own = tweak(d1, (d) => { d.responses['anjo-t3'].note = '🛬MDW 🛫MDW'; d.responses['anjo-t3'].leave_from = 'PIA'; }), ubOwn = M.bookedRequests(own, 'anjo-t3', false, { by: 'self' });
+    check(srv.allOk(pqRes) && pq.body.arrive_at === 'ORD' && p1.responses['anjo-t3'].note === '🛬22:30 🛫17:10 🛬MDW' && p1.responses['anjo-t3'].arrive_at === 'ORD' && anjo(p1).arrAp === 'MDW' && anjo(p1).A === 'ORD' &&
+      srv.allOk(ubRes) && ub.length === 2 && ub[0].body.note === '' && ub[0].body.arrive_at === '' && p2.responses['anjo-t3'].note === '' && !p2.responses['anjo-t3'].arrive_at && p2.responses['anjo-t3'].booked === false &&
+      ubOwn.length === 2 && ubOwn[0].body.note === '' && !hasKey(ubOwn[0].body, 'leave_from'),
+      'a PIA trip: Midway is 🛬MDW with arrive_at ORD (the hub airport nearest it); unbooking sends the clear (times and both markers) and puts arrive_at back to the destination; the clear goes when only markers are there, and a hub pick of her own (leave_from PIA, not hubNear MDW on an ORD trip) is left alone');
+
+    // ---- carried markers that fail the honor rule are dropped on the next #159 write; patched ones refuse ----
+    const oldUnbook = OLD159.respondRequest(d1, 'anjo-t3', { arrTime: '', depTime: '' }, { by: 'self' }), afterOld = tweak(d1, (d) => { d.responses['anjo-t3'].note = oldUnbook.body.note; });
+    const rePia = tweak(afterOld, (d) => { d.responses['anjo-t3'].arrive_at = 'PIA'; d.responses['anjo-t3'].note = '🛬21:00 🛬MDW 🛫MDW'; });
+    const toLga = tweak(d1, (d) => { d.idea.destination = { city: 'New York', airport: 'LGA' }; d.decision.chosen.airport = 'LGA'; });
+    const bos = withAnjo('🛬22:30 🛫17:10 🛬BOS hi');
+    check(oldUnbook.body.note === '🛬MDW 🛫MDW' && anjo(afterOld).arrAp === 'ORD' && anjo(afterOld).noteText === '' && anjo(rePia).arrAp === 'PIA' &&
+      M.respondRequest(afterOld, 'anjo-t3', { status: 'maybe' }, { by: 'self' }).body.note === '' && M.respondRequest(rePia, 'anjo-t3', { status: 'in' }, { by: 'self' }).body.note === '🛬21:00 🛫MDW'.replace(' 🛫MDW', '') &&
+      anjo(toLga).arrAp === 'LGA' && !hasKey(M.pickups(pm(toLga), {}, NOW, false), 'MDW') && M.respondRequest(toLga, 'anjo-t3', { status: 'in' }, { by: 'self' }).body.note === '🛬22:30 🛫17:10' &&
+      anjo(bos).arrAp === 'ORD' && anjo(bos).noteText === 'hi' && M.respondRequest(bos, 'anjo-t3', { note: 'hello' }, { by: 'self' }).body.note === '🛬22:30 🛫17:10 hello' &&
+      M.respondRequest(d1, 'anjo-t3', { arrAp: 'ORD' }, { by: 'self' }) === null && M.respondRequest(d1, 'anjo-t3', { arrAp: 'BOS' }, { by: 'self' }) === null &&
+      M.respondRequest(d1, 'anjo-t3', { arrTime: '', arrAp: 'MDW' }, { by: 'self' }) === null && M.respondRequest(d1, 'anjo-t3', { arrAp: 'mdw' }, { by: 'self' }) === null &&
+      M.respondRequest(tweak(d0, (d) => { delete d.responses['momdad-t1']; }), 'momdad-t1', { arrAp: 'MDW' }, { by: 'keep' }) === null,
+      'carried markers: (a) a #158 unbook leaves "🛬MDW 🛫MDW" (not honored: no times; nor after a legair PIA), and the next #159 write drops what fails; (b) ORD → LGA: no Midway, no MDW lane, dropped on the next write; (c) "🛬BOS" typed on an old phone is not honored and the next write drops it; patched: a hub airport, one not offered, one for a leg with no time, a malformed one, an airport for a host still on their default: nothing built');
+
+    // (fix pass) timesRequest keeps #157 / #158's reading of a falsy time: null, 0 or false clears it as '' does
+    const clr = withAnjo('🛬22:30 🛫17:10 hi'), clr0 = M.timesRequest(clr, 'anjo-t3', '', undefined, 'self');
+    check(clr0 && clr0.body.note === '🛫17:10 hi' && [null, 0, false].every((v) => { const q = M.timesRequest(clr, 'anjo-t3', v, undefined, 'self'); return q && q.body.note === '🛫17:10 hi'; }) && M.timesRequest(clr, 'anjo-t3', undefined, undefined, 'self') === null,
+      'timesRequest: a null, 0 or false 🛬 clears it as \'\' does ("🛫17:10 hi"), as before #159; undefined leaves both and builds nothing');
+    // ---- old phones: #158 (2cf6ec9) reads a #159 note as text and writes it back byte for byte; #159 reads what it wrote ----
+    const n159 = '🛬22:30 🛫17:10 🛬MDW 🛫MDW see you', o159 = withAnjo(n159), op = OLD159.parseRespNote(n159);
+    const ow = { times: OLD159.timesRequest(o159, 'anjo-t3', '22:45', undefined, 'self'), dish: OLD159.respondRequest(o159, 'anjo-t3', { dish: ['🍪'] }, { by: 'self' }), bus: OLD159.respondRequest(o159, 'anjo-t3', { bus: 'a', rent: '' }, { by: 'self' }),
+      status: OLD159.respondRequest(o159, 'anjo-t3', { status: 'maybe' }, { by: 'self' }) };
+    const ash = tweak(d1, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:47 🐈ad 🛬MDW'; }), petOff = OLD159.respondRequest(ash, 'ashwin-t2', { pet: '' }, { by: 'self' });
+    const sent = await srv.send(ow.dish), d2 = await srv.get(id0, KEY);
+    check(op.arr === '22:30' && op.dep === '17:10' && op.text === '🛬MDW 🛫MDW see you' && ow.times.body.note === '🛬22:45 🛫17:10 🛬MDW 🛫MDW see you' && ow.dish.body.note === '🛬22:30 🛫17:10 🧺🍪 🛬MDW 🛫MDW see you' &&
+      ow.bus.body.note === '🛬22:30 🛫17:10 🚌a 🛬MDW 🛫MDW see you' && ow.status.body.note === n159 && petOff.body.note === '🛬14:35 🛫15:47 🛬MDW' &&
+      Object.keys(ow).every((k) => !hasKey(ow[k].body, 'arrive_at') && !hasKey(ow[k].body, 'leave_from')) && OLD159.typedNote('🛬MDW hi') === '🛬MDW hi' &&
+      srv.allOk(sent) && d2.responses['anjo-t3'].note === '🛬22:30 🛫17:10 🧺🍪 🛬MDW 🛫MDW see you' && anjo(d2).arrAp === 'MDW' && eq(anjo(d2).dish, ['🍪']) && anjo(d2).noteText === 'see you' &&
+      OLD159.parseRespNote('🛬22:30 🛬MDW 🚗momdad-t1.aMDW1120 hi').claims.length === 0,
+      'old phones: #158\'s note functions (= 2cf6ec9, unchanged by #158, verbatim) read "🛬22:30 🛫17:10 🛬MDW 🛫MDW see you" as times and text, and its time, 🧺, 🚌, answer and 🐈-off writes keep "🛬MDW 🛫MDW" byte for byte (no hub field sent; the Worker keeps it); #159 reads the result fully; a marker placed before 🚗 would break an old claim read (the order is load-bearing)', ow.dish.body.note);
+
+    // ---- rides(): one drive to two airports, rounded to 5 minutes; R.apart; keys and uids ----
+    const pt = withAnjo('🛬22:30 🛫17:10 🛬MDW 🛫MDW'), R1 = M.rides(pm(pt), T);
+    check(eq(brief(R1), [
+      ['aORD1120-ashwin-t2', 'a1120-ashwin-t2', 'ORD', '2026-11-20 12:05', '2026-11-20 17:05', '12:05/17:05', 'ORD@14:35'],
+      ['aMDW1120-anjo-t3', 'a1120-anjo-t3', 'MDW', '2026-11-20 19:45', '2026-11-21 01:15', '19:45/01:15', 'MDW@22:30'],
+      ['dORD1130-ashwin-t2', 'd1130-ashwin-t2', 'ORD+MDW', '2026-11-30 11:15', '2026-11-30 17:15', '11:17/17:17', 'ORD@13:45 MDW@14:30']]) &&
+      eq(R1.apart, [{ day: '2026-11-20', kind: 'a', a: 'aORD1120-ashwin-t2', b: 'aMDW1120-anjo-t3', why: 'wait', gap: 475 }]) && R1.runs[2].legs.map((l) => l.code + '@' + l.ap).join() === 'ashwin-t2@ORD,anjo-t3@MDW' &&
+      R1.runs[1].drive === 165 && R1.runs[2].drive === 150 && R1.runs[2].exact.back.day === '2026-11-30' && eq(R1.runs[2].candidates, ['momdad-t1']),
+      'P town with the real flights: R1 ORD 2:35 PM leave 12:05, home 17:05; R2 Midway 10:30 PM leave 19:45, home 11/21 01:15 (a drive of its own: R.apart wait, 7:55 after Ashwin); R3 one drive, O\'Hare then Midway: exact 11:17 → leave 11:15, at ORD 13:45, MDW 14:30, home 17:15 (exact 17:17); keys keep the first stop, uids hold none', brief(R1));
+    const late = M.rides(pm(tweak(pt, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫13:30'; d.responses['anjo-t3'].note = '🛬22:30 🛫13:00 🛬MDW 🛫MDW'; })), T);
+    const join = (t1, t2) => M.rides(pm(tweak(pt, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫' + t1; d.responses['anjo-t3'].note = '🛬22:30 🛫' + t2 + ' 🛬MDW 🛫MDW'; })), T).runs.filter((r) => r.kind === 'd');
+    const old1530 = join('15:30', '17:10'), atDl = join('15:00', '15:45'), past = join('15:00', '15:44'), j1520 = join('15:50', '17:10'), single = join('15:47', '22:00');
+    check(late.runs.filter((r) => r.kind === 'd').length === 2 && late.apart.some((p) => p.why === 'late' && p.kind === 'd' && p.a === 'dMDW1130-anjo-t3' && p.b === 'dORD1130-ashwin-t2') &&
+      old1530.length === 1 && old1530[0].leave.t === '11:00' && old1530[0].back.t === '17:00' && atDl.length === 1 && past.length === 2 && j1520[0].exact.leave.t === '11:20' && j1520[0].leave.t === '11:20' &&
+      single.length === 2 && single[0].exact.leave.t === '11:17' && single[0].leave.t === '11:15' && single[0].exact.back.t === '16:17' && single[0].back.t === '16:15',
+      'joins are on exact minutes: MDW 13:00 then ORD 13:30 drop-offs are two drives (late); the old 15:30 runs 11:00–17:00; a drop-off whose exact reach is its deadline joins, one minute later it does not; exact leaves 11:20 and 11:17 (shown 11:15); a single-airport run\'s exact leave and back are #157\'s (11:17 / 16:17), shown 11:15 / 16:15');
+    // the home airport never joins; 🚌 to Midway, never to Peoria; an early Midway landing leaves the day before; no drive known: nodrive
+    const home = M.rides(pm(tweak(pt, (d) => { d.responses['anjo-t3'].note = '🛬14:50 🛫17:10'; d.responses['anjo-t3'].arrive_at = 'PIA'; })), T).runs.filter((r) => r.kind === 'a');
+    const early = M.rides(pm(tweak(pt, (d) => { d.responses['anjo-t3'].available_from = '2026-11-21'; d.responses['anjo-t3'].note = '🛬01:30 🛫17:10 🛬MDW 🛫MDW'; })), T).runs.filter((r) => r.kind === 'a' && r.ap === 'MDW')[0];
+    M.DRIVE['ORD|GYY'] = '0:50';
+    const nod = M.rides(pm(tweak(pt, (d) => { d.responses['ashwin-t2'].note = '🛬22:00 🛫15:47 🛬GYY'; })), T);
+    delete M.DRIVE['ORD|GYY'];
+    check(home.length === 2 && home.every((r) => r.aps.length === 1) && !M.rides(pm(tweak(pt, (d) => { d.responses['anjo-t3'].note = '🛬14:50 🛫17:10'; d.responses['anjo-t3'].arrive_at = 'PIA'; })), T).apart.length &&
+      !!M.groundPatch(pt, 'anjo-t3', 'a', 'bus', 'self', T) && M.groundPatch(tweak(pt, (d) => { d.responses['anjo-t3'].note = '🛬14:50 🛫17:10'; d.responses['anjo-t3'].arrive_at = 'PIA'; }), 'anjo-t3', 'a', 'bus', 'self', T) === null &&
+      early.leave.day === '2026-11-20' && early.leave.t === '22:45' && early.back.day === '2026-11-21' && early.back.t === '04:15' &&
+      nod.apart.some((p) => p.why === 'nodrive') && nod.runs.filter((r) => r.kind === 'a').every((r) => r.aps.length === 1) && !hasKey(M.DRIVE, 'ORD|GYY'),
+      'the home airport (Peoria) never joins; 🚌 is offered at Midway and not at Peoria (the leg\'s own airport); a Midway landing at 1:30 AM leaves home the day before (Fri 22:45, home 4:15 AM); two airports with no drive known between them stay apart (nodrive)', { early: early && [early.leave, early.back] });
+    // (fix pass) the pickup join on exact minutes and the shown rounding: landings that are not multiples of 5, a car that reaches a
+    // stop after its landing, the RUN_GAP boundary either way, and a group the car would reach too late (the |gap| rule, not gap)
+    const pk = (ashA, anjoA, extra) => M.rides(pm(tweak(pt, (d) => { d.responses['ashwin-t2'].note = '🛬' + ashA + ' 🛫15:47'; d.responses['anjo-t3'].note = '🛬' + anjoA + ' 🛫17:10 🛬MDW 🛫MDW'; if (extra) extra(d); })), T);
+    const pkA = (R) => brief(R).filter((x) => x[0][0] === 'a');
+    const sam = (d) => { d.idea.members.push({ code: 'sam-t4', label: '🎸 Sam', airport: 'LAX', headcount: 1 }); d.responses['sam-t4'] = R('in', 'LAX', '', '', { booked: true, booked_at: '2026-10-20T00:00:00.000Z', note: '🛬16:00 🛫19:00' }); };
+    const j1 = pk('14:00', '15:00'), j2 = pk('14:32', '14:40'), j3 = pk('14:30', '14:00'), j4 = pk('14:32', '22:30'), b120 = pk('14:00', '16:45'), b121 = pk('14:00', '16:46'), lateA = pk('14:00', '14:30', sam);
+    check(eq(pkA(j1), [['aORD1120-ashwin-t2', 'a1120-ashwin-t2', 'ORD+MDW', '2026-11-20 11:30', '2026-11-20 17:45', '11:30/17:45', 'ORD@14:00 MDW@15:00']]) &&
+      eq(pkA(j2), [['aORD1120-ashwin-t2', 'a1120-ashwin-t2', 'ORD+MDW', '2026-11-20 12:00', '2026-11-20 18:05', '12:02/18:02', 'ORD@14:32 MDW@15:17']]) &&
+      eq(pkA(j3), [['aMDW1120-ashwin-t2', 'a1120-ashwin-t2', 'MDW+ORD', '2026-11-20 11:15', '2026-11-20 17:15', '11:15/17:15', 'MDW@14:00 ORD@14:45']]) &&
+      eq(pkA(j4)[0], ['aORD1120-ashwin-t2', 'a1120-ashwin-t2', 'ORD', '2026-11-20 12:00', '2026-11-20 17:05', '12:02/17:02', 'ORD@14:32']) &&
+      pkA(b120).length === 1 && pkA(b120)[0][2] === 'ORD+MDW' && pkA(b121).length === 2 && b121.apart.some((p) => p.why === 'wait' && p.gap === 166) &&
+      pkA(lateA).length === 2 && pkA(lateA).every((x) => x[2].indexOf('+') < 0) && eq(lateA.apart, [{ day: '2026-11-20', kind: 'a', a: 'aORD1120-ashwin-t2', b: 'aMDW1120-anjo-t3', why: 'late', gap: -90 }]),
+      'pickups join on exact minutes: ORD 2:00 PM + MDW 3:00 PM is one drive (leave 11:30, ORD 14:00, MDW 15:00, home 17:45); ORD 2:32 + MDW 2:40 PM: leave 12:00 (exact 12:02), the car at Midway 15:17 (after her landing: it waits for the car), home 18:05 (exact 18:02, rounded up); MDW 2:00 + ORD 2:30 PM: the car reaches O\'Hare 14:45, after his landing; a lone ORD 2:32 PM: home 17:05 (exact 17:02); a landing RUN_GAP after the car\'s arrival joins, one minute more does not (wait); a landing the car reaches 2:15 late (Sam at ORD 4:00 PM, Anjo MDW 2:30 PM) is its own drive (late)', { j1: pkA(j1), j2: pkA(j2), j3: pkA(j3), j4: pkA(j4), b121: b121.apart, lateA: lateA.apart });
+    // a run visits each airport once (drop-offs ORD 12:00, MDW 1:30 PM, ORD 2:30 PM: two drives, never ORD → MDW → ORD); a driver
+    // holding two moved tokens for one leg keeps only the first on their next write
+    const once = M.rides(pm(tweak(pt, (d) => { sam(d); d.responses['ashwin-t2'].note = '🛬14:35 🛫12:00'; d.responses['anjo-t3'].note = '🛬22:30 🛫13:30 🛬MDW 🛫MDW'; d.responses['sam-t4'].note = '🛬16:00 🛫14:30'; })), T).runs.filter((r) => r.kind === 'd');
+    const two = M.ridesRequest(tweak(pt, (d) => { d.responses['momdad-t1'] = R('in', 'PIA', '', '', { note: '🚗anjo-t3.aORD1120,anjo-t3.aORD1121' }); }), 'momdad-t1', 'dORD1130-ashwin-t2', 'on', 'self', T);
+    check(eq(once.map((r) => r.aps.join('+')), ['ORD+MDW', 'ORD']) && two && two.body.note === '🚗anjo-t3.aORD1120,ashwin-t2.dORD1130,anjo-t3.dMDW1130',
+      'a run visits each airport once: ORD 12:00, MDW 1:30 PM and ORD 2:30 PM drop-offs are ORD → MDW and then O\'Hare again on a drive of its own; Mom & Dad holding anjo-t3.aORD1120 and anjo-t3.aORD1121 (both moved: she lands at Midway) keep only the first on their next write', { once: once.map((r) => r.aps), two: two && two.body.note });
+    // #157 parity: every claim fixture's keys and times hold; counts() tightened
+    const mom = (note) => tweak(pt, (d) => { d.responses['momdad-t1'] = R('in', 'PIA', '', '', { note: note }); });
+    const on3 = M.ridesRequest(pt, 'momdad-t1', 'dORD1130-ashwin-t2', 'on', 'self', T), moved = mom('🚗anjo-t3.aORD1120'), mv = M.rides(pm(moved), T).runs[1];
+    const ok = M.ridesRequest(moved, 'momdad-t1', 'aMDW1120-anjo-t3', 'ok', 'self', T), both = mom('🚗anjo-t3.aORD1120,anjo-t3.aMDW1120'), bw = M.ridesRequest(both, 'momdad-t1', 'aORD1120-ashwin-t2', 'on', 'self', T);
+    check(on3.body.note === '🚗ashwin-t2.dORD1130,anjo-t3.dMDW1130' && mv.legs[0].ride.state === 'moved' && eq(mv.legs[0].ride.was, ['momdad-t1']) && ok.body.note === '🚗anjo-t3.aMDW1120' &&
+      bw.body.note === '🚗anjo-t3.aMDW1120,ashwin-t2.aORD1120' && M.rides(pm(both), T).runs[1].legs[0].ride.state === 'covered',
+      'claims name the leg\'s real airport: Mom & Dad\'s Drive on R3 writes ashwin-t2.dORD1130 and anjo-t3.dMDW1130; a #158 anjo-t3.aORD1120 reads ⚠ moved, ✓ makes it aMDW1120; holding both, the next write keeps only aMDW1120 (the tightened counts)', { on3: on3.body.note, bw: bw.body.note });
+
+    // ---- nextDrive / runLive / primaryAction on the phone's clock ----
+    const all = mom('🚗ashwin-t2.aORD1120,anjo-t3.aMDW1120,ashwin-t2.dORD1130,anjo-t3.dMDW1130'), RA = M.rides(pm(all, 'momdad-t1'), T);
+    const nx = (day, hh) => { const r = M.nextDrive(RA, 'momdad-t1', day, hh); return r ? r.key : null; };
+    const paAt = (day, hh) => M.primaryAction(pm(all, 'momdad-t1', day), day, hh);
+    check(nx('2026-11-20', '16:59') === 'aORD1120-ashwin-t2' && nx('2026-11-20', '17:06') === 'aMDW1120-anjo-t3' && nx('2026-11-21', '00:30') === 'aMDW1120-anjo-t3' && nx('2026-11-21', '01:16') === 'dORD1130-ashwin-t2' &&
+      nx('2026-11-30', '17:16') === null && paAt('2026-11-21', '00:30') === 'drive' && paAt('2026-11-30', '17:16') !== 'drive' && paAt('2026-11-30', '17:14') === 'drive' &&
+      M.runLive(RA.runs[1], '2026-11-21', '01:14') === true && M.runLive(RA.runs[1], '2026-11-21', '01:15') === false && M.runLive(RA.runs[1], '2026-11-21') === false && RA.runs[1].upcoming === true &&
+      // (fix pass: with hhmm omitted, pinned to the answers 2cf6ec9's own primaryAction gives on this record, every phone and day)
+      eq(['momdad-t1', 'ashwin-t2', 'anjo-t3'].map((c) => [T, '2026-11-20', '2026-11-30', '2026-12-01'].map((d) => M.primaryAction(pm(all, c, d), d)).join()),
+        ['drive,drive,drive,none', 'none,track,track,none', 'none,track,track,none']),
+      'nextDrive on the phone\'s clock: 11/20 16:59 → R1, 17:06 → R2; 11/21 00:30 → R2 (home 1:15 AM), 01:16 → R3; 11/30 17:16 → none (the primary is no longer 🚗); runLive is false from the back time, and with no hh:mm it is run.upcoming (PIA-157\'s rule): primaryAction with hhmm omitted answers as #158 did on 10/31, 11/20, 11/30 and 12/1 on all three phones (Mom & Dad drive, drive, drive, none; Ashwin and Anjo none, track, track, none)');
+
+    // ---- the ride in words and in the calendar ----
+    const words = M.rideText(pm(pt), R1.runs, 'ask'), plainW = M.rideText(pm(tweak(pt, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:47'; })), M.rides(pm(tweak(pt, (d) => { d.responses['ashwin-t2'].note = '🛬14:35 🛫15:47'; })), T).runs.slice(2), 'remind');
+    const ev = M.rideEvents(pm(all, 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK }), evT = ev.ics.text.replace(/\r\n /g, '');
+    const evOrd = M.rideEvents(pm(tweak(all, (d) => { d.responses['anjo-t3'].note = '🛬22:30 🛫17:10'; d.responses['momdad-t1'].note = '🚗ashwin-t2.aORD1120,anjo-t3.aORD1120,ashwin-t2.dORD1130,anjo-t3.dORD1130'; }), 'momdad-t1'), 'momdad-t1', { today: T, now: NOW, worker: WK });
+    const uids = (e) => e.ics.text.replace(/\r\n /g, '').split('\r\n').filter((l) => /^UID:/.test(l)), link = M.guestLink(id0, '', WK);
+    const descs = evT.split('\r\n').filter((l) => /^DESCRIPTION:/.test(l) && !/^DESCRIPTION:🚗/.test(l));
+    check(words === '🚗 Can you drive? Fri 11/20: pick up Ashwin + Nebby 🐈 at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM). Fri 11/20: pick up Anjo at Midway (MDW), lands 10:30 PM (leave home 7:45 PM, home about Sat 1:15 AM). Mon 11/30: drop off Ashwin + Nebby 🐈 at O\'Hare (ORD), flight 3:47 PM, then Anjo at Midway (MDW), flight 5:10 PM (leave home 11:15 AM, home about 5:15 PM).' &&
+      plainW === '🚗 Reminder: Mon 11/30: drop off Ashwin at O\'Hare (ORD), flight 3:47 PM, then Anjo at Midway (MDW), flight 5:10 PM (leave home 11:15 AM, home about 5:15 PM).' &&
+      M.rideLine(pm(pt), M.rides(pm(tweak(pt, (d) => { d.responses['anjo-t3'].available_from = '2026-11-21'; d.responses['anjo-t3'].note = '🛬01:30 🛫17:10 🛬MDW 🛫MDW'; })), T).runs.filter((r) => r.ap === 'MDW' && r.kind === 'a')[0]) === 'Sat 11/21: pick up Anjo at Midway (MDW), lands 1:30 AM (leave home Fri 10:45 PM, home about 4:15 AM).' &&
+      /\r\nDTSTART:20261120T194500\r\nDTEND:20261121T011500\r\nSUMMARY:🚗 Pick up Anjo – Midway \(MDW\)\\, lands 10:30 PM\r\nLOCATION:Chicago Midway International Airport \(MDW\)\r\n/.test(evT) &&
+      /\r\nDTSTART:20261130T111500\r\nDTEND:20261130T171500\r\nSUMMARY:🚗 Drop off Ashwin \+ Nebby 🐈 \(ORD 3:47 PM\)\\, then Anjo \(MDW 5:10 PM\)\r\nLOCATION:O'Hare International Airport \(ORD\)\r\n/.test(evT) &&
+      (evT.match(/TRIGGER:-P1D/g) || []).length === 3 && (evT.match(/TRIGGER:-PT30M/g) || []).length === 3 &&
+      descs.length === 3 && descs.every((l) => { const u = l.match(/https?:\/\/[^\s\\]+/g) || []; return u.length === 1 && u[0] === link && !/#k=|t=|\$/.test(l) && l.indexOf(KEY) < 0; }) &&
+      eq(uids(ev), uids(evOrd)) && uids(ev).indexOf('UID:' + id0 + '-momdad-t1-a1120-anjo-t3@pialax') >= 0 &&
+      ev.sig === 'aORD1120-ashwin-t2|2026-11-20|2026-11-20|12:05|ashwin-t2@14:35+🐈;aMDW1120-anjo-t3|2026-11-20|2026-11-20|19:45|anjo-t3@22:30;dORD1130-ashwin-t2|2026-11-30|2026-11-30|11:15|ashwin-t2@15:47+🐈|anjo-t3@17:10@MDW' &&
+      evOrd.sig.split(';')[0] === ev.sig.split(';')[0],
+      'the words, per stop ("Ashwin + Nebby 🐈" on his own stop), with "home about", the day first on another day ("Sat 1:15 AM", "Fri 10:45 PM"); the calendar: R2 Fri 7:45 PM to Sat 1:15 AM at Chicago Midway International Airport (MDW), R3 one event for both stops, two alarms each, the words then exactly the guest link (no key, token or price); the UIDs hold no airport, so Anjo\'s ORD → MDW replaces her event; the signature keeps #158\'s "+🐈" and adds "@MDW" off the first stop', { words, sig: ev.sig });
+
+    // ---- the clock helpers; DST is floating wall-clock arithmetic (documented, not fixed) ----
+    const dst = tweak(pt, (d) => { d.idea.dates = { departure: '2027-03-14', return: '2027-03-20', searchStart: '', searchEnd: '' }; d.decision.chosen.departure = '2027-03-14'; d.decision.chosen.return = '2027-03-20'; d.responses['ashwin-t2'].note = ''; d.responses['ashwin-t2'].booked = false; d.responses['anjo-t3'].note = '🛬03:30 🛬MDW'; });
+    const dr = M.rides(pm(dst, null, '2027-03-01'), '2027-03-01').runs[0];
+    check(M.clock({ day: '2026-11-21', t: '01:15' }, '2026-11-20') === 'Sat 1:15 AM' && M.clock({ day: '2026-11-20', t: '19:45' }, '2026-11-20') === '7:45 PM' &&
+      M.clockRange({ day: '2026-11-20', t: '12:05' }, { day: '2026-11-20', t: '17:05' }, '2026-11-20') === '12:05–5:05 PM' && M.clockRange({ day: '2026-11-30', t: '11:15' }, { day: '2026-11-30', t: '17:15' }, '2026-11-30') === '11:15 AM–5:15 PM' &&
+      M.clockRange({ day: '2026-11-20', t: '19:45' }, { day: '2026-11-21', t: '01:15' }, '2026-11-20') === '7:45 PM–Sat 1:15 AM' &&
+      eq(['10:30 PM', '1030p', '2:35 PM', '12:05 AM', '0030', '2230', '347', '700', '3:47'].map((s) => M.typedTime(s)), ['22:30', '22:30', '14:35', '00:05', '00:30', '22:30', null, null, null]) &&
+      eq(M.timeHalves('347'), { am: '03:47', pm: '15:47' }) && M.rideWhere('MDW') === 'Midway (MDW)' && M.rideWhere('JFK') === 'JFK' && M.rideWhere('DEN') === 'Denver (DEN)' && M.rideWhere('XQZ') === 'XQZ' &&
+      M.rideFull('ORD') === 'O\'Hare International Airport (ORD)' && dr && dr.ap === 'MDW' && dr.leave.t === '00:45' && dr.leave.day === '2027-03-14',
+      'clock / clockRange / h12 / typedTime: "Sat 1:15 AM", "12:05–5:05 PM", "11:15 AM–5:15 PM", "7:45 PM–Sat 1:15 AM"; 12-hour and 24-hour input, an ambiguous hour waits for its half; the airport in words; DST: a 3:30 AM Midway landing on 2027-03-14 leaves at 00:45 by floating wall-clock arithmetic (pinned; LATER has the "check time" mark)', dr && dr.leave);
   }
   check(netCalls.length === 0, 'no network: fetch was never called', netCalls);
 

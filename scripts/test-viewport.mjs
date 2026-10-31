@@ -170,10 +170,21 @@ console.log('▶ test-viewport: mobile layout regression suite');
     d.responses['momdad-k3'] = { member: 'momdad-k3', status: 'in', origin: 'PIA', available_from: '', available_to: '', note: 'Turkey is on us', arrive_at: '', leave_from: '', updated_at: '2026-10-12T00:00:00.000Z' };
     return d;
   })();
+  // PIA-159 (fix pass): P town with the real flights (Ashwin ORD 2:35 PM / 3:47 PM with Nebby, Anjo MDW 10:30 PM / 5:10 PM) and every
+  // ride Mom & Dad's: on Mom & Dad's phone (all set: 🎊 on its first open from the card) and on Ashwin's own (no key; his 🚌 / 🚙)
+  const PT9V = 'p9ViewportPTownAllSet1', PT9A = 'p9ViewportPTownAshwin1';
+  docs[PT9V] = (() => {
+    const d = JSON.parse(JSON.stringify(docs[PTV])); d.id = PT9V;
+    d.responses['ashwin-p8'] = Object.assign({}, d.responses['ashwin-p8'], { booked: true, note: '🛬14:35 🛫15:47 🐈ad' });
+    d.responses['anjo-z5'] = Object.assign({}, d.responses['anjo-z5'], { booked: true, note: '🛬22:30 🛫17:10 🛬MDW 🛫MDW' });
+    d.responses['momdad-k3'] = { member: 'momdad-k3', status: 'in', origin: 'PIA', available_from: '', available_to: '', note: '🚗ashwin-p8.aORD1120,anjo-z5.aMDW1120,ashwin-p8.dORD1130,anjo-z5.dMDW1130', arrive_at: '', leave_from: '', updated_at: '2026-10-12T00:00:00.000Z' };
+    return d;
+  })();
+  docs[PT9A] = Object.assign(JSON.parse(JSON.stringify(docs[PT9V])), { id: PT9A });
   const PSV = 'psViewportPastTahoe007', DRV = 'drViewportDroppedTr008';
   docs[PSV] = (() => { const d = JSON.parse(JSON.stringify(docs.thTahoeSkiWeekend26b02)); d.id = PSV; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; return d; })();
   docs[DRV] = (() => { const d = JSON.parse(JSON.stringify(docs.lxBeachWeekendLAX00d05)); d.id = DRV; d.decision.stage = 'dropped'; return d; })();
-  const ids = Object.keys(docs).filter((id) => id !== E8V && id !== PTV && id !== R8V && id !== PTN), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
+  const ids = Object.keys(docs).filter((id) => id !== E8V && id !== PTV && id !== R8V && id !== PTN && id !== PT9V && id !== PT9A), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
   // PIA-140: the phone has v1's multi-airport flag (the Worker's /account says features.multi_airport), so the keys are the nearby sets
@@ -205,7 +216,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
       [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [E8V]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [PTV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // (PIA-157: + P town)   // PIA-141: the cheapest-week trip (PIA-156: + the key's 8)   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
-      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf', [PTV]: 'ashwin-p8', [R8V]: 'guadalupehernndezvillanueva-5m', [PTN]: 'ashwin-p8' }),
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf', [PTV]: 'ashwin-p8', [R8V]: 'guadalupehernndezvillanueva-5m', [PTN]: 'ashwin-p8', [PT9V]: 'momdad-k3', [PT9A]: 'ashwin-p8' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 }), pialax_multi_airport_v1: '1'
   };
   const LAYOUT = () => {
@@ -454,17 +465,19 @@ console.log('▶ test-viewport: mobile layout regression suite');
         // PIA-139: the Done 8-member trip: a booked traveler's sheet (times, [Flighty | 🎫]), P-stage with 💵 asking first, the Map's pickups
         await page.click('#screen [data-trip="' + BKV + '"]', { position: { x: 140, y: 28 } }); await page.waitForTimeout(150); await measure('the Done 8-member trip');
         await tapJs('#screen .pb [data-act="person"][data-code="bartholomewmontgomeryfitzgera-dj"]'); await measure('P-person (booked: times, Flighty | 🎫)');
-        if (!(await page.$('#sheet #tm-arr')) || !(await page.$('#sheet .split a [data-k="flighty"]'))) fails.push('a booked traveler\'s sheet should have the time fields and [✈ Track ↗ | 🎫 Booked]');
-        await page.fill('#sheet #tm-arr', '23:59'); await measure('P-person (a time typed)');
-        // PIA-139 fix pass: "310" left in the field asks [☀ 15:10 | 🌃 03:10]; "25:99" left is marked ⚠
-        await page.fill('#sheet #tm-arr', '310'); await page.fill('#sheet #tm-dep', '25:99'); await page.$eval('#sheet #tm-arr', (e) => e.focus()); await page.waitForTimeout(60);
-        await measure('P-person (☀ / 🌃 asked, a time marked ⚠)');
-        if ((await page.$$('#sheet #tm-half:not([hidden]) [data-act="tmhalf"]')).length !== 2 || !(await page.$('#sheet .fld.bad #tm-dep'))) fails.push('"310" left should ask ☀ / 🌃, and "25:99" left should be marked ⚠');
-        await page.evaluate(() => { ['tm-arr', 'tm-dep'].forEach((id) => { const f = document.getElementById(id); f.value = f.defaultValue; f.dispatchEvent(new Event('input', { bubbles: true })); }); });
-        // PIA-151: the time fields sit in their own 🛬 / 🛫 rows (one line each); his 🛬 day opens the one-end calendar, where a day asks
+        // (PIA-159: a booked leg with its time reads [SAV 3:10 PM], a 44px button into its edit row)
+        if (!(await page.$('#sheet #tmb-arr')) || !(await page.$('#sheet #tmb-dep')) || !(await page.$('#sheet .split a [data-k="flighty"]'))) fails.push('a booked traveler\'s sheet should have the [code time] buttons and [✈ Track ↗ | 🎫 Booked]');
+        await tapJs('#sheet #tmb-arr');
+        await page.fill('#sheet #tm-arr', '23:59'); await measure('P-person (a time typed in its edit row)');
+        // PIA-139 fix pass: "25:99" left is marked ⚠. PIA-159: the edit row holds the field and its [AM | PM] on one line
+        await page.fill('#sheet #tm-arr', '25:99'); await page.$eval('#sheet [data-act="tmseg"][data-v="am"]', (e) => e.focus()); await page.waitForTimeout(360);
+        await measure('P-person (a time marked ⚠, the [AM | PM] beside it)');
+        if (!(await page.$('#sheet .fld.bad #tm-arr'))) fails.push('"25:99" left should be marked ⚠');
+        await page.evaluate(() => { const f = document.getElementById('tm-arr'); f.value = '3:10'; f.dispatchEvent(new Event('input', { bubbles: true })); });
+        // PIA-151: each 🛬 / 🛫 row holds its day and its time on one line; his 🛬 day opens the one-end calendar, where a day asks
         // ⚠ 🎫 Confirm first (booked); ‹ back leaves it unsent
-        const rowsOk = await page.evaluate(() => { const L = [...document.querySelectorAll('#sheet .leg')]; return L.length === 2 && !!L[0].querySelector('#tm-arr') && !!L[1].querySelector('#tm-dep') && L.every((e) => e.getBoundingClientRect().height < 60); });
-        if (!rowsOk) fails.push('a booked traveler\'s flight rows should each hold their time field on one line');
+        const rowsOk = await page.evaluate(() => { const L = [...document.querySelectorAll('#sheet .leg')]; return L.length === 2 && !!L[0].querySelector('#tm-arr') && !!L[1].querySelector('#tmb-dep') && L.every((e) => e.getBoundingClientRect().height < 60); });
+        if (!rowsOk) fails.push('a booked traveler\'s flight rows should each hold their day and time (the 🛬 row being edited: its field and [AM | PM]) on one line');
         await tapJs('#sheet [data-act="dates"][data-end="0"]'); await measure('P-dates (one end, from the flight section)');
         if ((await page.getAttribute('#sheet', 'data-popup')) !== 'P-dates' || !(await page.$('#sheet .sh-hd .endg')) || (await page.$('#sheet [data-act="dsave"]'))) fails.push('a day in the flight section should open the one-end calendar (no Save bar)');
         await tapJs('#sheet [data-act="dday"][data-v="2026-12-09"]'); await measure('P-dates (one end, ⚠ 🎫 Confirm)');
@@ -476,8 +489,11 @@ console.log('▶ test-viewport: mobile layout regression suite');
         // board's last day: every label stays inside its own track, and the page never scrolls sideways)
         const fin = await page.evaluate(() => ({ times: document.querySelectorAll('#screen .pb .btm').length, miss: document.querySelectorAll('#screen .pb .btm.miss').length, bars: [...document.querySelectorAll('#screen .pb button.track')].map((e) => Math.round(e.getBoundingClientRect().height)),
           out: [...document.querySelectorAll('#screen .pb .btm')].filter((b) => { const t = b.closest('.track').getBoundingClientRect(), r = b.getBoundingClientRect(); return r.left < t.left - 1 || r.right > t.right + 1; }).map((b) => b.getAttribute('aria-label')),
-          over: document.documentElement.scrollWidth - innerWidth }));
-        if (fin.times !== 7 || fin.miss !== 2 || !fin.bars.length || fin.bars.some((h) => h < 44) || fin.out.length || fin.over > 0) fails.push('the Done trip\'s board should show its 7 booked times (2 a muted 🛬?) on 44px bars, each inside its track, with no sideways scroll: ' + JSON.stringify(fin));
+          over: document.documentElement.scrollWidth - innerWidth,
+          said: [...document.querySelectorAll('#screen .pb button.track')].map((e) => e.getAttribute('aria-label') || '').filter((s) => /lands /.test(s)) }));
+        // (PIA-159: each label's AM / PM is a word; past the screen's 14 the fitter drops whole labels, departures first, so on this
+        // 8-name organizer page the booked times live in each bar's spoken name; the two muted 🛬? stay)
+        if (fin.times < 2 || fin.times > 7 || fin.miss !== 2 || fin.said.length !== 3 || !fin.said.some((s) => /lands [^,]*3:10 PM, leaves [^,]*6:05 PM$/.test(s)) || !fin.bars.length || fin.bars.some((h) => h < 44) || fin.out.length || fin.over > 0) fails.push('the Done trip\'s board should show its 2 muted 🛬? and whatever time labels its 14 words hold, its three timed bars saying both times, on 44px bars, each label inside its track, with no sideways scroll: ' + JSON.stringify(fin));
         await tapJs('#screen .pb [data-act="flight"][data-code="samlee-sb"]'); await measure('P-person from a traveler\'s bar (the organizer, no landing time yet)');
         if ((await page.evaluate(() => (document.activeElement || {}).id)) !== 'tm-arr') fails.push('a booked traveler\'s bar with no landing time should open their flight at the 🛬 field');
         await tapJs('#sheet [data-act="sh-close"]');
@@ -638,7 +654,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
           TM.tripModel(docs[M8], { today: '2026-10-17', now: NOWMS, me: 'grandmajosephine-nf', hasEditKey: true, hasToken: true, multiAirport: true }).travelers.find((x) => x.code === 'samlee-sb').keys[0].key);
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen .pricerow[data-act="total"]'); await measure('P-total (⛔ the Worker\'s day cap)');
         const lockTxt = await page.$eval('#sheet [data-act="search"][data-k="cap"]', (e) => e.textContent.replace(/\s+/g, ' ').trim()).catch(() => null);
-        if (lockTxt !== '⛔ 17:00') fails.push('the day cap should show ⛔ with the local reset time (17:00 in Los Angeles), got ' + JSON.stringify(lockTxt));
+        if (lockTxt !== '⛔ 5:00 PM') fails.push('the day cap should show ⛔ with the local reset time (5:00 PM in Los Angeles, 12-hour since PIA-159), got ' + JSON.stringify(lockTxt));
         await tapJs('#sheet .trow [data-act="person"][data-code="anastasiakonstantinopoulou-x1"]'); await measure('P-person (⛔ beside the day chips)');
         await tapJs('#sheet [data-act="sh-close"]'); await tapJs('#screen [data-act="back"]');
         await page.click('#screen [data-act="settings"]'); await page.waitForTimeout(100); await measure('⚙ (🔍 today, this visit, the month cap, ⛔)');
@@ -775,7 +791,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
           if (!r) return { row: false };
           const chips = [...r.querySelectorAll('.rk')], ask = r.querySelector('.wkrem'), W = innerWidth;
           return { row: true, prim: !!p && /🚗\s*Rides/.test(p.textContent.replace(/\s+/g, ' ')), chips: chips.map((c) => c.textContent.replace(/\s+/g, '')), more: (r.querySelector('.wkn') || { textContent: '' }).textContent,
-            named: chips.every((c) => /^(Lands|Leaves) ORD /.test(c.getAttribute('aria-label') || '')), ask: ask ? ask.getAttribute('aria-label') : '',
+            named: chips.every((c) => /^(Lands|Leaves) O'Hare \(ORD\) /.test(c.getAttribute('aria-label') || '')), ask: ask ? ask.getAttribute('aria-label') : '',
             inside: [...r.querySelectorAll('button')].every((b) => { const x = b.getBoundingClientRect(); return x.left >= -0.5 && x.right <= W + 0.5; }) };
         });
         // (both runs where the row holds them, else the first and +1)
@@ -791,6 +807,31 @@ console.log('▶ test-viewport: mobile layout regression suite');
             cands: [...document.querySelectorAll('#sheet .rrun [data-act="ride"].rcand')].map((b) => b.getAttribute('aria-label') + ':' + b.getAttribute('aria-pressed')) }; });
         if (!(prs.popup === 'P-rides' && prs.runs === 2 && JSON.stringify(prs.cands) === JSON.stringify(['Mom & Dad drives Ashwin:false', 'Mom & Dad drives Ashwin:false']) && prs.ask === 'Ask Mom & Dad')) fails.push('P-rides on the organizer\'s phone should show its two runs, Mom & Dad\'s face to tap on each, and Ask Mom & Dad: ' + JSON.stringify(prs));
         await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-159: Ashwin's 🛬 edit row on a rides trip at every width: the 92px field and its two 52×44 [AM | PM] radios on one line beside
+        // the day, then O'Hare / Midway / Peoria as ≥64×44 pills under it, inside the sheet, nothing sideways
+        await page.$eval('#screen .pb', (e) => e.scrollIntoView({ block: 'center' }));
+        await tapJs('#screen .pb [data-act="flight"].mybar'); await tapJs('#sheet #tmb-arr'); await measure('P-person, Ashwin\'s 🛬 edit row ([AM | PM], three airports)');
+        const er = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), row = sh.querySelector('.leg.tedit'), f = sh.querySelector('#tm-arr'), fl = f && f.closest('.fld');
+          const bx = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom, w: Math.round(r.width), h: Math.round(r.height) }; };
+          const seg = [...sh.querySelectorAll('#seg-arr .segb')].map(bx), pills = [...sh.querySelectorAll('#pills-arr .pill')].map(bx), F = fl ? bx(fl) : null, R = row ? bx(row) : null;
+          return { field: F && F.w, seg: seg.map((s) => s.w + 'x' + s.h), pills: pills.map((p) => p.w >= 64 && p.h >= 44), oneLine: !!R && !!F && R.h < 60 && seg.every((s) => s.t < F.b && s.b > F.t),
+            inside: [F].concat(seg, pills).every((b) => !!b && b.l >= S.left - 0.5 && b.r <= S.right + 0.5), over: sh.scrollWidth - sh.clientWidth, page: document.documentElement.scrollWidth - innerWidth };
+        });
+        if (!(er.field === 92 && JSON.stringify(er.seg) === JSON.stringify(['52x44', '52x44']) && er.pills.length === 3 && er.pills.every(Boolean) && er.oneLine && er.inside && er.over <= 0 && er.page <= 0))
+          fails.push('Ashwin\'s 🛬 edit row should hold the 92px field and two 52×44 AM / PM radios on one line, then three ≥64×44 airport pills, all inside the sheet: ' + JSON.stringify(er));
+        // the echo of a saved time never covers the primary or the tab bar (S1): "305" (his PM carried), ⌄, the page scrolled to its foot
+        await page.fill('#sheet #tm-arr', '305'); await tapJs('#sheet [data-act="sh-close"]');
+        await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+        await page.waitForFunction(() => { const t = document.querySelector('#toast'); return !!t && !t.hidden && /✓/.test(t.textContent); }, null, { timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(120);
+        const tp = await page.evaluate(() => {
+          const t = document.querySelector('#toast'), box = (e) => { if (!e || e.hidden) return null; const r = e.getBoundingClientRect(); return r.height ? { t: r.top, b: r.bottom, l: r.left, r: r.right } : null; };
+          const T = box(t), P = box(document.querySelector('#screen .split.prim')), B = box(document.querySelector('#tabbar'));
+          const meet = (o) => !!T && !!o && Math.min(T.r, o.r) - Math.max(T.l, o.l) > 0 && Math.min(T.b, o.b) - Math.max(T.t, o.t) > 0;
+          return { shown: !!T && !t.hidden, text: t.textContent.replace(/\s+/g, ' ').trim(), top: t.classList.contains('top'), hitsPrim: meet(P), hitsTab: meet(B), gap: T && P && !t.classList.contains('top') ? Math.round(P.t - T.b) : null, inView: !!T && T.t >= 0 && T.b <= innerHeight };
+        });
+        if (!(tp.shown && /✓/.test(tp.text) && !tp.hitsPrim && !tp.hitsTab && tp.inView && (tp.gap === null || tp.gap >= 8))) fails.push('the echo toast should never cover the primary or the tab bar (8px above the higher, else at the top): ' + JSON.stringify(tp));
         // PIA-157: the rides trip of 8 on its PIA host's own phone (a guest; Bartholomew hosts at ORD too): eleven runs at ORD and PIA,
         // her "☐ 🚗 Drive" on each (a ≥44px target, named, inside the sheet; the word while the sheet keeps ≤20), the long names never
         // pushing anything over the edge; and the key's Rides row holding what fits, then +N
@@ -802,11 +843,12 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await tapJs('#screen .split.prim [data-act="rides"]'); await measure('P-rides (a host of 8: eleven runs, ☐ 🚗 Drive on each)');
         const r8s = await page.evaluate(() => {
           const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), d = [...sh.querySelectorAll('.rrun [data-act="ride"].rdrv')];
-          return { popup: sh.getAttribute('data-popup'), runs: sh.querySelectorAll('.rrun').length, secs: [...sh.querySelectorAll('.rsh')].map((e) => e.textContent.replace(/\s+/g, '')), drive: d.length,
+          return { popup: sh.getAttribute('data-popup'), runs: sh.querySelectorAll('.rrun').length, folds: sh.querySelectorAll('.rfold').length, secs: [...sh.querySelectorAll('.rday')].map((e) => e.textContent.replace(/\s+/g, ' ').trim()), drive: d.length,
             fit: d.every((b) => { const x = b.getBoundingClientRect(); return x.height >= 43.5 && x.width >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }) &&
               [...sh.querySelectorAll('.rleg, .rrh')].every((e) => { const x = e.getBoundingClientRect(); return x.right <= S.right + 0.5 && e.scrollWidth <= e.clientWidth + 1; }) };
         });
-        if (!(r8s.popup === 'P-rides' && r8s.runs === 11 && JSON.stringify(r8s.secs) === JSON.stringify(['📍ORD', 'PIA']) && r8s.drive === 11 && r8s.fit)) fails.push('P-rides on the host\'s phone of 8 should hold 11 runs (📍ORD, then PIA), a 44px ☐ 🚗 Drive on each, nothing over the sheet\'s edge: ' + JSON.stringify(r8s));
+        // (PIA-159: by day, each drawn run with its 44px toggle; past 20 words the ladder folds the runs but one to their chips)
+        if (!(r8s.popup === 'P-rides' && r8s.runs + r8s.folds === 11 && r8s.runs >= 1 && r8s.secs.length >= 1 && r8s.secs.every((s) => /^((Mon|Tue|Wed|Thu|Fri|Sat|Sun) )?\d{1,2}\/\d{1,2}$/.test(s)) && r8s.drive === r8s.runs && r8s.fit)) fails.push('P-rides on the host\'s phone of 8 should hold its 11 runs by day (drawn or folded to chips), a 44px ☐ 🚗 Drive on each drawn run, nothing over the sheet\'s edge: ' + JSON.stringify(r8s));
         await tapJs('#sheet [data-act="sh-close"]');
         // PIA-158: P town with Nebby and Kona on Ashwin's phone: the side bubble (16px on the board's 44px faces, 18px on P-person's 72px)
         // never meets ×2, 📝, the top badge or the status mark; the header's picture is a 72×44 button; P-house's picture and its 18 dishes
@@ -858,6 +900,61 @@ console.log('▶ test-viewport: mobile layout regression suite');
           fails.push('Ashwin\'s Nebby row (☑ 🐈 Nebby, › n/5) should be two 44px targets inside the sheet: ' + JSON.stringify(nebRow));
         if (!(ppet.popup === 'P-pet' && ppet.ticks === 5 && ppet.fit && ppet.open && ppet.folds === 2 && ppet.over <= 0)) fails.push('P-pet\'s 5 ticks and its two folds should stay inside the sheet, each tick a 44px target: ' + JSON.stringify(ppet));
         await tapJs('#sheet [data-act="pettick"][data-v="p"]');
+        await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-159 (fix pass): P town all set with the real flights on Mom & Dad's phone. The board's 13px labels stay inside their tracks
+        // and meet neither each other nor a face or its bubble, every timed label (and its AM / PM) at ≥4.5:1 in this scheme; opened from
+        // its card, "🎊 All set" never covers the drive primary ("🚗 11/20 ⏰ 12:05 PM ORD": #158 drew the toast over it) or the tab bar
+        const APP = process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href;
+        await page.goto(APP + '?idea=' + PT9V, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+        await measure('P town all set on Mom & Dad\'s phone (the real flights, every ride theirs)');
+        const lb = await page.evaluate(() => {
+          const box = (e) => { const r = e.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, b: r.bottom }; };
+          const meet = (a, b) => Math.min(a.r, b.r) - Math.max(a.l, b.l) > 0.5 && Math.min(a.b, b.b) - Math.max(a.t, b.t) > 0.5;
+          const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+          const L = (rgb) => { const m = /(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)/.exec(rgb || ''); return m ? 0.2126 * lin(+m[1]) + 0.7152 * lin(+m[2]) + 0.0722 * lin(+m[3]) : null; };
+          const bgOf = (e) => { for (let n = e; n; n = n.parentElement) { const c = getComputedStyle(n).backgroundColor; if (c && c !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(c)) return c; } return 'rgb(255, 255, 255)'; };
+          const ratio = (e) => { const a = L(getComputedStyle(e).color), b = L(bgOf(e)); return a == null || b == null ? 0 : (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05); };
+          const labs = [...document.querySelectorAll('#screen .pb .track .btm')].filter((e) => e.getClientRects().length), faces = [...document.querySelectorAll('#screen .pb .av')].map(box);
+          const txt = labs.map((e) => e.textContent.replace(/\s+/g, ' ').trim()), out = { text: txt, out: [], hit: [], face: [], low: [] };
+          labs.forEach((e, i) => {
+            const b = box(e), tr = box(e.closest('.track'));
+            if (b.l < tr.l - 0.5 || b.r > tr.r + 0.5 || b.t < tr.t - 0.5 || b.b > tr.b + 0.5) out.out.push(txt[i] + ' ' + [b.l, b.r, b.t, b.b, tr.l, tr.r, tr.t, tr.b].map(Math.round).join(',') + ' ' + e.closest('.track').className);
+            labs.forEach((f, j) => { if (j > i && meet(b, box(f))) out.hit.push(txt[i] + ' | ' + txt[j]); });
+            if (faces.some((x) => meet(b, x))) out.face.push(txt[i]);
+            if (!e.classList.contains('miss')) { const r = ratio(e), mr = e.querySelector('.mer'), r2 = mr ? ratio(mr) : 99; if (r < 4.5 || r2 < 4.5) out.low.push(txt[i] + ' ' + r.toFixed(2) + '/' + r2.toFixed(2)); }
+          });
+          return out;
+        });
+        if (!(JSON.stringify(lb.text) === JSON.stringify(['2:35 PM', '3:47 PM', 'MDW 10:30 PM', '5:10 PM']) && !lb.out.length && !lb.hit.length && !lb.face.length && !lb.low.length))
+          fails.push('P town\'s board labels on Mom & Dad\'s phone should read 2:35 PM, 3:47 PM, MDW 10:30 PM, 5:10 PM, each inside its track, meeting no other label or face, at ≥4.5:1: ' + JSON.stringify(lb));
+        // (a link landing never cheers: Trips again (the list), then its card)
+        await tapJs('#tabbar [data-act="tab"][data-v="trips"]'); await page.waitForTimeout(150);
+        if (await page.$('#screen [data-act="seg"][data-v="ideas"][aria-pressed="false"]')) await tapJs('#screen [data-act="seg"][data-v="ideas"]');
+        await page.click('#screen [data-trip="' + PT9V + '"]', { position: { x: 140, y: 28 } });
+        await page.waitForFunction(() => { const t = document.querySelector('#toast'); return !!t && !t.hidden && /All set/.test(t.textContent); }, null, { timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(120);
+        const pty = await page.evaluate(() => {
+          const t = document.querySelector('#toast'), box = (e) => { if (!e || e.hidden) return null; const r = e.getBoundingClientRect(); return r.height ? { t: r.top, b: r.bottom, l: r.left, r: r.right } : null; };
+          const T = box(t), pr = document.querySelector('#screen .split.prim'), P = box(pr), B = box(document.querySelector('#tabbar'));
+          const meet = (o) => !!T && !!o && Math.min(T.r, o.r) - Math.max(T.l, o.l) > 0 && Math.min(T.b, o.b) - Math.max(T.t, o.t) > 0;
+          return { shown: !!T && !t.hidden, text: t.textContent.replace(/\s+/g, ' ').trim(), prim: pr ? !!pr.querySelector('.btn.pri.drv') : false, top: t.classList.contains('top'), hitsPrim: meet(P), hitsTab: meet(B), gap: T && P && !t.classList.contains('top') ? Math.round(P.t - T.b) : null, inView: !!T && T.t >= 0 && T.b <= innerHeight };
+        });
+        if (!(pty.shown && /All set/.test(pty.text) && pty.prim && !pty.hitsPrim && !pty.hitsTab && pty.inView && (pty.gap === null || pty.gap >= 8))) fails.push('"🎊 All set" on Mom & Dad\'s phone should never cover the drive primary or the tab bar (8px above the higher, else at the top): ' + JSON.stringify(pty));
+        await measure('P town all set on Mom & Dad\'s phone, opened from its card (🎊 All set)');
+        // Ashwin's own phone: P-rides' joined 11/30 drive, his leg ① 💪🐈 ORD 3:47 PM with its driver and his own 🚌 / 🚙: every leg row
+        // inside the sheet (it may wrap, never scroll), every control a 44px target inside it
+        await page.goto(APP + '?idea=' + PT9A, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen .wk [data-act="rides"].wkl'); await measure('P-rides on Ashwin\'s own phone (the joined 11/30 drive, his 🚌 / 🚙)');
+        const own = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), legs = [...sh.querySelectorAll('.rleg')];
+          const mine = legs.filter((e) => /ORD/.test(e.textContent) && /3:47/.test(e.textContent))[0];
+          return { popup: sh.getAttribute('data-popup'), legs: legs.length, mine: !!mine, own: mine ? [...mine.querySelectorAll('[data-act="ground"]')].length : -1,
+            fit: legs.every((e) => { const x = e.getBoundingClientRect(); return x.left >= S.left - 0.5 && x.right <= S.right + 0.5 && e.scrollWidth <= e.clientWidth + 1; }) &&
+              [...sh.querySelectorAll('.rleg button')].every((b) => { const x = b.getBoundingClientRect(); return x.width >= 43.5 && x.height >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }), over: sh.scrollWidth - sh.clientWidth };
+        });
+        if (!(own.popup === 'P-rides' && own.mine && own.own >= 2 && own.fit && own.over <= 0)) fails.push('P-rides on Ashwin\'s own phone should keep his 11/30 leg (ORD 3:47 PM with 🚌 / 🚙) and every leg row inside the sheet, each control a 44px target: ' + JSON.stringify(own));
         await tapJs('#sheet [data-act="sh-close"]');
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
