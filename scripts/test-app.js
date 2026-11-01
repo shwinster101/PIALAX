@@ -5381,8 +5381,8 @@ function norm(doc) {
       /<div class="rday">Fri <span class="tn">11\/20<\/span><\/div>/.test(sheetM) && /<div class="rday">Mon <span class="tn">11\/30<\/span><\/div>/.test(sheetM) && !/<b class="lc">/.test(sheetM) &&
       /<b class="ap">ORD<\/b><span class="rtt"><span class="tm">2:35 <span class="mer">PM<\/span><\/span>/.test(sheetM) && /<b class="ap">ORD<\/b><span class="rtt"><span class="tm">3:30 <span class="mer">PM<\/span><\/span>/.test(sheetM) &&
       (sheetM.match(/data-act="ride" [^>]*data-code="momdad-k3" aria-pressed="false"/g) || []).length === 2 && (sheetM.match(/> Drive<\/button>/g) || []).length === 2 &&
-      /<span class="rlv" role="img" aria-label="Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">12:05–5:05\u00a0<span class="mer">PM<\/span><\/span><\/span>/.test(sheetM) &&
-      /aria-label="Leave home 11:00 AM: 2:30 drive, 2:00 before Ashwin’s flight, home 4:00 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:00\u00a0AM–4:00\u00a0<span class="mer">PM<\/span><\/span>/.test(sheetM) &&
+      /<span class="rlv" role="img" aria-label="Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM"[^>]*><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tm">12:05–5:05\u00a0<span class="mer">PM<\/span><\/span><\/span>/.test(sheetM) &&
+      /aria-label="Leave home 11:00 AM: 2:30 drive, 2:00 before Ashwin’s flight, home 4:00 PM"[^>]*><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tm">11:00\u00a0AM–4:00\u00a0<span class="mer">PM<\/span><\/span>/.test(sheetM) &&
       /<span class="rq" data-k="noride">🚗\?<\/span>/.test(sheetM) && /data-k="waitbook"[^>]*>⏳<\/span><span aria-hidden="true" data-pic>🗽/.test(sheetM) && !/data-act="ridecal"|data-act="ground"/.test(sheetM),
       'PIA-157 C/D the card\'s slot is 🚗? ("Rides open") for the organizer and in Mom & Dad\'s 🏠 place (Anjo\'s keeps her Book); from the list it opens the trip with P-rides on top: by day (PIA-159: "Fri 11/20", "Mon 11/30"; each leg "ORD 2:35 PM"), both runs, ⏰12:05–5:05 PM / ⏰11:00 AM–4:00 PM (a long press: "Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM", "…2:00 before Ashwin’s flight…"), dashed 🚗? on each leg, "☐ 🚗 Drive" twice on Mom & Dad\'s phone, ⏳ 🗽 below; no 📅 Phone yet, no 🚌 / 🚙 on someone else\'s leg', sheetM.slice(0, 1600));
     // Mom & Dad claim R1 on their phone: their first answer (In, by them: no 📞), the claim in their own note; 🚗✓ and ↩ takes it back
@@ -5967,8 +5967,8 @@ function norm(doc) {
     // P-rides by day: R2 a drive of its own (its long press says why), R3 one drive to two airports, ① O'Hare ② Midway, the 0:45 between
     const rd = v.rides, cal = /href="data:text\/calendar;charset=utf-8,([^"]+)"/.exec(rd), ics = cal ? decodeURIComponent(cal[1]).replace(/\r\n /g, '').replace(/&#39;/g, '\'').replace(/&amp;/g, '&') : '';
     check(/<div class="rday">Fri <span class="tn">11\/20<\/span><\/div>/.test(rd) && /<div class="rday">Mon <span class="tn">11\/30<\/span><\/div>/.test(rd) &&
-      /aria-label="Separate drive: Anjo lands 10:30 PM at Midway, 7:55 hours after Ashwin"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">7:45\u00a0PM–Sat\u00a01:15\u00a0<span class="mer">AM<\/span><\/span>/.test(rd) &&
-      /aria-label="Leave 11:15 AM: O&#39;Hare 1:45 PM, Midway 2:30 PM, home 5:15 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:15\u00a0AM–5:15\u00a0<span class="mer">PM<\/span><\/span>/.test(rd) &&
+      /aria-label="Separate drive: Anjo lands 10:30 PM at Midway, 7:55 hours after Ashwin"[^>]*><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tm">7:45\u00a0PM–Sat\u00a01:15\u00a0<span class="mer">AM<\/span><\/span>/.test(rd) &&
+      /aria-label="Leave 11:15 AM: O&#39;Hare 1:45 PM, Midway 2:30 PM, home 5:15 PM"[^>]*><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tm">11:15\u00a0AM–5:15\u00a0<span class="mer">PM<\/span><\/span>/.test(rd) &&
       /<span class="rnum" data-k="stopn" aria-hidden="true">①<\/span>/.test(rd) && /<span class="rnum" data-k="stopn" aria-hidden="true">②<\/span>/.test(rd) &&
       /<div class="rhop" role="img" aria-label="0:45 drive to Midway \(MDW\)" data-lbl="Drive between"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn" data-dur>0:45<\/span><\/div>/.test(rd) &&
       /<b class="ap">MDW<\/b><span class="rtt"><span class="tm">5:10 <span class="mer">PM<\/span><\/span>/.test(rd) && /aria-label="Lands O&#39;Hare \(ORD\) Fri 11\/20 at 2:35 PM, Ashwin, Mom &amp; Dad driving"/.test(rd) &&
@@ -6164,8 +6164,8 @@ function norm(doc) {
       'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
     // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
     const L = a1.api.LEGEND;
-    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 161,
-      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #161 (PIA-161)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 162,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #162 (PIA-162)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ PIA-160 family polish ═══
@@ -6295,7 +6295,8 @@ function norm(doc) {
     // as U+00A0 (so it breaks only after its dash), each leg's tail the code with [time driver]; a run of one leg has no columns (r1),
     // the 11/30 run's times all have a one-digit hour (hr1); no spacer; no other U+00A0 in the sheet
     const mk = {
-      head: rd.indexOf('<span class="rhd"><span data-k="arrive" aria-hidden="true">🛬</span><span class="rlv"') >= 0 && rd.indexOf('<span class="rhd"><span data-k="leave" aria-hidden="true">🛫</span><span class="rlv"') >= 0,
+      head: rd.indexOf('<span class="rhd"><span data-k="arrive" aria-hidden="true">🛬</span><span class="rlv"') >= 0 && rd.indexOf('<span class="rhd"><span data-k="leave" aria-hidden="true">🛫</span><span class="rlv"') >= 0 &&
+        (rd.match(/<span class="rlv"[^>]*><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tm">/g) || []).length === 3 && !/data-k="lvhome"/.test(rd),
       night: rd.indexOf('<span class="tm">7:45' + NB + 'PM–Sat' + NB + '1:15' + NB + '<span class="mer">AM</span></span>') >= 0,
       ord: rd.indexOf('<span class="rtl r1"><b class="ap">ORD</b><span class="rtt"><span class="tm">2:35 <span class="mer">PM</span></span><span class="rst"') >= 0,
       mdw: rd.indexOf('<span class="rtl r1"><b class="ap">MDW</b><span class="rtt"><span class="tm">10:30 <span class="mer">PM</span></span><span class="rst"') >= 0,

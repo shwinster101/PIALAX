@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="161">
+<meta name="pialax-build" content="162">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -4663,7 +4663,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 161;
+var BUILD = 162;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -9187,8 +9187,9 @@ function runHTML(m, R, r, L, o) {
     arith = 'Separate drive: ' + (ap0.why === 'wait' ? (fl ? rideLabel(fl) : '') + (r.kind === 'a' ? ' lands ' : ' flies ') + h12(r.first) + ' at ' + pw(r.ap) + ', ' + hmin(ap0.gap) + ' hours after ' + (pl ? rideLabel(pl) : '')
       : ap0.why === 'late' ? 'no time to reach ' + pw(r.ap) + ' after ' + (pr ? pw(pr.aps[pr.aps.length - 1]) : '') : 'no drive time known');
   }
+  // PIA-162: the range is the drive, leave home to home again, so 🚗 heads it (with ⏰ beside 🛬 / 🛫 it read as a flight time)
   var h1 = '<span class="rhd"><span data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span>' +
-    (r.leave ? '<span class="rlv" role="img" aria-label="' + esc(arith) + '" data-lbl="' + esc(arith) + '"><span data-k="lvhome" aria-hidden="true">⏰</span><span class="tm">' + esc(clockRange(r.leave, r.back, r.day)).replace(/ /g, '\u00a0').replace(/\u00a0([AP]M)$/, '\u00a0<span class="mer">$1</span>') + '</span></span>' : '<span class="tn">' + md(r.day) + '</span>') + '</span>' +
+    (r.leave ? '<span class="rlv" role="img" aria-label="' + esc(arith) + '" data-lbl="' + esc(arith) + '"><span data-k="drive" aria-hidden="true">🚗</span><span class="tm">' + esc(clockRange(r.leave, r.back, r.day)).replace(/ /g, '\u00a0').replace(/\u00a0([AP]M)$/, '\u00a0<span class="mer">$1</span>') + '</span></span>' : '<span class="tn">' + md(r.day) + '</span>') + '</span>' +
     (many && !multi ? '<span class="rlv" role="img" aria-label="' + esc('Legs ' + hmin(r.spread) + ' apart') + '" data-lbl="Time apart"><span data-k="pickup">⏱</span><span class="tn" data-dur data-k="runwait">' + hmin(r.spread) + '</span></span>' : '');
   var ctl = '', word = false, names = namesOf(m, r.legs.map(function (l) { return l.code; }));
   if (m.org) {
