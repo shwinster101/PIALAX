@@ -593,3 +593,70 @@ marking a run done and thanking its driver; rides on New York trips; cancelled
 events for a run absorbed under another lead's UID; and a "check time" ⏰ on a run
 that crosses 2:00 AM on a DST Sunday in the home zone (today's floating wall-clock
 arithmetic is an hour off there; the model's test pins it).
+
+### PIA-160 amendment: family polish (type scale, Text Size, contrast, one grid) (2026-10-31)
+
+**Presentation only.** No word, tap, storage format, link, marker, Worker or model
+change; the screens keep 14 + 5 words and popups 20, and a words census
+(`scripts/fixtures/census-159.json`, captured at #159) holds every measured
+screen and popup to the same words.
+
+**One scale that follows the phone.** Type, spacing, radii and motion come from
+:root tokens. What a person reads takes one of seven sizes (13/15/17/18/20/22/28px
+at the default), each clamped from its old px to ×1.118 on the screens and ×1.353
+in a sheet, a toast and a long-press label; an iPhone's Text Size sets the root
+(`html { font: -apple-system-body }`), 1rem is 17px elsewhere. Glyph-only boxes,
+face marks and badges and a few named exceptions keep px. Weights are 400 / 600 /
+700. Nothing a family member reads is under 13px (P-cheapest's bar values
+excepted), a name shrinks no lower than 13px, AM / PM is ≥13px in the time's ink,
+inputs are ≥16px. Numerals take ui-rounded (a local font name), codes the system
+font.
+
+**One grid.** The board's names, the key's words and the Map's lanes share one
+80px name column (88px at a larger text size), and the trip's title starts where
+the bars do; the board's labels, names, numerals and key words are 15px, a
+labelled track 54px in the 72px row, and a label that would leave its track is
+pinned to its edge after layout. The Family board keeps its 76px heads.
+
+**Edges, contrast, quiet.** --edge (≥3:1) on what a finger taps; small text
+≥4.5:1 in light, dark and Increase Contrast; ink outlines mark selected or
+pressed (and the organizer's invitations); on the trip page, P-person and P-rides
+a dashed edge means not settled; a read-only control that says why is quiet
+(sunk fill, secondary ink, solid edge), never faded.
+
+**Rides and times.** The drive primary reads "⏰ 12:05 PM" over "11/20 ORD"; P-rides
+reads like a paper calendar (day heads in full ink, runs on a soft grey card, legs
+with 32px faces and codes and times in columns, Drive at the card's right edge).
+"+N" in the key is a named count, never a target.
+
+**Reading time and motion.** A toast stays 2–6 s by what it shows (≥5 s with ↩ or
+the share symbol); a long-press or "why" label 1.5–5 s after the finger lifts.
+Hover needs a mouse; a tap dims; every attention motion has a still cue under
+reduced motion. ⚙ shows 📐 the screen width and 🔠 the text size for a device check
+(numerals only; a long press on the row says "Width, text size").
+
+**Owner confirms (decided for this build, reversible):** the text-size caps, rounded
+numerals, the two-line drive button, 15px board times with every other day number
+where they would touch, visible edges and selected outlines, the darker light-mode
+status colours, the calmer host hatch, the 80px name column, the toast and label
+holds, the quiet read-only look, ⚙'s 📐 / 🔠 and P-rides' grey cards. Device checks
+are recorded as pending in V2_ACCEPTANCE.md. Later, never built here: tab-bar line
+icons, a capsule button, a frosted tab bar, sheet swipe-down, an accent colour and
+the key's Rides row word on Mom's phone (a word change, the owner's choice).
+
+**Where the build differs from the design spec, on purpose.** P-person's edit row
+groups only the field with its [AM | PM] (the 🛬 and its day are not a group of
+their own), and at a larger text size, where that group wraps under the day, the
+airport pills keep their 52px indent (later). The Map's lane chips wrap date over
+time as a unit, so a long "11/20 10:30 PM" chip can be taller than its neighbours
+(later). The first "☐ 🚗 Drive" claim still moves the tapped button up while the
+sheet gains its 📅 Phone row, as at #159 (later). P-rides' "☐ 🚗 Drive" keeps its
+☐ / ☑ box at the label's size, as at #159 (the spec's 1.15em, which the booking
+toggles, Nebby's toggle and P-pet's ticks have, drops the second P town card's
+Drive under its header at 430px). A pressed secondary button's ink
+edge is kept off the booking toggles, which stay green. A day that cannot be picked
+takes the sunk fill (quiet, not faded) as well as its secondary-ink numeral. The
+Rides row in the key may hold no chip at all where not even the first fits (only
+"+N"), and at 414px the organizer's P town row holds one chip and "+2" where #159
+held two. A long name that does not fit its column at 13px is drawn cut there
+(#159 shrank it to 11px).

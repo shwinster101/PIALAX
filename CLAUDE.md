@@ -91,6 +91,25 @@ numerals (a time's digits too), prices, dates, emoji and glyphs are exempt. A
 person reads every clock time in 12-hour; it is stored as 24-hour HH:MM. Use named 44px targets,
 keyboard focus/Back, glyph explanations and the existing sheet patterns.
 
+Type, spacing and radii come from the :root tokens (PIA-160). Text sizes a person
+reads come from seven tokens (13/15/17/18/20/22/28px); glyph-only boxes, face marks
+and the named exceptions keep px. Weights are 400/600/700; spacing tokens are
+4/8/12/16/24/32; controls and containers use 8/12/16/20/pill radii (faces stay
+round). Nothing a family member reads is under 13px (the organizer's P-cheapest bar
+values excepted); names shrink no lower than 13px; AM/PM is ≥13px in the time's
+ink; inputs are ≥16px. iOS Text Size is honoured through `html { font:
+-apple-system-body }`, screens capped at ×1.118 and sheets, toasts and labels at
+×1.353. Tappable edges use --edge (≥3:1); small text is ≥4.5:1 in light, dark and
+Increase Contrast; ink outlines mark selected or pressed (a booking toggle's stays
+green), plus the organizer's invitations and an arrival on the Map's lanes; on the trip page, P-person and
+P-rides dashed means not settled;
+read-only controls are quiet (--sunk, --ink2, solid --edge), never faded. The
+board, key, Map lanes and trip title share one name column (80px, 88px at larger
+text). Board times stay inside their track; '+N' is a count, not a button. Every
+attention motion has a still reduced-motion cue. System fonts only (ui-rounded for
+numerals). Polish never adds a word: test-words compares each screen and popup it
+measures with `scripts/fixtures/census-159.json` (captured at #159).
+
 Preserve strict CSP, exact d3/topojson paths and their frozen SRI hashes, exact
 world-atlas@2.0.2 URL and runtime SHA-256, no external fonts/styles/images, and
 faces/pickups fallback if any map asset fails. Entry files load no external assets.

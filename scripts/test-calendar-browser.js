@@ -96,6 +96,21 @@ async function main() {
       await p.waitForSelector('[data-act="calday"][data-v="2026-11-09"]');
       check((await p.locator('.monthhd h3').innerText()).includes('Nov'), width + '/' + dark + ': Calendar is one tap away and starts at the selected trip');
       await agreement(t, docs); await measure(p, 'Calendar');
+      // PIA-160: a numeral is 15px; a weekend numeral sits on the weekend tint over the surface (never a white box on a tinted cell); in
+      // October (today the 17th) a past day's numeral is the secondary ink at full opacity, ≥4.5:1 on its cell, and today's ring is 24px
+      const calLook = () => p.evaluate(() => {
+        const probe = (prop, v) => { const e = document.createElement('i'); e.style[prop] = v; document.body.appendChild(e); const c = getComputedStyle(e)[prop]; e.remove(); return c; };
+        const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }, L = (s) => { const m = /(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?),\s*(\d+(?:\.\d+)?)/.exec(s); return 0.2126 * lin(+m[1]) + 0.7152 * lin(+m[2]) + 0.0722 * lin(+m[3]); };
+        const mixOn = (fg, bg) => { const a = /rgba\([^)]*,\s*([\d.]+)\)/.exec(fg); if (!a) return fg; const f = fg.match(/[\d.]+/g).map(Number), b = bg.match(/[\d.]+/g).map(Number); return 'rgb(' + [0, 1, 2].map((i) => f[i] * f[3] + b[i] * (1 - f[3])).join(',') + ')'; };
+        const surface = probe('color', 'var(--surface)'), dn = [...document.querySelectorAll('#screen .grid .dc .dn')];
+        const past = [...document.querySelectorAll('#screen .grid .dc.past .dn')].map((e) => { const c = e.closest('.dc'), bg = mixOn(getComputedStyle(c).backgroundColor === 'rgba(0, 0, 0, 0)' ? surface : getComputedStyle(c).backgroundColor, surface), fg = getComputedStyle(e).color, x = L(fg), y = L(bg);
+          return { op: getComputedStyle(e).opacity, ink2: fg === probe('color', 'var(--ink2)'), cr: (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05) }; });
+        const t = document.querySelector('#screen .grid .dc.today .dn');
+        return { fs: [...new Set(dn.map((e) => getComputedStyle(e).fontSize))], we: [...document.querySelectorAll('#screen .grid .dc.we:not(.past):not(.blank):not(.today) .dn')].map((e) => getComputedStyle(e).backgroundColor === probe('backgroundColor', 'var(--weekend-solid)')), past, today: t ? Math.round(t.getBoundingClientRect().width) : 0 };
+      });
+      const nov = await calLook(); await tap(p, '[data-act="calmonth"][data-v="-1"]'); const oct = await calLook(); await tap(p, '[data-act="calmonth"][data-v="1"]');
+      check(JSON.stringify(nov.fs) === '["15px"]' && nov.we.length >= 8 && nov.we.every(Boolean) && oct.past.length >= 10 && oct.past.every((x) => x.op === '1' && x.ink2 && x.cr >= 4.5) && oct.today === 24,
+        width + '/' + dark + ': PIA-160 Calendar numerals are 15px, a weekend\'s on the weekend tint (no white box), a past day\'s in the secondary ink at full opacity (≥4.5:1 on its cell), today\'s ring 24px', { nov: { fs: nov.fs, we: nov.we.length }, oct: { past: oct.past.slice(0, 3), n: oct.past.length, today: oct.today } });
       check(await p.locator('.monthhd button[data-k="page"]').count() === 2 && await p.locator('.pinday[data-pic]').count() === 1, 'Calendar arrows are keyed and the event-day picture is identified as the trip picture');
       if (width === 360) await p.screenshot({ path: '/tmp/pialax144-calendar-' + (dark ? 'dark' : 'light') + '.png', fullPage: true });
       await tap(p, '[data-act="calday"][data-v="2026-11-09"]'); // one tap to day details

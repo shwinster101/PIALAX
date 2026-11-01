@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="159">
+<meta name="pialax-build" content="160">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -18,9 +18,9 @@
 :root {
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  --bg: #F4F5F7; --surface: #FFFFFF; --sunk: #EAECF0; --ink: #15181D; --ink2: #50586A; --ink3: #646B78; --line: #D9DDE4; --backdrop: #DFE2E8;
+  --bg: #F4F5F7; --surface: #FFFFFF; --sunk: #EAECF0; --ink: #15181D; --ink2: #50586A; --ink3: #5B6270; --line: #D9DDE4; --backdrop: #DFE2E8;
   --on-ink: #FFFFFF; --scrim: rgba(12, 14, 18, .42); --focus: #2563EB; --hatch: rgba(21, 24, 29, .09); --weekend: rgba(21, 24, 29, .08);
-  --in: #15803D; --maybe: #B45309; --mute: #5F6672; --bad: #DC2626; --on-status: #FFFFFF;
+  --in: #12703A; --maybe: #A14B07; --mute: #5F6672; --bad: #C81E1E; --on-status: #FFFFFF;   /* PIA-160: green, amber, red and ink3 a little darker (≥4.5:1 on sunk) */
   --p0: #2563EB; --p1: #7C3AED; --p2: #DB2777; --p3: #0891B2; --p4: #4338CA; --p5: #A21CAF; --p6: #8B5A2B; --p7: #1E3A8A;
   --sk-day: #BFE2F4; --sk-dusk: #F2CBA8; --sk-eve: #2D3A63; --sun: #F5C344; --grass: #A3CD7E; --roof: #B4483A; --wall: #F3E5CF; --win: #FFE8A3; --door: #7A4B2E;
   --sea: #3A8DC1; --foam: #E7F4FB; --sand: #EED9A8; --mtn: #6F809A; --mtn2: #8D9BB2; --snow: #FFFFFF; --bldg: #4F5D75; --bldg2: #6D7A93; --lit: #FFE8A3;
@@ -29,15 +29,44 @@
   --chip: transparent; --tkdim: .45;
   --markbg: #FFFFFF; --markink: #15181D;   /* PIA-142: a face's or a cell's mark chip (⚠ 🎫 🏠 📞 📝): light in both schemes, so a dark 📞 reads */
   --shr: #15181D; --dotb: #DC2626;         /* PIA-154: the share symbol's line, and the small dot that asks for a tap */
-  /* PIA-159: type and spacing for the surfaces it draws (times, airport codes, board labels, P-person's legs, P-rides, the drive
-     primary, the card slot, the Map chips, toasts); the same in both themes, so declared once here */
-  --fs-1: 13px; --fs-2: 15px; --fs-3: 17px; --fs-4: 19px;   /* the floor for what Mom reads; pills and segment; sheet body; a time read or typed */
-  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px;
+  --edge: #7D8594; --weekend-solid: #ECEDED;   /* PIA-160: a tappable control's edge (≥3:1); the weekend tint over the surface */
+  /* PIA-160: one scale for everything else, the same in both themes, so declared here only (a dark block holds colours and the key's dim; the
+     type sizes --fs-1 … --fs-6 are in the rule below, so a sheet, a toast and a label take their own cap). Numerals are rounded where
+     the system has it (ui-rounded, a local font name), codes stay in the system font */
+  --font-num: ui-rounded, var(--font);
+  --lh-1: 1.15; --lh-2: 1.35; --lh-3: 1.5;
+  --lh-btm: calc(var(--fs-2) * 17 / 15);   /* the board label line: 17px at the default */
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 32px;
+  --r-1: 8px; --r-2: 12px; --r-3: 16px; --r-4: 20px; --r-pill: 999px;
+  --tap: 44px; --row: 48px; --btn: 56px;
+  --col-name: clamp(80px, calc(80px + (1rem - 17px) * 4), 88px);   /* the board's, the key's and the Map lanes' name column */
+  --row-board: max(72px, calc(var(--fs-2) * 1.2 + 54px));
+  --t-1: 120ms; --t-2: 240ms; --t-3: 320ms; --ease: cubic-bezier(.2, .8, .2, 1);
 }
+/* PIA-160: the phone's own text size. 1rem is 17px wherever the browser default is 16px; on an iPhone it is the Text Size setting
+   (Large = 17px). Each size is a clamp: never under today's px, and at most ×1.118 on the screens (a fitted grid grows a little) and
+   ×1.353 in a sheet (it scrolls), a toast and a label (they wrap); P-dates, P-cheapest and the create sheet's month are grids and take
+   the screens' cap */
+html { font-size: 106.25%; }
+@supports (font: -apple-system-body) { html { font: -apple-system-body; } }
+:root { --cap: 1.118; }
+#sheet, #toast, #lbl { --cap: 1.353; }
+#sheet[data-popup="P-dates"], #sheet[data-popup="P-cheapest"], #sheet[data-popup$="-when"] { --cap: 1.118; }
+:root, #sheet, #toast, #lbl {
+  --fs-1: clamp(13px, .764rem, calc(13px * var(--cap)));
+  --fs-2: clamp(15px, .882rem, calc(15px * var(--cap)));
+  --fs-3: clamp(17px, 1rem, calc(17px * var(--cap)));
+  --fs-3b: clamp(18px, 1.058rem, calc(18px * var(--cap)));
+  --fs-4: clamp(20px, 1.176rem, calc(20px * var(--cap)));
+  --fs-5: clamp(22px, 1.294rem, calc(22px * var(--cap)));
+  --fs-6: clamp(28px, 1.647rem, calc(28px * var(--cap)));
+}
+html { scroll-padding-top: calc(env(safe-area-inset-top, 0px) + 64px); scroll-padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px + 72px); }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0E1014; --surface: #171A20; --sunk: #21252D; --ink: #ECEEF2; --ink2: #A8AFBB; --ink3: #8B93A0; --line: #2C313A; --backdrop: #07080A;
+    --bg: #0E1014; --surface: #171A20; --sunk: #21252D; --ink: #ECEEF2; --ink2: #A8AFBB; --ink3: #969EAB; --line: #2C313A; --backdrop: #07080A;
     --on-ink: #0E1014; --scrim: rgba(0, 0, 0, .6); --focus: #60A5FA; --hatch: rgba(236, 238, 242, .08); --weekend: rgba(236, 238, 242, .10);
+    --edge: #707886; --weekend-solid: #2C2F35;
     --in: #22C55E; --maybe: #F59E0B; --mute: #9CA3AF; --bad: #F87171; --on-status: #0E1014;
     --p0: #60A5FA; --p1: #A78BFA; --p2: #F472B6; --p3: #22D3EE; --p4: #818CF8; --p5: #E879F9; --p6: #C08457; --p7: #93C5FD;
     --sk-day: #2F5274; --sk-dusk: #5B3F55; --sk-eve: #141A31; --sun: #E7C36A; --grass: #3D6A3A; --roof: #8B3A30; --wall: #CBB89D; --win: #E7C36A; --door: #5A3720;
@@ -51,8 +80,9 @@
   }
 }
 :root[data-theme="dark"] {
-  --bg: #0E1014; --surface: #171A20; --sunk: #21252D; --ink: #ECEEF2; --ink2: #A8AFBB; --ink3: #8B93A0; --line: #2C313A; --backdrop: #07080A;
+  --bg: #0E1014; --surface: #171A20; --sunk: #21252D; --ink: #ECEEF2; --ink2: #A8AFBB; --ink3: #969EAB; --line: #2C313A; --backdrop: #07080A;
   --on-ink: #0E1014; --scrim: rgba(0, 0, 0, .6); --focus: #60A5FA; --hatch: rgba(236, 238, 242, .08); --weekend: rgba(236, 238, 242, .10);
+  --edge: #707886; --weekend-solid: #2C2F35;
   --in: #22C55E; --maybe: #F59E0B; --mute: #9CA3AF; --bad: #F87171; --on-status: #0E1014;
   --p0: #60A5FA; --p1: #A78BFA; --p2: #F472B6; --p3: #22D3EE; --p4: #818CF8; --p5: #E879F9; --p6: #C08457; --p7: #93C5FD;
   --sk-day: #2F5274; --sk-dusk: #5B3F55; --sk-eve: #141A31; --sun: #E7C36A; --grass: #3D6A3A; --roof: #8B3A30; --wall: #CBB89D; --win: #E7C36A; --door: #5A3720;
@@ -64,24 +94,37 @@
   --shr: #ECEEF2; --dotb: #F87171;
   color-scheme: dark;
 }
+/* PIA-160: Increase Contrast (prefers-contrast: more): darker edges and secondary inks, in the same three-block shape */
+@media (prefers-contrast: more) {
+  :root { --line: #7D8594; --edge: #5B6270; --ink2: #3A4150; --ink3: #4B5262; --mute: #4B5262; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --line: #707886; --edge: #8B93A0; --ink2: #C9CED7; --ink3: #B4BAC5; --mute: #B4BAC5; } }
+  :root[data-theme="dark"] { --line: #707886; --edge: #8B93A0; --ink2: #C9CED7; --ink3: #B4BAC5; --mute: #B4BAC5; }
+}
+@media (forced-colors: active) {
+  .track .bar, .stack i, .dc .cp, .dc .dots i, .dc .myline, .pill .myu { forced-color-adjust: none; }
+  .track .bar { outline: 1px solid CanvasText; }
+}
 
 [hidden] { display: none !important; }
 html, body { height: 100%; }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font: 17px/1.35 var(--font); -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 var(--fs-3)/var(--lh-2) var(--font); -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 60; background: var(--bg); }
 button, input, select { font: inherit; color: inherit; }
 button { background: none; border: 0; padding: 0; cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 :focus { outline: none; }
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 10px; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }   /* (PIA-160: the ring follows each control's own corners) */
 svg { display: block; }
-.num, .tn { font-variant-numeric: tabular-nums; font-weight: 600; }
-/* PIA-159: a 12-hour time (its meridiem real text, a little smaller), and an airport code beside it */
-.tm { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.tm .mer { font-size: .78em; font-weight: 600; color: var(--ink2); }
-.btn.pri .tm .mer, .toast .tm .mer, .pk .tm .mer { color: inherit; opacity: .85; }
-.ap { font-weight: 700; letter-spacing: .04em; font-size: .92em; }
+.num, .tn { font-variant-numeric: tabular-nums; font-weight: 600; font-family: var(--font-num); }
+/* PIA-159: a 12-hour time (its meridiem real text, a little smaller), and an airport code beside it. PIA-160: rounded tabular digits,
+   600 (700 where the time is the hero: a button, the card slot, a P-rides header), its AM / PM at ≥13px in the time's own ink; the code
+   in the system font at about the time's size */
+.tm { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; font-family: var(--font-num); }
+.btn .tm, .slot .tm, .rrh .tm { font-weight: inherit; }
+.tm .mer { font-size: max(var(--fs-1), .8em); font-weight: 600; color: inherit; letter-spacing: .02em; }
+.ap { font-weight: 700; letter-spacing: .04em; font-size: max(var(--fs-1), .92em); color: inherit; font-family: var(--font); }
+[data-dur] { font-variant-numeric: tabular-nums; font-weight: 600; color: var(--ink2); }   /* a duration (🚗0:45, ⏱1:23): never an AM / PM */
 .sp { flex: 1 1 auto; }
 .facebtn { min-width: 44px; min-height: 44px; display: inline-grid; place-items: center; border-radius: 50%; }
 .vh { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -89,17 +132,15 @@ svg { display: block; }
 /* ---------- app column ---------- */
 .app { min-height: 100%; position: relative; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 0 calc(96px + env(safe-area-inset-bottom, 0px)); }
-.app.fabpad { padding-bottom: calc(160px + env(safe-area-inset-bottom, 0px)); }
 .screen { display: flex; flex-direction: column; gap: 12px; }
 .screen > * { min-width: 0; }
 .toprow { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); min-height: 56px; display: flex; align-items: center; gap: 4px; margin: 0 -4px; }
-.ib { min-width: 44px; height: 44px; display: inline-grid; place-items: center; border-radius: 12px; font-size: 21px; position: relative; flex: none; }
-.ib:hover { background: var(--sunk); }
-.ib .badge { position: absolute; top: -4px; right: -8px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--ink); color: var(--on-ink); font-size: 12px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
+.ib { min-width: 44px; height: 44px; display: inline-grid; place-items: center; border-radius: var(--r-2); font-size: 22px; position: relative; flex: none; }
+.ib .badge { position: absolute; top: -4px; right: -8px; min-width: 18px; height: 18px; padding: 0 4px; border-radius: 9px; background: var(--ink); color: var(--on-ink); font-size: 13px; font-weight: 700; display: grid; place-items: center; font-variant-numeric: tabular-nums; }
 .pulse { animation: pulse 1.6s ease-in-out 3; } /* every pulse stops after 3 cycles */
-@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--ink) 18%, transparent); } }
-.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--sunk); border-radius: 12px; padding: 3px; min-height: 50px; }
-.seg button { border-radius: 9px; font-weight: 600; font-size: 16px; color: var(--ink2); min-height: 44px; }
+@keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--ink) 18%, transparent); } }
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--sunk); border-radius: var(--r-2); padding: 3px; min-height: 50px; }
+.seg button { border-radius: var(--r-1); font-weight: 600; font-size: var(--fs-3); color: var(--ink2); min-height: 44px; }
 .seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 2px var(--shade); }
 
 /* ---------- avatars (faces) with status rings ---------- */
@@ -121,85 +162,85 @@ svg { display: block; }
 .mk.k-hostdef { background: var(--surface); color: var(--in); box-shadow: 0 0 0 2px var(--in); }
 .av .bd { position: absolute; top: -6px; right: -7px; font-size: 13px; line-height: 1; background: var(--markbg); color: var(--markink); border-radius: 9px; padding: 2px; box-shadow: 0 0 0 1px var(--line); }
 .av .bd2 { top: auto; right: auto; bottom: -6px; left: -7px; }
-.av .cnt { position: absolute; top: -6px; left: -8px; font-size: 12px; font-weight: 700; background: var(--surface); color: var(--ink); border-radius: 8px; padding: 0 4px; box-shadow: 0 0 0 1px var(--line); font-variant-numeric: tabular-nums; }
+.av .cnt { position: absolute; top: -6px; left: -8px; font-size: 13px; font-weight: 700; background: var(--surface); color: var(--ink); border-radius: 8px; padding: 0 4px; box-shadow: 0 0 0 1px var(--line); font-variant-numeric: tabular-nums; }
 .faces { display: flex; align-items: center; }
 .faces .av + .av { margin-left: -6px; }
-.more { font-size: 14px; color: var(--ink2); margin-left: 4px; font-variant-numeric: tabular-nums; font-weight: 600; }
+.more { font-size: var(--fs-2); color: var(--ink2); margin-left: 4px; font-variant-numeric: tabular-nums; font-weight: 600; }
 
 /* ---------- trip cards ---------- */
-.card { position: relative; background: var(--surface); border-radius: 18px; padding: 12px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; border: 1px solid var(--line); }
+.card { position: relative; background: var(--surface); border-radius: var(--r-4); padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; border: 1px solid var(--line); }
 .card > * { min-width: 0; }
 .card.dim { background: var(--sunk); } .card.dim .pc { opacity: .55; }
-.card.fly { animation: fly .6s cubic-bezier(.2, .9, .3, 1.2); }
-@keyframes fly { from { transform: translateY(-40px); opacity: 0; } to { transform: none; opacity: 1; } } /* PIA-138: no scale, so a card's targets (its date pill) stay ≥44px as it flies in */
+.card.fly { animation: fly var(--t-3) var(--ease); }
+@keyframes fly { from { transform: translateY(-12px); opacity: 0; } to { transform: none; opacity: 1; } } /* PIA-138: no scale, so a card's targets (its date pill) stay ≥44px as it flies in (PIA-160: no overshoot) */
 .card-a { display: flex; gap: 12px; align-items: flex-start; min-height: 60px; }
-.card-t { flex: 1; min-width: 0; margin: 0; font-size: 17px; font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; padding-top: 2px; }
+.card-t { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-3); font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; padding-top: 2px; }
 .card-open { text-align: left; font-weight: inherit; }
-.card-open::after { content: ""; position: absolute; inset: 0; border-radius: 18px; }
+.card-open::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-4); }
 .card-open:focus-visible { outline: none; }
 .card-open:focus-visible::after { outline: 3px solid var(--focus); outline-offset: 2px; }
 .card .z { position: relative; z-index: 1; }
-.card-b, .card-c { display: flex; align-items: center; gap: 6px; min-height: 40px; }
+.card-b, .card-c { display: flex; align-items: center; gap: 8px; min-height: 44px; }
 .card-c { pointer-events: none; } /* faces and heads are information: a tap there opens the trip */
 .card-c .z { pointer-events: auto; } /* PIA-153: ⋯ More (P-stage; PIA-154: where the stage disc was) and the organizer's ⤒ are controls of their own */
-.card-c .migc { margin-left: auto; font-size: 19px; border: 1.5px solid var(--ink); border-radius: 14px; }
+.card-c .migc { margin-left: auto; font-size: 19px; border: 1.5px solid var(--ink); border-radius: var(--r-2); }
 .card-b { flex-wrap: wrap; }
-.slot { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 19px; border: 1.5px solid var(--ink); flex: none; position: relative; font-weight: 700; white-space: nowrap; }
+.slot { width: 48px; height: 48px; border-radius: var(--r-2); display: grid; place-items: center; font-size: 20px; border: 1.5px solid var(--edge); flex: none; position: relative; font-weight: 700; white-space: nowrap; }
 .slot.gf { background: var(--surface); color: var(--ink); font-size: 17px; } /* Keep ✈↗ inside the bordered 48px target with wider emoji fonts. */
 .slot.off { border-color: var(--mute); color: var(--mute); }
-.slot.wide { width: auto; min-width: 48px; padding: 0 8px; font-size: 17px; }
+.slot.wide { width: auto; min-width: 48px; padding: 0 8px; font-size: var(--fs-3); }
 .slot.plain { border-color: transparent; }
 .slot .corner { position: absolute; top: -6px; right: -6px; font-size: 13px; }
-.pill { display: inline-flex; align-items: center; gap: 3px; min-height: 44px; padding: 0 9px; border-radius: 22px; border: 1.5px dashed var(--ink3); font-size: 14.5px; letter-spacing: -.01em; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; position: relative; }
-.pill.set { border-style: solid; border-color: var(--ink); }
+.pill { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 9px; border-radius: var(--r-pill); border: 1.5px dashed var(--edge); font-size: var(--fs-2); letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; position: relative; }
+.pill.set { border-style: solid; border-color: var(--edge); }
 .pill .w { color: var(--bad); }
-.pill .g, .tot .g { font-size: .82em; margin-right: 1px; }
+.pill .g { font-size: 1em; margin-right: 2px; }
+.tot .g { font-size: .82em; margin-right: 1px; }
 .pill > span[data-k] { white-space: nowrap; }
 .pill .dr { position: relative; display: inline-block; }
 .pill .myu { position: absolute; bottom: -5px; height: 3px; border-radius: 2px; background: var(--pc); } /* my own days under the plan */
 .pill .tg { position: relative; display: inline-block; } /* ⏳ days to go (PIA-154: a plain number, no book-by arc) */
-.tot { min-width: 44px; justify-content: flex-end; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 2px; border-radius: 12px; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; }
+.tot { min-width: 44px; justify-content: flex-end; display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 2px; border-radius: var(--r-2); font-size: var(--fs-3); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; margin-left: auto; }
 .tot.stale { color: var(--mute); }
-.tot.part { color: var(--ink2); border: 1.5px solid var(--ink3); padding: 0 8px; } /* a partial total is outlined */
+.tot.part { color: var(--ink2); border: 1.5px solid var(--edge); padding: 0 8px; } /* a partial total is outlined */
 .tot .uf, .sum .uf { font-size: .8em; letter-spacing: -.02em; }
-.heads { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); }
-.shelfrow { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-radius: 14px; font-size: 17px; font-weight: 600; color: var(--ink2); border: 1.5px solid var(--line); width: 100%; font-variant-numeric: tabular-nums; }
-.shelfrow .chev { transition: transform .2s; margin-left: auto; width: 10px; height: 10px; margin-right: 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-3px) rotate(45deg); } /* a drawn shape: ⌄ only ever closes a sheet */
+.heads { font-size: var(--fs-2); font-weight: 600; font-variant-numeric: tabular-nums; font-family: var(--font-num); color: var(--ink2); }
+.shelfrow { display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; border-radius: var(--r-3); font-size: var(--fs-3); font-weight: 600; color: var(--ink2); border: 1.5px solid var(--edge); width: 100%; font-variant-numeric: tabular-nums; }
+.shelfrow .chev { transition: transform var(--t-2); margin-left: auto; width: 10px; height: 10px; margin-right: 4px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-3px) rotate(45deg); } /* a drawn shape: ⌄ only ever closes a sheet */
 .shelfrow[aria-expanded="true"] .chev { transform: translateY(3px) rotate(225deg); }
 
 /* postcards */
-.pc { position: relative; flex: none; width: 72px; height: 54px; border-radius: 6px; overflow: hidden; background: var(--surface); box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--line); }
+.pc { position: relative; flex: none; width: 72px; height: 54px; border-radius: var(--r-1); overflow: hidden; background: var(--surface); box-shadow: 0 0 0 3px var(--surface), 0 0 0 4px var(--line); }
 .pc > svg.scene { width: 100%; height: 100%; }
 .pc.lg { width: 100%; height: 120px; border-radius: 16px; box-shadow: none; }
 .pc.md { width: 96px; height: 54px; }
 
-/* ---------- FAB and tab bar ---------- */
-.fab { position: fixed; z-index: 30; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; border-radius: 18px; background: var(--ink); color: var(--on-ink); font-size: 28px; display: grid; place-items: center; box-shadow: 0 6px 18px var(--shade); }
+/* ---------- tab bar ---------- */
 .tabbar { position: fixed; z-index: 30; left: 0; right: 0; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); display: grid; grid-template-columns: repeat(3, 1fr);
   padding-bottom: env(safe-area-inset-bottom, 0px); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
-.tabbar button { min-height: 64px; display: grid; place-items: center; align-content: center; gap: 2px; font-size: 13px; font-weight: 600; color: var(--ink2); position: relative; }
+.tabbar button { min-height: 64px; display: grid; place-items: center; align-content: center; gap: 2px; font-size: var(--fs-1); font-weight: 600; color: var(--ink2); position: relative; }
 .tabbar button .g { font-size: 22px; line-height: 1; }
 .tabbar button[aria-current="page"] { color: var(--ink); }
 .tabbar button[aria-current="page"]::before { content: ""; position: absolute; top: 0; left: 30%; right: 30%; height: 3px; border-radius: 0 0 3px 3px; background: var(--ink); }
-.tabbar .badge { position: absolute; top: 6px; left: calc(50% + 8px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--ink); color: var(--on-ink); font-size: 12px; display: grid; place-items: center; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.tabbar .badge { position: absolute; top: 6px; left: calc(50% + 8px); min-width: 18px; height: 18px; border-radius: 9px; background: var(--ink); color: var(--on-ink); font-size: 13px; display: grid; place-items: center; padding: 0 4px; font-variant-numeric: tabular-nums; }
 
 /* ---------- empty / ghost ---------- */
-.ghost { border: 2px solid var(--line); border-radius: 18px; padding: 20px 16px; display: grid; justify-items: center; gap: 14px; }
+.ghost { border: 2px solid var(--line); border-radius: var(--r-4); padding: 24px 16px; display: grid; justify-items: center; gap: 16px; }
 .ghost svg { width: 220px; max-width: 100%; height: auto; }
-.bigplus { width: 56px; height: 56px; border-radius: 18px; background: var(--ink); color: var(--on-ink); font-size: 28px; display: grid; place-items: center; }
-.bigplus.wide { width: auto; display: inline-flex; gap: 8px; padding: 0 22px; font-size: 18px; font-weight: 700; } .bigplus.wide > span { font-size: 26px; }
+.bigplus { width: 56px; height: 56px; border-radius: var(--r-3); background: var(--ink); color: var(--on-ink); font-size: 28px; display: grid; place-items: center; }
+.bigplus.wide { width: auto; display: inline-flex; gap: 8px; padding: 0 22px; font-size: var(--fs-3b); font-weight: 700; } .bigplus.wide > span { font-size: 26px; }
 
 /* ---------- family board ---------- */
 .board { display: grid; gap: 0; align-items: center; }
-.board .hd { display: grid; justify-items: center; gap: 2px; min-height: 64px; align-content: center; border-radius: 12px; font-size: 14px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.board .hd { display: grid; justify-items: center; gap: 2px; min-height: 64px; align-content: center; border-radius: var(--r-2); font-size: var(--fs-2); font-weight: 600; font-variant-numeric: tabular-nums; }
 .board .hd .sc { font-size: 20px; width: 34px; height: 26px; border-radius: 5px; display: grid; place-items: center; background: var(--sunk); }
 .board .rowh { display: grid; justify-items: center; align-content: center; min-height: 64px; position: relative; }
 .board .rowh .facebtn { position: relative; }
-.board .rowh .fn { font-size: 14px; }
-.board .rowh .hn { position: absolute; right: -14px; top: -4px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink2); background: var(--bg); border-radius: 8px; padding: 0 2px; line-height: 1.2; }
+.board .rowh .fn { font-size: var(--fs-2); }
+.board .rowh .hn { position: absolute; right: -14px; top: -4px; font-size: var(--fs-1); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink2); background: var(--bg); border-radius: 8px; padding: 0 2px; line-height: 1.2; }
 .board .rowh.focus .av { box-shadow: 0 0 0 3px var(--ink); }
-.cell { min-height: 64px; display: grid; justify-items: center; align-content: center; gap: 4px; position: relative; border-radius: 10px; }
-.cell .own { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); line-height: 1; }
+.cell { min-height: 64px; display: grid; justify-items: center; align-content: center; gap: 4px; position: relative; border-radius: var(--r-2); }
+.cell .own { font-size: var(--fs-1); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); line-height: 1; }
 .cell .cwrap { position: relative; display: grid; place-items: center; }
 .cell .ov { position: absolute; top: -8px; right: -10px; font-size: 13px; line-height: 1; }
 .shape { width: 30px; height: 30px; display: grid; place-items: center; }
@@ -210,55 +251,57 @@ svg { display: block; }
 .sh-maybe svg { transform: rotate(-45deg); }
 .sh-out { border-radius: 5px; background: var(--sunk); color: var(--mute); border: 2px solid var(--mute); width: 26px; height: 26px; }
 .sh-wait { border-radius: 50%; border: 2.5px dotted var(--mute); }
-.board .ft { text-align: center; font-size: 14px; font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; min-height: 36px; display: grid; place-items: center; }
+.board .ft { text-align: center; font-size: var(--fs-2); font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; min-height: 36px; display: grid; place-items: center; }
 .pager { display: flex; justify-content: space-between; }
 
 /* ---------- trip view ---------- */
 .nav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); display: flex; align-items: center; min-height: 52px; margin: 0 -4px; }
-.ttl { margin: -2px 0 0; font-size: 20px; font-weight: 650; line-height: 1.25; text-wrap: balance; }
+.ttl { margin: -2px 0 0; font-size: var(--fs-4); font-weight: 600; line-height: 1.25; text-wrap: balance; }
 .sheet:focus { outline: none; }
 .daterow { display: flex; align-items: center; gap: 8px; }
-.daterow .pill { flex: 1; justify-content: center; min-width: 0; min-height: 52px; font-size: 15px; }
+.daterow .pill { flex: 1; justify-content: center; min-width: 0; min-height: 52px; font-size: var(--fs-2); }
 .daterow .pill { white-space: normal; padding: 4px 9px; }
-.daterow .pill .inner { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; column-gap: 6px; row-gap: 0; min-width: 0; }
+.daterow .pill .inner { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; column-gap: 8px; row-gap: 0; min-width: 0; }
 .pill .dt, .pill .inner > span { white-space: nowrap; }
 /* PIA-138: the date pill is a control (P-dates); my bar on the board too */
 button.pill { cursor: pointer; text-align: center; color: inherit; }
 .daterow button.pill { display: flex; }
-.track.mybar { height: 44px; display: block; width: 100%; border-radius: 10px; text-align: left; }
+.track.mybar { height: 44px; display: block; width: 100%; border-radius: var(--r-2); text-align: left; }
 .track.mybar .bar { top: 14px; } .track.mybar .tag { top: 11px; }
-.mine { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: -4px; }
+.mine { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: var(--fs-2); font-weight: 600; font-variant-numeric: tabular-nums; margin-top: -4px; }
 .mine .mf { display: inline-grid; place-items: center; } /* PIA-153: my days carry my face (the plan above carries 👪) */
-.minebtn { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px 0 6px; border-radius: 22px; border: 1.5px solid var(--pc); font: inherit; color: inherit; }
+.minebtn { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 12px 0 6px; border-radius: var(--r-pill); border: 1.5px solid var(--pc); font: inherit; color: inherit; }
 .mine .w.amb { color: var(--maybe); } /* my days inside the plan but not it: allowed, amber; outside it: red, as the card's ⚠🗓 */
 /* PIA-153: P-mine, the plan (👪) and my days (my face), one row each, then the choice */
 .mvp { display: grid; gap: 6px; padding: 4px 2px 6px; }
-.mvrow { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 19px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.mvrow { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: var(--fs-4); font-weight: 600; font-variant-numeric: tabular-nums; }
 .mvg { width: 36px; display: inline-grid; place-items: center; font-size: 24px; flex: none; }
 .btn .mf { display: inline-grid; place-items: center; }
 .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-.ans { min-height: 64px; border-radius: 16px; border: 2px solid var(--line); display: grid; place-items: center; align-content: center; gap: 2px; font-weight: 700; font-size: 16px; }
+.ans { min-height: 64px; border-radius: var(--r-3); border: 2px solid var(--edge); display: grid; place-items: center; align-content: center; gap: 2px; font-weight: 700; font-size: var(--fs-3); }
 .ans svg { width: 22px; height: 22px; }
 .ans.in { color: var(--in); } .ans.maybe { color: var(--maybe); } .ans.out { color: var(--mute); }
 .ans.in[aria-pressed="true"] { background: var(--in); border-color: var(--in); color: var(--on-status); }
 .ans.maybe[aria-pressed="true"] { background: var(--maybe); border-color: var(--maybe); color: var(--on-status); }
 .ans.out[aria-pressed="true"] { background: var(--mute); border-color: var(--mute); color: var(--on-status); }
-.ans.def { animation: pulse 1.6s ease-in-out 1; } /* the host's default In looks unselected (it is not an answer yet), with one pulse */
 .ans:disabled { opacity: .4; cursor: not-allowed; }
-.ans.ro { opacity: .5; cursor: default; animation: none; } /* PIA-142: a trip that is over, or a v1 doc not updated yet: a tap says why */
-.answers.nudge { animation: nudge .5s 2; }
-@keyframes nudge { 0%, 100% { transform: none; } 30% { transform: translateX(-6px); } 70% { transform: translateX(6px); } }
+/* PIA-142: a trip that is over, or a v1 doc not updated yet: a tap says why. PIA-160: quiet, not faded: the sunk fill, each answer's
+   own ink kept; the one given outlined in secondary ink instead of filled; its glyph a little lighter */
+.ans.ro { opacity: 1; background: var(--sunk); cursor: default; animation: none; }
+.ans.ro[aria-pressed="true"] { background: var(--sunk); border: 2px solid var(--ink2); color: var(--ink); }
+.ans.ro > [aria-hidden="true"], .ans.ro > [data-k] { opacity: .55; }
+.answers.nudge { animation: nudge .4s 2; }
+@keyframes nudge { 0%, 100% { transform: none; } 30% { transform: translateX(-4px); } 70% { transform: translateX(4px); } }
 .closed { text-align: center; font-size: 22px; }
 
 /* people board (inside a trip) */
 .pb { display: grid; gap: 4px; }
-.pb-row { display: flex; align-items: center; gap: 8px; height: 72px; }
-.pb-row > .facebtn { width: 48px; display: grid; place-items: center; flex: none; min-height: 48px; }
-.pb-row .who { width: 76px; flex: none; display: grid; justify-items: center; align-content: start; gap: 0; height: 72px; padding-top: 7px; }
+/* (PIA-160: a row is 72px at the default text size, 6 + the 44px face + 4 + the 15px name; it grows with the name, never clips it) */
+.pb-row { display: flex; align-items: center; gap: 8px; min-height: var(--row-board); }
+.pb-row .who { width: var(--col-name); flex: none; display: grid; justify-items: center; align-content: start; gap: 0; min-height: var(--row-board); padding-top: 6px; }
 .pb-row .who .facebtn { width: 44px; height: 44px; min-height: 44px; }
-.pb-row .who .fn { margin-top: 5px; font-size: 14px; height: 16px; line-height: 16px; }
-.fn.you { font-size: 15px; letter-spacing: 0; overflow: visible; }
-.fn { font-size: 12px; font-weight: 650; line-height: 1.15; color: var(--ink); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: -.01em; }
+.pb-row .who .fn { margin-top: 4px; font-size: var(--fs-2); line-height: 1.2; }
+.fn { font-size: var(--fs-1); font-weight: 600; line-height: 1.15; color: var(--ink); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; letter-spacing: 0; }
 .track { position: relative; flex: 1; min-width: 0; height: 30px; }
 .track .days { position: absolute; inset: 0; display: flex; }
 .track .days i { flex: 1; }
@@ -268,15 +311,17 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .bar.sq-r { border-top-right-radius: 2px; border-bottom-right-radius: 2px; }
 .bar.maybe { background: transparent; border: 2.5px dashed var(--pc); }
 .bar.wait { background: transparent; border: 2px dotted var(--mute); }
-.bar.host { background: repeating-linear-gradient(135deg, var(--pc) 0 4px, transparent 4px 8px); border: 1.5px solid var(--pc); border-radius: 3px; }
+.bar.host { background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--pc) 60%, transparent) 0 6px, color-mix(in srgb, var(--pc) 22%, transparent) 6px 12px); border: 1.5px solid var(--pc); border-radius: var(--r-1); }   /* (PIA-160: still hatched, calmer) */
 .bar.off { background: repeating-linear-gradient(135deg, var(--bad) 0 3px, transparent 3px 6px); border: 1.5px solid var(--bad); }
 .track .tag { position: absolute; top: 4px; font-size: 14px; line-height: 22px; }
 .track .pinline { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--ink); opacity: .25; }
 .pb-head { display: flex; gap: 8px; align-items: flex-end; min-height: 26px; }
-.pb-head .lead { width: 76px; flex: none; }
-.pb-head .nums { position: relative; flex: 1; min-width: 0; display: flex; font-size: 14px; font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.pb-head .lead { width: var(--col-name); flex: none; }
+.pb-head .nums { position: relative; flex: 1; min-width: 0; display: flex; font-size: var(--fs-2); font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; font-family: var(--font-num); }
 .pb-head .nums span { flex: 1; text-align: center; position: relative; }
-.pb-head .nums span.we { background: var(--weekend); border-radius: 4px 4px 0 0; }
+.pb-head .nums span.we { background: var(--weekend); border-radius: 6px; }
+.pb-head .nums span.we6:not(:last-child) { border-top-right-radius: 0; border-bottom-right-radius: 0; }
+.pb-head .nums span.we0:not(:first-child) { border-top-left-radius: 0; border-bottom-left-radius: 0; }
 .pb-head .nums span .hg { position: absolute; top: -16px; left: 50%; transform: translateX(-50%); font-size: 13px; }
 
 /* the stacked bar of priced travelers (the price row) */
@@ -290,17 +335,18 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .split { display: flex; gap: 8px; }
 .split.prim { position: sticky; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 25; background: var(--bg); padding: 8px 0; margin: -8px 0; box-shadow: 0 -10px 10px -10px var(--shade); }
 .split > :first-child { flex: 1; }
-.btn { min-height: 56px; border-radius: 16px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 18px; font-weight: 700; padding: 0 16px; border: 2px solid var(--ink); white-space: nowrap; }
-.btn.pri { background: var(--ink); color: var(--on-ink); }
+.btn { min-height: 56px; border-radius: var(--r-3); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: var(--fs-3b); font-weight: 700; padding: 0 16px; border: 2px solid var(--edge); white-space: nowrap; }
+.btn.pri { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .btn.sq { width: 64px; padding: 0; flex: none; font-size: 20px; }
 .btn.ok { border-color: var(--in); background: color-mix(in srgb, var(--in) 14%, transparent); }
-.btn:disabled, .btn.dis { opacity: .4; cursor: not-allowed; }
+.btn:disabled { opacity: .4; cursor: not-allowed; }
+.btn.dis { cursor: not-allowed; }   /* (PIA-160: its quiet look is at the end of the sheet) */
 .btn.danger { border-color: var(--bad); color: var(--bad); }
 .btn.wide { width: 100%; }
 /* PIA-153: a choice among wide buttons (⤒ Update trip's plan, the history review's confirm) reads chosen: filled, the other outlined */
 .btn.wide:not(.pri)[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .btn.wide:not(.pri)[aria-pressed="false"] { background: var(--surface); }
-.btn .mpk { font-size: 17px; }
+.btn .mpk { font-size: var(--fs-3); }
 .btn.arm { border-color: var(--bad); }
 .btn.glow { animation: pulse 1.2s ease-in-out 3; }
 
@@ -310,33 +356,27 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .hscroll { overflow-x: auto; overscroll-behavior-x: contain; scrollbar-width: none; padding: 0 2px; }
 .hscroll::-webkit-scrollbar { display: none; }
 .hscroll > * { flex: none; }
-.tchip { min-width: 44px; justify-content: center; min-height: 44px; padding: 0 9px; border-radius: 22px; border: 1.5px solid var(--line); display: inline-flex; align-items: center; gap: 4px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; background: var(--surface); }
+.tchip { min-width: 44px; justify-content: center; min-height: 44px; padding: 0 9px; border-radius: var(--r-pill); border: 1.5px solid var(--edge); display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-2); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; background: var(--surface); }
 .tchip[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); }
-.tchip .e { font-size: 18px; }
-.subttl { margin: -8px 0 0; font-size: 17px; font-weight: 600; }
-.map { position: relative; width: 100%; aspect-ratio: 360 / 230; max-width: 100%; border-radius: 16px; background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
+.tchip .e { font-size: 1.15em; }
+.map { position: relative; width: 100%; aspect-ratio: 360 / 230; max-width: 100%; border-radius: var(--r-4); background: var(--surface); border: 1px solid var(--line); overflow: hidden; }
 .map > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
 .map .o { position: absolute; transform: translate(-50%, -50%); }
 .map .o.face { width: 44px; height: 44px; display: grid; place-items: center; }
 .apills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: -4px; }
-.apill { min-height: 44px; padding: 0 10px 0 6px; border-radius: 22px; background: var(--surface); border: 2px solid var(--pc); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
-.apill .pf { font-size: 18px; line-height: 1; }
-.apill .ext { font-size: 13px; }
+.apill { min-height: 44px; padding: 0 10px 0 6px; border-radius: var(--r-pill); background: var(--surface); border: 2px solid var(--pc); font-size: var(--fs-2); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
+.apill .pf { font-size: 1.2em; line-height: 1; }
 .apill.hollow { color: var(--ink2); background: var(--sunk); }
 .apill.wait { border-color: var(--mute); border-style: dotted; }
 .map .pin { display: grid; place-items: center; gap: 0; min-width: 44px; min-height: 44px; }
 .map .pin .head { width: 34px; height: 34px; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); background: var(--ink); display: grid; place-items: center; box-shadow: 0 2px 4px var(--shade); }
 .map .pin .head > span { transform: rotate(45deg); font-size: 17px; }
 .map .pin.alt .head { width: 22px; height: 22px; background: var(--surface); border: 2.5px solid var(--ink); box-shadow: none; }
-.map .lbl { position: absolute; font-size: 13px; font-weight: 800; letter-spacing: .02em; background: var(--surface); padding: 0 4px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -50%); pointer-events: none; }
-.map .drv { position: absolute; transform: translate(-50%, -50%); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; background: var(--surface); border-radius: 8px; padding: 0 4px; pointer-events: none; }
+.map .lbl { position: absolute; font-size: 13px; font-weight: 700; letter-spacing: .04em; background: var(--surface); padding: 0 4px; border-radius: 4px; white-space: nowrap; transform: translate(-50%, -50%); pointer-events: none; }
+.map .drv { position: absolute; transform: translate(-50%, -50%); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; background: var(--surface); border-radius: 8px; padding: 0 4px; pointer-events: none; }
 .map .hosts { position: absolute; transform: translate(-50%, -50%); display: flex; }
 .map .hosts .facebtn + .facebtn { margin-left: -14px; }
 .map .hosts { align-items: center; }
-.map .addpin { position: absolute; top: 4px; right: 4px; background: var(--surface); }
-.map .tray { position: absolute; left: 4px; top: 4px; display: flex; gap: 2px; z-index: 2; }
-.map .tray .facebtn { width: 44px; background: color-mix(in srgb, var(--surface) 70%, transparent); }
-.map .tray .more { width: 44px; height: 44px; display: grid; place-items: center; font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; border-radius: 50%; background: var(--surface); box-shadow: 0 0 0 1px var(--line); }
 .map .land { fill: var(--sunk); stroke: var(--line); stroke-width: .6; }
 .map .arc { fill: none; stroke-width: 1.8; opacity: .8; }
 .map .arc.homeward { stroke-dasharray: 3 3; }
@@ -344,27 +384,22 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .map-faces { display: flex; flex-wrap: wrap; gap: 4px; }
 .map-faces .facebtn { width: 44px; height: 44px; }
 .map-faces .facebtn[aria-pressed="true"] { border-radius: 50%; box-shadow: inset 0 0 0 2px var(--ink); }
-.map-fallback { min-height: 100px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: 16px; background: var(--surface); }
+.map-fallback { min-height: 100px; display: grid; place-items: center; border: 1px dashed var(--line); border-radius: var(--r-4); background: var(--surface); }
 .map-places { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .map-places .chip { min-height: 44px; min-width: 44px; justify-content: center; }
-.mapday { display: grid; gap: 8px; }
-.mapday .pk { width: 100%; justify-content: flex-start; white-space: normal; text-align: left; }
+.mapday { display: grid; gap: 12px; }
+.mapday .pk { width: 100%; justify-content: flex-start; white-space: normal; text-align: left; font-size: var(--fs-3); }
 .mapday .pk .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.mapday .pk .tm { display: inline-block; min-width: 4.7em; text-align: right; }   /* (PIA-160: the day's times in one column, as P-rides' legs) */
 .pair { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px; border: 1px solid var(--line); border-radius: 12px; }
-.lanes { display: grid; gap: 10px; }
-.lane { display: flex; gap: 8px; align-items: flex-start; }
-.lane .lh { min-width: 66px; flex: none; display: flex; align-items: center; gap: 6px; min-height: 44px; }
-.lane .lc { font-size: 15px; font-weight: 800; letter-spacing: .02em; }
-.lane .cl { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; min-width: 0; }
-.pk { min-height: 44px; padding: 0 10px; border-radius: 12px; border: 1.5px solid var(--ink2); background: var(--surface); display: inline-flex; align-items: center; gap: 5px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pk { min-height: 44px; padding: 0 10px; border-radius: var(--r-2); border: 1.5px solid var(--ink2); background: var(--surface); display: inline-flex; align-items: center; gap: 5px; font-size: var(--fs-2); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pk.arr { background: var(--sunk); border-color: var(--ink); }
 .pk.dep { background: transparent; }
-.pk .dir { font-weight: 800; }
 .pk .t.pred { color: var(--mute); }
 .pk.maybe { border-style: dashed; border-color: var(--maybe); }
-.grp { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 4px 4px 4px 46px; border: 1.5px solid var(--ink2); border-radius: 14px; position: relative; }
+.grp { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 4px 4px 4px 46px; border: 1.5px solid var(--edge); border-radius: var(--r-3); position: relative; }
 .grp > .gh { position: absolute; left: 4px; top: 50%; transform: translateY(-50%); display: grid; justify-items: center; gap: 2px; width: 40px; }
-.grp > .gh > span[data-k="pickup"] { font-size: 17px; line-height: 1; } .grp > .gh > .tn { font-size: 13px; }
+.grp > .gh > span[data-k="pickup"] { font-size: 17px; line-height: 1; } .grp > .gh > .tn { font-size: var(--fs-1); }
 .minipin { width: 22px; height: 22px; border-radius: 50% 50% 50% 4px; transform: rotate(-45deg); background: var(--ink); display: grid; place-items: center; }
 .minipin > span { transform: rotate(45deg); font-size: 11px; }
 .minipin.alt { background: var(--surface); border: 2.5px solid var(--ink); width: 18px; height: 18px; }
@@ -375,19 +410,22 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .people .facebtn[aria-pressed="true"] .av { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--ink); }
 .monthhd { display: flex; align-items: center; justify-content: space-between; min-height: 48px; }
 .monthhd h3 { flex: 1; text-align: center; }
-.monthhd h3 { margin: 0; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
-.grid .wd { min-height: 20px; font-size: 12px; font-weight: 700; color: var(--ink2); text-align: center; line-height: 20px; border-bottom: 1px solid var(--line); }
+.monthhd h3 { margin: 0; font-size: var(--fs-4); font-weight: 700; font-variant-numeric: tabular-nums; font-family: var(--font-num); }
+.grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 0; border-radius: var(--r-3); overflow: hidden; border: 1px solid var(--line); background: var(--surface); }
+.grid .dc:focus-visible { outline-offset: -3px; }   /* (PIA-160: the grid clips, so its ring is inside the cell) */
+.grid .wd { min-height: 22px; font-size: var(--fs-1); font-weight: 700; color: var(--ink2); text-align: center; line-height: 22px; border-bottom: 1px solid var(--line); }
 .grid .wd.we { background: var(--weekend); }
 .dc { position: relative; min-height: 62px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 3px; text-align: left; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; min-width: 0; overflow: hidden; }
 .dc:nth-child(7n) { border-right: 0; }
 .dc.we { background: var(--weekend); }
 .dc.blank { background: transparent; }
-.dc.past, .dc.outw { background-image: repeating-linear-gradient(135deg, var(--hatch) 0 3px, transparent 3px 7px); }
-.dc .dn { position: relative; z-index: 4; font-size: 13px; color: var(--ink); font-variant-numeric: tabular-nums; font-weight: 600; line-height: 1; background: var(--surface); border-radius: 4px; padding: 1px 2px; margin: -1px -2px; }
-.dc.we .dn { font-weight: 800; }
+/* (PIA-160: a weekend numeral's box is the weekend tint over the surface, never a white box on a tinted cell; a past day's numeral is
+   the secondary ink at full opacity) */
+.dc .dn { position: relative; z-index: 4; font-size: var(--fs-2); color: var(--ink); font-variant-numeric: tabular-nums; font-family: var(--font-num); font-weight: 600; line-height: 1; background: var(--surface); border-radius: 4px; padding: 1px 2px; margin: -1px -2px; }
+.dc.we .dn { font-weight: 700; background: var(--weekend-solid); }
 .dc.past .dn, .dc.blank .dn { background: transparent; }
-.dc.today .dn { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); color: var(--ink); margin: -3px 0 0 -3px; }
+.dc.past .dn, .dc.nope .dn { color: var(--ink2); }
+.dc.today .dn { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; box-shadow: 0 0 0 2px var(--ink); color: var(--ink); margin: -4px 0 0 -4px; }
 .dc .hg { position: absolute; top: 2px; right: 2px; font-size: 12px; line-height: 1; }
 .dc .caps { position: absolute; left: 0; right: 0; top: 24px; }
 .dc .cp { position: absolute; left: -1px; right: -1px; height: 6px; background: var(--ink); }
@@ -397,12 +435,10 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 
 .dc .cp.wn { background: repeating-linear-gradient(90deg, var(--ink2) 0 2px, transparent 2px 5px); height: 4px; }
 .dc .cp.dim { opacity: .25; }
-.dc .se { position: absolute; left: 3px; font-size: 12px; line-height: 1; }
 .dc .warn { position: absolute; right: 3px; top: 3px; z-index: 5; font-size: 13px; color: var(--bad); line-height: 1; background: var(--surface); border-radius: 4px; } .dc .warn.wh { right: 17px; } /* a corner of its own, clear of the trip lines */
 .dc .glow { position: absolute; inset: 0; background: color-mix(in srgb, var(--pc) 24%, transparent); box-shadow: inset 0 -3px 0 var(--pc); }
-.dc.dimday > .caps, .dc.dimday > .hg { opacity: .4; } .dc.dimday .dn { color: var(--ink2); } /* the numeral keeps its contrast; the trip lines fade */
 .dc .heat { position: absolute; inset: 0; background: color-mix(in srgb, var(--ink) var(--h), transparent); }
-.dc .pc-n { position: absolute; right: 9px; bottom: 3px; z-index: 3; color: var(--ink); background: var(--surface); border-radius: 4px; padding: 1px 2px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.dc .pc-n { position: absolute; right: 9px; bottom: 3px; z-index: 3; color: var(--ink); background: var(--surface); border-radius: 4px; padding: 1px 2px; font-size: var(--fs-1); font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
 .dc .dots { position: absolute; left: 4px; right: 4px; top: 24px; display: flex; flex-wrap: wrap; gap: 2px; }
 .dc .dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--pc); }
 .dc .dots i.hollow { background: transparent; box-shadow: inset 0 0 0 1.5px var(--pc); }
@@ -426,52 +462,52 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .dc .sel.who { background: color-mix(in srgb, var(--pc) 26%, transparent); }
 .dc .sel.who.st { box-shadow: inset 3px 0 0 var(--pc); } .dc .sel.who.en { box-shadow: inset -3px 0 0 var(--pc); } .dc .sel.who.st.en { box-shadow: inset 3px 0 0 var(--pc), inset -3px 0 0 var(--pc); }
 .dc:disabled { cursor: default; }
-.dc.nope { opacity: .45; }
-.calfab { position: fixed; z-index: 30; right: calc(16px + env(safe-area-inset-right, 0px)); bottom: calc(80px + env(safe-area-inset-bottom, 0px)); width: 56px; height: 56px; border-radius: 18px; background: var(--ink); color: var(--on-ink); font-size: 24px; display: grid; place-items: center; box-shadow: 0 6px 18px var(--shade); }
+.dc.nope > :not(.dn) { opacity: .45; }
+.dc.nope { background-color: var(--sunk); }   /* (PIA-160: a day that cannot be picked is quiet, not faded: the sunk fill, its numeral --ink2) */
 
 .cal-clashes { display: grid; gap: 6px; }
 .cal-clashes .clashrow { display: flex; align-items: center; gap: 6px; }
 .cal-clashes .facebtn { width: 44px; height: 44px; flex: none; }
-.cal-clashes .clashtrip { flex: 1; min-width: 0; min-height: 44px; padding: 6px 10px; text-align: left; border-radius: 12px; border: 1px solid var(--line); overflow-wrap: anywhere; }
+.cal-clashes .clashtrip { flex: 1; min-width: 0; min-height: 44px; padding: 6px 10px; text-align: left; border-radius: var(--r-2); border: 1.5px solid var(--edge); overflow-wrap: anywhere; }
 .cal-clashes .clashtrip .tn { white-space: nowrap; }
 /* ---------- sheets ---------- */
 .scrim { position: fixed; inset: 0; z-index: 70; background: var(--scrim); }
-.sheet { position: fixed; z-index: 71; left: 0; right: 0; bottom: 0; max-height: min(calc(100% - 0px - 12px), 88vh); overflow: auto; background: var(--surface); border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px var(--shade);
-  padding-block: 8px calc(20px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
-  display: flex; flex-direction: column; gap: 14px; overscroll-behavior: contain; }
+.sheet { position: fixed; z-index: 71; left: 0; right: 0; bottom: 0; max-height: min(calc(100% - 0px - 12px), 88vh); overflow: auto; background: var(--surface); border-radius: var(--r-4) var(--r-4) 0 0; box-shadow: 0 -8px 30px var(--shade);
+  padding-block: 8px calc(24px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 16px; overscroll-behavior: contain; font-size: var(--fs-3); scroll-padding-block: 64px 80px; }
+@supports (height: 1dvh) { @media (max-width: 699px) { .sheet { max-height: min(calc(100% - 0px - 12px), 88dvh); } } }
 .sheet > * { flex-shrink: 0; }
-.sheet.open { animation: up .22s ease-out; }
-@keyframes up { from { transform: translateY(30px); opacity: .4; } to { transform: none; opacity: 1; } }
+.sheet.open { animation: up var(--t-2) var(--ease); }
+@keyframes up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
 .sh-hd { display: flex; align-items: center; gap: 8px; min-height: 48px; position: sticky; top: -8px; background: var(--surface); z-index: 3; margin: 0 -4px; padding-top: 2px; }
-.sh-hd.pers { padding-top: 12px; padding-bottom: 6px; }
-.sh-hd .ttlg { font-size: 22px; display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-weight: 700; }
-.sh-hd .ttlg .bld { font-size: 14px; font-weight: 600; color: var(--ink2); letter-spacing: .02em; }   /* PIA-152: ⚙'s build number */
-.sh-hd .ttlg .sttl { font-size: 16px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(48vw, 200px); }   /* PIA-153: P-stage from a card names its trip */
-.sh-hd .ttlg .sttl.wide { font-size: 17px; max-width: min(calc(100vw - 116px), 314px); }   /* PIA-154: More's header is the title, across its row */
+.sh-hd.pers { padding-top: 12px; padding-bottom: 8px; }
+.sh-hd .ttlg { font-size: var(--fs-5); display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; font-weight: 700; }
+.sh-hd .ttlg .bld { font-size: inherit; font-weight: 700; color: var(--ink); letter-spacing: .02em; font-family: var(--font-num); }   /* PIA-152: ⚙'s build number (PIA-160: the sheet's title, read aloud over the phone) */
+.sh-hd .ttlg .sttl { font-size: var(--fs-3); font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: min(48vw, 200px); }   /* PIA-153: P-stage from a card names its trip */
+.sh-hd .ttlg .sttl.wide { font-size: var(--fs-3); max-width: min(calc(100vw - 116px), 314px); }   /* PIA-154: More's header is the title, across its row */
 .rowc { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .rowc.nw { flex-wrap: nowrap; }
-.hchip { min-height: 44px; padding: 0 10px; border-radius: 22px; border: 1.5px solid var(--line); font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+.hchip { min-height: 44px; padding: 0 10px; border-radius: var(--r-pill); border: 1.5px solid var(--edge); font-size: var(--fs-2); font-weight: 600; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .hchip[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
-.tg2 { display: inline-grid; grid-auto-flow: column; background: var(--sunk); border-radius: 12px; padding: 3px; }
-.tg2 button { min-width: 52px; min-height: 44px; border-radius: 9px; font-size: 19px; display: grid; place-items: center; }
+.tg2 { display: inline-grid; grid-auto-flow: column; background: var(--sunk); border-radius: var(--r-2); padding: 3px; }
+.tg2 button { min-width: 52px; min-height: 44px; border-radius: var(--r-1); font-size: 19px; display: grid; place-items: center; }
 .tg2 button[aria-pressed="true"] { background: var(--surface); box-shadow: 0 1px 2px var(--shade); }
-.tg2 button.dis { opacity: .4; cursor: not-allowed; } /* PIA-153: the trip's half on a trip still to be updated */
-.readout { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 8px; align-items: center; min-height: 28px; }
+.tg2 button.dis { cursor: not-allowed; } /* PIA-153: the trip's half on a trip still to be updated (PIA-160: quiet, at the end of the sheet) */
+.readout { font-size: var(--fs-3b); font-weight: 700; font-variant-numeric: tabular-nums; display: flex; gap: 8px; align-items: center; min-height: 28px; }
 .readout .w { color: var(--bad); }
-.tool { min-width: 48px; min-height: 48px; border-radius: 14px; border: 1.5px solid var(--line); display: inline-grid; place-items: center; font-size: 19px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 6px; }
+.tool { min-width: 48px; min-height: 48px; border-radius: var(--r-2); border: 1.5px solid var(--edge); display: inline-grid; place-items: center; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 6px; }
 .tool[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
-.tool:disabled, .tool.dis, .hchip.dis, .btn.pri.dis { opacity: .4; cursor: not-allowed; }
+.tool:disabled { opacity: .4; cursor: not-allowed; }
+.tool.dis, .hchip.dis { cursor: not-allowed; }   /* (PIA-160: quiet, at the end of the sheet) */
 .tool.arm { border-color: var(--bad); color: var(--bad); }
 /* PIA-138: P-dates and P-day */
-.dc[aria-pressed="true"] .dn { font-weight: 800; }
+.dc[aria-pressed="true"] .dn { font-weight: 700; }
 .dc.ro { cursor: pointer; }
-.datehd { display: flex; align-items: center; gap: 8px; }
-.endseg button { min-width: 48px; font-size: 18px; }
-.dayn { display: inline-flex; align-items: center; gap: 2px; font-size: 18px; margin-left: 6px; font-variant-numeric: tabular-nums; }
-.dayfaces .dayf { min-height: 76px; border-radius: 14px; padding: 4px 2px; align-content: start; }
+.dayn { display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-3b); margin-left: 6px; font-variant-numeric: tabular-nums; }
+.dayfaces .dayf { min-height: 76px; border-radius: var(--r-3); padding: 4px 2px; align-content: start; }
 .dayfaces .mayf .av { outline: 3px dashed var(--maybe); outline-offset: 2px; }
-.leg .tool { min-width: 44px; min-height: 44px; font-size: 15px; padding: 0 4px; border-radius: 12px; }
-.leg button.ld { border-radius: 10px; padding: 0 4px; border: 1.5px dashed var(--line); justify-content: center; }
+.leg .tool { min-width: 44px; min-height: 44px; font-size: var(--fs-2); padding: 0 4px; border-radius: var(--r-2); }
+.leg button.ld { border-radius: var(--r-2); padding: 0 4px; border: 1.5px dashed var(--edge); justify-content: center; }
 /* PIA-138 fix pass: P-dates fits a phone without hiding a control. The sheet may use the whole height, its rows sit closer,
    the organizer's tools are above the grid, and Save never lets what is under it show through: a disabled (or busy) Save
    dims its label, not the bar. */
@@ -483,28 +519,25 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
    (🔍N, Move) stays in view the same way on a short phone with a long party */
 #sheet[data-popup="P-dates"] .btn.stick::before, #sheet[data-popup="P-cheapest"] .btn.stick::before { content: ""; position: absolute; left: -16px; right: -16px; bottom: calc(100% + 6px); height: 14px; background: linear-gradient(to bottom, transparent, var(--surface)); pointer-events: none; }
 #sheet[data-popup="P-dates"] .btn.stick.dis, #sheet[data-popup="P-dates"] .btn.stick[aria-disabled="true"],
-#sheet[data-popup="P-cheapest"] .btn.stick.dis, #sheet[data-popup="P-cheapest"] .btn.stick[aria-disabled="true"] { opacity: 1; background: var(--sunk); color: var(--ink2); border-color: var(--line); }
-.ib.dis { opacity: .4; cursor: not-allowed; }
+#sheet[data-popup="P-cheapest"] .btn.stick.dis, #sheet[data-popup="P-cheapest"] .btn.stick[aria-disabled="true"] { opacity: 1; background: var(--sunk); color: var(--ink2); border-color: var(--edge); }
+.ib.dis { cursor: not-allowed; }
 .rdrow { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 28px; }
 .rdrow .readout { flex: 1 1 auto; min-width: 0; }
 .readout .fol { color: var(--ink2); font-weight: 600; }   /* an end that still follows the plan */
 .readout .w.amb { color: var(--maybe); }                   /* off the plan: allowed, so amber, not an error */
-.tool.wordy { padding: 0 10px; gap: 4px; display: inline-flex; align-items: center; font-size: 16px; }
-.cw { font-size: 15px; font-weight: 700; }
-.hchip.dis { opacity: .4; }
+.tool.wordy { padding: 0 10px; gap: 4px; display: inline-flex; align-items: center; font-size: var(--fs-3); }
+.cw { font-size: var(--fs-2); font-weight: 700; }
 .shiftrow { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .shiftrow .tool { width: 100%; }
-.followplan svg { width: 40px; height: 20px; }
 .ptile { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.tile { min-height: 96px; border-radius: 16px; border: 1.5px solid var(--line); display: grid; justify-items: center; align-content: center; gap: 6px; position: relative; font-size: 16px; font-weight: 600; padding: 8px; }
+.tile { min-height: 96px; border-radius: var(--r-3); border: 1.5px solid var(--edge); display: grid; justify-items: center; align-content: center; gap: 6px; position: relative; font-size: var(--fs-3); font-weight: 600; padding: 8px; }
 .tile.hint { border-color: var(--ink); border-width: 2.5px; }
 .tile .tb { position: absolute; top: 6px; right: 8px; font-size: 15px; }
 .tile .tw { position: absolute; top: 6px; left: 8px; font-size: 16px; }
-.tile .x { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink2); }
-.tile.join { font-size: 26px; }
-.fld { display: flex; align-items: center; gap: 8px; min-height: 48px; border: 1.5px solid var(--line); border-radius: 12px; padding: 0 10px; flex: 1; min-width: 0; }
+.tile .x { font-size: var(--fs-1); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink2); }
+.fld { display: flex; align-items: center; gap: 8px; min-height: 48px; border: 1.5px solid var(--edge); border-radius: var(--r-2); padding: 0 10px; flex: 1; min-width: 0; }
 .fld label { font-size: 18px; flex: none; }
-.fld input { border: 0; background: transparent; min-width: 0; flex: 1; font-size: 17px; height: 44px; }
+.fld input { border: 0; background: transparent; min-width: 0; flex: 1; font-size: var(--fs-3); height: 44px; }
 .fld input:focus { outline: none; }
 .fld:focus-within { border-color: var(--ink); box-shadow: 0 0 0 2px var(--focus); }
 .fld.code { flex: none; width: 104px; }
@@ -512,42 +545,41 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .fld.code input { text-transform: uppercase; letter-spacing: .02em; font-weight: 700; width: 100%; }
 .fld.tiny { flex: none; width: 124px; }
 .fld.tiny input { font-variant-numeric: tabular-nums; }
-.urlfld { border: 0; background: transparent; color: inherit; font: 14px/1.3 var(--mono); width: 100%; resize: none; padding: 6px 0; word-break: break-all; }
 .fld.bad { border-color: var(--bad); }
-.pulsefld { animation: nudge .5s 2; border-color: var(--bad); }
+.pulsefld { animation: nudge .4s 2; border-color: var(--bad); }
 .scenes { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 2px; }
-.scenes button { min-height: 44px; border-radius: 12px; font-size: 22px; display: grid; place-items: center; }
+.scenes button { min-height: 44px; border-radius: var(--r-2); font-size: 22px; display: grid; place-items: center; }
 .scenes button[aria-pressed="true"] { background: var(--sunk); box-shadow: inset 0 0 0 2px var(--ink); }
 .stepdots { display: flex; gap: 6px; } .stepdots i { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--ink); } .stepdots i.on { background: var(--ink); }
 .mlist { display: grid; gap: 8px; }
 .mrow { display: flex; align-items: center; gap: 6px; }
-.mrow.ed { display: grid; gap: 6px; padding: 8px; border: 1.5px solid var(--ink); border-radius: 14px; }
+.mrow.ed { display: grid; gap: 6px; padding: 8px; border: 1.5px solid var(--ink); border-radius: var(--r-3); }
 .mline { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .mrow .fld { min-height: 44px; padding: 0 8px; flex: 1 1 0; min-width: 0; }
-.mrow.mchip { min-height: 48px; width: 100%; padding: 0 12px 0 8px; border-radius: 14px; border: 1.5px solid var(--line); font-size: 16px; font-weight: 600; text-align: left; gap: 8px; }
-.mchip .mf { font-size: 22px; } .mchip .mn { flex: 1; min-width: 0; overflow-wrap: anywhere; } .mchip .mc { font-weight: 800; letter-spacing: .02em; }
+.mrow.mchip { min-height: 48px; width: 100%; padding: 0 12px 0 8px; border-radius: var(--r-3); border: 1.5px solid var(--edge); font-size: var(--fs-3); font-weight: 600; text-align: left; gap: 8px; }
+.mchip .mf { font-size: 22px; } .mchip .mn { flex: 1; min-width: 0; overflow-wrap: anywhere; } .mchip .mc { font-weight: 700; letter-spacing: .04em; }
 .fld input { width: 100%; }
-.mrow .fld input { height: 44px; font-size: 16px; }
+.mrow .fld input { height: 44px; font-size: var(--fs-3); }
 .mrow .fld.code { width: 132px; flex: none; } .mrow .fld.code input { width: 100%; }
-.mrow .ib { font-size: 17px; border: 1.5px solid var(--line); }
+.mrow .ib { font-size: 17px; border: 1.5px solid var(--edge); }
 .mrow .ib[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
-.mrow .cntb { font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.mchip { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 4px; border-radius: 22px; border: 1.5px solid var(--line); font-size: 15px; font-weight: 600; }
-.preset { min-height: 48px; padding: 0 12px; border-radius: 24px; border: 1.5px solid var(--line); display: inline-flex; align-items: center; gap: 2px; font-size: 18px; }
+.mrow .cntb { font-size: var(--fs-2); font-weight: 700; font-variant-numeric: tabular-nums; }
+.mchip { min-height: 44px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px 0 4px; border-radius: var(--r-pill); border: 1.5px solid var(--edge); font-size: var(--fs-2); font-weight: 600; }
+.preset { min-height: 48px; padding: 0 12px; border-radius: var(--r-pill); border: 1.5px solid var(--edge); display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-3b); }
 .preset[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
 .legs { display: grid; gap: 6px; }
-.leg { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; min-height: 48px; }
-.leg .lg0, .leg .lg1 { min-width: 44px; min-height: 44px; display: grid; place-items: center; font-size: 18px; border-radius: 12px; }
-.leg .lg1 { border: 1.5px solid var(--ink); font-weight: 700; font-size: 16px; }
-.leg .ld { min-height: 44px; display: inline-flex; align-items: center; font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; min-width: 62px; }
-.pline { display: flex; align-items: center; gap: 10px; min-height: 40px; font-size: 18px; font-weight: 700; }
+.leg { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-height: 52px; }
+.leg .lg0, .leg .lg1 { min-width: 44px; min-height: 44px; display: grid; place-items: center; border-radius: var(--r-2); }
+.leg .lg1 { border: 1.5px solid var(--edge); font-weight: 700; }
+.leg .ld { min-height: 44px; display: inline-flex; align-items: center; font-size: var(--fs-3); font-weight: 700; font-variant-numeric: tabular-nums; min-width: 64px; }
+.pline { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: var(--fs-3b); font-weight: 600; }
 .leg .ld.own { text-decoration: underline 3px var(--pc); text-underline-offset: 4px; }
 .leg .rad { width: 44px; height: 44px; display: grid; place-items: center; border-radius: 50%; }
 .leg .rad i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--ink); }
 .leg .rad[aria-checked="true"] i { background: var(--ink); box-shadow: inset 0 0 0 3px var(--surface); }
-.leg .lp { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; display: inline-flex; gap: 4px; align-items: center; margin-left: auto; }
+.leg .lp { font-size: var(--fs-2); font-weight: 700; font-variant-numeric: tabular-nums; display: inline-flex; gap: 4px; align-items: center; margin-left: auto; }
 .leg .lp.hollow { color: var(--ink3); } .leg .lp.stale { color: var(--mute); }
-.leghd { display: flex; justify-content: flex-end; gap: 0; font-size: 13px; font-weight: 800; letter-spacing: .02em; padding-right: 0; }
+.leghd { display: flex; justify-content: flex-end; gap: 0; font-size: var(--fs-1); font-weight: 700; letter-spacing: .04em; padding-right: 0; }
 .leghd span { width: 44px; text-align: center; }
 /* Google's price level as a gauge: three bars low → high, outlined; the level's own bar filled (low green, typical ink, high red) */
 .lvl { display: inline-flex; gap: 1px; align-items: flex-end; height: 14px; flex: none; }
@@ -555,27 +587,27 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .lvl i.on { border-color: transparent; background: var(--ink2); } .lvl.l1 i.on { background: var(--in); } .lvl.l3 i.on { background: var(--bad); }
 .lgp.stale .lvl i.on { background: var(--mute); }
 .lvl i:nth-child(1) { height: 5px; } .lvl i:nth-child(2) { height: 9px; } .lvl i:nth-child(3) { height: 13px; }
-.notep { display: flex; align-items: center; gap: 8px; min-height: 44px; font-size: 16px; text-align: left; border-radius: 12px; padding: 0 8px; border: 1.5px solid var(--line); width: 100%; }
+.notep { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: var(--fs-3); font-weight: 400; text-align: left; border-radius: var(--r-2); padding: 0 12px; border: 1.5px solid var(--edge); width: 100%; }
 .trow { display: flex; align-items: center; gap: 8px; min-height: 52px; border-bottom: 1px solid var(--line); }
 .trow:last-child { border-bottom: 0; }
-.trow .legsx { display: flex; flex-wrap: wrap; gap: 4px 12px; flex: 1; justify-content: flex-end; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.trow .legsx { display: flex; flex-wrap: wrap; gap: 4px 12px; flex: 1; justify-content: flex-end; font-size: var(--fs-2); font-weight: 700; font-variant-numeric: tabular-nums; }
 /* only a leg (a direct child) is laid out here: its own parts (the level gauge, the stops line) keep their .lgp / .lvl rules,
    so P-total draws a leg exactly as P-person does ($— dashed, the gauge bottom-aligned) */
 .trow .legsx > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
-.sum { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 8px; }
+.sum { font-size: var(--fs-6); font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 8px; }
 .sdots { display: inline-flex; gap: 3px; } .sdots i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid var(--ink2); } .sdots i.on { background: var(--ink2); }
 /* PIA-140: prices */
 .totb { margin-left: auto; display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; border-radius: 12px; }
 .totb .tot { margin-left: 0; }
-.dl { font-size: 15px; font-weight: 700; color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
-.sum .dl { font-size: 16px; }
+.dl { font-size: var(--fs-2); font-weight: 700; color: var(--ink2); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sum .dl { font-size: var(--fs-3); }
 .sum.stale .tot { color: var(--mute); }
 .trows { display: grid; margin: 4px 0 8px; }
 .trow .facebtn { position: relative; flex: none; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
-.trow .facebtn .cnt { position: absolute; right: -2px; bottom: 0; font-size: 11px; font-weight: 800; background: var(--surface); border-radius: 6px; padding: 0 2px; }
-.lgp { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; min-height: 32px; }
+.trow .facebtn .cnt { position: absolute; right: -2px; bottom: 0; font-size: 13px; font-weight: 700; background: var(--surface); border-radius: 6px; padding: 0 2px; }
+.lgp { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: var(--fs-2); font-weight: 700; font-variant-numeric: tabular-nums; min-height: 32px; }
 .lgp .lgk { font-size: 15px; }
-.lgp .lc { font-size: 13px; font-weight: 800; letter-spacing: .02em; color: var(--ink2); }
+.lgp .lc { font-size: max(var(--fs-1), .92em); font-weight: 700; letter-spacing: .04em; color: var(--ink2); }
 .lgp.stale { color: var(--mute); } .lgp.stale .agering { opacity: .7; }
 .lgp.hollow { color: var(--ink3); border: 1.5px dashed var(--ink3); border-radius: 8px; padding: 0 6px; }
 .lgp.none { color: var(--ink2); }
@@ -584,9 +616,9 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .frow { gap: 6px 14px; }
 .dayp { gap: 6px; }
 .dayp .lgk { min-width: 28px; font-size: 18px; text-align: center; }
-.dch { flex: 1 1 0; min-width: 0; min-height: 48px; display: grid; place-items: center; align-content: center; gap: 0; border-radius: 12px; border: 1.5px solid var(--line); padding: 2px 4px; position: relative; font-size: 14px; line-height: 1.15; }
-.dch .dd { font-size: 12px; color: var(--ink2); font-weight: 600; }
-.dch b { font-size: 15px; }
+.dch { flex: 1 1 0; min-width: 0; min-height: 48px; display: grid; place-items: center; align-content: center; gap: 0; border-radius: var(--r-2); border: 1.5px solid var(--edge); padding: 2px 4px; position: relative; font-size: var(--fs-2); line-height: 1.15; }
+.dch .dd { font-size: var(--fs-1); color: var(--ink2); font-weight: 600; }
+.dch b { font-size: var(--fs-2); }
 .dch.cur { border-color: var(--ink); }
 /* a day that one tap makes theirs looks like a button (raised); one that can't move them sits flat and says why on a tap */
 button.dch.tap { border-color: var(--ink2); background: var(--surface); box-shadow: 0 2px 0 var(--line); cursor: pointer; }
@@ -597,17 +629,17 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .dayp .btn.sq { min-height: 48px; width: 56px; font-size: 16px; gap: 2px; }
 .budget { justify-content: space-between; min-height: 32px; margin: 4px 0; }
 .budget .bl { gap: 8px; }
-.temo { font-size: 26px; line-height: 1; margin-right: 2px; flex: none; }
+.temo { font-size: 28px; line-height: 1; margin-right: 2px; flex: none; }
 .chipq.lk { color: var(--bad); border-color: var(--bad); }
 .tool.tokdoor { opacity: .55; border-style: dashed; }
 .frow .sdots { margin-left: auto; }
-.budget .bud { font-size: 15px; font-weight: 700; }
-.mu { font-size: 15px; font-weight: 700; color: var(--ink2); padding-left: 2px; }
+.budget .bud { font-size: var(--fs-2); font-weight: 700; }
+.mu { font-size: var(--fs-2); font-weight: 700; color: var(--ink2); padding-left: 2px; }
 .fld.capf { flex: none; width: 184px; } .fld.capf input { font-weight: 700; font-variant-numeric: tabular-nums; }
-.capt { font-size: 15px; font-weight: 700; color: var(--bad); white-space: nowrap; }
+.capt { font-size: var(--fs-2); font-weight: 700; color: var(--bad); white-space: nowrap; }
 /* PIA-141: P-cheapest, the cheapest week on demand: ≤7 bars a page (7 × 44px + 6 × 2px = 320px fits 360), paging on its own row */
 .cstrip { display: grid; grid-template-columns: repeat(7, minmax(44px, 1fr)); gap: 2px; align-items: end; }
-.cbar { min-width: 44px; height: 156px; display: grid; grid-template-rows: 18px minmax(0, 1fr) 16px 16px; justify-items: center; align-items: end; gap: 2px; border-radius: 10px; padding: 3px 0 4px; position: relative; }
+.cbar { min-width: 44px; height: 156px; display: grid; grid-template-rows: 18px minmax(0, 1fr) 16px 16px; justify-items: center; align-items: end; gap: 2px; border-radius: var(--r-2); padding: 3px 0 4px; position: relative; }
 .cbar .v { font-size: 11px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; line-height: 18px; letter-spacing: -.02em; }
 .cbar .v.sm { font-size: 9.5px; letter-spacing: -.04em; }
 .cbar .cw2 { width: 100%; height: 100%; display: flex; align-items: flex-end; justify-content: center; }
@@ -616,7 +648,7 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .cbar .col.hollow { background: transparent; border: 2px dashed var(--ink3); height: 28px; }
 .cbar .col.none { background: transparent; border: 2px solid var(--ink3); height: 10px; }
 .cbar .col .st { position: absolute; top: 2px; left: 50%; transform: translateX(-50%); font-size: 13px; line-height: 1; color: var(--on-ink); }
-.cbar .d { font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); line-height: 16px; }
+.cbar .d { font-size: var(--fs-1); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); line-height: 16px; }
 .cbar .wf { font-size: 11px; line-height: 16px; height: 16px; color: var(--bad); white-space: nowrap; }
 .cbar[aria-pressed="true"] { background: var(--sunk); }
 .cbar.cur { box-shadow: inset 0 0 0 2px var(--ink); }
@@ -626,10 +658,10 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .cgrp.wd .tool { border-style: dashed; }
 /* below the 360 gate (a 320px phone): 6 bars a page, each still ≥44px */
 @media (max-width: 339px) { .cstrip { grid-template-columns: repeat(6, minmax(44px, 1fr)); } }
-.csel { justify-content: center; gap: 10px; font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; min-height: 28px; }
+.csel { justify-content: center; gap: 10px; font-size: var(--fs-3); font-weight: 700; font-variant-numeric: tabular-nums; min-height: 28px; }
 .csel .stl { color: var(--mute); }
 .cchips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
-.cchip { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 2px 9px 2px 3px; border-radius: 18px; background: var(--sunk); font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cchip { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 2px 9px 2px 3px; border-radius: var(--r-pill); background: var(--sunk); font-size: var(--fs-2); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .cchip.own .av::after { content: ""; position: absolute; left: 3px; right: 3px; bottom: -4px; height: 2.5px; border-radius: 2px; background: var(--ink); }
 .cchip.off { box-shadow: inset 0 0 0 1.5px var(--bad); }
 .cchip .hv { color: var(--ink3); border: 1.5px dashed var(--ink3); border-radius: 8px; padding: 0 4px; }
@@ -641,63 +673,86 @@ button.dch.ro { background: var(--sunk); border-color: transparent; cursor: defa
 .kbar.stale { background: var(--mute); opacity: .6; }
 .kown { position: relative; display: inline-block; } .kown::after { content: ""; position: absolute; left: 0; right: 0; bottom: -3px; height: 2.5px; border-radius: 2px; background: var(--ink); }
 .cards-mini { display: grid; gap: 8px; }
-.mini { display: flex; gap: 10px; align-items: center; min-height: 64px; padding: 6px 8px; border-radius: 14px; border: 1.5px solid var(--line); text-align: left; width: 100%; }
-.mini .mt { flex: 1; min-width: 0; font-weight: 600; font-size: 15px; overflow-wrap: anywhere; } /* the whole title, like every other card */
-.mini .md { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); }
+.mini { display: flex; gap: 10px; align-items: center; min-height: 64px; padding: 6px 8px; border-radius: var(--r-3); border: 1.5px solid var(--edge); text-align: left; width: 100%; }
+.mini .mt { flex: 1; min-width: 0; font-weight: 600; font-size: var(--fs-2); overflow-wrap: anywhere; } /* the whole title, like every other card */
+.mini .md { font-size: var(--fs-1); font-weight: 600; font-variant-numeric: tabular-nums; color: var(--ink2); }
 .mini .ck { width: 30px; height: 30px; border-radius: 50%; border: 2px solid var(--ink3); display: grid; place-items: center; color: var(--on-ink); flex: none; }
 .mini[aria-pressed="true"] { border-color: var(--ink); }
 .mini[aria-pressed="true"] .ck { background: var(--ink); border-color: var(--ink); }
 .mini .ck svg { width: 16px; height: 16px; }
 .mini.dim { color: var(--ink2); background: var(--sunk); } .mini.dim .pc { opacity: .55; }
-.followplan { display: inline-flex; align-items: center; gap: 2px; padding: 4px 10px; border-radius: 18px; border: 1.5px solid var(--ink2); }
 .followb { border-color: var(--ink2); }
 .followb[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
 .legend { display: grid; gap: 4px; }
-.legend .li { display: flex; align-items: center; gap: 12px; min-height: 36px; font-size: 16px; }
-.legend .gl { width: 54px; display: grid; place-items: center; font-size: 18px; flex: none; }
-.lbl-bubble { position: fixed; z-index: 90; background: var(--ink); color: var(--on-ink); font-size: 15px; font-weight: 700; padding: 8px 12px; border-radius: 12px; pointer-events: none; white-space: nowrap; }
+.legend .li { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: var(--fs-3); font-weight: 400; }
+.legend .gl { width: 56px; display: grid; place-items: center; font-size: 22px; flex: none; }
+.kpg { font-size: var(--fs-2); }   /* ⓘ's page counter (n/N) */
+/* PIA-160: ⚙'s 📐 width and 🔠 text size, numerals only, so a device check can be read over the phone */
+.phonerow { margin: 0; display: flex; align-items: center; gap: 6px; min-height: 44px; font-size: var(--fs-2); color: var(--ink2); }
+/* (PIA-160: the long-press bubble and a "why" label wrap inside the screen, at 17px; a trip's title too) */
+.lbl-bubble { position: fixed; z-index: 90; background: var(--ink); color: var(--on-ink); font-size: var(--fs-3); line-height: var(--lh-2); font-weight: 600; padding: 10px 14px; border-radius: var(--r-2); pointer-events: none; white-space: normal; max-width: min(320px, calc(100vw - 32px)); text-wrap: balance; }
 .lbl-bubble::before { content: ""; position: absolute; left: calc(var(--ax, 50%) - 5px); width: 10px; height: 10px; background: var(--ink); transform: rotate(45deg); }
 .lbl-bubble.side-t::before { bottom: -4px; } .lbl-bubble.side-b::before { top: -4px; }
-.lbl-bubble.ttl { white-space: normal; max-width: min(320px, calc(100vw - 16px)); } /* PIA-142: a trip's title wraps inside the screen */
-.toast { pointer-events: none; position: fixed; z-index: 95; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--on-ink); font-size: 16px; font-weight: 700; padding: 10px 16px; border-radius: 14px; max-width: calc(100% - 32px); display: grid; gap: 8px; }
-.toast.top { bottom: auto; top: calc(0px + 12px); }
-.toast .tt { display: flex; align-items: center; gap: 10px; }
-.toast .undo { pointer-events: auto; min-width: 44px; min-height: 44px; border-radius: 10px; background: var(--surface); color: var(--ink); font-size: 20px; font-weight: 800; }
-.toast input { pointer-events: auto; font: 13px var(--mono); width: 100%; min-width: 0; border-radius: 8px; border: 0; padding: 6px; background: var(--surface); color: var(--ink); }
-.linkfld { font: 13px var(--mono); width: 100%; min-height: 44px; border-radius: 10px; border: 1.5px solid var(--line); padding: 8px; background: var(--sunk); color: var(--ink); }
-.dayrow { display: flex; align-items: center; gap: 10px; min-height: 52px; font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
-.dayrow .t.pred { color: var(--mute); }
-.dayfaces { display: flex; flex-wrap: wrap; gap: 14px; padding: 6px 2px 10px; }
-.dayf { display: grid; justify-items: center; gap: 6px; min-width: 52px; }
+.toast { pointer-events: none; position: fixed; z-index: 95; left: 50%; bottom: calc(150px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--ink); color: var(--on-ink); font-size: var(--fs-3); line-height: var(--lh-2); font-weight: 600; padding: 12px 16px; border-radius: var(--r-3); max-width: calc(100% - 32px); display: grid; gap: 8px; text-wrap: balance; --echw: calc(100vw - 64px); }
+.toast:not([hidden]) { animation: fadein var(--t-2) var(--ease); }
+@keyframes fadein { from { opacity: 0; } }
+.toast.top { bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 12px); }
+.toast .tt { display: flex; align-items: center; gap: 8px; }
+/* (PIA-160: the times echo, halves that each stay whole, wrapping only after its ·: it asks for its full one-line width, up to the
+   toast's content width (--echw: the screen less the toast's margins and padding; on a desktop 366px, a 398px toast's), less the
+   8px gap and the 44px share symbol when that sits beside it, so a toast that would shrink to half the screen never drops a half or
+   its ✓, and the halves and the share symbol stay inside the toast. Never narrower than its widest half: where even that leaves no
+   room beside the share symbol (320px at the largest text sizes), the symbol goes under the echo, at the right) */
+.toast.echo { width: max-content; }
+.toast.echo .tt { flex-wrap: wrap; }
+.toast.echo .tt > .undo { margin-left: auto; }
+.toast .ech { display: block; width: max-content; max-width: var(--echw); min-width: min-content; }
+.toast .ech:not(:last-child) { max-width: calc(var(--echw) - 52px); }
+.toast .nw { white-space: nowrap; }
+.toast .undo { pointer-events: auto; min-width: 44px; min-height: 44px; border-radius: var(--r-2); background: var(--surface); color: var(--ink); font-size: 20px; font-weight: 700; }
+.linkfld { font: 16px var(--mono); width: 100%; min-height: 44px; border-radius: var(--r-2); border: 1.5px solid var(--edge); padding: 8px; background: var(--sunk); color: var(--ink); }
+.dayfaces { display: flex; flex-wrap: wrap; gap: 12px; padding: 8px 0 12px; }
+.dayf { display: grid; justify-items: center; gap: 6px; min-width: 60px; }
+.dayf .fn, .mapday .pk .fn, #sheet .rowc > .fn { font-size: var(--fs-2); }   /* (PIA-160: a name under a face in a sheet is 15px) */
 .dayfaces .dimf .av { background: var(--sunk); box-shadow: none; outline: none; } .dayfaces .dimf .av > .f, .dayfaces .dimf .mk, .dayfaces .dimf .bd { opacity: .35; }
 .confetti { position: fixed; z-index: 96; pointer-events: none; width: 8px; height: 8px; border-radius: 2px; }
 .tiles6 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .tiles6 .tool { min-height: 64px; font-size: 24px; width: 100%; }
 .tiles6.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-.warnline { color: var(--bad); font-weight: 700; font-size: 16px; }
-.txt { width: 100%; min-height: 96px; border-radius: 12px; border: 1.5px solid var(--line); padding: 10px; font: 17px/1.35 var(--font); background: var(--surface); color: var(--ink); resize: vertical; }
+.warnline { color: var(--bad); font-weight: 700; font-size: var(--fs-3); }
+.txt { width: 100%; min-height: 96px; border-radius: var(--r-2); border: 1.5px solid var(--edge); padding: 10px; font: 400 var(--fs-3)/var(--lh-3) var(--font); background: var(--surface); color: var(--ink); resize: vertical; }
 .txt:focus { outline: none; border-color: var(--ink); box-shadow: 0 0 0 2px var(--focus); }
-.counter { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink2); text-align: right; }
+.counter { font-size: var(--fs-1); font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink2); text-align: right; }
 
 @media (min-width: 700px) {
   body { background: var(--backdrop); }
-  .app { max-width: 430px; margin: 0 auto; background: var(--bg); min-height: calc(100% - 48px); }
+  .app { max-width: 430px; margin: 0 auto; background: var(--bg); min-height: calc(100% - 48px); box-shadow: 0 0 0 1px var(--line), 0 24px 64px var(--shade); }   /* (PIA-160: a framed column) */
   .toprow, .nav { background: var(--bg); }
   .tabbar { left: 50%; right: auto; width: 430px; transform: translateX(-50%); }
-  .fab, .calfab { right: calc(50% - 215px + 16px); }
-  .sheet { left: 50%; right: auto; bottom: auto; top: calc(50% + 0px / 2); width: 430px; max-height: calc(100% - 0px - 32px); transform: translate(-50%, -50%); border-radius: 22px; }
+  .sheet { left: 50%; right: auto; bottom: auto; top: calc(50% + 0px / 2); width: 430px; max-height: calc(100% - 0px - 32px); transform: translate(-50%, -50%); border-radius: var(--r-4); }
   #sheet[data-popup="P-dates"] { max-height: calc(100% - 0px - 32px); }
   .sheet.open { animation: none; }
   .sh-hd { top: -8px; }
-  .ib:hover, .tool:hover, .hchip:hover { background: var(--sunk); }
+  .toast { max-width: min(calc(100% - 32px), 398px); --echw: min(calc(100vw - 64px), 366px); }
 }
+/* PIA-160: hover only with a mouse, and only where a fill means nothing (never over a pressed, booked, picked or done state); a tap
+   on a touch screen dims what it touched for a moment instead (no grey square left behind on an iPhone) */
+@media (hover: hover) and (pointer: fine) {
+  .ib:hover, .hchip:not([aria-pressed="true"]):hover, .tool:not([aria-pressed="true"]):not(.done):hover, .mrowb:hover, .pricerow:hover, .ib.newb.ghostb:hover,
+  .btn:not(.pri):not(.ok):not(.tkon):not(.arm):not(.danger):not(.dis):not([aria-pressed="true"]):not([aria-disabled="true"]):hover { background: var(--sunk); }
+}
+@media (hover: none) { button:not(:disabled):not([aria-disabled="true"]):active, a.btn:active, a.slot:active { opacity: .72; transition: opacity var(--t-1); } }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  /* (PIA-160: every invite keeps a still cue: a ring for a pulse, an outline for a nudge) */
+  .pulse, .btn.glow, .fld.invite { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 45%, transparent); }
+  .answers.nudge, .pulsefld { outline: 2px solid var(--bad); outline-offset: 2px; }
+  .sheet.open, .card.fly, .toast { animation: none; }
 }
-.errline { display: flex; align-items: center; gap: 12px; min-height: 56px; font-size: 22px; font-weight: 700; }
+.errline { display: flex; align-items: center; gap: 12px; min-height: 56px; font-size: var(--fs-5); font-weight: 700; }
 .errline .eg { font-size: 34px; line-height: 1; }
 textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
-.apill .fn { font-size: 14px; max-width: none; overflow: visible; }
+.apill .fn { font-size: var(--fs-2); max-width: none; overflow: visible; }
 /* PIA-142: the Family board (people × trips): 76px row heads beside ≤4 trip columns of ≥63px at 360px */
 .board .corner { display: grid; place-items: center; min-height: 64px; }
 .board .hd { width: 100%; min-width: 0; }
@@ -706,7 +761,7 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .board .hd.past { color: var(--ink2); }
 .board .hd.past .sc { background: transparent; box-shadow: inset 0 0 0 1.5px var(--line); }
 .board .rowh { min-width: 0; padding: 2px 0; border-radius: 12px 0 0 12px; }
-.board .rowh .fn { max-width: 72px; margin-top: 2px; }
+.board .rowh .fn { max-width: 76px; margin-top: 2px; }   /* (PIA-160: the name may use its whole 76px row head) */
 .board .rowh .facebtn[aria-pressed="true"] .av { box-shadow: 0 0 0 3px var(--surface), 0 0 0 5px var(--ink); }
 .board .hl { background: var(--sunk); }
 .cell { width: 100%; min-width: 0; }
@@ -718,26 +773,24 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .pager { align-items: center; }
 .pgdots { display: inline-flex; gap: 6px; padding: 8px; } .pgdots i { width: 8px; height: 8px; border-radius: 50%; background: var(--line); } .pgdots i.on { background: var(--ink); }
 .ib.pg[aria-disabled="true"] { opacity: .4; }
-.famghost { border: 2px dashed var(--line); border-radius: 18px; padding: 14px; display: flex; align-items: center; gap: 10px; }
+.famghost { border: 2px dashed var(--line); border-radius: var(--r-4); padding: 14px; display: flex; align-items: center; gap: 10px; }
 .famghost .gfaces { display: flex; gap: 8px; flex: 1; min-width: 0; }
 .famghost .gface { width: 44px; height: 44px; border-radius: 50%; border: 2.5px dotted var(--mute); flex: none; }
-.ib.newb { background: var(--ink); color: var(--on-ink); font-size: 26px; border-radius: 14px; }
+.ib.newb { background: var(--ink); color: var(--on-ink); font-size: 28px; border-radius: var(--r-2); }
 .ib.newb:hover { background: var(--ink); }
 .ib.joinb { border: 1.5px solid var(--ink); padding: 0 8px; gap: 2px; display: inline-flex; align-items: center; }
-.ib.joinb .to { font-size: 17px; }
+.ib.joinb .to { font-size: var(--fs-3); }
 .btn[aria-disabled="true"] { opacity: .4; }
 .mine .w { color: var(--bad); }
 .tile.legacy { border-style: dashed; } /* a v1 'Me': who it is is not confirmed yet */
-.mgfaces { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
 .tile.mg { min-height: 84px; } .tile.mg .mf { font-size: 30px; line-height: 1; }
-.hchip.mplan { min-height: 48px; font-size: 16px; }
 /* PIA-135: the shared watchlist */
 .ib.share { font-size: 15px; }
 .ib.share .badge { right: -6px; }
 .card .rst { border: 1.5px solid var(--ink); }
 .card-b .pill { flex: 0 1 auto; }   /* never squeezed below its content: row B wraps instead */
 .tot { cursor: default; }
-.kbadge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 9px; background: var(--ink); color: var(--on-ink); font-size: 12px; font-weight: 700; padding: 0 4px; font-variant-numeric: tabular-nums; }
+.kbadge { display: inline-grid; place-items: center; min-width: 18px; height: 18px; border-radius: 9px; background: var(--ink); color: var(--on-ink); font-size: 13px; font-weight: 700; padding: 0 4px; font-variant-numeric: tabular-nums; }
 .mini .mf { letter-spacing: -2px; }
 .svhd { display: inline-flex; align-items: center; gap: 4px; }
 .svhd .svf { font-size: 30px; line-height: 1; }
@@ -745,7 +798,7 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .svhd svg { width: 60px; height: 24px; }
 .preset .more { margin-left: 2px; }
 /* PIA-136: the one create path and organizer edits */
-.mrow > .mchip { flex: 1; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; border-radius: 14px; border: 1.5px solid var(--line); font-size: 16px; font-weight: 600; text-align: left; }
+.mrow > .mchip { flex: 1; min-width: 0; min-height: 48px; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 8px; border-radius: var(--r-3); border: 1.5px solid var(--edge); font-size: var(--fs-3); font-weight: 600; text-align: left; }
 .mrow > .mchip .w { color: var(--bad); }
 .mrow .metog { width: 48px; height: 48px; font-size: 20px; }
 .mrow .metog[aria-pressed="false"] > span { filter: grayscale(1); opacity: .4; }
@@ -755,12 +808,12 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .btn.stick { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 0 0 6px var(--surface); }
 .btn.busy { opacity: .6; cursor: progress; }
 .pcrow { display: flex; align-items: center; gap: 12px; min-height: 60px; }
-.mtitle { margin: 0; font-size: 17px; font-weight: 650; overflow-wrap: anywhere; }
+.mtitle { margin: 0; font-size: var(--fs-3); font-weight: 600; overflow-wrap: anywhere; }
 .sheet .grid .dc { min-height: 46px; }
 .lockd { font-size: 18px; }
 .droppc { opacity: .5; }
 .split.two > * { flex: 1 1 0; min-width: 0; }
-.tiles6 .tool.bad, .stagetools .tool.bad { color: var(--bad); }
+.tiles6 .tool.bad { color: var(--bad); }
 .tiles6 .tool.done { border-color: var(--in); background: color-mix(in srgb, var(--in) 14%, var(--surface)); }
 /* PIA-158: a pet beside a face (the trip board's 44px, P-person's 72px; opt in, never by size): a small round bubble on the face's left,
    between ×2 above and 📝 below; 🐈 a pet flying with them, 🐕 a pet at home with a host */
@@ -768,52 +821,53 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
   background: var(--markbg); color: var(--markink); box-shadow: 0 0 0 1.5px var(--surface); }
 .av.s72 .pet { top: 27px; width: 18px; height: 18px; font-size: 12px; }
 /* PIA-158: Nebby in P-person (the toggle, its ›), Kona's row, P-pet's ticks */
-.petrow { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 6px; }
+.petrow { display: flex; align-items: center; gap: 8px; min-height: 44px; margin-top: 8px; }
 .petrow .btn.tkb { min-height: 48px; }
-.petro { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: 17px; font-weight: 700; }
-.petgo { min-width: 48px; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: 14px; border: 1.5px solid var(--line); padding: 0 12px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.petgo .tn { font-size: 15px; color: var(--ink2); }
-.konal { display: flex; align-items: center; gap: 10px; min-height: 44px; font-size: 18px; font-weight: 700; }
-.konal .petgo { font-size: 16px; padding: 0 10px; gap: 4px; }
-.pticks { display: grid; gap: 6px; margin-top: 4px; }
-.pticks .tool { width: 100%; justify-content: start; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; font-size: 17px; text-align: left; }
-.pticks .tool .tkg { font-size: 20px; line-height: 1; }
+.petro { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; font-size: var(--fs-3); font-weight: 700; }
+.petgo { min-width: 48px; min-height: 48px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; border-radius: var(--r-2); border: 1.5px solid var(--edge); padding: 0 12px; font-size: var(--fs-3b); font-weight: 700; font-variant-numeric: tabular-nums; }
+.petgo .tn { font-size: var(--fs-2); color: var(--ink2); }
+.konal { display: flex; align-items: center; gap: 12px; min-height: 44px; font-size: var(--fs-3b); font-weight: 600; }
+.konal .petgo { font-size: var(--fs-3); padding: 0 10px; gap: 4px; }
+.pticks { display: grid; gap: 8px; margin-top: 4px; }
+.pticks .tool { width: 100%; justify-content: start; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; font-size: var(--fs-3); text-align: left; }
+.pticks .tool .tkg { font-size: 1.15em; line-height: 1; }   /* (PIA-160: the ☐ / ☑ box grows with its label) */
 .pticks .tool[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 12%, var(--surface)); }
-.rpet { font-size: 14px; margin-left: -4px; }
+.rpet { font-size: var(--fs-2); margin-left: -4px; }
 /* PIA-158: P-house, the large postcard with the table strip, who brings what (🧺) */
 .pc.big { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 16px; box-shadow: none; display: block; }
 .hpic { position: relative; margin-top: 4px; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
 .hpic .tbl { display: flex; justify-content: center; gap: 4px; min-height: 30px; align-items: center; background: var(--table); font-size: 20px; line-height: 1; padding: 2px 8px; flex-wrap: wrap; }
-.hgo { display: inline-flex; align-items: center; gap: 2px; font-size: 17px; font-weight: 700; color: var(--ink2); font-variant-numeric: tabular-nums; }
-.dishes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; align-items: center; }
-.dchip { min-height: 48px; display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; border-radius: 24px; border: 1.5px solid var(--line); font-size: 20px; line-height: 1; }
-.dchip.mine { border-color: var(--ink); }
+.hgo { display: inline-flex; align-items: center; gap: 2px; font-size: var(--fs-3); font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; font-family: var(--font-num); }
+.dishes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+.dchip { min-height: 48px; display: inline-flex; align-items: center; gap: 4px; padding: 0 10px 0 6px; border-radius: var(--r-pill); border: 1.5px solid var(--edge); font-size: 20px; line-height: 1; }
+.dchip.mine { border-color: var(--ink); border-width: 2px; }
 .dchip[aria-expanded="true"] { background: var(--sunk); }
 .dchip .dadd { font-size: 20px; font-weight: 700; color: var(--ink2); padding: 0 4px; }
-.dgrid { display: grid; grid-template-columns: repeat(6, minmax(44px, 1fr)); gap: 6px; margin-top: 10px; }
-.dtile { min-height: 48px; border-radius: 12px; border: 1.5px solid var(--line); font-size: 24px; line-height: 1; display: grid; place-items: center; }
+.dgrid { display: grid; grid-template-columns: repeat(6, minmax(44px, 1fr)); gap: 8px; margin-top: 12px; }
+@media (max-width: 339px) { .dgrid { grid-template-columns: repeat(5, minmax(44px, 1fr)); } }   /* (PIA-160: 6 × 44 + 5 gaps is wider than a 320px phone's sheet) */
+.dtile { min-height: 48px; border-radius: var(--r-2); border: 1.5px solid var(--edge); font-size: 24px; line-height: 1; display: grid; place-items: center; }
+.dtile:focus-visible { outline-offset: -3px; }
 .dtile[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
-.dsave { margin-top: 10px; }
-.pet-notes { margin-top: 16px; overflow-wrap: anywhere; }
-.pet-notes summary { min-height: 44px; padding: 12px 4px; cursor: pointer; font-weight: 700; }
-.pet-notes-body { font-size: 16px; line-height: 1.5; }
-.pet-notes-body h3 { font-size: 17px; margin-bottom: 6px; }
-.pet-notes-body ul { padding-left: 24px; }
-.pet-notes-body li { margin-bottom: 10px; }
-.notev { margin: 0; font-size: 18px; line-height: 1.4; overflow-wrap: anywhere; }
+.dsave { margin-top: 12px; }
+.pet-notes { margin-top: 24px; overflow-wrap: anywhere; }
+.pet-notes summary { min-height: 48px; padding: 12px 4px; cursor: pointer; font-size: var(--fs-3); font-weight: 700; }
+.pet-notes-body { font-size: var(--fs-3); line-height: var(--lh-3); font-weight: 400; }
+.pet-notes-body h3 { font-size: var(--fs-3); font-weight: 700; margin-bottom: 6px; }
+.pet-notes-body ul { padding-left: 20px; }
+.pet-notes-body li { margin-bottom: 12px; }
+.notev { margin: 0; font-size: var(--fs-3b); font-weight: 400; line-height: var(--lh-3); overflow-wrap: anywhere; }
 .counter .w { color: var(--bad); }
 .toprow .ib.edit, .nav .ib.edit { font-size: 22px; }
 /* PIA-137: the trip view (the organizer page and the open portal) and its sheets */
 .ib.whoami { border: 1.5px dashed var(--ink3); padding: 0 14px; font-size: 20px; gap: 4px; display: inline-flex; align-items: center; min-height: 48px; }
-.closed { min-height: 64px; display: grid; place-items: center; border-radius: 16px; border: 2px solid var(--line); background: var(--sunk); }
-.pb-row.dimrow .track, .pb-row.dimrow .fn { opacity: .4; }   /* someone who is out: still there, dimmed */
+.closed { min-height: 64px; display: grid; place-items: center; border-radius: var(--r-3); border: 2px solid var(--line); background: var(--sunk); }
+.pb-row.dimrow .track { opacity: .4; }   /* someone who is out: still there, dimmed */
+.pb-row.dimrow .fn { opacity: 1; color: var(--ink3); }   /* (PIA-160: their name in the tertiary ink, readable) */
 .pb-row.own .who .facebtn .av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--pc); }
 .pb-row.own .who .facebtn .av.st-in { box-shadow: 0 0 0 2px var(--surface), 0 0 0 5px var(--in); }
-.pb.hl { animation: nudge .5s 1; }
 .av .bd > span + span { margin-left: 1px; }
 .pb-row .av .bd2 { bottom: -3px; left: -10px; }   /* clear of the name under the face */
-.pb-row.solo { height: 36px; }
-.pnm { font-size: 20px; font-weight: 700; margin-left: 8px; min-width: 0; overflow-wrap: anywhere; }
+.pnm { font-size: var(--fs-4); font-weight: 700; margin-left: 12px; min-width: 0; overflow-wrap: anywhere; }
 /* PIA-140 fix pass 2: a person's name breaks only at its spaces (each word a nowrap span). Beside the face it has the room ‹, ⇄, ⓘ
    and ⌄ leave it; when a word does not fit there (fitHead measures), the name takes its own line under the face, the buttons
    staying on the first */
@@ -822,40 +876,33 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .sh-hd.pers.stk { flex-wrap: wrap; row-gap: 2px; }
 .sh-hd.pers.stk .pnm { order: 9; flex: 1 0 100%; margin-left: 0; padding-left: 4px; }
 .sh-hd.pers.stk.bk .pnm { padding-left: 52px; }   /* under the face, past ‹ */
-.leg .lc { font-size: 15px; font-weight: 800; letter-spacing: .02em; margin-left: auto; }
+.leg .lc { font-size: var(--fs-2); font-weight: 700; letter-spacing: .04em; margin-left: auto; }
 .leg .radg { display: inline-flex; margin-left: auto; }
 .leghd .lh0 { flex: 1; }
 .joinrow .fld.code { width: 96px; }
 .joinrow .w { color: var(--bad); }
 .tile .tn2 { overflow-wrap: anywhere; text-align: center; }
 /* PIA-137 fix pass */
-.pfq { font-size: 17px; font-weight: 700; margin-left: 6px; }
+.pfq { font-size: var(--fs-3); font-weight: 700; margin-left: 6px; }
 .tile.hinted { border-style: dashed; border-color: var(--ink3); }   /* a nudge link's face that is not who this phone is: marked, never chosen */
 .tile.pend { border-style: dashed; font-size: 22px; }
-.tile.pend .jn { font-size: 15px; }
-.hintline { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
-.jfrow { display: flex; align-items: baseline; gap: 8px; font-size: 20px; font-weight: 700; overflow-wrap: anywhere; }
+.tile.pend .jn { font-size: var(--fs-2); }
+.hintline { margin: 0; font-size: var(--fs-2); font-weight: 600; color: var(--ink2); }
+.jfrow { display: flex; align-items: baseline; gap: 8px; font-size: var(--fs-4); font-weight: 700; overflow-wrap: anywhere; }
 .jfrow .lc { margin-left: 0; }
 .cfm { position: absolute; top: -6px; right: -6px; font-size: 13px; line-height: 1; padding: 2px 3px; border-radius: 9px; background: var(--surface); color: var(--ink); box-shadow: 0 0 0 1.5px var(--ink); }
-.tk, .ans, .tool[data-act="unbook"] { position: relative; }
-.tk.arm, .ans.arm, .tool.arm { animation: confirm 1s ease-in-out infinite; }
+.ans, .tool[data-act="unbook"] { position: relative; }
+.ans.arm, .tool.arm { animation: confirm 1s ease-in-out infinite; }
 @keyframes confirm { 0%, 100% { box-shadow: 0 0 0 0 transparent; } 50% { box-shadow: 0 0 0 5px color-mix(in srgb, var(--ink) 24%, transparent); } }
-.tk.arm { box-shadow: none; border-color: var(--ink); }
-.tk.arm .tkg { filter: none; opacity: 1; }
 .answers[aria-busy="true"] .ans[aria-pressed="true"] { animation: breathe 1.2s ease-in-out infinite; }   /* on its way to the Worker */
 @keyframes breathe { 50% { opacity: .62; } }
-.ans.in.def { color: var(--ink2); border-color: var(--line); outline: 2px dotted var(--ink3); outline-offset: -8px; animation: none; }   /* a host's In until they tap it: a question, not an answer */
 .mk.k-hostdef { color: var(--ink3); box-shadow: 0 0 0 2px var(--ink3); }   /* hollow and grey until the host confirms */
 .pav { display: inline-grid; place-items: center; flex: none; }
-.tk, .stagetools .tool { background: var(--chip); }
-.tk .tkg { opacity: var(--tkdim); }
-@media (prefers-reduced-motion: reduce) { .tk.arm, .ans.arm, .tool.arm, .answers[aria-busy="true"] .ans[aria-pressed="true"] { animation: none; } }
+@media (prefers-reduced-motion: reduce) { .ans.arm, .tool.arm, .answers[aria-busy="true"] .ans[aria-pressed="true"] { animation: none; } }
 /* PIA-139: booking. My 🎫 beside Book glows once I am back from Google Flights (a ring that stays while it invites, even
    with reduced motion); 🎫 in a person's sheet reads on / off like the board's; the times row; 💵 in P-stage; the calendar */
 .btn.sq { position: relative; }
-.btn.sq.glow, .tk.glow { border-color: var(--in); box-shadow: 0 0 0 4px color-mix(in srgb, var(--in) 45%, transparent); }
-.tk.glow { animation: pulse 1.2s ease-in-out 3; }
-.tk.glow .tkg { filter: none; opacity: 1; }
+.btn.sq.glow { border-color: var(--in); box-shadow: 0 0 0 4px color-mix(in srgb, var(--in) 45%, transparent); }
 .btn.sq.tkoff .tkg { filter: grayscale(1); opacity: var(--tkdim); }
 .btn.sq.tkon { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
 .btn.sq.arm { animation: confirm 1s ease-in-out infinite; }
@@ -863,28 +910,25 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 @media (prefers-reduced-motion: reduce) { .btn.sq.arm { animation: none; } }
 .times { gap: 8px; }
 .times .fld.tiny { flex: 1 1 0; width: auto; min-width: 0; }
-.leg .lt { font-size: 15px; font-weight: 700; color: var(--ink2); padding: 0 2px; }
+.leg .lt { font-weight: 700; padding: 0 2px; }
 .paidrow .fld { flex: 1 1 auto; min-width: 0; }
 .paidrow .btn { min-height: 48px; flex: none; }
-.paidrow .paidw { font-size: 16px; white-space: nowrap; flex: none; }
-.paidv { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.tool.wordy .uf { font-size: 15px; letter-spacing: -.02em; }
+.paidrow .paidw { font-size: var(--fs-3); white-space: nowrap; flex: none; }
+.paidv { display: flex; align-items: center; gap: 8px; min-height: 48px; font-size: var(--fs-5); font-weight: 700; font-variant-numeric: tabular-nums; }
+.tool.wordy .uf { font-size: var(--fs-2); letter-spacing: -.02em; }
 .ib .calp { width: 24px; height: 24px; }
 .calh .calp { width: 28px; height: 28px; display: block; }
 .calcard { display: flex; align-items: center; gap: 14px; min-height: 64px; }
 .calpc { position: relative; flex: none; display: inline-flex; }
-.calpc .tq { position: absolute; right: -6px; top: -6px; width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 800; background: var(--surface); box-shadow: 0 0 0 1.5px var(--ink); }
-.caldays { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: 22px; border: 2px dashed var(--ink2); font-size: 18px; font-weight: 700; }
+.caldays { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 12px; border-radius: var(--r-pill); border: 2px dashed var(--ink2); font-size: var(--fs-3b); font-weight: 700; }
 .caldays.set { border-style: solid; border-color: var(--ink); }
 .pk .pf { letter-spacing: -2px; }
 .altw { display: inline-grid; place-items: center; width: 22px; }
 /* PIA-139 fix pass: after my 🎫 the bar is my flight times (Flighty a square beside it); a booked chip's 🎫 corner; a time 💵 has
    frozen 🔒 (PIA-159: the ☀ / 🌃 halves are retired; the half of an hour 1–12 is the [AM | PM] segment, .ampm) */
-.btn.tmb { gap: 6px; font-variant-numeric: tabular-nums; }
-.btn.tmb .tmv { display: inline-flex; align-items: center; gap: 4px; }
 .btn.sq.fl { font-size: 15px; letter-spacing: -.04em; }
 .fld.invite { animation: pulse 1.6s ease-in-out 3; border-color: var(--in); }
-.paidask { gap: 6px; font-size: 18px; min-height: 44px; }
+.paidask { gap: 6px; font-size: var(--fs-3b); min-height: 44px; }
 .pk { position: relative; }
 .pk .bk { position: absolute; right: -7px; top: -9px; font-size: 13px; line-height: 1; }
 .leg .lt { display: inline-flex; align-items: center; gap: 2px; }
@@ -899,24 +943,22 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .leg button.ld.dis { border-color: transparent; }
 .leg .fld.tiny { width: 96px; padding: 0 6px; gap: 2px; min-height: 47px; }
 .leg .fld.tiny label { display: none; }
-.leg .fld.tiny input { height: 44px; font-size: 16px; }
-.sh-hd .endg { font-size: 22px; line-height: 1; }
+.leg .fld.tiny input { height: 44px; font-size: var(--fs-3); }
+.sh-hd .endg { line-height: 1; }
 /* PIA-151: the board's final check: a booked bar's landing time over its start, its leaving time under its end (PIA-154: a muted
    🛬? on the organizer's phone when no landing time is recorded yet). A traveler's bar is a 44px button wherever it opens their flight */
-.track.fbar { height: 44px; display: block; width: 100%; border-radius: 10px; text-align: left; }
+.track.fbar { height: 44px; display: block; width: 100%; border-radius: var(--r-2); text-align: left; }
 .track.fbar .bar { top: 14px; } .track.fbar .tag { top: 11px; }
-.track .btm { position: absolute; display: inline-flex; align-items: baseline; gap: 3px; font-size: var(--fs-1); line-height: 16px; font-weight: 600; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
-.track .btm.a { top: -9px; } .track .btm.d { top: 25px; }
-.track.mybar .btm.a, .track.fbar .btm.a { top: 1px; } .track.mybar .btm.d, .track.fbar .btm.d { top: 31px; }
-.track .btm .ap { font-size: 12px; }
-.track .btm .mer { line-height: 1; }   /* (PIA-159 fix pass: the smaller AM / PM never grows a 16px label line past its band) */
-/* PIA-159: a track that carries labels is 52px: the landing line 0–16, the bar 18–34 (where an unlabelled row's bar sits in its 72px
-   row), the leaving line 36–52; the 🚗 of an end no label names sits on the bar's line */
-.track.lab { height: 52px; }
-.track.lab .bar { top: 18px; } .track.lab .tag { top: 15px; }
-.track.lab .btm.a { top: 0; } .track.lab .btm.d { top: 36px; }
+/* (PIA-160: a label is 15px in full ink, the code and its time the same size, on a 17px line; fitTimes keeps it on its track) */
+.track .btm { position: absolute; display: inline-flex; align-items: baseline; gap: 3px; font-size: var(--fs-2); line-height: var(--lh-btm); font-weight: 600; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.track .btm .mer { line-height: 1; }   /* (PIA-159 fix pass: the smaller AM / PM never grows a label line past its band) */
+/* PIA-159: a track that carries labels (every variant: the plain one, my bar, a traveler's bar) holds the landing line, the bar where an
+   unlabelled row's bar sits in its 72px row, then the leaving line; the 🚗 of an end no label names sits on the bar's line. PIA-160: 54px
+   at the default (lines 0–17 and 37–54, the bar 19–35, 2px clear of each), from the label line */
+.track.lab { height: calc(2 * var(--lh-btm) + 20px); }
+.track.lab .bar { top: calc(var(--lh-btm) + 2px); } .track.lab .tag { top: calc(var(--lh-btm) - 1px); }
+.track.lab .btm.a { top: 0; } .track.lab .btm.d { top: calc(var(--lh-btm) + 20px); }
 .btm.miss { color: var(--maybe); outline: 1.5px dashed var(--maybe); outline-offset: 1px; border-radius: 3px; }
-.btm.kb { position: static; font-size: 13px; font-weight: 700; padding: 0 2px; }
 /* ---------- PIA-154: declutter ---------- */
 /* the share symbol (one mono line drawing in currentColor; its colour a token in each theme), and the small dot that asks for a tap */
 .shr { width: 1.15em; height: 1.15em; display: inline-block; vertical-align: -.18em; flex: none; }
@@ -930,137 +972,156 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .ib.share .badge { right: -6px; }
 .tsh { display: inline-grid; place-items: center; } .tsh .shr { width: 20px; height: 20px; }
 .ib.newb.ghostb { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
-.ib.newb.ghostb:hover { background: var(--sunk); }
 /* the card: ⋯ More where the stage disc was, one dot after n/N for new answers (the organizer's card) */
-.ib.more { font-size: 22px; font-weight: 800; letter-spacing: .02em; }
-.card-c .ib.more { margin-left: auto; border: 1.5px solid var(--line); border-radius: 22px; }
+.ib.more { font-size: 22px; font-weight: 700; letter-spacing: .02em; }
+.card-c .ib.more { margin-left: auto; border: 1.5px solid var(--edge); border-radius: var(--r-pill); }
 .card-c .migc + .ib.more { margin-left: 0; }
 .ndot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); flex: none; }
 .legend .gl .ndot { width: 10px; height: 10px; }
 .pill .w[data-lbl] { pointer-events: auto; }
 /* the trip page's header: a small postcard, the title (📝 after it when there is a caption) and 📍 under it */
-.thead { display: flex; gap: 12px; align-items: center; min-height: 52px; }
-.pc.th { width: 72px; height: 44px; border-radius: 8px; }
+.thead { display: flex; gap: calc(var(--col-name) - 64px); align-items: center; min-height: 52px; }   /* (PIA-160: the title starts where the bars do) */
+.pc.th { width: 72px; height: 44px; border-radius: var(--r-1); }
 .thd { flex: 1; min-width: 0; display: grid; gap: 0; justify-items: start; }
-.thead .ttl { margin: 0; display: block; font-size: 20px; font-weight: 600; line-height: 1.2; overflow-wrap: anywhere; }
+.thead .ttl { margin: 0; display: block; font-size: var(--fs-4); font-weight: 600; line-height: 1.25; overflow-wrap: anywhere; text-wrap: balance; }
 .thead .ttl .nt { display: inline-grid; place-items: center; vertical-align: middle; min-width: 44px; height: 44px; font-size: 18px; margin: -6px -6px -6px -2px; position: relative; z-index: 1; }   /* 📝 right after the title's last word */
-.chip.dchip { min-height: 44px; min-width: 44px; padding: 0 8px 0 0; display: inline-flex; align-items: center; gap: 1px; font-size: 15px; font-weight: 700; letter-spacing: .02em; }
+/* (PIA-160: 📍 shares its dchip class with P-house's potluck chip; it never wears that chip's pill border) */
+.chip.dchip { min-height: 44px; min-width: 44px; padding: 0 8px 0 0; display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-2); font-weight: 700; letter-spacing: .04em; border: 0; border-radius: var(--r-2); line-height: inherit; }
 /* the date row's right end: my answer as a chip (one tap opens In / Maybe / Out), 🏁 / 🗑 on a closed trip */
-.achip { min-height: 52px; min-width: 52px; padding: 0 12px; border-radius: 26px; border: 2px solid var(--line); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: 16px; font-weight: 700; flex: none; background: var(--surface); }
+.achip { min-height: 52px; min-width: 52px; padding: 0 12px; border-radius: var(--r-pill); border: 2px solid var(--edge); display: inline-flex; align-items: center; justify-content: center; gap: 6px; font-size: var(--fs-3); font-weight: 700; flex: none; background: var(--surface); }
 .achip .ag svg { width: 18px; height: 18px; }
 .achip.in { color: var(--in); border-color: var(--in); } .achip.maybe { color: var(--maybe); border-color: var(--maybe); } .achip.out { color: var(--mute); border-color: var(--mute); }
 .achip .chev { display: inline-block; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: translateY(-2px) rotate(45deg); margin-left: 2px; }
-.achip.ro { opacity: .5; }
+.achip.ro { opacity: 1; background: var(--sunk); }   /* (PIA-160: quiet, its answer's ink and edge kept) */
+.achip.ro:not(.in):not(.maybe):not(.out) { color: var(--ink2); }
+.achip.ro > [aria-hidden="true"], .achip.ro > [data-k] { opacity: .55; }
 .achip.closed { font-size: 22px; border-color: transparent; background: transparent; }
 .daterow .ib.whoami { flex: none; min-height: 52px; }
-.ansq { margin: 0 0 -4px; font-size: 18px; font-weight: 700; text-align: center; }
+.ansq { margin: 0 0 -4px; font-size: var(--fs-3b); font-weight: 700; text-align: center; }
 /* the board: names on every row, mine tinted (my colour at ~12% over the surface, either theme); the heads in at its lead */
-.pb-row.own { background: color-mix(in srgb, var(--pc) 12%, var(--surface)); border-radius: 14px; }
+.pb-row.own { background: color-mix(in srgb, var(--pc) 12%, var(--surface)); border-radius: var(--r-3); }
 .board .rowh.self, .board .cell.self { background: color-mix(in srgb, var(--pc) 12%, var(--surface)); }   /* Trips › Family: my row, the same tint */
 .board .cell.self { border-radius: 0; }
 .board .self.hl { background: var(--sunk); }
 .pb-head .lead { display: grid; place-items: center; }
-.pb-head .hin { font-size: 14px; font-weight: 700; color: var(--ink2); }
+.pb-head .hin { font-size: var(--fs-2); font-weight: 700; color: var(--ink2); }
 .track .btm.miss { color: var(--mute); outline: none; font-weight: 600; }
 /* the price row: one tertiary 44px row, the way into P-total */
-.pricerow { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 4px 12px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface); width: 100%; text-align: left; color: inherit; font-variant-numeric: tabular-nums; }
-.pricerow .tot { font-size: 19px; margin-left: 0; min-height: 36px; }
+.pricerow { display: flex; align-items: center; gap: 12px; min-height: 44px; padding: 4px 12px; border-radius: var(--r-3); border: 1.5px solid var(--edge); background: var(--surface); width: 100%; text-align: left; color: inherit; font-variant-numeric: tabular-nums; }
+.pricerow .tot { font-size: var(--fs-4); margin-left: 0; min-height: 36px; }
 .pricerow .stack { flex: 1 1 auto; min-width: 24px; height: 10px; }
-.pricerow .chipq { margin-left: auto; font-size: 15px; font-weight: 700; padding: 4px 10px; border-radius: 14px; border: 1.5px solid var(--ink); white-space: nowrap; }
-.pricerow .chipq.w { margin-left: 0; border-color: transparent; padding-left: 0; font-size: 16px; }
+.pricerow .chipq { margin-left: auto; font-size: var(--fs-2); font-weight: 700; padding: 4px 10px; border-radius: var(--r-pill); border: 1.5px solid var(--edge); white-space: nowrap; }
+.pricerow .chipq.w { margin-left: 0; border-color: transparent; padding-left: 0; font-size: var(--fs-3); }
 .pricerow .chipq .uf { margin-left: 2px; letter-spacing: 1px; }   /* PIA-155: whose flights are not searched yet, by their faces */
 .totb .tot.q, .totb > .tot { gap: 2px; }
-.btn.tkb { position: relative; flex: 0 0 auto; padding: 0 14px; font-size: 17px; gap: 6px; }
+.btn.tkb { position: relative; flex: 0 0 auto; padding: 0 14px; font-size: var(--fs-3); gap: 6px; }
 .btn.tkb.tkon { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
 .btn.tkb.tkoff .tkg { filter: grayscale(1); opacity: var(--tkdim); }
 .btn.tkb.glow { border-color: var(--in); box-shadow: 0 0 0 4px color-mix(in srgb, var(--in) 45%, transparent); }
 .btn.tkb.arm { animation: confirm 1s ease-in-out infinite; }
 @media (prefers-reduced-motion: reduce) { .btn.tkb.arm { animation: none; } }
 /* PIA-156: a booking toggle is a checkbox (☐ / ☑ beside the same words): the box at full ink, on or off */
-.btn.tkb .tkg[data-k="tkoff"], .btn.tkb .tkg[data-k="tkon"] { filter: none; opacity: 1; font-size: 20px; line-height: 1; }
+.btn.tkb .tkg[data-k="tkoff"], .btn.tkb .tkg[data-k="tkon"] { filter: none; opacity: 1; font-size: 1.15em; line-height: 1; }
 /* PIA-156: who is set, the quiet key under the board (after the price row and 💵 Paid): up to three 44px rows under a hairline, a
    glyph and one word in the board's name column (secondary ink), then 28px faces (44px high targets at a 36px pitch), +N, and the
    organizer's Remind at the row's end */
 .wk { display: grid; gap: 0; border-top: 1px solid var(--line); padding-top: 4px; margin-top: -4px; }
 .wkr { display: flex; align-items: center; gap: 8px; min-height: 44px; }
-.wkl { min-width: 76px; flex: none; display: inline-flex; align-items: center; gap: 3px; font-size: 13.5px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
-.wkl .wg { width: 19px; flex: none; text-align: center; font-size: 15px; line-height: 1; }
+.wkl { min-width: var(--col-name); flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-2); font-weight: 600; color: var(--ink2); white-space: nowrap; }
+.wkl .wg { width: 1.2em; flex: none; text-align: center; font-size: 1em; line-height: 1; }
 .wkf { flex: 1; min-width: 0; display: flex; align-items: center; }
 .wkf .facebtn { width: 44px; height: 44px; flex: none; }
 .wkf .facebtn + .facebtn { margin-left: -8px; }
-.wkn { margin-left: 6px; font-size: 14px; font-weight: 700; color: var(--ink2); }
+.wkn { margin-left: 6px; font-size: var(--fs-2); font-weight: 700; color: var(--ink2); }   /* (PIA-160: +N is a named count, never a target) */
 .ib.wkrem { flex: none; color: var(--ink2); }
 .ib.wkrem .shr { width: 22px; height: 22px; }
 /* PIA-157: rides. The key's 🚗 Rides row (its head a 44px button into P-rides, in the word column), its run chips (dashed amber while
    no one drives: the end's glyph, the day, the travelers' faces), the drivers' faces once covered; the card slot, the primary's ⏰, the
    P-rides sheet, the 18px badge on a Map chip and the ride glyph in P-person */
-button.wkl { min-height: 44px; border-radius: 10px; text-align: left; }
+button.wkl { min-height: 44px; border-radius: var(--r-2); text-align: left; }
 .wkf .rk { flex: none; }
-.rk { min-height: 44px; display: inline-flex; align-items: center; gap: 3px; padding: 0 7px; margin-right: 6px; border-radius: 12px; border: 1.5px dashed var(--maybe);
-  background: color-mix(in srgb, var(--maybe) 8%, transparent); font-size: 14px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
-.rk .rkg { font-size: 15px; line-height: 1; } .rk .rkf { font-size: 15px; letter-spacing: -2px; line-height: 1; } .rk .w { color: var(--maybe); }
+.rk { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; padding: 0 6px; margin-right: 6px; border-radius: 12px; border: 1.5px dashed var(--maybe);
+  background: color-mix(in srgb, var(--maybe) 8%, transparent); font-size: var(--fs-2); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; color: var(--ink); }
+.rk .rkg { font-size: 1em; line-height: 1; } .rk .rkf { font-size: 1em; letter-spacing: -2px; line-height: 1; } .rk .w { color: var(--maybe); }
 .rk.mv { border-style: solid; border-color: var(--maybe); }
-.rk.sf { border: 1.5px solid var(--line); background: none; }
-.rq { display: inline-flex; align-items: center; padding: 0 3px; border: 1.5px dashed var(--maybe); border-radius: 8px; line-height: 1.2; }
-.slot.ride { border-style: dashed; border-color: var(--maybe); font-size: 16px; }
+.rk.sf { border: 1.5px solid var(--edge); background: none; }
+.rq { display: inline-flex; align-items: center; padding: 0 3px; border: 1.5px dashed var(--maybe); border-radius: var(--r-1); line-height: 1.2; }
+.slot.ride { border-style: dashed; border-color: var(--maybe); font-size: var(--fs-3); }
 .btn.pri .drvf { display: inline-flex; } .btn.pri .drvf .av { box-shadow: 0 0 0 1.5px var(--ink); }
-/* PIA-159: the drive primary, 17px, its parts 8px apart; the card slot's two lines from the day before a drive */
-.btn.pri.drv { font-size: var(--fs-3); gap: var(--sp-2); }
-.btn.pri.drv .dlv { display: inline-flex; align-items: baseline; gap: 2px; }
-.slot.wide.two { min-width: 72px; display: grid; grid-template-rows: auto auto; place-items: center; align-content: center; gap: 0; line-height: 1.05; font-size: 15px; padding: 0 6px; }
-.slot.two .sl1 { display: inline-flex; gap: 1px; } .slot.two .tm { font-size: 14px; } .slot.two .tm .mer { font-size: .75em; color: inherit; }
+/* PIA-159: the drive primary; the card slot's two lines from the day before a drive. PIA-160: the primary in two lines, ⏰ and the
+   time large ("⏰ 12:05 PM", never a date), the day of ⏰ and the code under it ("11/20 ORD"), the faces after them */
+.btn.pri.drv { gap: 12px; padding: 0 16px; }
+.btn.pri.drv .dg { font-size: 24px; line-height: 1; }
+.btn.pri.drv .dst { display: grid; justify-items: start; text-align: left; }
+.btn.pri.drv .d1 { font: 700 var(--fs-4)/var(--lh-1) var(--font-num); }
+.btn.pri.drv .d2 { font-size: var(--fs-2); font-weight: 600; line-height: 1.2; color: color-mix(in srgb, var(--on-ink) 72%, var(--ink)); }
+.slot.wide.two { min-width: 72px; display: grid; grid-template-rows: auto auto; place-items: center; align-content: center; gap: 0; line-height: var(--lh-1); font-size: var(--fs-2); height: auto; min-height: 48px; padding: 4px 8px; }
+.slot.two .sl1 { display: inline-flex; gap: 1px; } .slot.two .tm { display: block; font: 700 var(--fs-2)/var(--lh-1) var(--font-num); font-variant-numeric: tabular-nums; }
 .btn.pri .drvf .av + .av { margin-left: -6px; }
-.rsec { display: grid; gap: 2px; margin-top: 6px; }
-.rsh { display: flex; align-items: center; gap: 4px; min-height: 32px; font-size: 16px; font-weight: 800; color: var(--ink2); }
-/* PIA-159: P-rides by day: the day head 15px/700, 16px above and 6px below; cards 12px 14px, 12px apart, 14px corners; the header
-   17px/700, legs 17px/600 tabular, ①② 15px; a joined run's drive between its stops; a run that is home already, muted */
-.rday { font-size: var(--fs-2); font-weight: 700; color: var(--ink2); margin: var(--sp-4) 0 6px; }
-.rsec:first-of-type .rday { margin-top: var(--sp-2); }
-.rrun { display: grid; gap: 0; padding: var(--sp-3) 14px; border-radius: 14px; border: 1.5px solid var(--line); margin-bottom: var(--sp-3); }
-.rrun.done { opacity: .7; }
+.rsec { display: grid; gap: 2px; margin-top: 0; }
+.rsec > :last-child { margin-bottom: 0; }
+/* PIA-159: P-rides by day; a joined run's drive between its stops. PIA-160: the day head 15px/700 in full ink, 24px above it (the
+   sheet's 16 and its own 8) and 8px under it (its own 6 and the day's 2px gap); each run a card on the soft grey fill (no edge; an open
+   run keeps its dashed amber), 12px 16px, 16px corners, 14px apart (its 12 and the 2px gap); the header 17px/700 with the ⏰ range its hero, its controls together at its end; legs 17px/600 with
+   32px faces, each code and time in a column (a later leg at the same stop keeps the code's place, a leg with no pet the pet's), ①②
+   15px/700; a run that is home already muted in the secondary ink, never faded */
+.rday { font-size: var(--fs-2); font-weight: 700; color: var(--ink); margin: var(--sp-2) 0 6px; }
+.rrun { display: grid; gap: 0; padding: var(--sp-3) var(--sp-4); border-radius: var(--r-3); border: 1.5px solid transparent; background: var(--sunk); margin-bottom: var(--sp-3); }
+.rrun.done { opacity: 1; background: transparent; border-color: var(--line); }
+.rrun.done .rrh, .rrun.done .rleg { color: var(--ink2); }
 .rrun .rrh { font-size: var(--fs-3); }
 .rrun .rleg { font-size: var(--fs-3); }
-.rnum { font-size: var(--fs-2); min-width: 18px; flex: none; color: var(--ink2); }
-.rhop { display: flex; align-items: center; gap: 2px; padding-left: 22px; min-height: 28px; font-size: var(--fs-2); color: var(--ink2); font-weight: 600; }
+.rnum { font-size: var(--fs-2); font-weight: 700; min-width: 18px; flex: none; color: var(--ink2); }
+.rhop { display: flex; align-items: center; gap: 2px; padding-left: 26px; min-height: 28px; font-size: var(--fs-2); color: var(--ink2); font-weight: 600; }
 .rgp { display: inline-flex; gap: 2px; }
 .rk.rfold { margin: 0 6px 6px 0; }
 .rrun.open { border-color: var(--maybe); border-style: dashed; }
 .rrun.on { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent); }
-.rrh, .rleg { display: flex; align-items: center; gap: 6px; min-height: 44px; flex-wrap: wrap; }
-.rrh { font-size: 16px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.rrh, .rleg { display: flex; align-items: center; gap: 8px; min-height: 44px; flex-wrap: wrap; }
+.rrh { font-size: var(--fs-3); font-weight: 700; font-variant-numeric: tabular-nums; }
 .rrh .sp { min-width: 4px; }
 .rrh .rlv { display: inline-flex; align-items: center; gap: 1px; }
-.rleg { padding-left: 4px; font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.rrh .rctl { display: inline-flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; margin-left: auto; }   /* (PIA-160: Drive at the card's right edge, on its line or under it) */
+.rleg { padding-left: 0; font-size: var(--fs-3); font-weight: 600; font-variant-numeric: tabular-nums; }
 .rleg .facebtn, .rleg > .rf { width: 44px; height: 44px; display: inline-grid; place-items: center; flex: none; }
-.rleg .rst { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; font-size: 16px; }
+.rleg .av.s32 { --s: 32px; }
+.rleg .rpet, .rleg .rpx { display: inline-grid; place-items: center; width: 20px; flex: none; margin-left: -4px; }
+.rleg .ap { display: inline-block; min-width: 2.9em; }
+.rleg .tm { display: inline-block; min-width: 4.7em; text-align: right; }
+.rleg .rst { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; font-size: var(--fs-3); }
 .rleg .rst .rw { opacity: .45; }
-.rdrv { min-height: 44px; padding: 0 10px; display: inline-flex; align-items: center; gap: 5px; font-size: 16px; }
+.rrun .rq { border: 0; background: var(--surface); border-radius: var(--r-1); padding: 2px 6px; color: var(--maybe); }   /* (in a card: no dashes inside its dashes) */
+.rdrv { min-height: 48px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-3); font-weight: 700; border-radius: var(--r-2); border: 1.5px solid var(--edge); background: var(--surface); }
 .rdrv[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
 .facebtn.rcand { border-radius: 50%; }
 .facebtn.rcand[aria-pressed="true"] .av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--in); }
 .facebtn.rcand[aria-pressed="false"] .av { opacity: .55; }
-.rgr { min-width: 44px; min-height: 44px; font-size: 18px; padding: 0 4px; }
-.rq2 { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; min-height: 44px; font-size: 15px; font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; }
-.rq2 .rql { min-height: 44px; display: inline-flex; align-items: center; gap: 3px; padding: 0 4px; border-radius: 10px; }
-.rcal { position: relative; margin-top: 8px; }
+.rgr { min-width: 44px; min-height: 44px; font-size: 20px; padding: 0 4px; background: var(--surface); }
+.rok { background: var(--surface); }
+.rq2 { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; min-height: 44px; font-size: var(--fs-2); font-weight: 600; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.rq2 .rql { min-height: 44px; display: inline-flex; align-items: center; gap: 4px; padding: 0 4px; border-radius: var(--r-2); }
+.rcal { position: relative; margin-top: 16px; }
 .rcal .ndot { position: absolute; top: 8px; right: 10px; }
 .pk .rbd { position: absolute; top: -7px; right: -7px; min-width: 18px; height: 18px; border-radius: 9px; background: var(--markbg); color: var(--markink); display: grid; place-items: center;
   font-size: 11px; line-height: 1; box-shadow: 0 0 0 1px var(--line); padding: 0 1px; }
-.pk .rbd.q { border: 1.5px dashed var(--maybe); box-shadow: none; font-weight: 800; color: var(--maybe); background: var(--surface); }
+.pk .rbd.q { border: 1.5px dashed var(--maybe); box-shadow: none; font-weight: 700; color: var(--maybe); background: var(--surface); }
 .leg .rgl, .pline .rgl { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 1px; border-radius: 12px; font-size: 17px; }
 .toast .tshr { display: inline-grid; place-items: center; } .toast .tshr .shr { width: 22px; height: 22px; }
 /* Map and Calendar: the trip's title is the way back to it */
-.selttl { min-height: 44px; display: flex; align-items: center; gap: 8px; font-size: 17px; font-weight: 600; text-align: left; margin-top: -8px; overflow-wrap: anywhere; }
+.selttl { min-height: 44px; display: flex; align-items: center; gap: 8px; font-size: var(--fs-3); font-weight: 600; text-align: left; margin-top: -8px; overflow-wrap: anywhere; }
 .chev.r { display: inline-block; width: 8px; height: 8px; border-right: 2px solid currentColor; border-bottom: 2px solid currentColor; transform: rotate(-45deg); flex: none; }
 /* the pickups table: 🛬 Lands | 🛫 Leaves, one row per airport */
-.lanes { display: grid; gap: 6px; }
-.lrow { display: grid; grid-template-columns: 76px minmax(0, 1fr) minmax(0, 1fr); gap: 6px; align-items: start; }
-.lrow.lhd { min-height: 24px; align-items: end; font-size: 14px; font-weight: 700; color: var(--ink2); }
-.lrow .lh { min-height: 44px; min-width: 44px; width: 76px; display: flex; flex-wrap: wrap; align-items: center; column-gap: 3px; row-gap: 0; border-radius: 12px; text-align: left; }
-.lrow .lh .lc { font-size: 15px; font-weight: 800; letter-spacing: .02em; }
-.lrow .lh .drv { font-size: 12px; font-weight: 700; color: var(--ink2); }
-.lrow .cl { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.lanes .pk { display: grid; justify-items: start; gap: 2px; padding: 4px 8px; white-space: normal; width: 100%; min-height: 48px; font-size: 14px; }
+.lanes { display: grid; gap: 8px; }
+.lrow { display: grid; grid-template-columns: var(--col-name) minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: start; }
+.lrow.lhd { min-height: 24px; align-items: end; font-size: var(--fs-2); font-weight: 600; color: var(--ink2); }
+.lrow .lh { min-height: 44px; min-width: 44px; width: var(--col-name); display: flex; flex-wrap: wrap; align-items: center; column-gap: 3px; row-gap: 0; border-radius: var(--r-2); text-align: left; }
+.lrow .lh .lc { font-size: var(--fs-2); font-weight: 700; letter-spacing: .04em; }
+.lrow .lh .drv { font-size: var(--fs-1); font-weight: 600; color: var(--ink2); }
+.lrow .cl { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lanes .pk { display: grid; justify-items: start; gap: 2px; padding: 6px 10px; white-space: normal; width: 100%; min-height: 48px; font-size: var(--fs-2); }
+.lanes .pk:not(.arr):not(.maybe) { border-color: var(--edge); }   /* (PIA-160: a lane's chip has the tappable edge; an arrival keeps its ink, a maybe its amber) */
+.lanes .pk .pk1 > .tn { color: var(--ink2); }
+.lanes .pk .t:not(.pred) > .tm { color: var(--ink); }   /* (an estimated ≈ time keeps its muted ink) */
 .lanes .pk .pk1 { display: flex; gap: 4px; flex-wrap: wrap; }
 .lanes .pk .pf { font-size: 15px; line-height: 1.1; }
 .lanes .pk.nb { border-style: dashed; }
@@ -1068,19 +1129,19 @@ button.wkl { min-height: 44px; border-radius: 10px; text-align: left; }
 .lanes .grp { padding: 24px 4px 4px; gap: 4px; align-items: stretch; }
 .lanes .grp > .gh { position: absolute; left: 6px; top: 3px; transform: none; display: flex; gap: 4px; width: auto; align-items: center; }
 .lanes + .map-faces { margin-top: 4px; padding-top: 10px; border-top: 1px solid var(--line); }   /* the faces off the map: under a hairline, never read as the last airport's row */
-/* the grid: past days dimmed, nothing hatched (days outside the window are plain) */
-.dc.past, .dc.outw { background-image: none; }
-.dc.past > * { opacity: .5; }
-/* More: one 44px row each (a glyph and what it does) */
-.morerows { display: grid; gap: 2px; }
-.mrowb { min-height: 44px; display: flex; align-items: center; gap: 12px; padding: 0 10px; border-radius: 12px; font-size: 17px; font-weight: 600; width: 100%; text-align: left; }
-.mrowb .mg { width: 28px; display: inline-grid; place-items: center; font-size: 20px; flex: none; }
+/* the grid: past days dimmed, nothing hatched (days outside the window are plain); PIA-160: a past day's numeral at full opacity in the
+   secondary ink, its trip lines dimmed */
+.dc.past > :not(.dn) { opacity: .5; }
+/* More: one 48px row each (a glyph and what it does) */
+.morerows { display: grid; gap: 4px; }
+.mrowb { min-height: 48px; display: flex; align-items: center; gap: 12px; padding: 0 12px; border-radius: var(--r-2); font-size: var(--fs-3); font-weight: 600; width: 100%; text-align: left; }
+.mrowb .mg { width: 28px; display: inline-grid; place-items: center; font-size: 22px; flex: none; }
 .mrowb .mg .shr { width: 22px; height: 22px; }
 .mrowb[aria-pressed="true"] { background: var(--sunk); }
-.mrowb.bad { color: var(--bad); } .mrowb.dis { opacity: .4; cursor: not-allowed; }
+.mrowb.bad { color: var(--bad); } .mrowb.dis { cursor: not-allowed; }
 /* PIA-155: the stage as one quiet line: small dots on a hairline track (filled done, a ring now, hollow later) and the stage's word,
    in the secondary ink, no border, no fill, no pointer: a picture of where the trip is, never a choice */
-.sline { display: flex; align-items: center; gap: 10px; min-height: 28px; padding: 2px 10px 8px; color: var(--ink2); font-size: 15px; font-weight: 600; cursor: default; user-select: none; -webkit-user-select: none; }
+.sline { display: flex; align-items: center; gap: 10px; min-height: 28px; padding: 2px 10px 8px; color: var(--ink2); font-size: var(--fs-2); font-weight: 600; cursor: default; user-select: none; -webkit-user-select: none; }
 .sline .strk { position: relative; display: inline-flex; align-items: center; gap: 9px; flex: none; }
 .sline .strk::before { content: ""; position: absolute; left: 4px; right: 4px; top: 50%; height: 2px; margin-top: -1px; background: var(--line); }
 .sline .strk i { position: relative; width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--ink3); background: var(--surface); box-sizing: border-box; }
@@ -1089,38 +1150,54 @@ button.wkl { min-height: 44px; border-radius: 10px; text-align: left; }
 .sline .sword { color: var(--ink); }
 .sline.off .strk { opacity: .55; }   /* a removed trip: its dots dimmed, its word "Removed" at full ink (AA contrast) */
 /* P-dates: [👪 Plan | Mine], the labelled tools, the outlined 🔓 Unlock */
-.tg2.wordy button { padding: 0 12px; font-size: 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
-.sh-hd .endg { font-size: 18px; font-weight: 700; }
+.tg2.wordy button { padding: 0 12px; font-size: var(--fs-3); font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.sh-hd .endg { font-size: var(--fs-3b); font-weight: 700; }
 .btn.unl { background: var(--surface); }
 /* P-person: "🛬 Arrive" / "🛫 Leave", "From LAX ✎" */
-.leg .lg0 { min-width: 0; padding: 0 4px 0 0; display: inline-flex; align-items: center; gap: 4px; font-size: 16px; font-weight: 600; }
-.leg .lg1 { margin-left: 4px; font-size: 15px; padding: 0 6px; }
+.leg .lg0 { min-width: 0; padding: 0 4px 0 0; display: inline-flex; align-items: center; gap: 4px; font-size: var(--fs-3); font-weight: 600; }
+.leg .lg1 { margin-left: 4px; font-size: var(--fs-2); padding: 0 6px; }
+.leg .lg0 > [data-k] { display: inline-block; min-width: 1.2em; text-align: center; }   /* (PIA-160: 🛬 / 🛫 in a 1.2em box, so the words after line up) */
 .lgp.miss { color: var(--ink3); }
 /* P-face: the join tile, smaller and outlined, last */
-.tile.join { min-height: 56px; grid-column: 1 / -1; border-style: dashed; font-size: 16px; display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
+.tile.join { min-height: 56px; grid-column: 1 / -1; border-style: dashed; font-size: var(--fs-3); display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 6px; }
 .tile.join > span[data-k] { font-size: 22px; }
-.tile.join .jn { font-size: 15px; }
-/* PIA-159: P-person's booked legs. A read row's [code time] is a 44px button (12px corners, a 1.5px line); its edit row: the 92px
-   field at 19px, the [AM | PM] segment (two 52×44 radios, 15px/700, pressed = ink), then the airports as 44px pills (min 64px, 15px/700,
-   22px corners; pressed = ink; one the 🛫 follows from 🛬 dashed at .75; the planned one outlined while a pick is asked for), indented
-   under the field. A carried half pulses one 600ms outline (no motion: under reduced motion the outline alone) */
+.tile.join .jn { font-size: var(--fs-2); }
+/* PIA-159: P-person's booked legs. A read row's [code time] is a 44px button (12px corners, a 1.5px edge); its edit row: the field, the
+   [AM | PM] segment (two 52×44 radios, 15px/700, pressed = ink), then the airports as 44px pills (min 64px, 15px/700, pill corners;
+   pressed = ink; one the 🛫 follows from 🛬 on the sunk fill with a dashed ink edge, not settled until picked; the planned one outlined
+   while a pick is asked for), indented under the field. A carried half pulses one 600ms outline (no motion: under reduced motion the
+   outline alone). PIA-160: the time and field at 20px (the field 4.6 times that wide, 92px), the field and its segment one unbreakable
+   group (.tgrp), so a larger text size moves them under the day together */
 .leg.lbk { min-height: 52px; gap: var(--sp-2); }
-.leg .tmb { min-height: 44px; padding: 0 10px; border-radius: 12px; border: 1.5px solid var(--line); display: inline-flex; align-items: baseline; gap: 4px; font-size: var(--fs-4); align-self: center; line-height: 41px; }
+.leg .tmb { min-height: 44px; padding: 0 10px; border-radius: var(--r-2); border: 1.5px solid var(--edge); display: inline-flex; align-items: baseline; gap: 4px; font-size: var(--fs-4); align-self: center; line-height: 41px; }
 .leg .lt { font-size: var(--fs-4); color: var(--ink); gap: 4px; align-items: baseline; }
-.leg .fld.tiny.tmf { width: 92px; flex: none; }
-.leg .fld.tiny.tmf input, .times .fld.tiny.tmf input { font-size: var(--fs-4); }
+.leg .tgrp { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-2); }
+.leg .fld.tiny.tmf { width: calc(4.6 * var(--fs-4)); flex: none; }
+.leg .fld.tiny.tmf input, .times .fld.tiny.tmf input { font-size: var(--fs-4); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .ampm { display: inline-flex; flex: none; }
-.ampm .segb { width: 52px; height: 44px; font-size: var(--fs-2); font-weight: 700; color: var(--ink); border: 1.5px solid var(--line); background: var(--surface); }
-.ampm .segb:first-child { border-radius: 12px 0 0 12px; } .ampm .segb:last-child { border-radius: 0 12px 12px 0; border-left: 0; }
+.ampm .segb { width: 52px; height: 44px; font-size: var(--fs-2); font-weight: 700; color: var(--ink); border: 1.5px solid var(--edge); background: var(--surface); }
+.ampm .segb:first-child { border-radius: var(--r-2) 0 0 var(--r-2); } .ampm .segb:last-child { border-radius: 0 var(--r-2) var(--r-2) 0; border-left: 0; }
 .ampm .segb[aria-checked="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .pills { display: flex; flex-wrap: wrap; gap: var(--sp-2); padding: 0 0 var(--sp-2) 52px; }
-.pills .pill { min-height: 44px; min-width: 64px; padding: 0 12px; border-radius: 22px; border: 1.5px solid var(--line); font-size: var(--fs-2); font-weight: 700; letter-spacing: .04em; background: var(--surface); }
+.pills .pill { min-height: 44px; min-width: 64px; padding: 0 12px; border-radius: var(--r-pill); border: 1.5px solid var(--edge); font-size: var(--fs-2); font-weight: 700; letter-spacing: .04em; background: var(--surface); }
 .pills .pill[aria-checked="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
-.pills .pill.fol { border-style: dashed; opacity: .75; }
+.pills .pill.fol { background: var(--sunk); color: var(--ink); border: 1.5px dashed var(--ink); opacity: 1; }
 .pills .pill.plan { border-style: dashed; border-color: var(--ink2); }
 .cpulse { animation: cpulse .6s ease-out 1; outline: 0 solid transparent; border-radius: 12px; }
 @keyframes cpulse { 0% { outline: 3px solid var(--focus); outline-offset: 0; } 100% { outline: 3px solid transparent; outline-offset: 4px; } }
 @media (prefers-reduced-motion: reduce) { .cpulse { animation: none; outline: 3px solid var(--focus); outline-offset: 2px; } }
+/* PIA-160: a selected secondary button keeps a strong outline (P-mapairport's PIA | ORD); a booking toggle (.tkb) and a state-coloured
+   button (.ok, .arm, .danger) keep their own edge, and a quiet one keeps the quiet look below */
+.btn:not(.pri):not(.tkb):not(.ok):not(.arm):not(.danger):not(.dis):not([aria-disabled="true"])[aria-pressed="true"] { border-color: var(--ink); }
+/* PIA-160: a control that cannot act now but answers a tap with why (a past drive, a trip that is over, a v1 trip not updated yet) is
+   quiet, not faded: the secondary ink on the sunk fill with a solid edge (dashes mean "not settled" only), its glyphs a little lighter
+   (a booking toggle's ☐ / ☑ stays at full ink; one already on keeps its green). A busy control keeps its own look. Last in the sheet, so
+   it wins over each control's own rules */
+.btn[aria-disabled="true"]:not(.busy):not([aria-busy="true"]):not(.tkon):not(.ok), .btn.dis:not(.busy):not(.tkon):not(.ok) { opacity: 1; background: var(--sunk); color: var(--ink2); border: 2px solid var(--edge); }
+.tool.dis, .hchip.dis, .tg2 button.dis, .mrowb.dis { opacity: 1; background: var(--sunk); color: var(--ink2); border-style: solid; border-color: var(--edge); }
+.ib.dis { opacity: 1; background: var(--sunk); color: var(--ink2); }
+.btn[aria-disabled="true"]:not(.busy):not([aria-busy="true"]) > [data-k]:not(.tkg), .btn.dis:not(.busy) > [data-k]:not(.tkg), .btn.dis:not(.busy) > [aria-hidden="true"]:not(.tkg),
+.tool.dis > [data-k]:not(.tkg), .tool.dis > [aria-hidden="true"]:not(.tkg), .hchip.dis > [aria-hidden="true"], .ib.dis > [data-k] { opacity: .55; }
 </style>
 </head>
 <body>
@@ -4567,7 +4644,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 159;
+var BUILD = 160;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -5469,7 +5546,16 @@ function devicesLink() {
 /* ---- models: one tripModel per listed doc, rebuilt on every render ---- */
 var S = null, MC = {}, RT = null;
 /* (PIA-159 hhmm: the phone's local clock, 'HH:MM', for the drive primary, the card's slot and P-rides: a run is shown until it is home) */
-function runCtx() { var today = todayLocal(), now = nowMs(); return { today: today, now: now, hhmm: hhmmLocal(), hctx: { today: today, now: now, worker: workerBase() } }; }
+/* PIA-160: the phone's text size, read on each render (a Text Size change applies on the next one): the root's px (17 at the default),
+   the screens' scale (≤ ×1.118), the sheets' (≤ ×1.353) and the name column (80px, 88 at a root of 19 or more), as the CSS tokens have
+   them. Without a style engine (the node harness) it is the default */
+function typeScale() {
+  var root = 17;
+  try { if (typeof getComputedStyle === 'function' && document.documentElement) root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 17; } catch (e) { root = 17; }
+  var k = root / 17;
+  return { root: root, kD: Math.min(1.118, Math.max(1, k)), kR: Math.min(1.353, Math.max(1, k)), col: Math.min(88, Math.max(80, 80 + (root - 17) * 4)) };
+}
+function runCtx() { var today = todayLocal(), now = nowMs(), ts = typeScale(); return { today: today, now: now, hhmm: hhmmLocal(), hctx: { today: today, now: now, worker: workerBase() }, root: ts.root, kD: ts.kD, kR: ts.kR, col: ts.col }; }
 function docOnShelf(doc, id, entry) { var p = docPlan(doc), d = doc.idea && doc.idea.dates || {}; return !!((p && p.e < RT.today) || (isIso(d.departure) && !d.return && d.departure < RT.today) || (doc.decision && doc.decision.stage === 'dropped') || (entry && entry.arch)); }
 function ctxFor(id) {
   var L = listRead(), entry = L.filter(function (x) { return x.id === id; })[0];
@@ -5617,7 +5703,10 @@ var LEGEND = {
   // PIA-158: the pets (🐈 flies with its owner, 🐕 at home with a host), › to the pet's plan, P-pet's ticks (👜 the carrier: 🧳 is
   // Trips), 🧺 what someone brings (🍽 to pick: ＋ is New trip), 🎊 everyone booked and every ride covered
   petfly: ['🐈', 'Pet flying'], pethome: ['🐕', 'Pet at home'], petgo: ['›', 'Pet plan'], carrier: ['👜', 'Carrier'], papers: ['📄', 'Papers'], fees: ['💲', 'Pet fees'],
-  dish: ['🧺', 'Bringing'], dishadd: ['🍽', 'Pick dishes'], allset: ['🎊', 'All set']
+  dish: ['🧺', 'Bringing'], dishadd: ['🍽', 'Pick dishes'], allset: ['🎊', 'All set'],
+  // PIA-160: ⚙'s device check, this phone's screen width and text size (numerals only). ⚙ has no ⓘ and a long press names the row
+  // as a whole ("Width, text size"), so these two only keep every drawn glyph in the key
+  scrw: ['📐', 'Screen width'], txtsz: ['🔠', 'Text size']
 };
 var KEY_SKIP = { back: 1, key: 1, settings: 1, close: 1, trips: 1, map: 1, cal: 1 };   // self-evident or labelled controls are not explained
 var KEY_FIRST = ['drive', 'count', 'nights'];
@@ -6377,7 +6466,7 @@ function namePrio(m, x, xi) {
   var needy = x.status === 'waiting' || x.status === 'host-default' || (x.traveler && m.locked && !x.booked) || (x.traveler && x.booked && !x.arrTime);
   return (needy ? 0 : 200) + xi + 1;
 }
-/* the people board: day numerals over the plan and everyone's own days (every day while a day is ≥18px wide), weekends
+/* the people board: day numerals over the plan and everyone's own days (every day while two numerals do not touch), weekends
    tinted, the event day under the trip's own picture, today ▾, and the heads in (n/N) at its lead; then one row per person, the
    same on every phone. PIA-154: no tail column (the organizer's 🎫 for someone is in their sheet; prices are the price row) */
 function peopleBoard(m) {
@@ -6386,11 +6475,18 @@ function peopleBoard(m) {
   var h = '<div class="pb" id="board-' + m.id + '">';
   var lead = '<span class="lead"><span class="hin tn" role="img" aria-label="' + esc(m.headsIn + ' of ' + m.heads + ' in') + '" data-lbl="Heads in" data-k="heads">' + m.headsIn + '/' + m.heads + '</span></span>';
   if (r) {
-    var trackW = W0 - 32 - 76 - 8, dayW = trackW / r.n, every = dayW >= 18 ? 1 : dayW >= 9 ? 2 : dayW >= 6 ? 3 : 7, nums = '';
+    // (PIA-160: the track beside the name column, RT.col; every day's numeral while a day is at least 1.5 numerals' size wide, else
+    // every other day while two days are, every third while three are, else every seventh: two drawn numerals are then at least 1.5
+    // times their size apart, centre to centre (on any range up to 7 weeks from 320px), which leaves two-digit numerals at least
+    // about 3px of ink apart)
+    var col = (RT && RT.col) || 80, numPx = 15 * ((RT && RT.kD) || 1), trackW = W0 - 32 - col - 8, dayW = trackW / r.n;
+    var every = dayW >= 1.5 * numPx ? 1 : dayW >= 0.75 * numPx ? 2 : dayW >= 0.5 * numPx ? 3 : 7, nums = '';
     for (var i = 0; i < r.n; i++) {
       var d = addD(r.s, i), w = dowOf(d);
       var g = m.pin === d ? '<span class="hg" data-k="pin">' + m.emoji + '</span>' : d === RT.today ? '<span class="hg" data-k="today">▾</span>' : '';
-      nums += '<span class="' + (w === 0 || w === 6 ? 'we' : '') + '">' + g + (i % every === 0 ? String(+d.slice(8)) : '') + '</span>';
+      // (PIA-160: a weekend is one tinted band across its Saturday and Sunday, not two boxes; where every other day is numbered, each
+      // band holds one numeral)
+      nums += '<span class="' + (w === 6 ? 'we we6' : w === 0 ? 'we we0' : '') + '">' + g + (i % every === 0 ? String(+d.slice(8)) : '') + '</span>';
     }
     h += '<div class="pb-head">' + lead + '<span class="nums" aria-hidden="true">' + nums + '</span></div>';
   } else h += '<div class="pb-head">' + lead + '</div>';
@@ -6503,20 +6599,23 @@ function rideAskBtn(m, cls) {
    holds, then +N; the organizer's Ask at its end. When nothing is open: the drivers' faces and the travelers' own 🚌 / 🚙. */
 function rideRow(m, R, prim, word, W0) {
   var open = R.runs.filter(function (r) { return r.upcoming && r.state === 'open'; }), nt = R.notime.filter(function (n) { return n.day >= RT.today; });
-  // (room: the faces column beside the 76px word column and its 8px gap, less the Ask and its gap; a chip's width as drawn, with its
-  // 6px margin: 48 + 8.2 a character of its day + 17 a face, ⚠ 19, +N 18; measured at 360 / 390 / 430)
-  var share = prim === 'share' ? '' : rideAskBtn(m, 'wkrem'), room = W0 - 32 - 84 - (share ? 52 : 0), items = [], said;
+  // (room: the faces column beside the word column (RT.col) and its 8px gap, less the Ask and its gap. PIA-160: a chip's width at 15px
+  // with its 6px margin, × the screens' scale: 46 + 8.8 a character of its day + 17 a face, ⚠ 19, +N 18 (Chromium draws a one-face
+  // 11/20 chip 108.5 against 107, a two-face one 125.5 against 124), the no-time chip 78 (drawn about 68); a driver's face 36 and a
+  // traveler's own 🚌 / 🚙 64 as at #159. An iPhone draws a chip about 3px wider than Chromium (the owner's phone: 103 against 100);
+  // test-viewport's key counts hold at 360 / 390 / 430)
+  var kD = (RT && RT.kD) || 1, share = prim === 'share' ? '' : rideAskBtn(m, 'wkrem'), room = W0 - 32 - (((RT && RT.col) || 80) + 8) - (share ? 52 : 0), items = [], said;
   var head = '<button class="wkl" data-act="rides" data-id="' + m.id + '" aria-label="Rides" data-lbl="Rides"><span class="wg" data-k="drive" aria-hidden="true">🚗</span>' + (word ? ' <span data-lbl3>Rides</span>' : '') + '</button>';
   if (open.length || nt.length) {
     open.forEach(function (r) {
       var codes = r.legs.map(function (l) { return l.code; }), mv = r.legs.some(function (l) { return l.ride.state === 'moved'; }), s = esc(runSaid(m, r));
-      items.push({ w: Math.ceil(48 + (mv ? 19 : 0) + md(r.day).length * 8.2 + Math.min(2, codes.length) * 17 + (codes.length > 2 ? 18 : 0)),
+      items.push({ w: Math.ceil(kD * (46 + (mv ? 19 : 0) + md(r.day).length * 8.8 + Math.min(2, codes.length) * 17 + (codes.length > 2 ? 18 : 0))),
         html: '<button class="rk' + (mv ? ' mv' : '') + '" data-act="rides" data-id="' + m.id + '" data-v="' + esc(r.key) + '" aria-label="' + s + '" data-lbl="' + s + '">' + (mv ? '<span class="w" data-k="ridemoved">⚠</span>' : '') +
           '<span class="rkg" data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span><span class="tn">' + md(r.day) + '</span><span class="rkf" aria-hidden="true" data-pic>' + rideFaces(m, codes, 2) + '</span></button>' });
     });
     nt.forEach(function (n) {
       var x = memberIn(m, n.code), s = esc((n.kind === 'a' ? 'No landing time yet: ' : 'No leaving time yet: ') + rideLabel(x));
-      items.push({ w: 76, html: '<button class="rk" data-act="ridetime" data-id="' + m.id + '" data-code="' + esc(n.code) + '" data-end="' + (n.kind === 'a' ? 0 : 1) + '" aria-label="' + s + '" data-lbl="' + s + '">' +
+      items.push({ w: Math.ceil(kD * 78), html: '<button class="rk" data-act="ridetime" data-id="' + m.id + '" data-code="' + esc(n.code) + '" data-end="' + (n.kind === 'a' ? 0 : 1) + '" aria-label="' + s + '" data-lbl="' + s + '">' +
         '<span class="rkg" data-k="' + (n.kind === 'a' ? 'notime' : 'notimed') + '" aria-hidden="true">' + (n.kind === 'a' ? '🛬?' : '🛫?') + '</span><span class="rkf" aria-hidden="true" data-pic>' + (x ? x.face : '') + '</span></button>' });
     });
     var who = []; open.forEach(function (r) { r.legs.forEach(function (l) { if (l.ride.state !== 'covered' && who.indexOf(l.code) < 0) who.push(l.code); }); });
@@ -6532,12 +6631,15 @@ function rideRow(m, R, prim, word, W0) {
     var bus = self.filter(function (s) { return s.mode === 'bus'; }).map(function (s) { return s.code; }), car = self.filter(function (s) { return s.mode === 'rent'; }).map(function (s) { return s.code; });
     said = 'Rides: ' + [drv.length ? namesOf(m, drv) + ' drive ' + namesOf(m, gone) : '', bus.length ? namesOf(m, uniq(bus)) + ' by bus' : '', car.length ? namesOf(m, uniq(car)) + ' by rental car' : ''].filter(Boolean).join('; ');
   }
-  // as many as the row holds beside its word column and the Ask, then +N
+  // as many as the row holds beside its word column and the Ask, then +N (PIA-160: none where not even the first fits, as on a 320px
+  // phone beside the Ask with a two-face chip or at a larger text size: the row never pushes the page sideways; its 🚗 head opens P-rides)
   var n = 0, used = 0;
-  for (var i = 0; i < items.length; i++) { if (n && used + items[i].w + (i < items.length - 1 ? 34 : 0) > room) break; used += items[i].w; n++; }
+  for (var i = 0; i < items.length; i++) { if (used + items[i].w + (i < items.length - 1 ? 34 : 0) > room) break; used += items[i].w; n++; }
   var more = items.length - n;
+  // (PIA-160: +N is a named count, never a target: the 🚗 head and every chip open P-rides)
+  var mn = more + (more === 1 ? ' more ride' : ' more rides');
   return '<div class="wkr wkride" role="group" aria-label="' + esc(said) + '">' + head + '<span class="wkf">' + items.slice(0, n).map(function (x) { return x.html; }).join('') +
-    (more ? '<span class="wkn tn" aria-hidden="true">+' + more + '</span>' : '') + '</span>' + share + '</div>';
+    (more ? '<span class="wkn tn" role="img" aria-label="' + mn + '" data-lbl="' + mn + '">+' + more + '</span>' : '') + '</span>' + share + '</div>';
 }
 function whoKey(m, prim, budget) {
   var ws = whoSet(m, RT.today), RD = ridesOf(m), rr = ridesShown(m, RD); if (!ws.rows.length && !rr) return '';
@@ -6558,14 +6660,14 @@ function whoKey(m, prim, budget) {
       if (others.length === 1) rem = '<button class="ib wkrem" data-act="nudge" data-v="remind" data-id="' + m.id + '" data-code="' + esc(others[0].code) + '" aria-label="' + rn + '" data-lbl="' + rn + '"><span data-k="remind">' + SHARE + '</span></button>';
       else if (others.length > 1 && prim !== 'share') rem = '<button class="ib wkrem" data-act="tshare" data-v="remind" data-id="' + m.id + '" aria-label="Remind" data-lbl="Remind"><span data-k="remind">' + SHARE + '</span></button>';
     }
-    // the faces the row holds beside its word column (76px, its gap and a little slack for a wider font) and Remind: 44px targets 36px
-    // apart (the 28px faces never overlap; only their outer padding does), at most 6, and +N for the rest
-    var room = W0 - 32 - 88 - (rem ? 52 : 0), fits = function (more) { return Math.max(1, Math.min(6, Math.floor((room - 8 - (more ? 34 : 0)) / 36))); };
+    // the faces the row holds beside its word column (RT.col, 80px at the default) and its gap, and Remind: 44px targets 36px apart (the
+    // 28px faces never overlap; only their outer padding does), at most 6, and +N for the rest
+    var room = W0 - 32 - (((RT && RT.col) || 80) + 8) - (rem ? 52 : 0), fits = function (more) { return Math.max(1, Math.min(6, Math.floor((room - 8 - (more ? 34 : 0)) / 36))); };
     var n = people.length <= fits(false) ? people.length : fits(true), more = people.length - n;
     // (data-v key: a redraw gives the focus back to this face, not to the same person's face on the board)
     var faces = people.slice(0, n).map(function (x) {
       return '<button class="facebtn" data-act="person" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-v="key" aria-label="' + esc(personAria(x)) + '" data-lbl="' + esc(faceLabel(x)) + '">' + avatar(x, 28) + '</button>';
-    }).join('') + (more ? '<span class="wkn tn" aria-hidden="true">+' + more + '</span>' : '');
+    }).join('') + (more ? '<span class="wkn tn" role="img" aria-label="' + more + ' more" data-lbl="' + more + ' more">+' + more + '</span>' : '');
     var word = i < budget ? ' <span data-lbl3>' + R.w + '</span>' : '';
     h += '<div class="wkr" role="group" aria-label="' + esc(said + ': ' + andList(people.map(faceLabel))) + '">' +
       '<span class="wkl" aria-hidden="true" data-lbl="' + said + '"><span class="wg" data-k="' + (row.k === 'waiting' && ws.booking ? 'waitbook' : R.k) + '">' + R.g + '</span>' + word + '</span>' +
@@ -6676,9 +6778,8 @@ function primaryHTML(m, k) {
   if (k === 'rides') return wrap('<button class="btn pri" data-act="rides" data-id="' + m.id + '" aria-label="Rides"><span data-k="drive" aria-hidden="true">🚗</span> <span data-lbl3>Rides</span></button>');
   // PIA-157: my next drive: its day, ⏰ when to leave home and the travelers' faces (no word), one tap to P-rides at that run
   if (k === 'drive') {
-    // PIA-159: the drive shown next on this phone's clock (myDrive: until its back time, overnight too), "🚗 11/20 ⏰ 12:05 PM ORD 💪": the
-    // leave day's numerals, ⏰ with the 12-hour leave, the code of the first stop I drive and the faces; the weekday and every stop I
-    // drive in its spoken name
+    // PIA-159: the drive shown next on this phone's clock (myDrive: until its back time, overnight too): the leave day's numerals, ⏰ with
+    // the 12-hour leave, the code of the first stop I drive and the faces; the weekday and every stop I drive in its spoken name
     var dr = myDrive(m); if (!dr) return '';
     // (fix pass: the faces of the legs I drive; a traveler who joined the run since, still without a driver, is not mine to show)
     var mineOf = function (legs) { return legs.filter(function (l) { return l.ride.by.indexOf(m.me.code) >= 0; }).map(function (l) { return l.code; }); };
@@ -6687,8 +6788,12 @@ function primaryHTML(m, k) {
     var daria = dr.leave ? 'Leave home ' + h12(dr.leave.t) + ' ' + dday : 'Drive ' + dday + ' ' + md(dr.day);
     if (st.length > 1) daria += ': ' + st.filter(function (s) { return mineOf(s.legs).length; }).map(function (s) { return rideWhere(s.ap) + ' for ' + namesOf(m, mineOf(s.legs)); }).join(', then ');
     else daria += ' for ' + namesOf(m, dcodes) + ', ' + rideWhere(dr.ap) + (dr.leave && dr.leave.day !== dr.day ? ', ' + (dr.kind === 'a' ? 'lands ' : 'flight ') + h12(dr.first) + ' ' + DOW_FULL[dowOf(dr.day)] : '');
-    return wrap('<button class="btn pri drv" data-act="rides" data-id="' + m.id + '" data-v="' + esc(dr.key) + '" aria-label="' + esc(daria) + '" data-lbl="' + esc(dr.leave ? 'Leave home ' + h12(dr.leave.t) : 'Drive') + '"><span data-k="drive" aria-hidden="true">🚗</span><span class="tn">' + md(ld) + '</span>' +
-      (dr.leave ? '<span class="dlv" aria-hidden="true"><span data-k="lvhome">⏰</span>' + clockHTML(dr.leave.t) + '</span>' : '') + '<span aria-hidden="true">' + apHTML(myAp) + '</span>' +
+    // (PIA-160: two lines, "⏰ 12:05 PM" over "11/20 ORD": the leave time the largest thing on the button, never with a date; the date
+    // under it the day of ⏰; with no ⏰ yet the date on top. The spoken name and its words are #159's)
+    var d1 = dr.leave ? '<span data-k="lvhome">⏰</span> ' + clockHTML(dr.leave.t) : '<span class="tn">' + md(ld) + '</span>';
+    var d2 = (dr.leave ? '<span class="tn">' + md(ld) + '</span> ' : '') + apHTML(myAp);
+    return wrap('<button class="btn pri drv" data-act="rides" data-id="' + m.id + '" data-v="' + esc(dr.key) + '" aria-label="' + esc(daria) + '" data-lbl="' + esc(dr.leave ? 'Leave home ' + h12(dr.leave.t) : 'Drive') + '"><span class="dg" data-k="drive" aria-hidden="true">🚗</span>' +
+      '<span class="dst" aria-hidden="true"><span class="d1">' + d1 + '</span><span class="d2">' + d2 + '</span></span>' +
       '<span class="drvf" aria-hidden="true">' + dcodes.map(function (c) { var x = memberIn(m, c); return x ? avatar(x, 28, { plain: true }) : ''; }).join('') + '</span></button>');
   }
   // track: my travel days, Flighty in a new tab
@@ -6960,6 +7065,7 @@ function render(keep, bg) {
   $('#tabbar').innerHTML = renderTabbar();
   fitNames(scr, screenWords, SCREEN_MAX);
   shrinkNames(scr);
+  fitTimes(scr);
   if (out.id === 'trips-ideas') S.fly = null;   // the arrivals flew in once
   if (/^trip-(?:organizer|portal)/.test(out.id)) S.pulseAns = null;   // PIA-137: it pulses once, as drawn
   if (keep) window.scrollTo(0, y);
@@ -6991,9 +7097,12 @@ function nameCut(el) {
   if (el.scrollWidth > el.clientWidth + 1) return true;
   try { var r = document.createRange(); r.selectNodeContents(el); return r.getBoundingClientRect().width > el.getBoundingClientRect().width + 0.01; } catch (e) { return false; }
 }
+/* PIA-160: a name cut by its column is drawn a little smaller, from its own size down to a fixed 13px floor in half-pixel steps (never
+   smaller at any text size) */
 function shrinkNames(root) {
   $$('.fn[data-nm]', root).forEach(function (el) {
-    var fit = function () { for (var fs = 13; nameCut(el) && fs >= 11; fs--) el.style.fontSize = fs + 'px'; };
+    var cs = 0; try { if (typeof getComputedStyle === 'function') cs = parseFloat(getComputedStyle(el).fontSize) || 0; } catch (e) { cs = 0; }
+    var fit = function () { for (var fs = (cs || 15) - 0.5; nameCut(el) && fs >= 13; fs -= 0.5) el.style.fontSize = fs + 'px'; };
     fit();
     // (PIA-153: a 'Mom & Dad' still cut at the smallest size, 'Mom & D…', is drawn 'Mom&Dad' instead)
     var tx = el.textContent || '';
@@ -7012,7 +7121,7 @@ function fitNames(root, count, max) {
 /* PIA-140 fix pass 2: P-person's name (≤2 words) breaks only at its spaces: each word is one unbreakable span (nameWords), not even
    split at a hyphen. Beside the face it gets what ‹, ⇄, ⓘ and ⌄ leave; a word wider than that moves the name onto its own line
    under the face (.stk), the buttons staying where they are. Only a word wider than the whole sheet is then drawn smaller (down to
-   14px) and, past that, broken (.brk), never a sideways scroll. */
+   14px at the default text size; PIA-160: 14px × the sheets' scale) and, past that, broken (.brk), never a sideways scroll. */
 function nameWords(s) { return String(s || '').split(/\s+/).filter(Boolean).map(function (w) { return '<span class="w">' + esc(w) + '</span>'; }).join(' '); }
 function fitHead(root) {
   var hd = root && root.querySelector('.sh-hd.pers'), nm = hd && hd.querySelector('.pnm');
@@ -7021,8 +7130,22 @@ function fitHead(root) {
   hd.classList.remove('stk'); nm.classList.remove('brk'); nm.style.fontSize = '';
   if (!over()) return;
   hd.classList.add('stk');
-  for (var fs = 19; fs >= 14 && over(); fs--) nm.style.fontSize = fs + 'px';
+  // (PIA-160: from a pixel under its drawn size, 20 at the default text size, down to 14 × the sheets' scale)
+  var drawn = 20; try { drawn = parseFloat(getComputedStyle(nm).fontSize) || 20; } catch (e) { drawn = 20; }
+  for (var fs = Math.round(drawn) - 1, lo = 14 * ((RT && RT.kR) || 1); fs >= lo && over(); fs--) nm.style.fontSize = fs + 'px';
   if (over()) nm.classList.add('brk');
+}
+/* PIA-160: a board time label stays on its track: after layout (its real width in this phone's font, at its text size), one that runs
+   past the track's right edge is pinned to that edge, one past its left edge to the left one. Its words never change. Every label is
+   measured first and only then moved, so the board lays out once more at most */
+function fitTimes(root) {
+  var pins = [];
+  $$('.track .btm', root).forEach(function (el) {
+    var t = el.closest('.track'); if (!t || !isShown(el)) return;
+    var a = t.getBoundingClientRect(), b = el.getBoundingClientRect();
+    if (b.right > a.right + 0.5) pins.push([el, 'r']); else if (b.left < a.left - 0.5) pins.push([el, 'l']);
+  });
+  pins.forEach(function (p) { var s = p[0].style; if (p[1] === 'r') { s.left = 'auto'; s.right = '0'; } else { s.right = 'auto'; s.left = '0'; } });
 }
 /* the strict word rule: a word is a visible whitespace token holding a Unicode letter. Trip names ([data-free]),
    numerals, emoji and glyphs are free; typed values count; a password field shows no words */
@@ -7110,7 +7233,7 @@ SHEETS.key = function (sh) {
   if (!L.keys) L.keys = keyEntries();
   var pages = keyPages(L.keys);
   L.page = Math.max(0, Math.min(L.page || 0, pages.length - 1));
-  var h = shHd('ⓘ', { right: pages.length > 1 ? '<button class="ib" data-act="kpage" data-v="-1" aria-label="Previous page"' + (L.page ? '' : ' disabled') + '>◀</button><span class="tn" style="font-size:14px">' + (L.page + 1) + '/' + pages.length + '</span><button class="ib" data-act="kpage" data-v="1" aria-label="Next page"' + (L.page < pages.length - 1 ? '' : ' disabled') + '>▶</button>' : '' });
+  var h = shHd('ⓘ', { right: pages.length > 1 ? '<button class="ib" data-act="kpage" data-v="-1" aria-label="Previous page"' + (L.page ? '' : ' disabled') + '>◀</button><span class="tn kpg">' + (L.page + 1) + '/' + pages.length + '</span><button class="ib" data-act="kpage" data-v="1" aria-label="Next page"' + (L.page < pages.length - 1 ? '' : ' disabled') + '>▶</button>' : '' });
   h += '<div class="legend">' + pages[L.page].map(function (g) { return '<div class="li" data-keys="' + g.keys.join(' ') + '"><span class="gl">' + LEGEND[g.k][0] + '</span><span>' + keyLabel(g) + '</span></div>'; }).join('') + '</div>';
   h += '<div class="rowc"><button class="tool" data-act="settings" aria-label="Settings">⚙</button></div>';
   return h;
@@ -7385,6 +7508,10 @@ SHEETS.organizer = function (sh) {
   if (L.url == null) L.url = workerBase();
   // PIA-152: the build, a number only (#152: no word), beside ⚙ on every phone (ⓘ reaches ⚙ everywhere): compare it with main's
   var h = shHd('⚙ <span class="tn bld" role="img" aria-label="Build ' + BUILD + '" data-lbl="Build">#' + BUILD + '</span>');
+  // PIA-160: this phone's screen width and text size under the build, on every phone (numerals and two glyphs: no word), for a device
+  // check over the phone; a long press on it says "Width, text size" (an icon's label is at most 3 words)
+  var ts = typeScale(), sw = Math.round(+(document.documentElement && document.documentElement.clientWidth) || 0), tz = Math.round(ts.root * 10) / 10;
+  h += '<p class="phonerow tn" role="img" aria-label="' + esc('Screen ' + sw + ' wide, text ' + tz) + '" data-lbl="Width, text size"><span data-k="scrw" aria-hidden="true">📐</span> ' + sw + ' <span data-k="txtsz" aria-hidden="true">🔠</span> ' + tz + '</p>';
   // PIA-154: a phone that organizes nothing sees the build and one 🔑, which opens the token, Worker and Save (one more tap); the
   // organizer link still sets the token with no tap at all
   if (!orgPhone() && !L.reveal && !(d && (d.tokEdited || d.urlEdited))) return h + '<div class="rowc"><button class="tool" data-act="orgreveal" aria-label="Organizer token" data-lbl="Organizer token">🔑</button></div>';
@@ -8372,7 +8499,7 @@ function legRows(m, x, edit, links, L) {
       var k = r[4], LL = L || {}, T = LL.times && LL.times.code === x.code ? LL.times : null, rd = tmRead(T, k, e.time), ed = !!by && LL.edit === k;
       var tAp = legPick(m, x, T, k) || ap, rt = rd.t;
       var g0 = '<span class="lg0"><span data-k="' + r[2] + '" aria-hidden="true">' + r[1] + '</span></span>';
-      if (ed) { h += '<div class="leg lbk tedit" style="--pc:var(--p' + x.color + ')">' + g0 + day + timeFld(m, x, LL, k) + segHTML(m, x, LL, k) + '</div>' + pillsHTML(m, x, LL, k, e.choices); return; }
+      if (ed) { h += '<div class="leg lbk tedit" style="--pc:var(--p' + x.color + ')">' + g0 + day + '<span class="tgrp">' + timeFld(m, x, LL, k) + segHTML(m, x, LL, k) + '</span></div>' + pillsHTML(m, x, LL, k, e.choices); return; }
       var body = '';
       if (rt && (rd.state === 'saved' || rd.state === 'ok' || rd.state === 'carried')) {
         var said = (r[0] ? 'Leaving time, ' : 'Landing time, ') + rideWhere(tAp) + ', ' + h12(rt);
@@ -8585,7 +8712,7 @@ function bookRow(m, x, ho) {
    there are no leg rows to hold them (booked, no days), both edit rows stand alone. */
 function timesRow(m, x, L) {
   var fe = flightEnds(m, x.code), ch = fe ? fe[0].choices : [];
-  return ['arr', 'dep'].map(function (k) { return '<div class="leg lbk tedit times"><span class="lg0"><span data-k="' + (k === 'arr' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (k === 'arr' ? '🛬' : '🛫') + '</span></span>' + timeFld(m, x, L, k) + segHTML(m, x, L, k) + '</div>' + pillsHTML(m, x, L, k, ch); }).join('');
+  return ['arr', 'dep'].map(function (k) { return '<div class="leg lbk tedit times"><span class="lg0"><span data-k="' + (k === 'arr' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (k === 'arr' ? '🛬' : '🛫') + '</span></span><span class="tgrp">' + timeFld(m, x, L, k) + segHTML(m, x, L, k) + '</span></div>' + pillsHTML(m, x, L, k, ch); }).join('');
 }
 /* PIA-159: a time's half ('am' | 'pm', '' none) and its 12-hour digits ("10:30") */
 function legHalf(t) { return HHMM_RE.test(String(t || '')) ? (+t.slice(0, 2) < 12 ? 'am' : 'pm') : ''; }
@@ -8640,8 +8767,10 @@ function timeFld(m, x, L, k) {
    time, or tapped); a carried half pulses once */
 function segHTML(m, x, L, k) {
   var T = L.times && L.times.code === x.code ? L.times : null, r = tmRead(T, k, k === 'arr' ? x.arrTime : x.depTime);
+  // (PIA-160: one Tab stop, the half pressed (else AM); the arrow keys move between the two and press, Home / End go to either end)
+  var stop = r.half === 'pm' ? 'pm' : 'am';
   return '<span class="ampm" id="seg-' + k + '" role="radiogroup" aria-label="' + (k === 'arr' ? 'Lands' : 'Leaves') + ', AM or PM">' + ['am', 'pm'].map(function (hf) {
-    return '<button class="segb" role="radio" aria-checked="' + (r.half === hf) + '" data-act="tmseg" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + k + '" data-v="' + hf + '" aria-label="' + hf.toUpperCase() + '">' + hf.toUpperCase() + '</button>';
+    return '<button class="segb" role="radio" aria-checked="' + (r.half === hf) + '" data-act="tmseg" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + k + '" data-v="' + hf + '" aria-label="' + hf.toUpperCase() + '" tabindex="' + (hf === stop ? 0 : -1) + '">' + hf.toUpperCase() + '</button>';
   }).join('') + '</span>';
 }
 /* PIA-159: the airports a booked leg can be at (legChoices), as pills under its field ("Midway, MDW"): pressed is the one picked, else
@@ -8651,9 +8780,11 @@ function pillsHTML(m, x, L, k, choices) {
   if (!choices || choices.length < 2) return '';
   var T = L.times && L.times.code === x.code ? L.times : null, saved = k === 'arr' ? x.arrTime : x.depTime, plan = k === 'arr' ? x.A : x.H;
   var pk = legPick(m, x, T, k), fol = !!pk && (!(T && T.ap && T.ap[k]) || !!(T.fol && T.fol[k])), on = pk || (saved ? legAp(x, k) : forcedPick(m) ? '' : plan);
+  // (PIA-160: one Tab stop, the airport pressed (else the first); the arrow keys move along the pills and pick)
+  var stop = choices.indexOf(on) >= 0 ? on : choices[0];
   return '<div class="pills" id="pills-' + k + '" role="radiogroup" aria-label="' + (k === 'arr' ? 'Lands at airport' : 'Leaves from airport') + '">' + choices.map(function (a) {
     var nm = (hasOwn(AIRPORT_NAME, a) && AIRPORT_NAME[a] !== a ? AIRPORT_NAME[a] + ', ' : '') + a + (on === a && fol && k === 'dep' ? ', same as landing' : '');
-    return '<button class="pill' + (on === a && fol ? ' fol' : '') + (!on && a === plan ? ' plan' : '') + '" role="radio" aria-checked="' + (on === a) + '" data-act="tmap" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + k + '" data-v="' + a + '" aria-label="' + esc(nm) + '">' + a + '</button>';
+    return '<button class="pill' + (on === a && fol ? ' fol' : '') + (!on && a === plan ? ' plan' : '') + '" role="radio" aria-checked="' + (on === a) + '" data-act="tmap" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + k + '" data-v="' + a + '" aria-label="' + esc(nm) + '" tabindex="' + (a === stop ? 0 : -1) + '">' + a + '</button>';
   }).join('') + '</div>';
 }
 /* a typed time is marked ⚠ once its field was left (or a close held it) and it is not a time */
@@ -8668,7 +8799,7 @@ function syncTimes(sh) {
   ['arr', 'dep'].forEach(function (k) {
     var r = tmRead(T, k, k === 'arr' ? x.arrTime : x.depTime), sg = document.getElementById('seg-' + k);
     if (sg) {
-      $$('.segb', sg).forEach(function (b) { b.setAttribute('aria-checked', String(b.getAttribute('data-v') === r.half)); });
+      $$('.segb', sg).forEach(function (b) { b.setAttribute('aria-checked', String(b.getAttribute('data-v') === r.half)); b.setAttribute('tabindex', b.getAttribute('data-v') === (r.half === 'pm' ? 'pm' : 'am') ? '0' : '-1'); });
       T.pulsed = T.pulsed || {};
       if (r.state === 'carried' && T.pulsed[k] !== T[k]) { T.pulsed[k] = T[k]; pulseEl(sg, 'cpulse'); }
     }
@@ -8775,7 +8906,12 @@ function saveTimes(sh, o) {
       else if (lost) {
         var tt = ['a', 'd'].filter(function (k) { return k === 'a' ? send.arr !== undefined : send.dep !== undefined; }).map(function (k) { return (k === 'a' ? '🛬 ' : '🛫 ') + h12(k === 'a' ? x2.arrTime : x2.depTime); }).join(' · ');
         toast({ html: '<span aria-hidden="true">' + esc(tt + ' ✓ · 📝 Too long: ' + lost) + '</span><span class="vh">' + esc('Saved ' + tt.replace(/[🛬🛫] /gu, '') + '. The note is too long to add ' + rideWhere(lost) + '; shorten the note.') + '</span>' }, null, tell);
-      } else toast(['a', 'd'].filter(function (k) { return ch[k]; }).map(legW).join(' · ') + ' ✓', null, tell);
+      } else {
+        // (PIA-160: one wrapper of whole halves, the · ending the first and the ✓ the last, so the echo can wrap only after its ·; its
+        // text the same)
+        var halves = ['a', 'd'].filter(function (k) { return ch[k]; }).map(legW);
+        toast({ html: '<span class="ech">' + halves.map(function (w, i) { return '<span class="nw">' + esc(w) + (i < halves.length - 1 ? ' ·' : ' ✓') + '</span>'; }).join(' ') + '</span>', echo: true }, null, tell);
+      }
     }
     return r;
   });
@@ -9056,24 +9192,28 @@ function runHTML(m, R, r, L, o) {
     var rn = esc('Remind ' + rideLabel(memberIn(m, drv[0])));
     ctl += '<button class="ib rrem" data-act="nudge" data-v="rideremind" data-id="' + m.id + '" data-code="' + esc(drv[0]) + '" aria-label="' + rn + '" data-lbl="' + rn + '"><span data-k="remind">' + SHARE + '</span></button>';
   }
-  var h = '<div class="rrun' + (r.state === 'open' ? ' open' : '') + (o.focus === key ? ' on' : '') + (runLive(r, RT.today, RT.hhmm) ? '' : ' done') + '" id="run-' + esc(key) + '" tabindex="-1" role="group" aria-label="' + esc(runSaid(m, r)) + '"><div class="rrh">' + h1 + ctl + '</div>';
+  // (PIA-160: the controls together at the header's end, so Drive keeps to the card's right edge on its line or under it)
+  var h = '<div class="rrun' + (r.state === 'open' ? ' open' : '') + (o.focus === key ? ' on' : '') + (runLive(r, RT.today, RT.hhmm) ? '' : ' done') + '" id="run-' + esc(key) + '" tabindex="-1" role="group" aria-label="' + esc(runSaid(m, r)) + '"><div class="rrh">' + h1 + (ctl ? '<span class="rctl">' + ctl + '</span>' : '') + '</div>';
+  var anyPet = r.legs.some(function (l) { var px = memberIn(m, l.code); return !!(px && petLeg(px, r.kind)); });
   // PIA-159: the legs stop by stop, each stop's code once ("① 💪🐈 ORD 3:47 PM 🚗?"), ①② and the drive between stops on a joined run
   stops.forEach(function (s, si) {
     if (si) h += '<div class="rhop" role="img" aria-label="' + esc(hmin(driveMin(stops[si - 1].ap, s.ap)) + ' drive to ' + rideWhere(s.ap)) + '" data-lbl="Drive between"><span data-k="drive" aria-hidden="true">🚗</span><span class="tn" data-dur>' + hmin(driveMin(stops[si - 1].ap, s.ap)) + '</span></div>';
     s.legs.forEach(function (l, li) {
       var x = memberIn(m, l.code); if (!x) return;
       var own = l.code === mine, can = own || org, why = shut, lk = key + '|' + l.code, show = can && (!many || own || L.leg === lk);
-      var face = can && many && !own ? '<button class="facebtn" data-act="rideleg" data-id="' + m.id + '" data-v="' + esc(key) + '" data-code="' + esc(l.code) + '" aria-expanded="' + (L.leg === lk) + '" aria-label="' + esc(rideLabel(x) + ', how they get there') + '" data-lbl="' + esc(rideLabel(x)) + '">' + avatar(x, 28, { plain: true }) + '</button>'
-        : '<span class="rf" role="img" aria-label="' + esc(rideLabel(x)) + '" data-lbl="' + esc(rideLabel(x)) + '">' + avatar(x, 28, { plain: true }) + '</span>';
+      var face = can && many && !own ? '<button class="facebtn" data-act="rideleg" data-id="' + m.id + '" data-v="' + esc(key) + '" data-code="' + esc(l.code) + '" aria-expanded="' + (L.leg === lk) + '" aria-label="' + esc(rideLabel(x) + ', how they get there') + '" data-lbl="' + esc(rideLabel(x)) + '">' + avatar(x, 32, { plain: true }) + '</button>'
+        : '<span class="rf" role="img" aria-label="' + esc(rideLabel(x)) + '" data-lbl="' + esc(rideLabel(x)) + '">' + avatar(x, 32, { plain: true }) + '</span>';
       var st = l.ride.state === 'covered' ? '<span class="rst" role="img" aria-label="' + esc(namesOf(m, l.ride.by) + ' driving') + '" data-lbl="' + esc(namesOf(m, l.ride.by)) + '"><span data-pic>' + rideFaces(m, l.ride.by, 2) + '</span></span>'
         : l.ride.state === 'moved' ? '<span class="rst" role="img" aria-label="' + esc('Ride changed, ' + namesOf(m, l.ride.was)) + '" data-lbl="Ride changed"><span data-k="ridemoved">⚠</span><span class="rw" data-pic>' + rideFaces(m, l.ride.was, 2) + '</span></span>'
         : '<span class="rst" role="img" aria-label="No driver yet" data-lbl="No driver yet"><span class="rq" data-k="noride">🚗?</span></span>';
       // (the bus goes where the leg's own airport is not home: O'Hare and Midway, never Peoria; 🚌 / 🚙 wrap as one pair)
       var gr = show ? '<span class="rgp">' + ((l.ap || r.ap) !== R.home ? groundBtn(m, x, r.kind, 'bus', why) : '') + groundBtn(m, x, r.kind, 'rent', why) + '</span>' : '';
       // (PIA-158: 🐈 beside the traveler's 28px face where their pet flies this leg: no bubble on a 28px face)
-      var pl = petLeg(x, r.kind), pet = pl ? '<span class="rpet" role="img" aria-label="' + esc('With ' + pl.name) + '" data-lbl="' + esc('With ' + pl.name) + '"><span data-k="petfly" aria-hidden="true">' + pl.g + '</span></span>' : '';
+      // (PIA-160: in a run where a pet flies, a leg with none keeps the pet's place, and a later leg at the same stop the code's, so the
+      // codes and times stand in columns; both places are empty and hidden)
+      var pl = petLeg(x, r.kind), pet = pl ? '<span class="rpet" role="img" aria-label="' + esc('With ' + pl.name) + '" data-lbl="' + esc('With ' + pl.name) + '"><span data-k="petfly" aria-hidden="true">' + pl.g + '</span></span>' : anyPet ? '<span class="rpx" aria-hidden="true"></span>' : '';
       var num = multi && !li ? '<span class="rnum" data-k="stopn" aria-hidden="true">' + ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'][si] + '</span>' : multi ? '<span class="rnum" aria-hidden="true"></span>' : '';
-      h += '<div class="rleg">' + num + face + pet + (li ? '' : apHTML(s.ap)) + clockHTML(l.time) + st + '<span class="sp"></span>' + gr + '</div>';
+      h += '<div class="rleg">' + num + face + pet + (li ? '<b class="ap" aria-hidden="true"></b>' : apHTML(s.ap)) + clockHTML(l.time) + st + '<span class="sp"></span>' + gr + '</div>';
     });
   });
   return { html: h + '</div>', word: word };
@@ -9095,7 +9235,8 @@ SHEETS.rides = function (sh) {
   var nd = myDrive(m), nx = runs.filter(function (r) { return runLive(r, today, RT.hhmm); })[0], focus = sh.p.run || (nd ? nd.key : nx ? nx.key : '');
   var chip = function (r) {
     var codes = r.legs.map(function (l) { return l.code; }), s = esc(runSaid(m, r));
-    return '<button class="rk rfold" data-act="runfocus" data-id="' + m.id + '" data-v="' + esc(r.key) + '" aria-label="' + s + '" data-lbl="' + s + '"><span class="rkg" data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span><span class="tn">' + md(r.day) + '</span><span class="rkf" aria-hidden="true" data-pic>' + rideFaces(m, codes, 2) + '</span></button>';
+    // (PIA-160: dashed only while it has no driver: a covered run's chip has a solid edge)
+    return '<button class="rk rfold' + (r.state === 'open' ? '' : ' sf') + '" data-act="runfocus" data-id="' + m.id + '" data-v="' + esc(r.key) + '" aria-label="' + s + '" data-lbl="' + s + '"><span class="rkg" data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span><span class="tn">' + md(r.day) + '</span><span class="rkf" aria-hidden="true" data-pic>' + rideFaces(m, codes, 2) + '</span></button>';
   };
   var body = function (words, dow, fold) {
     var out = '', day = '', left = words;
@@ -9352,7 +9493,7 @@ function soonAfter(r, out) {
 /* a control that cannot act says why when it is tapped, as a long press would (its label: "Event day outside" …) */
 function explain(el) {
   if (!el || typeof el.getBoundingClientRect !== 'function') return;
-  showLabel(el); clearTimeout(lp.hide); lp.hide = setTimeout(hideLabel, 1400);
+  showLabel(el); var lb = $('#lbl'); clearTimeout(lp.hide); lp.hide = setTimeout(hideLabel, lblHold(lb ? lb.textContent : ''));
 }
 /* the screen's control with the same signature takes the focus again after a redraw (keyboard users keep their place) */
 function refocusScreen(sig) { var t = sig ? findCtl($('#screen'), sig) : null; if (t) { try { t.focus({ preventScroll: true }); } catch (e) { /* not focusable */ } } }
@@ -10114,10 +10255,17 @@ function toast(text, undo, share) {
   t.innerHTML = '<span class="tt">' + (text && typeof text === 'object' ? text.html : esc(text)) + (S.undo ? '<button class="undo" data-act="undo" aria-label="Undo">↩</button>' : '') +
     (S.toastShare ? '<button class="undo tshr" data-act="toastshare" aria-label="' + esc(share.label || 'Share') + '">' + SHARE + '</button>' : '') + '</span>';
   t.classList.toggle('top', !!S.sheet);
+  t.classList.toggle('echo', !!(text && typeof text === 'object' && text.echo));   // (PIA-160: the times echo's own width rules)
   t.hidden = false;
   placeToast();
-  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, S.undo || S.toastShare ? 5000 : 1600);
+  // (PIA-160: it stays as long as it takes to read, 2–6s by its visible pieces; at least 5s with ↩ or the share symbol)
+  var seen = text && typeof text === 'object' ? String(text.html || '').replace(/<span class="vh">[^<]*<\/span>/g, ' ').replace(/<[^>]*>/g, ' ') : String(text == null ? '' : text);
+  clearTimeout(toastTimer); toastTimer = setTimeout(hideToast, S.undo || S.toastShare ? Math.max(5000, readHold(seen)) : readHold(seen));
 }
+/* PIA-160: how long a toast holds: 1s and 0.3s a visible piece (a word, a glyph, a time), at least 2s and at most 6s */
+function readHold(s) { var n = String(s || '').split(/\s+/).filter(Boolean).length; return Math.min(6000, Math.max(2000, 1000 + 300 * n)); }
+/* PIA-160: how long a long-press or "why" label stays after the finger lifts: 1s and 0.25s a piece, 1.5s to 5s */
+function lblHold(s) { var n = String(s || '').split(/\s+/).filter(Boolean).length; return Math.min(5000, Math.max(1500, 1000 + 250 * n)); }
 /* PIA-159: a bottom toast never covers the trip page's primary or the tab bar: it sits at least 8px above whichever is higher, never
    lower than its own 150px (and the safe area); placed again on scroll and resize while it shows (one passive listener, idle while
    it is hidden); where that would take it past the top row, it shows at the top instead */
@@ -10196,7 +10344,7 @@ function hideLabel() { var b = $('#lbl'); if (b && !b.hidden) b.hidden = true; }
 function endPress() {
   clearTimeout(lp.t); lp.t = null;
   if (!lp.fired) return;
-  clearTimeout(lp.hide); lp.hide = setTimeout(hideLabel, 900);
+  var lb = $('#lbl'); clearTimeout(lp.hide); lp.hide = setTimeout(hideLabel, lblHold(lb ? lb.textContent : ''));
   clearTimeout(lp.unfire); lp.unfire = setTimeout(function () { lp.fired = false; }, 400);
 }
 
@@ -11594,6 +11742,7 @@ function wire() {
     later(function () { try { if (document.activeElement === t && t.value === v0) t.select(); } catch (x) { /* not selectable */ } }, 0);
   });
   document.addEventListener('focusout', function (e) { timesLeft(e.target, e.relatedTarget); });
+  document.addEventListener('touchstart', function () {}, { passive: true });   // (PIA-160: iOS shows :active, the tap's dim, only with a touch listener)
   window.addEventListener('scroll', placeToast, { passive: true });   // (PIA-159: a toast that shows keeps clear of the primary)
   window.addEventListener('resize', placeToast, { passive: true });
   // PIA-159: a booked leg's empty field taking the focus is that leg's edit row (its segment and airports appear; one row at a time)
@@ -11604,8 +11753,17 @@ function wire() {
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') { if (S && S.sheet) { e.preventDefault(); closeSheet(); } return; }
-    if (e.key === 'Tab' && S && S.sheet) {   // Tab wraps inside the open sheet (the page behind it is inert)
-      var f = $$('#sheet button:not([disabled]), #sheet a[href], #sheet input:not([disabled]), #sheet textarea, #sheet summary').filter(isShown), a = document.activeElement, i = f.indexOf(a);
+    // PIA-160: in P-person's [AM | PM] and its airport pills (one Tab stop each), the arrow keys move to the next or previous radio and
+    // press it, Home / End to the first or last; the sheet is drawn again with the focus on it (never with a modifier key: Alt / ⌘ +
+    // arrow stays the browser's Back and Forward)
+    var rg = !e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && /^Arrow(Left|Right|Up|Down)$|^Home$|^End$/.test(e.key) && document.activeElement && document.activeElement.closest ? document.activeElement.closest('#sheet .ampm, #sheet .pills') : null;
+    if (rg) {
+      var rs = $$('[role="radio"]', rg), ri = rs.indexOf(document.activeElement), nx = e.key === 'Home' ? 0 : e.key === 'End' ? rs.length - 1 : ri + (/Left|Up/.test(e.key) ? -1 : 1);
+      if (ri >= 0 && rs.length) { e.preventDefault(); var to = rs[Math.max(0, Math.min(rs.length - 1, nx))]; if (to !== document.activeElement || to.getAttribute('aria-checked') !== 'true') { to.focus(); to.click(); } }
+      return;
+    }
+    if (e.key === 'Tab' && S && S.sheet) {   // Tab wraps inside the open sheet (the page behind it is inert; PIA-160: a radio group is one stop)
+      var f = $$('#sheet button:not([disabled]):not([tabindex="-1"]), #sheet a[href], #sheet input:not([disabled]), #sheet textarea, #sheet summary').filter(isShown), a = document.activeElement, i = f.indexOf(a);
       if (!f.length) { e.preventDefault(); return; }
       if (e.shiftKey ? i <= 0 : (i < 0 || i === f.length - 1)) { e.preventDefault(); f[e.shiftKey ? f.length - 1 : 0].focus(); }
       return;

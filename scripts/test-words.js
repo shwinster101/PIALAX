@@ -380,6 +380,20 @@ async function main() {
   }
 
   const worst = { screen: { n: -1 }, popup: { n: -1 }, marked: { n: -1 } };
+  // PIA-160: the words census. PIALAX_CENSUS=capture records every measured screen and popup (its ordinary and marked tokens, by its
+  // label and its turn under that label) into PIALAX_CENSUS_OUT (scripts/fixtures/census-159.json by default); otherwise, with that
+  // fixture present, each measured state is compared with it as a multiset (an order change, the drive primary's two lines, is no word
+  // change): a polish pass that adds, drops or moves a word between a name and +N fails here
+  const CENSUS_FILE = path.join(ROOT, 'scripts', 'fixtures', 'census-159.json');
+  const CENSUS_MODE = process.env.PIALAX_CENSUS === 'capture' ? 'capture' : fs.existsSync(CENSUS_FILE) ? 'compare' : 'off';
+  // (a link shown in a sheet, P-link's or the devices link, is one word wherever the suite runs: it is recorded as "<link>", and the
+  // test token typed in ⚙ as "<token>", so the fixture holds no checkout path, no test key and no token)
+  const census = {}, censusTurn = {}, ctok = (t) => (/^[a-z][a-z0-9+.-]*:\/\/\S*[?#]/i.test(t) ? '<link>' : t === TOKEN ? '<token>' : t);
+  const censusNote = (kind, label, w, m) => {
+    if (/^self-test/.test(label)) return;
+    const k0 = kind + ' ' + label, n = censusTurn[k0] = (censusTurn[k0] || 0) + 1;
+    census[k0 + (n > 1 ? ' #' + n : '')] = { w: w.map(ctok), m: m.map(ctok) };
+  };
   const stray = [], consoleErrs = [];
   let screensCounted = 0, popupsCounted = 0, pressed = 0, glyphsPressed = 0, markedScreens = 0;
   // long-press coverage is kept per phone and width (phones walk in parallel, so nothing shared decides what is pressed)
@@ -449,7 +463,7 @@ async function main() {
   }, sels);
   async function measureScreen(page, label) {
     const r = await page.evaluate(COUNT, ['#screen', '#tabbar']), w = r.w;
-    screensCounted++;
+    screensCounted++; censusNote('screen', label, r.w, r.m);
     if (w.length > worst.screen.n) worst.screen = { n: w.length, label, words: w.join(' ') };
     if (r.m.length > worst.marked.n) worst.marked = { n: r.m.length, label, words: r.m.join(' ') };
     if (w.length > SCREEN_MAX) bad('screen over ' + SCREEN_MAX + ' words: ' + label + ' (' + w.length + ')', w.join(' '));
@@ -485,12 +499,25 @@ async function main() {
     }, only || null);
     if (!sel) { bad('no popup visible to count: ' + label); return []; }
     const r = await page.evaluate(COUNT, [sel]), w = r.w.concat(r.m);   // a popup's count is its own text; the screen behind it is not added
-    popupsCounted++;
+    popupsCounted++; censusNote('popup', label, r.w, r.m);
     if (w.length > worst.popup.n) worst.popup = { n: w.length, label, words: w.join(' ') };
     if (w.length > POPUP_MAX) bad('popup over ' + POPUP_MAX + ' words: ' + label + ' (' + w.length + ')', w.join(' '));
     // PIA-154: a popup marks nothing (its 20 are all ordinary words)
     if (r.m.length) bad('a popup marks label words (data-lbl3 is a screen\'s only): ' + label, r.m.join(' '));
     return w;
+  }
+  // PIA-160: the words at a larger text size. The root at 23px (an iPhone's larger Text Size steps), the page drawn again (a resize
+  // redraws the screen and the open sheet), the same screen and sheet counted, then the root put back: as multisets the words are the
+  // default's (no word depends on width or text size; only faces, chips and +N may move)
+  const freezeLog = [];
+  async function freeze23(page, label) {
+    const lists = async () => ({ s: await page.evaluate(COUNT, ['#screen', '#tabbar']), p: (await popupId(page)) ? await page.evaluate(COUNT, ['#sheet']) : null });
+    const redraw = async (on) => { await page.evaluate((v) => { let s = document.getElementById('pia160-root23'); if (v && !s) { s = document.createElement('style'); s.id = 'pia160-root23'; s.textContent = 'html{font-size:23px!important}'; document.head.appendChild(s); } else if (!v && s) s.remove(); window.dispatchEvent(new Event('resize')); }, on); await settle(page, 260); };
+    const a = await lists(); await redraw(true);
+    const big = await page.evaluate(() => parseFloat(getComputedStyle(document.documentElement).fontSize)), b = await lists(); await redraw(false);
+    const same = (x, y) => JSON.stringify((x || []).slice().sort()) === JSON.stringify((y || []).slice().sort());
+    const ok1 = big === 23 && same(a.s.w, b.s.w) && same(a.s.m, b.s.m) && (!a.p || (!!b.p && same(a.p.w, b.p.w) && same(a.p.m, b.p.m)));
+    freezeLog.push(ok1 ? { label, ok: true } : { label, ok: false, root: big, at17: a.s.w.concat(a.s.m, a.p ? ['|'].concat(a.p.w) : []).join(' '), at23: b.s.w.concat(b.s.m, b.p ? ['|'].concat(b.p.w) : []).join(' ') });
   }
   async function popupId(page) { return page.evaluate(() => { const s = document.querySelector('#sheet'); return s && !s.hidden ? s.getAttribute('data-popup') : null; }); }
   async function closeSheet(page) { if (await popupId(page)) { await page.click('#sheet [data-act="sh-close"]'); await settle(page, 150); } }
@@ -993,6 +1020,7 @@ async function main() {
         const s = 'Family' + (past ? ' 🗄' : '') + ' page ' + (i + 1);
         if (i || past) await measureScreen(page, tag(s));
         famLog.push(Object.assign({ who: tag(s) }, await page.evaluate(FAMCHK)));
+        if (!past && !i && !freezeLog.some((f) => /Family board/.test(f.label))) await freeze23(page, 'the Family board (' + tag(s) + ')');   // (PIA-160: once a run)
         if (deep && past && !i) { await keyCheck(page, tag(s)); await labelCheck(page, tag(s), who); }
         if (deep && (await page.$('#screen button.cell[data-act="fcell"]'))) {
           await jsClick(page, '#screen button.cell[data-act="fcell"]'); await settle(page, 80);
@@ -3517,6 +3545,9 @@ async function main() {
     const q = {}, momNote = (net, id) => (JSON.parse(net.kv.map.get('idea:' + id)).responses['momdad-t1'] || {}).note || '';
     const until = async (page, f, ms) => { for (let t = 0; t < (ms || 8000); t += 50) { if (await f()) return true; await page.waitForTimeout(50); } return false; };
     const toastText = (page) => page.evaluate(() => { const t = document.querySelector('#toast'); return t && !t.hidden ? t.textContent.replace(/\s+/g, ' ').trim() : ''; });
+    // (the Worker can hold the new note a moment before the phone has its answer and shows the confirming toast: read the toast once it
+    // says ✓, waiting up to 2.5s for it)
+    const toastDone = async (page) => { let t = ''; await until(page, async () => /✓/.test(t = await toastText(page)), 2500); return t; };
     {
       // Mom & Dad from the list: the card's 🚗? (1) → "☐ 🚗 Drive" (2); ↩ in the toast (1); both runs, then 📅 Phone in the same sheet (1)
       const { ctx, page, net } = await phone('ptmom', { worker: true, ls: { pialax_watchlist_v2: listRec([PT]), pialax_idea_me_v1: { [PT]: 'momdad-t1' }, pialax_ui_v1: { v1read: 1 } } });
@@ -3531,7 +3562,7 @@ async function main() {
       if (q.lvLabel) await measurePopup(page, 'PIA-157 › ⏰\'s long press', '#lbl'); await page.mouse.up(); await settle(page, 120); await untilLabelGone(page);
       if (await fingerTap(page, '#sheet [data-act="ride"][data-v="aORD1120-ashwin-t2"]')) taps++;
       await until(page, () => /aORD1120/.test(momNote(net, PT)));
-      q.list.taps = taps; q.list.note = momNote(net, PT); q.list.toast = await toastText(page);
+      q.list.taps = taps; q.list.note = momNote(net, PT); q.list.toast = await toastDone(page);
       if (q.list.toast) await measurePopup(page, 'PIA-157 › the toast 🚗✓ ↩', '#toast');
       let undo = 0; if (await fingerTap(page, '#toast [data-act="undo"]')) undo++;
       await until(page, () => !/🚗/.test(momNote(net, PT)));
@@ -3541,11 +3572,13 @@ async function main() {
       await fingerTap(page, '#sheet [data-act="ride"][data-v="dORD1130-ashwin-t2"]'); await until(page, () => /dORD1130/.test(momNote(net, PT))); await settle(page, 300);
       q.both = { note: momNote(net, PT), phone: await page.$$eval('#sheet a[download][data-act="ridecal"]', (es) => es.map((e) => e.textContent.trim() + '|' + e.getAttribute('download') + '|' + Math.round(e.getBoundingClientRect().height))) };
       q.both.w = await measurePopup(page, 'PIA-157 › P-rides on Mom & Dad\'s phone, both claimed (ORD, Drive, Drive, Phone)');
+      await freeze23(page, 'P-rides on Mom & Dad\'s phone');
       let cal = 0; if (await fingerTap(page, '#sheet a[data-act="ridecal"]')) cal++; await settle(page, 300);
       q.cal = { taps: cal, toast: await toastText(page), dot: await page.$$eval('#sheet a[data-act="ridecal"] .ndot', (es) => es.length), kept: await page.evaluate((id) => (JSON.parse(localStorage.getItem('pialax_ui_v1') || '{}').rides || {})[id] || '', PT) };
       await closeSheet(page);
       q.trip = { marked: await markedOf(page, ['#screen']), prim: await page.$eval('#screen .split.prim .btn', (e) => e.textContent.replace(/\s+/g, ' ').trim() + '|' + e.getAttribute('aria-label')).catch(() => '') };
       q.trip.w = await measureScreen(page, 'PIA-157 › Mom & Dad\'s trip page, both runs claimed (🚗 11/20 ⏰12:05)');
+      await freeze23(page, 'P town on Mom & Dad\'s phone (the drive primary)');
       await keyCheck(page, 'PIA-157 › Mom & Dad\'s trip page');
       await page.click('#screen [data-act="back"]'); await settle(page, 150);
       q.slot1 = await page.$eval('#screen [data-act="ridescard"]', (e) => e.textContent.trim()).catch(() => '');
@@ -3575,19 +3608,24 @@ async function main() {
       await closeSheet(page);
       let kt = 0; if (await fingerTap(page, '#screen .pb [data-act="person"][data-code="momdad-t1"]')) kt++; await settle(page, 200);
       q.pet.person = await measurePopup(page, 'PIA-158 › P-person, Mom & Dad on their phone (🏠 ORD 🚗2, 🐕 Kona, 🐈 11/20–11/30 ›)');
+      await freeze23(page, 'P-person, Mom & Dad');
       if (await fingerTap(page, '#sheet .konal [data-act="petsheet"]')) kt++; await settle(page, 200);
       q.pet.kona = { taps: kt, pop: await popupId(page), open: await page.$eval('#sheet .pet-notes.kona', (e) => e.open).catch(() => null), ticks: await page.$$eval('#sheet [data-act="pettick"]', (es) => es.length) };
       q.pet.kona.w = await measurePopup(page, 'PIA-158 › P-pet from Kona\'s row (the folds only, At home with Kona open)');
+      await freeze23(page, 'P-pet from Kona\'s row');
       await closeSheet(page);
       let pt = 0; if (await fingerTap(page, '#screen .thead [data-act="house"]')) pt++; await settle(page, 200);
       q.pet.house = { pop: await popupId(page), w0: await measurePopup(page, 'PIA-158 › P-house on Mom & Dad\'s phone') };
       if (await fingerTap(page, '#sheet [data-act="dishpick"][data-code="momdad-t1"]')) pt++; await settle(page, 150);
       q.pet.house.w1 = await measurePopup(page, 'PIA-158 › P-house, the 18 dishes open');
+      await freeze23(page, 'P-house, the dishes open');
       if (await fingerTap(page, '#sheet [data-act="dish"][data-v="1"]')) pt++; await settle(page, 120);
       if (await fingerTap(page, '#sheet [data-act="dishsave"]')) pt++;
       await until(page, () => /🧺/.test(momNote(net, PT)));
-      q.pet.house.taps = pt; q.pet.house.note = momNote(net, PT); q.pet.house.toast = await toastText(page);
+      q.pet.house.taps = pt; q.pet.house.note = momNote(net, PT); q.pet.house.toast = await toastDone(page);
       await closeSheet(page);
+      // (PIA-160: the same phone's Map at the larger text size too; the Family board's is in famWalk)
+      await jsClick(page, '#tabbar [data-act="tab"][data-v="map"]'); await settle(page, 300); await freeze23(page, 'the Map on Mom & Dad\'s phone');
       await ctx.close();
     }
     {
@@ -3608,11 +3646,13 @@ async function main() {
       await settle(page, 200);
       q.org = { marked: await markedOf(page, ['#screen']), chips: await page.$$eval('#screen .wkride .rk', (es) => es.map((e) => e.getAttribute('data-v') + '|' + (e.querySelector('[data-k="ridemoved"]') ? '⚠' : ''))) };
       q.org.w = await measureScreen(page, 'PIA-157 › the organizer on P town with a moved ride (⚠) and Ask');
+      await freeze23(page, 'P town on the organizer\'s phone');
       await keyCheck(page, 'PIA-157 › the organizer\'s key with the Rides row');
       let ask = 0; if (await fingerTap(page, '#screen .wkride [data-act="nudge"][data-v="ride"]')) ask++; await settle(page, 250);
       q.ask = { taps: ask, shared: await page.evaluate(() => (window.__shared || []).slice(-1)[0] || null), posts: net.posts };
       let ok = 0; if (await fingerTap(page, '#screen .wkride .rk[data-v="aORD1120-ashwin-t2"]')) ok++; await settle(page, 200);
       q.orgSheet = await measurePopup(page, 'PIA-157 › P-rides on the organizer\'s phone (ORD)');
+      await freeze23(page, 'P-rides on the organizer\'s phone');
       if (await fingerTap(page, '#sheet [data-act="rideok"][data-v="aORD1120-ashwin-t2"]')) ok++;
       await until(page, () => /ashwin-t2\.aORD1120/.test(momNote(net, PR)));
       q.ok = { taps: ok, note: momNote(net, PR) };
@@ -3633,7 +3673,7 @@ async function main() {
       q.neb = { person: await measurePopup(page, 'PIA-158 › P-person, Ashwin on his phone (☐ 🐈 Nebby)') };
       if (await fingerTap(page, '#sheet [data-act="pet"][data-code="ashwin-t2"]')) nb++;
       await until(page, () => /🐈ad/.test(ashNote()));
-      q.neb.taps = nb; q.neb.note = ashNote(); q.neb.toast = await toastText(page);
+      q.neb.taps = nb; q.neb.note = ashNote(); q.neb.toast = await toastDone(page);
       await settle(page, 200); q.neb.on = await measurePopup(page, 'PIA-158 › P-person, Ashwin on his phone (☑ 🐈 Nebby › 0/5)');
       await closeSheet(page);
       const p0 = net.posts; let tk = 0;
@@ -3662,7 +3702,7 @@ async function main() {
       q.ash.w = await measurePopup(page, 'PIA-159 › Ashwin\'s 🛫 edit row: 347, PM carried');
       if (await fingerTap(page, '#sheet [data-act="sh-close"]')) at++;
       await until(page, () => /🛫15:47/.test(ashNote())); await settle(page, 150);
-      q.ash.taps = at; q.ash.posts = net.posts - pa; q.ash.note = ashNote(); q.ash.toast = await toastText(page);
+      q.ash.taps = at; q.ash.posts = net.posts - pa; q.ash.note = ashNote(); q.ash.toast = await toastDone(page);
       await ctx.close();
     }
     {
@@ -3670,6 +3710,7 @@ async function main() {
       const { ctx, page, net } = await phone('paanjo', { worker: true, url: '?idea=' + PA, ls: { pialax_watchlist_v2: listRec([PA]), pialax_idea_me_v1: { [PA]: 'anjo-t3' }, pialax_ui_v1: { v1read: 1 } } });
       await settle(page, 200);
       q.anjo = { marked: await markedOf(page, ['#screen']) }; q.anjo.w = await measureScreen(page, 'PIA-157 › Anjo booked, her drop-off the one open run');
+      await freeze23(page, 'P town on Anjo\'s phone');
       let taps = 0; if (await fingerTap(page, '#screen .wkride .rk[data-v="dORD1129-anjo-t3"]')) taps++; await settle(page, 200);
       q.anjo.sheet = await measurePopup(page, 'PIA-157 › P-rides on Anjo\'s phone (🚌 / 🚙 on her own leg)');
       // (the sheet opens at that run; her arrival's run, covered by Mom & Dad, offers her own 🚌 / 🚙 too)
@@ -3709,7 +3750,7 @@ async function main() {
       q.fix.w = await measurePopup(page, 'PIA-159 › the organizer\'s fix: Anjo\'s 🛬 at Midway, her 🛫 following');
       if (await fingerTap(page, '#sheet [data-act="sh-close"]')) ft++;
       await until(page, () => /🛬MDW/.test(anjoNote())); await settle(page, 150);
-      q.fix.taps = ft; q.fix.posts = net.posts - pf; q.fix.note = anjoNote(); q.fix.toast = await toastText(page);
+      q.fix.taps = ft; q.fix.posts = net.posts - pf; q.fix.note = anjoNote(); q.fix.toast = await toastDone(page);
       q.fix.tell = await page.$eval('#toast [data-act="toastshare"]', (e) => e.getAttribute('aria-label')).catch(() => '');
       if (q.fix.toast) await measurePopup(page, 'PIA-159 › the echo with Tell', '#toast');
       await ctx.close();
@@ -3746,7 +3787,7 @@ async function main() {
       if (await fingerTap(page, '#sheet #seg-dep [data-act="tmseg"][data-v="pm"]')) taps++; await settle(page, 80);
       if (await fingerTap(page, '#sheet [data-act="sh-close"]')) taps++;
       await until(page, () => /🛬22:30/.test(anjoNote())); await settle(page, 150);
-      q.p9.taps = taps; q.p9.posts = net.posts - p0; q.p9.note = anjoNote(); q.p9.toast = await toastText(page);
+      q.p9.taps = taps; q.p9.posts = net.posts - p0; q.p9.note = anjoNote(); q.p9.toast = await toastDone(page);
       if (q.p9.toast) await measurePopup(page, 'PIA-159 › the echo toast', '#toast');
       q.p9.w1 = await measureScreen(page, 'PIA-159 › Anjo\'s trip page with her Midway times');
       q.p9.bar = await page.$eval('#screen .pb [data-act="flight"][data-code="anjo-t3"]', (e) => e.getAttribute('aria-label')).catch(() => '');
@@ -3759,7 +3800,7 @@ async function main() {
       /^Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM$/.test(q.lvLabel) && q.lvLabel.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 12 && /🚗✓/.test(q.list.toast) &&
       q.undo.taps === 1 && q.undo.note === '' && q.both.note === '🚗ashwin-t2.aORD1120,ashwin-t2.dORD1130' && /^📅 Phone\|rides-ptownthanksgiving\.ics\|\d+$/.test(q.both.phone[0] || '') && +(q.both.phone[0] || '').split('|')[2] >= 44 &&
       eq(noAmPm(q.both.w), ['Fri', 'Drive', 'ORD', 'Mon', 'Drive', 'ORD', 'Phone']) && q.cal.taps === 1 && /📅✓/.test(q.cal.toast) && q.cal.dot === 0 && q.cal.kept.length > 10 &&
-      eq(q.trip.marked, ['Waiting', 'Rides', 'Booked', 'Hosting']) && /^🚗 ?11\/20 ?⏰ ?12:05 ?PM ?ORD[^|]*\|Leave home 12:05 PM Friday for Ashwin, O'Hare \(ORD\)$/.test(q.trip.prim) && q.trip.w.length <= SCREEN_MAX && /^🚗11\/20$/.test(q.slot1),
+      eq(q.trip.marked, ['Waiting', 'Rides', 'Booked', 'Hosting']) && /^🚗 ?⏰ ?12:05 ?PM ?11\/20 ?ORD[^|]*\|Leave home 12:05 PM Friday for Ashwin, O'Hare \(ORD\)$/.test(q.trip.prim) && q.trip.w.length <= SCREEN_MAX && /^🚗11\/20$/.test(q.slot1),
       'PIA-157 + PIA-159 Mom & Dad from the list, real taps through the real Worker: the card\'s 🚗? (1) → "☐ 🚗 Drive" (2) writes 🚗ashwin-t2.aORD1120 in their own answer; P-rides reads by day (Fri, Drive, ORD 2:35 PM; Mon, Drive, ORD 3:30 PM, each ⏰ range in 12-hour); ⏰\'s long press says "Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM"; ↩ in the toast takes it back (1); both runs, then 📅 Phone in the same sheet (1: a rides-….ics, its dot gone, its signature kept); the trip page then reads "🚗 11/20 ⏰ 12:05 PM ORD" with Waiting, Rides, Booked, Hosting marked ("Leave home 12:05 PM Friday for Ashwin, O\'Hare (ORD)"), the card 🚗11/20', q);
     check(q.link.taps === 2 && q.link.note === '🚗ashwin-t2.aORD1120' && q.link.me === 'momdad-t1' && eq(q.link.marked, ['Waiting', 'Booked', 'Hosting', 'Rides']) && q.link.w.length <= SCREEN_MAX,
       'PIA-157 Mom & Dad from Ashwin\'s iMessage (their own link): the trip opens with "🚗 Rides" (Waiting, Booked, Hosting and Rides marked: 4, ≤14 ordinary) → (1) → "☐ 🚗 Drive" (2), and the phone is Mom & Dad from then on', q.link);
@@ -3821,6 +3862,29 @@ async function main() {
   check(worst.screen.n <= SCREEN_MAX, 'busiest screen: ' + worst.screen.n + ' words (' + worst.screen.label + ': ' + worst.screen.words + ')');
   check(worst.popup.n <= POPUP_MAX, 'busiest popup: ' + worst.popup.n + ' words (' + worst.popup.label + ': ' + worst.popup.words + ')');
   check(worst.marked.n <= LBL3_MAX && markedScreens > 0, 'PIA-154 the most marked label words on one screen: ' + worst.marked.n + ' (' + worst.marked.label + ': ' + worst.marked.words + '), on ' + markedScreens + ' screens with any; each one from the list (' + LBL3_OK.join(', ') + ')');
+  check(freezeLog.length >= 10 && freezeLog.every((f) => f.ok),
+    'PIA-160 at a 23px root (a larger Text Size) the same words as at the default, as multisets, on ' + freezeLog.length + ' states: P town as Mom & Dad, the organizer and Anjo, P-rides (Mom & Dad, the organizer), P-person, P-pet, P-house, the Map and the Family board',
+    freezeLog.filter((f) => !f.ok).slice(0, 4).concat(freezeLog.length < 10 ? [freezeLog.map((f) => f.label)] : []));
+  if (CENSUS_MODE === 'capture') {
+    const out = process.env.PIALAX_CENSUS_OUT || CENSUS_FILE;
+    fs.writeFileSync(out, JSON.stringify({ build: (/<meta name="pialax-build" content="(\d+)">/.exec(fs.readFileSync(path.join(ROOT, 'app.html'), 'utf8')) || [])[1] || '', states: census }, null, 0).replace(/\},"/g, '},\n"') + '\n');
+    ok('PIA-160 census captured: ' + Object.keys(census).length + ' states → ' + out);
+  } else if (CENSUS_MODE === 'compare') {
+    // (PIALAX_CENSUS_OUT, when set, also keeps this run's census there, to see what moved)
+    if (process.env.PIALAX_CENSUS_OUT) fs.writeFileSync(process.env.PIALAX_CENSUS_OUT, JSON.stringify({ states: census }, null, 0).replace(/\},"/g, '},\n"') + '\n');
+    const fx = JSON.parse(fs.readFileSync(CENSUS_FILE, 'utf8')).states || {}, keys = Object.keys(fx), same = (a, b) => JSON.stringify(a.map(ctok).sort()) === JSON.stringify(b.map(ctok).sort());
+    // (a long-press label is pressed once per phone, on the first screen where the finger reaches it, so a layout change can move it to
+    // another screen: at #160 the organizer's "Host" is pressed on the Trips list, not its open shelf, and the prices phone's "Heads in"
+    // on the Family board, not the trip page. The same label on another screen of the same phone is the same popup: it is compared there)
+    const lblKey = (k) => { const m = /^(popup \S+ @\d+) .* › P-label "([^"]*)"(?: #\d+)?$/.exec(k); return m ? m[1] + '|' + m[2] : null; };
+    const byLbl = {}; Object.keys(census).forEach((k) => { const l = lblKey(k); if (l && !byLbl[l]) byLbl[l] = k; });
+    const at = (k) => (census[k] ? k : lblKey(k) && byLbl[lblKey(k)] ? byLbl[lblKey(k)] : null);
+    const seen = keys.filter((k) => at(k)), moved = seen.filter((k) => at(k) !== k), diff = seen.filter((k) => !(same(census[at(k)].w, fx[k].w) && same(census[at(k)].m, fx[k].m)));
+    // (every recorded state must be measured again: one the walk no longer reaches is named in the detail and fails the check)
+    check(keys.length >= 100 && seen.length === keys.length && !diff.length,
+      'PIA-160 the words census: ' + seen.length + ' of the ' + keys.length + ' screens and popups recorded at #159 measured again (' + moved.length + ' long-press labels on another screen of the same phone), each with the same ordinary and marked words (as a multiset: polish moves no word)',
+      diff.slice(0, 12).map((k) => k + ': ' + fx[k].w.concat(fx[k].m).join(' ') + ' → ' + census[at(k)].w.concat(census[at(k)].m).join(' ')).concat(diff.length > 12 ? ['… ' + (diff.length - 12) + ' more'] : [], keys.filter((k) => !at(k)).slice(0, 8).map((k) => 'not measured: ' + k)));
+  }
   await browser.close();
   return failCount ? 1 : 0;
 }

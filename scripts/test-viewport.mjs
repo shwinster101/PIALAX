@@ -276,6 +276,76 @@ console.log('▶ test-viewport: mobile layout regression suite');
     const badges = [...document.querySelectorAll('#screen .pb .av .bd [data-k="booked"]')].map((e) => { const c = getComputedStyle(e.closest('.bd')); return { t: e.textContent, bg: lum(c.backgroundColor), fg: lum(c.color) }; });
     return { rows, badges, over: document.documentElement.scrollWidth - W };
   };
+  // PIA-160: the type floor and the one grid (run in the page): every visible text with a letter or a digit on the screen and the tab
+  // bar and its size (none under 13px), the smallest AM / PM, each board label's size and whether it sits inside its track, the name
+  // column's widths (the board's .who, the key's words), the title's left against the bars' day 0, 📍's border → {small, mer, btm, ...}
+  const POLISH = () => {
+    const vis = (e) => !!e && e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+    const small = [], seen = new Set();
+    ['#screen', '#tabbar'].forEach((q) => { const root = document.querySelector(q); if (!root) return; const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+      while ((n = w.nextNode())) { const p = n.parentElement; if (!p || seen.has(p) || !/[\p{L}\p{N}]/u.test(n.nodeValue) || !vis(p) || p.closest('.cbar')) continue; seen.add(p); const fs = parseFloat(getComputedStyle(p).fontSize); if (fs < 12.95) small.push(n.nodeValue.trim().slice(0, 12) + ' ' + fs); } });
+    const mers = [...document.querySelectorAll('#screen .mer')].filter(vis).map((e) => parseFloat(getComputedStyle(e).fontSize));
+    const labs = [...document.querySelectorAll('#screen .pb .track .btm')].filter(vis);
+    const out = labs.filter((e) => { const b = e.getBoundingClientRect(), t = e.closest('.track').getBoundingClientRect(); return b.left < t.left - 0.5 || b.right > t.right + 0.5 || b.top < t.top - 0.5 || b.bottom > t.bottom + 0.5; }).length;
+    const who = [...document.querySelectorAll('#screen .pb-row .who')].map((e) => e.getBoundingClientRect().width), wkl = [...document.querySelectorAll('#screen .wk .wkl')].map((e) => e.getBoundingClientRect().width);
+    const whoL = [...document.querySelectorAll('#screen .pb-row .who')].map((e) => e.getBoundingClientRect().left), wklL = [...document.querySelectorAll('#screen .wk .wkl')].map((e) => e.getBoundingClientRect().left);
+    const tr = document.querySelector('#screen .pb-row .track'), tt = document.querySelector('#screen .thead .thd'), pin = document.querySelector('#screen .thead .chip.dchip'), pc = pin ? getComputedStyle(pin) : null;
+    // (the board's names, whole or "Mom&Dad", never cut, at their size; the drive primary's content from 🚗 to the faces, and its button)
+    const names = [...document.querySelectorAll('#screen .pb-row .who .fn')].map((e) => ({ t: e.textContent, fs: Math.round(parseFloat(getComputedStyle(e).fontSize) * 10) / 10, cut: e.scrollWidth > e.clientWidth + 1 }));
+    const pb = document.querySelector('#screen .btn.pri.drv'), dg = pb && pb.querySelector('.dg'), dz = pb && (pb.querySelector('.drvf .av') ? pb.querySelector('.drvf') : pb.querySelector('.dst'));
+    return { small, mer: mers.length ? Math.min(...mers) : 99, btm: labs.map((e) => Math.round(parseFloat(getComputedStyle(e).fontSize) * 100) / 100), out, who, wkl,
+      colOk: whoL.concat(wklL).every((x) => Math.abs(x - whoL[0]) < 0.6), title: tt ? Math.round(tt.getBoundingClientRect().left) : -1, bars: tr ? Math.round(tr.getBoundingClientRect().left) : -2,
+      pin: pc ? pc.borderTopWidth + '|' + pc.borderTopStyle : 'none', over: document.documentElement.scrollWidth - innerWidth, names,
+      prim: dg && dz ? Math.round(dz.getBoundingClientRect().right - dg.getBoundingClientRect().left) : -1, primIn: pb ? pb.getBoundingClientRect().right <= innerWidth + 0.5 && pb.scrollWidth <= pb.clientWidth + 1 : false };
+  };
+  // (the board's names drawn on a phone are whole, ≥13px; a phone's own name is the fitter's to drop, so Mom & Dad's is checked where
+  // another phone draws it)
+  const namesOk = (p) => p.names.length >= 2 && p.names.every((n) => !n.cut && n.fs >= 13);
+  // PIA-160 (fix 2): the times echo beside its share symbol (run in the page): every half (.nw) and the ≥44px share button inside the
+  // toast's pill, no half under the button, the pill inside the screen (and the desktop column), nothing scrolling inside it
+  const TELLBOX = () => {
+    const t = document.querySelector('#toast'); if (!t || t.hidden) return null;
+    const T = t.getBoundingClientRect(), b = t.querySelector('[data-act="toastshare"]'), B = b ? b.getBoundingClientRect() : null, app = document.querySelector('#app').getBoundingClientRect();
+    const nws = [...t.querySelectorAll('.ech .nw')].map((e) => e.getBoundingClientRect());
+    const inT = (r) => r.left >= T.left - 0.5 && r.right <= T.right + 0.5 && r.top >= T.top - 0.5 && r.bottom <= T.bottom + 0.5;
+    return { w: innerWidth, root: parseFloat(getComputedStyle(document.documentElement).fontSize), label: b ? b.getAttribute('aria-label') : '', halves: nws.length, text: t.textContent.replace(/\s+/g, ' ').trim(),
+      btn: !!B && B.width >= 43.5 && B.height >= 43.5 && inT(B), nws: nws.length > 0 && nws.every(inT), clear: !!B && nws.every((r) => r.right <= B.left + 0.5 || r.bottom <= B.top + 0.5 || r.top >= B.bottom - 0.5),
+      below: !!B && nws.length > 0 && B.top >= Math.max(...nws.map((r) => r.bottom)) - 0.5,
+      pill: T.left >= Math.max(0, app.left) - 0.5 && T.right <= Math.min(innerWidth, app.right) + 0.5, scroll: t.scrollWidth - t.clientWidth,
+      rects: { toast: [T.left, T.right].map(Math.round), btn: B ? [B.left, B.right].map(Math.round) : null, nws: nws.map((r) => [r.left, r.right].map(Math.round)) } };
+  };
+  const tellOk = (g) => !!g && g.halves === 2 && /✓$/.test(g.text) && /^Tell/.test(g.label) && g.btn && g.nws && g.clear && g.pill && g.scroll <= 0;
+  // PIA-160: edges and small text against what is behind them (run in the page; spec §10 (b) EDGES and (c) CONTRAST). edges: every
+  // visible control of these kinds whose top border is drawn (opacity 1: a faded, truly disabled control is not one), its edge against
+  // the parent's background (composited up to the first opaque one) at ≥3:1; ink: every visible text with a letter or a digit inside
+  // these, its colour (with the opacity it is drawn at) against its own background at ≥4.5:1 → {edges, ink, low: [what is under]}
+  const EDGE_SEL = '.tool, .fld, .hchip, .tchip, .ans, .notep, .btn:not(.pri), .ampm .segb, .pills .pill, .dtile, .dishes .dchip, .slot, .achip, .leg .tmb, .pricerow .chipq';
+  const CONTRAST = (arg) => {
+    const P = (c) => { let m = /rgba?\(([\d.]+),\s*([\d.]+),\s*([\d.]+)(?:,\s*([\d.]+))?\)/.exec(c || ''); if (m) return [+m[1], +m[2], +m[3], m[4] == null ? 1 : +m[4]];
+      m = /color\(srgb ([-\d.e]+) ([-\d.e]+) ([-\d.e]+)(?: \/ ([\d.]+))?\)/.exec(c || ''); return m ? [m[1] * 255, m[2] * 255, m[3] * 255, m[4] == null ? 1 : +m[4]] : null; };
+    const over = (a, b) => [0, 1, 2].map((i) => a[i] * a[3] + b[i] * (1 - a[3])).concat([1]);
+    const ground = (from) => { const ls = []; for (let n = from; n; n = n.parentElement) { const c = P(getComputedStyle(n).backgroundColor); if (c && c[3] > 0) { ls.push(c); if (c[3] >= 1) break; } }
+      let g = [255, 255, 255, 1]; for (let i = ls.length - 1; i >= 0; i--) g = over(ls[i], g); return g; };
+    const lin = (c) => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }, Lu = (c) => 0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2]);
+    const cr = (a, b) => { const x = Lu(a), y = Lu(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+    const vis = (e) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== 'hidden';
+    const op = (e) => { let o = 1; for (let n = e; n; n = n.parentElement) o *= +getComputedStyle(n).opacity; return o; };
+    const id = (e) => e.tagName.toLowerCase() + '.' + [...e.classList].join('.') + (e.getAttribute('data-act') ? '[' + e.getAttribute('data-act') + ']' : '');
+    const out = { edges: 0, ink: 0, low: [] };
+    const R = document.querySelector(arg.root || 'body');
+    if (arg.edges && R) R.querySelectorAll(arg.edges).forEach((e) => {
+      const cs = getComputedStyle(e), c = P(cs.borderTopColor);
+      if (!vis(e) || parseFloat(cs.borderTopWidth) <= 0 || /none|hidden/.test(cs.borderTopStyle) || !c || c[3] === 0 || op(e) < 0.99) return;
+      const g = ground(e.parentElement), r = cr(over(c, g), g); out.edges++;
+      if (r < 2.95) out.low.push('edge ' + id(e) + ' ' + r.toFixed(2));
+    });
+    if (arg.ink) { const seen = new Set(); document.querySelectorAll(arg.ink).forEach((root) => { const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n;
+      while ((n = w.nextNode())) { const p = n.parentElement; if (!p || seen.has(p) || !/[\p{L}\p{N}]/u.test(n.nodeValue) || !vis(p) || p.closest('.vh')) continue; seen.add(p);
+        const c = P(getComputedStyle(p).color); if (!c) continue; const g = ground(p), o = op(p), r = cr(over([c[0], c[1], c[2], c[3] * o], g), g); out.ink++;
+        if (r < 4.45) out.low.push('ink ' + id(p) + ' "' + n.nodeValue.trim().slice(0, 14) + '" ' + r.toFixed(2)); } }); }
+    return out;
+  };
+  const contrastFails = (s, c, want) => (c.low.length || (want.edges && !c.edges) || (want.ink && !c.ink) ? [s + ': ' + JSON.stringify(c)] : []);
   // PIA-156: on a short phone (678px tall, the owner's iPhone with Safari's bars) with the sticky primary: is the price row, and the
   // key's first row with its Remind, wholly above the primary (or the tab bar) before any scrolling? (run in the page, scrolled to top)
   const SHORTCHK = () => {
@@ -367,9 +437,15 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
         await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
         await measure('list');
+        // (PIA-160: the cards' slots and every other control a finger taps on the list keep a ≥3:1 edge in this scheme)
+        fails.push(...contrastFails('PIA-160 the list\'s tappable edges', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#screen' }), { edges: true }));
         // (PIA-158: clicked by its selector, found again if a doc arriving redraws the list between finding it and the click)
         const shelf = await page.$('#screen [data-act="shelf"]'); if (shelf) { await page.click('#screen [data-act="shelf"]'); await page.waitForTimeout(100); await measure('list + shelf'); }
         await page.click('#screen [data-act="seg"][data-v="family"]'); await page.waitForTimeout(100); await measure('family');
+        // PIA-160: the Family board's names under the faces: none under 13px (a name still wider than its 76px head at 13px is drawn
+        // cut there), "Mom & Dad" (or Mom&Dad) whole among them
+        const famN = await page.evaluate(() => [...document.querySelectorAll('#screen .board .rowh .fn')].filter((e) => e.getClientRects().length).map((e) => ({ t: e.textContent, fs: Math.round(parseFloat(getComputedStyle(e).fontSize) * 10) / 10, cut: e.scrollWidth > e.clientWidth + 1 })));
+        if (!(famN.length >= 2 && famN.every((n) => n.fs >= 13) && famN.some((n) => /^Mom ?& ?Dad$/.test(n.t) && !n.cut))) fails.push('PIA-160 the Family board\'s names should be ≥13px, Mom & Dad whole among them: ' + JSON.stringify(famN));
         // PIA-142: the board's other pages (≤4 trip columns each), 🗄 with the past trip as a column, and the sheet a cell opens
         const tapF = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
         const famCols = async (s) => { const n = await page.$$eval('#screen #fam-board .hd', (es) => es.length); if (n < 1 || n > 4) fails.push(s + ': ' + n + ' trip columns (1–4 a page)'); };
@@ -406,9 +482,9 @@ console.log('▶ test-viewport: mobile layout regression suite');
         // PIA-137: the trip view's sheets (tapped as the app sees a tap: the sticky primary may sit over a board row)
         const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
         // PIA-156: the page as a 678px-tall phone shows it before any scrolling (then back to this viewport)
-        const shortView = async () => {
-          await page.setViewportSize({ width: vp.width, height: 678 }); await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(150);
-          const r = await page.evaluate(SHORTCHK);
+        const shortView = async (w, h, also) => {
+          await page.setViewportSize({ width: w || vp.width, height: h || 678 }); await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(150);
+          const r = await page.evaluate(SHORTCHK); if (also) r.also = await page.evaluate(also);
           await page.setViewportSize({ width: vp.width, height: vp.height }); await page.waitForTimeout(100);
           return r;
         };
@@ -663,6 +739,10 @@ console.log('▶ test-viewport: mobile layout regression suite');
         const bld = await page.$eval('#sheet .sh-hd .bld', (e) => { const r = e.getBoundingClientRect(), h = e.closest('.sh-hd').getBoundingClientRect(), cs = getComputedStyle(e);
           return { txt: e.textContent, in: r.left >= h.left && r.right <= h.right && r.height < 30, color: cs.color, bg: getComputedStyle(document.querySelector('#sheet')).backgroundColor }; }).catch(() => null);
         if (!bld || !/^#\d+$/.test(bld.txt) || !bld.in || bld.color === bld.bg) fails.push('⚙ should show the build (#NNN) inside its header, on one line, readable; got ' + JSON.stringify(bld));
+        // (PIA-160: #160 sized and weighted as the sheet's title, in its ink at ≥4.5:1, and the phone row's 📐 / 🔠 numerals ≥4.5:1)
+        const bldT = await page.$eval('#sheet .sh-hd .bld', (e) => { const cs = getComputedStyle(e), t = getComputedStyle(e.closest('.sh-hd').querySelector('.ttlg') || e.parentElement); return { fw: cs.fontWeight, fs: parseFloat(cs.fontSize), tfs: parseFloat(t.fontSize) }; }).catch(() => null);
+        if (!(bldT && bldT.fw === '700' && Math.abs(bldT.fs - bldT.tfs) < 0.3)) fails.push('PIA-160 ⚙\'s #NNN should be the title\'s size at 700: ' + JSON.stringify(bldT));
+        fails.push(...contrastFails('PIA-160 ⚙\'s build and phone row', await page.evaluate(CONTRAST, { ink: '#sheet .sh-hd .bld, #sheet .phonerow' }), { ink: true }));
         await page.evaluate(() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); });
         await page.click('#sheet [data-act="devlink"]'); await page.waitForTimeout(150); await measure('P-link');
         // PIA-140 fix pass: the visit's 8 spent (⛔ ↻ in P-total and in a person's square, then ↻8? asked), the month locked by SerpAPI
@@ -799,8 +879,18 @@ console.log('▶ test-viewport: mobile layout regression suite');
         if (!(prt.row && prt.prim && ptN >= 1 && JSON.stringify(prt.chips) === JSON.stringify(ptChips.slice(0, ptN)) && prt.more === (ptN < 2 ? '+' + (2 - ptN) : '') && prt.named && prt.ask === 'Ask Mom & Dad' && prt.inside)) fails.push('P town\'s Rides row should hold 🛬 11/20 🌴 and 🛫 11/30 🌴 (or the first and +1; named, inside the screen) and Ask Mom & Dad, under "🚗 Rides": ' + JSON.stringify(prt));
         if (vp.width >= 390 && ptN !== 2) fails.push('at ' + vp.width + 'px P town\'s Rides row should hold both its runs ' + JSON.stringify(prt));
         fails.push(...keyFails('P town\'s key', await page.evaluate(KEYCHK), ['Waiting:1:nudge', ':0' + (ptN < 2 ? '+' + (2 - ptN) : '') + ':nudge', 'Booked:1', 'Hosting:1']));
+        // (PIA-160: on the organizer's phone the board draws "Mom & Dad" in the 80px column: whole or "Mom&Dad", never cut, ≥13px)
+        const plO = await page.evaluate(POLISH);
+        if (!(namesOk(plO) && plO.names.some((n) => /^Mom ?& ?Dad$/.test(n.t)))) fails.push('PIA-160 P town\'s board on the organizer\'s phone should draw Mom & Dad whole (or Mom&Dad) at ≥13px, every name whole: ' + JSON.stringify(plO.names));
         const shPT = await shortView();
         if (!(shPT.prim && shPT.first === true && /^⏳ Waiting$/.test(shPT.firstWord) && shPT.rem === true)) fails.push('at 678px tall P town\'s ⏳ Waiting row and its Remind should be wholly above the sticky "🚗 Rides" ' + JSON.stringify(shPT));
+        // (PIA-160: the owner's phone, 440×760 with Safari's bars: the same first screen)
+        if (vp.width === 430) {
+          const sh440 = await shortView(440, 760, KEYCHK);
+          if (!(sh440.prim && sh440.first === true && /^⏳ Waiting$/.test(sh440.firstWord) && sh440.rem === true)) fails.push('at 440×760 (the owner\'s phone) P town\'s ⏳ Waiting row and its Remind should be wholly above the sticky "🚗 Rides" ' + JSON.stringify(sh440));
+          // (and its key there: the same rows as at 430, both runs in the Rides row, every row's checks)
+          fails.push(...keyFails('at 440×760 P town\'s key', sh440.also, ['Waiting:1:nudge', ':0:nudge', 'Booked:1', 'Hosting:1']));
+        }
         await tapJs('#screen .split.prim [data-act="rides"]'); await measure('P-rides (the organizer: two runs, Mom & Dad to tap on each)');
         const prs = await page.evaluate(() => { const a = document.querySelector('#sheet [data-act="nudge"][data-v="ride"]');
           return { popup: document.querySelector('#sheet').getAttribute('data-popup'), runs: document.querySelectorAll('#sheet .rrun').length, ask: a ? a.getAttribute('aria-label') : '',
@@ -820,6 +910,12 @@ console.log('▶ test-viewport: mobile layout regression suite');
         });
         if (!(er.field === 92 && JSON.stringify(er.seg) === JSON.stringify(['52x44', '52x44']) && er.pills.length === 3 && er.pills.every(Boolean) && er.oneLine && er.inside && er.over <= 0 && er.page <= 0))
           fails.push('Ashwin\'s 🛬 edit row should hold the 92px field and two 52×44 AM / PM radios on one line, then three ≥64×44 airport pills, all inside the sheet: ' + JSON.stringify(er));
+        // PIA-160: his "☑ I booked" keeps its green edge (a pressed secondary button's ink edge never reaches a booking toggle), and every
+        // tappable edge in the sheet (the field, the segment, the pills, the tools) is ≥3:1 in this scheme
+        const tkE = await page.evaluate(() => { const sh = document.querySelector('#sheet'), tok = document.createElement('span'); tok.style.borderTop = '2px solid var(--in)'; sh.appendChild(tok); const want = getComputedStyle(tok).borderTopColor; tok.remove();
+          return [...sh.querySelectorAll('.btn.tkb.tkon')].map((b) => ({ pressed: b.getAttribute('aria-pressed'), green: getComputedStyle(b).borderTopColor === want })); });
+        if (!(tkE.length >= 1 && tkE.every((t) => t.pressed === 'true' && t.green))) fails.push('PIA-160 a booked toggle ("☑ I booked") should keep its green edge: ' + JSON.stringify(tkE));
+        fails.push(...contrastFails('PIA-160 Ashwin\'s P-person edit row, its edges', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#sheet' }), { edges: true }));
         // the echo of a saved time never covers the primary or the tab bar (S1): "305" (his PM carried), ⌄, the page scrolled to its foot
         await page.fill('#sheet #tm-arr', '305'); await tapJs('#sheet [data-act="sh-close"]');
         await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
@@ -832,6 +928,13 @@ console.log('▶ test-viewport: mobile layout regression suite');
           return { shown: !!T && !t.hidden, text: t.textContent.replace(/\s+/g, ' ').trim(), top: t.classList.contains('top'), hitsPrim: meet(P), hitsTab: meet(B), gap: T && P && !t.classList.contains('top') ? Math.round(P.t - T.b) : null, inView: !!T && T.t >= 0 && T.b <= innerHeight };
         });
         if (!(tp.shown && /✓/.test(tp.text) && !tp.hitsPrim && !tp.hitsTab && tp.inView && (tp.gap === null || tp.gap >= 8))) fails.push('the echo toast should never cover the primary or the tab bar (8px above the higher, else at the top): ' + JSON.stringify(tp));
+        // PIA-160: the one-half echo ("🛬 ORD 3:05 PM ✓") is one line at every width, its ✓ never alone on a second; 17px, ≥4.5:1 (read
+        // once its fade-in is over)
+        await page.waitForFunction(() => { const t = document.querySelector('#toast'); return !!t && !t.hidden && getComputedStyle(t).opacity === '1'; }, null, { timeout: 2000 }).catch(() => {});
+        const ech = await page.evaluate(() => { const e = document.querySelector('#toast .ech'); if (!e) return null; const lh = parseFloat(getComputedStyle(e).lineHeight) || 22;
+          return { lines: Math.round(e.getBoundingClientRect().height / lh), halves: e.querySelectorAll('.nw').length, fs: parseFloat(getComputedStyle(e).fontSize), t: e.textContent }; });
+        if (!(ech && ech.lines === 1 && ech.halves === 1 && /✓$/.test(ech.t) && Math.abs(ech.fs - 17) < 0.3)) fails.push('PIA-160 the one-half echo toast should be one 17px line with its ✓: ' + JSON.stringify(ech));
+        fails.push(...contrastFails('PIA-160 the echo toast\'s text', await page.evaluate(CONTRAST, { ink: '#toast' }), { ink: true }));
         // PIA-157: the rides trip of 8 on its PIA host's own phone (a guest; Bartholomew hosts at ORD too): eleven runs at ORD and PIA,
         // her "☐ 🚗 Drive" on each (a ≥44px target, named, inside the sheet; the word while the sheet keeps ≤20), the long names never
         // pushing anything over the edge; and the key's Rides row holding what fits, then +N
@@ -875,10 +978,14 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await tapJs('#sheet [data-act="dishpick"][data-code="ashwin-p8"]'); await measure('P-house, the 18 dishes open');
         const hz = await page.evaluate(() => {
           const sh = document.querySelector('#sheet'), S = sh.getBoundingClientRect(), pic = sh.querySelector('.hpic').getBoundingClientRect(), tiles = [...sh.querySelectorAll('.dtile')];
+          // (PIA-160: the potluck chip keeps its own 1.5px pill edge, which 📍 no longer wears)
+          const ch = sh.querySelector('.dishes .dchip'), cs = ch ? getComputedStyle(ch) : null;
           return { popup: sh.getAttribute('data-popup'), pic: pic.left >= S.left - 0.5 && pic.right <= S.right + 0.5 && pic.height >= 100, tiles: tiles.length,
-            fit: tiles.every((b) => { const x = b.getBoundingClientRect(); return x.width >= 43.5 && x.height >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }), over: sh.scrollWidth - sh.clientWidth };
+            fit: tiles.every((b) => { const x = b.getBoundingClientRect(); return x.width >= 43.5 && x.height >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }), over: sh.scrollWidth - sh.clientWidth,
+            chip: cs ? (ch.classList.contains('mine') ? 'mine' : 'other') + '|' + cs.borderTopWidth + '|' + cs.borderTopStyle + '|' + (parseFloat(cs.borderTopLeftRadius) >= 20) : 'none' };
         });
-        if (!(hz.popup === 'P-house' && hz.pic && hz.tiles === 18 && hz.fit && hz.over <= 0)) fails.push('P-house\'s picture and its 18 dishes should stay inside the sheet, each tile a 44px target: ' + JSON.stringify(hz));
+        if (!(hz.popup === 'P-house' && hz.pic && hz.tiles === 18 && hz.fit && hz.over <= 0 && /^(mine\|2px|other\|1\.5px)\|solid\|true$/.test(hz.chip))) fails.push('P-house\'s picture and its 18 dishes should stay inside the sheet, each tile a 44px target, the 🧺 chips keeping their pill edge (1.5px, mine 2px): ' + JSON.stringify(hz));
+        fails.push(...contrastFails('PIA-160 P-house\'s dish tiles and chips, their edges', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#sheet' }), { edges: true }));
         await tapJs('#sheet [data-act="dishpick"][data-code="ashwin-p8"]');
         await tapJs('#sheet [data-act="sh-close"]');
         // (fix pass) Ashwin's own P-person with Nebby on ("☑ 🐈 Nebby" and its › n/5) and P-pet (its 5 ticks, a tick on, the travel plan
@@ -928,6 +1035,45 @@ console.log('▶ test-viewport: mobile layout regression suite');
         });
         if (!(JSON.stringify(lb.text) === JSON.stringify(['2:35 PM', '3:47 PM', 'MDW 10:30 PM', '5:10 PM']) && !lb.out.length && !lb.hit.length && !lb.face.length && !lb.low.length))
           fails.push('P town\'s board labels on Mom & Dad\'s phone should read 2:35 PM, 3:47 PM, MDW 10:30 PM, 5:10 PM, each inside its track, meeting no other label or face, at ≥4.5:1: ' + JSON.stringify(lb));
+        // PIA-160: the same page at the default text size: nothing with a letter or a digit under 13px, AM / PM ≥13px, the board's labels
+        // 15px, one 80px name column (the board's names, the key's words, the title starting where the bars do), 📍 without the potluck
+        // pill; then P-rides from the drive primary: each Drive inside its card at the header's right edge, no dashes inside dashes
+        const pl0 = await page.evaluate(POLISH);
+        if (!(pl0.small.length === 0 && pl0.mer >= 12.95 && pl0.btm.every((s) => s === 15) && pl0.btm.length === 4 && !pl0.out && pl0.who.every((w) => Math.abs(w - 80) < 0.6) && pl0.wkl.every((w) => w >= 79.5 && w <= 80.5) &&
+          pl0.colOk && Math.abs(pl0.title - pl0.bars) <= 1 && pl0.pin === '0px|none' && pl0.over <= 0 && namesOk(pl0) && pl0.names.filter((n) => !/^Mom ?& ?Dad$/.test(n.t)).every((n) => n.fs === 15) &&
+          pl0.prim > 0 && pl0.prim <= 240 && pl0.primIn))
+          fails.push('PIA-160 P town on Mom & Dad\'s phone: no text under 13px, AM / PM ≥13px, 15px labels on their tracks, the 80px name column (names, key words no wider than it and the title on one grid), 📍 without a border, the names whole (Mom & Dad or Mom&Dad, ≥13px; the others 15px), the two-line drive primary\'s content ≤240px inside its button: ' + JSON.stringify(pl0));
+        // (PIA-160: every tappable edge on the page ≥3:1; the drive primary's two lines (.d2 too), the names, the key's words and the
+        // board's labels ≥4.5:1, in this scheme)
+        fails.push(...contrastFails('PIA-160 P town on Mom & Dad\'s phone, edges and small text', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#screen', ink: '#screen .btn.pri.drv, #screen .pb-row .who .fn, #screen .wk .wkl, #screen .track .btm' }), { edges: true, ink: true }));
+        await tapJs('#screen .split.prim .btn.pri.drv'); await page.waitForTimeout(120);
+        const rd = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), runs = [...sh.querySelectorAll('.rrun')], tok = document.createElement('span');
+          tok.style.backgroundColor = 'var(--sunk)'; sh.appendChild(tok); const sunk = getComputedStyle(tok).backgroundColor; tok.remove();
+          // (each run's codes and times in columns: every leg's .ap starts, and every leg's .tm ends, at the same x, ±1)
+          const col = runs.map((r) => { const ap = [...r.querySelectorAll('.rleg .ap')].map((e) => e.getBoundingClientRect().left), tm = [...r.querySelectorAll('.rleg .tm')].map((e) => e.getBoundingClientRect().right);
+            return { legs: r.querySelectorAll('.rleg').length, ap: ap.length && Math.max(...ap) - Math.min(...ap) <= 1, tm: tm.length && Math.max(...tm) - Math.min(...tm) <= 1 }; });
+          return { popup: sh.getAttribute('data-popup'), drives: runs.filter((r) => r.querySelector('.rdrv')).map((r) => { const c = r.getBoundingClientRect(), h = r.querySelector('.rrh').getBoundingClientRect(), d = r.querySelector('.rdrv').getBoundingClientRect(), cs = getComputedStyle(r);
+            return { inCard: d.left >= c.left - 0.5 && d.right <= c.right + 0.5, right: Math.round(h.right - d.right), h: Math.round(d.height), edge: getComputedStyle(r.querySelector('.rdrv')).borderTopStyle, fill: cs.backgroundColor === sunk || r.classList.contains('done') }; }),
+            heads: [...sh.querySelectorAll('.rday')].map((e) => { const r = e.getBoundingClientRect(); return { one: r.height < parseFloat(getComputedStyle(e).lineHeight || '20') * 1.6 || r.height < 30, ink: getComputedStyle(e).color === getComputedStyle(document.body).color }; }),
+            nested: [...sh.querySelectorAll('.rrun.open .rq')].filter((q) => getComputedStyle(q).borderTopStyle !== 'none').length, over: sh.scrollWidth - sh.clientWidth, col };
+        });
+        if (!(rd.popup === 'P-rides' && rd.drives.length >= 2 && rd.drives.every((d) => d.inCard && Math.abs(d.right) <= 1.5 && d.h >= 47.5 && d.edge === 'solid' && d.fill) && rd.heads.length >= 2 && rd.heads.every((h) => h.one && h.ink) && !rd.nested && rd.over <= 0 &&
+          rd.col.some((c) => c.legs >= 2) && rd.col.every((c) => c.ap && c.tm)))
+          fails.push('PIA-160 P-rides on Mom & Dad\'s phone: every "☐ 🚗 Drive" a 48px control with a solid edge, inside its card (on the soft grey fill) at the header\'s right edge (the Midway card too), day heads one line in full ink, no dashes inside dashes, each run\'s codes and times in columns (a run of two legs among them): ' + JSON.stringify(rd));
+        fails.push(...contrastFails('PIA-160 P-rides on Mom & Dad\'s phone, edges and small text', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#sheet', ink: '#sheet .rday, #sheet .rrh, #sheet .rleg' }), { edges: true, ink: true }));
+        await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-160: a larger text size (the root at 23px, an iPhone's largest Text Size steps): the screen grows within its cap and still
+        // never scrolls sideways, every label stays on its track, the name column is 88px; P-rides grows to the sheets' cap
+        await page.addStyleTag({ content: 'html{font-size:23px!important}' }); await tapJs('#screen .split.prim .btn.pri.drv'); await tapJs('#sheet [data-act="sh-close"]'); await page.waitForTimeout(120);
+        const pl23 = await page.evaluate(POLISH);
+        await tapJs('#screen .split.prim .btn.pri.drv'); await page.waitForTimeout(120);
+        const rs23 = await page.evaluate(() => { const sh = document.querySelector('#sheet'), l = sh.querySelector('.rleg'); return { over: sh.scrollWidth - sh.clientWidth, leg: l ? parseFloat(getComputedStyle(l).fontSize) : 0, head: parseFloat(getComputedStyle(sh.querySelector('.rday')).fontSize) }; });
+        await tapJs('#sheet [data-act="sh-close"]');
+        if (!(pl23.small.length === 0 && !pl23.out && pl23.over <= 0 && pl23.who.every((w) => Math.abs(w - 88) < 0.6) && pl23.btm.every((s) => Math.abs(s - 15 * 1.118) < 0.3) && Math.abs(rs23.leg - 23) < 0.3 && Math.abs(rs23.head - 15 * 1.353) < 0.3 && rs23.over <= 0 &&
+          namesOk(pl23) && pl23.primIn))
+          fails.push('PIA-160 at a 23px root on Mom & Dad\'s phone: no sideways scroll, labels on their tracks at the screens\' cap (16.8px), the 88px name column, the names whole, the drive primary inside the screen, P-rides at the sheets\' cap (legs 23px, day heads 20.3px) with no sideways scroll: ' + JSON.stringify({ pl23, rs23 }));
+        await page.evaluate(() => { [...document.querySelectorAll('style')].filter((s) => /font-size:23px!important/.test(s.textContent)).forEach((s) => s.remove()); });
         // (a link landing never cheers: Trips again (the list), then its card)
         await tapJs('#tabbar [data-act="tab"][data-v="trips"]'); await page.waitForTimeout(150);
         if (await page.$('#screen [data-act="seg"][data-v="ideas"][aria-pressed="false"]')) await tapJs('#screen [data-act="seg"][data-v="ideas"]');
@@ -942,6 +1088,29 @@ console.log('▶ test-viewport: mobile layout regression suite');
         });
         if (!(pty.shown && /All set/.test(pty.text) && pty.prim && !pty.hitsPrim && !pty.hitsTab && pty.inView && (pty.gap === null || pty.gap >= 8))) fails.push('"🎊 All set" on Mom & Dad\'s phone should never cover the drive primary or the tab bar (8px above the higher, else at the top): ' + JSON.stringify(pty));
         await measure('P town all set on Mom & Dad\'s phone, opened from its card (🎊 All set)');
+        // PIA-160: the day after Mom & Dad's first drives (11/21, midday): the two 11/20 runs are home, muted and never faded (opacity 1,
+        // no fill, a hairline, the header in the secondary ink at ≥4.5:1) and their Drive quiet (aria-disabled, the sunk fill, --ink2, a
+        // solid --edge, opacity 1); the 11/30 runs still live. Then the clock goes back to 10/17
+        await page.clock.setFixedTime(new Date('2026-11-21T20:00:00Z'));
+        await page.goto(APP + '?idea=' + PT9V, { waitUntil: 'load' }); await page.waitForTimeout(300);
+        if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+        await tapJs('#screen [data-act="rides"]'); await page.waitForTimeout(120);
+        await measure('P-rides on Mom & Dad\'s phone on 11/21 (the 11/20 runs home)');
+        const dn = await page.evaluate(() => {
+          const sh = document.querySelector('#sheet'), tok = document.createElement('span');
+          tok.style.cssText = 'color: var(--ink2); background-color: var(--sunk); border-top: 2px solid var(--edge)'; sh.appendChild(tok);
+          const T = getComputedStyle(tok), want = { ink2: T.color, sunk: T.backgroundColor, edge: T.borderTopColor }; tok.remove();
+          return { popup: sh.getAttribute('data-popup'), live: sh.querySelectorAll('.rrun:not(.done)').length,
+            done: [...sh.querySelectorAll('.rrun.done')].map((r) => { const cs = getComputedStyle(r); return { op: cs.opacity, fill: cs.backgroundColor, ink: getComputedStyle(r.querySelector('.rrh')).color === want.ink2 }; }),
+            drive: [...sh.querySelectorAll('.rrun.done .rdrv')].map((b) => { const cs = getComputedStyle(b);
+              return { dis: b.classList.contains('dis') && b.getAttribute('aria-disabled') === 'true', op: cs.opacity, style: cs.borderTopStyle, edge: cs.borderTopColor === want.edge, fill: cs.backgroundColor === want.sunk, ink: cs.color === want.ink2 }; }) };
+        });
+        if (!(dn.popup === 'P-rides' && dn.live >= 1 && dn.done.length >= 1 && dn.done.every((r) => r.op === '1' && /rgba\(0, 0, 0, 0\)|transparent/.test(r.fill) && r.ink) &&
+          dn.drive.length >= 1 && dn.drive.every((d) => d.dis && d.op === '1' && d.style === 'solid' && d.edge && d.fill && d.ink)))
+          fails.push('PIA-160 on 11/21 Mom & Dad\'s P-rides should draw the 11/20 runs home muted (opacity 1, no fill, the secondary ink) with a quiet Drive (aria-disabled, sunk, --ink2, solid --edge), the 11/30 runs live: ' + JSON.stringify(dn));
+        fails.push(...contrastFails('PIA-160 a run that is home and its quiet Drive', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#sheet', ink: '#sheet .rrun.done' }), { edges: true, ink: true }));
+        await tapJs('#sheet [data-act="sh-close"]');
+        await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
         // Ashwin's own phone: P-rides' joined 11/30 drive, his leg ① 💪🐈 ORD 3:47 PM with its driver and his own 🚌 / 🚙: every leg row
         // inside the sheet (it may wrap, never scroll), every control a 44px target inside it
         await page.goto(APP + '?idea=' + PT9A, { waitUntil: 'load' }); await page.waitForTimeout(300);
@@ -956,6 +1125,31 @@ console.log('▶ test-viewport: mobile layout regression suite');
         });
         if (!(own.popup === 'P-rides' && own.mine && own.own >= 2 && own.fit && own.over <= 0)) fails.push('P-rides on Ashwin\'s own phone should keep his 11/30 leg (ORD 3:47 PM with 🚌 / 🚙) and every leg row inside the sheet, each control a 44px target: ' + JSON.stringify(own));
         await tapJs('#sheet [data-act="sh-close"]');
+        // PIA-160 (fix 2): Mom & Dad drive both his legs, so moving both his times shows the two-half echo with the share symbol
+        // ("Tell"): both halves and the 44px button inside the toast's pill, no half under the button. On the 390 light phone the same
+        // toast is held in view while the screen goes to 320, 360, 375, 393 and 402 at the default size, and 320, 360 and 430 at a 19px
+        // and a 23px root (an iPhone's larger Text Size steps; at 320 with a 23px root the 🛫 half alone leaves no room beside the
+        // button, which goes under the echo)
+        await page.$eval('#screen .pb', (e) => e.scrollIntoView({ block: 'center' }));
+        await tapJs('#screen .pb [data-act="flight"].mybar'); await tapJs('#sheet #tmb-arr'); await page.fill('#sheet #tm-arr', '305');
+        await tapJs('#sheet #tmb-dep'); await page.fill('#sheet #tm-dep', '415'); await tapJs('#sheet [data-act="sh-close"]');
+        await page.waitForFunction(() => { const t = document.querySelector('#toast'); return !!t && !t.hidden && t.querySelectorAll('.ech .nw').length === 2 && !!t.querySelector('[data-act="toastshare"]'); }, null, { timeout: 4000 }).catch(() => {});
+        await page.waitForTimeout(120);
+        const tells = [await page.evaluate(TELLBOX)];
+        if (vp.width === 390 && scheme === 'light') {
+          for (const [w, rp] of [[320, 0], [360, 0], [375, 0], [393, 0], [402, 0], [320, 19], [320, 23], [360, 19], [360, 23], [430, 19], [430, 23]]) {
+            await page.setViewportSize({ width: w, height: vp.height });
+            await page.evaluate((px) => { [...document.querySelectorAll('style[data-tellroot]')].forEach((s) => s.remove()); if (px) { const s = document.createElement('style'); s.setAttribute('data-tellroot', ''); s.textContent = 'html{font-size:' + px + 'px!important}'; document.head.appendChild(s); }
+              document.querySelector('#toast').hidden = false; }, rp);
+            await page.waitForTimeout(150);
+            tells.push(await page.evaluate(TELLBOX));
+            if (w === 320 && rp === 23 && !(tells[tells.length - 1] && tells[tells.length - 1].below)) fails.push('PIA-160 at 320px with a 23px root the share symbol should go under the echo: ' + JSON.stringify(tells[tells.length - 1]));
+          }
+          await page.evaluate(() => [...document.querySelectorAll('style[data-tellroot]')].forEach((s) => s.remove()));
+          await page.setViewportSize({ width: vp.width, height: vp.height }); await page.waitForTimeout(120);
+        }
+        const tellBad = tells.filter((g) => !tellOk(g));
+        if (tellBad.length || tells.length < (vp.width === 390 && scheme === 'light' ? 12 : 1)) fails.push('PIA-160 the two-half echo with its share symbol ("Tell") should keep both halves and the 44px button inside the toast\'s pill, no half under the button, at every width and text size: ' + JSON.stringify(tellBad.length ? tellBad.slice(0, 3) : tells.length));
         if (fails.length === 0) ok(`${label} — no horizontal scroll, every target ≥44px and named, ${scheme} tokens, in ${states} states`);
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
@@ -1199,6 +1393,110 @@ console.log('▶ test-viewport: mobile layout regression suite');
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
       await ctx.close();
     }
+  }
+  // PIA-160: a laptop (1024×768, a mouse, no touch) with reduced motion and Increase Contrast, light, on Ashwin's own P town page: the
+  // framed 430px column and its tab bar centred, a sheet centred at 430px inside the window less 32px; a hover fill under the mouse; no
+  // animation over 1ms, a still ring for a pulse and an outline for a nudge; the Increase Contrast inks. The keyboard: Tab through the
+  // page (each focused control ringed and not under a sticky bar; +N never focused), then his 🛬 edit row's [AM | PM] and airports by
+  // the arrow keys (one Tab stop each), and Esc back to the page
+  {
+    const label = 'app.html desktop @ 1024x768 light, reduced motion, Increase Contrast';
+    const ctx = await browser.newContext({ viewport: { width: 1024, height: 768 }, deviceScaleFactor: 1, isMobile: false, hasTouch: false, colorScheme: 'light', reducedMotion: 'reduce', contrast: 'more', timezoneId: 'America/Los_Angeles' });
+    await ctx.route(/^https?:\/\//, (r) => process.env.PIALAX_TEST_APP_URL && r.request().url().startsWith(process.env.PIALAX_TEST_APP_URL) ? r.continue() : r.abort());
+    await ctx.route(W + '/**', (route) => {
+      const q = route.request(), u = new URL(q.url()), id = u.searchParams.get('id');
+      const cors = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key, X-Pialax-Token', 'access-control-expose-headers': 'X-Proxy-Cache, X-Fetched-At', 'content-type': 'application/json' };
+      if (q.method() === 'OPTIONS') return route.fulfill({ status: 204, headers: cors });
+      if (u.pathname === '/account') return route.fulfill({ status: 200, headers: cors, body: JSON.stringify(ACCT) });
+      if (u.pathname === '/search') return route.fulfill({ status: 500, headers: cors, body: '{"code":"not_in_this_test"}' });
+      if (!docs[id]) return route.fulfill({ status: 404, headers: cors, body: '{"code":"not_found"}' });
+      return route.fulfill({ status: 200, headers: cors, body: JSON.stringify({ ok: true, doc: docs[id], organizer: false }) });
+    });
+    const page = await ctx.newPage(), fails = [];
+    try {
+      const APPU = process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href;
+      await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
+      await page.goto(APPU, { waitUntil: 'load' });
+      await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
+      await page.goto(APPU + '?idea=' + PT9A, { waitUntil: 'load' }); await page.waitForTimeout(300);
+      if (await page.$('#sheet:not([hidden])')) { await page.$eval('#sheet [data-act="sh-close"]', (e) => e.click()); await page.waitForTimeout(150); }
+      const look = await page.evaluate(() => {
+        const R = (q) => { const e = document.querySelector(q); return e ? e.getBoundingClientRect() : null; }, a = R('#app'), t = R('#tabbar'), W0 = innerWidth;
+        const root = getComputedStyle(document.documentElement), v = (n) => root.getPropertyValue(n).trim().toUpperCase();
+        const probe = document.createElement('div'); probe.innerHTML = '<span class="pulse">x</span><div class="answers nudge"></div>'; document.querySelector('#screen').appendChild(probe);
+        const pu = getComputedStyle(probe.querySelector('.pulse')).boxShadow, nu = getComputedStyle(probe.querySelector('.nudge'));
+        const cue = { pulse: pu !== 'none', nudge: nu.outlineStyle === 'solid' && parseFloat(nu.outlineWidth) >= 2 }; probe.remove();
+        return { app: a ? [Math.round(a.width), Math.round(a.left - (W0 - a.width) / 2)] : null, tab: t ? [Math.round(t.width), Math.round(t.left - (W0 - t.width) / 2)] : null,
+          frame: getComputedStyle(document.querySelector('#app')).boxShadow !== 'none', inks: [v('--ink2'), v('--edge'), v('--line')], cue };
+      });
+      if (!(look.app && look.app[0] === 430 && Math.abs(look.app[1]) <= 1 && look.tab && look.tab[0] === 430 && Math.abs(look.tab[1]) <= 1 && look.frame))
+        fails.push('the desktop column and its tab bar should be 430px, centred and framed: ' + JSON.stringify(look));
+      if (JSON.stringify(look.inks) !== JSON.stringify(['#3A4150', '#5B6270', '#7D8594'])) fails.push('Increase Contrast should darken --ink2, --edge and --line: ' + JSON.stringify(look.inks));
+      if (!(look.cue.pulse && look.cue.nudge)) fails.push('with reduced motion a pulse keeps a still ring and a nudge a still outline: ' + JSON.stringify(look.cue));
+      // a hover fill under the mouse on a stateless control (ⓘ in the top row)
+      const ib = await page.$('#screen [data-act="key"]');
+      if (ib) {
+        await ib.hover(); await page.waitForTimeout(80);
+        const hv = await page.evaluate(() => { const e = document.querySelector('#screen [data-act="key"]'), p = document.createElement('i'); p.style.color = 'var(--sunk)'; document.body.appendChild(p); const s = getComputedStyle(p).color; p.remove(); return getComputedStyle(e).backgroundColor === s; });
+        if (!hv) fails.push('a mouse over ⓘ should fill it with --sunk');
+        await page.mouse.move(2, 760);
+      } else fails.push('no ⓘ on the trip page');
+      // the keyboard through the page
+      await page.evaluate(() => { window.scrollTo(0, 0); if (document.activeElement) document.activeElement.blur(); });
+      const tabbed = [];
+      for (let i = 0; i < 48; i++) {
+        await page.keyboard.press('Tab');
+        const f = await page.evaluate(() => {
+          const a = document.activeElement; if (!a || a === document.body || !a.closest('#screen, #tabbar')) return { out: true };
+          const r = a.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2, h = document.elementFromPoint(x, y), cs = getComputedStyle(a);
+          return { act: a.getAttribute('data-act') || a.className, ring: parseFloat(cs.outlineWidth) >= 2 && cs.outlineStyle !== 'none', top: !!h && (h === a || a.contains(h)), wkn: a.classList.contains('wkn'), tab: !!a.closest('#tabbar') };
+        });
+        if (f.out) break;
+        tabbed.push(f); if (f.tab) break;
+      }
+      const offTab = tabbed.filter((f) => !f.ring || !f.top || f.wkn);
+      if (tabbed.length < 8 || offTab.length) fails.push('Tab through the page: every focused control ringed (≥2px) and on top at its centre, +N never focused: ' + JSON.stringify({ n: tabbed.length, off: offTab.slice(0, 4) }));
+      await page.evaluate(() => window.scrollTo(0, 0));
+      await page.$eval('#screen .pb [data-act="flight"].mybar', (e) => e.click()); await page.waitForTimeout(200);
+      await page.$eval('#sheet #tmb-arr', (e) => e.click()); await page.waitForTimeout(200);
+      const radios = () => page.evaluate(() => {
+        const g = (q) => [...document.querySelectorAll(q)].map((b) => b.getAttribute('data-v') + (b.getAttribute('aria-checked') === 'true' ? '*' : '') + (b.getAttribute('tabindex') === '0' ? '@' : ''));
+        return { seg: g('#seg-arr .segb').join(' '), pills: g('#pills-arr .pill').join(' '), focus: (document.activeElement && document.activeElement.getAttribute('data-v')) || '' };
+      });
+      const k0 = await radios();
+      await page.focus('#seg-arr .segb[tabindex="0"]'); await page.keyboard.press('ArrowLeft'); await page.waitForTimeout(150); const k1 = await radios();
+      await page.keyboard.press('ArrowRight'); await page.waitForTimeout(150); const k2 = await radios();
+      await page.keyboard.press('Tab'); await page.waitForTimeout(80); const tabFrom = await page.evaluate(() => (document.activeElement && document.activeElement.className) || '');
+      await page.focus('#pills-arr .pill[tabindex="0"]'); await page.keyboard.press('ArrowRight'); await page.waitForTimeout(150); const k3 = await radios();
+      await page.keyboard.press('Home'); await page.waitForTimeout(150); const k4 = await radios();
+      if (!(k0.seg === 'am pm*@' && k1.seg === 'am*@ pm' && k1.focus === 'am' && k2.seg === 'am pm*@' && k2.focus === 'pm' && !/segb/.test(tabFrom) &&
+        /^ORD\*@ MDW PIA$/.test(k0.pills) && /^ORD MDW\*@ PIA$/.test(k3.pills) && k3.focus === 'MDW' && /^ORD\*@ MDW PIA$/.test(k4.pills) && k4.focus === 'ORD'))
+        fails.push('[AM | PM] and the airport pills should be one Tab stop each (the pressed one), the arrows and Home moving and pressing: ' + JSON.stringify({ k0, k1, k2, tabFrom, k3, k4 }));
+      // a sheet on a laptop: centred at 430px, inside the window less 32px
+      const shb = await page.evaluate(() => { const r = document.querySelector('#sheet').getBoundingClientRect(); return [Math.round(r.width), Math.round(r.left - (innerWidth - r.width) / 2), r.height <= innerHeight - 32 + 1]; });
+      if (!(shb[0] === 430 && Math.abs(shb[1]) <= 1 && shb[2])) fails.push('a sheet on a laptop should be 430px, centred, at most the window less 32px: ' + JSON.stringify(shb));
+      const anim = await page.evaluate(() => document.getAnimations().map((a) => a.effect && a.effect.getTiming ? +a.effect.getTiming().duration || 0 : 0).filter((d) => d > 1));
+      if (anim.length) fails.push('with reduced motion no animation should last over 1ms: ' + JSON.stringify(anim));
+      await page.keyboard.press('Escape'); await page.waitForTimeout(250);
+      const back = await page.evaluate(() => ({ open: !document.querySelector('#sheet').hidden, inScreen: !!(document.activeElement && document.activeElement.closest('#screen')) }));
+      if (back.open || !back.inScreen) fails.push('Esc should close the sheet and give the focus back to the page: ' + JSON.stringify(back));
+      // PIA-160 (fix 2): the two-half times echo with its share symbol on a laptop: both halves and the button inside the 398px toast,
+      // and the toast inside the 430px column, at the default size and at a 23px root (the same toast held in view)
+      await page.$eval('#screen .pb [data-act="flight"].mybar', (e) => e.click()); await page.waitForTimeout(200);
+      await page.$eval('#sheet #tmb-arr', (e) => e.click()); await page.waitForTimeout(150); await page.fill('#sheet #tm-arr', '305');
+      await page.$eval('#sheet #tmb-dep', (e) => e.click()); await page.waitForTimeout(150); await page.fill('#sheet #tm-dep', '415');
+      await page.$eval('#sheet [data-act="sh-close"]', (e) => e.click());
+      await page.waitForFunction(() => { const t = document.querySelector('#toast'); return !!t && !t.hidden && t.querySelectorAll('.ech .nw').length === 2 && !!t.querySelector('[data-act="toastshare"]'); }, null, { timeout: 4000 }).catch(() => {});
+      await page.waitForTimeout(120);
+      const dTell = [await page.evaluate(TELLBOX)];
+      await page.evaluate(() => { const s = document.createElement('style'); s.setAttribute('data-tellroot', ''); s.textContent = 'html{font-size:23px!important}'; document.head.appendChild(s); document.querySelector('#toast').hidden = false; });
+      await page.waitForTimeout(150); dTell.push(await page.evaluate(TELLBOX));
+      await page.evaluate(() => [...document.querySelectorAll('style[data-tellroot]')].forEach((s) => s.remove()));
+      if (!(dTell.every(tellOk) && dTell[1] && dTell[1].root === 23)) fails.push('on a laptop the two-half echo with its share symbol should keep both halves and the button inside the toast, the toast inside the column, at 17px and at a 23px root: ' + JSON.stringify(dTell));
+      if (fails.length === 0) ok(`${label} — the framed 430px column, tab bar and sheet centred, a hover fill, still cues and no motion, the darker inks; Tab rings ${tabbed.length} controls none under a sticky bar, [AM | PM] and the airports by arrow (one stop each), Esc back; the times echo and its share symbol inside the toast at 17px and 23px`);
+      else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
+    } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
+    await ctx.close();
   }
 }
 

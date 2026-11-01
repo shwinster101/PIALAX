@@ -155,6 +155,15 @@ async function main() {
     const ln0 = await lanesNow();
     check(JSON.stringify(ln0.grp) === '[2,2]' && JSON.stringify(ln0.arr) === '["?","?"]' && JSON.stringify(ln0.dep) === '["?","?"]' && ln0.q === 4 && ln0.said, 'rides under the real map: ORD\'s Lands and Leaves each bracket their run ⏱, every booked chip wears a dashed ? and says "no driver yet" ' + JSON.stringify(ln0));
     await measure(rd.page, 'Map with rides');
+    // PIA-160: the lanes' first column is the one name column (80px at the default text size), their heads whole inside it; a chip's
+    // date in the secondary ink and its time in full ink, AM / PM ≥13px
+    const col = await rd.page.evaluate(() => {
+      const heads = [...document.querySelectorAll('.lanes .lrow:not(.lhd) .lh')].map((e) => e.getBoundingClientRect()), body = getComputedStyle(document.body).color;
+      const chip = document.querySelector('.lanes .pk.bk'), d = chip && chip.querySelector('.pk1 > .tn'), t = chip && chip.querySelector('.t > .tm'), mer = [...document.querySelectorAll('.lanes .pk .mer')].map((e) => parseFloat(getComputedStyle(e).fontSize));
+      return { w: heads.map((r) => Math.round(r.width * 10) / 10), date: d ? getComputedStyle(d).color !== body : null, time: t ? getComputedStyle(t).color === body : null, mer: mer.length ? Math.min(...mer) : 0 };
+    });
+    check(col.w.length >= 1 && col.w.every((w) => Math.abs(w - 80) < 0.6) && col.date === true && col.time === true && col.mer >= 12.95,
+      'PIA-160 the Map\'s lanes start with the 80px name column the board and the key share; a chip\'s date in secondary ink, its time in full ink, its AM / PM ≥13px', col);
     await rd.page.click('.lanes .pk.arr'); await rd.page.waitForSelector('#sheet[data-popup="P-day"]');
     check(await rd.page.locator('#sheet [data-act="rides"][data-v="aORD1106-ashwin-p8"]').count() === 1, 'P-day (Map) has its 🚗 for the arrival run');
     await measure(rd.page, 'P-day with its run');
