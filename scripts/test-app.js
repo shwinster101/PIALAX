@@ -89,7 +89,9 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   // PIA-158
   'sceneSVG', 'postcard', 'houseScene', 'allSet', 'petOf', 'keptPet', 'cheer', 'avatar', 'SHEET_NAME', 'DISH_PALETTE', 'DISH_NAMES', 'tripHead', 'nebbyTravelNotes',
   // PIA-160
-  'typeScale', 'runCtx', 'readHold', 'lblHold', 'toast', 'explain', 'endPress', 'lp', 'peopleBoard', 'primaryHTML'];
+  'typeScale', 'runCtx', 'readHold', 'lblHold', 'toast', 'explain', 'endPress', 'lp', 'peopleBoard', 'primaryHTML',
+  // PIA-161
+  'datesText'];
 
 // one fresh app per scenario: {api, ls, loc, hist, fetches, timers}
 function loadApp(o) {
@@ -2820,7 +2822,7 @@ function norm(doc) {
     CLOCK += t.api.TIMES_PULSE_MS + 1; const pulseGone = !/pulse/.test(prim139(screen(t))); CLOCK = NOW;
     act(t, 'mytimes', { id });
     const s2 = sheet(t), focusArr = t.api.S.sheet && t.api.S.sheet.focus === 'tm-arr' && t.api.S.sheet.type === 'person' && t.api.S.sheet.p.code === 'anjo-z5';
-    check(pulseGone && focusArr && /<div class="split"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈<\/span> Track <span aria-hidden="true">↗<\/span><\/a><button class="btn tkb tkon" data-act="unbook"[^>]*aria-pressed="true"[^>]*data-lbl="I booked"><span class="tkg" data-k="tkon" aria-hidden="true">☑︎<\/span> I booked<\/button>/.test(s2) &&
+    check(pulseGone && focusArr && /<div class="split bk"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈<\/span> Track <span aria-hidden="true">↗<\/span><\/a><button class="btn tkb tkon" data-act="unbook"[^>]*aria-pressed="true"[^>]*data-lbl="I booked"><span class="tkg" data-k="tkon" aria-hidden="true">☑︎<\/span> I booked<\/button>/.test(s2) &&
       /<span class="fld tiny tmf invite"><label for="tm-arr"/.test(s2) && /id="tm-dep"/.test(s2) && !/placeholder=/.test(s2) && /id="seg-arr"/.test(s2) && !/id="seg-dep"/.test(s2),
       'PIA-139 AC1/AC2 the times button opens her own sheet with 🛬 focused: [✈ Track ↗ | 🎫 Booked] and the 🛬 / 🛫 time fields (no ––:–– placeholder), 🛬 inviting the time once (the pulse ends by itself); PIA-159: 🛬 is the edit row (its [AM | PM] segment), 🛫 an empty field until it has the focus');
     t.api.closeSheet();
@@ -2845,7 +2847,7 @@ function norm(doc) {
     await tap(o, os, 'booked', { code: 'momdad-k3' }); await tick();
     const os2 = sheet(o);
     check(!!hk && hk[1].replace(/&amp;/g, '&') === TM.handoffs(o.api.modelOf(id), 'momdad-k3', { today: '2026-10-17', now: NOW }).gf.href && /data-act="booked" data-id="[^"]+" data-code="momdad-k3" aria-pressed="false"/.test(os) &&
-      nPosts(o) - p3 === 1 && srv.read(id).responses['momdad-k3'].booked === true && /<div class="split"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*><span data-k="flighty"[\s\S]*?<\/a><button class="btn tkb tkon" data-act="booked"[^>]*aria-pressed="true"/.test(os2),
+      nPosts(o) - p3 === 1 && srv.read(id).responses['momdad-k3'].booked === true && /<div class="split bk"><a class="btn pri" href="https:\/\/www\.flighty\.com\/"[^>]*><span data-k="flighty"[\s\S]*?<\/a><button class="btn tkb tkon" data-act="booked"[^>]*aria-pressed="true"/.test(os2),
       'PIA-139 AC1 the organizer on Mom & Dad\'s sheet: their ✈ Book ↗ (their own search) beside his 🎫 Booked for them; one tap (they answered In) marks them booked, and the slot becomes [✈ Track ↗ | 🎫 Booked]');
   }
   {
@@ -4227,7 +4229,7 @@ function norm(doc) {
       /class="ld own" data-act="dates"[^>]*data-end="0" aria-label="Arrive date 11\/5, own day, outside plan" data-lbl="Arrive, own day"[^>]*>11\/5<span class="fm off" data-k="offplan" aria-hidden="true">⚠<\/span><\/button>/.test(s0) &&
       /class="ld own" data-act="dates"[^>]*data-end="1" aria-label="Leave date 11\/8, own day" data-lbl="Leave, own day"[^>]*>11\/8<\/button>/.test(s0) &&
       !/data-act="legshift"/.test(s0) && !/id="tm-arr"/.test(s0) && !!dec && eq(dec.legs.map((L) => L.date), ['2026-11-05', '2026-11-08']) && dec.legs[0].to.join() === 'RDU' &&
-      /<div class="split"><a class="btn pri" href="[^"]+"[^>]*data-ret="[^"]+" data-code="anjo-z5" aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb tkoff" data-act="mybook"[^>]*><span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> I booked<\/button>/.test(s0),
+      /<div class="split bk"><a class="btn pri" href="[^"]+"[^>]*data-ret="[^"]+" data-code="anjo-z5" aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb tkoff" data-act="mybook"[^>]*><span class="tkg" data-k="tkoff" aria-hidden="true">☐<\/span> I booked<\/button>/.test(s0),
       'PIA-151 AC1/AC5 one tap on her own bar opens her flight section: 🛬 11/5 (⚠: outside the plan, allowed) and 🛫 11/8, each her own (underlined, and a long press says so; PIA-154: no −1 / +1 beside them), and [✈↗ | 🎫 I booked] for exactly those days to RDU while the dates are not 🔒 yet (✈ Book ↗ once they are)');
     act(t, 'dates', ctl(s0, 'dates', { end: '0' }));
     const L0 = dsh(t), c0 = sheet(t);
@@ -4426,7 +4428,7 @@ function norm(doc) {
     t.api.closeSheet(); await until(() => /🛬21:40/.test(srv.read(id).responses['anjo-z5'].note)); await tick();
     const x2 = srv.read(id).responses['anjo-z5'], h2 = screen(t);
     check(t.api.modelOf(id).decision === 'proposed' && !/split prim/.test(h0) && !/data-act="mybook"|google\.com\/travel/.test(h0) && !!dec && eq(dec.legs.map((L) => L.date), ['2026-11-05', '2026-11-09']) &&
-      /<div class="split"><a class="btn pri"[^>]*aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb tkoff" data-act="mybook"/.test(s0) && pB === 1 && x1.booked === true &&
+      /<div class="split bk"><a class="btn pri"[^>]*aria-label="Google Flights" data-k="gf">✈↗<\/a><button class="btn tkb tkoff" data-act="mybook"/.test(s0) && pB === 1 && x1.booked === true &&
       /<span class="fld tiny tmf invite"><label for="tm-arr"/.test(s1) && legOf(s1, 0).indexOf('id="tm-arr"') >= 0 && x2.note === '🛬21:40' && x2.available_from === '2026-11-05' && x2.booked &&
       /class="track mybar lab" data-act="flight"[^>]*aria-label="My flight 11\/5–11\/9, outside plan, booked, lands Raleigh \(RDU\) 9:40 PM"/.test(h2),
       'PIA-151 AC5 on a trip still Asking: her flight section offers [✈ Book ↗ | 🎫 I booked] for exactly her 11/5–11/9 (PIA-154: the trip view has no primary and no ✈↗ before 🔒); 🎫 records her booked in one write, her 🛬 field in its row invites the time, and 21:40 goes as the sheet closes (her own 11/5 and 🎫 kept); then the trip view shows her booked bar with 9:40 PM (PIA-159: 12-hour)', { pB, x2 });
@@ -4708,7 +4710,7 @@ function norm(doc) {
     act(tc, 'stage', { id: CH }); const mst = sheet(tc); tc.api.closeSheet();
     check(title0 && eq(pl0, ['current:true', 'span:false']) && eq(pl1, ['current:false', 'span:true']) && mark && rr && rr.ok && ups.length === 1 && ups[0].body.idea.title === '🦃 Thanksgiving' && d.idea.title === '🦃 Thanksgiving' &&
       !TM.docLegacy(d) && d.decision.stage === 'chosen' && tc.api.S.trip === CH && /🔒 ✓/.test(toastM) &&
-      /<h2 class="ttl"><span data-free>🦃 Thanksgiving<\/span>/.test(v) && /<div class="sline" role="img" aria-label="Stage 3 of 5, Dates set"[\s\S]*?<span class="sword">Dates set<\/span><\/div>/.test(mst) && /data-k="lock">🔒<\/span><\/span><\/button>/.test(v) && /data-act="edit"/.test(mst) && !/data-act="migrate"/.test(v),
+      /<h2 class="ttl"><span data-free>🦃 Thanksgiving<\/span>/.test(v) && /<div class="sline" role="img" aria-label="Stage 3 of 5, Dates set"[\s\S]*?<span class="sword">Dates set<\/span><\/div>/.test(mst) && /data-k="lock">🔒<\/span><\/span><\/span><\/button>/.test(v) && /data-act="edit"/.test(mst) && !/data-act="migrate"/.test(v),
       'PIA-153 AC3/AC4c/AC4d ⤒ Update trip shows the trip\'s picture and name (P-edit\'s controls): "Chicago trip" → 🦃 "Thanksgiving" goes in the one /idea/update (the real Worker); Current / Travelers read which plan is chosen (aria-pressed, the chosen one ✓ and filled); once it lands the sheet closes back to the trip, the toast says 🔒 ✓, and the trip reads 🔒 Dates set (its pill\'s 🔒 and its stage) with ✎', { pl0, pl1, title: d.idea.title, toast: tc.rec['#toast'].innerHTML });
     // a name cleared is asked for (page 1, its field), nothing is sent
     const C2 = seedAs(TGX, (d2) => { d2.idea.title = 'Chicago trip'; });
@@ -5342,6 +5344,8 @@ function norm(doc) {
       'PIA-156 B no 🎫 is drawn anywhere: the confirms read ⚠✈ ("Someone booked"), taking a booking back ✈↩?, the toasts ✈ / ✈⚠ (code comments may keep it)');
   }
 
+  // (PIA-161: the sheets and pages its large-text-fit checks read, kept from the PIA-157 and PIA-159 scenarios below)
+  const FIT161 = {};
   // ═══ PIA-157 ═══
   section('PIA-157 rides: the key\'s 🚗 Rides row, the primary, the card, P-rides through the real Worker, 🚌 / 🚙, the phone calendar, the Map\'s badges, 💵\'s wait, the time-save tell');
   {
@@ -5375,10 +5379,10 @@ function norm(doc) {
     const sheetM = sheet(mom);
     check(/class="slot ride z" data-act="ridescard"[^>]*aria-label="Rides open" data-lbl="Rides open"><span data-k="noride" aria-hidden="true">🚗\?<\/span>/.test(so) && /data-act="ridescard"/.test(sm) && !/🏠/.test(sm) && !/ridescard/.test(sa) && momFromCard &&
       /<div class="rday">Fri <span class="tn">11\/20<\/span><\/div>/.test(sheetM) && /<div class="rday">Mon <span class="tn">11\/30<\/span><\/div>/.test(sheetM) && !/<b class="lc">/.test(sheetM) &&
-      /<b class="ap">ORD<\/b><span class="tm">2:35 <span class="mer">PM<\/span><\/span>/.test(sheetM) && /<b class="ap">ORD<\/b><span class="tm">3:30 <span class="mer">PM<\/span><\/span>/.test(sheetM) &&
+      /<b class="ap">ORD<\/b><span class="rtt"><span class="tm">2:35 <span class="mer">PM<\/span><\/span>/.test(sheetM) && /<b class="ap">ORD<\/b><span class="rtt"><span class="tm">3:30 <span class="mer">PM<\/span><\/span>/.test(sheetM) &&
       (sheetM.match(/data-act="ride" [^>]*data-code="momdad-k3" aria-pressed="false"/g) || []).length === 2 && (sheetM.match(/> Drive<\/button>/g) || []).length === 2 &&
-      /<span class="rlv" role="img" aria-label="Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">12:05–5:05 <span class="mer">PM<\/span><\/span><\/span>/.test(sheetM) &&
-      /aria-label="Leave home 11:00 AM: 2:30 drive, 2:00 before Ashwin’s flight, home 4:00 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:00 AM–4:00 <span class="mer">PM<\/span><\/span>/.test(sheetM) &&
+      /<span class="rlv" role="img" aria-label="Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">12:05–5:05\u00a0<span class="mer">PM<\/span><\/span><\/span>/.test(sheetM) &&
+      /aria-label="Leave home 11:00 AM: 2:30 drive, 2:00 before Ashwin’s flight, home 4:00 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:00\u00a0AM–4:00\u00a0<span class="mer">PM<\/span><\/span>/.test(sheetM) &&
       /<span class="rq" data-k="noride">🚗\?<\/span>/.test(sheetM) && /data-k="waitbook"[^>]*>⏳<\/span><span aria-hidden="true" data-pic>🗽/.test(sheetM) && !/data-act="ridecal"|data-act="ground"/.test(sheetM),
       'PIA-157 C/D the card\'s slot is 🚗? ("Rides open") for the organizer and in Mom & Dad\'s 🏠 place (Anjo\'s keeps her Book); from the list it opens the trip with P-rides on top: by day (PIA-159: "Fri 11/20", "Mon 11/30"; each leg "ORD 2:35 PM"), both runs, ⏰12:05–5:05 PM / ⏰11:00 AM–4:00 PM (a long press: "Leave home 12:05 PM: 2:30 drive, at ORD as Ashwin lands, home 5:05 PM", "…2:00 before Ashwin’s flight…"), dashed 🚗? on each leg, "☐ 🚗 Drive" twice on Mom & Dad\'s phone, ⏳ 🗽 below; no 📅 Phone yet, no 🚌 / 🚙 on someone else\'s leg', sheetM.slice(0, 1600));
     // Mom & Dad claim R1 on their phone: their first answer (In, by them: no 📞), the claim in their own note; 🚗✓ and ↩ takes it back
@@ -5423,7 +5427,7 @@ function norm(doc) {
       (told.text || '').indexOf(KEY) < 0 && mom.api.rideChanged(mm) && mom.api.tripsBadge() >= 1 && /data-k="ridenew"/.test(card) && mom.api.primaryAction(mm, '2026-10-17') === 'drive',
       'PIA-157 H/J Ashwin\'s landing moved to 15:05 (the same day): Mom & Dad\'s claim carries, ⏰ is 12:35; his toast (PIA-159: the echo "🛬 ORD 3:05 PM ✓"; PIA-160: one whole half with its ✓ inside, so the ✓ never wraps alone) carries the share symbol, "Tell Mom & Dad": her own link with "🚗 Ride update: Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 3:05 PM (leave home 12:35 PM, home about 5:35 PM)." (no key); on her phone the card\'s dot (Rides changed) and the Trips numeral until she adds the rides again', { told, toastO });
     // P-person: each booked leg's ride after its time (🌽 driving), into P-rides; Mom & Dad's host line 🏠 ORD 🚗2
-    act(org, 'person', { id: PT, code: 'ashwin-p8' }); const pa = sheet(org); org.api.closeSheet();
+    act(org, 'person', { id: PT, code: 'ashwin-p8' }); const pa = sheet(org); org.api.closeSheet(); FIT161.pa = pa;
     act(org, 'person', { id: PT, code: 'momdad-k3' }); const pm2 = sheet(org); org.api.closeSheet();
     check(/<button class="rgl" data-act="rides" data-id="[^"]+" data-v="aORD1120-ashwin-p8" aria-label="Landing 11\/20 ride: Mom &amp; Dad driving" data-lbl="Mom &amp; Dad driving"><span aria-hidden="true" data-pic>🌽<\/span><\/button>/.test(pa) &&
       /<button class="rgl" data-act="rides" data-id="[^"]+" data-v="dORD1130-ashwin-p8" aria-label="Leaving 11\/30 ride: Mom &amp; Dad driving" data-lbl="Mom &amp; Dad driving"><span aria-hidden="true" data-pic>🌽<\/span><\/button>/.test(pa) &&
@@ -5929,8 +5933,9 @@ function norm(doc) {
     act(mo, 'pickup', { id: Q, ap: 'MDW', v: '2026-11-30' }); v.dayMDW30 = sheet(mo); mo.api.closeSheet();
     act(mo, 'mapairport', { id: Q, v: 'MDW' }); const apType = mo.api.S.sheet && mo.api.S.sheet.type; act(mo, 'mapwho', { code: 'anjo-z5' }); v.apMDW = sheet(mo); mo.api.closeSheet();
     act(mo, 'tab', { v: 'trips' }); v.slot = mo.api.slotHTML(mo.api.modelOf(Q)); v.card = mo.api.renderIdeas().html;
+    Object.assign(FIT161, { rd: v.rides, momTrip: v.momTrip, ro: mo.api.datesText(mo.api.modelOf(Q), true, false, true) });
     const bad = {}; Object.keys(v).forEach((k) => { const b = bad12(v[k]); if (b.length) bad[k] = b; });
-    check(!Object.keys(bad).length && /10:30 <span class="mer">PM<\/span>/.test(v.anjo) && /2:35 <span class="mer">PM<\/span>/.test(v.orgTrip) && /7:45 PM–Sat 1:15 <span class="mer">AM<\/span>/.test(v.rides) && /10:30 <span class="mer">PM<\/span>/.test(v.map),
+    check(!Object.keys(bad).length && /10:30 <span class="mer">PM<\/span>/.test(v.anjo) && /2:35 <span class="mer">PM<\/span>/.test(v.orgTrip) && /7:45\u00a0PM–Sat\u00a01:15\u00a0<span class="mer">AM<\/span>/.test(v.rides) && /10:30 <span class="mer">PM<\/span>/.test(v.map),
       'PIA-159 the 12-hour sweep: on the organizer\'s and Mom & Dad\'s trip pages, Anjo\'s and Ashwin\'s P-person, Mom & Dad\'s P-rides, the Map, P-day and P-mapairport on Midway, the card and its slot, every visible H:MM outside a duration reads AM / PM (or begins a "12:05–5:05 PM" range)', bad);
     {
       // (fix pass) the board's labels, exactly: the airport once, on the bar's first timed label, where it is not the destination
@@ -5962,11 +5967,11 @@ function norm(doc) {
     // P-rides by day: R2 a drive of its own (its long press says why), R3 one drive to two airports, ① O'Hare ② Midway, the 0:45 between
     const rd = v.rides, cal = /href="data:text\/calendar;charset=utf-8,([^"]+)"/.exec(rd), ics = cal ? decodeURIComponent(cal[1]).replace(/\r\n /g, '').replace(/&#39;/g, '\'').replace(/&amp;/g, '&') : '';
     check(/<div class="rday">Fri <span class="tn">11\/20<\/span><\/div>/.test(rd) && /<div class="rday">Mon <span class="tn">11\/30<\/span><\/div>/.test(rd) &&
-      /aria-label="Separate drive: Anjo lands 10:30 PM at Midway, 7:55 hours after Ashwin"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">7:45 PM–Sat 1:15 <span class="mer">AM<\/span><\/span>/.test(rd) &&
-      /aria-label="Leave 11:15 AM: O&#39;Hare 1:45 PM, Midway 2:30 PM, home 5:15 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:15 AM–5:15 <span class="mer">PM<\/span><\/span>/.test(rd) &&
+      /aria-label="Separate drive: Anjo lands 10:30 PM at Midway, 7:55 hours after Ashwin"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">7:45\u00a0PM–Sat\u00a01:15\u00a0<span class="mer">AM<\/span><\/span>/.test(rd) &&
+      /aria-label="Leave 11:15 AM: O&#39;Hare 1:45 PM, Midway 2:30 PM, home 5:15 PM"[^>]*><span data-k="lvhome" aria-hidden="true">⏰<\/span><span class="tm">11:15\u00a0AM–5:15\u00a0<span class="mer">PM<\/span><\/span>/.test(rd) &&
       /<span class="rnum" data-k="stopn" aria-hidden="true">①<\/span>/.test(rd) && /<span class="rnum" data-k="stopn" aria-hidden="true">②<\/span>/.test(rd) &&
       /<div class="rhop" role="img" aria-label="0:45 drive to Midway \(MDW\)" data-lbl="Drive between"><span data-k="drive" aria-hidden="true">🚗<\/span><span class="tn" data-dur>0:45<\/span><\/div>/.test(rd) &&
-      /<b class="ap">MDW<\/b><span class="tm">5:10 <span class="mer">PM<\/span><\/span>/.test(rd) && /aria-label="Lands O&#39;Hare \(ORD\) Fri 11\/20 at 2:35 PM, Ashwin, Mom &amp; Dad driving"/.test(rd) &&
+      /<b class="ap">MDW<\/b><span class="rtt"><span class="tm">5:10 <span class="mer">PM<\/span><\/span>/.test(rd) && /aria-label="Lands O&#39;Hare \(ORD\) Fri 11\/20 at 2:35 PM, Ashwin, Mom &amp; Dad driving"/.test(rd) &&
       /\r\nSUMMARY:🚗 Drop off Ashwin \+ Nebby 🐈 \(ORD 3:47 PM\)\\, then Anjo \(MDW 5:10 PM\)\r\n/.test(ics) && /\r\nUID:[A-Za-z0-9_-]+-momdad-k3-a1120-anjo-z5@pialax\r\n/.test(ics) && /\r\nLOCATION:Chicago Midway International Airport \(MDW\)\r\n/.test(ics),
       'PIA-159 Mom & Dad\'s P-rides by day ("Fri 11/20", "Mon 11/30"): Anjo\'s 10:30 PM Midway pickup a drive of its own, ⏰ 7:45 PM–Sat 1:15 AM (its long press: "Separate drive: Anjo lands 10:30 PM at Midway, 7:55 hours after Ashwin", the wait in hours so it never reads as a clock time); the 11/30 drop-off one drive to two airports, ⏰ 11:15 AM–5:15 PM (long press: each stop walked from the leave), ① O\'Hare ② Midway with "🚗 0:45" between; 📅 Phone says "Drop off Ashwin + Nebby 🐈 (ORD 3:47 PM), then Anjo (MDW 5:10 PM)", Midway\'s full name its location, an airport-free UID', { rd: rd.slice(0, 1600) });
     // the Map: Midway's own lane (no pin of its own: test-map-browser), P-mapairport and P-day map mode on MDW
@@ -6159,8 +6164,8 @@ function norm(doc) {
       'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
     // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
     const L = a1.api.LEGEND;
-    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 160,
-      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #160 (PIA-160)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 161,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #161 (PIA-161)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ PIA-160 family polish ═══
@@ -6279,6 +6284,55 @@ function norm(doc) {
     const n10 = numsOf(B10), n11 = numsOf(B11), n22 = numsOf(B22);
     check(n10.r === 10 && n10.k === 10 && n11.r === 11 && n11.k === 6 && n22.r === 22 && n22.k === 8,
       'PIA-160 the board\'s 15px day numerals never touch: at 360px (an 80px name column, a 240px track) a 10-day trip numbers every day (24px a day, at least 1.5 numerals), an 11-day one every other day (21.8px is under 1.5 numerals), a 22-day one every third (10.9px is under 0.75)', { n10, n11, n22 });
+  }
+
+  // ═══ PIA-161 large-text fit ═══
+  section('PIA-161 large-text fit: a P-rides leg is [① face 🐈] and one tail [code [time driver]], the run header one group, P-person\'s read row one group, [Track | I booked] that wraps, the pill\'s "10🌙 🔒", the Trips card under 360px');
+  {
+    const src = fs.readFileSync(APP, 'utf8'), css = src.slice(src.indexOf('<style>') + 7, src.indexOf('</style>')), flat = css.replace(/\/\*[\s\S]*?\*\//g, (c) => c.replace(/[^\n]/g, ' '));
+    const NB = '\u00a0', rd = FIT161.rd || '', pa = FIT161.pa || '', trip = FIT161.momTrip || '', ro = FIT161.ro || '';
+    // Mom & Dad's P-rides on P town, every leg claimed (the PIA-159 sheet): 🛬 / 🛫 and the ⏰ range one group, the range's spaces kept
+    // as U+00A0 (so it breaks only after its dash), each leg's tail the code with [time driver]; a run of one leg has no columns (r1),
+    // the 11/30 run's times all have a one-digit hour (hr1); no spacer; no other U+00A0 in the sheet
+    const mk = {
+      head: rd.indexOf('<span class="rhd"><span data-k="arrive" aria-hidden="true">🛬</span><span class="rlv"') >= 0 && rd.indexOf('<span class="rhd"><span data-k="leave" aria-hidden="true">🛫</span><span class="rlv"') >= 0,
+      night: rd.indexOf('<span class="tm">7:45' + NB + 'PM–Sat' + NB + '1:15' + NB + '<span class="mer">AM</span></span>') >= 0,
+      ord: rd.indexOf('<span class="rtl r1"><b class="ap">ORD</b><span class="rtt"><span class="tm">2:35 <span class="mer">PM</span></span><span class="rst"') >= 0,
+      mdw: rd.indexOf('<span class="rtl r1"><b class="ap">MDW</b><span class="rtt"><span class="tm">10:30 <span class="mer">PM</span></span><span class="rst"') >= 0,
+      hr1: (rd.match(/<span class="rtl hr1">/g) || []).length === 2 && (rd.match(/<span class="rtl[ "]/g) || []).length === 4,
+      second: rd.indexOf('<span class="rpx" aria-hidden="true"></span><span class="rtl hr1"><b class="ap">MDW</b><span class="rtt">') >= 0,
+      noSp: rd.indexOf('<div class="rrun') > 0 && !/class="sp"/.test(rd.slice(rd.indexOf('<div class="rrun'))),
+      // (the ranges' U+00A0 are the only ones in the sheet, six: 1 + 3 + 2; read as spaces, the three ranges are #160's exactly)
+      nbsp: (rd.match(/\u00a0/g) || []).length === 6 && ['12:05\u20135:05 <span class="mer">PM', '7:45 PM\u2013Sat 1:15 <span class="mer">AM', '11:15 AM\u20135:15 <span class="mer">PM']
+        .every((s) => rd.replace(/\u00a0/g, ' ').split('<span class="tm">' + s + '</span></span></span>').length === 2),
+    };
+    check(Object.keys(mk).every((k) => mk[k]),
+      'PIA-161 Mom & Dad\'s P-rides: "🛬 ⏰…" is one group (.rhd), the overnight range "7:45 PM–Sat 1:15 AM" keeps its spaces as U+00A0 (one break, after the dash); each leg is [① face 🐈] then one tail (.rtl) of the code and [time driver] (.rtt); the 11/20 runs of one leg have no columns (r1), the 11/30 run with every hour one digit the 4.05em time column (hr1), Anjo\'s ② leg its empty pet place then "MDW"; no spacer; the six U+00A0 are the ranges\' own spaces, and read as spaces the ranges are #160\'s', mk);
+    // Ashwin's P-person on his phone (Mom & Dad drive both legs): each read row's [code time] button and its 🌽 one group
+    const ltl = (pa.match(/<span class="ltl"><button class="tmb"[^>]*>[\s\S]*?<\/button><button class="rgl"[^>]*>[\s\S]*?<\/button><\/span><\/div>/g) || []).length;
+    check(ltl === 2, 'PIA-161 P-person: Ashwin\'s 🛬 and 🛫 read rows each hold [ORD time] and its 🌽 in one group (.ltl), so they move under the day together', { ltl });
+    // the trip page's locked pill: "10🌙 🔒" one group; P-dates' read-only line (no tail) has none
+    check(trip.indexOf('<span class="dtl"><span data-k="nights">10<span class="g">🌙</span></span> <span data-k="lock">🔒</span></span>') >= 0 && (trip.match(/data-k="lock"/g) || []).length === 1 &&
+      ro.indexOf('<span data-k="nights">10<span class="g">🌙</span></span>') >= 0 && ro.indexOf('dtl') < 0,
+      'PIA-161 the trip page\'s date pill keeps "10🌙 🔒" in one group (.dtl, datesText\'s tail); P-dates\' read-only line (no tail) draws no .dtl', { ro });
+    // the CSS, exactly; the spacer's and the old pet glyph's rules gone; the pet box grows only to the screens' cap
+    const exact = ['.rrun { display: grid; gap: 0; padding: var(--sp-3); border-radius: var(--r-3);', '.rrh, .rleg { display: flex; align-items: center; min-height: 44px; flex-wrap: wrap; }',
+      '.rrh { gap: var(--sp-2) var(--sp-1); }', '.rleg { gap: 0 var(--sp-1); }', '.rrh .rhd, .rrh .rhd .rlv { display: inline-flex; align-items: flex-start; }', '.rrh .rhd { gap: var(--sp-1); }',
+      '.rrh .rhd .tm { white-space: normal; }', '.rleg { padding-left: var(--sp-6); font-size: var(--fs-3); font-weight: 600; font-variant-numeric: tabular-nums; }', '.rleg > :first-child { margin-left: calc(-1 * var(--sp-6)); }',
+      '.rleg .rpet, .rleg .rpx { display: inline-grid; place-items: center; font-size: min(var(--fs-2), calc(15px * 1.118)); width: 1.25em; flex: none; margin: 0 2px 0 -6px; }',
+      '.rleg .ap { display: inline-block; min-width: 2.9em; }', '.rleg .tm { display: inline-block; min-width: 4.7em; text-align: right; }', '.rleg .rtl.hr1 .tm { min-width: 4.05em; }',
+      '.rleg .rtl.r1 .ap, .rleg .rtl.r1 .tm { min-width: 0; }', '.rleg .rtl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--sp-1); }',
+      '.rleg .rtt { display: inline-flex; align-items: center; gap: var(--sp-1); }', '.rleg .rgp { margin-left: auto; }', '.rrun .rq { border: 0; background: var(--surface); border-radius: var(--r-1); padding: 2px var(--sp-1);',
+      '.rdrv { min-height: 48px; padding: 0 12px; display: inline-flex; align-items: center; gap: var(--sp-1);', '.leg .ltl { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-1); }',
+      '.leg.lbk .lg0 { padding-right: 0; }', '.split.bk { flex-wrap: wrap; }', '.split.bk > .btn.tkb { flex: 1 0 auto; }', '.split.bk > :first-child { flex: 999 1 0%; }',
+      '.daterow .pill .dtl { display: inline-flex; align-items: center; column-gap: var(--sp-2); }', '.card-a { display: flex; gap: var(--sp-2); align-items: flex-start; min-height: 60px; }',
+      '@media (max-width: 359px) { .card-a { flex-wrap: wrap; } .card-a > .card-t { flex-basis: calc(100% - 72px - var(--sp-2)); } .card-a > .card-t + * { margin-left: auto; } }',
+      '.slot.wide { width: auto; min-width: 48px; padding: 0 8px; font-size: var(--fs-3); line-height: var(--lh-1); }'];
+    const petFs = (/\.rleg \.rpet, \.rleg \.rpx \{[^}]*font-size: ([^;]+);/.exec(flat) || [])[1];
+    check(exact.every((s) => flat.indexOf(s) >= 0) && flat.indexOf('.rrh .sp {') < 0 && !/\n\.rpet \{ font-size/.test(flat) && petFs === 'min(var(--fs-2), calc(15px * 1.118))' &&
+      (src.match(/<div class="split bk">/g) || []).length === 2 && src.indexOf('function runHTML(') > 0 && !/class="sp"/.test(src.slice(src.indexOf('function runHTML('), src.indexOf('SHEETS.rides = '))),
+      'PIA-161 the CSS as specified: 12px run padding, 4px gaps across a header and a leg (8px between header rows), the leg\'s 32px hanging indent, the tail and [time driver] groups, the per-run columns (r1 none, hr1 4.05em), 🚌 🚙 at the right edge, 🐈 in a 1.25em box at min(15px tokens, the screens\' ×1.118), 🚗? 4px sides, Drive 4px inner gaps; P-person\'s .ltl, bookRow\'s two .split.bk, the pill\'s .dtl, the card\'s 8px gaps and its <360px row, the slot\'s line height; .rrh .sp and the global .rpet rule gone',
+      exact.filter((s) => flat.indexOf(s) < 0));
   }
 
   // ═══ AC12 / AC14 ═══

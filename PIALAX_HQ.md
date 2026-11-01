@@ -660,3 +660,106 @@ Rides row in the key may hold no chip at all where not even the first fits (only
 "+N"), and at 414px the organizer's P town row holds one chip and "+2" where #159
 held two. A long name that does not fit its column at 13px is drawn cut there
 (#159 shrank it to 11px).
+
+### PIA-161 amendment: large-text fit (2026-11-01)
+
+**Presentation only.** No word, tap, storage format, link, marker, Worker or model
+change; the words census (`scripts/fixtures/census-159.json`) is unchanged and still
+holds every measured screen and popup. No type size changes except one emoji box.
+
+**A row that cannot fit wraps by planned groups.** At #160, P-rides' legs grew to the
+sheets' cap with fixed-width parts and 8px gaps, so at an iPhone's larger Text Size
+a leg wrapped and its last part, the driver's face or 🚗?, dropped alone under the
+time. Now these rows are built from groups that wrap as one piece:
+- a P-rides leg is its traveler ([① face 🐈]) and one tail, [code [time driver]];
+  the tail moves under the face as one piece with a 32px hanging indent, so a driver
+  never stands alone; only where even the tail is wider than the card (a joined run
+  with a two-digit hour and two drivers or ⚠ at 320px with a 23px root) does the code
+  go over [time driver], which never parts; 🚌 🚙 follow at the leg's right edge;
+- a run header's 🛬 / 🛫 and its ⏰ range (or day) are one group, the range's spaces
+  kept as U+00A0, so it breaks only after its dash ("7:45 PM–" over "Sat 1:15 AM");
+- P-person's read row: [code time] and its ride glyph are one group (.ltl), moving
+  under the day together to the row's left edge, as the edit row's [field | AM PM]
+  does (on a booked row, read or edit, the 🛬 / 🛫 box drops its own 4px). The read
+  group is the wider one, so where only it wraps, tapping the time opens the field on
+  the line above (focused): in Chromium on Anjo's 🛬 row at 360px with a 19px root,
+  375–390px at 21px and 393–414px at 23px (#160 moved it at six sizes too, the other
+  way); where both wrap or neither does, the field opens where the time was;
+- [✈ Track ↗ | ☑ I booked] (.split.bk) becomes two full-width rows where one row
+  cannot hold both;
+- the trip page's pill keeps "10🌙 🔒" together (.dtl);
+- under 360px a Trips card's slot takes its own row at the right, so the title has
+  the width beside the picture and a word like "thanksgiving" stays whole.
+
+**Spacing at larger sizes.** A run card is padded 12px; inside it the gaps across a
+header and a leg are 4px (8px between header rows), the 🚗? pill 4px at its sides,
+Drive's inner gaps 4px. Columns are per run and fit what they hold: a run of one leg
+has no columns; a run whose times all have a one-digit hour a 4.05em time column,
+else 4.7em; codes 2.9em. 🐈 sits in a box its own width (1.25em) at the 15px size
+token capped at the screens' ×1.118 (16.8px at most; the 32px face beside it never
+grows). The Trips card's gaps are 8px.
+
+**Drive (decided again).** PIA-160's rule stays: Drive at the card's right edge, on
+the header's line when the whole header fits, else on its own row under it. Each
+card places its Drive from its own content in CSS alone, so no script measures a card
+or moves its Drive after the sheet draws (Mom & Dad's first claim can still move every
+card up while the sheet grows by its 📅 Phone row: see below); at a larger Text
+Size Drive is already under the header on every P town card up to 393px from a 21px
+root (up to 430px at 23px),
+so where Mom & Dad read most it is already consistent; "all under if any wraps" needs
+a measuring script, and "always under" costs about 56px a card on every phone; and
+"always on its line" is impossible (at the default size the overnight card's header
+is wider than its card on a phone up to 393px). Measured in Chromium on Mom & Dad's
+P town P-rides, claimed and not (1 = Drive on the header's line, 0 = under it; the
+12:05, overnight and 11:15 cards):
+
+| root | 320 | 360 | 375 | 390 | 393 | 402 | 414 | 430 | 440 |
+|---|---|---|---|---|---|---|---|---|---|
+| 17 | 000 | 100 | 100 | 101 | 101 | 111 | 111 | 111 | 111 |
+| 19 | 000 | 000 | 100 | 100 | 100 | 100 | 101 | 101 | 111 |
+| 21 | 000 | 000 | 000 | 000 | 000 | 100 | 100 | 100 | 100 |
+| 23 | 000 | 000 | 000 | 000 | 000 | 000 | 000 | 000 | 100 |
+
+So at 390px and the default size the 12:05 and 11:15 cards carry Drive on their line
+and the overnight card under it, as at #159 (#160 had only the 12:05 card's on its
+line there); from 402px all three are on their line.
+
+**Checked and left as is, on purpose (later).** A sheet-wide Drive placement; the
+Trips card title at 360px from 11/19 with a 19–23px root (an Android width:
+"thanksgiving" still breaks there, as at #160); the Map lane chip "10:30 PM" at 320px
+with a larger root runs into its own right padding (inside its edge; an "≈" time
+could cross it); Kona's › breaks its dates after "–" at 320px from a 21px root (a
+planned wrap inside one button); the organizer's candidate faces follow Drive's rule
+(the right edge, on the line or under it); 🚌 🚙 (on a traveler's own legs, and on the
+legs the organizer sets them for) take a line of their own at the leg's right edge where the
+leg's line cannot hold them, the pair together, never a lone glyph: in Chromium the
+joined 11/30 legs (Ashwin's ①, Anjo's ②) up to 402px at the default size, 414px at
+19px and at every width from 21px, the 11/20 legs up to 360px at the default size,
+375px at 19px, 393px at 21px and 402–414px at 23px (fitting them on the leg's line at
+390–414px from a 19px root is later); Mom & Dad's first Drive tap adds the 📅 Phone
+row, so the bottom-anchored sheet grows upward and every card, the tapped Drive with
+it, moves up wherever the sheet is under its height cap (measured in the next
+paragraph): keeping the sheet's top fixed, or reserving the row's place, is later;
+the board title's 6px overflow, the
+Calendar cells at 320px and the list's 42.5px title button as at #159; toasts were
+not reachable in the read-only audit, and PIA-160's toast checks (TELLBOX) stand.
+
+**The first claim's move (a regression, later).** PIA-161's shorter cards leave
+Mom & Dad's P-rides sheet under its height cap at more sizes, so their first Drive
+tap moves the Drive away from under the finger at sizes where #160 kept it in place,
+and further at most sizes where #160 already moved it. Measured in Chromium on P
+town, 844px tall, with the sheet at its top: how far the tapped card's Drive moves up
+between the open sheet and the sheet drawn with only that card claimed (the same for
+each of the three cards), in px, #160 in brackets:
+
+| root | 320 | 360 | 375 | 390 | 393 | 402 | 414 | 430 | 440 |
+|---|---|---|---|---|---|---|---|---|---|
+| 17 | 25 (0) | 56 (9) | 56 (25) | 87 (56) | 87 (56) | 88 (56) | 88 (87) | 88 (88) | 88 (88) |
+| 19 | 0 (0) | 13 (0) | 46 (0) | 46 (13) | 46 (13) | 46 (13) | 80 (46) | 80 (46) | 88 (46) |
+| 21 | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 36 (0) | 36 (0) | 36 (0) | 36 (36) |
+| 23 | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 0 (0) | 26 (0) |
+
+So at one Text Size step up (a 19px root) the tapped Drive now moves 46px at
+375–402px, where #160 moved it 0–13px, and 80px at 414–430px (#160 46px); where the
+open sheet already fills its cap, the tapped Drive did not move. Mom's device check
+(V2_ACCEPTANCE.md) asks her to note whether it moves away under her finger.

@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="160">
+<meta name="pialax-build" content="161">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -173,7 +173,8 @@ svg { display: block; }
 .card.dim { background: var(--sunk); } .card.dim .pc { opacity: .55; }
 .card.fly { animation: fly var(--t-3) var(--ease); }
 @keyframes fly { from { transform: translateY(-12px); opacity: 0; } to { transform: none; opacity: 1; } } /* PIA-138: no scale, so a card's targets (its date pill) stay ≥44px as it flies in (PIA-160: no overshoot) */
-.card-a { display: flex; gap: 12px; align-items: flex-start; min-height: 60px; }
+.card-a { display: flex; gap: var(--sp-2); align-items: flex-start; min-height: 60px; }
+@media (max-width: 359px) { .card-a { flex-wrap: wrap; } .card-a > .card-t { flex-basis: calc(100% - 72px - var(--sp-2)); } .card-a > .card-t + * { margin-left: auto; } }
 .card-t { flex: 1; min-width: 0; margin: 0; font-size: var(--fs-3); font-weight: 600; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; padding-top: 2px; }
 .card-open { text-align: left; font-weight: inherit; }
 .card-open::after { content: ""; position: absolute; inset: 0; border-radius: var(--r-4); }
@@ -188,7 +189,7 @@ svg { display: block; }
 .slot { width: 48px; height: 48px; border-radius: var(--r-2); display: grid; place-items: center; font-size: 20px; border: 1.5px solid var(--edge); flex: none; position: relative; font-weight: 700; white-space: nowrap; }
 .slot.gf { background: var(--surface); color: var(--ink); font-size: 17px; } /* Keep ✈↗ inside the bordered 48px target with wider emoji fonts. */
 .slot.off { border-color: var(--mute); color: var(--mute); }
-.slot.wide { width: auto; min-width: 48px; padding: 0 8px; font-size: var(--fs-3); }
+.slot.wide { width: auto; min-width: 48px; padding: 0 8px; font-size: var(--fs-3); line-height: var(--lh-1); }
 .slot.plain { border-color: transparent; }
 .slot .corner { position: absolute; top: -6px; right: -6px; font-size: 13px; }
 .pill { display: inline-flex; align-items: center; gap: 4px; min-height: 44px; padding: 0 9px; border-radius: var(--r-pill); border: 1.5px dashed var(--edge); font-size: var(--fs-2); letter-spacing: 0; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; position: relative; }
@@ -262,6 +263,7 @@ svg { display: block; }
 .daterow .pill { flex: 1; justify-content: center; min-width: 0; min-height: 52px; font-size: var(--fs-2); }
 .daterow .pill { white-space: normal; padding: 4px 9px; }
 .daterow .pill .inner { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; column-gap: 8px; row-gap: 0; min-width: 0; }
+.daterow .pill .dtl { display: inline-flex; align-items: center; column-gap: var(--sp-2); }
 .pill .dt, .pill .inner > span { white-space: nowrap; }
 /* PIA-138: the date pill is a control (P-dates); my bar on the board too */
 button.pill { cursor: pointer; text-align: center; color: inherit; }
@@ -335,6 +337,9 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .split { display: flex; gap: 8px; }
 .split.prim { position: sticky; bottom: calc(64px + env(safe-area-inset-bottom, 0px)); z-index: 25; background: var(--bg); padding: 8px 0; margin: -8px 0; box-shadow: 0 -10px 10px -10px var(--shade); }
 .split > :first-child { flex: 1; }
+.split.bk { flex-wrap: wrap; }
+.split.bk > .btn.tkb { flex: 1 0 auto; }
+.split.bk > :first-child { flex: 999 1 0%; }
 .btn { min-height: 56px; border-radius: var(--r-3); display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: var(--fs-3b); font-weight: 700; padding: 0 16px; border: 2px solid var(--edge); white-space: nowrap; }
 .btn.pri { background: var(--ink); color: var(--on-ink); border-color: var(--ink); }
 .btn.sq { width: 64px; padding: 0; flex: none; font-size: 20px; }
@@ -832,7 +837,6 @@ textarea.linkfld { resize: none; word-break: break-all; line-height: 1.35; }
 .pticks .tool { width: 100%; justify-content: start; display: flex; align-items: center; gap: 8px; min-height: 48px; padding: 0 12px; font-size: var(--fs-3); text-align: left; }
 .pticks .tool .tkg { font-size: 1.15em; line-height: 1; }   /* (PIA-160: the ☐ / ☑ box grows with its label) */
 .pticks .tool[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 12%, var(--surface)); }
-.rpet { font-size: var(--fs-2); margin-left: -4px; }
 /* PIA-158: P-house, the large postcard with the table strip, who brings what (🧺) */
 .pc.big { width: 100%; height: auto; aspect-ratio: 16 / 9; border-radius: 16px; box-shadow: none; display: block; }
 .hpic { position: relative; margin-top: 4px; border-radius: 16px; overflow: hidden; box-shadow: 0 0 0 1px var(--line); }
@@ -1062,11 +1066,13 @@ button.wkl { min-height: 44px; border-radius: var(--r-2); text-align: left; }
 .rsec > :last-child { margin-bottom: 0; }
 /* PIA-159: P-rides by day; a joined run's drive between its stops. PIA-160: the day head 15px/700 in full ink, 24px above it (the
    sheet's 16 and its own 8) and 8px under it (its own 6 and the day's 2px gap); each run a card on the soft grey fill (no edge; an open
-   run keeps its dashed amber), 12px 16px, 16px corners, 14px apart (its 12 and the 2px gap); the header 17px/700 with the ⏰ range its hero, its controls together at its end; legs 17px/600 with
+   run keeps its dashed amber), 12px, 16px corners, 14px apart (its 12 and the 2px gap); the header 17px/700 with the ⏰ range its hero, its controls together at its end; legs 17px/600 with
    32px faces, each code and time in a column (a later leg at the same stop keeps the code's place, a leg with no pet the pet's), ①②
-   15px/700; a run that is home already muted in the secondary ink, never faded */
+   15px/700; a run that is home already muted in the secondary ink, never faded. PIA-161: a leg is [① face 🐈] and one tail
+   [code [time driver]] that wraps as one piece under the face, 32px in (a tail wider than the card breaks once more: the code over
+   [time driver], which never parts); 4px gaps; columns per run: none on a one-leg run, 4.05em times where every hour has one digit */
 .rday { font-size: var(--fs-2); font-weight: 700; color: var(--ink); margin: var(--sp-2) 0 6px; }
-.rrun { display: grid; gap: 0; padding: var(--sp-3) var(--sp-4); border-radius: var(--r-3); border: 1.5px solid transparent; background: var(--sunk); margin-bottom: var(--sp-3); }
+.rrun { display: grid; gap: 0; padding: var(--sp-3); border-radius: var(--r-3); border: 1.5px solid transparent; background: var(--sunk); margin-bottom: var(--sp-3); }
 .rrun.done { opacity: 1; background: transparent; border-color: var(--line); }
 .rrun.done .rrh, .rrun.done .rleg { color: var(--ink2); }
 .rrun .rrh { font-size: var(--fs-3); }
@@ -1077,21 +1083,31 @@ button.wkl { min-height: 44px; border-radius: var(--r-2); text-align: left; }
 .rk.rfold { margin: 0 6px 6px 0; }
 .rrun.open { border-color: var(--maybe); border-style: dashed; }
 .rrun.on { box-shadow: 0 0 0 3px color-mix(in srgb, var(--focus) 35%, transparent); }
-.rrh, .rleg { display: flex; align-items: center; gap: 8px; min-height: 44px; flex-wrap: wrap; }
+.rrh, .rleg { display: flex; align-items: center; min-height: 44px; flex-wrap: wrap; }
+.rrh { gap: var(--sp-2) var(--sp-1); }
+.rleg { gap: 0 var(--sp-1); }
 .rrh { font-size: var(--fs-3); font-weight: 700; font-variant-numeric: tabular-nums; }
-.rrh .sp { min-width: 4px; }
+.rrh .rhd, .rrh .rhd .rlv { display: inline-flex; align-items: flex-start; }
+.rrh .rhd { gap: var(--sp-1); }
+.rrh .rhd .tm { white-space: normal; }
 .rrh .rlv { display: inline-flex; align-items: center; gap: 1px; }
 .rrh .rctl { display: inline-flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; align-items: center; margin-left: auto; }   /* (PIA-160: Drive at the card's right edge, on its line or under it) */
-.rleg { padding-left: 0; font-size: var(--fs-3); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rleg { padding-left: var(--sp-6); font-size: var(--fs-3); font-weight: 600; font-variant-numeric: tabular-nums; }
+.rleg > :first-child { margin-left: calc(-1 * var(--sp-6)); }
 .rleg .facebtn, .rleg > .rf { width: 44px; height: 44px; display: inline-grid; place-items: center; flex: none; }
 .rleg .av.s32 { --s: 32px; }
-.rleg .rpet, .rleg .rpx { display: inline-grid; place-items: center; width: 20px; flex: none; margin-left: -4px; }
+.rleg .rpet, .rleg .rpx { display: inline-grid; place-items: center; font-size: min(var(--fs-2), calc(15px * 1.118)); width: 1.25em; flex: none; margin: 0 2px 0 -6px; }
 .rleg .ap { display: inline-block; min-width: 2.9em; }
 .rleg .tm { display: inline-block; min-width: 4.7em; text-align: right; }
+.rleg .rtl.hr1 .tm { min-width: 4.05em; }
+.rleg .rtl.r1 .ap, .rleg .rtl.r1 .tm { min-width: 0; }
+.rleg .rtl { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 0 var(--sp-1); }
+.rleg .rtt { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.rleg .rgp { margin-left: auto; }
 .rleg .rst { min-width: 44px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 2px; font-size: var(--fs-3); }
 .rleg .rst .rw { opacity: .45; }
-.rrun .rq { border: 0; background: var(--surface); border-radius: var(--r-1); padding: 2px 6px; color: var(--maybe); }   /* (in a card: no dashes inside its dashes) */
-.rdrv { min-height: 48px; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; font-size: var(--fs-3); font-weight: 700; border-radius: var(--r-2); border: 1.5px solid var(--edge); background: var(--surface); }
+.rrun .rq { border: 0; background: var(--surface); border-radius: var(--r-1); padding: 2px var(--sp-1); color: var(--maybe); }   /* (in a card: no dashes inside its dashes) */
+.rdrv { min-height: 48px; padding: 0 12px; display: inline-flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-3); font-weight: 700; border-radius: var(--r-2); border: 1.5px solid var(--edge); background: var(--surface); }
 .rdrv[aria-pressed="true"] { border-color: var(--in); background: color-mix(in srgb, var(--in) 16%, var(--surface)); }
 .facebtn.rcand { border-radius: 50%; }
 .facebtn.rcand[aria-pressed="true"] .av { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--in); }
@@ -1167,11 +1183,14 @@ button.wkl { min-height: 44px; border-radius: var(--r-2); text-align: left; }
    pressed = ink; one the 🛫 follows from 🛬 on the sunk fill with a dashed ink edge, not settled until picked; the planned one outlined
    while a pick is asked for), indented under the field. A carried half pulses one 600ms outline (no motion: under reduced motion the
    outline alone). PIA-160: the time and field at 20px (the field 4.6 times that wide, 92px), the field and its segment one unbreakable
-   group (.tgrp), so a larger text size moves them under the day together */
+   group (.tgrp), so a larger text size moves them under the day together. PIA-161: a read row's [code time] and its ride are one group
+   (.ltl), so they move under the day together (on a booked row .lg0 drops its 4px right padding) */
 .leg.lbk { min-height: 52px; gap: var(--sp-2); }
 .leg .tmb { min-height: 44px; padding: 0 10px; border-radius: var(--r-2); border: 1.5px solid var(--edge); display: inline-flex; align-items: baseline; gap: 4px; font-size: var(--fs-4); align-self: center; line-height: 41px; }
 .leg .lt { font-size: var(--fs-4); color: var(--ink); gap: 4px; align-items: baseline; }
 .leg .tgrp { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-2); }
+.leg .ltl { display: inline-flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-1); }
+.leg.lbk .lg0 { padding-right: 0; }
 .leg .fld.tiny.tmf { width: calc(4.6 * var(--fs-4)); flex: none; }
 .leg .fld.tiny.tmf input, .times .fld.tiny.tmf input { font-size: var(--fs-4); font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .ampm { display: inline-flex; flex: none; }
@@ -4644,7 +4663,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 160;
+var BUILD = 161;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -5874,10 +5893,11 @@ function cardWarn(m) {
   return '';
 }
 /* PIA-153 grp: the trip page's pill is the group's plan: 👪 (key 'plan') where the card and the sheets show 🗓. PIA-154: 📌 is
-   P-dates' own (o.pin: its readout and the plan to read there); the trip and card pills drop it */
-function datesText(m, long, grp, pin) {
+   P-dates' own (o.pin: its readout and the plan to read there); the trip and card pills drop it. PIA-161 tail: markup that follows
+   the nights inside one .dtl with them (dateRow's 🔒, so "10🌙 🔒" never parts on the pill); no tail, no .dtl */
+function datesText(m, long, grp, pin, tail) {
   var k = grp ? 'plan' : 'dates', g = G(grp ? '👪' : '🗓');
-  if (m.plan) return '<span class="dt"><span data-k="' + k + '">' + g + '</span>' + md(m.plan.s) + '–' + md(m.plan.e) + '</span>' + (long ? ' <span data-k="nights">' + m.nights + G('🌙') + '</span>' : '') +
+  if (m.plan) return '<span class="dt"><span data-k="' + k + '">' + g + '</span>' + md(m.plan.s) + '–' + md(m.plan.e) + '</span>' + (long ? ' ' + (tail ? '<span class="dtl">' : '') + '<span data-k="nights">' + m.nights + G('🌙') + '</span>' + (tail ? tail + '</span>' : '') : '') +
     (m.pin && long && pin ? ' <span data-k="pin">' + G('📌') + md(m.pin) + '</span>' : '');
   if (m.departureOnly) return '<span data-k="' + k + '">' + g + md(m.departureOnly) + ' → —</span>';
   if (m.win) return '<span data-k="' + k + '">' + g + '</span><span data-k="window">⟦' + md(m.win.s) + '–' + md(m.win.e) + '⟧</span>' + (m.nightsN ? ' <span data-k="nights">' + G('🌙') + m.nightsN + '</span>' : '');
@@ -6354,10 +6374,10 @@ function whoChip(m) {
 function ansOpen(m) { return !!m.me && !m.closed && !m.past && (awaitsMe(m) || S.ansOpen === m.id); }
 /* PIA-138: the plan pill (P-dates: the organizer's plan, else my own days; before I have answered, the answer row asks first):
    dashed while proposed, solid with 🔒 once locked (PIA-154: no 📌 here, no −1 / +1 beside it: P-dates moves the plan), and at the
-   row's right end who this phone is (whoChip) */
+   row's right end who this phone is (whoChip). PIA-161: with a plan, the 🔒 is datesText's tail, one group with the nights */
 function dateRow(m) {
   var pill = '<button class="pill' + (m.locked ? ' set' : '') + '" data-act="dates" data-id="' + m.id + '" aria-label="' + esc(datesAria(m, { grp: true })) + '" data-lbl="Dates"><span class="inner">' +
-    datesText(m, true, true) + (m.locked ? ' <span data-k="lock">🔒</span>' : '') + '</span></button>';
+    datesText(m, true, true, false, m.locked && m.plan ? ' <span data-k="lock">🔒</span>' : '') + (m.locked && !m.plan ? ' <span data-k="lock">🔒</span>' : '') + '</span></button>';
   return '<div class="daterow">' + pill + whoChip(m) + '</div>';
 }
 /* my own days under the plan, with my face (PIA-153: the group's plan above is 👪), a reversed pair never drawn as a range (⚠).
@@ -8506,7 +8526,10 @@ function legRows(m, x, edit, links, L) {
         body = by ? '<button class="tmb" id="tmb-' + k + '" data-act="tmedit" data-id="' + m.id + '" data-code="' + esc(x.code) + '" data-end="' + k + '" aria-label="' + esc(said + ', change') + '" data-lbl="' + (r[0] ? 'Leaving time' : 'Landing time') + '">' + apHTML(tAp) + ' ' + clockHTML(rt) + '</button>'
           : '<span class="lt" role="img" aria-label="' + esc(said + (m.closed ? ', times locked' : '')) + '" data-lbl="' + (m.closed ? 'Times locked' : r[0] ? 'Leaves at' : 'Lands at') + '">' + apHTML(tAp) + ' ' + clockHTML(rt) + '</span>';
       } else if (by) body = timeFld(m, x, LL, k);
-      h += '<div class="leg lbk" style="--pc:var(--p' + x.color + ')">' + g0 + day + body + rideGlyph(m, RD, x, r[0]) + '</div>';
+      // PIA-161: [code time] (or the empty field) and its ride glyph are one group (.ltl), so a row that cannot hold them moves them
+      // under the day together
+      var rg = rideGlyph(m, RD, x, r[0]);
+      h += '<div class="leg lbk" style="--pc:var(--p' + x.color + ')">' + g0 + day + (body || rg ? '<span class="ltl">' + body + rg + '</span>' : '') + '</div>';
       return;
     }
     // PIA-154: before booking each row says which end it is in a word ("🛬 Arrive", "🛫 Leave"), with the PIA | ORD radios (where the
@@ -8699,11 +8722,11 @@ function bookRow(m, x, ho) {
     tk = '<button class="btn tkb tkoff dis" data-act="booked" data-id="' + m.id + '" data-code="' + esc(x.code) + '" aria-disabled="true" data-why="1" aria-label="' + esc('Booked, ' + faceLabel(x) + ', Update trip first') + '" data-lbl="⤒ Update trip first">' + tkBox(false) + ' Booked</button>';
   } else if (bs.tk === 'org') tk = orgTkBtn(m, x, bs.early);
   var flighty = ho.flighty ? '<a class="btn pri' + (tk ? '' : ' wide') + '" ' + handoffAttrs(ho.flighty) + ' aria-label="Track flight in Flighty" data-lbl="Track flight"><span data-k="flighty" aria-hidden="true">✈</span> Track <span aria-hidden="true">↗</span></a>' : '';
-  if (bs.slot === 'booked') return tk ? '<div class="split">' + flighty + tk + '</div>' : flighty;
+  if (bs.slot === 'booked') return tk ? '<div class="split bk">' + flighty + tk + '</div>' : flighty;
   // no Google Flights link: the same reason the trip view's primary gives (past days, no dates, no home airport…). Before the 🔒
   // (an early 🎫: earlyBook), the search is the plain ✈↗; once 🔒 it is ✈ Book ↗
   var gf = ho.gf ? (bs.slot === 'book' && m.locked ? bookLink(m, ho.gf, 'btn pri', x.code) : '<a class="btn pri" ' + handoffAttrs(ho.gf) + ' data-ret="' + m.id + '" data-code="' + esc(x.code) + '" aria-label="Google Flights" data-k="gf">✈↗</a>') : noFlightHTML(ho.why, 'pri');
-  if (bs.slot === 'book' || tk) return '<div class="split">' + gf + tk + '</div>';   // (PIA-153: the greyed 🎫 too)
+  if (bs.slot === 'book' || tk) return '<div class="split bk">' + gf + tk + '</div>';   // (PIA-153: the greyed 🎫 too; PIA-161 .bk: two full-width rows where one cannot hold them)
   return ho.gf ? '<a class="btn pri wide" ' + handoffAttrs(ho.gf) + ' aria-label="Google Flights" data-k="gf">✈↗</a>' : '';
 }
 /* PIA-139: the times a booked traveler lands (🛬) and leaves (🛫), for the pickups on everyone's map. Typed here (by them, or by
@@ -9154,7 +9177,8 @@ function runHTML(m, R, r, L, o) {
   var me = m.me, mine = me ? me.code : '', shut = o.shut, key = r.key, many = r.legs.length > 1, drv = runDrivers(r), org = m.org && !m.legacy;
   var lead = memberIn(m, r.legs[0].code), ln = lead ? rideLabel(lead) : '', stops = rideStops(r), multi = stops.length > 1;
   // PIA-159: ⏰ the 12-hour range from leaving home to home again ("12:05–5:05 PM", "7:45 PM–Sat 1:15 AM"); its long press the
-  // arithmetic, a joined run's stops one by one, or (R.apart) why it is a drive of its own
+  // arithmetic, a joined run's stops one by one, or (R.apart) why it is a drive of its own. PIA-161: 🛬 / 🛫 and the range (or the
+  // day) are one group (.rhd), the range's spaces U+00A0, so it breaks only after its dash and the glyph never stands alone
   var ap0 = R.apart.filter(function (p) { return p.b === key; })[0], pw = function (ap) { return hasOwn(AIRPORT_NAME, ap) ? AIRPORT_NAME[ap] : ap; };
   var arith = !r.leave ? '' : multi ? 'Leave ' + clock(r.leave, r.day) + ': ' + stops.map(function (s) { return pw(s.ap) + ' ' + clock(s.at, r.day); }).join(', ') + ', home ' + clock(r.back, r.day)
     : 'Leave home ' + clock(r.leave, r.day) + ': ' + hmin(r.drive) + ' drive, ' + (r.kind === 'a' ? 'at ' + r.ap + ' as ' + ln + ' lands' : hmin(RIDE_LEAD) + ' before ' + ln + '’s flight') + ', home ' + clock(r.back, r.day);
@@ -9163,9 +9187,9 @@ function runHTML(m, R, r, L, o) {
     arith = 'Separate drive: ' + (ap0.why === 'wait' ? (fl ? rideLabel(fl) : '') + (r.kind === 'a' ? ' lands ' : ' flies ') + h12(r.first) + ' at ' + pw(r.ap) + ', ' + hmin(ap0.gap) + ' hours after ' + (pl ? rideLabel(pl) : '')
       : ap0.why === 'late' ? 'no time to reach ' + pw(r.ap) + ' after ' + (pr ? pw(pr.aps[pr.aps.length - 1]) : '') : 'no drive time known');
   }
-  var h1 = '<span data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span>' +
-    (r.leave ? '<span class="rlv" role="img" aria-label="' + esc(arith) + '" data-lbl="' + esc(arith) + '"><span data-k="lvhome" aria-hidden="true">⏰</span><span class="tm">' + esc(clockRange(r.leave, r.back, r.day)).replace(/ ([AP]M)$/, ' <span class="mer">$1</span>') + '</span></span>' : '<span class="tn">' + md(r.day) + '</span>') +
-    (many && !multi ? '<span class="rlv" role="img" aria-label="' + esc('Legs ' + hmin(r.spread) + ' apart') + '" data-lbl="Time apart"><span data-k="pickup">⏱</span><span class="tn" data-dur data-k="runwait">' + hmin(r.spread) + '</span></span>' : '') + '<span class="sp"></span>';
+  var h1 = '<span class="rhd"><span data-k="' + (r.kind === 'a' ? 'arrive' : 'leave') + '" aria-hidden="true">' + (r.kind === 'a' ? '🛬' : '🛫') + '</span>' +
+    (r.leave ? '<span class="rlv" role="img" aria-label="' + esc(arith) + '" data-lbl="' + esc(arith) + '"><span data-k="lvhome" aria-hidden="true">⏰</span><span class="tm">' + esc(clockRange(r.leave, r.back, r.day)).replace(/ /g, '\u00a0').replace(/\u00a0([AP]M)$/, '\u00a0<span class="mer">$1</span>') + '</span></span>' : '<span class="tn">' + md(r.day) + '</span>') + '</span>' +
+    (many && !multi ? '<span class="rlv" role="img" aria-label="' + esc('Legs ' + hmin(r.spread) + ' apart') + '" data-lbl="Time apart"><span data-k="pickup">⏱</span><span class="tn" data-dur data-k="runwait">' + hmin(r.spread) + '</span></span>' : '');
   var ctl = '', word = false, names = namesOf(m, r.legs.map(function (l) { return l.code; }));
   if (m.org) {
     // the organizer's phone: each candidate's face, a toggle (his own too); for someone else on a v1 trip: ⤒ Update trip first
@@ -9194,6 +9218,7 @@ function runHTML(m, R, r, L, o) {
   }
   // (PIA-160: the controls together at the header's end, so Drive keeps to the card's right edge on its line or under it)
   var h = '<div class="rrun' + (r.state === 'open' ? ' open' : '') + (o.focus === key ? ' on' : '') + (runLive(r, RT.today, RT.hhmm) ? '' : ' done') + '" id="run-' + esc(key) + '" tabindex="-1" role="group" aria-label="' + esc(runSaid(m, r)) + '"><div class="rrh">' + h1 + (ctl ? '<span class="rctl">' + ctl + '</span>' : '') + '</div>';
+  var tcol = many ? (r.legs.every(function (l) { return /^\d:/.test(h12(l.time)); }) ? ' hr1' : '') : ' r1';
   var anyPet = r.legs.some(function (l) { var px = memberIn(m, l.code); return !!(px && petLeg(px, r.kind)); });
   // PIA-159: the legs stop by stop, each stop's code once ("① 💪🐈 ORD 3:47 PM 🚗?"), ①② and the drive between stops on a joined run
   stops.forEach(function (s, si) {
@@ -9211,9 +9236,13 @@ function runHTML(m, R, r, L, o) {
       // (PIA-158: 🐈 beside the traveler's 28px face where their pet flies this leg: no bubble on a 28px face)
       // (PIA-160: in a run where a pet flies, a leg with none keeps the pet's place, and a later leg at the same stop the code's, so the
       // codes and times stand in columns; both places are empty and hidden)
+      // (PIA-161: the code and [time driver] are one tail (.rtl) that wraps under the face as one piece, 32px in; a tail wider than the
+      // card breaks once more, the code over [time driver] (.rtt), and the time never leaves its driver; tcol, the same on every leg of
+      // the run, sizes the columns: r1 none on a run of one leg, hr1 4.05em times where every hour has one digit)
       var pl = petLeg(x, r.kind), pet = pl ? '<span class="rpet" role="img" aria-label="' + esc('With ' + pl.name) + '" data-lbl="' + esc('With ' + pl.name) + '"><span data-k="petfly" aria-hidden="true">' + pl.g + '</span></span>' : anyPet ? '<span class="rpx" aria-hidden="true"></span>' : '';
       var num = multi && !li ? '<span class="rnum" data-k="stopn" aria-hidden="true">' + ['①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧'][si] + '</span>' : multi ? '<span class="rnum" aria-hidden="true"></span>' : '';
-      h += '<div class="rleg">' + num + face + pet + (li ? '<b class="ap" aria-hidden="true"></b>' : apHTML(s.ap)) + clockHTML(l.time) + st + '<span class="sp"></span>' + gr + '</div>';
+      h += '<div class="rleg">' + num + face + pet + '<span class="rtl' + tcol + '">' + (li ? '<b class="ap" aria-hidden="true"></b>' : apHTML(s.ap)) +
+        '<span class="rtt">' + clockHTML(l.time) + st + '</span></span>' + gr + '</div>';
     });
   });
   return { html: h + '</div>', word: word };

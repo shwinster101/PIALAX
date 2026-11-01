@@ -181,10 +181,13 @@ console.log('▶ test-viewport: mobile layout regression suite');
     return d;
   })();
   docs[PT9A] = Object.assign(JSON.parse(JSON.stringify(docs[PT9V])), { id: PT9A });
+  // PIA-161: the same P town with every leg booked and nobody driving yet (Mom & Dad's note empty: each leg "🚗?"), on Mom & Dad's phone
+  const PT9O = 'p9ViewportPTownOpenRd1';
+  docs[PT9O] = (() => { const d = JSON.parse(JSON.stringify(docs[PT9V])); d.id = PT9O; d.responses['momdad-k3'].note = ''; return d; })();
   const PSV = 'psViewportPastTahoe007', DRV = 'drViewportDroppedTr008';
   docs[PSV] = (() => { const d = JSON.parse(JSON.stringify(docs.thTahoeSkiWeekend26b02)); d.id = PSV; d.idea.dates.departure = '2026-09-11'; d.idea.dates.return = '2026-09-14'; return d; })();
   docs[DRV] = (() => { const d = JSON.parse(JSON.stringify(docs.lxBeachWeekendLAX00d05)); d.id = DRV; d.decision.stage = 'dropped'; return d; })();
-  const ids = Object.keys(docs).filter((id) => id !== E8V && id !== PTV && id !== R8V && id !== PTN && id !== PT9V && id !== PT9A), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
+  const ids = Object.keys(docs).filter((id) => id !== E8V && id !== PTV && id !== R8V && id !== PTN && id !== PT9V && id !== PT9A && id !== PT9O), KEY = 'pialax-test-edit-key-0123456789abcdefghijk', DW = 'dwDiwaliRaleigh2026a01', M8 = 'm8GrandmaNinetieth0c03', CYV = 'cyCaryShowerUndated004';
   // PIA-135: cached real fares for Diwali, so the organizer's card carries its one total (keys from the model itself)
   const TM = createRequire(import.meta.url)(path.join(path.resolve(ROOT), 'scripts', 'trip-model.js'));
   // PIA-140: the phone has v1's multi-airport flag (the Worker's /account says features.multi_airport), so the keys are the nearby sets
@@ -216,7 +219,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
       [BKP]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [DWJ]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' },
       [CHV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [E8V]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' }, [PTV]: { edit_key: KEY, title: '', created_at: '2026-10-10T00:00:00.000Z' } }),   // (PIA-157: + P town)   // PIA-141: the cheapest-week trip (PIA-156: + the key's 8)   // PIA-138: also organizes the undated idea; PIA-139: the Done trip (and its paid copy); PIA-140: the open-jaw sums
     pialax_idea_me_v1: JSON.stringify({ [DW]: 'ashwin-p8', thTahoeSkiWeekend26b02: 'ashwin-l2', [M8]: 'grandmajosephine-nf', [LKV]: 'ashwin-p8', [CYV]: 'ashwin-c3', [BKV]: 'grandmajosephine-nf',
-      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf', [PTV]: 'ashwin-p8', [R8V]: 'guadalupehernndezvillanueva-5m', [PTN]: 'ashwin-p8', [PT9V]: 'momdad-k3', [PT9A]: 'ashwin-p8' }),
+      [BKM]: 'bartholomewmontgomeryfitzgera-dj', [BKP]: 'grandmajosephine-nf', [DWJ]: 'ashwin-p8', [CHV]: 'ashwin-p8', [E8V]: 'grandmajosephine-nf', [PTV]: 'ashwin-p8', [R8V]: 'guadalupehernndezvillanueva-5m', [PTN]: 'ashwin-p8', [PT9V]: 'momdad-k3', [PT9A]: 'ashwin-p8', [PT9O]: 'momdad-k3' }),
     pialax_proxy_token: 'org-token-0123456789abcdefABCDEF', pialax_ui_v1: JSON.stringify({ v1read: 1 }), pialax_multi_airport_v1: '1'
   };
   const LAYOUT = () => {
@@ -315,6 +318,105 @@ console.log('▶ test-viewport: mobile layout regression suite');
       rects: { toast: [T.left, T.right].map(Math.round), btn: B ? [B.left, B.right].map(Math.round) : null, nws: nws.map((r) => [r.left, r.right].map(Math.round)) } };
   };
   const tellOk = (g) => !!g && g.halves === 2 && /✓$/.test(g.text) && /^Tell/.test(g.label) && g.btn && g.nws && g.clear && g.pill && g.scroll <= 0;
+  // PIA-161: the large-text fit, walked at the common phone widths and an iPhone's Text Size steps as a root (17 the default, 19, 21,
+  // 23: html{font-size:Npx!important}, as above). Each in-page measure clusters an element's parts into lines by their vertical centre
+  // (within 4px), so "one line" and "together" mean what a person sees. LEGFIT (P-rides): the sheet's and each run's sideways scroll,
+  // each run card inside the sheet's content box, 🛬 / 🛫 beside ⏰, Drive's distance from the header's right edge and whether it is on the ⏰ line, each run's columns (its one-line
+  // legs, and its two-line legs, share the code's left and the time's right edge, ±1); each leg's lines, the code with its time and the
+  // time with its driver on one line, a wrapped tail's indent, the 🐈 glyph inside its box
+  const FIT_W = [320, 360, 375, 390, 393, 402, 414, 430, 440], FIT_R = [17, 19, 21, 23];
+  const sizeTo = async (page, vp, w, rp) => {
+    await page.setViewportSize({ width: w, height: vp.height });
+    await page.evaluate((px) => { [...document.querySelectorAll('style[data-fitroot]')].forEach((s) => s.remove()); if (px !== 17) { const s = document.createElement('style'); s.setAttribute('data-fitroot', ''); s.textContent = 'html{font-size:' + px + 'px!important}'; document.head.appendChild(s); } }, rp);
+    await page.waitForTimeout(150);
+  };
+  const sizeBack = async (page, vp) => { await page.evaluate(() => [...document.querySelectorAll('style[data-fitroot]')].forEach((s) => s.remove())); await page.setViewportSize({ width: vp.width, height: vp.height }); await page.waitForTimeout(120); };
+  const LEGFIT = () => {
+    const R = (e) => e.getBoundingClientRect(), cy = (e) => { const r = R(e); return (r.top + r.bottom) / 2; }, has = (e) => { if (!e) return false; const r = R(e); return r.width > 0 && r.height > 0; };
+    const lines = (els) => { const L = []; els.filter(has).map((e) => ({ e, y: cy(e) })).sort((a, b) => a.y - b.y).forEach((p) => { const l = L[L.length - 1]; if (l && Math.abs(p.y - l.y) <= 4) l.items.push(p.e); else L.push({ y: p.y, items: [p.e] }); }); return L; };
+    const near = (a, b, d) => !!a && !!b && Math.abs(cy(a) - cy(b)) <= d;
+    const sh = document.querySelector('#sheet'), S = R(sh), cs = getComputedStyle(sh);
+    // (the sheet's content box: a run card wider than it overhangs the sheet's padding, which neither scroll measure sees)
+    const cL = S.left + sh.clientLeft + parseFloat(cs.paddingLeft), cR = S.left + sh.clientLeft + sh.clientWidth - parseFloat(cs.paddingRight);
+    const runs = [...sh.querySelectorAll('.rrun')].map((run) => {
+      const hd = run.querySelector('.rrh'), gl = hd.querySelector('[data-k="arrive"], [data-k="leave"]'), lv = hd.querySelector('[data-k="lvhome"]'), ctl = hd.querySelector('.rctl');
+      const legs = [...run.querySelectorAll('.rleg')].map((lg) => {
+        const ap = lg.querySelector('.ap'), tm = lg.querySelector('.tm'), st = lg.querySelector('.rst'), pet = lg.querySelector('.rpet'), L0 = R(lg);
+        const L = lines([lg.querySelector('.rnum'), lg.querySelector('.rf, .facebtn'), lg.querySelector('.rpet, .rpx'), ap, tm, st]);
+        let petIn = true;
+        if (pet) { const g = document.createRange(); g.selectNodeContents(pet.querySelector('[data-k="petfly"]')); const G = g.getBoundingClientRect(), P = R(pet); petIn = G.width > 0 && G.left >= P.left - 0.5 && G.right <= P.right + 0.5; }
+        return { n: L.length, apTm: near(ap, tm, 4), tmSt: near(tm, st, 4), indent: L.length === 2 && ap ? Math.round((R(ap).left - L0.left) * 10) / 10 : null, sw: lg.scrollWidth - lg.clientWidth, petIn,
+          apL: ap ? R(ap).left : null, tmR: tm ? R(tm).right : null, text: lg.textContent.replace(/\s+/g, ' ').trim() };
+      });
+      const col = (ls) => { const a = ls.map((l) => l.apL).filter((x) => x != null), t = ls.map((l) => l.tmR).filter((x) => x != null); return (a.length < 2 || Math.max(...a) - Math.min(...a) <= 1) && (t.length < 2 || Math.max(...t) - Math.min(...t) <= 1); };
+      return { sw: run.scrollWidth - run.clientWidth, cardIn: R(run).left >= cL - 0.5 && R(run).right <= cR + 0.5, glyph: near(gl, lv, 4), driveR: ctl ? Math.round((R(hd).right - R(ctl).right) * 10) / 10 : null, driveOn: near(ctl, lv, 8),
+        colsOk: col(legs.filter((l) => l.n === 1)) && col(legs.filter((l) => l.n === 2)), legs };
+    });
+    return { over: sh.scrollWidth - sh.clientWidth, runs };
+  };
+  // (the leg and run assertions at width w and root rp: no scroll; each card inside the sheet's content; the glyph with ⏰; Drive at the right edge; columns; each leg's code
+  // with its time and its time with its driver, ≤2 lines, one line from 375px and everywhere at the default size, a wrapped tail 32px
+  // in; at 390px and the default size Drive on the 12:05 and 11:15 cards' line and under the overnight card's, from 402px on every line)
+  const legFails = (s, f, w, rp) => {
+    if (!f || !f.runs.length) return [s + ': no P-rides runs ' + JSON.stringify(f)];
+    const out = [], at = s + ' at ' + w + '×' + rp;
+    if (f.over > 0) out.push(at + ': the sheet scrolls sideways ' + f.over + 'px');
+    f.runs.forEach((r, i) => {
+      if (r.sw > 0 || !r.cardIn || !r.glyph || !(r.driveR != null && Math.abs(r.driveR) <= 1.5) || !r.colsOk) out.push(at + ' run ' + (i + 1) + ': ' + JSON.stringify(Object.assign({}, r, { legs: r.legs.length })));
+      r.legs.forEach((l) => { if (l.sw > 1 || !l.petIn || !l.apTm || !l.tmSt || l.n > 2 || (l.n !== 1 && (w >= 375 || rp === 17)) || (l.n === 2 && Math.abs(l.indent - 32) > 1)) out.push(at + ' leg "' + l.text + '": ' + JSON.stringify(l)); });
+    });
+    const on = f.runs.map((r) => r.driveOn);
+    if (w === 390 && rp === 17 && JSON.stringify(on) !== '[true,false,true]') out.push(at + ': Drive on its header\'s line should be [12:05 yes, overnight no, 11:15 yes]: ' + JSON.stringify(on));
+    if ([402, 414, 430, 440].includes(w) && rp === 17 && !on.every(Boolean)) out.push(at + ': Drive should be on every header\'s line: ' + JSON.stringify(on));
+    return out;
+  };
+  // ROWFIT (P-person): each read row (a booked leg, not its edit row): on one line; its [code time] and its ride glyph together; 🛬 / 🛫
+  // and the day together; where [code time] is on a later line, its left against the row's; and [✈ Track ↗ | ☑ I booked]: its scroll,
+  // two rows or one, full width when two, inside the sheet's content and ≥44px tall
+  const ROWFIT = () => {
+    const R = (e) => e.getBoundingClientRect(), cy = (e) => { const r = R(e); return (r.top + r.bottom) / 2; }, near = (a, b) => !!a && !!b && Math.abs(cy(a) - cy(b)) <= 4;
+    const sh = document.querySelector('#sheet'), S = R(sh);
+    const rows = [...sh.querySelectorAll('.leg.lbk:not(.tedit)')].map((lg) => {
+      const g0 = lg.querySelector('.lg0'), ld = lg.querySelector('.ld'), t = lg.querySelector('.tmb, .lt'), g = lg.querySelector('.rgl'), L0 = R(lg);
+      const parts = [g0, ld, t, g].filter(Boolean);
+      return { one: parts.every((e) => near(e, parts[0])), together: !g || !t || near(g, t), day: near(g0, ld), x2: t && !near(t, g0) ? Math.round((R(t).left - L0.left) * 10) / 10 : null, sw: lg.scrollWidth - lg.clientWidth,
+        text: lg.textContent.replace(/\s+/g, ' ').trim() };
+    });
+    // (bookRow's split: .split.bk, or a build before it, a .split of two holding the booking toggle)
+    const split = [...sh.querySelectorAll('.split')].filter((sp) => sp.classList.contains('bk') || (sp.children.length === 2 && !!sp.querySelector(':scope > .tkb'))).map((sp) => { const P = R(sp), k = [...sp.children];
+      return { sw: sp.scrollWidth - sp.clientWidth, two: k.length === 2 && !near(k[0], k[1]), full: k.every((b) => Math.abs(R(b).width - P.width) <= 1), inside: k.every((b) => R(b).left >= S.left + 15.5 && R(b).right <= S.right - 15.5 && R(b).height >= 43.5) }; });
+    return { over: sh.scrollWidth - sh.clientWidth, rows, split };
+  };
+  const rowFails = (s, f, w, rp, one) => {
+    const out = [], at = s + ' at ' + w + '×' + rp;
+    if (!f || !f.rows.length) return [at + ': no booked rows ' + JSON.stringify(f)];
+    if (f.over > 0) out.push(at + ': the sheet scrolls sideways ' + f.over + 'px');
+    f.rows.forEach((r) => { if (!r.together || !r.day || (r.x2 != null && Math.abs(r.x2) > 1) || r.sw > 1 || (one && !r.one)) out.push(at + ' row "' + r.text + '": ' + JSON.stringify(r)); });
+    return out;
+  };
+  // PILLFIT (the trip page's date pill): "10🌙 🔒" on one line, the pill not scrolling, inside its row
+  const PILLFIT = () => {
+    const R = (e) => e.getBoundingClientRect(), cy = (e) => { const r = R(e); return (r.top + r.bottom) / 2; };
+    const row = document.querySelector('#screen .daterow'), p = row && row.querySelector('.pill'), n = p && p.querySelector('[data-k="nights"]'), l = p && p.querySelector('[data-k="lock"]');
+    if (!p || !n || !l) return null;
+    const P = R(p), W = R(row);
+    return { lockWithNights: Math.abs(cy(n) - cy(l)) <= 4, sw: p.scrollWidth - p.clientWidth, inRow: P.left >= W.left - 0.5 && P.right <= W.right + 0.5 };
+  };
+  // CARDFIT (a Trips card): the title's words a line apart from each other but never broken inside one (each word's Range one rect),
+  // the slot's content inside its box, the slot inside the card and a 44px target, and whether it sits under the title
+  const CARDFIT = (id) => {
+    const R = (e) => e.getBoundingClientRect(), c = document.querySelector('#screen article.card[data-trip="' + id + '"]');
+    if (!c) return null;
+    const b = c.querySelector('.card-open'), tn = b && b.firstChild, t = c.querySelector('.card-t'), sl = c.querySelector('.card-t + *'), broken = [];
+    if (tn && tn.nodeType === 3) { let i = 0; for (const w of tn.textContent.split(' ')) { const g = document.createRange(); g.setStart(tn, i); g.setEnd(tn, i + w.length); if ([...g.getClientRects()].filter((r) => r.width > 0).length > 1) broken.push(w); i += w.length + 1; } }
+    else broken.push('(no title text)');
+    if (!sl) return { broken, spill: 99, inCard: false, tap: false, under: null };
+    const S = R(sl), C = R(c);
+    return { broken, spill: sl.scrollHeight - sl.clientHeight, inCard: S.left >= C.left - 0.5 && S.right <= C.right + 0.5 && S.bottom <= C.bottom + 0.5, tap: S.width >= 43.5 && S.height >= 43.5, under: S.top >= R(t).bottom - 1, cls: sl.className };
+  };
+  const cardFails = (s, f, w, rp) => (f && !f.broken.length && f.spill <= 1 && f.inCard && f.tap && f.under === (w < 360) ? [] : [s + ' at ' + w + '×' + rp + ': ' + JSON.stringify(f)]);
+  // (each PIA-161 group reports its own line, so a run against #160 names every group that fails)
+  const fitReport = (g, f) => { if (f.length) bad('PIA-161 ' + g + ' — ' + f.length + ' failing: ' + f.slice(0, 4).join(' · ')); else ok('PIA-161 ' + g); };
   // PIA-160: edges and small text against what is behind them (run in the page; spec §10 (b) EDGES and (c) CONTRAST). edges: every
   // visible control of these kinds whose top border is drawn (opacity 1: a faded, truly disabled control is not one), its edge against
   // the parent's background (composited up to the first opaque one) at ≥3:1; ink: every visible text with a letter or a digit inside
@@ -1046,6 +1148,17 @@ console.log('▶ test-viewport: mobile layout regression suite');
         // (PIA-160: every tappable edge on the page ≥3:1; the drive primary's two lines (.d2 too), the names, the key's words and the
         // board's labels ≥4.5:1, in this scheme)
         fails.push(...contrastFails('PIA-160 P town on Mom & Dad\'s phone, edges and small text', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#screen', ink: '#screen .btn.pri.drv, #screen .pb-row .who .fn, #screen .wk .wkl, #screen .track .btm' }), { edges: true, ink: true }));
+        const FIT = vp.width === 390 && scheme === 'light';   // (PIA-161: the width × text-size matrices run on the 390 light phone, as the tells do)
+        if (FIT) {
+          // PIA-161 (d): the locked pill keeps "10🌙 🔒" together at 320px at every text size (and at 360px), inside its row, never scrolling
+          const pf = [];
+          for (const [w, rp] of [[320, 17], [320, 19], [320, 21], [320, 23], [360, 17]]) {
+            await sizeTo(page, vp, w, rp); const f = await page.evaluate(PILLFIT);
+            if (!(f && f.lockWithNights && f.sw <= 1 && f.inRow)) pf.push(w + '×' + rp + ': ' + JSON.stringify(f));
+          }
+          await sizeBack(page, vp);
+          fitReport('(d) the trip page\'s date pill keeps "10🌙 🔒" on one line inside its row at 320px (every text size) and 360px', pf);
+        }
         await tapJs('#screen .split.prim .btn.pri.drv'); await page.waitForTimeout(120);
         const rd = await page.evaluate(() => {
           const sh = document.querySelector('#sheet'), runs = [...sh.querySelectorAll('.rrun')], tok = document.createElement('span');
@@ -1062,6 +1175,16 @@ console.log('▶ test-viewport: mobile layout regression suite');
           rd.col.some((c) => c.legs >= 2) && rd.col.every((c) => c.ap && c.tm)))
           fails.push('PIA-160 P-rides on Mom & Dad\'s phone: every "☐ 🚗 Drive" a 48px control with a solid edge, inside its card (on the soft grey fill) at the header\'s right edge (the Midway card too), day heads one line in full ink, no dashes inside dashes, each run\'s codes and times in columns (a run of two legs among them): ' + JSON.stringify(rd));
         fails.push(...contrastFails('PIA-160 P-rides on Mom & Dad\'s phone, edges and small text', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#sheet', ink: '#sheet .rday, #sheet .rrh, #sheet .rleg' }), { edges: true, ink: true }));
+        // PIA-161 (a): Mom & Dad's P-rides, every leg claimed: at this phone's own size (every context, light and dark), then on the 390
+        // light phone at every width × text size: each leg "① 💪🐈 ORD 3:47 PM 🌽" one line (or its face over the indented tail, never a
+        // lone 🌽), 🛬 / 🛫 beside ⏰, Drive at the card's right edge, the columns kept, nothing sideways
+        fitReport('(a0) Mom & Dad\'s P-rides (claimed) at ' + label, legFails('P-rides (claimed)', await page.evaluate(LEGFIT), vp.width, 17));
+        if (FIT) {
+          const lf = [];
+          for (const w of FIT_W) for (const rp of FIT_R) { await sizeTo(page, vp, w, rp); lf.push(...legFails('P-rides (claimed)', await page.evaluate(LEGFIT), w, rp)); }
+          await sizeBack(page, vp);
+          fitReport('(a) Mom & Dad\'s P-rides (claimed) at 320–440px × roots 17–23: every leg one line from 375px and at the default size, else its face over the 32px-indented tail; 🛬 / 🛫 with ⏰; Drive at the right edge (at 390 on the 12:05 and 11:15 lines, from 402 on every line); columns; 🐈 in its box', lf);
+        }
         await tapJs('#sheet [data-act="sh-close"]');
         // PIA-160: a larger text size (the root at 23px, an iPhone's largest Text Size steps): the screen grows within its cap and still
         // never scrolls sideways, every label stays on its track, the name column is 88px; P-rides grows to the sheets' cap
@@ -1077,6 +1200,14 @@ console.log('▶ test-viewport: mobile layout regression suite');
         // (a link landing never cheers: Trips again (the list), then its card)
         await tapJs('#tabbar [data-act="tab"][data-v="trips"]'); await page.waitForTimeout(150);
         if (await page.$('#screen [data-act="seg"][data-v="ideas"][aria-pressed="false"]')) await tapJs('#screen [data-act="seg"][data-v="ideas"]');
+        if (FIT) {
+          // PIA-161 (e): the P town card on 10/17 ("🚗 / 11/20" in its slot): "thanksgiving" never broken inside the word, the slot's
+          // lines inside its 48px box, the slot inside the card, a 44px target, on a row of its own under the title below 360px only
+          const cf = [];
+          for (const [w, rp] of [[320, 17], [320, 23], [390, 23], [360, 17]]) { await sizeTo(page, vp, w, rp); cf.push(...cardFails('the P town card on 10/17', await page.evaluate(CARDFIT, PT9V), w, rp)); }
+          await sizeBack(page, vp);
+          fitReport('(e) the P town card on 10/17 at 320 (17, 23), 360 and 390 (23): "thanksgiving" whole, the slot\'s two lines inside it, a 44px target in the card, under the title below 360px', cf);
+        }
         await page.click('#screen [data-trip="' + PT9V + '"]', { position: { x: 140, y: 28 } });
         await page.waitForFunction(() => { const t = document.querySelector('#toast'); return !!t && !t.hidden && /All set/.test(t.textContent); }, null, { timeout: 4000 }).catch(() => {});
         await page.waitForTimeout(120);
@@ -1110,7 +1241,40 @@ console.log('▶ test-viewport: mobile layout regression suite');
           fails.push('PIA-160 on 11/21 Mom & Dad\'s P-rides should draw the 11/20 runs home muted (opacity 1, no fill, the secondary ink) with a quiet Drive (aria-disabled, sunk, --ink2, solid --edge), the 11/30 runs live: ' + JSON.stringify(dn));
         fails.push(...contrastFails('PIA-160 a run that is home and its quiet Drive', await page.evaluate(CONTRAST, { edges: EDGE_SEL, root: '#sheet', ink: '#sheet .rrun.done' }), { edges: true, ink: true }));
         await tapJs('#sheet [data-act="sh-close"]');
+        if (FIT) {
+          // PIA-161 (f): the P town card on 11/19, its slot "🚗⏰ / 12:05 PM": the same at 320 (17, 23), 375 (19, 23) and 390 (23)
+          // (360px with a 19–23px root still breaks "thanksgiving" there: an Android width, recorded, not asserted)
+          await page.clock.setFixedTime(new Date('2026-11-19T17:00:00Z'));
+          await page.goto(APP, { waitUntil: 'load' }); await page.waitForTimeout(300);
+          if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+          if (await page.$('#screen [data-act="seg"][data-v="ideas"][aria-pressed="false"]')) await tapJs('#screen [data-act="seg"][data-v="ideas"]');
+          const cf = [];
+          for (const [w, rp] of [[320, 17], [320, 23], [375, 19], [375, 23], [390, 23]]) { await sizeTo(page, vp, w, rp); cf.push(...cardFails('the P town card on 11/19', await page.evaluate(CARDFIT, PT9V), w, rp)); }
+          await sizeBack(page, vp);
+          fitReport('(f) the P town card on 11/19 ("🚗⏰ / 12:05 PM") at 320 (17, 23), 375 (19, 23) and 390 (23): "thanksgiving" whole, the slot inside it and the card, under the title below 360px', cf);
+        }
         await page.clock.setFixedTime(new Date('2026-10-17T19:00:00Z'));
+        if (FIT) {
+          // PIA-161 (b): nobody driving yet (every leg "🚗?") on Mom & Dad's phone: P-rides from its primary, the same matrix and
+          // assertions as (a); then Anjo's read-only P-person rows ("🛬 11/20 [MDW 10:30 PM] 🚗?"): her time and its 🚗? together,
+          // under the day together where the row cannot hold them, at x = 0 of the row, nothing sideways
+          await page.goto(APP + '?idea=' + PT9O, { waitUntil: 'load' }); await page.waitForTimeout(300);
+          if (await page.$('#sheet:not([hidden])')) await tapJs('#sheet [data-act="sh-close"]');
+          await tapJs('#screen .split.prim [data-act="rides"]'); await page.waitForTimeout(120);
+          const lf = [];
+          if ((await page.getAttribute('#sheet', 'data-popup').catch(() => null)) !== 'P-rides') lf.push('the primary should open P-rides');
+          else for (const w of FIT_W) for (const rp of FIT_R) { await sizeTo(page, vp, w, rp); lf.push(...legFails('P-rides (nobody driving)', await page.evaluate(LEGFIT), w, rp)); }
+          await sizeBack(page, vp);
+          fitReport('(b) Mom & Dad\'s P-rides with nobody driving yet at 320–440px × roots 17–23: the same as (a), never a lone 🚗?', lf);
+          await tapJs('#sheet [data-act="sh-close"]');
+          await tapJs('#screen .pb [data-act="person"][data-code="anjo-z5"]');
+          const rf = [];
+          if ((await page.getAttribute('#sheet', 'data-popup').catch(() => null)) !== 'P-person') rf.push('Anjo\'s face should open her P-person');
+          else for (const w of FIT_W) for (const rp of FIT_R) { await sizeTo(page, vp, w, rp); rf.push(...rowFails('Anjo\'s P-person (read only)', await page.evaluate(ROWFIT), w, rp, false)); }
+          await sizeBack(page, vp);
+          fitReport('(b2) Anjo\'s read-only P-person rows on Mom & Dad\'s phone at 320–440px × roots 17–23: [MDW time] and its 🚗? together, the day together, a wrapped group at the row\'s left, nothing sideways', rf);
+          await tapJs('#sheet [data-act="sh-close"]');
+        }
         // Ashwin's own phone: P-rides' joined 11/30 drive, his leg ① 💪🐈 ORD 3:47 PM with its driver and his own 🚌 / 🚙: every leg row
         // inside the sheet (it may wrap, never scroll), every control a 44px target inside it
         await page.goto(APP + '?idea=' + PT9A, { waitUntil: 'load' }); await page.waitForTimeout(300);
@@ -1124,7 +1288,32 @@ console.log('▶ test-viewport: mobile layout regression suite');
               [...sh.querySelectorAll('.rleg button')].every((b) => { const x = b.getBoundingClientRect(); return x.width >= 43.5 && x.height >= 43.5 && x.left >= S.left - 0.5 && x.right <= S.right + 0.5; }), over: sh.scrollWidth - sh.clientWidth };
         });
         if (!(own.popup === 'P-rides' && own.mine && own.own >= 2 && own.fit && own.over <= 0)) fails.push('P-rides on Ashwin\'s own phone should keep his 11/30 leg (ORD 3:47 PM with 🚌 / 🚙) and every leg row inside the sheet, each control a 44px target: ' + JSON.stringify(own));
+        // PIA-161 (g): 🚌 🚙 (.rgp) keep to the leg's right edge, on the leg's line or on a line of their own under it, the pair together
+        const gp = await page.evaluate(() => {
+          const R = (e) => e.getBoundingClientRect(), cy = (e) => { const r = R(e); return (r.top + r.bottom) / 2; };
+          return [...document.querySelectorAll('#sheet .rleg .rgp')].map((g) => { const lg = g.closest('.rleg'), b = [...g.querySelectorAll('[data-act="ground"]')];
+            return { right: Math.round((R(lg).right - parseFloat(getComputedStyle(lg).paddingRight) - R(g).right) * 10) / 10, pair: b.length < 2 || Math.abs(cy(b[0]) - cy(b[1])) <= 4, text: lg.textContent.replace(/\s+/g, ' ').trim() }; });
+        });
+        fitReport('(g) Ashwin\'s own P-rides at ' + label + ': each 🚌 🚙 pair together at its leg\'s right edge', gp.length ? gp.filter((g) => !(Math.abs(g.right) <= 1.5 && g.pair)).map((g) => JSON.stringify(g)) : ['no 🚌 🚙 on his legs']);
         await tapJs('#sheet [data-act="sh-close"]');
+        if (FIT) {
+          // PIA-161 (c): Ashwin's own P-person (his 🛬 / 🛫 rows with 🌽, [✈ Track ↗ | ☑ I booked]) at every width × text size: each
+          // [ORD time] with its 🌽, under the day together where the row cannot hold them, one line from 390px (375px up to a 21px root,
+          // 360px up to 19px); the two buttons inside the sheet, full-width rows where one row cannot hold them, nothing sideways
+          await page.$eval('#screen .pb', (e) => e.scrollIntoView({ block: 'center' }));
+          await tapJs('#screen .pb [data-act="flight"].mybar');
+          const rf = [];
+          if ((await page.getAttribute('#sheet', 'data-popup').catch(() => null)) !== 'P-person') rf.push('his bar should open his P-person');
+          else for (const w of FIT_W) for (const rp of FIT_R) {
+            await sizeTo(page, vp, w, rp); const f = await page.evaluate(ROWFIT);
+            rf.push(...rowFails('Ashwin\'s own P-person', f, w, rp, w >= 390 || (w >= 375 && rp <= 21) || (w >= 360 && rp <= 19)));
+            if (!f.split.length) rf.push(w + '×' + rp + ': no [Track | I booked]');
+            f.split.forEach((p) => { if (p.sw > 0 || !p.inside || (p.two && !p.full)) rf.push('[Track | I booked] at ' + w + '×' + rp + ': ' + JSON.stringify(p)); });
+          }
+          await sizeBack(page, vp);
+          fitReport('(c) Ashwin\'s own P-person at 320–440px × roots 17–23: [ORD time] and 🌽 together, one line where the row holds them, [✈ Track ↗ | ☑ I booked] inside the sheet (two full-width rows where one cannot hold them)', rf);
+          await tapJs('#sheet [data-act="sh-close"]');
+        }
         // PIA-160 (fix 2): Mom & Dad drive both his legs, so moving both his times shows the two-half echo with the share symbol
         // ("Tell"): both halves and the 44px button inside the toast's pill, no half under the button. On the 390 light phone the same
         // toast is held in view while the screen goes to 320, 360, 375, 393 and 402 at the default size, and 320, 360 and 430 at a 19px
