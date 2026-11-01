@@ -339,7 +339,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
     // (the sheet's content box: a run card wider than it overhangs the sheet's padding, which neither scroll measure sees)
     const cL = S.left + sh.clientLeft + parseFloat(cs.paddingLeft), cR = S.left + sh.clientLeft + sh.clientWidth - parseFloat(cs.paddingRight);
     const runs = [...sh.querySelectorAll('.rrun')].map((run) => {
-      const hd = run.querySelector('.rrh'), gl = hd.querySelector('[data-k="arrive"], [data-k="leave"]'), lv = hd.querySelector('[data-k="lvhome"]'), ctl = hd.querySelector('.rctl');
+      const hd = run.querySelector('.rrh'), gl = hd.querySelector('[data-k="arrive"], [data-k="leave"]'), lv = hd.querySelector('.rlv > [data-k="drive"]') /* PIA-162: 🚗, not ⏰, heads the range */, ctl = hd.querySelector('.rctl');
       const legs = [...run.querySelectorAll('.rleg')].map((lg) => {
         const ap = lg.querySelector('.ap'), tm = lg.querySelector('.tm'), st = lg.querySelector('.rst'), pet = lg.querySelector('.rpet'), L0 = R(lg);
         const L = lines([lg.querySelector('.rnum'), lg.querySelector('.rf, .facebtn'), lg.querySelector('.rpet, .rpx'), ap, tm, st]);
