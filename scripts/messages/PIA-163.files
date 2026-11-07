@@ -1,0 +1,12 @@
+CHANGELOG.md
+CLAUDE.md
+SHORT_LINK.md
+app.html
+scripts/messages/PIA-163.files
+scripts/messages/PIA-163.msg
+scripts/preflight.sh
+scripts/test-app.js
+scripts/test-cutover-browser.js
+short/_headers
+short/_redirects
+short/index.html

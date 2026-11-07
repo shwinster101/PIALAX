@@ -1,0 +1,2 @@
+# PIA-163: a guest link on the short address goes to the Worker's /i/<id> (its link preview, then the app); not built by the app yet.
+/i/:id https://pialax-proxy.ashwinyedavalli.workers.dev/i/:id 302

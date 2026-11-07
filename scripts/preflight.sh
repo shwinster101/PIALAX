@@ -20,7 +20,8 @@ while [ -L "$SOURCE" ]; do
 done
 HERE="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
 # PIA-134: app.html (the v2 shell) gets the same console.log / secret / <script> checks as the v1 pair.
-FILES=("$HERE/index.html" "$HERE/pialax.html" "$HERE/pialax-mobile.html" "$HERE/app.html")
+# PIA-163: short/index.html (the short address's forwarder) gets them too.
+FILES=("$HERE/index.html" "$HERE/pialax.html" "$HERE/pialax-mobile.html" "$HERE/app.html" "$HERE/short/index.html")
 fail=0
 
 step() { printf "\n▶ %s\n" "$1"; }
@@ -39,8 +40,8 @@ fi
 # 1 — files present
 step "1/8  file presence"
 for f in "${FILES[@]}"; do
-  if [ -f "$f" ]; then pass "$(basename "$f") found"
-  else warn "$(basename "$f") MISSING"
+  if [ -f "$f" ]; then pass "${f#"$HERE"/} found"
+  else warn "${f#"$HERE"/} MISSING"
   fi
 done
 
@@ -66,8 +67,8 @@ step "4/8  HTML <script> tag balance"
 for f in "${FILES[@]}"; do
   opens=$(grep -cE '<script[ >]' "$f")
   closes=$(grep -cE '</script>' "$f")
-  if [ "$opens" = "$closes" ]; then pass "$(basename "$f"): $opens <script> balanced"
-  else warn "$(basename "$f"): $opens open / $closes close — UNBALANCED"
+  if [ "$opens" = "$closes" ]; then pass "${f#"$HERE"/}: $opens <script> balanced"
+  else warn "${f#"$HERE"/}: $opens open / $closes close — UNBALANCED"
   fi
 done
 

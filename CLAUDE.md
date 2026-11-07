@@ -24,6 +24,13 @@ No framework, package.json or build step. GitHub Pages serves
 - `index.html`, `pialax.html`, `pialax-mobile.html`: fixed sibling redirects to
   `app.html`, preserving query and hash verbatim with `location.replace`.
   JavaScript-disabled fallback explains the requirement and offers an app link.
+- `short/` (PIA-163): the whole Cloudflare Pages site of the short address
+  (`pialax.pages.dev`; setup in [SHORT_LINK.md](SHORT_LINK.md)). `index.html`
+  forwards to the fixed `https://shwinster101.github.io/PIALAX/app.html` with the
+  query and hash verbatim; `_headers` and `_redirects` (`/i/<id>` → the Worker).
+  The app never runs on a second origin: each phone's storage (list, edit keys,
+  token, me) and the Worker's CORS belong to `shwinster101.github.io`. Moving
+  the app needs a storage handoff and a budgeted Worker deploy.
 - `scripts/trip-model.js`: pure derivation of the one shared `/idea` record.
   The marked region is inlined byte-identically in `app.html`; drift fails tests.
 - `worker.js` + `wrangler.toml`: existing Cloudflare backend. PIA-147 does not
@@ -117,8 +124,8 @@ Credentials remain in existing storage/header formats, never logs or fixtures.
 
 ## Verification and shipping
 
-`bash scripts/preflight.sh` is mandatory. It checks all four HTML files,
-secrets, script balance, live SRI/map hashes, shell syntax, Worker, trust, model,
+`bash scripts/preflight.sh` is mandatory. It checks all four HTML files and
+`short/index.html`, secrets, script balance, live SRI/map hashes, shell syntax, Worker, trust, model,
 Google Flights links, app and all six browser suites (cutover, migration,
 Calendar, words/taps, viewport, map). Missing or skipped required suites fail.
 Shellcheck remains advisory unless `STRICT=1`.
