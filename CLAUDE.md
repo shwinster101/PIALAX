@@ -132,6 +132,10 @@ Credentials remain in existing storage/header formats, never logs or fixtures.
 `short/index.html`, secrets, script balance, live SRI/map hashes, shell syntax, Worker, trust, model,
 Google Flights links, app and all six browser suites (cutover, migration,
 Calendar, words/taps, viewport, map). Missing or skipped required suites fail.
+PIA-165: the job flows run in three groups at once (words; viewport then map;
+cutover, migration then Calendar), words in four lanes (serp alone replaces
+`fetch`) and viewport three passes at a time, so the gate takes about 7 minutes
+on 4 cores (26 before). Under load a check reads an outcome, never a fixed sleep.
 Shellcheck remains advisory unless `STRICT=1`.
 
 Install Node, global Playwright and Chromium; configure `NODE_PATH` and
