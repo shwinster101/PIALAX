@@ -1494,7 +1494,7 @@ function makeServer(worker) {
 
     // AC6 at any dated stage the trip can go into a calendar: tentative before the dates are set, only the guest link inside
     const stages = [['idea', tweak(DW, (d) => { d.responses = {}; })], ['asking', DW], ['set', tweak(DW, lockAt)], ['booking', tweak(DW, (d) => { lockAt(d); d.responses['ashwin-p8'].booked = true; })], ['done', doneL]];
-    const calRows = stages.map(([st, doc]) => { const m = model(doc, { me: 'anjo-z5' }), c = M.handoffs(m, '', ctx()).calendar; return { st, stage: m.stage, tentative: c && c.tentative, ok: !!c && c.details === M.WORKER_URL + '/i/' + DW.id && c.google.href.indexOf(KEY) < 0 && c.ics.text.indexOf('#k=') < 0 }; });
+    const calRows = stages.map(([st, doc]) => { const m = model(doc, { me: 'anjo-z5' }), c = M.handoffs(m, '', ctx()).calendar; return { st, stage: m.stage, tentative: c && c.tentative, ok: !!c && c.details === M.SHORT_URL + '/i/' + DW.id && c.google.href.indexOf(KEY) < 0 && c.ics.text.indexOf('#k=') < 0 }; });
     check(calRows.every((r) => r.ok && r.stage === r.st) && eq(calRows.map((r) => r.tentative), [true, true, false, false, false]) &&
       M.handoffs(model(CY, { me: 'momdad-c1' }), '', ctx()).calendar === null && M.handoffs(model(tweak(DW, (d) => { d.decision.stage = 'dropped'; }), { me: 'anjo-z5' }), '', ctx()).calendar === null &&
       M.handoffs(model(tweak(CY, (d) => { d.responses['ashwin-c3'] = R('in', 'LAX', '2026-12-19', '2026-12-26'); }), { me: 'ashwin-c3' }), '', ctx()).calendar === null &&
@@ -2638,7 +2638,7 @@ function makeServer(worker) {
     // ---- the ask, the share text, the calendar file ----
     const ask = M.rideAsk(pm(pt0, 'ashwin-t2', T, ORGK), T, WK), ask2 = M.rideAsk(pm(ptC0, 'ashwin-t2', T, ORGK), T, WK);
     const text = M.rideText(pm(pt0), r0.runs, 'ask');
-    check(ask && eq(ask.codes, ['momdad-t1']) && ask.url === WK + '/i/' + ptId + '#m=momdad-t1' && eq(ask2.codes, ['momdad-t1', 'anjo-t3']) && ask2.url === WK + '/i/' + ptC + '' &&
+    check(ask && eq(ask.codes, ['momdad-t1']) && ask.url === M.SHORT_URL + '/i/' + ptId + '#m=momdad-t1' && eq(ask2.codes, ['momdad-t1', 'anjo-t3']) && ask2.url === M.SHORT_URL + '/i/' + ptC + '' &&
       M.rideAsk(pm(pt2, 'ashwin-t2', T, ORGK), T, WK) === null &&
       // (PIA-159: the airport by name, "O'Hare (ORD)", and home again: "home about 5:05 PM")
       text === '🚗 Can you drive? Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM). Mon 11/30: drop off Ashwin at O\'Hare (ORD), flight 3:30 PM (leave home 11:00 AM, home about 4:00 PM).' &&

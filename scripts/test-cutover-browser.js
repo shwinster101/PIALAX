@@ -22,8 +22,16 @@ async function main() {
   // PIA-163: the short address (Cloudflare Pages serving short/): with no 404.html every path gets index.html; the app's one
   // home (APP_HOME) is answered with this app.html, so a phone's storage lands on the same origin it uses today
   const APP_HOME = 'https://shwinster101.github.io/PIALAX/app.html';
+  // (PIA-164: its _redirects rules as Pages applies them, before any file: one :placeholder, one path segment)
+  const RULES = fs.readFileSync(path.join(ROOT, 'short', '_redirects'), 'utf8').split('\n').filter(l => l.trim() && l[0] !== '#').map(l => l.trim().split(/\s+/));
+  const DASH = /const DASH_URL = '([^']+)'/.exec(fs.readFileSync(path.join(ROOT, 'worker.js'), 'utf8'))[1];
   const shortServer = http.createServer((req, res) => {
     if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(404); res.end(); return; }
+    const pth = new URL(req.url, 'http://short').pathname;
+    for (const [src, dest, code] of RULES) {
+      const m = new RegExp('^' + src.replace(/:[A-Za-z]\w*/g, '([^/]+)') + '$').exec(pth);
+      if (m) { res.writeHead(+code, { Location: dest.replace(/:[A-Za-z]\w*/, m[1]) }); res.end(); return; }
+    }
     res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.setHeader('Cache-Control', 'no-store');
     res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(path.join(ROOT, 'short', 'index.html')));
   });
@@ -52,6 +60,9 @@ async function main() {
         if (req.url().includes(KEY) || req.url().includes(TOKEN) || (req.headers().referer || '').includes(KEY) || (u.origin !== M.WORKER_URL && Object.values(req.headers()).some(v => v.includes(KEY) || v.includes(TOKEN)))) leaked.push(u.pathname);
         if (u.origin === origin || u.origin === shortOrigin) return route.continue();
         if (u.origin + u.pathname === APP_HOME) return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'app.html')) });
+        // (PIA-164: the Worker's /i/<id> sends a person to its DASH_URL ?idea=<id>, the app's folder, whose index.html forwards)
+        if (u.origin === M.WORKER_URL && /^\/i\/[A-Za-z0-9_-]{22}$/.test(u.pathname)) return route.fulfill({ status: 302, headers: { location: DASH + '?idea=' + u.pathname.slice(3) } });
+        if (u.origin + u.pathname === DASH) return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'index.html')) });
         if (u.origin !== M.WORKER_URL) return route.abort(); // verifies useful UI with map assets unavailable
         const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key, X-Pialax-Token' };
         if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
@@ -180,6 +191,17 @@ async function main() {
       check(state.key === KEY && state.token === TOKEN && state.hash === '', 'PIA-163 reload on the app\'s origin retains organizer access');
       await t.page.goBack();
       check(new URL(t.page.url()).pathname === '/previous', 'PIA-163 Back bypasses the short forwarder');
+      await t.finish();
+    }
+    {
+      // PIA-164: a guest link on the short address, /i/<id>#m=<code>: short/_redirects → the Worker's /i/<id> → the app's folder
+      // ?idea=<id> → app.html; the personal #m= rides across both redirects and the app consumes it; nothing is granted
+      const t = await phone();
+      await t.open(shortOrigin + '/i/' + A + '#m=ashwin-p8');
+      const st = await t.page.evaluate(() => ({ initial: window.__entryURL, origin: location.origin, hash: location.hash, token: localStorage.getItem('pialax_proxy_token'), keys: localStorage.getItem('pialax_idea_keys_v1') }));
+      check(DASH === 'https://shwinster101.github.io/PIALAX/' && st.initial === APP_HOME + '?idea=' + A + '#m=ashwin-p8' && st.origin === 'https://shwinster101.github.io' && st.hash === '' && !st.token && !st.keys &&
+        !t.navigations.some(u => u.startsWith(shortOrigin)) && t.navigations[0] === DASH + '?idea=' + A + '#m=ashwin-p8',
+        'PIA-164 a short guest link (/i/<id>#m=<code>) reaches the trip on the app\'s own origin through the Worker\'s /i/ and the app\'s folder, #m= kept, then consumed; nothing granted');
       await t.finish();
     }
     {

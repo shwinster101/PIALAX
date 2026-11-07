@@ -1,5 +1,14 @@
 # Short link: pialax.pages.dev (PIA-163)
 
+> **Status: live since 2026-11-07.** Pages project `pialax`, Git-connected to
+> `shwinster101/PIALAX` (production branch `main`, no build command, output
+> `short`), created through the Cloudflare API; the first deploy built
+> `8c9415d`. Every merge to `main` redeploys it. Since PIA-164 the app's shared
+> links (guest, list, invitation) start with it. Least privilege: in GitHub,
+> Settings → Applications → Cloudflare Workers and Pages → Configure →
+> Repository access, keep only `PIALAX` (plus any repo another Cloudflare
+> project builds from).
+
 **What it is:** a tiny free Cloudflare site that instantly forwards to the real
 app, `https://shwinster101.github.io/PIALAX/app.html`. It keeps everything
 after the address: trip, list and organizer links, and `#` hints.

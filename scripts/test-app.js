@@ -25,6 +25,7 @@ const KEY2 = 'another-organizer-key-0123456789ABCDEFGHIJ';
 const TOKEN = 'org-token-0123456789abcdef';
 const ORIGIN = 'https://shwinster101.github.io';
 const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+const G = 'https://pialax.pages.dev';   // PIA-164: what a link shared with the family starts with (the model's SHORT_URL)
 const MAP_DATA = 'https://cdn.jsdelivr.net/npm/world-atlas@2.0.2/countries-110m.json';
 const MAP_SCRIPTS = ['https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js'];
 const BASE = ORIGIN + '/PIALAX/app.html';
@@ -58,7 +59,7 @@ const EXPECT = ['S', 'DOCS', 'STAT', 'FAIL', 'PEND', 'WSEQ', 'KEYBAD', 'ST', 're
   'tripModel', 'POLL_MS', 'LEGEND', 'anyFailed', 'boot', 'render', 'qsParse', 'WORKER_OK', 'openSheet', 'closeSheet', 'showError', 'FOCUS_GAP_MS',
   // PIA-135
   'ACTS', 'renderIdeas', 'renderTabbar', 'renderSelected', 'activeItems', 'shelfItems', 'tripsBadge', 'unsharedIds', 'shareModels', 'sharedWl', 'recordShared', 'saveState',
-  'SAVED_NEW', 'freshCodes', 'myFace', 'dirBase', 'seenFor', 'readFares', 'listAdd', 'uiSet',
+  'SAVED_NEW', 'freshCodes', 'myFace', 'dirBase', 'shareBase', 'seenFor', 'readFares', 'listAdd', 'uiSet',
   // PIA-136
   'uiRead', 'openCreate', 'presetChips', 'keptDraft', 'requestDraft', 'whoMode', 'whoWords', 'profileLabel', 'renderTrip', 'popupName', 'openTrip', 'renderSheet', 'meFor',
   'sheetName', 'OWED',
@@ -258,6 +259,13 @@ function norm(doc) {
     check(eq(hl, ['/*', "  Content-Security-Policy: " + scsp + "; frame-ancestors 'none'", '  Referrer-Policy: no-referrer', '  X-Robots-Tag: noindex, nofollow, noarchive', '  X-Content-Type-Options: nosniff']) &&
       eq(rl, ['/i/:id ' + W + '/i/:id 302']) && W === require(path.join(ROOT, 'scripts', 'trip-model.js')).WORKER_URL,
       'PIA-163 short/_headers sends the same CSP with frame-ancestors \'none\', no-referrer, noindex and nosniff for every path; short/_redirects sends /i/<id> to the app\'s own Worker (its link preview, then the app)', { hl, rl });
+    // PIA-164: a link shared with the family starts with the short address: the guest link (its /i/<id> is short/_redirects' one
+    // rule), a list and an invitation (shareBase); another Worker's guest link stays its own; the organizer's links stay home (AC2 below)
+    const TMs = require(path.join(ROOT, 'scripts', 'trip-model.js')), gid = 'dwDiwaliRaleigh2026a01', other = 'https://my-proxy.someone.workers.dev';
+    check(TMs.SHORT_URL === G && TMs.guestLink(gid, '') === G + '/i/' + gid && TMs.guestLink(gid, 'anjo-z5') === G + '/i/' + gid + '#m=anjo-z5' &&
+      TMs.guestLink(gid, '', W) === G + '/i/' + gid && TMs.guestLink(gid, '', W + '/') === G + '/i/' + gid && TMs.guestLink(gid, '', other) === other + '/i/' + gid &&
+      TMs.guestLink(gid, '', G) === '' && loadApp().api.shareBase() === G + '/' && rl.length === 1 && rl[0].indexOf('/i/:id ' + TMs.WORKER_URL + '/i/:id ') === 0,
+      'PIA-164 the guest link is ' + G + '/i/<id> (#m=<code> for one person), the built-in Worker\'s only (another Worker\'s stays its own; the short address is no Worker); a list or invitation starts with ' + G + '/; short/_redirects sends /i/<id> to WORKER_URL');
   }
   check(!/apple-mobile-web-app-capable/i.test(html) && !/rel=["']?manifest/i.test(html), 'app.html declares no apple-mobile-web-app-capable and no manifest');
   const csp = (html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/g) || []);
@@ -843,8 +851,8 @@ function norm(doc) {
     t.api.ACTS.slgroup({ dataset: { v: '0' } });
     t.api.ACTS.slshare(); await tick();
     const u = shared && new URL(shared.url);
-    check(!!u && u.href === ORIGIN + '/PIALAX/?l=' + A + '.' + C + '&f=' + encodeURIComponent('🌴') && Object.keys(shared).length === 1 && !u.hash && shared.url.indexOf(KEY) < 0 && shared.url.indexOf(TOKEN) < 0,
-      'PIA-135 AC4 📣 Share hands the phone\'s share sheet the URL only: the app\'s folder ?l=<checked ids>&f=<my face>, no key, token, hash or price', shared);
+    check(!!u && u.href === G + '/?l=' + A + '.' + C + '&f=' + encodeURIComponent('🌴') && Object.keys(shared).length === 1 && !u.hash && shared.url.indexOf(KEY) < 0 && shared.url.indexOf(TOKEN) < 0,
+      'PIA-135 AC4 📣 Share hands the phone\'s share sheet the URL only: (PIA-164) the short address ?l=<checked ids>&f=<my face>, no key, token, hash or price', shared);
     check(eq(t.api.sharedWl().sort(), [A, C].sort()) && eq(t.api.unsharedIds().sort(), [B, M8].sort()) && !t.api.S.sheet && /<span class="badge" data-lbl="Not shared">\+2<\/span>/.test(t.api.renderIdeas().html),
       'PIA-135 AC5 once shared: pialax_shared_at_v1.wl holds the ids, the sheet closes, and the count drops by exactly those two (+4 → +2)');
     const g2 = await boot135({ ls: seedLs({ pialax_watchlist_v2: listOf([A, B]), pialax_idea_me_v1: { [A]: 'anjo-z5', [B]: 'maya-s9' }, pialax_ui_v1: { v1read: 1 } }) });
@@ -1090,7 +1098,7 @@ function norm(doc) {
     for (let i = 0; i < steps.length; i++) { taps++; await steps[i][0](); await tick(); if (!steps[i][1]()) stuck.push(i + 1); }
     const id = t.api.S.trip;
     taps++; act(t, 'tshare', { id }); await tick();
-    check(stuck.length === 0 && taps === 11 && shared && shared.url === W + '/i/' + id && Object.keys(shared).length === 1 && JSON.parse(t.ls.getItem('pialax_shared_at_v1'))[id] === '2026-11-06|2026-11-09',
+    check(stuck.length === 0 && taps === 11 && shared && shared.url === G + '/i/' + id && Object.keys(shared).length === 1 && JSON.parse(t.ls.getItem('pialax_shared_at_v1'))[id] === '2026-11-06|2026-11-09',
       'PIA-136 AC9 the Diwali job: ＋ 🪔 📍 ▶ ▶ 11/6 11/9 📌 11/8 Create, each reaching its state, then the trip\'s 📣 (11 taps in the app; the chat and Send make the spec\'s 13): 📣 hands the share sheet the guest link only, and records the plan it carried', { stuck, taps, shared });
   }
   {
@@ -1723,7 +1731,7 @@ function norm(doc) {
     L.jap = 'BOS';
     tap(t, sheet(t), 'joinshare'); await tick(); await tick();
     const j = t.api.uiRead().joins || {};
-    check(refused1 === 0 && refused2 === 0 && rs.shared.length === 1 && eq(Object.keys(rs.shared[0]), ['url']) && rs.shared[0].url === ORIGIN + '/PIALAX/?idea=' + id + '&add=' + encodeURIComponent('Nina Okafor.BOS') &&
+    check(refused1 === 0 && refused2 === 0 && rs.shared.length === 1 && eq(Object.keys(rs.shared[0]), ['url']) && rs.shared[0].url === G + '/?idea=' + id + '&add=' + encodeURIComponent('Nina Okafor.BOS') &&
       nPosts(t) === 0 && j[id] && j[id].name === 'Nina Okafor' && j[id].ap === 'BOS' && !t.api.S.sheet,
       'PIA-137 AC2 P-face 🙋＋: with a name (and a 3-letter code, when one is typed) 📣 shares <app>?idea=<id>&add=Nina Okafor.BOS (the URL only; nothing written to the trip), and the sheet closes', rs.shared);
     // the organizer adds her (PIA-136's ?add=); on her phone the next read brings P-face back with her new face preselected
@@ -1897,7 +1905,7 @@ function norm(doc) {
       'PIA-137 AC7 the organizer answers Maybe for Anjo from her sheet: one complete answer marked 📞', q.body);
     t.api.closeSheet(); act(t, 'person', { id, code: 'anjo-z5' });
     tap(t, sheet(t), 'nudge'); await tick();
-    check(rs.shared.length === 1 && eq(rs.shared[0], { url: W + '/i/' + id + '#m=anjo-z5' }), 'PIA-137 AC7 📣 Share on her sheet hands the share sheet her personal link (the guest link with #m=anjo-z5) and nothing else', rs.shared);
+    check(rs.shared.length === 1 && eq(rs.shared[0], { url: G + '/i/' + id + '#m=anjo-z5' }), 'PIA-137 AC7 📣 Share on her sheet hands the share sheet her personal link (the guest link with #m=anjo-z5) and nothing else', rs.shared);
     // the share button asks for attention while anyone is unanswered, and again once the plan moved since his last 📣
     const lk = seedAs(DWX, (d) => { d.responses['anjo-z5'] = Object.assign(RESP('in'), { member: 'anjo-z5', origin: 'LGA' }); });
     const t2 = await boot136({ ls: lsOf([lk], { pialax_idea_me_v1: { [lk]: 'ashwin-p8' }, pialax_idea_keys_v1: keyOf([lk]) }), navigator: recShare().nav });
@@ -2283,7 +2291,7 @@ function norm(doc) {
     tap(o, sheet(o), 'nudge'); await tick();
     let threw = null;
     try { g.api.ACTS.nudge({ dataset: { id, code: 'nobody-zz' } }); } catch (e) { threw = e; }
-    check(rs.shared.length === 1 && eq(rs.shared[0], { url: W + '/i/' + id }) && ro.shared.length === 1 && eq(ro.shared[0], { url: W + '/i/' + id + '#m=anastasiakonstantinopoulou-x1' }) && !threw,
+    check(rs.shared.length === 1 && eq(rs.shared[0], { url: G + '/i/' + id }) && ro.shared.length === 1 && eq(ro.shared[0], { url: G + '/i/' + id + '#m=anastasiakonstantinopoulou-x1' }) && !threw,
       'PIA-137 📣 Share on someone else\'s sheet: a guest shares the group link (never her #m= link); the organizer shares her personal one; a member who is gone shares nothing and throws nothing', { guest: rs.shared, org: ro.shared });
   }
   {
@@ -2306,7 +2314,7 @@ function norm(doc) {
     const t = await linkPhone('?idea=' + id + '&add=' + encodeURIComponent('Sam Rivera.OAK'), lsOf([id], { pialax_idea_me_v1: { [id]: 'priya-d4' } }), rs.nav);
     const sh = t.api.S.sheet, jh = sheet(t);
     tap(t, jh, 'joinfwd'); await tick();
-    check(sh && sh.type === 'joinfwd' && /Sam Rivera/.test(jh) && /OAK/.test(jh) && rs.shared.length === 1 && rs.shared[0].url === ORIGIN + '/PIALAX/?idea=' + id + '&add=' + encodeURIComponent('Sam Rivera.OAK') && !t.loc.search.includes('add=') && nPosts(t) === 0,
+    check(sh && sh.type === 'joinfwd' && /Sam Rivera/.test(jh) && /OAK/.test(jh) && rs.shared.length === 1 && rs.shared[0].url === G + '/?idea=' + id + '&add=' + encodeURIComponent('Sam Rivera.OAK') && !t.loc.search.includes('add=') && nPosts(t) === 0,
       'PIA-137 a join request opened on a phone that does not organize the trip is not dropped: P-joinfwd (Sam Rivera, OAK) and 📣 sends the same link on, writing nothing', rs.shared);
     const sam = await linkPhone('?idea=' + id, seedLs({ pialax_ui_v1: { v1read: 1, joins: { [id]: { name: 'Sam Rivera', ap: 'OAK' } } } }));
     const fh = sheet(sam);
@@ -3103,7 +3111,7 @@ function norm(doc) {
       /\nSTATUS:TENTATIVE\r?\n/.test(io.text) && /SUMMARY:\? 🪔 Diwali in Raleigh/.test(io.text) && !/class="tq"/.test(so.s) &&
       /\nSTATUS:CONFIRMED\r?\n/.test(il.text) && !/class="tq"|🔒/.test(sl.s) && /DTSTART;VALUE=DATE:20261106\r\nDTEND;VALUE=DATE:20261110/.test(il.text),
       'PIA-139 AC6 📅 Calendar is in ⋯ More on a dated trip (none on an undated idea or a dropped one); P-calendar-add\'s .ics is tentative ("? ", STATUS:TENTATIVE) before 🔒 and confirmed after (11/6–11/9, end 11/10); PIA-154: no ? corner or 🔒 on the sheet');
-    check([io.text, il.text, go, gl, so.s, sl.s].every((x) => !secret(x)) && (io.text.match(/https?:\/\/[^\s\\]+/g) || []).join() === W + '/i/' + open && /[?&]details=([^&]*)/.exec(gl) && decodeURIComponent(/[?&]details=([^&]*)/.exec(gl)[1]) === W + '/i/' + locked &&
+    check([io.text, il.text, go, gl, so.s, sl.s].every((x) => !secret(x)) && (io.text.match(/https?:\/\/[^\s\\]+/g) || []).join() === G + '/i/' + open && /[?&]details=([^&]*)/.exec(gl) && decodeURIComponent(/[?&]details=([^&]*)/.exec(gl)[1]) === G + '/i/' + locked &&
       /^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE&text=%3F%20/.test(go),
       'PIA-139 AC6 on the organizer\'s phone holding the edit key and the token, neither rides into the event: the .ics and the Google link carry only the guest /i/<id> link');
     check(/<a class="btn" href="data:text\/calendar[^"]*" download="[^"]+" data-cal="ics" aria-label="Phone calendar file, for Apple Calendar"[^>]*data-k="ics"><span aria-hidden="true">📅<\/span> Phone<\/a>/.test(sl.s) && /data-cal="gcal" aria-label="Google Calendar"[^>]*><span aria-hidden="true">↗<\/span> Google<\/a>/.test(sl.s),
@@ -4048,7 +4056,7 @@ function norm(doc) {
     await tap(t, sheet(t), 'answer', { v: 'in', proxy: '1' }); await until(() => !(t.api.PEND[DW] > 0)); await tick();
     const sent = posts(t).slice(q0), after = cellsOf(fam().html)[DW + '|anjo-z5'], tv = facesOf(t, DW)[DW + '|anjo-z5'], sv = sheet(t);
     t.api.closeSheet();
-    check(rs.shared.length === 1 && eq(rs.shared[0], { url: W + '/i/' + DW + '#m=anjo-z5' }) && sent.length === 1 && sent[0].path === '/idea/respond' && sent[0].body.member === 'anjo-z5' && sent[0].body.status === 'in' && sent[0].body.note === '📞' &&
+    check(rs.shared.length === 1 && eq(rs.shared[0], { url: G + '/i/' + DW + '#m=anjo-z5' }) && sent.length === 1 && sent[0].path === '/idea/respond' && sent[0].body.member === 'anjo-z5' && sent[0].body.status === 'in' && sent[0].body.note === '📞' &&
       srv.read(DW).responses['anjo-z5'].note === '📞' && after.st === 'in' && after.marks === '' && tv.st === 'in' && tv.marks === '' && /data-k="called"/.test(sv) && foot(fam().html)[0] === '4/4',
       'PIA-142 AC4 from her cell the organizer nudges her (her own #m= link) and answers In for her: one complete answer marked 📞; her cell and her face on the trip view show ✓ (PIA-154: 📞 is in her sheet), heads 4/4', { shared: rs.shared, sent });
     // my own cell: my sheet with my own answer row (outside a trip view; the trip view's own sheet has none: its answer row is the page's)
@@ -4089,7 +4097,7 @@ function norm(doc) {
     tap(g, s, 'nudge'); await tick(); g.api.closeSheet();
     act(g, 'fcell', { id: DW, code: 'momdad-k3' }); const s2 = sheet(g); g.api.closeSheet();
     const paid = g.fetches.filter((f) => /\/(search|account)(\?|$)/.test(f.url.replace(W, '')));
-    check(!/\$/.test(h) && eq(acts, ['pjoin', 'sh-close', 'nudge']) && !/data-act="pickface"/.test(s) && rs.shared.length === 1 && eq(rs.shared[0], { url: W + '/i/' + TH }) && !/data-act="(answer|nudge|pjoin|pickface)"/.test(s2) && posts(g).length === 0 && paid.length === 0,
+    check(!/\$/.test(h) && eq(acts, ['pjoin', 'sh-close', 'nudge']) && !/data-act="pickface"/.test(s) && rs.shared.length === 1 && eq(rs.shared[0], { url: G + '/i/' + TH }) && !/data-act="(answer|nudge|pjoin|pickface)"/.test(s2) && posts(g).length === 0 && paid.length === 0,
       'PIA-142 AC4 on a guest\'s phone a cell of someone who has not answered offers only 📣 (the group link: a guest never hands out someone else\'s personal link), someone who answered none; no answer row, no price, and not one /search or /account call though this phone holds a token; on Tahoe, where this phone (Anjo elsewhere) is nobody and no name is hers, 🙋＋ asks to join, never 🙋 It\'s me',
       { acts, shared: rs.shared, paid: paid.map((f) => f.url) });
     // fix pass: 🙋＋ opens P-face with its join row open, over that sheet (‹ back to it); nothing is written
@@ -5431,7 +5439,7 @@ function norm(doc) {
     const icsU = ics.replace(/\r\n /g, '').replace(/&#39;/g, '\'').replace(/&quot;/g, '"').replace(/&amp;/g, '&');   // (RFC 5545 folding and the href's HTML escaping undone)
     const descs = icsU.split('\r\n').filter((l) => /^DESCRIPTION:/.test(l) && !/^DESCRIPTION:🚗/.test(l)), gl = TM.guestLink(PT, '', W);
     check(/BEGIN:VCALENDAR/.test(ics) && (ics.match(/BEGIN:VEVENT/g) || []).length === 2 && (ics.match(/BEGIN:VALARM/g) || []).length === 4 && /DTSTART:20261120T120500\r\n/.test(ics) && /DTSTART:20261130T110000\r\n/.test(ics) &&
-      ics.indexOf(KEY) < 0 && !/#k=|t=|\$/.test(icsU) && descs.length === 2 && descs.every((l) => (l.match(/https?:\/\//g) || []).length === 1 && l.slice(l.indexOf('http')) === gl) && /\r\nDESCRIPTION:Fri 11\/20: pick up Ashwin at O'Hare \(ORD\)\\, lands 2:35 PM \(leave home 12:05 PM\\, home about 5:05 PM\)\.\\nhttps:\/\/pialax-proxy[^\r]*\/i\/[A-Za-z0-9_-]+\r\n/.test(icsU) &&
+      ics.indexOf(KEY) < 0 && !/#k=|t=|\$/.test(icsU) && descs.length === 2 && descs.every((l) => (l.match(/https?:\/\//g) || []).length === 1 && l.slice(l.indexOf('http')) === gl) && /\r\nDESCRIPTION:Fri 11\/20: pick up Ashwin at O'Hare \(ORD\)\\, lands 2:35 PM \(leave home 12:05 PM\\, home about 5:05 PM\)\.\\nhttps:\/\/pialax\.pages\.dev\/i\/[A-Za-z0-9_-]+\r\n/.test(icsU) &&
       /\r\nLOCATION:O'Hare International Airport \(ORD\)\r\n/.test(icsU) && typeof kept[PT] === 'string' && kept[PT].length > 10 && dotGone && !mom.api.rideChanged(mom.api.modelOf(PT)),
       'PIA-157 D 📅 Phone: one calendar file with both runs (DTSTART 11/20 12:05 and 11/30 11:00, floating), two alarms each, the guest link alone as its link (PIA-159: after the ride in words, "Fri 11/20: pick up Ashwin at O\'Hare (ORD), lands 2:35 PM (leave home 12:05 PM, home about 5:05 PM).", the airport\'s full name its location); a tap keeps its signature on this phone (pialax_ui_v1.rides) and the dot rests', icsU.slice(0, 900));
     // a same-day time change: the claim carries, ⏰ moves; Mom & Dad's card and the Trips tab get their dot (the calendar holds the old time);
@@ -6184,8 +6192,8 @@ function norm(doc) {
       'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
     // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
     const L = a1.api.LEGEND;
-    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 163,
-      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #163 (PIA-163)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 164,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #164 (PIA-164)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ PIA-160 family polish ═══

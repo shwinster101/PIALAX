@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="163">
+<meta name="pialax-build" content="164">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -1281,6 +1281,7 @@ var GF_QUERY = 'https://www.google.com/travel/flights?q=';                      
 var FLIGHTY_URL = 'https://www.flighty.com/';                                    // = v1's hand-off; Flighty documents no deep link
 var GCAL_TEMPLATE = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
 var WORKER_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';             // = v1 PROXY_URL; serves the guest /i/<id> links
+var SHORT_URL = 'https://pialax.pages.dev';                                      // PIA-164: the short address (short/ on Cloudflare Pages), what a shared link starts with
 var WORKER_RE = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev$/i;          // = v1's proxy URL check: no path, query or fragment
 var HANDOFF_TARGET = '_blank';
 var HANDOFF_REL = 'noopener noreferrer';
@@ -2726,13 +2727,15 @@ function allSet(model, today) {
 /* The guest link: <worker>/i/<id>, or with #m=<code> for a personal nudge. It is the only link that ever leaves
    in a share or a calendar event: it is built from the id and a member code alone, so an edit key or token cannot
    ride along. worker = the Worker the app talks to: undefined, null or blank → WORKER_URL (a blank override keeps
-   the built-in Worker, as v1 does, PIA-119); one that is not a bare https *.workers.dev origin builds no link. */
+   the built-in Worker, as v1 does, PIA-119); one that is not a bare https *.workers.dev origin builds no link.
+   PIA-164: the built-in Worker's link goes out on the short address, SHORT_URL/i/<id> (short/_redirects sends it to
+   WORKER_URL/i/<id>: its chat preview, then the app); another Worker's stays its own. */
 function guestLink(id, code, worker) {
   var w = worker === undefined || worker === null ? '' : String(worker).trim();
   var base = w ? w.replace(/\/$/, '') : WORKER_URL;
   if (!WORKER_RE.test(base) || !IDEA_ID_RE.test(String(id || ''))) return '';
   if (code && !MEMBER_CODE_RE.test(String(code))) return '';
-  return base + '/i/' + id + (code ? '#m=' + code : '');
+  return (base === WORKER_URL ? SHORT_URL : base) + '/i/' + id + (code ? '#m=' + code : '');
 }
 /* RFC 5545 TEXT: escape backslash, every line break (CRLF, a lone CR or a lone LF → \n), ';' and ','; drop every
    other control character (C0 except tab, and DEL), so no stored title or city can start a new property line */
@@ -4663,7 +4666,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 163;
+var BUILD = 164;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -5632,8 +5635,12 @@ function myFace(ids) {
   var ms = activeModels(), pick = ms.filter(function (m) { return ids.indexOf(m.id) >= 0 && m.me; }).concat(ms.filter(function (m) { return m.me; }))[0];
   return pick ? pick.me.face : '';
 }
-/* a list link points at the app's own folder (the address the family opens, as v1's share links do) */
+/* the app's own folder: the organizer's own-devices links (organizerLink) stay on the app's one home, so a key or token
+   never passes another site */
 function dirBase() { return String(location.href || '').split(/[?#]/)[0].replace(/[^\/]*$/, ''); }
+/* PIA-164: what a link shared with the family starts with (a list, an invitation, a forwarded invitation): the short
+   address, which sends the query and hash on to the app's one home unchanged (short/index.html) */
+function shareBase() { return SHORT_URL + '/'; }
 /* cards that just arrived (a link, a ⤓ Save) fly into the list the next time it is drawn */
 function flyIn(id) { if (!S.fly) S.fly = {}; S.fly[id] = 1; }
 
@@ -10891,7 +10898,7 @@ var ACTS = {
   },
   slshare: function () {
     var L = S.sheet.local, ids = shareModels().filter(function (m) { return L.checked && L.checked[m.id]; }).map(function (m) { return m.id; });
-    var url = listLink(dirBase(), ids, myFace(ids)); if (!url) return;
+    var url = listLink(shareBase(), ids, myFace(ids)); if (!url) return;
     // what went out is recorded only once it has: the share sheet took it, or it was copied (here, or with P-link's ⧉)
     shareLink(url, function (how) {
       if (how === 'link') return;   // P-link opens over this sheet, to copy by hand; nothing is out yet
@@ -10959,14 +10966,14 @@ var ACTS = {
     var sh = S.sheet, L = sh.local, id = el.dataset.id, name = cleanName(L.jname), ap = String(L.jap || '');
     if (!name) { pulseFld('join-name'); return; }
     if ((ap && !normIata(ap)) || (L.cuts && L.cuts['join-ap'])) { pulseFld('join-ap'); return; }
-    var url = joinLink(dirBase(), id, name, ap); if (!url) return;
+    var url = joinLink(shareBase(), id, name, ap); if (!url) return;
     var asked = function () { var j = uiRead().joins; j = plainObj(j) ? j : {}; j[id] = { name: name, ap: normIata(ap) }; uiSet({ joins: j }); };
     shareLink(url, function (how) { if (how === 'link') return; asked(); if (S.sheet === sh) closeSheet(); else render(true); toast(SHARED); }, function () { asked(); render(true); });
   },
   /* a join request that reached a phone without the trip's edit key (P-joinfwd): Share sends the same link on */
   joinfwd: function () {
     var sh = S.sheet; if (!sh || sh.type !== 'joinfwd') return;
-    var url = joinLink(dirBase(), sh.p.id, sh.p.name, sh.p.airport || ''); if (!url) return;
+    var url = joinLink(shareBase(), sh.p.id, sh.p.name, sh.p.airport || ''); if (!url) return;
     shareLink(url, function (how) { if (how === 'link') return; if (S.sheet === sh) closeSheet(); toast(SHARED); });
   },
   /* In / Maybe / Out: one complete answer, saved on the tap. Me (the person themselves: 📞 cleared), or the organizer for

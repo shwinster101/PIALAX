@@ -45,6 +45,7 @@ const { execSync } = require('child_process');
 const ROOT = path.resolve(process.argv[2] || path.join(__dirname, '..'));
 const APP_URL = process.env.PIALAX_TEST_APP_URL || 'file://' + path.join(ROOT, 'app.html');
 const W = 'https://pialax-proxy.ashwinyedavalli.workers.dev';
+const G = 'https://pialax.pages.dev';   // PIA-164: the built-in Worker's guest link goes out on the short address
 const NOW_ISO = '2026-10-17T19:00:00.000Z';
 const KEY = 'pialax-test-edit-key-0123456789abcdefghijk';
 const TOKEN = 'org-token-0123456789abcdefABCDEF';
@@ -1611,7 +1612,7 @@ async function main() {
     const st = await page.evaluate(() => ({ shared: window.__shared || [], keys: JSON.parse(localStorage.getItem('pialax_idea_keys_v1') || '{}') }));
     const ids = Object.keys(st.keys).filter((k) => k !== A);
     check(taps + 2 === 13 && who.preset === '👪🌽💪🗽' && JSON.stringify(who.me) === '["Ashwin"]' && wWho.join(' ') === 'Mom Dad PIA Ashwin LAX Anjo LGA' && month === 'Nov 2026' && ro === '11/6–11/9 · 3🌙 📌11/8' &&
-      wWhen.join(' ') === 'Nov Sun Sat Create' && scr === 'trip-organizer' && ids.length === 1 && st.shared.length === 1 && st.shared[0].url === W + '/i/' + ids[0],
+      wWhen.join(' ') === 'Nov Sun Sat Create' && scr === 'trip-organizer' && ids.length === 1 && st.shared.length === 1 && st.shared[0].url === G + '/i/' + ids[0],
       'PIA-136 AC9 "Diwali in Raleigh" takes the spec\'s 13 taps (＋ 🪔 📍 ▶ ▶ 11/6 11/9 📌 11/8 Create Share, then the chat and Send): 👪 pre-applied with 🙋 Ashwin, November, the trip opens as its organizer, its Share primary hands over the guest link',
       { taps, who, wWho, month, ro, wWhen, scr, shared: st.shared });
     // AC7 drop it from P-edit (PIA-154: ⋯ More › ✎ Edit), then ↩ from the toast
@@ -2226,7 +2227,7 @@ async function main() {
     // the walk above: time fields, 💵 and P-calendar-add on every phone that has them, at every width
     const sec = (s) => s.replace(/\r?\n /g, '');
     const secret = calLog.filter((c) => [KEY, TOKEN, '#k=', 't=' + TOKEN].some((x) => c.ics.indexOf(x) >= 0 || c.g.indexOf(x) >= 0));
-    const onlyGuest = calLog.every((c) => { const links = sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []; return links.length === 1 && /^https:\/\/pialax-proxy\.ashwinyedavalli\.workers\.dev\/i\/[A-Za-z0-9_-]{22}$/.test(links[0]) && /details=https%3A%2F%2Fpialax-proxy\.ashwinyedavalli\.workers\.dev%2Fi%2F/.test(c.g); });
+    const onlyGuest = calLog.every((c) => { const links = sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []; return links.length === 1 && /^https:\/\/pialax\.pages\.dev\/i\/[A-Za-z0-9_-]{22}$/.test(links[0]) && /details=https%3A%2F%2Fpialax\.pages\.dev%2Fi%2F/.test(c.g); });
     // (PIA-154: no ? corner in P-calendar-add: a tentative event says so in its own title, "? …", and STATUS:TENTATIVE)
     const cv = { times: timesLog.length >= 2 && timesLog.every((x) => / seg$/.test(x)), paid: paidLog.some((x) => x.arm === 'Confirm') && paidLog.some((x) => x.why === 'Not everyone booked'),
       cal: calLog.length >= 20 && calLog.every((c) => c.pid === 'P-calendar-add'), secret: secret.length === 0, onlyGuest, noTq: calLog.every((c) => !c.tq),
@@ -2234,7 +2235,7 @@ async function main() {
     check(Object.values(cv).every(Boolean),
       'PIA-139 + PIA-154 + PIA-159 the walk counted the 🛬 / 🛫 time fields typed in (' + timesLog.length + ' times, each "310" beside its [AM | PM] segment), P-stage\'s 💵 typed and asking first (and greyed with why elsewhere), and P-calendar-add from ⋯ More ' + calLog.length + ' times (tentative "? " in the event\'s own title, no corner badge; and set): every event carries only the guest /i/<id> link, never the key or token',
       { cv, cal: calLog.length, notCal: calLog.filter((c) => c.pid !== 'P-calendar-add').map((c) => c.who + ' ' + c.pid).slice(0, 4),
-        notGuest: calLog.filter((c) => { const links = sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []; return !(links.length === 1 && /^https:\/\/pialax-proxy\.ashwinyedavalli\.workers\.dev\/i\/[A-Za-z0-9_-]{22}$/.test(links[0]) && /details=https%3A%2F%2Fpialax-proxy\.ashwinyedavalli\.workers\.dev%2Fi%2F/.test(c.g)); }).map((c) => c.who + ' ' + c.pid + ' ' + (sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []).join(',') + ' g=' + c.g.slice(0, 120)).slice(0, 4),
+        notGuest: calLog.filter((c) => { const links = sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []; return !(links.length === 1 && /^https:\/\/pialax\.pages\.dev\/i\/[A-Za-z0-9_-]{22}$/.test(links[0]) && /details=https%3A%2F%2Fpialax\.pages\.dev%2Fi%2F/.test(c.g)); }).map((c) => c.who + ' ' + c.pid + ' ' + (sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []).join(',') + ' g=' + c.g.slice(0, 120)).slice(0, 4),
         secret: secret.slice(0, 2), tq: calLog.filter((c) => c.tq).map((c) => c.who).slice(0, 2) });
   }
   {
@@ -3032,7 +3033,7 @@ async function main() {
     r.trip = await screenId(page);
     await page.click('#screen [data-act="back"]'); await settle(page, 150);
     r.backTo = await screenId(page);
-    const okShare = r.shared.length === 1 && eq(Object.keys(r.shared[0]), ['url']) && r.shared[0].url === W + '/i/' + A + '#m=anjo-z5';
+    const okShare = r.shared.length === 1 && eq(Object.keys(r.shared[0]), ['url']) && r.shared[0].url === G + '/i/' + A + '#m=anjo-z5';
     check(r.p1.length === 4 && r.why === 'First page' && eq(r.still, r.p1) && r.p2.length === 4 && r.p2.every((id) => r.p1.indexOf(id) < 0) && eq(r.past, [PAST]) && r.pastCls && r.pressed === 'true' && eq(r.home, r.p1) &&
       r.sheet === 'P-person' && r.proxy && okShare && r.rec.status === 'in' && r.rec.note === '📞' && r.cell && r.cell.st === 'in' && r.cell.marks === '' && r.focus === 'fcell|anjo-z5' &&
       r.mine === 'P-person' && r.mineAns && r.trip === 'trip-portal' && r.backTo === 'trips-family' &&
