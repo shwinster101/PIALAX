@@ -239,6 +239,26 @@ function norm(doc) {
   const entries = ['index.html', 'pialax.html', 'pialax-mobile.html'].map(f => fs.readFileSync(path.join(ROOT, f), 'utf8'));
   check(entries.every(s => s.includes("var target = 'app.html' + window.location.search + window.location.hash;") && s.includes('window.location.replace(target)')),
     'PIA-147 every public entry forwards query/hash to the fixed app destination');
+  {
+    // PIA-163: short/ is the whole Cloudflare Pages site of the short address. It only forwards to the app's one home (its storage
+    // holds every phone's trips, keys and token; the Worker accepts that origin alone), so it holds no copy of the app
+    const SD = path.join(ROOT, 'short'), APP_HOME = 'https://shwinster101.github.io/PIALAX/app.html';
+    const sf = fs.existsSync(SD) ? fs.readdirSync(SD).sort() : [], rd = (n) => fs.existsSync(path.join(SD, n)) ? fs.readFileSync(path.join(SD, n), 'utf8') : '';
+    const si = rd('index.html'), sh = rd('_headers'), sr = rd('_redirects');
+    const scsp = (/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/.exec(si) || [])[1] || '';
+    const urls = si.match(/https?:\/\/[^\s'"<>]+/g) || [];
+    check(eq(sf, ['_headers', '_redirects', 'index.html']) &&
+      si.includes("var target = '" + APP_HOME + "' + window.location.search + window.location.hash;") && si.includes('window.location.replace(target)') &&
+      si.includes('<a id="open" href="' + APP_HOME + '">Open</a><noscript><p>Enable JavaScript.</p></noscript>') && si.includes('<meta name="referrer" content="no-referrer">') &&
+      scsp === "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; object-src 'none'" &&
+      urls.length === 2 && urls.every((u) => u === APP_HOME) && !/\ssrc=|<link\b|<iframe\b|localStorage|sessionStorage|fetch\(|XMLHttpRequest|console\./.test(si) &&
+      (si.match(/<script>/g) || []).length === 1,
+      'PIA-163 short/ is three files: index.html forwards query/hash to the one fixed app home (its no-script link the same), no-referrer, the entry pages\' CSP, no asset, storage or network call', { sf, urls, scsp });
+    const hl = sh.split('\n').filter((l) => l && l[0] !== '#'), rl = sr.split('\n').filter((l) => l && l[0] !== '#');
+    check(eq(hl, ['/*', "  Content-Security-Policy: " + scsp + "; frame-ancestors 'none'", '  Referrer-Policy: no-referrer', '  X-Robots-Tag: noindex, nofollow, noarchive', '  X-Content-Type-Options: nosniff']) &&
+      eq(rl, ['/i/:id ' + W + '/i/:id 302']) && W === require(path.join(ROOT, 'scripts', 'trip-model.js')).WORKER_URL,
+      'PIA-163 short/_headers sends the same CSP with frame-ancestors \'none\', no-referrer, noindex and nosniff for every path; short/_redirects sends /i/<id> to the app\'s own Worker (its link preview, then the app)', { hl, rl });
+  }
   check(!/apple-mobile-web-app-capable/i.test(html) && !/rel=["']?manifest/i.test(html), 'app.html declares no apple-mobile-web-app-capable and no manifest');
   const csp = (html.match(/<meta http-equiv="Content-Security-Policy" content="([^"]+)">/g) || []);
   const cspv = csp.length === 1 ? /content="([^"]+)"/.exec(csp[0])[1] : '';
@@ -6164,8 +6184,8 @@ function norm(doc) {
       'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
     // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
     const L = a1.api.LEGEND;
-    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 162,
-      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #162 (PIA-162)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 163,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #163 (PIA-163)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ PIA-160 family polish ═══

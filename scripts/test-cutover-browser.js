@@ -19,10 +19,19 @@ async function main() {
     if (req.url === '/previous') { res.setHeader('Content-Type', 'text/html'); res.end('<title>Previous</title><p>Previous</p>'); return; }
     handler(req, res);
   });
+  // PIA-163: the short address (Cloudflare Pages serving short/): with no 404.html every path gets index.html; the app's one
+  // home (APP_HOME) is answered with this app.html, so a phone's storage lands on the same origin it uses today
+  const APP_HOME = 'https://shwinster101.github.io/PIALAX/app.html';
+  const shortServer = http.createServer((req, res) => {
+    if (!['GET', 'HEAD'].includes(req.method)) { res.writeHead(404); res.end(); return; }
+    res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.setHeader('Cache-Control', 'no-store');
+    res.end(req.method === 'HEAD' ? undefined : fs.readFileSync(path.join(ROOT, 'short', 'index.html')));
+  });
   let browser;
   try {
     await new Promise(r => server.listen(0, '127.0.0.1', r));
-    const origin = 'http://127.0.0.1:' + server.address().port;
+    await new Promise(r => shortServer.listen(0, '127.0.0.1', r));
+    const origin = 'http://127.0.0.1:' + server.address().port, shortOrigin = 'http://127.0.0.1:' + shortServer.address().port;
     const executablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || '/usr/bin/chromium';
     browser = await pw.chromium.launch({ executablePath });
     const docs = Object.fromEntries(['idea-diwali.json', 'idea-tahoe.json', 'idea-thanksgiving-legacy.json'].map(n => { const d = fx(n); return [d.id, d]; }));
@@ -41,7 +50,8 @@ async function main() {
       await ctx.route('**/*', async route => {
         const req = route.request(), u = new URL(req.url());
         if (req.url().includes(KEY) || req.url().includes(TOKEN) || (req.headers().referer || '').includes(KEY) || (u.origin !== M.WORKER_URL && Object.values(req.headers()).some(v => v.includes(KEY) || v.includes(TOKEN)))) leaked.push(u.pathname);
-        if (u.origin === origin) return route.continue();
+        if (u.origin === origin || u.origin === shortOrigin) return route.continue();
+        if (u.origin + u.pathname === APP_HOME) return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: fs.readFileSync(path.join(ROOT, 'app.html')) });
         if (u.origin !== M.WORKER_URL) return route.abort(); // verifies useful UI with map assets unavailable
         const headers = { 'access-control-allow-origin': '*', 'access-control-allow-headers': 'Content-Type, X-Idea-Key, X-Pialax-Token' };
         if (req.method() === 'OPTIONS') return route.fulfill({ status: 204, headers });
@@ -139,10 +149,62 @@ async function main() {
       check(await t.page.locator('noscript').innerText() === 'Enable JavaScript.' && await t.page.locator('#open').getAttribute('href') === 'app.html', 'no-script fallback explains JS and offers app link without claiming dynamic hash preservation');
       await t.ctx.close();
     }
+    // PIA-163: the short address forwards in one hop to the app's one home with the query and hash bytes unchanged, on a phone and
+    // a desktop in both themes, from its root and from any other path (Pages' fallback: the path is never a destination)
+    for (const [width, theme] of [[360, 'light'], [390, 'dark'], [1200, 'light']]) {
+      const t = await phone(width, theme);
+      for (const [p, suffix] of [['/', '?unknown=%2f%2F&empty=&unicode=%F0%9F%8C%B4&repeat=1&repeat=2#section%20two'], ['/trips/old', '?l=' + A + '.' + B + '&f=%F0%9F%8C%B4']]) {
+        const n0 = t.navigations.length;
+        await t.open(shortOrigin + p + suffix);
+        const state = await t.page.evaluate(() => ({ initial: window.__entryURL, origin: location.origin, version: document.querySelector('meta[name="pialax-version"]').content }));
+        const hops = t.navigations.slice(n0);
+        check(state.initial === APP_HOME + suffix && state.origin === 'https://shwinster101.github.io' && state.version === '2.0.0' &&
+          hops.filter(u => u.startsWith(shortOrigin)).length === 1 && hops.filter(u => !u.startsWith(shortOrigin))[0] === APP_HOME + suffix,
+          `PIA-163 short ${p} ${width}/${theme}: one hop to the app's one home, encoded query/hash unchanged`);
+      }
+      await t.finish();
+    }
+    {
+      // an organizer link on the short address: the key and token land in the storage of the app's own origin, then leave the
+      // address; a reload keeps them; Back skips the forwarder
+      const t = await phone();
+      const suffix = '?idea=' + A + '#k=' + KEY + '&t=' + TOKEN;
+      await t.page.goto(origin + '/previous');
+      await t.open(shortOrigin + '/' + suffix);
+      const read = () => t.page.evaluate(id => ({ initial: window.__entryURL, origin: location.origin, hash: location.hash, key: JSON.parse(localStorage.getItem('pialax_idea_keys_v1'))?.[id]?.edit_key,
+        token: localStorage.getItem('pialax_proxy_token'), ids: JSON.parse(localStorage.getItem('pialax_watchlist_v2') || '[]').map(x => x.id) }), A);
+      let state = await read();
+      check(state.initial === APP_HOME + suffix && state.origin === 'https://shwinster101.github.io' && state.hash === '' && state.key === KEY && state.token === TOKEN && state.ids.includes(A),
+        'PIA-163 an organizer link on the short address: credentials reach the app on its own origin, persist, then leave the address');
+      await t.page.reload(); await t.page.waitForSelector('#screen [data-act]'); state = await read();
+      check(state.key === KEY && state.token === TOKEN && state.hash === '', 'PIA-163 reload on the app\'s origin retains organizer access');
+      await t.page.goBack();
+      check(new URL(t.page.url()).pathname === '/previous', 'PIA-163 Back bypasses the short forwarder');
+      await t.finish();
+    }
+    {
+      // a hostile query is never a destination: the app's one home, nothing granted
+      const t = await phone();
+      await t.open(shortOrigin + '/?next=https%3A%2F%2Fevil.example&__proto__=bad#k=bad&t=bad');
+      check(await t.page.evaluate(() => location.origin === 'https://shwinster101.github.io' && location.pathname === '/PIALAX/app.html' && !localStorage.getItem('pialax_proxy_token') && ({}).polluted === undefined),
+        'PIA-163 the short address ignores hostile values: fixed destination, nothing granted');
+      await t.finish();
+    }
+    {
+      const t = await phone(390, 'light', {}, { javaScriptEnabled: false });
+      await t.page.goto(shortOrigin + '/?idea=' + A + '#section');
+      check(await t.page.locator('noscript').innerText() === 'Enable JavaScript.' && await t.page.locator('#open').getAttribute('href') === APP_HOME,
+        'PIA-163 the short address without JavaScript explains it and offers the app\'s one home');
+      await t.ctx.close();
+    }
     for (const url of ['/worker.js', '/scripts/fixtures/v1-cutover-contract.json', '/PIALAX/unknown.html']) {
       check((await fetch(origin + url)).status === 404, 'test HTTP server rejects non-entry path ' + url);
     }
     console.log('all ' + count + ' cutover browser checks passing');
-  } finally { if (browser) await browser.close(); if (server.listening) await new Promise(r => server.close(r)); }
+  } finally {
+    if (browser) await browser.close();
+    if (server.listening) await new Promise(r => server.close(r));
+    if (shortServer.listening) await new Promise(r => shortServer.close(r));
+  }
 }
 main().catch(e => { console.error(e.stack); process.exitCode = 1; });
