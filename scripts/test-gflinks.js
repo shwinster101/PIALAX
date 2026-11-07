@@ -348,7 +348,7 @@ function main() {
   const dropRows = allHandoffs(DW_DROP);
   const dropNoPlace = allHandoffs(tweak(DW_NODEST, (d) => { d.decision.stage = 'dropped'; }));
   const overNoPlace = allHandoffs(tweak(DW_NODEST, (d) => { d.idea.dates.departure = '2026-09-01'; d.idea.dates.return = '2026-09-05'; d.idea.notes = ''; }));
-  check(dropRows.length > 10 && dropRows.every((r) => none(r.h) && r.h.calendar === null && r.h.nudge === '' && r.h.explore === null && r.h.share === M.WORKER_URL + '/i/' + DW.id && (!r.h.code || r.h.why === 'dropped')) &&
+  check(dropRows.length > 10 && dropRows.every((r) => none(r.h) && r.h.calendar === null && r.h.nudge === '' && r.h.explore === null && r.h.share === M.SHORT_URL + '/i/' + DW.id && (!r.h.code || r.h.why === 'dropped')) &&
     !!M.handoffs(model(DW_DROP), 'ashwin-p8', ctx()).flighty && dropNoPlace.concat(overNoPlace).every((r) => r.h.explore === null),
     'a dropped trip (🗑) offers no Google Flights link, calendar event, nudge or Explore (why: dropped), only its share link and a booked traveler’s Flighty; an idea without a place that is dropped or over offers no Explore');
 
@@ -434,24 +434,24 @@ function main() {
 
   // ═══ AC7 ════════════════════════════════════════════════════════════════
   section('AC7 calendars: all-day, exclusive end, my own dates (hosts: the plan), tentative before 🔒, only the guest /i/ link');
-  const W = M.WORKER_URL;
+  const W = M.WORKER_URL, G = M.SHORT_URL;   // PIA-164: the built-in Worker's guest link goes out on the short address
   const cal = (doc, me, over) => M.calendarAdd(model(doc, Object.assign({ me }, over || {})), ctx(over));
   const anjoCal = cal(LEG, 'LGA');
   const G_CAL_ANJO = 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=%3F%20%F0%9F%A6%83%20Thanksgiving%20at%20home%20%E2%80%94%20Peoria&dates=20261124/20261130' +
-    '&details=https%3A%2F%2Fpialax-proxy.ashwinyedavalli.workers.dev%2Fi%2FtgLegacyThanksgiving01&location=Peoria';
+    '&details=https%3A%2F%2Fpialax.pages.dev%2Fi%2FtgLegacyThanksgiving01&location=Peoria';
   const ICS_ANJO = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//PIALAX//Trip//EN', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'BEGIN:VEVENT',
     'UID:tgLegacyThanksgiving01-LGA@pialax', 'DTSTAMP:20261017T190000Z', 'DTSTART;VALUE=DATE:20261124', 'DTEND;VALUE=DATE:20261130',
-    'SUMMARY:? 🦃 Thanksgiving at home — Peoria', 'LOCATION:Peoria', 'DESCRIPTION:https://pialax-proxy.ashwinyedavalli.workers.dev/i/tgLegacyThan', ' ksgiving01',
+    'SUMMARY:? 🦃 Thanksgiving at home — Peoria', 'LOCATION:Peoria', 'DESCRIPTION:https://pialax.pages.dev/i/tgLegacyThanksgiving01',
     'STATUS:TENTATIVE', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n');
   check(anjoCal.google.href === G_CAL_ANJO, 'golden Google TEMPLATE link: Anjo on the legacy doc, her own 11/24–11/29 as dates=20261124/20261130 (end exclusive), tentative "? "');
-  check(anjoCal.ics.text === ICS_ANJO, 'golden .ics: the same all-day event (DTSTART/DTEND VALUE=DATE, DTEND = 11/30), STATUS:TENTATIVE, the guest link folded at 75 octets');
+  check(anjoCal.ics.text === ICS_ANJO, 'golden .ics: the same all-day event (DTSTART/DTEND VALUE=DATE, DTEND = 11/30), STATUS:TENTATIVE, the guest link (PIA-164: on the short address, one 61-octet line; folding at 75 is pinned below)');
   check(anjoCal.d1 === '2026-11-24' && anjoCal.d2 === '2026-11-29' && anjoCal.end === '2026-11-30' && anjoCal.own && anjoCal.tentative, 'my own travel dates (her window beats the stale 11/25 plan), with the exclusive end 11/30');
   const ashTg = cal(TG, 'LAX'), mdTg = cal(TG, 'PIA'), mdLg = cal(LEG, 'PIA'), noFace = cal(TG, undefined), outCal = cal(outDw, 'anjo-z5');
   check(ashTg.own && ashTg.d1 === '2026-11-20' && ashTg.d2 === '2026-11-29', 'a traveler who follows the plan gets the plan as his own days (Ashwin 11/20–11/29)');
   check(!mdTg.own && mdTg.d1 === '2026-11-20' && mdTg.d2 === '2026-11-29' && mdLg.d1 === '2026-11-25' && mdLg.d2 === '2026-11-29', 'hosts get the plan: Mom & Dad 11/20–11/29 on the v2 doc, the legacy 11/25–11/29 plan on the old one');
   check(!noFace.own && noFace.d1 === '2026-11-20' && !outCal.own && outCal.d1 === '2026-11-06' && outCal.d2 === '2026-11-09', 'a phone with no face, or someone who is out, gets the plan');
   const setCal = cal(DW_SET, 'ashwin-p8'), paidCal = cal(tweak(DW_SET, (d) => { d.decision.stage = 'booked'; d.decision.actual_total = 1490; }), 'ashwin-p8');
-  check(setCal.google.href === 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=%F0%9F%AA%94%20Diwali%20in%20Raleigh&dates=20261106/20261110&details=https%3A%2F%2Fpialax-proxy.ashwinyedavalli.workers.dev%2Fi%2FdwDiwaliRaleigh2026a01&location=Raleigh' &&
+  check(setCal.google.href === 'https://calendar.google.com/calendar/render?action=TEMPLATE&text=%F0%9F%AA%94%20Diwali%20in%20Raleigh&dates=20261106/20261110&details=https%3A%2F%2Fpialax.pages.dev%2Fi%2FdwDiwaliRaleigh2026a01&location=Raleigh' &&
     !setCal.tentative && /\r\nSTATUS:CONFIRMED\r\n/.test(setCal.ics.text) && /\r\nSUMMARY:🪔 Diwali in Raleigh\r\n/.test(setCal.ics.text) && !paidCal.tentative,
     'once 🔒 (and once paid) the event is confirmed: no "? " and STATUS:CONFIRMED (golden Diwali link, 11/06–11/10)');
   check(cal(DW, 'ashwin-p8').tentative && /^\? /.test(cal(DW, 'ashwin-p8').title) && /\r\nSTATUS:TENTATIVE\r\n/.test(cal(DW, 'ashwin-p8').ics.text) && cal(LEG, 'LAX').tentative,
@@ -489,9 +489,9 @@ function main() {
       if (h.calendar) {
         const text = h.calendar.ics.text.replace(/\r\n /g, ''), links = text.match(/https?:\/\/[^\s\\]+/g) || [];
         const det = /[?&]details=([^&]*)/.exec(h.calendar.google.href);
-        if (!eq(links, [W + '/i/' + doc.id]) || !det || decodeURIComponent(det[1]) !== W + '/i/' + doc.id || h.calendar.details !== W + '/i/' + doc.id) leaks.push(doc.id + ' calendar carries more than the guest link: ' + links);
+        if (!eq(links, [G + '/i/' + doc.id]) || !det || decodeURIComponent(det[1]) !== G + '/i/' + doc.id || h.calendar.details !== G + '/i/' + doc.id) leaks.push(doc.id + ' calendar carries more than the guest link: ' + links);
       }
-      if (h.share !== W + '/i/' + doc.id || (h.nudge && h.nudge !== W + '/i/' + doc.id + '#m=' + r.code)) leaks.push(doc.id + ' share/nudge ' + h.share + ' ' + h.nudge);
+      if (h.share !== G + '/i/' + doc.id || (h.nudge && h.nudge !== G + '/i/' + doc.id + '#m=' + r.code)) leaks.push(doc.id + ' share/nudge ' + h.share + ' ' + h.nudge);
     });
   });
   check(leaks.length === 0 && scanned > 150,
@@ -501,17 +501,17 @@ function main() {
     M.calendarAdd(model(DW, { me: 'ashwin-p8' }), ctx({ worker: w })).ics.text.indexOf('DESCRIPTION') < 0 && M.calendarAdd(model(DW, { me: 'ashwin-p8' }), ctx({ worker: w })).google.href.indexOf('details=') < 0),
     'a Worker URL with a path, query, fragment, plain http or another host builds no guest link at all, so nothing extra can ride into an event');
   check(M.guestLink(DW.id, '', 'https://my-proxy.someone.workers.dev/') === 'https://my-proxy.someone.workers.dev/i/' + DW.id && M.guestLink('short', '') === '' && M.guestLink(DW.id, 'bad code!') === '' &&
-    M.guestLink(DW.id, 'anjo-z5') === W + '/i/' + DW.id + '#m=anjo-z5',
+    M.guestLink(DW.id, 'anjo-z5') === G + '/i/' + DW.id + '#m=anjo-z5',
     'a valid Worker override is used (trailing slash trimmed); a malformed id or member code builds no link; the nudge adds only #m=<code>');
-  check(['', '   ', null, undefined].every((w) => M.guestLink(DW.id, '', w) === W + '/i/' + DW.id && M.calendarAdd(model(DW, { me: 'ashwin-p8' }), ctx({ worker: w })).details === W + '/i/' + DW.id),
-    'a blank Worker override (empty or spaces) keeps the built-in Worker, as v1 does (PIA-119), so shares and events never silently lose the guest link');
+  check(['', '   ', null, undefined].every((w) => M.guestLink(DW.id, '', w) === G + '/i/' + DW.id && M.calendarAdd(model(DW, { me: 'ashwin-p8' }), ctx({ worker: w })).details === G + '/i/' + DW.id),
+    'a blank Worker override (empty or spaces) keeps the built-in Worker, as v1 does (PIA-119; PIA-164: its link on the short address), so shares and events never silently lose the guest link');
   const meH = M.handoffs(model(DW, { me: 'ashwin-p8' }), 'ashwin-p8', ctx()), otherH = M.handoffs(model(DW, { me: 'ashwin-p8' }), 'anjo-z5', ctx());
-  check(meH.nudge === '' && !!meH.calendar && otherH.calendar === null && otherH.nudge === W + '/i/' + DW.id + '#m=anjo-z5' && M.handoffs(model(DW), 'nope', ctx()) === null,
+  check(meH.nudge === '' && !!meH.calendar && otherH.calendar === null && otherH.nudge === G + '/i/' + DW.id + '#m=anjo-z5' && M.handoffs(model(DW), 'nope', ctx()) === null,
     'the calendar is offered on my own face only; a nudge only for someone else; an unknown code gets nothing');
   const nudgeOf = (doc, me, code) => M.handoffs(model(doc, { me }), code, ctx()).nudge;
   const maybeAnjo = tweak(DW, (d) => { d.responses['anjo-z5'] = R('maybe', 'LGA'); });
   check(nudgeOf(TG, 'LAX', 'PIA') === '' && nudgeOf(LEG, 'LAX', 'PIA') === '' && nudgeOf(TG, 'LAX', 'LGA') === '' && nudgeOf(DW, 'ashwin-p8', 'momdad-k3') === '' && nudgeOf(outDw, 'ashwin-p8', 'anjo-z5') === '' &&
-    nudgeOf(DW, 'ashwin-p8', 'anjo-z5') === W + '/i/' + DW.id + '#m=anjo-z5' && nudgeOf(maybeAnjo, 'ashwin-p8', 'anjo-z5') === W + '/i/' + DW.id + '#m=anjo-z5' && nudgeOf(DW, undefined, 'anjo-z5') !== '',
+    nudgeOf(DW, 'ashwin-p8', 'anjo-z5') === G + '/i/' + DW.id + '#m=anjo-z5' && nudgeOf(maybeAnjo, 'ashwin-p8', 'anjo-z5') === G + '/i/' + DW.id + '#m=anjo-z5' && nudgeOf(DW, undefined, 'anjo-z5') !== '',
     'a nudge only for someone else who is ◌ waiting or ? maybe: never a host (Mom & Dad on Thanksgiving, answered or not), never someone who is in or out');
   check(cal(DW, 'ashwin-p8').ics.filename === 'diwaliinraleigh.ics' && cal(tweak(DW, (d) => { d.idea.title = '🪔 ディワリ'; }), 'ashwin-p8').ics.filename === 'rdu.ics' &&
     cal(tweak(DW_NODEST, (d) => { d.idea.title = '🪔 ディワリ'; }), 'ashwin-p8').ics.filename === 'trip.ics',
@@ -535,7 +535,7 @@ function main() {
   // a stored title or city is free text (the Worker only trims it): a lone CR or a control character must not start a line
   const crCal = cal(tweak(DW, (d) => { d.idea.title = '🎉 A\rDESCRIPTION:https://evil.example/#k=x\u0000\u0007'; d.idea.destination = { city: 'Ral\reigh\u0000\u001b', airport: 'ZZV' }; }), 'ashwin-p8');
   const anyBreak = crCal.ics.text.replace(/\r\n /g, '').split(/\r\n|\r|\n/);   // unfold, then break on anything a parser might
-  check(eq(anyBreak.filter((l) => /DESCRIPTION:/.test(l) && !/^SUMMARY:/.test(l)), ['DESCRIPTION:' + W + '/i/' + DW.id]) &&
+  check(eq(anyBreak.filter((l) => /DESCRIPTION:/.test(l) && !/^SUMMARY:/.test(l)), ['DESCRIPTION:' + G + '/i/' + DW.id]) &&
     !/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/.test(crCal.ics.text) && crCal.ics.text.split('\r\n').every((l) => l.indexOf('\r') < 0 && l.indexOf('\n') < 0) &&
     /\r\nSUMMARY:\? 🎉 A\\nDESCRIPTION:https:\/\/evil\.example\/#k=x\r\n/.test(crCal.ics.text) && /\r\nLOCATION:Ral\\neigh\r\n/.test(crCal.ics.text),
     'a lone CR or a control character (NUL, BEL, ESC) in a stored title or city cannot start a new .ics line on any parser: CR becomes \\n, controls are dropped, and the guest link is the only DESCRIPTION');

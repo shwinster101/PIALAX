@@ -70,6 +70,7 @@ var GF_QUERY = 'https://www.google.com/travel/flights?q=';                      
 var FLIGHTY_URL = 'https://www.flighty.com/';                                    // = v1's hand-off; Flighty documents no deep link
 var GCAL_TEMPLATE = 'https://calendar.google.com/calendar/render?action=TEMPLATE';
 var WORKER_URL = 'https://pialax-proxy.ashwinyedavalli.workers.dev';             // = v1 PROXY_URL; serves the guest /i/<id> links
+var SHORT_URL = 'https://pialax.pages.dev';                                      // PIA-164: the short address (short/ on Cloudflare Pages), what a shared link starts with
 var WORKER_RE = /^https:\/\/[a-z0-9-]+(\.[a-z0-9-]+)*\.workers\.dev$/i;          // = v1's proxy URL check: no path, query or fragment
 var HANDOFF_TARGET = '_blank';
 var HANDOFF_REL = 'noopener noreferrer';
@@ -1515,13 +1516,15 @@ function allSet(model, today) {
 /* The guest link: <worker>/i/<id>, or with #m=<code> for a personal nudge. It is the only link that ever leaves
    in a share or a calendar event: it is built from the id and a member code alone, so an edit key or token cannot
    ride along. worker = the Worker the app talks to: undefined, null or blank → WORKER_URL (a blank override keeps
-   the built-in Worker, as v1 does, PIA-119); one that is not a bare https *.workers.dev origin builds no link. */
+   the built-in Worker, as v1 does, PIA-119); one that is not a bare https *.workers.dev origin builds no link.
+   PIA-164: the built-in Worker's link goes out on the short address, SHORT_URL/i/<id> (short/_redirects sends it to
+   WORKER_URL/i/<id>: its chat preview, then the app); another Worker's stays its own. */
 function guestLink(id, code, worker) {
   var w = worker === undefined || worker === null ? '' : String(worker).trim();
   var base = w ? w.replace(/\/$/, '') : WORKER_URL;
   if (!WORKER_RE.test(base) || !IDEA_ID_RE.test(String(id || ''))) return '';
   if (code && !MEMBER_CODE_RE.test(String(code))) return '';
-  return base + '/i/' + id + (code ? '#m=' + code : '');
+  return (base === WORKER_URL ? SHORT_URL : base) + '/i/' + id + (code ? '#m=' + code : '');
 }
 /* RFC 5545 TEXT: escape backslash, every line break (CRLF, a lone CR or a lone LF → \n), ';' and ','; drop every
    other control character (C0 except tab, and DEL), so no stored title or city can start a new property line */
@@ -3417,7 +3420,7 @@ if (typeof module !== 'undefined' && module.exports) {
   module.exports = {
     IDEA_HUBS: IDEA_HUBS, NEARBY_GROUPS: NEARBY_GROUPS, DRIVE: DRIVE, IDEA_MAX_MEMBERS: IDEA_MAX_MEMBERS, MEMBER_CODE_RE: MEMBER_CODE_RE,
     TEXT_MAX: TEXT_MAX, FARE_STALE_MS: FARE_STALE_MS, FACES: FACES, FACE_RING: FACE_RING, SCENES: SCENES, PALETTE_SIZE: PALETTE_SIZE, FAMILY: FAMILY,
-    AIRPORTS: AIRPORTS, GF_EXPLORE: GF_EXPLORE, GF_QUERY: GF_QUERY, FLIGHTY_URL: FLIGHTY_URL, GCAL_TEMPLATE: GCAL_TEMPLATE, WORKER_URL: WORKER_URL,
+    AIRPORTS: AIRPORTS, GF_EXPLORE: GF_EXPLORE, GF_QUERY: GF_QUERY, FLIGHTY_URL: FLIGHTY_URL, GCAL_TEMPLATE: GCAL_TEMPLATE, WORKER_URL: WORKER_URL, SHORT_URL: SHORT_URL,
     HANDOFF_TARGET: HANDOFF_TARGET, HANDOFF_REL: HANDOFF_REL,
     handoff: handoff, handoffAttrs: handoffAttrs, isQuery: isQuery, gfSame: gfSame, gfTry: gfTry, gfQueryUrl: gfQueryUrl, flightLink: flightLink,
     guestLink: guestLink, icsFold: icsFold, calendarAdd: calendarAdd, handoffs: handoffs,

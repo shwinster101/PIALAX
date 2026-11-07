@@ -30,7 +30,11 @@ No framework, package.json or build step. GitHub Pages serves
   query and hash verbatim; `_headers` and `_redirects` (`/i/<id>` → the Worker).
   The app never runs on a second origin: each phone's storage (list, edit keys,
   token, me) and the Worker's CORS belong to `shwinster101.github.io`. Moving
-  the app needs a storage handoff and a budgeted Worker deploy.
+  the app needs a storage handoff and a budgeted Worker deploy. Live since
+  2026-11-07 (Pages project `pialax`, Git-connected to main, output `short`).
+  PIA-164: a link shared with the family starts with the model's `SHORT_URL`
+  (the guest `/i/<id>`, a `?l=` list, an `&add=` invitation); the organizer's
+  own-devices links (`#k=`, `#ks=`) stay on the app's folder.
 - `scripts/trip-model.js`: pure derivation of the one shared `/idea` record.
   The marked region is inlined byte-identically in `app.html`; drift fails tests.
 - `worker.js` + `wrangler.toml`: existing Cloudflare backend. PIA-147 does not

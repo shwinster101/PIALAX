@@ -1,0 +1,12 @@
+CHANGELOG.md
+CLAUDE.md
+SHORT_LINK.md
+app.html
+scripts/messages/PIA-164.files
+scripts/messages/PIA-164.msg
+scripts/test-app.js
+scripts/test-cutover-browser.js
+scripts/test-gflinks.js
+scripts/test-trip-model.js
+scripts/test-words.js
+scripts/trip-model.js
