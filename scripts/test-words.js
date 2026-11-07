@@ -72,6 +72,11 @@ const ok = (m) => { console.log('  OK  ' + m); passCount++; };
 const bad = (m, d) => { console.log('  XX  ' + m + (d === undefined ? '' : '\n        ' + (typeof d === 'string' ? d : JSON.stringify(d)))); failCount++; };
 const check = (c, m, d) => (c ? ok(m) : bad(m, d));
 const section = (t) => console.log('\n▶ ' + t);
+// PIA-165: the sections between AC3 and AC5 run in lanes (defSection, runSections in main); a line a section prints is kept in
+// its own list (the lane's AsyncLocalStorage) and printed in section order once that section is done, so the log reads as one walk
+const { AsyncLocalStorage } = require('async_hooks');
+const LANE = new AsyncLocalStorage(), rawLog = console.log.bind(console);
+console.log = (...a) => { const s = LANE.getStore(); if (s) s.out.push(require('util').format(...a)); else rawLog(...a); };
 
 // ---- fixtures: the repo's /idea docs plus a few built here ----
 const fx = (n) => JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts', 'fixtures', n), 'utf8'));
@@ -390,7 +395,9 @@ async function main() {
   // (a link shown in a sheet, P-link's or the devices link, is one word wherever the suite runs: it is recorded as "<link>", and the
   // test token typed in ⚙ as "<token>", so the fixture holds no checkout path, no test key and no token)
   const census = {}, censusTurn = {}, ctok = (t) => (/^[a-z][a-z0-9+.-]*:\/\/\S*[?#]/i.test(t) ? '<link>' : t === TOKEN ? '<token>' : t);
-  const censusNote = (kind, label, w, m) => {
+  // (PIA-165: inside a section a census entry is kept with it and given out in section order after the lanes: censusPut)
+  const censusNote = (kind, label, w, m) => { const s = LANE.getStore(); if (s) s.census.push([kind, label, w, m]); else censusPut(kind, label, w, m); };
+  const censusPut = (kind, label, w, m) => {
     if (/^self-test/.test(label)) return;
     const k0 = kind + ' ' + label, n = censusTurn[k0] = (censusTurn[k0] || 0) + 1;
     census[k0 + (n > 1 ? ' #' + n : '')] = { w: w.map(ctok), m: m.map(ctok) };
@@ -1173,9 +1180,42 @@ async function main() {
   }
 
   // ═══ AC3: every screen and popup within budget, at three widths, on every phone ═══
-  section('AC3 the strict word gate: every screen ≤14 words (PIA-159) and every popup ≤20, rendered, on every phone');
+  // ═══ PIA-165: the sections from AC3 to PIA-157 run in four lanes ═══
+  // A lane's sections run in order and the lanes at once (the walk waits on timers, not the CPU: 25% of four cores at #164). PIA-140,
+  // PIA-141 and PIA-155 stand in for SerpAPI by replacing globalThis.fetch, so they share the serp lane. A check that reads what the AC3
+  // walk logged runs once the walk is done (afterWalk), in its own section. Each section's lines and census entries are given out in
+  // section order, so the output, the census turns and every check are the ones one sequential walk gave.
   const NAMES = ['organizer', 'guest', 'host', 'eight', 'shelf', 'fresh', 'lockorg', 'portal', 'bookorg', 'booked', 'prices'];   // PIA-139: + the Done 8-member trip's organizer and a booked traveler; PIA-140: + the worst-case prices
-  for (const width of WIDTHS) await Promise.all(NAMES.map((name) => walk(name, { width })));   // phones in parallel, one width at a time
+  // (PIA-142's helpers, shared with PIA-153, PIA-155, PIA-156 and PIA-157)
+  const untilLabelGone = (page) => page.waitForFunction(() => { const b = document.querySelector('#lbl'); return !b || b.hidden; }, null, { timeout: 30000 }).catch(() => {});
+  const lblNow = (page) => page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
+  // a tap where the finger lands (an aria-disabled control too: Playwright's click waits for "enabled")
+  const fingerTap = async (page, sel) => { const h = await page.$(sel); if (!h) return false; await h.scrollIntoViewIfNeeded().catch(() => {}); const b = await h.boundingBox(); if (!b) return false; await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); return true; };
+  const SECTIONS = [], WALKED = {};
+  WALKED.done = new Promise((r) => { WALKED.resolve = r; });
+  const defSection = (lane, title, fn) => { SECTIONS.push({ lane, title, fn, out: [], census: [], tails: [], done: false }); };
+  const afterWalk = (fn) => { const s = LANE.getStore(); s.tails.push(WALKED.done.then(() => LANE.run(s, async () => { try { await fn(); } catch (e) { bad('a walk check threw in ' + s.title, e && e.stack ? e.stack : String(e)); } }))); };
+  async function runSections() {
+    let next = 0, ran = 0;
+    const flush = () => { while (next < SECTIONS.length && SECTIONS[next].done) { const s = SECTIONS[next++]; rawLog('\n▶ ' + s.title); s.out.forEach((l) => rawLog(l)); } };
+    const lanes = [...new Set(SECTIONS.map((s) => s.lane))].map((l) => SECTIONS.filter((s) => s.lane === l));
+    const settled = [];
+    await Promise.all(lanes.map(async (list) => {
+      for (const s of list) {
+        await LANE.run(s, async () => { try { await s.fn(); ran++; } catch (e) { bad('section threw: ' + s.title, e && e.stack ? e.stack : String(e)); } });
+        settled.push(Promise.all(s.tails).then(() => { s.done = true; flush(); }));
+      }
+    }));
+    WALKED.resolve();   // (a walk that never started still releases its waiting checks)
+    await Promise.all(settled); flush();
+    SECTIONS.forEach((s) => s.census.forEach((c) => censusPut(...c)));
+    check(ran === SECTIONS.length && next === SECTIONS.length && lanes.length === 4, 'PIA-165 the ' + SECTIONS.length + ' sections from AC3 to PIA-157 ran once each in ' + lanes.length + ' lanes (walk, a, b, serp), their lines and census entries given out in section order', { ran, printed: next });
+  }
+  defSection('walk', 'AC3 the strict word gate: every screen ≤14 words (PIA-159) and every popup ≤20, rendered, on every phone', async () => {
+  // (PIA-165: every phone at every width at once; one width at a time took 453s of the suite's 1050s)
+  const walked = await Promise.allSettled(WIDTHS.flatMap((width) => NAMES.map((name) => walk(name, { width }))));
+  WALKED.resolve();
+  { const f = walked.find((r) => r.status === 'rejected'); if (f) throw f.reason; }
   ok('walked every screen of the ' + NAMES.join(', ') + ' phones at ' + WIDTHS.join(', ') + 'px');
   {
     // a failed refresh: stub cards, 📶⚠, P-error by code (never the server's text)
@@ -1279,7 +1319,8 @@ async function main() {
   }
 
   // ═══ AC2 ═══
-  section('AC2 three labelled tabs, no wordmark, the Ideas | Family segment, cold opens and the selected trip');
+  });
+  defSection('a', 'AC2 three labelled tabs, no wordmark, the Ideas | Family segment, cold opens and the selected trip', async () => {
   {
     const { ctx, page } = await phone('organizer');
     const tabs = await page.$$eval('#tabbar button', (bs) => bs.map((b) => [...b.childNodes].filter((n) => !(n.classList && n.classList.contains('badge'))).map((n) => n.textContent).join(' ').replace(/\s+/g, ' ').trim()));
@@ -1316,7 +1357,8 @@ async function main() {
   }
 
   // ═══ AC4 ═══
-  section('AC4 sheets: one at a time, closed by ⌄, ‹, Esc, Back or the scrim; never by themselves or by a refresh');
+  });
+  defSection('a', 'AC4 sheets: one at a time, closed by ⌄, ‹, Esc, Back or the scrim; never by themselves or by a refresh', async () => {
   {
     const { ctx, page, net } = await phone('organizer', { installClock: true });
     await page.clock.runFor(300);
@@ -1447,7 +1489,8 @@ async function main() {
   }
 
   // ═══ PIA-135: Trips › Ideas ═══
-  section('PIA-135 Trips › Ideas: cards fit at 360px, the one total, list share, new answers, the shelf');
+  });
+  defSection('a', 'PIA-135 Trips › Ideas: cards fit at 360px, the one total, list share, new answers, the shelf', async () => {
   {
     // every card fits inside its own box at 360px (nothing pokes out or scrolls), on the busiest phones, shelf open
     const misfit = [];
@@ -1570,8 +1613,9 @@ async function main() {
   }
 
   // ═══ PIA-136: the one create path and organizer edits ═══
-  section('PIA-136 create and edit: every step within budget on every phone, the spec\'s tap counts, a failed Create, join requests, v1 links, captions, drop');
-  {
+  });
+  defSection('a', 'PIA-136 create and edit: every step within budget on every phone, the spec\'s tap counts, a failed Create, join requests, v1 links, captions, drop', async () => {
+  afterWalk(async () => {
     const words = (s) => String(s || '').split(/\s+/).filter((w) => /\p{L}/u.test(w)).length;
     const off = createLog.filter((x) => x.first.pop !== 'P-new-what' || x.first.title !== '' || x.first.focus !== 'new-title' || x.typed.dest !== 'ZZQ' || !x.typed.warn ||
       words(x.typed.title) !== 12 || x.who2 !== 'P-new-who' || x.when !== 'P-new-when' || words(x.row.name) !== 3 || x.row.ap !== 'QQQ');
@@ -1584,7 +1628,7 @@ async function main() {
     check(eight.length === 3 && org.length === 3 && eight.concat(org).every(good) && eight.every((x) => x.people && x.people.armed && x.people.rows === 8),
       'PIA-136 AC5/AC7/AC9 P-edit on the organizer\'s trips (and the 8-member trip with long names) at every width: 🏷📍 👥 📝 🔑 🗑; removing someone who answered shows ⚠ first; 🔑 gives the organizer link (P-link when the clipboard refuses) and "Your devices only"; P-drop is 🗑 Remove / Keep (PIA-155), and Keep goes back',
       eight.concat(org).filter((x) => !good(x)).slice(0, 2));
-  }
+  });
   {
     // AC9 the Diwali job, counted as the spec counts it: 10 taps in the sheet, the trip's 📣, then the chat and Send (OS steps)
     const { ctx, page } = await phone('diwali', { worker: true, share: true });
@@ -1788,12 +1832,13 @@ async function main() {
   }
 
   // ═══ AC5 summary, network, console ═══
-  section('PIA-137 the trip view: the 3-tap and 2-tap answers with real clicks, P-face and its join row, one person\'s sheet and note, closed and set trips');
-  {
+  });
+  defSection('a', 'PIA-137 the trip view: the 3-tap and 2-tap answers with real clicks, P-face and its join row, one person\'s sheet and note, closed and set trips', async () => {
+  afterWalk(async () => {
     // the walk above: every trip view and its sheets on every phone, at every width
     check(faceLog.length >= 6 && sheetLog.length >= 8 && sheetLog.every((x) => x.join.split(/\s+/).filter((w) => /\p{L}/u.test(w)).length <= 3 && x.words <= POPUP_MAX),
       'PIA-137 the walk opened P-person for every face (and each one\'s note), P-stage and P-face on every trip of every phone; P-face opened by itself where a phone is nobody (' + faceLog.length + ' times); a join name stops at 3 words', sheetLog.slice(0, 2));
-  }
+  });
   {
     // AC1 the group link: the link (1) opens P-face; 🗽 (2); In (3). One answer, through the real Worker
     const { ctx, page, net } = await phone('fresh', { worker: true, url: '?idea=' + A });
@@ -1958,7 +2003,8 @@ async function main() {
     await g.ctx.close();
   }
 
-  section('PIA-137 fix pass: real taps (hit-tested, scrolled into view) on the trip view\'s controls, through the real Worker');
+  });
+  defSection('a', 'PIA-137 fix pass: real taps (hit-tested, scrolled into view) on the trip view\'s controls, through the real Worker', async () => {
   {
     const { ctx, page, net } = await phone('lockorg', { worker: true, url: '?idea=' + LK, share: true });
     await settle(page, 200);
@@ -2036,13 +2082,14 @@ async function main() {
     await ctx.close();
   }
 
-  section('PIA-138 dates: the one picker with real clicks (±1 on the trip view, P-dates, P-day, a leg at a time), through the real Worker');
-  {
+  });
+  defSection('a', 'PIA-138 dates: the one picker with real clicks (±1 on the trip view, P-dates, P-day, a leg at a time), through the real Worker', async () => {
+  afterWalk(async () => {
     // the walk above: P-dates on every trip view of every phone, P-day where a day has people
     const opened = dateLog.filter((x) => x.pid === 'P-dates'), asked = dateLog.filter((x) => x.pid !== 'P-dates');
     check(opened.length >= 20 && dayLog.length >= 15 && dayLog.every((x) => x.words <= POPUP_MAX) && dateLog.some((x) => x.leg) && asked.every((x) => x.nudge && !x.pid) && keyLog.length >= 5,
       'PIA-138 the walk opened P-dates from the plan pill on every trip view of every phone (' + opened.length + ' times; a phone that has not answered gets its answer row pulsed instead, ' + asked.length + ' times), P-day ' + dayLog.length + ' times (8 long-named faces at most ' + Math.max.apply(null, dayLog.map((x) => x.words)) + ' words), its ⓘ key ' + keyLog.length + ' times, and a person\'s leg', { asked: asked.slice(0, 3), day: dayLog.slice(0, 2) });
-  }
+  });
   {
     const { ctx, page, net } = await phone('diwali', { worker: true, url: '?idea=' + A });
     await settle(page, 200);
@@ -2222,8 +2269,9 @@ async function main() {
     await ctx.close();
   }
 
-  section('PIA-139 booking with real clicks through the real Worker: Book and 🎫, the 🎫 inviting its tap on the way back, Flighty, times on the pickups, 💵, calendars');
-  {
+  });
+  defSection('b', 'PIA-139 booking with real clicks through the real Worker: Book and 🎫, the 🎫 inviting its tap on the way back, Flighty, times on the pickups, 💵, calendars', async () => {
+  afterWalk(async () => {
     // the walk above: time fields, 💵 and P-calendar-add on every phone that has them, at every width
     const sec = (s) => s.replace(/\r?\n /g, '');
     const secret = calLog.filter((c) => [KEY, TOKEN, '#k=', 't=' + TOKEN].some((x) => c.ics.indexOf(x) >= 0 || c.g.indexOf(x) >= 0));
@@ -2237,7 +2285,7 @@ async function main() {
       { cv, cal: calLog.length, notCal: calLog.filter((c) => c.pid !== 'P-calendar-add').map((c) => c.who + ' ' + c.pid).slice(0, 4),
         notGuest: calLog.filter((c) => { const links = sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []; return !(links.length === 1 && /^https:\/\/pialax\.pages\.dev\/i\/[A-Za-z0-9_-]{22}$/.test(links[0]) && /details=https%3A%2F%2Fpialax\.pages\.dev%2Fi%2F/.test(c.g)); }).map((c) => c.who + ' ' + c.pid + ' ' + (sec(c.ics).match(/https?:\/\/[^\s\\]+/g) || []).join(',') + ' g=' + c.g.slice(0, 120)).slice(0, 4),
         secret: secret.slice(0, 2), tq: calLog.filter((c) => c.tq).map((c) => c.who).slice(0, 2) });
-  }
+  });
   {
     // AC1 Leo on the set Christmas trip: [✈ Book ↗ | 🎫]; a Book tap (the hand-off itself is not followed: offline), the app hidden and
     // shown again, and the 🎫 glows; a real tap on it marks him booked through the Worker, and the slot is Flighty's
@@ -2372,7 +2420,8 @@ async function main() {
   }
 
   // ═══ PIA-151: my flight, with real clicks through the real Worker ═══
-  section('PIA-151 my flight with real clicks through the real Worker: one place per traveler, a one-tap day calendar, 🎫 → landing time, the board\'s final check; the job tap counts');
+  });
+  defSection('b', 'PIA-151 my flight with real clicks through the real Worker: one place per traveler, a one-tap day calendar, 🎫 → landing time, the board\'s final check; the job tap counts', async () => {
   {
     // Leo on the set Christmas trip (PIA | ORD, 🔒 12/22–12/27, not booked yet)
     const { ctx, page, net } = await phone('booked', { worker: true, url: '?idea=' + LK });
@@ -2522,10 +2571,15 @@ async function main() {
   }
 
   // ═══ PIA-140: prices with real clicks, through the real Worker (its token gate, fare cache and caps), SerpAPI stubbed ═══
-  section('PIA-140 prices with real clicks through the real Worker: P-total, 🔍 (its cost first), a person\'s ±1 days, the locks, ⚙\'s budget');
+  });
+  defSection('serp', 'PIA-140 prices with real clicks through the real Worker: P-total, 🔍 (its cost first), a person\'s ±1 days, the locks, ⚙\'s budget', async () => {
   {
     const SERP = fx('serp-flights.json');
     const serp = [];
+    // (PIA-165: a search goes through the in-process Worker and the stand-in SerpAPI; what it did is read once it is there, never after a
+    // fixed sleep: under the preflight's other lanes a 500ms sleep missed one ±1 day. The real-time ceiling only bounds a wait)
+    const untilPage = (pg, fn, arg) => pg.waitForFunction(fn, arg, { timeout: 30000 }).catch(() => {});
+    const untilNode = async (f) => { for (const end = performance.now() + 30000; performance.now() < end;) { if (f()) return; await new Promise((r) => setTimeout(r, 25)); } };
     const offline = globalThis.fetch;
     globalThis.fetch = async (u) => {
       const sU = String(u);
@@ -2546,7 +2600,9 @@ async function main() {
     const pt0 = await page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('aria-label')]).catch(() => null);
     await measurePopup(page, 'prices › P-total (all $—, 🔍4)');
     await labelCheck(page, 'prices › P-total (all $—)', 'prices-real', 'sheet');
-    await page.click('#sheet [data-act="search"]'); await settle(page, 600);
+    await page.click('#sheet [data-act="search"]');
+    await untilPage(page, () => [...document.querySelectorAll('#sheet .lgp')].filter((e) => /fetched/.test(e.getAttribute('aria-label') || '')).length >= 4 && !document.querySelector('#sheet [aria-busy="true"]'));
+    await settle(page, 150);
     const after1 = await page.evaluate(() => ({ legs: [...document.querySelectorAll('#sheet .lgp')].map((e) => e.getAttribute('aria-label')), btn: (document.querySelector('#sheet [data-act="search"]') || {}).textContent || '',
       q: JSON.parse(localStorage.getItem('pialax_serpapi_quota') || 'null'), fares: Object.keys(JSON.parse(localStorage.getItem('pialax_fares_v2') || '{}')).length }));
     await measurePopup(page, 'prices › P-total after one 🔍 (4 priced, 1 left)');
@@ -2556,7 +2612,9 @@ async function main() {
     const k1 = await sheetKey(page, 'prices › P-total (4 priced, 1 left)');
     await labelCheck(page, 'prices › P-total (4 priced)', 'prices-real-priced', 'sheet');
     const subLbl = await page.evaluate(() => [...document.querySelectorAll('#sheet .agering[data-lbl], #sheet .lvl[data-lbl], #sheet .stopl[data-lbl]')].map((e) => e.getAttribute('data-lbl')));
-    await page.click('#sheet [data-act="search"]'); await settle(page, 500);
+    await page.click('#sheet [data-act="search"]');
+    await untilPage(page, () => !document.querySelector('#sheet [data-act="search"]') && /^\$[\d,]+$/.test(((document.querySelector('#sheet .sum') || {}).textContent || '').trim()));
+    await settle(page, 150);
     const after2 = await page.evaluate(() => ({ btn: !!document.querySelector('#sheet [data-act="search"]'), sum: (document.querySelector('#sheet .sum') || {}).textContent || '' }));
     await measurePopup(page, 'prices › P-total, all priced');
     check(blk === 'Price Bartholomew Montgomery-Fitzgerald’s, Anastasia Konstantinopoulou’s, Maximilian Oyelaran-Whitfield’s and 2 more flights' && pt0 && pt0[0] === '🔍4/5' && pt0[1] === 'Search 4 of 5 fares, 4 searches' && s1.length === 4 && s1.every((x) => x.token === TOKEN && x.url.indexOf(TOKEN) < 0) &&
@@ -2568,7 +2626,9 @@ async function main() {
     await page.click('#sheet .trow [data-act="person"]'); await settle(page, 150);
     await measurePopup(page, 'prices › P-person from P-total (fares, 🔍2 each end)');
     const pp0 = await page.$$eval('#sheet .dayp [data-act="search"]', (els) => els.map((e) => e.textContent.trim()));
-    await page.click('#sheet .dayp [data-act="search"]'); await settle(page, 500);
+    await page.click('#sheet .dayp [data-act="search"]');
+    await untilPage(page, () => { const d = document.querySelector('#sheet .dayp'); return !!d && d.querySelectorAll('.dch').length === 3 && !d.querySelector('.dch.hollow') && !!document.querySelector('#sheet [data-k="cheapest"]'); });
+    await settle(page, 150);
     const pp1 = await page.evaluate(() => ({ chips: [...document.querySelectorAll('#sheet .dayp')][0].querySelectorAll('.dch').length, star: document.querySelectorAll('#sheet [data-k="cheapest"]').length, priced: [...document.querySelectorAll('#sheet .dayp')][0].querySelectorAll('.dch.hollow').length }));
     await measurePopup(page, 'prices › P-person after 🔍2 (★ the cheapest day)');
     await labelCheck(page, 'prices › P-person fares', 'prices-real-person', 'sheet');
@@ -2652,12 +2712,14 @@ async function main() {
       const w = await phone('eight', { worker: true, paid: true, ls, url: '?idea=' + M8 });
       let release = null; w.net.holdAcct = new Promise((r) => { release = r; });
       await w.page.click('#screen .pricerow'); await settle(w.page, 150);
-      await w.page.click('#sheet [data-act="search"]'); await settle(w.page, 150);
+      await w.page.click('#sheet [data-act="search"]');
+      await untilPage(w.page, () => !!document.querySelector('#sheet [data-act="search"][aria-busy="true"]'));
       const busy = await w.page.$eval('#sheet [data-act="search"]', (e) => [e.textContent.trim(), e.getAttribute('aria-busy'), e.getAttribute('data-lbl')]).catch(() => null);
       await measurePopup(w.page, 'prices › P-total, a 🔍 waiting for /account (◷)');
       await labelCheck(w.page, 'prices › P-total ◷', 'prices-real-wait', 'sheet');
       const sent = w.net.paid.filter((x) => x.path === '/search').length;
-      w.net.holdAcct = null; release(); await settle(w.page, 700);
+      w.net.holdAcct = null; release();
+      await untilNode(() => w.net.paid.filter((x) => x.path === '/search').length >= 4); await settle(w.page, 150);
       const sentAfter = w.net.paid.filter((x) => x.path === '/search').length;
       await w.ctx.close();
       check(busy && busy[0] === '◷' && busy[1] === 'true' && busy[2] === 'Searching' && sent === 0 && sentAfter === 4,
@@ -2684,10 +2746,12 @@ async function main() {
       const w = await phone('eight', { width, worker: true, paid: true, ls, url: '?idea=' + M8 }), tag = (s) => 'prices @' + width + ' › ' + s;
       let release = null; w.net.holdAcct = new Promise((r) => { release = r; });
       await w.page.click('#screen .pricerow'); await settle(w.page, 150);
-      await w.page.click('#sheet [data-act="search"]'); await settle(w.page, 150);
+      await w.page.click('#sheet [data-act="search"]');
+      await untilPage(w.page, () => !!document.querySelector('#sheet [data-act="search"][aria-busy="true"]'));
       const wait = await w.page.$('#sheet [data-act="search"][aria-busy="true"]');
       await measurePopup(w.page, tag('P-total ◷ (a 🔍 waiting for /account)'));
-      w.net.holdAcct = null; release(); await settle(w.page, 700);
+      w.net.holdAcct = null; release();
+      await untilPage(w.page, () => !document.querySelector('#sheet [aria-busy="true"]')); await settle(w.page, 150);
       await closeSheet(w.page);
       await w.page.evaluate(() => sessionStorage.setItem('pialax_spent_v2', '8'));
       await w.page.click('#screen .pricerow'); await settle(w.page, 150);
@@ -2714,14 +2778,17 @@ async function main() {
     check(lockLog.length === WIDTHS.length && lockLog.every((x) => x.wait && x.visit && x.month === '⛔ 11/1' && x.why === 'SerpAPI refused'),
       'PIA-140 the wait and the locks at every width, counted with their labels: ◷ while /account is out, ⛔ ↻ and ↻8? once the visit\'s 8 are spent (P-total and a person\'s square), ⛔ 11/1 with "SerpAPI refused", ⛔ alone in a square', lockLog);
     globalThis.fetch = offline;
+    afterWalk(async () => {
     // every walked phone: P-total from its cards and trip views, counted (the worst case: 16 winning airports, within 20 words)
     const worstT = totalLog.filter((x) => x.codes === 16), cards = totalLog.filter((x) => / card$/.test(x.who));
     check(totalLog.length >= 6 && totalLog.every((x) => x.pid === 'P-total') && worstT.length === WIDTHS.length && cards.length >= 2,
       'PIA-140 P-total opens from a card\'s total and the trip\'s total block on every organizer token phone, at every width, counted (the worst case, 8 open-jaw travelers each won by another airport both ways, draws all 16 codes within the popup budget)', totalLog.map((x) => x.who + ' ' + x.codes));
+    });
   }
 
   // ═══ PIA-141: the cheapest week with real clicks, through the real Worker (its token gate, fare cache and caps), SerpAPI stubbed ═══
-  section('PIA-141 the cheapest week with real clicks through the real Worker: P-dates 📉 → P-cheapest (Thanksgiving S1), 🔍2 → $890 ★, Move, ⚠ Confirm, the locks, ⟦◀ ▶⟧, an undated idea; every state counted at 360, 390 and 430');
+  });
+  defSection('serp', 'PIA-141 the cheapest week with real clicks through the real Worker: P-dates 📉 → P-cheapest (Thanksgiving S1), 🔍2 → $890 ★, Move, ⚠ Confirm, the locks, ⟦◀ ▶⟧, an undated idea; every state counted at 360, 390 and 430', async () => {
   {
     const SERP = fx('serp-flights.json'), serp = [], offline = globalThis.fetch;
     // SerpAPI by search: 11/22's legs $280 (into PIA) and $160 (home 12/01), any other leg $350 into PIA and $250 otherwise
@@ -2900,6 +2967,7 @@ async function main() {
       'PIA-141 + PIA-154 with real clicks, at every width: Move on the undated idea (⚠🌴🗽 Confirm) dates it 12/18–12/22, and ‹ P-dates reads those dates in dates mode (🔒 Lock dates its main button, no ⟦window⟧ toggle), nothing left to send; closing it says no 🗑', real.map((R) => [R.width, R.uPop, R.uMoved, R.uSave, R.uToast]));
     check(r360.keys && ['cheapweek', 'weekcur', 'weekhollow', 'wcost', 'leaves', 'page', 'owndays', 'visit'].every((k) => r360.keys.indexOf(k) >= 0) && r360.keys2 && ['cheapest', 'weekfull'].every((k) => r360.keys2.indexOf(k) >= 0) && r360.keys3 && r360.keys3.indexOf('widen') >= 0,
       'PIA-141 P-cheapest\'s ⓘ explains every glyph it draws (📉, the plan\'s outline, a hollow and a filled week, 🔍≤2, ⚠, ◀ ▶, ⟦◀ ▶⟧, ★, own days underlined, the visit\'s dots)', { k: r360.keys, k2: r360.keys2, k3: r360.keys3 });
+    afterWalk(async () => {
     // every walked organizer token phone: 📉 opens P-cheapest (counted, its bars ≤7 a page and ≥44px), or, greyed, names why
     const opened = cheapLog.filter((x) => x.pid === 'P-cheapest'), greyed = cheapLog.filter((x) => x.why);
     const badLay = opened.filter((x) => x.l0.bars.length > 7 || x.l0.bars.some((b) => b[0] < 44 || b[1] < 44) || x.l0.over > 0 || x.l0.pageOver > 0 || !x.l0.pagerBelow || x.back !== 'P-dates' || (x.l1 && (x.l1.bars.length > 7 || x.l1.bars.some((b) => b[0] < 44))));
@@ -2908,10 +2976,12 @@ async function main() {
       ['Dates locked', 'Nobody follows plan'].every((w) => greyed.some((x) => x.why === w)) && greyed.every((x) => x.pid === 'P-dates'),
       'PIA-141 AC5 / AC6 on every organizer token phone and width, 📉 opens P-cheapest (≤7 bars a page, each ≥44px, the pager on its own row, no sideways scroll, ‹ back to P-dates; the worst case, 8 long names and four faces left out of every week, within 20 words, its hollow week 🔍4/n: the caps cut it short and say so), or, greyed, names why in a counted label ("Dates locked", "Nobody follows plan")',
       { opened: opened.map((x) => x.who + ' ' + x.l0.bars.length + (x.cost ? ' ' + x.cost : '')), greyed: greyed.map((x) => x.who + ' ' + x.why), badLay: badLay.map((x) => x.who) });
+    });
   }
 
-  section('PIA-142 Trips › Family with real clicks: ≤4 trip columns a page at every width, ◀ ▶, 🗄 for the past trips, a cell opens that person with the answer row, the ghost row, ≤14 words in every state');
-  {
+  });
+  defSection('b', 'PIA-142 Trips › Family with real clicks: ≤4 trip columns a page at every width, ◀ ▶, 🗄 for the past trips, a cell opens that person with the answer row, the ghost row, ≤14 words in every state', async () => {
+  afterWalk(async () => {
     // the walk above: every page of every phone's board, at every width, 🗄 off and on
     const pages = famLog.filter((x) => x.board === true), ghosts = famLog.filter((x) => x.board === false), cells = famLog.filter((x) => 'sheet' in x);
     const badL = pages.filter((x) => x.cols > 4 || x.cols < 1 || x.small.length || x.over > 0 || !x.inside);
@@ -2919,7 +2989,7 @@ async function main() {
       'PIA-142 AC6 every page of every board the walk drew (' + pages.length + ' pages on every phone with two trips, at 360/390/430, 🗄 off and on) has 1–4 trip columns, every column head, cell and face ≥44px, nothing past the screen', badL.slice(0, 4));
     check(ghosts.some((x) => x.ghost && x.over <= 0) && cells.length >= 5 && cells.every((x) => x.sheet === 'P-person' || x.sheet === 'P-face'),
       'PIA-142 the shelf-only phone\'s board is its ghost row; every first cell the walk tapped opened that person on that trip (P-person, or who-are-you first)', { ghosts: ghosts.length, cells: [...new Set(cells.map((x) => x.sheet))] });
-  }
+  });
   const famHeads = (page) => page.$$eval('#screen #fam-board .hd', (es) => es.map((e) => e.getAttribute('data-id')));
   const cellOf = (page, id, code) => page.$eval('#screen button.cell[data-id="' + id + '"][data-code="' + code + '"]', (e) => ({ st: e.querySelector('.shape').getAttribute('data-k'), marks: [...e.querySelectorAll('.ov [data-k]')].map((x) => x.getAttribute('data-k')).sort().join() })).catch(() => null);
   // PIA-142 fix pass: what a write did is read once it is there, never after a fixed sleep. The respond path is a fresh GET and a
@@ -2934,10 +3004,6 @@ async function main() {
   const untilCell = (page, id, code, st) => page.waitForFunction(([id, code, st]) => { const e = document.querySelector('#screen button.cell[data-id="' + id + '"][data-code="' + code + '"] .shape'); return !!e && e.getAttribute('data-k') === st; },
     [id, code, st], { timeout: 30000 }).catch(() => {});
   const untilShared = (page, n) => page.waitForFunction((n) => (window.__shared || []).length >= n, n, { timeout: 30000 }).catch(() => {});
-  const untilLabelGone = (page) => page.waitForFunction(() => { const b = document.querySelector('#lbl'); return !b || b.hidden; }, null, { timeout: 30000 }).catch(() => {});
-  const lblNow = (page) => page.evaluate(() => { const b = document.querySelector('#lbl'); return b && !b.hidden ? b.textContent : null; });
-  // a tap where the finger lands (an aria-disabled control too: Playwright's click waits for "enabled")
-  const fingerTap = async (page, sel) => { const h = await page.$(sel); if (!h) return false; await h.scrollIntoViewIfNeeded().catch(() => {}); const b = await h.boundingBox(); if (!b) return false; await page.mouse.click(b.x + b.width / 2, b.y + b.height / 2); return true; };
   for (const width of WIDTHS) {
     // the worst case for names: 13 people (8 long names, two Sam Lees, unknown airports); fitNames keeps the screen at 14 words exactly
     // (PIA-159; 10 before it)
@@ -3157,7 +3223,8 @@ async function main() {
     await ctx.close();
   }
 
-  section('PIA-153 housekeeping in two taps, 👪 the plan vs my face my days, ⤒ Update trip from the card, the v1 trip\'s flight section, one pulse at a time (Chromium, words counted)');
+  });
+  defSection('b', 'PIA-153 housekeeping in two taps, 👪 the plan vs my face my days, ⤒ Update trip from the card, the v1 trip\'s flight section, one pulse at a time (Chromium, words counted)', async () => {
   for (const width of WIDTHS) {
     // the organizer of the v1 Thanksgiving (its "Me" at LAX: own 11/20–11/29, the plan 11/25–11/29) and Diwali (not his to organize here)
     const { ctx, page, net } = await phone('famv1', { width, worker: true });
@@ -3243,7 +3310,8 @@ async function main() {
     await ctx.close();
   }
 
-  section('PIA-154 one primary, labelled where it matters; the tap counts of section C with real clicks through the real Worker');
+  });
+  defSection('a', 'PIA-154 one primary, labelled where it matters; the tap counts of section C with real clicks through the real Worker', async () => {
   {
     // the organizer on Diwali while Anjo waits: Share is the primary (the nav has no second share); nudging her is 2 taps (her face,
     // Share at the top of her sheet); once nobody waits, 🔒 Lock dates is 1 tap with ↩ in its toast; Edit, Note and Calendar are
@@ -3347,7 +3415,8 @@ async function main() {
     await ctx.close();
   }
 
-  section('PIA-155 remove an old trip for everyone (no ⤒ first) and hide one on my phone, with real taps through the real Worker; ⋯ More in every state; price a traveler after 🔒');
+  });
+  defSection('serp', 'PIA-155 remove an old trip for everyone (no ⤒ first) and hide one on my phone, with real taps through the real Worker; ⋯ More in every state; price a traveler after 🔒', async () => {
   {
     // the organizer of the v1 Thanksgiving: remove it from its card in 3 taps (⋯, 🗑 Remove for everyone, 🗑 Remove), ↩ from the
     // removed card's ⋯; then from the trip page in 3 taps, ↩ from the toast; hide Diwali on this phone in 2 (⋯, Hide), show it again
@@ -3463,7 +3532,8 @@ async function main() {
     } finally { globalThis.fetch = offline; }
   }
 
-  section('PIA-156 who is set: the quiet key under the board with real taps through the real Worker; Remind the one unbooked traveler in 1 tap; ≤14 + 5 in every state (PIA-159)');
+  });
+  defSection('a', 'PIA-156 who is set: the quiet key under the board with real taps through the real Worker; Remind the one unbooked traveler in 1 tap; ≤14 + 5 in every state (PIA-159)', async () => {
   {
     // the owner's "P town" on his phone: the key reads ⏳ Waiting 🗽 [Remind] / ✈ Booked 💪 / 🏠 Hosting 🌽 (after his 🔑🔍 row, above
     // any primary); Remind is 1 tap (before: her face, then Share, and her sheet offers none once she is In); ⓘ explains ⏳ ✈ 🏠 and
@@ -3541,7 +3611,8 @@ async function main() {
       'PIA-156 the 8-member trip at 360px (🔒, all 8 to book): the Waiting row holds 4 faces, +4 and Remind, every button ≥44px and on screen (no sideways scroll); Remind for several is the trip\'s guest share in 1 tap', q.e8);
   }
 
-  section('PIA-157 rides with real taps through the real Worker: Mom & Dad claim a run in 2 taps (from the link and from the list), the organizer\'s ask, cover, remind and ✓, 🚌 / 🚙 in 2, ↩ in 1; PIA-159: Anjo\'s Midway times in 6, Ashwin\'s 3:47 PM in 3, the airport-only fix in 4; every state ≤14 + 5 and P-rides ≤20, unmarked');
+  });
+  defSection('b', 'PIA-157 rides with real taps through the real Worker: Mom & Dad claim a run in 2 taps (from the link and from the list), the organizer\'s ask, cover, remind and ✓, 🚌 / 🚙 in 2, ↩ in 1; PIA-159: Anjo\'s Midway times in 6, Ashwin\'s 3:47 PM in 3, the airport-only fix in 4; every state ≤14 + 5 and P-rides ≤20, unmarked', async () => {
   {
     const q = {}, momNote = (net, id) => (JSON.parse(net.kv.map.get('idea:' + id)).responses['momdad-t1'] || {}).note || '';
     const until = async (page, f, ms) => { for (let t = 0; t < (ms || 8000); t += 50) { if (await f()) return true; await page.waitForTimeout(50); } return false; };
@@ -3842,6 +3913,9 @@ async function main() {
     check(q.party && /^🎊 All set$/.test(q.party.t1) && !/All set/.test(q.party.t2 || '') && q.party.kept === 1,
       'PIA-158 the organizer\'s phone once every ride is covered and everyone has booked: back, open the trip again → the burst and "🎊 All set" (2 words) once; opening it again says nothing (pialax_ui_v1.party kept)', q.party);
   }
+
+  });
+  await runSections();
 
   section('AC5 the key, labels and ⚙; nothing else reached the network; no console errors');
   {

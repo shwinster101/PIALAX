@@ -3,6 +3,8 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
 import { execSync } from 'node:child_process';
+import { AsyncLocalStorage } from 'node:async_hooks';
+import { format } from 'node:util';
 
 const ROOT = process.argv[2] || process.cwd();
 
@@ -51,6 +53,23 @@ let passCount = 0;
 let failCount = 0;
 const ok = (m) => { console.log('  OK  ' + m); passCount++; };
 const bad = (m) => { console.log('  XX  ' + m); failCount++; };
+// PIA-165: independent passes run at once (inPasses, at most PASSES together): a line a pass prints is kept in its own list and
+// printed in pass order once that pass and every one before it are done, so the log reads as the passes did one by one
+const PASSES = 3, PASS = new AsyncLocalStorage(), rawLog = console.log.bind(console);
+console.log = (...a) => { const s = PASS.getStore(); if (s) s.push(format(...a)); else rawLog(...a); };
+async function inPasses(tasks, limit = PASSES) {
+  const outs = tasks.map(() => []), done = tasks.map(() => false);
+  let next = 0, printed = 0;
+  const flush = () => { while (printed < tasks.length && done[printed]) outs[printed++].forEach((l) => rawLog(l)); };
+  const lane = async () => {
+    while (next < tasks.length) {
+      const i = next++;
+      await PASS.run(outs[i], async () => { try { await tasks[i](); } catch (e) { bad('pass ' + (i + 1) + ' of ' + tasks.length + ' threw: ' + (e && e.stack ? e.stack : String(e))); } });
+      done[i] = true; flush();
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, tasks.length) }, lane));
+}
 
 const execPath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE
   || '/opt/pw-browsers/chromium';
@@ -490,8 +509,8 @@ console.log('▶ test-viewport: mobile layout regression suite');
     if (lock) { const r = lock.getBoundingClientRect(), cy = r.top + r.height / 2; out.lock = lock === save ? r.top >= R.top - 0.5 && r.bottom <= Math.min(innerHeight, R.bottom) + 0.5 : cy > (hr ? hr.bottom : R.top) && cy < (sv ? sv.top - 6 : R.bottom); }
     return out;
   };
-  for (const vp of VIEWPORTS) {
-    for (const scheme of ['light', 'dark']) {
+  // (PIA-165: the six passes, three viewports in light and dark, share nothing: three at a time; one by one they took 265s)
+  await inPasses(VIEWPORTS.flatMap((vp) => ['light', 'dark'].map((scheme) => async () => {
       const label = `app.html @ ${vp.name} ${scheme}`;
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
       await ctx.route(/^https?:\/\//, (r) => process.env.PIALAX_TEST_APP_URL && r.request().url().startsWith(process.env.PIALAX_TEST_APP_URL) ? r.continue() : r.abort());
@@ -1343,8 +1362,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         else bad(`${label} — ${fails.slice(0, 4).join(' · ')}`);
       } catch (e) { bad(`${label} — threw: ${e && e.message ? e.message.split('\n')[0] : String(e)}${fails.length ? ' · ' + fails.slice(0, 2).join(' · ') : ''}`); }
       await ctx.close();
-    }
-  }
+  })));
   // PIA-138: P-dates on shorter phones too (360x740, 375x667), light and dark: in every picker state nothing in view is
   // covered (elementFromPoint), Save is opaque, 🔒 / 🔓 is in view, and every target is ≥44px with no horizontal scroll
   for (const vp of [{ name: '360x740', width: 360, height: 740 }, { name: '375x667', width: 375, height: 667 }]) {
