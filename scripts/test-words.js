@@ -815,7 +815,9 @@ async function main() {
   const faceLog = [], sheetLog = [];
   const timesLog = [], paidLog = [], calLog = [];   // PIA-139
   const totalLog = [];   // PIA-140
-  const jsClick = (page, sel) => page.$eval(sel, (e) => e.click());
+  // (PIA-166 fix pass: under the preflight's other lanes a sheet can take longer than its settle to draw, so a click waits for its target
+  // to be there, as Playwright's own click does; the 30-second ceiling only bounds the wait, and a target that never comes still fails)
+  const jsClick = async (page, sel) => { await page.waitForSelector(sel, { state: 'attached', timeout: 30000 }).catch(() => {}); return page.$eval(sel, (e) => e.click()); };
   async function tripWalk(page, tag, who, deep) {
     const codes = await page.evaluate(() => [...document.querySelectorAll('#screen .pb [data-act="person"]')].map((e) => e.getAttribute('data-code')));
     for (const c of deep ? codes : codes.slice(0, 2)) {
@@ -2322,7 +2324,10 @@ async function main() {
     await measurePopup(page, 'set trip › my P-person, taking the 🎫 back (asks)');
     await page.waitForTimeout(6300);
     r.sticky = await page.$eval('#sheet [data-act="unbook"]', (e) => e.getAttribute('aria-label')).catch(() => '');
-    await page.click('#sheet [data-act="sh-close"]'); await settle(page, 500);
+    await page.click('#sheet [data-act="sh-close"]');
+    // (PIA-166 fix pass: the close's one write and the sheet going are read once they are there, never after a fixed sleep)
+    for (const end = performance.now() + 30000; performance.now() < end && (net.posts < u0 + 1 || (await popupId(page)) !== null);) await new Promise((res) => setTimeout(res, 25));
+    await settle(page, 150);
     r.unbookSent = net.posts - u0 - 1;   // the close sends his times (one write); the 🎫 stays
     r.note = rec()['leo-k3'].note; r.stillBooked = rec()['leo-k3'].booked === true;
     // (PIA-156: the key under the board marks its rows' words too: ⏳ Waiting and 🏠 Hosting, then ✈ Booked (after Waiting) once he books: 5 at most)
