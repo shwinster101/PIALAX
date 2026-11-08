@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="165">
+<meta name="pialax-build" content="166">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -502,6 +502,9 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .readout .w { color: var(--bad); }
 .tool { min-width: 48px; min-height: 48px; border-radius: var(--r-2); border: 1.5px solid var(--edge); display: inline-grid; place-items: center; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 6px; }
 .tool[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
+/* PIA-166: the ＋ that reads "Add travelers" on an empty step 2, and a quiet one-line hint ("Dates optional", an empty Map or Calendar) */
+.tool.lbl { display: inline-flex; gap: var(--sp-2); padding: 0 var(--sp-4); font-size: var(--fs-3); }
+.hintl { margin: 0; font-size: var(--fs-2); font-weight: 400; color: var(--ink2); text-align: center; }
 .tool:disabled { opacity: .4; cursor: not-allowed; }
 .tool.dis, .hchip.dis { cursor: not-allowed; }   /* (PIA-160: quiet, at the end of the sheet) */
 .tool.arm { border-color: var(--bad); color: var(--bad); }
@@ -4666,7 +4669,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 165;
+var BUILD = 166;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -6191,8 +6194,11 @@ function segRow(which) {
     '<button data-act="seg" data-v="family" aria-pressed="' + (which === 'family') + '">Family</button></div>';
 }
 /* the empty state: the ＋ says what it does ('New trip' takes the place of the Ideas | Family words) */
+/* PIA-166: an empty Map or Calendar says, in one line, what it will show */
+var GHOST_LINE = { map: 'Your trip on a map', cal: 'Your trip’s days' };
 function ghostCard(scope) {
-  return '<div class="ghost" data-ghost="' + scope + '">' + ghostPicture() + '<button class="bigplus wide" data-act="new" aria-label="New trip" data-k="newtrip"><span aria-hidden="true">＋</span> New trip</button></div>';
+  return '<div class="ghost" data-ghost="' + scope + '">' + ghostPicture() + (hasOwn(GHOST_LINE, scope) ? '<p class="hintl">' + GHOST_LINE[scope] + '</p>' : '') +
+    '<button class="bigplus wide" data-act="new" aria-label="New trip" data-k="newtrip"><span aria-hidden="true">＋</span> New trip</button></div>';
 }
 function renderIdeas() {
   var act = activeItems(), sh = shelfItems();
@@ -8131,7 +8137,9 @@ function whoHTML(sh, D) {
   }
   var mode = whoMode(D, whoLimit(D)), over = D.rows.length > IDEA_MAX_MEMBERS;
   h += '<div class="mlist">' + D.rows.map(function (r, i) { return i === D.ed ? editorRow(D, r, i) : chipRow(D, r, i, mode); }).join('') + '</div>';
-  if (D.rows.length < IDEA_MAX_MEMBERS) h += '<div class="rowc"><button class="tool" data-act="nadd" aria-label="Add person">＋</button></div>';
+  // (PIA-166: while nobody is added yet, ＋ reads "Add travelers", 2 words: the owner's choice over a glyph alone)
+  if (D.rows.length < IDEA_MAX_MEMBERS) h += '<div class="rowc">' + (D.rows.length ? '<button class="tool" data-act="nadd" aria-label="Add person">＋</button>'
+    : '<button class="tool lbl" data-act="nadd" aria-label="Add travelers"><span aria-hidden="true">＋</span> Add travelers</button>') + '</div>';
   // more people than a trip holds (a join request on a full trip, or someone added on another device meanwhile):
   // the count is shown, and Save waits until someone is removed
   if (over) h += '<div class="counter" id="who-cap" role="img" aria-label="Too many people"><span class="w" data-k="warn">⚠</span> <span class="tn">' + D.rows.length + '/' + IDEA_MAX_MEMBERS + '</span></div>';
@@ -8152,6 +8160,8 @@ function whenHTML(sh, D) {
   var h = shHd(PREV_BTN + stepDots(3), { right: keptBtn(D) });
   h += '<div class="rowc"><span class="tg2" role="group" aria-label="Dates or window"><button data-act="nmode" data-v="dates" aria-pressed="' + dated + '" aria-label="Dates">🗓</button>' +
     '<button data-act="nmode" data-v="window" aria-pressed="' + !dated + '" aria-label="Flex window">⟦⟧</button></span></div>';
+  // (PIA-166: while no date is picked, "Dates optional": an idea may start undated, and Create works without them)
+  if (!D.s) h += '<p class="hintl">Dates optional</p>';
   var hols = soonHolidays();
   if (hols.length) h += '<div class="rowc">' + hols.map(function (hd) { return '<button class="hchip" data-act="nhol" data-v="' + hd.d + '" aria-label="Holiday ' + md(hd.d) + '" data-lbl="Holiday">' + hd.g + ' ' + md(hd.d) + '</button>'; }).join('') + '</div>';
   h += monthHeader(D.ym, 'nmonth', ym(RT.today));

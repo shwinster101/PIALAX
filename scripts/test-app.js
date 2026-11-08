@@ -1147,6 +1147,31 @@ function norm(doc) {
     check(!D(t).kept && D(t).step === 1 && D(t).name === '' && !('draft' in t.api.uiRead()), '🗑 Discard draft: the sheet starts empty and nothing is kept');
   }
   {
+    // PIA-166 (the owner's choice: four short labels where a first look found only glyphs): step 2 with nobody yet reads "＋ Add
+    // travelers" (its name the same), then ＋ alone ("Add person"); step 3 reads "Dates optional" until a day is picked (Create works
+    // without one); an empty Map and Calendar each say what they will show, the empty Trips list stays as it was
+    const t = loadApp({ fetch: srv.fetch, ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
+    t.api.render();
+    const ghostOf = (r) => (/<div class="ghost"[\s\S]*?<\/div>/.exec(r.html) || [''])[0];
+    const gm = ghostOf(t.api.renderSelected('map', 'map')), gc = ghostOf(t.api.renderSelected('calendar', 'cal')), gt = ghostOf(t.api.renderIdeas());
+    act(t, 'new'); const d = D(t); d.name = 'Somewhere'; act(t, 'nnext');
+    const who0 = t.api.SHEETS.new(t.api.S.sheet);
+    act(t, 'nadd'); d.rows[0].name = 'Priya'; d.rows[0].ap = 'DEN';
+    const who1 = t.api.SHEETS.new(t.api.S.sheet);
+    act(t, 'nnext');
+    const when0 = t.api.SHEETS.new(t.api.S.sheet);
+    act(t, 'nday', { v: '2026-11-20' });
+    const when1 = t.api.SHEETS.new(t.api.S.sheet);
+    const LBL = '<button class="tool lbl" data-act="nadd" aria-label="Add travelers"><span aria-hidden="true">＋</span> Add travelers</button>';
+    check(d.step === 3 && who0.indexOf(LBL) >= 0 && who1.indexOf(LBL) < 0 && /<button class="tool" data-act="nadd" aria-label="Add person">＋<\/button>/.test(who1) &&
+      when0.indexOf('<p class="hintl">Dates optional</p>') >= 0 && when1.indexOf('Dates optional') < 0 && d.s === '2026-11-20' &&
+      gm.indexOf('<p class="hintl">Your trip on a map</p><button class="bigplus wide" data-act="new"') >= 0 && gc.indexOf('<p class="hintl">Your trip’s days</p><button class="bigplus wide" data-act="new"') >= 0 &&
+      !!gt && gt.indexOf('hintl') < 0 && /\.hintl \{ margin: 0; font-size: var\(--fs-2\); font-weight: 400; color: var\(--ink2\); text-align: center; \}/.test(html) &&
+      /\.tool\.lbl \{ display: inline-flex; gap: var\(--sp-2\); padding: 0 var\(--sp-4\); font-size: var\(--fs-3\); \}/.test(html),
+      'PIA-166 an empty step 2 reads "＋ Add travelers" (named the same) and, once someone is in, ＋ alone ("Add person"); step 3 reads "Dates optional" until a day is picked; an empty Map says "Your trip on a map" and an empty Calendar "Your trip’s days" above ＋ New trip, the empty Trips list no line; the hint in the secondary ink at the 15px token, the labelled ＋ at 17px',
+      { who0: who0.slice(who0.indexOf('nadd') - 60, who0.indexOf('nadd') + 140), when0: when0.slice(0, 400), gm, gc });
+  }
+  {
     // AC2 any 3-letter code; an unknown one is marked, never blocks; no place at all is fine; a rough window keeps 🌙N
     const t = loadApp({ fetch: srv.fetch, ls: seedLs({ pialax_ui_v1: { v1read: 1 }, pialax_me_profile_v1: { label: '🦊 Priya' } }) });
     t.api.render();
@@ -6192,8 +6217,8 @@ function norm(doc) {
       'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
     // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
     const L = a1.api.LEGEND;
-    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 165,
-      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #165 (PIA-165)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 166,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #166 (PIA-166)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ PIA-160 family polish ═══

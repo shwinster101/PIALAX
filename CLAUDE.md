@@ -119,7 +119,11 @@ board, key, Map lanes and trip title share one name column (80px, 88px at larger
 text). Board times stay inside their track; '+N' is a count, not a button. Every
 attention motion has a still reduced-motion cue. System fonts only (ui-rounded for
 numerals). Polish never adds a word: test-words compares each screen and popup it
-measures with `scripts/fixtures/census-159.json` (captured at #159).
+measures with `scripts/fixtures/census-159.json` (captured at #159). Words are added
+only by the owner's choice, with their census states re-baselined and nothing else:
+PIA-166 added "＋ Add travelers" (an empty step 2), "Dates optional" (step 3 before a
+day is picked), "Your trip on a map" and "Your trip’s days" (an empty Map and
+Calendar), 48 states re-baselined at #166.
 
 Preserve strict CSP, exact d3/topojson paths and their frozen SRI hashes, exact
 world-atlas@2.0.2 URL and runtime SHA-256, no external fonts/styles/images, and

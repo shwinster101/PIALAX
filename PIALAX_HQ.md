@@ -763,3 +763,22 @@ So at one Text Size step up (a 19px root) the tapped Drive now moves 46px at
 375–402px, where #160 moved it 0–13px, and 80px at 414–430px (#160 46px); where the
 open sheet already fills its cap, the tapped Drive did not move. Mom's device check
 (V2_ACCEPTANCE.md) asks her to note whether it moves away under her finger.
+
+### PIA-166 amendment: four labels on a first look (2026-11-08)
+
+**Words added by the owner's choice.** A first look on a phone found the setup clear
+but too terse in three places, so four labels appear where only glyphs stood, each
+only in its empty state:
+
+- step 2 (P-new-who) with nobody added: "＋ Add travelers" (named the same); once
+  someone is in, ＋ alone ("Add person"), as before;
+- step 3 (P-new-when) before a day is picked: "Dates optional" (an idea may start
+  undated; Create works without dates);
+- an empty Map: "Your trip on a map"; an empty Calendar: "Your trip’s days", above
+  ＋ New trip (the empty Trips list is unchanged).
+
+The screens keep 14 + 5 words and popups 20 (the busiest affected state is well
+under). The words census was re-baselined for exactly the 48 states these labels
+reach (6 Map, 6 Calendar, 3 step 2, 33 step 3); each gained only its label, and
+every other recorded state is byte-identical. No tap, storage format, link, Worker
+or model change.
