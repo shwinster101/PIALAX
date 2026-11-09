@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="167">
+<meta name="pialax-build" content="168">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -454,6 +454,9 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .dc .plan.en { right: 1px; border-right: 2.5px solid var(--ink); border-top-right-radius: 8px; border-bottom-right-radius: 8px; }
 .dc .plan.prop.st { border-left-style: dashed; } .dc .plan.prop.en { border-right-style: dashed; }
 .dc .plan.grey { border-color: var(--ink3); } /* the plan behind someone's own pick */
+/* PIA-168: on the Calendar screen the plan is a band under the day numerals and the presence caps (they end at 30px), so its top
+   edge never runs through a numeral and two weeks' bands never stack into a double line (seen on an iPhone in dark mode) */
+#screen .dc .plan { top: 31px; bottom: 0; }
 .dc .best { position: absolute; z-index: 2; inset: 4px 0; border-top: 2px dashed var(--ink); border-bottom: 2px dashed var(--ink); pointer-events: none; }
 .dc .best.st { left: 4px; border-left: 2px dashed var(--ink); } .dc .best.en { right: 4px; border-right: 2px dashed var(--ink); } /* PIA-138: the best window, dashed, over a pick */
 .dc .myline { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: var(--pc); }
@@ -4670,7 +4673,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 167;
+var BUILD = 168;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
