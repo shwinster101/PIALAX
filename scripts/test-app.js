@@ -1143,8 +1143,12 @@ function norm(doc) {
     t.api.closeSheet(); act(t, 'new');
     check(D(t).kept && D(t).rows.length === 0 && D(t).s === '' && D(t).scene === '🌆' && D(t).ym >= '2026-10', 'a kept draft that is off-shape is cleaned as it is read (nothing junk reaches the sheet)');
     check(/data-act="ndiscard" aria-label="Discard draft"/.test(t.api.SHEETS.new(t.api.S.sheet)), 'a kept draft can be thrown away (🗑 in its header)');
+    // (PIA-167: the first tap only arms 🗑 (🗑?, "Tap again", nothing thrown away); the second throws the draft away)
     act(t, 'ndiscard');
-    check(!D(t).kept && D(t).step === 1 && D(t).name === '' && !('draft' in t.api.uiRead()), '🗑 Discard draft: the sheet starts empty and nothing is kept');
+    const armedH = t.api.SHEETS.new(t.api.S.sheet), stillKept = D(t).kept && 'draft' in t.api.uiRead();
+    act(t, 'ndiscard');
+    check(stillKept && /<button class="ib arm" data-act="ndiscard" aria-label="Tap again to discard the draft" data-lbl="Tap again">🗑\?<\/button>/.test(armedH) &&
+      !D(t).kept && D(t).step === 1 && D(t).name === '' && !('draft' in t.api.uiRead()), '🗑 Discard draft: the first tap asks (🗑?, "Tap again") and keeps the draft; the second empties the sheet and nothing is kept');
   }
   {
     // PIA-166 (the owner's choice: four short labels where a first look found only glyphs): step 2 with nobody yet reads "＋ Add
@@ -1170,6 +1174,18 @@ function norm(doc) {
       /\.tool\.lbl \{ display: inline-flex; gap: var\(--sp-2\); padding: 0 var\(--sp-4\); font-size: var\(--fs-3\); \}/.test(html),
       'PIA-166 an empty step 2 reads "＋ Add travelers" (named the same) and, once someone is in, ＋ alone ("Add person"); step 3 reads "Dates optional" until a day is picked; an empty Map says "Your trip on a map" and an empty Calendar "Your trip’s days" above ＋ New trip, the empty Trips list no line; the hint in the secondary ink at the 15px token, the labelled ＋ at 17px',
       { who0: who0.slice(who0.indexOf('nadd') - 60, who0.indexOf('nadd') + 140), when0: when0.slice(0, 400), gm, gc });
+    // PIA-167: ▶ says "Next" on steps 1 and 2 (its name the same, the arrow hidden from a screen reader), and the two date modes
+    // say their names beside their glyphs: "🗓 Dates" and "⟦⟧ Flexible" (the worded toggle)
+    t.api.closeSheet(); t.api.uiSet({ draft: undefined });
+    act(t, 'new'); const d2 = D(t);
+    const what1 = t.api.SHEETS.new(t.api.S.sheet); d2.name = 'Somewhere'; act(t, 'nnext');
+    const who2 = t.api.SHEETS.new(t.api.S.sheet); act(t, 'nadd'); d2.rows[0].name = 'Priya'; d2.rows[0].ap = 'DEN'; act(t, 'nnext');
+    const when2 = t.api.SHEETS.new(t.api.S.sheet);
+    const NEXT = /data-act="nnext" data-why="1" aria-label="Next"[^>]*>Next <span aria-hidden="true">▶<\/span><\/button>/;
+    check(d2.step === 3 && NEXT.test(what1) && NEXT.test(who2) && !/>▶<\/button>/.test(what1 + who2) &&
+      when2.indexOf('<span class="tg2 wordy" role="group" aria-label="Dates or flexible"><button data-act="nmode" data-v="dates" aria-pressed="true" aria-label="Dates"><span aria-hidden="true">🗓</span> Dates</button><button data-act="nmode" data-v="window" aria-pressed="false" aria-label="Flexible"><span aria-hidden="true">⟦⟧</span> Flexible</button></span>') >= 0,
+      'PIA-167 ▶ reads "Next ▶" on steps 1 and 2 (named "Next"); step 3\'s modes read "🗓 Dates" and "⟦⟧ Flexible" (named the same) in the worded toggle', { when2: when2.slice(0, 500) });
+    t.api.closeSheet();
   }
   {
     // AC2 any 3-letter code; an unknown one is marked, never blocks; no place at all is fine; a rough window keeps 🌙N
@@ -1608,18 +1624,20 @@ function norm(doc) {
       'PIA-136 a screen reader hears the create step ("New trip, step 2 of 3"), whose 🙋 each toggle is ("Me: Priya Shah"), and the headcount\'s value ("Headcount 2"); long-press labels stay "Me" and "Headcount"', [n1, n2]);
   }
   {
-    // an unsent create closed by mistake (⌄, the scrim, Back) comes back with the toast's ↩; nothing is stored
+    // PIA-167: an unsent create closed (⌄, the scrim, Back) keeps what is in it with its step; ＋ reopens it there, its 🗑 in the header;
+    // no ↩ toast is needed. A fresh empty sheet closes keeping nothing, and a kept draft emptied again goes
     const t = loadApp({ ls: seedLs({ pialax_ui_v1: { v1read: 1 } }) });
     act(t, 'new'); const d = D(t); d.name = 'Tahoe'; d.dest = 'RNO'; act(t, 'nnext');
     t.api.closeSheet();
-    const undo = typeof t.api.S.undo === 'function', stored = 'draft' in t.api.uiRead();
-    act(t, 'undo');
-    const back = D(t);
-    t.api.closeSheet(); act(t, 'new');
-    const fresh = D(t);
-    t.api.closeSheet();
-    check(undo && !stored && back === d && back.step === 2 && back.name === 'Tahoe' && back.dest === 'RNO' && fresh !== d && fresh.name === '' && typeof t.api.S.undo !== 'function',
-      'PIA-136 closing an unsent create keeps nothing, but the toast\'s ↩ brings it back as it was (step 2, Tahoe, RNO); ＋ still starts empty; an empty sheet closes with no ↩', { undo, stored, step: back && back.step });
+    const undo = typeof t.api.S.undo === 'function', stored = t.api.uiRead().draft;
+    act(t, 'new');
+    const back = D(t), backH = t.api.SHEETS.new(t.api.S.sheet), b0 = { kept: back.kept, step: back.step, name: back.name, dest: back.dest };
+    back.name = ''; back.dest = ''; back.step = 1; t.api.closeSheet();
+    const gone = !('draft' in t.api.uiRead());
+    act(t, 'new'); const fresh = D(t); t.api.closeSheet();
+    check(!undo && stored && stored.step === 2 && stored.name === 'Tahoe' && stored.dest === 'RNO' && b0.kept && b0.step === 2 && b0.name === 'Tahoe' && b0.dest === 'RNO' &&
+      /data-act="ndiscard" aria-label="Discard draft"/.test(backH) && gone && !fresh.kept && fresh.name === '' && fresh.step === 1 && !('draft' in t.api.uiRead()),
+      'PIA-167 closing an unsent create keeps it with its step (pialax_ui_v1.draft: step 2, Tahoe, RNO) and no ↩ toast; ＋ reopens it at step 2 with 🗑 in its header; emptied again it goes, and a fresh empty sheet closes keeping nothing', { undo, stored, b0 });
   }
   {
     // a Create still in flight when its sheet is closed and another opened: the trip is listed, the other sheet stays
@@ -6217,8 +6235,8 @@ function norm(doc) {
       'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
     // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
     const L = a1.api.LEGEND;
-    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 166,
-      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #166 (PIA-166)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 167,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #167 (PIA-167)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ PIA-160 family polish ═══

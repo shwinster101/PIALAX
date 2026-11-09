@@ -8,7 +8,7 @@
 <meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="pialax-version" content="2.0.0">
-<meta name="pialax-build" content="166">
+<meta name="pialax-build" content="167">
 <meta name="color-scheme" content="light dark">
 <meta name="theme-color" content="#F4F5F7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0E1014" media="(prefers-color-scheme: dark)">
@@ -503,6 +503,7 @@ button.pill { cursor: pointer; text-align: center; color: inherit; }
 .tool { min-width: 48px; min-height: 48px; border-radius: var(--r-2); border: 1.5px solid var(--edge); display: inline-grid; place-items: center; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; padding: 0 6px; }
 .tool[aria-pressed="true"] { border-color: var(--ink); background: var(--sunk); }
 /* PIA-166: the ＋ that reads "Add travelers" on an empty step 2, and a quiet one-line hint ("Dates optional", an empty Map or Calendar) */
+.sh-hd .ib.arm { border-color: var(--bad); color: var(--bad); } /* PIA-167: a kept draft's 🗑? waiting for its second tap (still: no motion) */
 .tool.lbl { display: inline-flex; gap: var(--sp-2); padding: 0 var(--sp-4); font-size: var(--fs-3); }
 .hintl { margin: 0; font-size: var(--fs-2); font-weight: 400; color: var(--ink2); text-align: center; }
 .tool:disabled { opacity: .4; cursor: not-allowed; }
@@ -4669,7 +4670,7 @@ function endPrices(model, code, end, fares, now, today) {
 /* PIA-152: the build this file is, as one number: the newest ticket (scripts/messages/PIA-<n>.msg). ⚙ shows it as #<n> (free
    under the word rule), so a phone's build can be checked against main's; <meta name="pialax-build"> says the same. Every
    ticket bumps it: test-app fails while it is not the newest ticket's number, or the meta disagrees. */
-var BUILD = 166;
+var BUILD = 167;
 var APP_LIST_MAX = 50;                        // ids one list or devices link may import
 var POLL_MS = 60000;                          // background GET /idea while the page is visible
 var FOCUS_GAP_MS = 5000;                      // a focus refresh at most this often
@@ -7936,7 +7937,7 @@ function draftFromLegacy(x) {
 }
 /* what a failed Create keeps (pialax_ui_v1.draft), and reading it back (anything off-shape is dropped) */
 function draftOut(D) {
-  return { scene: D.scene, scenePicked: !!D.scenePicked, name: D.name, dest: D.dest, preset: D.preset, mode: D.mode, s: D.s, e: D.e, pin: D.pin, nights: D.nights, ym: D.ym,
+  return { step: D.step, scene: D.scene, scenePicked: !!D.scenePicked, name: D.name, dest: D.dest, preset: D.preset, mode: D.mode, s: D.s, e: D.e, pin: D.pin, nights: D.nights, ym: D.ym,
     caption: D.caption, captionCut: !!D.captionCut,
     rows: D.rows.map(function (r) { var o = { face: r.face, name: r.name, ap: r.ap, n: r.n, me: !!r.me, preset: r.preset || '' }; if (r.name0 != null) o.name0 = r.name0; return o; }) };
 }
@@ -7957,7 +7958,8 @@ function keptDraft() {
   var fw = firstWords(spaced(str(k.caption, TEXT_MAX.notes)), CAPTION_WORDS), cap = clip(fw.text, CAPTION_CHARS);
   D.caption = cap; D.captionCut = !!k.captionCut || fw.more || cap !== fw.text;
   if (/^\d{4}-\d{2}$/.test(String(k.ym)) && k.ym >= ym(RT.today)) D.ym = k.ym;
-  D.step = 3; D.kept = true;
+  // (PIA-167: a draft kept by closing the sheet comes back at the step it was closed on; one a failed Create kept, at Create)
+  D.step = k.step === 1 || k.step === 2 ? k.step : 3; D.kept = true;
   return D;
 }
 /* the sheet's state → createRequest's draft (members as named, 🙋 by index). Everything sent is on the sheet: the
@@ -8066,7 +8068,12 @@ function whoLimit(D) { return POPUP_MAX - (D.edit ? 1 : 0); }   // 'Save' is a w
 function stepDots(n) { return '<span class="stepdots" aria-hidden="true">' + [1, 2, 3].map(function (i) { return '<i class="' + (i === n ? 'on' : '') + '"></i>'; }).join('') + '</span>'; }
 var PREV_BTN = '<button class="ib" data-act="nprev" aria-label="Back" data-k="back">‹</button>';
 /* a kept draft (a failed Create) can be thrown away, to start again empty */
-function keptBtn(D) { return D.kept ? '<button class="ib" data-act="ndiscard" aria-label="Discard draft">🗑</button>' : ''; }
+/* PIA-167: 🗑 throws a kept draft away on a second tap (the first arms it: 🗑?, "Tap again"); one tap only arms */
+function keptBtn(D) {
+  if (!D.kept) return '';
+  var ak = armed(armKey('draft', '', 'discard'));
+  return '<button class="ib' + (ak ? ' arm' : '') + '" data-act="ndiscard" aria-label="' + (ak ? 'Tap again to discard the draft' : 'Discard draft') + '" data-lbl="' + (ak ? 'Tap again' : 'Discard draft') + '">' + (ak ? '🗑?' : '🗑') + '</button>';
+}
 /* a sheet's primary while its write is out (◷), after it failed (⚠ ↻, a retry), or as itself. why: a primary that is
    not ready yet still takes the tap, to show what it waits for (aria-disabled + data-why), instead of doing nothing */
 function primaryBtn(D, act, label, ok, why) {
@@ -8121,13 +8128,13 @@ function whatHTML(sh, D) {
     recent.map(function (c) { return '<button class="hchip" data-act="nrecent" data-v="' + c + '">' + c + '</button>'; }).join('') + '</div>';
   if (!D.edit && capChip(D)) h += '<div class="rowc">' + capChip(D) + '</div>';
   var ok = !!D.name.trim();
-  h += D.edit ? primaryBtn(D, 'esave1', 'Save', ok) : '<button class="btn pri wide stick' + (ok ? '' : ' dis') + '" data-act="nnext" data-why="1" aria-label="Next"' + (ok ? '' : ' aria-disabled="true"') + '>▶</button>';
+  h += D.edit ? primaryBtn(D, 'esave1', 'Save', ok) : '<button class="btn pri wide stick' + (ok ? '' : ' dis') + '" data-act="nnext" data-why="1" aria-label="Next"' + (ok ? '' : ' aria-disabled="true"') + '>Next <span aria-hidden="true">▶</span></button>';
   return h;
 }
 /* step 2 (P-new-who; P-edit 👥): who is invited and which one is me. Faces are unique in the trip (🙂 a face cycles to
    the next free one); a member who has answered is removed only on a second tap (the Worker drops their answers) */
 function whoHTML(sh, D) {
-  var h = D.edit ? shHd('<span aria-hidden="true">👥</span>') : shHd(PREV_BTN + stepDots(2));
+  var h = D.edit ? shHd('<span aria-hidden="true">👥</span>') : shHd(PREV_BTN + stepDots(2), { right: keptBtn(D) });
   if (!D.edit) {
     var chips = presetChips();
     if (chips.length) h += '<div class="rowc" role="group" aria-label="Groups">' + chips.map(function (c, i) {
@@ -8144,7 +8151,7 @@ function whoHTML(sh, D) {
   // the count is shown, and Save waits until someone is removed
   if (over) h += '<div class="counter" id="who-cap" role="img" aria-label="Too many people"><span class="w" data-k="warn">⚠</span> <span class="tn">' + D.rows.length + '/' + IDEA_MAX_MEMBERS + '</span></div>';
   var named = D.rows.some(function (r) { return r.name.trim(); }), hasMe = D.rows.some(function (r) { return r.me && r.name.trim(); });
-  h += D.edit ? primaryBtn(D, 'esave2', 'Save', named && !over, over) : '<button class="btn pri wide stick' + (hasMe ? '' : ' dis') + '" data-act="nnext" data-why="1" aria-label="Next"' + (hasMe ? '' : ' aria-disabled="true"') + '>▶</button>';
+  h += D.edit ? primaryBtn(D, 'esave2', 'Save', named && !over, over) : '<button class="btn pri wide stick' + (hasMe ? '' : ' dis') + '" data-act="nnext" data-why="1" aria-label="Next"' + (hasMe ? '' : ' aria-disabled="true"') + '>Next <span aria-hidden="true">▶</span></button>';
   return h;
 }
 /* step 3 (P-new-when): plan dates (with an optional 📌 event day) or a rough ⟦window⟧ with 🌙 nights, on the one
@@ -8158,8 +8165,9 @@ function whenState(D) {
 function whenHTML(sh, D) {
   var st = whenState(D), dated = st.dated;
   var h = shHd(PREV_BTN + stepDots(3), { right: keptBtn(D) });
-  h += '<div class="rowc"><span class="tg2" role="group" aria-label="Dates or window"><button data-act="nmode" data-v="dates" aria-pressed="' + dated + '" aria-label="Dates">🗓</button>' +
-    '<button data-act="nmode" data-v="window" aria-pressed="' + !dated + '" aria-label="Flex window">⟦⟧</button></span></div>';
+  // (PIA-167: each mode says its name beside its glyph, "🗓 Dates" and "⟦⟧ Flexible")
+  h += '<div class="rowc"><span class="tg2 wordy" role="group" aria-label="Dates or flexible"><button data-act="nmode" data-v="dates" aria-pressed="' + dated + '" aria-label="Dates"><span aria-hidden="true">🗓</span> Dates</button>' +
+    '<button data-act="nmode" data-v="window" aria-pressed="' + !dated + '" aria-label="Flexible"><span aria-hidden="true">⟦⟧</span> Flexible</button></span></div>';
   // (PIA-166: while no date is picked, "Dates optional": an idea may start undated, and Create works without them)
   if (!D.s) h += '<p class="hintl">Dates optional</p>';
   var hols = soonHolidays();
@@ -10021,9 +10029,15 @@ function openCreate(o) {
   var d = o.draft || (o.legacy ? draftFromLegacy(o.legacy) : (keptDraft() || newDraft(o.start)));
   openSheet('new', {}, { local: { d: d }, focus: d.step === 1 ? 'new-title' : null });
 }
-/* a create sheet closed before Create, with something in it (⌄, the scrim, Back): nothing is stored, but the toast's ↩
-   (5s) brings it back as it was. A failed Create's draft is already kept (＋ reopens it), so it needs none. */
-function draftWorth(D) { return !!D && !D.edit && !D.busy && !D.kept && !D.failed && !!(spaced(D.name) || D.dest || D.s || D.step > 1 || spaced(D.caption)); }
+/* PIA-167: a create sheet closed before Create (⌄, the scrim, Back) keeps what is in it, with its step (pialax_ui_v1.draft, the
+   place a failed Create's draft already had): ＋ reopens it where it was and 🗑 (a second tap) throws it away. A sheet emptied
+   again keeps nothing; a Create still on its way decides for itself (kept on a failure, gone once the trip is made) */
+function draftHas(D) { return !!(spaced(D.name) || D.dest || D.s || D.step > 1 || spaced(D.caption)); }
+function keepCreate(D) {
+  if (!D || D.edit || D.busy) return;
+  if (draftHas(D)) uiSet({ draft: draftOut(D) });
+  else if (D.kept) uiSet({ draft: undefined });   // (a kept draft emptied again goes; a fresh empty sheet touches nothing)
+}
 /* a join request on the phone that organizes the trip: the people editor opens with them added, once the trip is read
    (the trip view comes forward for it, whatever tab the link named) */
 function joinAnswered(id) {
@@ -10213,12 +10227,11 @@ function closeSheet(fromPop) {
     keepDraft(S.sheet); hs.focus = null; hs.focusBack = false; S.sheet = hs; render(true); renderSheet(true);
     timesHold(hs, fromPop); return;
   }
-  var lost = null;
   var dated = false, picked = null;
   for (var s = S.sheet; s; s = s.back) {
     if (s.type === 'person') saveTimes(s);   // PIA-139: booked times typed in a person's sheet go as it closes
     if (s.type === 'house') dishSave(s, true);   // PIA-158: so do P-house's dishes picked and not saved (nothing when unchanged)
-    keepDraft(s); if (s.type === 'new' && draftWorth(s.local.d)) lost = s.local.d;
+    keepDraft(s); if (s.type === 'new') keepCreate(s.local.d);
     if (s.type === 'dates') { dated = true; if (!picked && datesUnsaved(s)) picked = s; }   // PIA-138: a pick not saved
   }
   S.sheet = null;
@@ -10235,9 +10248,9 @@ function closeSheet(fromPop) {
   if (S.histPushed) { S.ignorePop++; S.histPushed = false; try { history.back(); } catch (e) { S.ignorePop--; } }
   render(true);
   refocus();
-  if (lost) toast('🗑', function () { if (!S.sheet) openCreate({ draft: lost }); return null; });   // PIA-136: an unsent create comes back with ↩
   // PIA-138: dates picked and not saved are not dropped without a word: 🗑 says so, and ↩ opens the picker on them again
-  else if (picked) toast('🗑', function () { if (!S.sheet && modelOf(picked.p.id)) { picked.local.armed = null; picked.local.failed = null; openSheet('dates', picked.p, { local: picked.local }); } return null; });
+  // (PIA-167: an unsent create needs no ↩ any more: closing keeps it, and ＋ reopens it)
+  if (picked) toast('🗑', function () { if (!S.sheet && modelOf(picked.p.id)) { picked.local.armed = null; picked.local.failed = null; openSheet('dates', picked.p, { local: picked.local }); } return null; });
 }
 /* a P-dates sheet holding a pick that Save would send (nothing out, nothing saved since) */
 function datesUnsaved(sh) {
@@ -10617,7 +10630,11 @@ var ACTS = {
       return r;
     });
   },
-  ndiscard: function () { uiSet({ draft: undefined }); var sh = S.sheet; sh.local.d = newDraft(); sh.focus = 'new-title'; renderSheet(true); focusId('new-title'); },
+  ndiscard: function () {
+    var k = armKey('draft', '', 'discard');
+    if (!armed(k)) { arm(k); return; }   // (PIA-167: the first tap arms: 🗑?, "Tap again")
+    disarm(); uiSet({ draft: undefined }); var sh = S.sheet; sh.local.d = newDraft(); sh.focus = 'new-title'; renderSheet(true); focusId('new-title');
+  },
   /* 📝 on the create sheet: its caption, shown and editable (the v1 link's note, a kept draft's) */
   nnote: function () { if (S.sheet && S.sheet.type === 'new') openSheet('note', { draft: true }, { back: true, focus: 'note-text' }); },
   nnoteclr: function () { var L = S.sheet.local; L.text = ''; if (L.cuts) L.cuts['note-text'] = false; renderSheet(false); focusId('note-text'); },
