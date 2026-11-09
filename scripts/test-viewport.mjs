@@ -55,7 +55,9 @@ const ok = (m) => { console.log('  OK  ' + m); passCount++; };
 const bad = (m) => { console.log('  XX  ' + m); failCount++; };
 // PIA-165: independent passes run at once (inPasses, at most PASSES together): a line a pass prints is kept in its own list and
 // printed in pass order once that pass and every one before it are done, so the log reads as the passes did one by one
-const PASSES = 3, PASS = new AsyncLocalStorage(), rawLog = console.log.bind(console);
+// (PIA-167 fix pass: two at a time, not three: viewport ends well before test-words either way, and the lighter load keeps every lane's
+// waits honest; at three a pass clicked a sheet's 🎫 before the sheet was drawn. Each click-by-eval helper also waits for its target)
+const PASSES = 2, PASS = new AsyncLocalStorage(), rawLog = console.log.bind(console);
 console.log = (...a) => { const s = PASS.getStore(); if (s) s.push(format(...a)); else rawLog(...a); };
 async function inPasses(tasks, limit = PASSES) {
   const outs = tasks.map(() => []), done = tasks.map(() => false);
@@ -509,7 +511,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
     if (lock) { const r = lock.getBoundingClientRect(), cy = r.top + r.height / 2; out.lock = lock === save ? r.top >= R.top - 0.5 && r.bottom <= Math.min(innerHeight, R.bottom) + 0.5 : cy > (hr ? hr.bottom : R.top) && cy < (sv ? sv.top - 6 : R.bottom); }
     return out;
   };
-  // (PIA-165: the six passes, three viewports in light and dark, share nothing: three at a time; one by one they took 265s)
+  // (PIA-165: the six passes, three viewports in light and dark, share nothing: PASSES at a time; one by one they took 265s)
   await inPasses(VIEWPORTS.flatMap((vp) => ['light', 'dark'].map((scheme) => async () => {
       const label = `app.html @ ${vp.name} ${scheme}`;
       const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, colorScheme: scheme, timezoneId: 'America/Los_Angeles' });
@@ -568,7 +570,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         const famN = await page.evaluate(() => [...document.querySelectorAll('#screen .board .rowh .fn')].filter((e) => e.getClientRects().length).map((e) => ({ t: e.textContent, fs: Math.round(parseFloat(getComputedStyle(e).fontSize) * 10) / 10, cut: e.scrollWidth > e.clientWidth + 1 })));
         if (!(famN.length >= 2 && famN.every((n) => n.fs >= 13) && famN.some((n) => /^Mom ?& ?Dad$/.test(n.t) && !n.cut))) fails.push('PIA-160 the Family board\'s names should be ≥13px, Mom & Dad whole among them: ' + JSON.stringify(famN));
         // PIA-142: the board's other pages (≤4 trip columns each), 🗄 with the past trip as a column, and the sheet a cell opens
-        const tapF = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        const tapF = async (sel) => { await page.waitForSelector(sel, { state: 'attached', timeout: 30000 }).catch(() => {}); await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
         const famCols = async (s) => { const n = await page.$$eval('#screen #fam-board .hd', (es) => es.length); if (n < 1 || n > 4) fails.push(s + ': ' + n + ' trip columns (1–4 a page)'); };
         await famCols('family');
         // PIA-142 fix pass: every mark chip (⚠ 🎫 🏠 📞 📝 on a cell or a face) is light with dark ink in both schemes, so a dark 📞
@@ -601,7 +603,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
           await page.click('#screen [data-act="back"]'); await page.waitForTimeout(100);
         }
         // PIA-137: the trip view's sheets (tapped as the app sees a tap: the sticky primary may sit over a board row)
-        const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        const tapJs = async (sel) => { await page.waitForSelector(sel, { state: 'attached', timeout: 30000 }).catch(() => {}); await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
         // PIA-156: the page as a 678px-tall phone shows it before any scrolling (then back to this viewport)
         const shortView = async (w, h, also) => {
           await page.setViewportSize({ width: w || vp.width, height: h || 678 }); await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(150);
@@ -1385,7 +1387,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href), { waitUntil: 'load' });
         await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, seed);
         await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
-        const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        const tapJs = async (sel) => { await page.waitForSelector(sel, { state: 'attached', timeout: 30000 }).catch(() => {}); await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
         const measure = async (s) => {
           states++;
           const r = await page.evaluate(LAYOUT), o = await page.evaluate(OCCLUSION);
@@ -1455,7 +1457,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
               localStorage.setItem('pialax_idea_me_v1', JSON.stringify(s.pialax_idea_me_v1)); localStorage.setItem('pialax_ui_v1', JSON.stringify({ v1read: 1 }));
             }, ph);
             await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
-            const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(140); };
+            const tapJs = async (sel) => { await page.waitForSelector(sel, { state: 'attached', timeout: 30000 }).catch(() => {}); await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(140); };
             const popup = async () => page.getAttribute('#sheet', 'data-popup').catch(() => null);
             const measure = async (s) => {
               states++;
@@ -1562,7 +1564,7 @@ console.log('▶ test-viewport: mobile layout regression suite');
         await page.goto((process.env.PIALAX_TEST_APP_URL || pathToFileURL(path.join(ROOT, 'app.html')).href), { waitUntil: 'load' });
         await page.evaluate((s) => { Object.keys(s).forEach((k) => localStorage.setItem(k, s[k])); }, Object.assign({}, seed, { pialax_idea_me_v1: NAMES_ME }));
         await page.reload({ waitUntil: 'load' }); await page.waitForTimeout(300);
-        const tapJs = async (sel) => { await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
+        const tapJs = async (sel) => { await page.waitForSelector(sel, { state: 'attached', timeout: 30000 }).catch(() => {}); await page.$eval(sel, (e) => e.click()); await page.waitForTimeout(110); };
         const check = async (s) => {
           const r = await page.evaluate(NAMECHK), L = await page.evaluate(LAYOUT);
           if (!r) { fails.push(s + ': P-person did not open'); return; }

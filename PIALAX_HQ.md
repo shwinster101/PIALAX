@@ -782,3 +782,20 @@ under). The words census was re-baselined for exactly the 48 states these labels
 reach (6 Map, 6 Calendar, 3 step 2, 33 step 3); each gained only its label, and
 every other recorded state is byte-identical. No tap, storage format, link, Worker
 or model change.
+
+### PIA-167 amendment: a safe way out of setup, and its controls named (2026-11-09)
+
+**Nothing typed is lost to a close.** A second look found ⌄ read as "collapse" but
+threw the form away (only a few-second ↩ toast brought it back). Now a create sheet
+closed before Create (⌄, the scrim, Back) keeps what is in it, with its step, in
+`pialax_ui_v1.draft` (where a failed Create's draft already lived): ＋ reopens it
+where it was, 🗑 in its header throws it away on a second tap (🗑?, "Tap again"),
+and a draft emptied again goes. The ↩ toast for an unsent create is retired.
+
+**Words added by the owner's choice.** ▶ reads "Next ▶" on steps 1 and 2, and step
+3's modes read "🗓 Dates" and "⟦⟧ Flexible". The busiest states stay inside their
+caps (step 1 17, step 2 19, step 3 8 of 20). The census was re-baselined for exactly
+the 240 states these labels reach (each gained only its label) and the dates
+step's long-press label, renamed "Flex window" → "Flexible"; every other recorded
+state is byte-identical. No storage format change (one more field in the draft a
+failed Create already kept), link, Worker or model change.

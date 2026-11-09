@@ -69,7 +69,9 @@ flight numbers or confirmation codes. A marker or time write over 280 is
 refused, never clipped. Pets (PIA-158) come from the family preset (`PETS`,
 `familyKey`): only 🐈's legs are written, in the owner's answer; Kona and the
 house scene are derived, never stored. `pialax_ui_v1` also keeps this phone's
-P-pet ticks (`pet`) and its 🎊 flag (`party`), for the trips in its list.
+P-pet ticks (`pet`) and its 🎊 flag (`party`), for the trips in its list, and a
+create sheet's draft (`draft`): one closed before Create (PIA-167, with its step) or
+one a failed Create kept; ＋ reopens it, and 🗑 throws it away on a second tap.
 
 Shared storage keys retain v1 formats: `pialax_idea_keys_v1`,
 `pialax_idea_me_v1`, `pialax_idea_seen_v1`, `pialax_proxy_token`,
@@ -123,7 +125,8 @@ measures with `scripts/fixtures/census-159.json` (captured at #159). Words are a
 only by the owner's choice, with their census states re-baselined and nothing else:
 PIA-166 added "＋ Add travelers" (an empty step 2), "Dates optional" (step 3 before a
 day is picked), "Your trip on a map" and "Your trip’s days" (an empty Map and
-Calendar), 48 states re-baselined at #166.
+Calendar), 48 states re-baselined at #166; PIA-167 added "Next" on ▶ (steps 1 and 2)
+and "Dates" / "Flexible" on step 3's modes, 241 states re-baselined at #167.
 
 Preserve strict CSP, exact d3/topojson paths and their frozen SRI hashes, exact
 world-atlas@2.0.2 URL and runtime SHA-256, no external fonts/styles/images, and
@@ -138,7 +141,7 @@ Google Flights links, app and all six browser suites (cutover, migration,
 Calendar, words/taps, viewport, map). Missing or skipped required suites fail.
 PIA-165: the job flows run in three groups at once (words; viewport then map;
 cutover, migration then Calendar), words in four lanes (serp alone replaces
-`fetch`) and viewport three passes at a time, so the gate takes about 7 minutes
+`fetch`) and viewport two passes at a time (PIA-167), so the gate takes about 7 minutes
 on 4 cores (26 before). Under load a check reads an outcome, never a fixed sleep.
 Shellcheck remains advisory unless `STRICT=1`.
 
