@@ -1185,6 +1185,10 @@ function norm(doc) {
     check(d2.step === 3 && NEXT.test(what1) && NEXT.test(who2) && !/>▶<\/button>/.test(what1 + who2) &&
       when2.indexOf('<span class="tg2 wordy" role="group" aria-label="Dates or flexible"><button data-act="nmode" data-v="dates" aria-pressed="true" aria-label="Dates"><span aria-hidden="true">🗓</span> Dates</button><button data-act="nmode" data-v="window" aria-pressed="false" aria-label="Flexible"><span aria-hidden="true">⟦⟧</span> Flexible</button></span>') >= 0,
       'PIA-167 ▶ reads "Next ▶" on steps 1 and 2 (named "Next"); step 3\'s modes read "🗓 Dates" and "⟦⟧ Flexible" (named the same) in the worded toggle', { when2: when2.slice(0, 500) });
+    // PIA-168: on the Calendar screen the plan is a band under the numerals and the presence caps (31px down, to the cell's foot), so it
+    // never crosses a numeral or stacks with the next week's; the pickers in a sheet keep their outline (seen on an iPhone in dark mode)
+    check(/\n#screen \.dc \.plan \{ top: 31px; bottom: 0; \}\n/.test(html) && /\.dc \.caps \{ position: absolute; left: 0; right: 0; top: 24px; \}/.test(html) && /\.dc \.cp \{[^}]*height: 6px;/.test(html),
+      'PIA-168 the Calendar\'s plan band starts at 31px, under the numerals and the 6px presence caps at 24px, and runs to the cell\'s foot; a sheet\'s pickers keep the outline');
     t.api.closeSheet();
   }
   {
@@ -6235,8 +6239,8 @@ function norm(doc) {
       'PIA-159 New York has no rides: Ashwin\'s pills read LaGuardia (pressed, as planned), JFK, Newark; "1:30p" keeps "1:30" in the field with PM pressed, and the first close saves "🛬13:30" with no hold, "🛬 LGA 1:30 PM ✓"', { note: noteOf(NY, 'ashwin-p8'), toast: toastTxt(n6) });
     // (7) LEGEND: no ☀ / 🌃 halves left; the stop number and the drive's ⏰ keep one meaning each
     const L = a1.api.LEGEND;
-    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 167,
-      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #167 (PIA-167)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
+    check(!Object.keys(L).some((k) => /☀|🌃/.test(L[k][0])) && !('tday' in L) && !('tnight' in L) && L.stopn && L.stopn[0] === '①' && L.lvhome[0] === '⏰' && a1.api.BUILD === 168,
+      'PIA-159 LEGEND has no ☀ / 🌃 (the [AM | PM] segment replaced the halves), names ① (a joined run\'s stops) and keeps ⏰ Leave home; ⚙ #168 (PIA-168)', Object.keys(L).filter((k) => /☀|🌃|①/.test(L[k][0])));
   }
 
   // ═══ PIA-160 family polish ═══
