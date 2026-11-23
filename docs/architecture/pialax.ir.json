@@ -1,0 +1,137 @@
+{
+ "title": "PIALAX — Architecture (v2.0.0 / PIA-147)",
+ "direction": "TB",
+ "nodes": [
+  {
+   "id": "fam",
+   "label": "Family member (guest link)",
+   "type": "user",
+   "color": "gray"
+  },
+  {
+   "id": "org",
+   "label": "Organizer (edit keys)",
+   "type": "user",
+   "color": "gray"
+  },
+  {
+   "id": "short",
+   "label": "pialax.pages.dev (short/)\nforwards ?query#hash · /i/<id>",
+   "type": "component",
+   "color": "purple"
+  },
+  {
+   "id": "redir",
+   "label": "[GitHub Pages]\nindex / pialax / pialax-mobile.html\nfixed redirects",
+   "type": "component",
+   "color": "purple"
+  },
+  {
+   "id": "app",
+   "label": "[GitHub Pages]\napp.html (vanilla IIFE)\nTrips · Map · Calendar\ninlined trip-model.js",
+   "type": "component",
+   "color": "blue"
+  },
+  {
+   "id": "ls",
+   "label": "Per-phone localStorage\nidea keys · me · seen · token · pialax_ui_v1",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "worker",
+   "label": "[Cloudflare Worker backend]\nCloudflare Worker (worker.js)\n/idea* · fares · authGate · spendGate",
+   "type": "component",
+   "color": "green"
+  },
+  {
+   "id": "room",
+   "label": "[Cloudflare Worker backend]\nIdeaRoom (Durable Object)\nserializes /idea writes",
+   "type": "queue",
+   "color": "yellow"
+  },
+  {
+   "id": "meter",
+   "label": "[Cloudflare Worker backend]\nSpendMeter (DO)\nexact search caps",
+   "type": "component",
+   "color": "red"
+  },
+  {
+   "id": "kv",
+   "label": "[Cloudflare Worker backend]\nKV\n/idea records · fare cache",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "serp",
+   "label": "SerpAPI\n(Google Flights fares)",
+   "type": "cloud",
+   "color": "gray"
+  },
+  {
+   "id": "gf",
+   "label": "Google Flights (booking)\nFlighty (tracking)",
+   "type": "cloud",
+   "color": "gray"
+  },
+  {
+   "id": "cdn",
+   "label": "d3 / topojson / world-atlas\n(SRI-pinned)",
+   "type": "cloud",
+   "color": "gray"
+  }
+ ],
+ "edges": [
+  {
+   "from": "fam",
+   "to": "short"
+  },
+  {
+   "from": "short",
+   "to": "app"
+  },
+  {
+   "from": "org",
+   "to": "app"
+  },
+  {
+   "from": "redir",
+   "to": "app"
+  },
+  {
+   "from": "app",
+   "to": "ls"
+  },
+  {
+   "from": "app",
+   "to": "cdn"
+  },
+  {
+   "from": "app",
+   "to": "worker",
+   "label": "GET/PUT /idea, fare search"
+  },
+  {
+   "from": "worker",
+   "to": "room"
+  },
+  {
+   "from": "room",
+   "to": "kv"
+  },
+  {
+   "from": "worker",
+   "to": "meter"
+  },
+  {
+   "from": "worker",
+   "to": "serp",
+   "label": "≤4/tap ≤8/visit"
+  },
+  {
+   "from": "app",
+   "to": "gf",
+   "label": "deep links"
+  }
+ ]
+}
