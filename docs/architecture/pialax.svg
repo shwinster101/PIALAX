@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1490 1248" width="1490" height="1248">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1e1e1e" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1490" height="1248" fill="#ffffff" />
+  <rect x="265" y="40" width="300" height="84" rx="8" ry="8" fill="#dee2e6" stroke="#495057" stroke-width="2" opacity="1" />
+  <rect x="635" y="228" width="250" height="84" rx="8" ry="8" fill="#dee2e6" stroke="#495057" stroke-width="2" opacity="1" />
+  <rect x="255" y="216" width="320" height="108" rx="8" ry="8" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="1" />
+  <rect x="945" y="204" width="320" height="132" rx="8" ry="8" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="1" />
+  <rect x="625" y="416" width="270" height="156" rx="8" ry="8" fill="#a5d8ff" stroke="#1971c2" stroke-width="2" opacity="1" />
+  <rect x="40" y="664" width="320" height="108" rx="8" ry="8" fill="#ffd8a8" stroke="#e8590c" stroke-width="2" opacity="1" />
+  <rect x="420" y="652" width="320" height="132" rx="8" ry="8" fill="#b2f2bb" stroke="#2f9e44" stroke-width="2" opacity="1" />
+  <rect x="55" y="864" width="310" height="132" rx="8" ry="8" fill="#ffec99" stroke="#f08c00" stroke-width="2" opacity="1" />
+  <rect x="425" y="864" width="310" height="132" rx="8" ry="8" fill="#ffc9c9" stroke="#e03131" stroke-width="2" opacity="1" />
+  <rect x="55" y="1076" width="310" height="132" rx="8" ry="8" fill="#ffd8a8" stroke="#e8590c" stroke-width="2" opacity="1" />
+  <rect x="795" y="876" width="260" height="108" rx="8" ry="8" fill="#dee2e6" stroke="#495057" stroke-width="2" opacity="1" />
+  <rect x="800" y="664" width="280" height="108" rx="8" ry="8" fill="#dee2e6" stroke="#495057" stroke-width="2" opacity="1" />
+  <rect x="1140" y="664" width="310" height="108" rx="8" ry="8" fill="#dee2e6" stroke="#495057" stroke-width="2" opacity="1" />
+  <polyline points="415,124 415,216" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="415,324 760,416" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="760,312 760,416" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="1105,336 760,416" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="760,572 200,664" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="760,572 1295,664" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="760,572 580,652" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="580,784 210,864" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="210,996 210,1076" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="580,784 580,864" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="580,784 925,876" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="760,572 940,664" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="415" y="88" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#495057" text-anchor="middle">
+    <tspan x="415" dy="0">Family member (guest link)</tspan>
+  </text>
+  <text x="760" y="276" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#495057" text-anchor="middle">
+    <tspan x="760" dy="0">Organizer (edit keys)</tspan>
+  </text>
+  <text x="415" y="266" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#7048e8" text-anchor="middle">
+    <tspan x="415" dy="0">pialax.pages.dev (short/)</tspan>
+    <tspan x="415" dy="20">forwards ?query#hash · /i/&lt;id&gt;</tspan>
+  </text>
+  <text x="1105" y="256" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#7048e8" text-anchor="middle">
+    <tspan x="1105" dy="0">[GitHub Pages]</tspan>
+    <tspan x="1105" dy="20">index / pialax / pialax-mobile.html</tspan>
+    <tspan x="1105" dy="20">fixed redirects</tspan>
+  </text>
+  <text x="760" y="470" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#1971c2" text-anchor="middle">
+    <tspan x="760" dy="0">[GitHub Pages]</tspan>
+    <tspan x="760" dy="20">app.html (vanilla IIFE)</tspan>
+    <tspan x="760" dy="20">Trips · Map · Calendar</tspan>
+    <tspan x="760" dy="20">inlined trip-model.js</tspan>
+  </text>
+  <text x="200" y="714" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#e8590c" text-anchor="middle">
+    <tspan x="200" dy="0">Per-phone localStorage</tspan>
+    <tspan x="200" dy="20">idea keys · me · seen · token · pialax_ui_v1</tspan>
+  </text>
+  <text x="580" y="704" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#2f9e44" text-anchor="middle">
+    <tspan x="580" dy="0">[Cloudflare Worker backend]</tspan>
+    <tspan x="580" dy="20">Cloudflare Worker (worker.js)</tspan>
+    <tspan x="580" dy="20">/idea* · fares · authGate · spendGate</tspan>
+  </text>
+  <text x="210" y="916" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#f08c00" text-anchor="middle">
+    <tspan x="210" dy="0">[Cloudflare Worker backend]</tspan>
+    <tspan x="210" dy="20">IdeaRoom (Durable Object)</tspan>
+    <tspan x="210" dy="20">serializes /idea writes</tspan>
+  </text>
+  <text x="580" y="916" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#e03131" text-anchor="middle">
+    <tspan x="580" dy="0">[Cloudflare Worker backend]</tspan>
+    <tspan x="580" dy="20">SpendMeter (DO)</tspan>
+    <tspan x="580" dy="20">exact search caps</tspan>
+  </text>
+  <text x="210" y="1128" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#e8590c" text-anchor="middle">
+    <tspan x="210" dy="0">[Cloudflare Worker backend]</tspan>
+    <tspan x="210" dy="20">KV</tspan>
+    <tspan x="210" dy="20">/idea records · fare cache</tspan>
+  </text>
+  <text x="925" y="926" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#495057" text-anchor="middle">
+    <tspan x="925" dy="0">SerpAPI</tspan>
+    <tspan x="925" dy="20">(Google Flights fares)</tspan>
+  </text>
+  <text x="940" y="714" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#495057" text-anchor="middle">
+    <tspan x="940" dy="0">Google Flights (booking)</tspan>
+    <tspan x="940" dy="20">Flighty (tracking)</tspan>
+  </text>
+  <text x="1295" y="714" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#495057" text-anchor="middle">
+    <tspan x="1295" dy="0">d3 / topojson / world-atlas</tspan>
+    <tspan x="1295" dy="20">(SRI-pinned)</tspan>
+  </text>
+  <text x="670" y="617.25" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="14" fill="#1e1e1e" text-anchor="middle">
+    <tspan x="670" dy="0">GET/PUT /idea, fare search</tspan>
+  </text>
+  <text x="752.5" y="835.25" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="14" fill="#1e1e1e" text-anchor="middle">
+    <tspan x="752.5" dy="0">≤4/tap ≤8/visit</tspan>
+  </text>
+  <text x="850" y="623.25" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="14" fill="#1e1e1e" text-anchor="middle">
+    <tspan x="850" dy="0">deep links</tspan>
+  </text>
+</svg>
