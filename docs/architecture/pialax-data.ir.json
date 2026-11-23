@@ -1,0 +1,117 @@
+{
+ "title": "PIALAX — Data model",
+ "direction": "TB",
+ "nodes": [
+  {
+   "id": "kv",
+   "label": "IDEAS (Cloudflare KV)",
+   "type": "database",
+   "color": "purple"
+  },
+  {
+   "id": "idea",
+   "label": "idea:<id> (shared trip, TTL)\nv · id · created_at\nupdated_at",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "ideab",
+   "label": "idea {\n title · destination{city,\nairport}\n dates{departure, return,\nsearchStart/End}\n recommendation · notes\nmembers[] }",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "members",
+   "label": "members[]\ncode · label · airport\nheadcount",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "resp",
+   "label": "responses{ <airport>: … }\nanswers + note markers\n(call · lands · leaves · ride\nclaim · bus · car · pet · pack)",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "dec",
+   "label": "decision\nstage · chosen · chosen_at\nbooked_at\nestimate_total\nactual_total · delta_pct",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "log",
+   "label": "log[]\nat · event · by",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "fare",
+   "label": "fare:<sha256 of canonical\nsearch>\nresult + original fetch time",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "spend",
+   "label": "SpendMeter storage\nspend:<kind> = { day, used }",
+   "type": "database",
+   "color": "red"
+  },
+  {
+   "id": "room",
+   "label": "IdeaRoom DO\nserializes writes to\nidea:<id>",
+   "type": "queue",
+   "color": "yellow"
+  },
+  {
+   "id": "ls",
+   "label": "Phone localStorage\npialax_idea_keys_v1 (edit\nkeys) · pialax_idea_me_v1\npialax_idea_seen_v1\npialax_proxy_token/url\npialax_ui_v1\npialax_transfer_v1\nprice/quota",
+   "type": "database",
+   "color": "blue"
+  }
+ ],
+ "edges": [
+  {
+   "from": "kv",
+   "to": "idea"
+  },
+  {
+   "from": "kv",
+   "to": "fare"
+  },
+  {
+   "from": "idea",
+   "to": "ideab"
+  },
+  {
+   "from": "ideab",
+   "to": "members"
+  },
+  {
+   "from": "idea",
+   "to": "resp"
+  },
+  {
+   "from": "idea",
+   "to": "dec"
+  },
+  {
+   "from": "idea",
+   "to": "log"
+  },
+  {
+   "from": "room",
+   "to": "idea",
+   "label": "writes"
+  },
+  {
+   "from": "ls",
+   "to": "idea",
+   "label": "knows ids + edit keys"
+  },
+  {
+   "from": "room",
+   "to": "spend",
+   "label": "sibling DO"
+  }
+ ]
+}

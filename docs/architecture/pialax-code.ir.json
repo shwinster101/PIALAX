@@ -1,0 +1,131 @@
+{
+ "title": "PIALAX — Code map",
+ "direction": "TB",
+ "nodes": [
+  {
+   "id": "app",
+   "label": "app.html (~12k lines,\nvanilla IIFE)\nTrips · Map · Calendar\nsheets · tokens",
+   "type": "component",
+   "color": "blue"
+  },
+  {
+   "id": "model",
+   "label": "scripts/trip-model.js\npure derivation of /idea\n(inlined byte-identically in\napp.html)",
+   "type": "component",
+   "color": "blue"
+  },
+  {
+   "id": "redir",
+   "label": "index.html · pialax.html\npialax-mobile.html\nfixed redirects to app.html",
+   "type": "component",
+   "color": "blue"
+  },
+  {
+   "id": "short",
+   "label": "short/\nindex.html · _headers\n_redirects\n(pialax.pages.dev)",
+   "type": "component",
+   "color": "purple"
+  },
+  {
+   "id": "worker",
+   "label": "worker.js (~1.3k lines)\n/idea\n/idea/respond|booked|update\n/search fares · /alerts\nauthGate · spendGate",
+   "type": "component",
+   "color": "green"
+  },
+  {
+   "id": "do",
+   "label": "IdeaRoom · SpendMeter\n(Durable Object classes in\nworker.js)",
+   "type": "component",
+   "color": "yellow"
+  },
+  {
+   "id": "wr",
+   "label": "wrangler.toml\nIDEAS KV · IDEA_ROOM\nSPEND_METER",
+   "type": "component",
+   "color": "purple"
+  },
+  {
+   "id": "pre",
+   "label": "scripts/preflight.sh\n(mandatory gate)\nSRI/map hashes · secrets\nsyntax · all suites",
+   "type": "component",
+   "color": "green"
+  },
+  {
+   "id": "unit",
+   "label": "Unit tests\ntest-app · test-trip-model\ntest-worker\ntest-trust · test-gflinks",
+   "type": "component",
+   "color": "green"
+  },
+  {
+   "id": "browser",
+   "label": "Browser suites (6)\ncutover · migration\ncalendar\nwords (test-words)\nviewport · map",
+   "type": "component",
+   "color": "green"
+  },
+  {
+   "id": "fx",
+   "label": "scripts/fixtures/\nidea-*.json\nserp-flights.json\ncensus-159.json · v1\ncontracts",
+   "type": "database",
+   "color": "orange"
+  },
+  {
+   "id": "ship",
+   "label": "ship.sh · verify-live.sh\nverify-sri.sh\nmessages/<ticket>.msg +\n.files",
+   "type": "component",
+   "color": "yellow"
+  }
+ ],
+ "edges": [
+  {
+   "from": "redir",
+   "to": "app"
+  },
+  {
+   "from": "short",
+   "to": "app"
+  },
+  {
+   "from": "app",
+   "to": "model",
+   "label": "inlines"
+  },
+  {
+   "from": "app",
+   "to": "worker",
+   "label": "fetch"
+  },
+  {
+   "from": "worker",
+   "to": "do"
+  },
+  {
+   "from": "wr",
+   "to": "worker"
+  },
+  {
+   "from": "pre",
+   "to": "unit"
+  },
+  {
+   "from": "pre",
+   "to": "browser"
+  },
+  {
+   "from": "unit",
+   "to": "fx"
+  },
+  {
+   "from": "browser",
+   "to": "app"
+  },
+  {
+   "from": "unit",
+   "to": "model"
+  },
+  {
+   "from": "ship",
+   "to": "pre",
+   "label": "runs first"
+  }
+ ]
+}

@@ -1,0 +1,113 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1475 1440" width="1475" height="1440">
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="10" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#1e1e1e" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1475" height="1440" fill="#ffffff" />
+  <rect x="235" y="772" width="260" height="156" rx="8" ry="8" fill="#a5d8ff" stroke="#1971c2" stroke-width="2" opacity="1" />
+  <rect x="785" y="1020" width="320" height="156" rx="8" ry="8" fill="#a5d8ff" stroke="#1971c2" stroke-width="2" opacity="1" />
+  <rect x="40" y="536" width="310" height="132" rx="8" ry="8" fill="#a5d8ff" stroke="#1971c2" stroke-width="2" opacity="1" />
+  <rect x="410" y="524" width="250" height="156" rx="8" ry="8" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="1" />
+  <rect x="415" y="1008" width="310" height="180" rx="8" ry="8" fill="#b2f2bb" stroke="#2f9e44" stroke-width="2" opacity="1" />
+  <rect x="420" y="1268" width="300" height="132" rx="8" ry="8" fill="#ffec99" stroke="#f08c00" stroke-width="2" opacity="1" />
+  <rect x="632.5" y="784" width="240" height="132" rx="8" ry="8" fill="#d0bfff" stroke="#7048e8" stroke-width="2" opacity="1" />
+  <rect x="1145" y="276" width="280" height="156" rx="8" ry="8" fill="#b2f2bb" stroke="#2f9e44" stroke-width="2" opacity="1" />
+  <rect x="1135" y="772" width="300" height="156" rx="8" ry="8" fill="#b2f2bb" stroke="#2f9e44" stroke-width="2" opacity="1" />
+  <rect x="720" y="512" width="230" height="180" rx="8" ry="8" fill="#b2f2bb" stroke="#2f9e44" stroke-width="2" opacity="1" />
+  <rect x="1165" y="1008" width="240" height="180" rx="8" ry="8" fill="#ffd8a8" stroke="#e8590c" stroke-width="2" opacity="1" />
+  <rect x="1145" y="40" width="280" height="156" rx="8" ry="8" fill="#ffec99" stroke="#f08c00" stroke-width="2" opacity="1" />
+  <polyline points="195,668 365,772" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="535,680 365,772" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="365,928 945,1020" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="365,928 570,1008" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="570,1188 570,1268" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="752.5,916 570,1008" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="1285,432 1285,772" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="1285,432 835,512" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="1285,928 1285,1008" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="835,692 365,772" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="1285,928 945,1020" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <polyline points="1285,196 1285,276" fill="none" stroke="#1e1e1e" stroke-width="2" marker-end="url(#arrowhead)" />
+  <text x="365" y="826" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#1971c2" text-anchor="middle">
+    <tspan x="365" dy="0">app.html (~12k lines,</tspan>
+    <tspan x="365" dy="20">vanilla IIFE)</tspan>
+    <tspan x="365" dy="20">Trips · Map · Calendar</tspan>
+    <tspan x="365" dy="20">sheets · tokens</tspan>
+  </text>
+  <text x="945" y="1074" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#1971c2" text-anchor="middle">
+    <tspan x="945" dy="0">scripts/trip-model.js</tspan>
+    <tspan x="945" dy="20">pure derivation of /idea</tspan>
+    <tspan x="945" dy="20">(inlined byte-identically in</tspan>
+    <tspan x="945" dy="20">app.html)</tspan>
+  </text>
+  <text x="195" y="588" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#1971c2" text-anchor="middle">
+    <tspan x="195" dy="0">index.html · pialax.html</tspan>
+    <tspan x="195" dy="20">pialax-mobile.html</tspan>
+    <tspan x="195" dy="20">fixed redirects to app.html</tspan>
+  </text>
+  <text x="535" y="578" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#7048e8" text-anchor="middle">
+    <tspan x="535" dy="0">short/</tspan>
+    <tspan x="535" dy="20">index.html · _headers</tspan>
+    <tspan x="535" dy="20">_redirects</tspan>
+    <tspan x="535" dy="20">(pialax.pages.dev)</tspan>
+  </text>
+  <text x="570" y="1064" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#2f9e44" text-anchor="middle">
+    <tspan x="570" dy="0">worker.js (~1.3k lines)</tspan>
+    <tspan x="570" dy="20">/idea</tspan>
+    <tspan x="570" dy="20">/idea/respond|booked|update</tspan>
+    <tspan x="570" dy="20">/search fares · /alerts</tspan>
+    <tspan x="570" dy="20">authGate · spendGate</tspan>
+  </text>
+  <text x="570" y="1320" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#f08c00" text-anchor="middle">
+    <tspan x="570" dy="0">IdeaRoom · SpendMeter</tspan>
+    <tspan x="570" dy="20">(Durable Object classes in</tspan>
+    <tspan x="570" dy="20">worker.js)</tspan>
+  </text>
+  <text x="752.5" y="836" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#7048e8" text-anchor="middle">
+    <tspan x="752.5" dy="0">wrangler.toml</tspan>
+    <tspan x="752.5" dy="20">IDEAS KV · IDEA_ROOM</tspan>
+    <tspan x="752.5" dy="20">SPEND_METER</tspan>
+  </text>
+  <text x="1285" y="330" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#2f9e44" text-anchor="middle">
+    <tspan x="1285" dy="0">scripts/preflight.sh</tspan>
+    <tspan x="1285" dy="20">(mandatory gate)</tspan>
+    <tspan x="1285" dy="20">SRI/map hashes · secrets</tspan>
+    <tspan x="1285" dy="20">syntax · all suites</tspan>
+  </text>
+  <text x="1285" y="826" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#2f9e44" text-anchor="middle">
+    <tspan x="1285" dy="0">Unit tests</tspan>
+    <tspan x="1285" dy="20">test-app · test-trip-model</tspan>
+    <tspan x="1285" dy="20">test-worker</tspan>
+    <tspan x="1285" dy="20">test-trust · test-gflinks</tspan>
+  </text>
+  <text x="835" y="568" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#2f9e44" text-anchor="middle">
+    <tspan x="835" dy="0">Browser suites (6)</tspan>
+    <tspan x="835" dy="20">cutover · migration</tspan>
+    <tspan x="835" dy="20">calendar</tspan>
+    <tspan x="835" dy="20">words (test-words)</tspan>
+    <tspan x="835" dy="20">viewport · map</tspan>
+  </text>
+  <text x="1285" y="1064" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#e8590c" text-anchor="middle">
+    <tspan x="1285" dy="0">scripts/fixtures/</tspan>
+    <tspan x="1285" dy="20">idea-*.json</tspan>
+    <tspan x="1285" dy="20">serp-flights.json</tspan>
+    <tspan x="1285" dy="20">census-159.json · v1</tspan>
+    <tspan x="1285" dy="20">contracts</tspan>
+  </text>
+  <text x="1285" y="94" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="16" fill="#f08c00" text-anchor="middle">
+    <tspan x="1285" dy="0">ship.sh · verify-live.sh</tspan>
+    <tspan x="1285" dy="20">verify-sri.sh</tspan>
+    <tspan x="1285" dy="20">messages/&lt;ticket&gt;.msg +</tspan>
+    <tspan x="1285" dy="20">.files</tspan>
+  </text>
+  <text x="655" y="979.25" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="14" fill="#1e1e1e" text-anchor="middle">
+    <tspan x="655" dy="0">inlines</tspan>
+  </text>
+  <text x="467.5" y="973.25" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="14" fill="#1e1e1e" text-anchor="middle">
+    <tspan x="467.5" dy="0">fetch</tspan>
+  </text>
+  <text x="1285" y="241.25" font-family="Virgil, Segoe UI Emoji, Helvetica, Arial, sans-serif" font-size="14" fill="#1e1e1e" text-anchor="middle">
+    <tspan x="1285" dy="0">runs first</tspan>
+  </text>
+</svg>
